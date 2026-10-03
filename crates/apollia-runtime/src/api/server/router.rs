@@ -111,6 +111,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_notifications::{
         create_channel, delete_channel, get_events, list_channels, set_events, update_channel,
     };
+    use crate::api::routes_permissions::permissions_router;
     use crate::api::routes_plan_cache::{clear_plan_cache, get_plan_cache_stats};
     use crate::api::routes_profile::profile_router;
     use crate::api::routes_resilience::resilience_router;
@@ -310,6 +311,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         // Native connector consent routes
         .merge(connections_router::<B>())
         .merge(profile_router::<B>())
+        .merge(permissions_router::<B>())
         .merge(connectors_router::<B>())
         .merge(imap_router::<B>())
         .merge(crate::api::routes_batches::batch_routes::<B>())

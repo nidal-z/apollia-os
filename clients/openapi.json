@@ -902,6 +902,68 @@
         }
       }
     },
+    "/api/v1/approvals/filesystem/{request_id}": {
+      "post": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`POST /api/v1/approvals/filesystem/{request_id}`: answers a request to\ntouch a file, which resumes the turn waiting on it.",
+        "operationId": "respond_filesystem_approval",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Id of the pending request",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FsHitlDecisionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The request is answered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedFilesystemApproval"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No pending request has this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/approvals/pending": {
       "get": {
         "tags": [
@@ -5618,6 +5680,207 @@
         }
       }
     },
+    "/api/v1/permissions/proposals": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/permissions/proposals`: the rules the onboarding agent\nproposed and the user has not answered yet.",
+        "operationId": "list_proposed_permission_rules",
+        "responses": {
+          "200": {
+            "description": "The proposals, empty when none is stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProposedRuleView"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A namespace database did not read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/permissions/proposals/{index}": {
+      "delete": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`DELETE /api/v1/permissions/proposals/{index}`: removes the proposal\nwithout storing a rule.",
+        "operationId": "dismiss_proposed_permission_rule",
+        "parameters": [
+          {
+            "name": "index",
+            "in": "path",
+            "description": "Cursor of the proposal",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The proposal is gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DismissedProposal"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No proposal at this cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The namespace database refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/permissions/proposals/{index}/apply": {
+      "post": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`POST /api/v1/permissions/proposals/{index}/apply`: stores the proposal as\na rule and removes it from the list.",
+        "operationId": "apply_proposed_permission_rule",
+        "parameters": [
+          {
+            "name": "index",
+            "in": "path",
+            "description": "Cursor of the proposal",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rule stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppliedProposal"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No proposal at this cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The proposal cannot be a rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A database refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/permissions/rules": {
+      "post": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`POST /api/v1/permissions/rules`: adds a prefix rule for every agent.",
+        "operationId": "add_permission_rule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddPermissionRuleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The rule stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddedPermissionRule"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty tool, unknown action, or a scope other than global",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/plan-cache/clear": {
       "post": {
         "tags": [
@@ -9063,6 +9326,36 @@
           }
         }
       },
+      "AddPermissionRuleBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/permissions/rules`.",
+        "required": [
+          "tool_name",
+          "action",
+          "scope"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "`allow` or `deny`."
+          },
+          "arg_prefix": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Argument prefix the rule matches; absent matches every call."
+          },
+          "scope": {
+            "type": "string",
+            "description": "`global`, the only scope this route writes."
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "Tool the rule targets."
+          }
+        }
+      },
       "AddedAccess": {
         "type": "object",
         "description": "An access the update grants that the installed version did not.",
@@ -9088,6 +9381,20 @@
           "sensitive": {
             "type": "boolean",
             "description": "Using it is sensitive."
+          }
+        }
+      },
+      "AddedPermissionRule": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/permissions/rules`.",
+        "required": [
+          "rule_id"
+        ],
+        "properties": {
+          "rule_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Id of the rule stored in `governance.db`."
           }
         }
       },
@@ -9358,6 +9665,20 @@
           "error": {
             "type": "string",
             "description": "Human-readable error description."
+          }
+        }
+      },
+      "AppliedProposal": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/permissions/proposals/{index}/apply`.",
+        "required": [
+          "rule_id"
+        ],
+        "properties": {
+          "rule_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Id of the rule stored in `governance.db`."
           }
         }
       },
@@ -10824,6 +11145,20 @@
           }
         }
       },
+      "DismissedProposal": {
+        "type": "object",
+        "description": "Answer of `DELETE /api/v1/permissions/proposals/{index}`.",
+        "required": [
+          "dismissed"
+        ],
+        "properties": {
+          "dismissed": {
+            "type": "integer",
+            "description": "The cursor of the proposal removed.",
+            "minimum": 0
+          }
+        }
+      },
       "EmbeddingModelsResponse": {
         "type": "object",
         "description": "The embeddings category of the registry, and the entry for this machine.",
@@ -10912,6 +11247,105 @@
             "minimum": 0
           }
         }
+      },
+      "FsHitlDecisionBody": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "The user approves this operation.",
+            "required": [
+              "decision"
+            ],
+            "properties": {
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "approve"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The user denies; the operation is cancelled and `reason`, when given,\nreaches the agent.",
+            "required": [
+              "decision"
+            ],
+            "properties": {
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "deny"
+                ]
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Free-text reason entered by the user."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The user approves and installs an \"always allow\" rule.",
+            "required": [
+              "op",
+              "level",
+              "decision"
+            ],
+            "properties": {
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "always_allow"
+                ]
+              },
+              "level": {
+                "type": "string",
+                "description": "Risk level (`medium`, `high`...)."
+              },
+              "op": {
+                "type": "string",
+                "description": "Filesystem operation (`write`, `delete`...)."
+              },
+              "scope": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Breadth of the rule; absent means this session only."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Legacy form of `always_allow` with the session scope.",
+            "required": [
+              "op",
+              "level",
+              "decision"
+            ],
+            "properties": {
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "always_allow_session"
+                ]
+              },
+              "level": {
+                "type": "string",
+                "description": "Risk level."
+              },
+              "op": {
+                "type": "string",
+                "description": "Filesystem operation."
+              }
+            }
+          }
+        ],
+        "description": "The user's answer to a request to touch a file, as the approval card sends\nit. The `decision` discriminant is snake_case; the breadth of an \"always\nallow\" is a separate `scope`, so earlier builds that sent only `op` and\n`level` keep working."
       },
       "HardwareResponse": {
         "type": "object",
@@ -12496,6 +12930,42 @@
           }
         }
       },
+      "ProposedRuleView": {
+        "type": "object",
+        "description": "One proposed permission rule, as the approval card draws it.",
+        "required": [
+          "index",
+          "tool_name",
+          "action",
+          "scope"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "`allow` or `deny`."
+          },
+          "arg_prefix": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Argument prefix the rule matches, when it has one."
+          },
+          "index": {
+            "type": "integer",
+            "description": "Position in the persisted list, the cursor for apply and dismiss.",
+            "minimum": 0
+          },
+          "scope": {
+            "type": "string",
+            "description": "`global` or `agent`."
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "Tool the rule targets."
+          }
+        }
+      },
       "PutMcpSecretBody": {
         "type": "object",
         "description": "Body of `PUT /api/v1/mcp/servers/:name/secrets/:key`.",
@@ -12791,6 +13261,19 @@
               "null"
             ],
             "format": "int64"
+          }
+        }
+      },
+      "ResolvedFilesystemApproval": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/approvals/filesystem/{request_id}`.",
+        "required": [
+          "request_id"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "description": "The request answered."
           }
         }
       },
@@ -15030,10 +15513,6 @@
     {
       "name": "webhooks",
       "description": "Inbound webhooks"
-    },
-    {
-      "name": "packages",
-      "description": "Package preview, installation, and trusted publisher keys"
     }
   ]
 }

@@ -1,346 +1,184 @@
 //! Tauri IPC commands for the onboarding permission proposals flow.
 //!
-//! Background: when the onboarding-agent finalises the user profile, it
-//! derives a list of permission rules from the answers and serialises them to
-//! the memory key `onboarding.proposed_rules`.
+//! When the onboarding agent finalises the user profile, it derives a list of
+//! permission rules from the answers. The onboarding modal renders one
+//! approval card per proposal; on the user's click the proposal is applied
+//! (stored as a rule) or dismissed. No native tool writes a permission rule:
+//! an agent proposes, the user decides.
 //!
-//! The desktop reads that key and renders one approval card per proposal in
-//! the onboarding modal. On approval, this module persists the rule directly
-//! through `PrefixRuleEngine::add_rule`, on the user's explicit click. No
-//! native tool writes a permission rule: an agent proposes, the user decides.
+//! The logic lives in [`apollia_runtime::permission_rules`] and serves both
+//! modes: embedded, these commands call it in this process; attached, the
+//! daemon's `/api/v1/permissions/proposals` routes run it.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use apollia_memory::semantic::{RememberInput, SemanticMemory};
-use apollia_memory::store::MemoryStore;
-use apollia_permissions::prefix_rule_engine::{
-    PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction,
-};
-use apollia_tools::governance_db::{GovernanceDb, GOVERNANCE_DB_FILENAME};
-use serde::{Deserialize, Serialize};
+use apollia_runtime::api::routes_permissions::{AppliedProposal, DismissedProposal};
+use apollia_runtime::permission_rules::{self, ProposedRuleView};
+use tauri::State;
 
-/// Author tag for rules created via the onboarding approval flow.
-const CREATOR: &str = "onboarding-agent";
+use crate::attached::{AttachedClient, RuntimeLink};
 
-/// Memory key under which the agent serialises the JSON proposals list.
-const PROPOSED_RULES_KEY: &str = "onboarding.proposed_rules";
+/// The proposals, as the daemon serves them.
+const PROPOSALS_PATH: &str = "/api/v1/permissions/proposals";
 
-/// Candidate (db_filename, namespace) pairs to look in. Mirrors
-/// `check_onboarding_finalized` to support both the modern and legacy agent
-/// manifest namespaces.
-const NAMESPACE_CANDIDATES: [(&str, &str); 2] = [
-    ("onboarding.db", "onboarding"),
-    ("onboarding-agent.db", "onboarding-agent"),
-];
-
-/// Minimal projection of one proposed permission rule for the frontend.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProposedRuleView {
-    /// Position in the persisted JSON list, used as the cursor for apply/dismiss.
-    pub index: usize,
-    pub tool_name: String,
-    pub action: String,
-    pub arg_prefix: Option<String>,
-    pub scope: String,
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tauri commands
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Reads the persisted proposal list from the agent's semantic memory.
-///
-/// Returns an empty list when the key is absent or empty. Errors only on
-/// catastrophic disk / parse failures; a missing namespace is normal pre-finalize.
+/// Reads the proposals the onboarding agent stored, empty when none is.
 #[tauri::command]
-pub async fn list_proposed_permission_rules() -> Result<Vec<ProposedRuleView>, String> {
-    let memory_dir = memory_dir();
-    if !memory_dir.exists() {
-        return Ok(Vec::new());
+pub async fn list_proposed_permission_rules(
+    link: State<'_, RuntimeLink>,
+) -> Result<Vec<ProposedRuleView>, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(_) => {
+            // A missing home reads as no proposal rather than an error.
+            let home = apollia_core::paths::home_dir_or_temp()
+                .display()
+                .to_string();
+            permission_rules::list_proposals(apollia_core::paths::data_dir_under(home))
+                .await
+                .map_err(|e| e.to_string())
+        }
+        RuntimeLink::Attached(remote) => list_attached(remote).await,
     }
-    tokio::task::spawn_blocking(move || -> Result<Vec<ProposedRuleView>, String> {
-        let raw = read_proposed_rules_raw(&memory_dir)?.unwrap_or_default();
-        Ok(parse_proposals(&raw))
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))?
 }
 
-/// Applies the proposal at `index`: persists it in `governance.db` with
-/// `created_by="onboarding-agent"`, then removes it from the proposal list.
-///
-/// Returns the new rule's `id`.
+/// Applies the proposal at `index`: stores it as a rule created by the
+/// onboarding agent, then removes it from the list. Returns the rule's id.
 #[tauri::command]
-pub async fn apply_proposed_permission_rule(index: usize) -> Result<i64, String> {
-    let memory_dir = memory_dir();
-    let governance_dir = governance_dir()?;
-
-    tokio::task::spawn_blocking(move || -> Result<i64, String> {
-        // 1. Load + remove the chosen proposal.
-        let raw = read_proposed_rules_raw(&memory_dir)?
-            .ok_or_else(|| "no proposed rules in memory".to_string())?;
-        let mut proposals = parse_proposals_raw(&raw)?;
-        if index >= proposals.len() {
-            return Err(format!(
-                "proposal index {} out of range (len={})",
-                index,
-                proposals.len()
-            ));
-        }
-        let chosen = proposals.remove(index);
-
-        // 2. Persist as a real rule in governance.db.
-        let rule_id = persist_chosen_rule(&governance_dir, &chosen)?;
-
-        // 3. Re-write the truncated list (or remove the key when empty).
-        write_proposed_rules(&memory_dir, &proposals)?;
-        Ok(rule_id)
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))?
+pub async fn apply_proposed_permission_rule(
+    link: State<'_, RuntimeLink>,
+    index: usize,
+) -> Result<i64, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(_) => permission_rules::apply_proposal(data_dir()?, index)
+            .await
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => apply_attached(remote, index).await,
+    }
 }
 
-/// Removes the proposal at `index` from memory without persisting any rule.
+/// Removes the proposal at `index` without storing any rule.
 #[tauri::command]
-pub async fn dismiss_proposed_permission_rule(index: usize) -> Result<(), String> {
-    let memory_dir = memory_dir();
-    tokio::task::spawn_blocking(move || -> Result<(), String> {
-        let raw = read_proposed_rules_raw(&memory_dir)?
-            .ok_or_else(|| "no proposed rules in memory".to_string())?;
-        let mut proposals = parse_proposals_raw(&raw)?;
-        if index >= proposals.len() {
-            return Err(format!(
-                "proposal index {} out of range (len={})",
-                index,
-                proposals.len()
-            ));
-        }
-        proposals.remove(index);
-        write_proposed_rules(&memory_dir, &proposals)?;
-        Ok(())
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))?
+pub async fn dismiss_proposed_permission_rule(
+    link: State<'_, RuntimeLink>,
+    index: usize,
+) -> Result<(), String> {
+    match link.inner() {
+        RuntimeLink::Embedded(_) => permission_rules::dismiss_proposal(data_dir()?, index)
+            .await
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => dismiss_attached(remote, index).await,
+    }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-fn memory_dir() -> PathBuf {
-    let home = apollia_core::paths::home_dir_or_temp()
-        .display()
-        .to_string();
-    apollia_core::paths::data_dir_under(home).join("memory")
-}
-
-fn governance_dir() -> Result<PathBuf, String> {
+fn data_dir() -> Result<PathBuf, String> {
     let home = apollia_core::paths::home_string_or_err()?;
     Ok(apollia_core::paths::data_dir_under(home))
 }
 
-/// Returns the JSON string stored at `onboarding.proposed_rules`, scanning
-/// both candidate namespaces. `None` when no entry was found.
-fn read_proposed_rules_raw(memory_dir: &Path) -> Result<Option<String>, String> {
-    for (filename, namespace) in NAMESPACE_CANDIDATES {
-        let db_path = memory_dir.join(filename);
-        if !db_path.exists() {
-            continue;
-        }
-        let store = MemoryStore::open(&db_path)
-            .map_err(|e| format!("failed to open {}: {e}", db_path.display()))?;
-        let sem = SemanticMemory::new(&store);
-        let entries = sem
-            .recall_all(namespace, None)
-            .map_err(|e| format!("recall_all failed: {e}"))?;
-        if let Some(entry) = entries.iter().find(|e| e.key == PROPOSED_RULES_KEY) {
-            // Stored as a JSON string-of-list (the agent does json.dumps(proposals)).
-            let raw = entry
-                .value
-                .as_str()
-                .map(|s| s.to_owned())
-                .unwrap_or_else(|| entry.value.to_string());
-            return Ok(Some(raw));
-        }
-    }
-    Ok(None)
+async fn list_attached(remote: &AttachedClient) -> Result<Vec<ProposedRuleView>, String> {
+    Ok(remote.get(PROPOSALS_PATH).await?)
 }
 
-/// Re-writes (or deletes) the proposals list in the first existing namespace.
-fn write_proposed_rules(memory_dir: &Path, proposals: &[serde_json::Value]) -> Result<(), String> {
-    for (filename, namespace) in NAMESPACE_CANDIDATES {
-        let db_path = memory_dir.join(filename);
-        if !db_path.exists() {
-            continue;
-        }
-        let store = MemoryStore::open(&db_path)
-            .map_err(|e| format!("failed to open {}: {e}", db_path.display()))?;
-        let sem = SemanticMemory::new(&store);
-        if proposals.is_empty() {
-            // Drop the entry entirely when there is nothing left to approve.
-            let _ = sem.forget(namespace, PROPOSED_RULES_KEY);
-        } else {
-            let serialised = serde_json::to_string(proposals)
-                .map_err(|e| format!("failed to re-serialise proposals: {e}"))?;
-            sem.remember(RememberInput {
-                namespace,
-                key: PROPOSED_RULES_KEY,
-                value: &serde_json::Value::String(serialised),
-                confidence: 0.9,
-                source: Some(CREATOR),
-                expires_at: None,
-            })
-            .map_err(|e| format!("failed to persist truncated list: {e}"))?;
-        }
-        return Ok(());
-    }
-    Err("no onboarding namespace database found".to_string())
+async fn apply_attached(remote: &AttachedClient, index: usize) -> Result<i64, String> {
+    let path = format!("{PROPOSALS_PATH}/{index}/apply");
+    let applied: AppliedProposal = remote.post(&path, &()).await?;
+    Ok(applied.rule_id)
 }
 
-/// Parses + projects the raw JSON list into [`ProposedRuleView`] items
-/// indexed by their position. Tolerant: invalid items are silently skipped.
-fn parse_proposals(raw: &str) -> Vec<ProposedRuleView> {
-    parse_proposals_raw(raw)
-        .unwrap_or_default()
-        .into_iter()
-        .enumerate()
-        .filter_map(|(i, p)| {
-            let obj = p.as_object()?;
-            Some(ProposedRuleView {
-                index: i,
-                tool_name: obj.get("tool_name")?.as_str()?.to_owned(),
-                action: obj.get("action")?.as_str()?.to_owned(),
-                arg_prefix: obj
-                    .get("arg_prefix")
-                    .and_then(|v| v.as_str())
-                    .map(str::to_owned),
-                scope: obj
-                    .get("scope")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("global")
-                    .to_owned(),
-            })
-        })
-        .collect()
-}
-
-/// Parses the raw JSON into a list of `Value`s, used both for projection and
-/// for write-back (we re-serialise the list minus the chosen item).
-fn parse_proposals_raw(raw: &str) -> Result<Vec<serde_json::Value>, String> {
-    let value: serde_json::Value =
-        serde_json::from_str(raw).map_err(|e| format!("invalid proposals JSON: {e}"))?;
-    match value {
-        serde_json::Value::Array(items) => Ok(items),
-        _ => Err("proposed_rules is not a JSON array".to_string()),
-    }
-}
-
-/// Persists one proposal as a real rule in `governance.db`, stamped with
-/// `created_by_agent="onboarding-agent"`. Bypasses the tool dispatcher.
-fn persist_chosen_rule(base_dir: &Path, proposal: &serde_json::Value) -> Result<i64, String> {
-    let obj = proposal
-        .as_object()
-        .ok_or_else(|| "proposal is not a JSON object".to_string())?;
-    let tool_name = obj
-        .get("tool_name")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "missing tool_name".to_string())?
-        .to_owned();
-    // The rule store accepts any tool name, and a name absent from the
-    // registry can never match an invocation: the rule would be displayed as
-    // effective while being dead. Persist anyway (the registry is not the
-    // only historical source of names) but leave a trace.
-    if !apollia_tools::NATIVE_TOOL_NAMES.contains(&tool_name.as_str()) {
-        tracing::warn!(
-            tool = %tool_name,
-            "permissions.proposal_unknown_tool"
-        );
-    }
-    let action_str = obj
-        .get("action")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "missing action".to_string())?;
-    let action = match action_str {
-        "allow" => RuleAction::Allow,
-        "deny" => RuleAction::Deny,
-        other => return Err(format!("unknown action: {other}")),
-    };
-    let arg_prefix = obj
-        .get("arg_prefix")
-        .and_then(|v| v.as_str())
-        .map(str::to_owned);
-    let scope_str = obj
-        .get("scope")
-        .and_then(|v| v.as_str())
-        .unwrap_or("global");
-    let scope = match scope_str {
-        "global" => PermissionScope::Global,
-        "agent" => PermissionScope::Agent,
-        // A rule targets one agent or every agent, never a project or a session.
-        other => return Err(format!("scope '{other}' not persistable")),
-    };
-
-    // Ensure schema is migrated, then open the engine.
-    let _migrate = GovernanceDb::open(base_dir)
-        .map_err(|e| format!("failed to open governance database: {e}"))?;
-    let db_path = base_dir.join(GOVERNANCE_DB_FILENAME);
-    let mut engine = PrefixRuleEngine::new(&db_path)
-        .map_err(|e| format!("failed to open prefix rule engine: {e}"))?;
-
-    let rule = PrefixRule {
-        tool_name,
-        arg_prefix,
-        action,
-        created_at: chrono::Utc::now().timestamp(),
-        scope,
-        agent_id: None,
-        created_by_agent: Some(CREATOR.to_owned()),
-        ..PrefixRule::default()
-    };
-    engine
-        .add_rule(&rule)
-        .map_err(|e| format!("failed to persist prefix rule: {e}"))
+async fn dismiss_attached(remote: &AttachedClient, index: usize) -> Result<(), String> {
+    let _: DismissedProposal = remote.delete(&format!("{PROPOSALS_PATH}/{index}")).await?;
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
     use super::*;
 
-    #[test]
-    fn parse_proposals_extracts_fields() {
-        // GIVEN two proposals as the agent emits them, one with a prefix and one without
-        let raw = r#"[
-          {"tool_name":"http_fetch","action":"deny","arg_prefix":"https://","scope":"global"},
-          {"tool_name":"file_read","action":"allow","scope":"global"}
-        ]"#;
-        // WHEN they are parsed for the front end
-        let views = parse_proposals(raw);
-        // THEN each keeps its index, its tool, its action, and its prefix or nothing
-        assert_eq!(views.len(), 2);
-        assert_eq!(views[0].index, 0);
-        assert_eq!(views[0].tool_name, "http_fetch");
-        assert_eq!(views[0].action, "deny");
-        assert_eq!(views[0].arg_prefix.as_deref(), Some("https://"));
-        assert_eq!(views[1].index, 1);
-        assert_eq!(views[1].arg_prefix, None);
+    const TOKEN: &str = "token-of-this-installation";
+
+    fn bearer() -> String {
+        format!("Bearer {TOKEN}")
     }
 
-    #[test]
-    fn parse_proposals_tolerates_invalid_items() {
-        // GIVEN a list mixing one valid proposal with a string and a number
-        let raw = r#"[{"tool_name":"ok","action":"allow"}, "garbage", 42]"#;
-        // WHEN it is parsed
-        let views = parse_proposals(raw);
-        // THEN the valid one survives and the rest is dropped rather than losing the whole list
-        assert_eq!(views.len(), 1);
-        assert_eq!(views[0].tool_name, "ok");
+    #[tokio::test]
+    async fn test_attached_the_proposals_are_read_from_the_daemon_with_the_token() {
+        // GIVEN a daemon holding one proposal, answering only the token
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/permissions/proposals"))
+            .and(header("authorization", bearer().as_str()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([
+                {"index": 0, "tool_name": "file_read", "action": "allow",
+                 "arg_prefix": null, "scope": "global"}
+            ])))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+
+        // WHEN the attached arm lists the proposals
+        let proposals = list_attached(&client).await.unwrap();
+
+        // THEN the daemon's proposal reads as the card draws it
+        assert_eq!(proposals.len(), 1);
+        assert_eq!(proposals[0].tool_name, "file_read");
     }
 
-    #[test]
-    fn parse_proposals_empty_on_garbage() {
-        // GIVEN a payload that is not JSON at all
-        // WHEN it is parsed
-        // THEN the list is empty rather than a panic in a Tauri command
-        assert!(parse_proposals("not json").is_empty());
+    #[tokio::test]
+    async fn test_attached_a_proposal_is_applied_then_another_dismissed_on_the_daemon() {
+        // GIVEN a daemon accepting the application of the proposal at 2 and
+        // the dismissal of the one at 0
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/permissions/proposals/2/apply"))
+            .and(header("authorization", bearer().as_str()))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"rule_id": 41})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/permissions/proposals/0"))
+            .and(header("authorization", bearer().as_str()))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"dismissed": 0})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+
+        // WHEN the attached arm applies one and dismisses the other
+        let rule_id = apply_attached(&client, 2).await.unwrap();
+        dismiss_attached(&client, 0).await.unwrap();
+
+        // THEN the rule id is the daemon's, and both calls reached it once
+        assert_eq!(rule_id, 41);
+    }
+
+    #[tokio::test]
+    async fn test_attached_a_refusal_of_the_daemon_shows_its_own_message() {
+        // GIVEN a daemon with a single proposal, refusing the cursor 3
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/permissions/proposals/3/apply"))
+            .respond_with(ResponseTemplate::new(404).set_body_json(
+                serde_json::json!({"error": "proposal index 3 out of range (len=1)"}),
+            ))
+            .mount(&server)
+            .await;
+        let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+
+        // WHEN the attached arm applies it
+        let error = apply_attached(&client, 3).await.unwrap_err();
+
+        // THEN the interface shows the daemon's words
+        assert!(
+            error.contains("proposal index 3 out of range (len=1)"),
+            "{error}"
+        );
     }
 }

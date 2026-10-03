@@ -36,6 +36,7 @@ pub mod on_demand;
 pub mod package_tools;
 pub mod packages;
 pub mod perf_trace;
+pub mod permission_rules;
 pub mod plan_approval;
 pub mod profile;
 pub mod projects;

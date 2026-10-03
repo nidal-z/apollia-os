@@ -15,6 +15,10 @@ pub struct ChatSessionManagerHandle {
     /// Shared lifecycle hook executor, exposed so the API can list the active
     /// handlers. `None` when no hooks are configured.
     pub(in crate::chat::manager) hook_executor: Option<Arc<HookExecutor>>,
+    /// The filesystem requests the actor waits on, the same store it
+    /// resolves. Read by the route tests to stand in for a tool call.
+    #[cfg(test)]
+    pub(in crate::chat::manager) pending_fs_approvals: PendingFilesystemApprovals,
 }
 
 impl ChatSessionManagerHandle {
@@ -35,6 +39,13 @@ impl ChatSessionManagerHandle {
             .as_ref()
             .map(|exec| exec.registry().list_all())
             .unwrap_or_default()
+    }
+
+    /// The filesystem requests the actor waits on, for a test that plays the
+    /// tool asking for one.
+    #[cfg(test)]
+    pub(crate) fn pending_fs_approvals(&self) -> PendingFilesystemApprovals {
+        self.pending_fs_approvals.clone()
     }
 }
 
@@ -103,6 +114,8 @@ impl ChatSessionManagerHandle {
 
         let pending_chat_approvals = PendingChatApprovals::new();
         let pending_fs_approvals = PendingFilesystemApprovals::new();
+        #[cfg(test)]
+        let test_pending_fs = pending_fs_approvals.clone();
         let pending_user_inputs = apollia_tools::tools::ask_user::PendingUserInputs::new();
 
         let enrichment_extractor = match (&llm_router, &user_memory) {
@@ -197,6 +210,8 @@ impl ChatSessionManagerHandle {
             tx,
             pending_user_inputs,
             hook_executor: hook_executor_for_handle,
+            #[cfg(test)]
+            pending_fs_approvals: test_pending_fs,
         })
     }
 

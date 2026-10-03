@@ -126,6 +126,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "start_variant_download",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
+    // Permissions: the rules the onboarding agent proposed, a rule written
+    // from an approval card, and the answer to a request to touch a file.
+    "add_permission_prefix_rule",
+    "apply_proposed_permission_rule",
+    "dismiss_proposed_permission_rule",
+    "list_proposed_permission_rules",
+    "respond_hitl_filesystem",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no

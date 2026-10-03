@@ -24,6 +24,7 @@ pub mod routes_messages;
 pub mod routes_model_hub;
 pub mod routes_notifications;
 pub mod routes_packages;
+pub mod routes_permissions;
 pub mod routes_plan_cache;
 pub mod routes_profile;
 pub mod routes_resilience;

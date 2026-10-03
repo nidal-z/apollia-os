@@ -512,6 +512,32 @@ fn test_a_window_command_runs_attached_and_carries_its_reason() {
     assert!(gate(LinkMode::Attached, "quit_app").is_ok());
 }
 
+// ── Permissions ──────────────────────────────────────────────────────────
+
+#[test]
+fn test_the_proposed_rules_and_the_file_answers_pass_the_gate_attached() {
+    // GIVEN the commands of the proposed rules and of the file requests
+    let commands = [
+        "list_proposed_permission_rules",
+        "apply_proposed_permission_rule",
+        "dismiss_proposed_permission_rule",
+        "add_permission_prefix_rule",
+        "respond_hitl_filesystem",
+    ];
+
+    // WHEN each is gated while attached
+    let refused: Vec<&str> = commands
+        .into_iter()
+        .filter(|command| gate(LinkMode::Attached, command).is_err())
+        .collect();
+
+    // THEN none is refused, and none is a window exception
+    assert!(refused.is_empty(), "refused: {refused:?}");
+    assert!(WINDOW_COMMANDS
+        .iter()
+        .all(|(name, _)| !commands.contains(name)));
+}
+
 // ── The profile ──────────────────────────────────────────────────────────
 
 #[tokio::test]
