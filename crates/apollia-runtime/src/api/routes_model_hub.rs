@@ -5,12 +5,13 @@
 //! - `GET /api/v1/llm/registry/model/:org/:repo`, model metadata + file list
 //! - `GET /api/v1/llm/recommend`                 , models ranked for this machine
 //! - `GET /api/v1/llm/recommendations`           , the recommendation outcome the desktop shows
-//! - `GET /api/v1/llm/models/installed`          , the models installed on this machine
 //! - `GET /api/v1/llm/embeddings`                , embeddings models, and the one for this machine
 //! - `GET /api/v1/llm/dictation`                 , dictation models, whether each fits, and the one for this machine
 //! - `GET /api/v1/llm/registry/cards`            , the signed model cards, when the catalogue opens
 //! - `GET /api/v1/llm/registry/card`             , one model card, from the kept copy
 //! - `GET /api/v1/llm/registry/readme`           , the README of a repository, as text
+//! - `GET /api/v1/llm/installed-models`          , the models installed on this machine
+//! - `DELETE /api/v1/llm/installed-models`       , removes an installed model, unless in use
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -28,6 +29,7 @@ use crate::coordinator::ExecutionBackend;
 pub mod cards;
 pub mod dictation;
 pub mod embeddings;
+pub mod installed;
 
 // ─────────────────────────────────────────────
 // Response types
@@ -403,32 +405,6 @@ pub async fn get_recommendations<B: ExecutionBackend + Clone>(
         .map_err(|e| internal_error(e.to_string()))
 }
 
-/// `GET /api/v1/llm/models/installed`
-///
-/// The models installed under the models folder, from the model index, each
-/// marked when an LLM backend or the dictation engine references it.
-#[utoipa::path(
-    get,
-    path = "/api/v1/llm/models/installed",
-    tag = "model_hub",
-    responses(
-        (status = 200, description = "The installed models, sorted by name"),
-        (status = 500, description = "The model index can be neither read nor built", body = crate::api::openapi::ApiErrorBody),
-    )
-)]
-pub async fn list_installed_models<B: ExecutionBackend + Clone>(
-    State(state): State<AppState<B>>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
-    let data_dir = state.data_dir.clone();
-    let models = tokio::task::spawn_blocking(move || crate::installed_models::list(&data_dir))
-        .await
-        .map_err(|e| internal_error(e.to_string()))?
-        .map_err(|e| internal_error(e.to_string()))?;
-    serde_json::to_value(models)
-        .map(Json)
-        .map_err(|e| internal_error(e.to_string()))
-}
-
 fn internal_error(error: String) -> (StatusCode, Json<ErrorResponse>) {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
@@ -453,8 +429,9 @@ pub fn model_hub_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             get(dictation::list_dictation_models::<B>),
         )
         .route(
-            "/api/v1/llm/models/installed",
-            get(list_installed_models::<B>),
+            "/api/v1/llm/installed-models",
+            get(installed::list_installed_models::<B>)
+                .delete(installed::delete_installed_model::<B>),
         );
 
     #[cfg(feature = "cloud")]

@@ -77,7 +77,7 @@ pub(crate) async fn model_on(
 pub(crate) async fn installed_on(link: &RuntimeLink) -> Result<serde_json::Value, String> {
     match link {
         RuntimeLink::Embedded(_) => super::local_installed_models().await,
-        RuntimeLink::Attached(remote) => Ok(remote.get("/api/v1/llm/models/installed").await?),
+        RuntimeLink::Attached(remote) => Ok(remote.get("/api/v1/llm/installed-models").await?),
     }
 }
 

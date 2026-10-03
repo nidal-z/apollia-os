@@ -24,7 +24,7 @@ async fn test_the_installed_models_are_listed_from_the_models_folder_of_the_daem
     std::fs::write(dir.path().join("models/vendor/deep.gguf"), b"GGUF").unwrap();
 
     // WHEN a client lists the installed models
-    let (status, body) = call(state_in(&dir), "GET", "/api/v1/llm/models/installed", None).await;
+    let (status, body) = call(state_in(&dir), "GET", "/api/v1/llm/installed-models", None).await;
 
     // THEN the model comes back as the Hub draws it, not in use
     assert_eq!(status, StatusCode::OK, "{body}");
@@ -42,7 +42,7 @@ async fn test_a_models_folder_that_cannot_be_read_is_refused_with_its_reason() {
     std::fs::write(dir.path().join("models"), b"not a folder").unwrap();
 
     // WHEN a client lists the installed models
-    let (status, body) = call(state_in(&dir), "GET", "/api/v1/llm/models/installed", None).await;
+    let (status, body) = call(state_in(&dir), "GET", "/api/v1/llm/installed-models", None).await;
 
     // THEN the daemon refuses with 500 and says the index could not be read
     assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR, "{body}");

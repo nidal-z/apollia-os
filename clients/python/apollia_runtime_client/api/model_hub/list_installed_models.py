@@ -13,7 +13,7 @@ def _get_kwargs() -> dict[str, Any]:
 
     _kwargs: dict[str, Any] = {
         "method": "get",
-        "url": "/api/v1/llm/models/installed",
+        "url": "/api/v1/llm/installed-models",
     }
 
     return _kwargs
@@ -52,10 +52,10 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[Any | ApiErrorBody]:
-    """`GET /api/v1/llm/models/installed`
+    """`GET /api/v1/llm/installed-models`
 
-     The models installed under the models folder, from the model index, each
-    marked when an LLM backend or the dictation engine references it.
+     The installed models, from the model index, each marked when an LLM
+    backend or the dictation engine references it.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -78,10 +78,10 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> Any | ApiErrorBody | None:
-    """`GET /api/v1/llm/models/installed`
+    """`GET /api/v1/llm/installed-models`
 
-     The models installed under the models folder, from the model index, each
-    marked when an LLM backend or the dictation engine references it.
+     The installed models, from the model index, each marked when an LLM
+    backend or the dictation engine references it.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -100,10 +100,10 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[Any | ApiErrorBody]:
-    """`GET /api/v1/llm/models/installed`
+    """`GET /api/v1/llm/installed-models`
 
-     The models installed under the models folder, from the model index, each
-    marked when an LLM backend or the dictation engine references it.
+     The installed models, from the model index, each marked when an LLM
+    backend or the dictation engine references it.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -124,10 +124,10 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> Any | ApiErrorBody | None:
-    """`GET /api/v1/llm/models/installed`
+    """`GET /api/v1/llm/installed-models`
 
-     The models installed under the models folder, from the model index, each
-    marked when an LLM backend or the dictation engine references it.
+     The installed models, from the model index, each marked when an LLM
+    backend or the dictation engine references it.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

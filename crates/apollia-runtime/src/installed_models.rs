@@ -1,26 +1,46 @@
-//! The models installed on this machine, as the model index holds them.
+//! The models installed under `<data_dir>/models/`, as the model index holds
+//! them: where the index is kept, the list the Hub shows, which configuration
+//! uses each model, and the guarded removal of one of them.
 //!
-//! The index itself lives in `apollia_llm::model_index`; this module decides
-//! where it is kept (beside the models, in `<data dir>/models/`), reads it
-//! for the list the Hub shows, and says which model a configuration still
-//! references. The desktop in embedded mode and the daemon's
-//! `GET /api/v1/llm/models/installed` call the same functions, so both modes
-//! list the same models.
+//! The index itself lives in `apollia_llm::model_index`. The desktop running
+//! the runtime in its own process calls these functions, and any client of the
+//! daemon reaches them through `GET` and `DELETE /api/v1/llm/installed-models`
+//! (`crate::api::routes_model_hub::installed`). Both modes therefore list the
+//! same models and refuse the same paths with the same words.
 
 use std::path::{Path, PathBuf};
 
-use apollia_core::LlmBackendRepository;
+use apollia_core::paths::DataFile;
+use apollia_core::{LlmBackendRepository, SttConfigRepository};
 use apollia_llm::model_index::INDEX_FILE_NAME;
 use apollia_llm::{IndexedModel, ModelCategory, ModelFormat, ModelIndex, ModelIndexError};
 use serde::Serialize;
 
-/// Why the installed models could not be listed.
+/// Why the installed models could not be listed, or one of them removed.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
-pub enum InstalledModelsError {
+pub enum InstalledModelError {
     /// The index could neither be read nor rebuilt from the disk.
     #[error("failed to read the model index: {0}")]
     Index(#[from] ModelIndexError),
+    /// The path names no file.
+    #[error("model file not found: {0}")]
+    NotFound(#[source] std::io::Error),
+    /// The models directory does not exist.
+    #[error("models directory not found: {0}")]
+    NoModelsDir(#[source] std::io::Error),
+    /// The path resolves outside the models directory.
+    #[error("refusing to delete a file outside the models directory")]
+    OutsideModelsDir,
+    /// An LLM backend or the dictation engine still uses the file.
+    #[error("model is in use by {owner}; change or remove that configuration first")]
+    InUse {
+        /// The configuration that references it.
+        owner: String,
+    },
+    /// The file could not be removed.
+    #[error("failed to delete model file: {0}")]
+    Delete(#[source] std::io::Error),
 }
 
 /// Classification of an installed model, from the category its header declares.
@@ -69,12 +89,12 @@ pub struct InstalledModelView {
 }
 
 /// A model file referenced by the active configuration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModelRef {
     /// Basename of the referenced file, used for a conservative match.
-    name: String,
+    pub name: String,
     /// Owner label surfaced to the operator.
-    label: String,
+    pub label: String,
 }
 
 /// The models folder of `data_dir`.
@@ -128,24 +148,18 @@ pub fn current(models_dir: &Path) -> Result<ModelIndex, ModelIndexError> {
     }
 }
 
-fn expand_tilde(raw: &str) -> PathBuf {
-    match raw.strip_prefix("~/") {
-        Some(rest) => apollia_core::paths::home_dir_or_temp().join(rest),
-        None => PathBuf::from(raw),
-    }
-}
-
-/// Every model file referenced by an LLM backend or the STT config of
-/// `data_dir`.
+/// Every model file referenced by an LLM backend or the dictation
+/// configuration of `data_dir/system.db`.
 ///
-/// Read-only over `system.db`. A backend whose `model` is a cloud model name
-/// (not a path) simply never matches a local `.gguf`, so it is harmless here.
+/// A backend whose `model` is a cloud model name (not a path) never matches a
+/// local file, so it is harmless here. An unreadable database yields no
+/// reference rather than an error, as the listing always did.
 pub fn in_use_refs(data_dir: &Path) -> Vec<ModelRef> {
     let mut refs = Vec::new();
-    let db_path = apollia_core::paths::DataFile::System.path(data_dir);
+    let db_path = DataFile::System.path(data_dir);
 
     let mut push = |raw: &str, label: String| {
-        if let Some(name) = expand_tilde(raw).file_name() {
+        if let Some(name) = Path::new(raw).file_name() {
             refs.push(ModelRef {
                 name: name.to_string_lossy().to_string(),
                 label,
@@ -165,7 +179,7 @@ pub fn in_use_refs(data_dir: &Path) -> Vec<ModelRef> {
         }
     }
 
-    if let Ok(repo) = apollia_core::SttConfigRepository::open(&db_path) {
+    if let Ok(repo) = SttConfigRepository::open(&db_path) {
         if let Ok(row) = repo.get_or_default() {
             push(&row.model_path, "STT engine".to_string());
         }
@@ -188,9 +202,9 @@ pub fn used_by(file: &Path, refs: &[ModelRef]) -> Option<String> {
 ///
 /// # Errors
 ///
-/// [`InstalledModelsError::Index`] when the index can be neither read nor
+/// [`InstalledModelError::Index`] when the index can be neither read nor
 /// built.
-pub fn list(data_dir: &Path) -> Result<Vec<InstalledModelView>, InstalledModelsError> {
+pub fn list(data_dir: &Path) -> Result<Vec<InstalledModelView>, InstalledModelError> {
     list_in(&models_dir(data_dir), &in_use_refs(data_dir))
 }
 
@@ -198,12 +212,12 @@ pub fn list(data_dir: &Path) -> Result<Vec<InstalledModelView>, InstalledModelsE
 ///
 /// # Errors
 ///
-/// [`InstalledModelsError::Index`] when the index can be neither read nor
+/// [`InstalledModelError::Index`] when the index can be neither read nor
 /// built.
 pub fn list_in(
     dir: &Path,
     refs: &[ModelRef],
-) -> Result<Vec<InstalledModelView>, InstalledModelsError> {
+) -> Result<Vec<InstalledModelView>, InstalledModelError> {
     let index = current(dir)?;
     let mut out: Vec<InstalledModelView> = index
         .models
@@ -240,6 +254,54 @@ fn installed_view(model: &IndexedModel, refs: &[ModelRef]) -> InstalledModelView
         in_use: owner.is_some(),
         used_by: owner,
         capabilities: model.capabilities.clone(),
+    }
+}
+
+/// Removes the installed model at `path`, then its entry in the model index.
+///
+/// # Errors
+///
+/// Refuses a path that names no file, a path resolving outside
+/// `<data_dir>/models/` (traversal, a link pointing outside), and a file still
+/// referenced by an LLM backend or the dictation configuration.
+pub fn delete_installed(data_dir: &Path, path: &str) -> Result<(), InstalledModelError> {
+    let target = PathBuf::from(path);
+    let dir = models_dir(data_dir);
+
+    let canonical_target = target
+        .canonicalize()
+        .map_err(InstalledModelError::NotFound)?;
+    let canonical_dir = dir
+        .canonicalize()
+        .map_err(InstalledModelError::NoModelsDir)?;
+    if !canonical_target.starts_with(&canonical_dir) {
+        return Err(InstalledModelError::OutsideModelsDir);
+    }
+
+    if let Some(owner) = used_by(&canonical_target, &in_use_refs(data_dir)) {
+        return Err(InstalledModelError::InUse { owner });
+    }
+
+    std::fs::remove_file(&canonical_target).map_err(InstalledModelError::Delete)?;
+    forget(&dir, &[&target, &canonical_target]);
+    Ok(())
+}
+
+/// Drops the index entries of `paths`, the file just deleted under each of
+/// its spellings. A failure is logged: the next reconciliation repairs it.
+fn forget(dir: &Path, paths: &[&Path]) {
+    let index_path = index_path(dir);
+    let mut index = load_or_empty(dir);
+    for path in paths {
+        index.remove_path(path);
+    }
+    if let Err(e) = index.save(&index_path) {
+        tracing::event!(
+            tracing::Level::WARN,
+            path = %index_path.display(),
+            error = %e,
+            "model.index.forget.failed"
+        );
     }
 }
 

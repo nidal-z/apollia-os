@@ -138,6 +138,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_profile",
     "reset_user_profile",
     "set_profile_entry",
+    // The credentials of the native tools, over `/api/v1/tool-credentials`.
+    "governance_delete_credential",
+    "governance_list_credentials",
+    "governance_set_credential",
+    "governance_test_credential",
     // Memory, read side: the namespaces, their entries, the search, the
     // entries recalled during a turn, the statistics of a conversation.
     "get_conversation_stats",
@@ -166,6 +171,25 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "memory_export_namespace",
     "memory_import_namespace",
     "purge_memory",
+    // The onboarding, over `/api/v1/onboarding`: its state and phases, the
+    // profile chosen, the conversation with its agent and its completion.
+    "advance_onboarding_phase",
+    "check_onboarding_finalized",
+    "dismiss_onboarding",
+    "finalize_onboarding_chat",
+    "get_onboarding_state",
+    "resume_onboarding",
+    "set_onboarding_profile",
+    "trigger_onboarding",
+    // Resets and erasures, over `/api/v1/onboarding/*`, `/api/v1/memory/wipe`,
+    // `/api/v1/logs/clear` and `/api/v1/factory-reset`. The flag, the memory,
+    // the logs and the data directory they erase are the daemon's: the
+    // window's process writes none of them.
+    "clear_all_memories",
+    "clear_logs",
+    "factory_reset",
+    "mark_onboarded",
+    "reset_onboarding",
     // Permissions: the rules the onboarding agent proposed, a rule written
     // from an approval card, and the answer to a request to touch a file.
     "add_permission_prefix_rule",
@@ -210,6 +234,30 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_installed_models",
     "recommend_models",
     "search_hf_models",
+    // MCP: the secret of a server, and the public registry joined with the
+    // servers installed.
+    "delete_mcp_secret",
+    "fetch_mcp_registry",
+    "store_mcp_secret",
+    // Models: the removal of an installed model, refused while a backend or
+    // the dictation engine of the runtime uses it.
+    "delete_installed_model",
+    // LLM engines: the list, the test, the reload, the cost alert threshold.
+    // The last ping of each engine stays in this window's memory, which
+    // [`run`] manages in both modes.
+    "get_cost_alert_threshold",
+    "list_llm_backends",
+    "ping_llm_backend",
+    "reload_llm",
+    "reload_llm_from_db",
+    // Dictation: its settings, the reload of its engine, its status and its
+    // model files, over `/api/v1/stt/*`. The microphones stay those of this
+    // machine.
+    "get_stt_config",
+    "get_stt_status",
+    "list_stt_models",
+    "reload_stt",
+    "update_stt_config",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no
@@ -266,6 +314,18 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "shows a file in the file manager of this machine, the session folder read from the runtime",
     ),
     (
+        "start_model_download",
+        "downloads into the models folder of this machine with the download manager of this window, which also holds the variant downloads",
+    ),
+    (
+        "cancel_model_download",
+        "cancels a download held by the download manager of this window",
+    ),
+    (
+        "import_model_file",
+        "copies a file or folder of this machine, picked in this window, into its models folder",
+    ),
+    (
         "automation_script",
         "drives this window in a development build",
     ),
@@ -280,6 +340,22 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "automation_finish",
         "ends the run driving this window in a development build",
+    ),
+    (
+        "list_mcp_enrichments",
+        "reads the connector labels compiled into this application",
+    ),
+    (
+        "mcp_oauth_discover",
+        "reads the sign-in metadata an MCP server publishes, for the wizard this window shows",
+    ),
+    (
+        "mcp_oauth_resolve_client_id",
+        "resolves the client id of the sign-in this window runs, from its own environment and build",
+    ),
+    (
+        "mcp_oauth_login",
+        "opens the browser of this machine and awaits the sign-in on its loopback; the token goes to the secret store the daemon reads",
     ),
 ];
 
@@ -430,6 +506,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
                 as crate::commands::model_hub::SharedDownloadManager,
         )
         .manage(std::sync::Arc::new(apollia_llm::HfModelTypeCache::new()))
+        .manage(crate::commands::llm::LlmPingCache::default())
         .on_menu_event(|app, event| {
             if event.id().as_ref() == crate::tray::MENU_QUIT_APP {
                 crate::tray::initiate_quit(app);

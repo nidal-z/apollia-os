@@ -207,7 +207,7 @@ async fn test_a_repository_id_without_an_owner_is_refused_before_the_daemon() {
 async fn test_the_installed_models_are_read_from_the_daemon() {
     // GIVEN a daemon whose models folder holds one model
     let server = daemon_answering(
-        "/api/v1/llm/models/installed",
+        "/api/v1/llm/installed-models",
         200,
         serde_json::json!([{ "id": "deep", "name": "deep.gguf", "kind": "llm" }]),
     )
@@ -224,7 +224,7 @@ async fn test_the_installed_models_are_read_from_the_daemon() {
 async fn test_an_unreadable_index_of_the_daemon_is_shown_in_its_own_words() {
     // GIVEN a daemon that cannot read its model index
     let server = daemon_answering(
-        "/api/v1/llm/models/installed",
+        "/api/v1/llm/installed-models",
         500,
         refusal("failed to read the model index: permission denied"),
     )

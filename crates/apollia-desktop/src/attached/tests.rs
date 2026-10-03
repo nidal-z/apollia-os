@@ -853,3 +853,478 @@ fn test_the_export_and_the_reveal_run_attached_as_window_commands() {
         assert!(!ROUTED_COMMANDS.contains(&name));
     }
 }
+
+// ── MCP: secrets, registry, sign-in ──────────────────────────────────────
+
+#[tokio::test]
+async fn test_an_mcp_secret_is_put_and_removed_on_the_daemon_with_the_token() {
+    // GIVEN a daemon that stores and removes the secret of a server, only
+    // with the token of this installation, and answers both with no content
+    let server = MockServer::start().await;
+    let auth = format!("Bearer {TOKEN}");
+    Mock::given(method("PUT"))
+        .and(path("/api/v1/mcp/servers/notion/secrets/NOTION_API_KEY"))
+        .and(header("authorization", auth.as_str()))
+        .and(body_json(serde_json::json!({ "value": "secret-1" })))
+        .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path("/api/v1/mcp/servers/notion/secrets/NOTION_API_KEY"))
+        .and(header("authorization", auth.as_str()))
+        .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+
+    // WHEN the bodies of store_mcp_secret and delete_mcp_secret run attached
+    let stored =
+        crate::commands::mcp::put_mcp_secret(&link, "notion", "NOTION_API_KEY", "secret-1").await;
+    let removed = crate::commands::mcp::remove_mcp_secret(&link, "notion", "NOTION_API_KEY").await;
+
+    // THEN both reached the daemon and the empty answers read as success
+    assert_eq!(stored, Ok(()));
+    assert_eq!(removed, Ok(()));
+    assert!(gate(LinkMode::Attached, "store_mcp_secret").is_ok());
+    assert!(gate(LinkMode::Attached, "delete_mcp_secret").is_ok());
+}
+
+#[tokio::test]
+async fn test_an_mcp_secret_refused_by_the_daemon_shows_its_message() {
+    // GIVEN a daemon that refuses a server name it cannot store a secret for
+    let server = MockServer::start().await;
+    let refusal = "server name must be lowercase letters, digits, '_' or '-'";
+    Mock::given(method("PUT"))
+        .and(path("/api/v1/mcp/servers/Bad%20Name/secrets/KEY"))
+        .respond_with(
+            ResponseTemplate::new(400).set_body_json(serde_json::json!({ "error": refusal })),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+
+    // WHEN the body of store_mcp_secret runs attached with that name
+    let error = crate::commands::mcp::put_mcp_secret(&link, "Bad Name", "KEY", "v")
+        .await
+        .unwrap_err();
+
+    // THEN the name was encoded into one segment, and the interface reads
+    // the daemon's own words
+    assert_eq!(error, refusal);
+}
+
+#[tokio::test]
+async fn test_the_mcp_registry_is_read_from_the_daemon_with_the_search_and_the_token() {
+    // GIVEN a daemon whose registry route lists one server for a search
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/mcp/registry"))
+        .and(query_param("search", "base de notes"))
+        .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!([{
+                "server": {
+                    "name": "io.github.owner/notes", "title": "Notes",
+                    "description": "Read notes", "version": "1.0.0",
+                    "repository": null, "websiteUrl": null, "packages": null, "icons": null
+                },
+                "_meta": null
+            }])),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+
+    // WHEN the body of fetch_mcp_registry reads the registry attached
+    let servers =
+        crate::commands::mcp::discovery::fetch_registry_servers(&link, Some(" base de notes "))
+            .await
+            .unwrap();
+
+    // THEN the daemon's entry comes back in the registry's shape
+    assert_eq!(servers.len(), 1);
+    assert_eq!(servers[0].server.name, "io.github.owner/notes");
+    assert!(gate(LinkMode::Attached, "fetch_mcp_registry").is_ok());
+}
+
+#[tokio::test]
+async fn test_an_unreachable_registry_on_the_daemon_shows_its_message() {
+    // GIVEN a daemon whose registry is offline with no cache
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/mcp/registry"))
+        .respond_with(
+            ResponseTemplate::new(503)
+                .set_body_json(serde_json::json!({ "error": "registry offline" })),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+
+    // WHEN the registry is read attached, without a search
+    let error = crate::commands::mcp::discovery::fetch_registry_servers(&link, None)
+        .await
+        .unwrap_err();
+
+    // THEN the daemon's own words come back
+    assert_eq!(error, "registry offline");
+}
+
+#[tokio::test]
+async fn test_an_empty_answer_of_the_embedded_runtime_reads_as_null() {
+    // GIVEN a runtime listener answering a removal with no content
+    let server = MockServer::start().await;
+    Mock::given(method("DELETE"))
+        .and(path("/api/v1/mcp/servers/notion/secrets/KEY"))
+        .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let port = server.address().port();
+
+    // WHEN the embedded arm's helper sends the removal
+    let answer =
+        crate::commands::http_delete_json(port, "/api/v1/mcp/servers/notion/secrets/KEY").await;
+
+    // THEN the empty body is a success, not an unreadable answer
+    assert_eq!(answer, Ok(serde_json::Value::Null));
+}
+
+#[test]
+fn test_the_mcp_sign_in_commands_run_attached_as_window_commands() {
+    // GIVEN the commands the MCP wizard calls around the sign-in, which read
+    // no state of the runtime
+    let sign_in = [
+        "list_mcp_enrichments",
+        "mcp_oauth_discover",
+        "mcp_oauth_resolve_client_id",
+        "mcp_oauth_login",
+    ];
+
+    // WHEN each is gated while attached
+    // THEN none is refused, and each is a window command with its reason
+    for command in sign_in {
+        assert!(gate(LinkMode::Attached, command).is_ok(), "{command}");
+        assert!(
+            WINDOW_COMMANDS
+                .iter()
+                .any(|(name, reason)| *name == command && !reason.is_empty()),
+            "{command} is not a window command"
+        );
+    }
+}
+
+// ── The model hub: downloads, import, removal ───────────────────────────
+
+#[tokio::test]
+async fn test_an_installed_model_is_removed_on_the_daemon_with_the_token() {
+    // GIVEN a daemon that removes an installed model, answering only the
+    // token, and a path holding a space
+    let server = MockServer::start().await;
+    let file = "/Users/nadia/.apollia/models/Qwen 3 8B.gguf";
+    Mock::given(method("DELETE"))
+        .and(path("/api/v1/llm/installed-models"))
+        .and(query_param("path", file))
+        .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "deleted": file })),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+
+    // WHEN the command removes it through the seam
+    let outcome =
+        crate::commands::model_hub::delete_installed_through(&link, file.to_owned()).await;
+
+    // THEN the daemon received the removal of that exact path, and the
+    // command succeeds
+    assert_eq!(outcome, Ok(()));
+}
+
+#[tokio::test]
+async fn test_a_removal_the_daemon_refuses_shows_its_own_words() {
+    // GIVEN a daemon refusing the removal of a model a backend uses
+    let server = MockServer::start().await;
+    let words = "model is in use by LLM backend 'local'; change or remove that configuration first";
+    Mock::given(method("DELETE"))
+        .and(path("/api/v1/llm/installed-models"))
+        .respond_with(
+            ResponseTemplate::new(409).set_body_json(serde_json::json!({ "error": words })),
+        )
+        .mount(&server)
+        .await;
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+
+    // WHEN the command asks for the removal
+    let outcome = crate::commands::model_hub::delete_installed_through(
+        &link,
+        "/Users/nadia/.apollia/models/qwen3-8b.gguf".to_owned(),
+    )
+    .await;
+
+    // THEN the interface reads the daemon's words, not an unavailability
+    assert_eq!(outcome, Err(words.to_owned()));
+}
+
+#[test]
+fn test_the_downloads_the_import_and_the_removal_of_a_model_pass_the_gate_attached() {
+    // GIVEN the commands the model hub opens a download, a cancellation, an
+    // import and a removal with
+    let commands = [
+        "start_model_download",
+        "cancel_model_download",
+        "import_model_file",
+        "delete_installed_model",
+    ];
+
+    // WHEN each is gated while attached
+    let refused: Vec<&str> = commands
+        .into_iter()
+        .filter(|command| gate(LinkMode::Attached, command).is_err())
+        .collect();
+
+    // THEN none is refused: the removal reaches the daemon, the other three
+    // belong to this window and say why
+    assert!(refused.is_empty(), "refused: {refused:?}");
+    assert!(ROUTED_COMMANDS.contains(&"delete_installed_model"));
+    for name in [
+        "start_model_download",
+        "cancel_model_download",
+        "import_model_file",
+    ] {
+        let reason = WINDOW_COMMANDS
+            .iter()
+            .find(|(window, _)| *window == name)
+            .map(|(_, reason)| *reason);
+        assert!(
+            reason.is_some_and(|r| r.contains("this")),
+            "{name}: {reason:?}"
+        );
+    }
+}
+
+// ── The LLM engines ──────────────────────────────────────────────────────
+
+fn attached_link(server: &MockServer) -> RuntimeLink {
+    RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap())
+}
+
+fn bearer() -> String {
+    format!("Bearer {TOKEN}")
+}
+
+#[tokio::test]
+async fn test_the_daemon_engines_are_listed_with_the_last_ping_of_this_window() {
+    // GIVEN a daemon holding one engine, answering only the token, and a ping
+    // of that engine this window recorded earlier
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/llm/backends"))
+        .and(header("authorization", bearer().as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "backends": [{
+                "name": "local",
+                "provider": "llama-cpp",
+                "model": "qwen3.gguf",
+                "config_json": {},
+                "enabled": true,
+                "is_default": true,
+            }]
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let cache = crate::commands::llm::LlmPingCache::default();
+    cache.write().unwrap().insert(
+        "local".to_owned(),
+        crate::commands::llm::PingState {
+            last_error: Some("connection refused".to_owned()),
+            last_latency_ms: None,
+            last_ping_at: Some("2026-10-03T00:00:00Z".to_owned()),
+            last_available: false,
+        },
+    );
+
+    // WHEN the attached arm lists the engines
+    let views = crate::commands::llm::backends_with_pings(&attached_link(&server), &cache)
+        .await
+        .unwrap();
+
+    // THEN the daemon's engine comes back with the last ping projected on it
+    assert_eq!(views.len(), 1);
+    assert_eq!(views[0].name, "local");
+    assert_eq!(
+        views[0].last_ping_error.as_deref(),
+        Some("connection refused")
+    );
+    assert!(gate(LinkMode::Attached, "list_llm_backends").is_ok());
+}
+
+#[tokio::test]
+async fn test_an_engine_is_pinged_on_the_daemon_and_the_outcome_recorded() {
+    // GIVEN a daemon that reaches the engine it is asked about
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/llm/ping"))
+        .and(header("authorization", bearer().as_str()))
+        .and(body_json(serde_json::json!({ "backend": "local" })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "backend": "local",
+            "available": true,
+            "latency_ms": 42,
+            "error": null,
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let cache = crate::commands::llm::LlmPingCache::default();
+
+    // WHEN the attached arm tests the engine
+    let result =
+        crate::commands::llm::ping_and_record(&attached_link(&server), &cache, "local".to_owned())
+            .await;
+
+    // THEN the engine answered, and this window remembers it for the list
+    assert!(result.available);
+    assert_eq!(result.latency_ms, Some(42));
+    let recorded = cache.read().unwrap().get("local").cloned().unwrap();
+    assert!(recorded.last_available);
+    assert!(recorded.last_error.is_none());
+    assert!(gate(LinkMode::Attached, "ping_llm_backend").is_ok());
+}
+
+#[tokio::test]
+async fn test_a_ping_refused_by_the_daemon_is_a_failed_test_with_its_message() {
+    // GIVEN a daemon serving no router
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/llm/ping"))
+        .respond_with(
+            ResponseTemplate::new(503)
+                .set_body_json(serde_json::json!({ "error": "no LLM router configured" })),
+        )
+        .mount(&server)
+        .await;
+    let cache = crate::commands::llm::LlmPingCache::default();
+
+    // WHEN the attached arm tests an engine
+    let result =
+        crate::commands::llm::ping_and_record(&attached_link(&server), &cache, "local".to_owned())
+            .await;
+
+    // THEN the test failed with the daemon's own words, recorded as such
+    assert!(!result.available);
+    assert_eq!(result.error.as_deref(), Some("no LLM router configured"));
+    let recorded = cache.read().unwrap().get("local").cloned().unwrap();
+    assert_eq!(
+        recorded.last_error.as_deref(),
+        Some("no LLM router configured")
+    );
+}
+
+#[tokio::test]
+async fn test_the_cost_alert_threshold_is_read_from_the_daemon() {
+    // GIVEN a daemon whose router carries a threshold, and one that has none
+    let with = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/llm/cost-alert-threshold"))
+        .and(header("authorization", bearer().as_str()))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "threshold_usd": 0.5 })),
+        )
+        .expect(1)
+        .mount(&with)
+        .await;
+    let without = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/llm/cost-alert-threshold"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "threshold_usd": null })),
+        )
+        .mount(&without)
+        .await;
+
+    // WHEN the attached arm reads the threshold of each
+    let set = crate::commands::llm::cost_alert_threshold(&attached_link(&with)).await;
+    let unset = crate::commands::llm::cost_alert_threshold(&attached_link(&without)).await;
+
+    // THEN the first reads as its value and the second as none
+    assert_eq!(set, Ok(Some(0.5)));
+    assert_eq!(unset, Ok(None));
+    assert!(gate(LinkMode::Attached, "get_cost_alert_threshold").is_ok());
+}
+
+#[tokio::test]
+async fn test_the_engines_are_reloaded_by_the_daemon_with_the_token() {
+    // GIVEN a daemon that rebuilds its router on request
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/llm/reload"))
+        .and(header("authorization", bearer().as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "backends": [],
+            "default": "local",
+            "reaches_running_agents": true,
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    // WHEN the attached arm asks for the reload
+    let outcome = crate::commands::llm::reload_runtime_router(&attached_link(&server)).await;
+
+    // THEN the daemon did it, and both reload commands pass the gate
+    assert_eq!(outcome, Ok(()));
+    assert!(gate(LinkMode::Attached, "reload_llm").is_ok());
+    assert!(gate(LinkMode::Attached, "reload_llm_from_db").is_ok());
+}
+
+#[tokio::test]
+async fn test_a_list_threshold_or_reload_refused_by_the_daemon_shows_its_message() {
+    // GIVEN a daemon refusing each of the three routes with its own words
+    let server = MockServer::start().await;
+    for (verb, route, words) in [
+        (
+            "GET",
+            "/api/v1/llm/backends",
+            "backend repository unavailable",
+        ),
+        (
+            "GET",
+            "/api/v1/llm/cost-alert-threshold",
+            "threshold unreadable",
+        ),
+        (
+            "POST",
+            "/api/v1/llm/reload",
+            "rebuild failed: model file missing",
+        ),
+    ] {
+        Mock::given(method(verb))
+            .and(path(route))
+            .respond_with(
+                ResponseTemplate::new(503).set_body_json(serde_json::json!({ "error": words })),
+            )
+            .mount(&server)
+            .await;
+    }
+    let link = attached_link(&server);
+    let cache = crate::commands::llm::LlmPingCache::default();
+
+    // WHEN the attached arm lists, reads the threshold and reloads
+    let listed = crate::commands::llm::backends_with_pings(&link, &cache).await;
+    let threshold = crate::commands::llm::cost_alert_threshold(&link).await;
+    let reloaded = crate::commands::llm::reload_runtime_router(&link).await;
+
+    // THEN the interface reads the daemon's own words, not an unavailability
+    assert_eq!(listed.unwrap_err(), "backend repository unavailable");
+    assert_eq!(threshold.unwrap_err(), "threshold unreadable");
+    assert_eq!(reloaded.unwrap_err(), "rebuild failed: model file missing");
+}
