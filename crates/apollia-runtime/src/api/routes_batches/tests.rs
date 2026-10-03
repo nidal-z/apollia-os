@@ -175,6 +175,7 @@ async fn fixture() -> Fixture {
         repo.clone(),
         Arc::new(sources),
         AgentItemRunner::new(launcher, dir.path().to_path_buf()),
+        state.event_sender.clone(),
     ));
     state.data_dir = dir.path().to_path_buf();
     state.task_repository = Some(repo);

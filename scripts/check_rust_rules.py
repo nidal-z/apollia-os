@@ -323,6 +323,11 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # hang if the frame never comes.
     "crates/apollia-runtime/src/api/unreached_by_cli.rs": 2,
     "crates/apollia-runtime/src/chat/builtin_agent/tests.rs": 1,
+    # One helper, the transport is the subject: the engine store fetches a
+    # signed manifest and its archives over HTTP, and the tests count what the
+    # fake server was asked, which is how "no archive before the signature
+    # holds" is observed. The server holds a port-0 bind for the whole test.
+    "crates/apollia-runtime/src/engine_store/tests.rs": 1,
     "crates/apollia-runtime/src/hooks/executor.rs": 7,
     # The process is the subject: unloading a resident model has to stop its
     # child, and `kill -0` on the pid is the one observable left once the
