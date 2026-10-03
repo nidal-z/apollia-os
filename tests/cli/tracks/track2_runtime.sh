@@ -296,6 +296,9 @@ check_content "agent set mission"                  "Answer in one line." "${Q[@]
 check_content "agent show carries the override"    "Answer in one line." "${Q[@]}" agent show apollia-chat
 check_exit    "agent reset without --confirm → 1"  1 "${Q[@]}" agent reset apollia-chat
 check         "agent reset --field mission"        "${Q[@]}" agent reset apollia-chat --field mission --confirm
+check_content "agent set sources profile"          "profile" "${Q[@]}" agent set apollia-chat sources profile
+check_content "agent show lists the profile source" "profile" "${Q[@]}" agent show apollia-chat
+check         "agent reset --field sources"        "${Q[@]}" agent reset apollia-chat --field sources --confirm
 check         "agent reset --confirm"              "${Q[@]}" agent reset apollia-chat --confirm
 check_exit    "agent set unknown agent → 1"        1 "${Q[@]}" agent set e2e-ghost-agent mission "x"
 # The settings of the chat are the overrides and the model of the Apollia

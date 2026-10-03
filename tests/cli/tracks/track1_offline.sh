@@ -450,6 +450,11 @@ check_exit   "agent reset (off) → 2"           2     "$BIN" --socket "$OFFSOCK
 check_exit   "agent set unknown field → 1"     1     "$BIN" --socket "$OFFSOCK" agent set apollia-chat model qwen3
 check_exit   "agent set two missions → 1"      1     "$BIN" --socket "$OFFSOCK" agent set apollia-chat mission one two
 check_exit   "agent reset unknown field → 1"   1     "$BIN" --socket "$OFFSOCK" agent reset apollia-chat --field model --confirm
+# The profile source of an agent is its `sources` override: checking it goes
+# through the runtime like any override, daemon off it refuses with 2, in human
+# and in --json mode.
+check_exit   "agent set sources profile (off) → 2" 2 "$BIN" --socket "$OFFSOCK" agent set apollia-chat sources profile
+check_exit   "agent set sources profile --json (off) → 2" 2 "$BIN" --socket "$OFFSOCK" --json agent set apollia-chat sources profile
 # An agent without code runs in the runtime too, by the same `run` leaf: daemon
 # off, it refuses with 2 before any call, whatever the agent.
 check_exit   "run agent without code (off) → 2" 2    "$BIN" --socket "$OFFSOCK" run seed-ledger "Reconcile March."
