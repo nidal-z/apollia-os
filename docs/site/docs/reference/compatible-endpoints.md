@@ -76,6 +76,21 @@ A request without a token in use, or with a revoked one, answers `401` in the
 format of the endpoint it called. Each success stamps the token's last use. The
 setting is read when the server opens: stop and start it to apply a change.
 
+## Logs
+
+The runtime keeps the most recent lines of the server in memory, 2000 at most,
+the oldest dropped first: one per request it answered (time, level, method,
+path, model, status, duration) and each line the local `llama-server` prints.
+A refused request (4xx) is at the `warn` level, a failed one (5xx) at `error`.
+
+| Route | Effect |
+|---|---|
+| `GET /api/v1/server/logs?level=warn` | An event stream: one `log` frame per line, those held first, then each new one. `level` is the lowest level sent, `debug` (the default), `info`, `warn` or `error` |
+| `DELETE /api/v1/server/logs` | Empties the lines held and answers how many there were. The audit journal is not touched |
+
+These lines are a view for whoever develops against the server, not a record:
+they are lost when the runtime stops.
+
 ## Errors
 
 Each endpoint answers its errors in the format of its own API. The OpenAI

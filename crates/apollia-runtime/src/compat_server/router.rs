@@ -16,6 +16,7 @@ use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 
 use super::errors::{error_response, ErrorKind, Family};
+use super::logs::ServerLogsHandle;
 use super::relay::{self, RelayState};
 use super::tokens::ServerTokensHandle;
 
@@ -28,8 +29,13 @@ const MAX_REQUEST_BODY: usize = 32 * 1024 * 1024;
 ///
 /// With `tokens`, every request, the unknown paths included, must present a
 /// token in use (see [`super::auth`]); without, the server answers anyone on
-/// the loopback interface.
-pub(crate) fn compat_router(tokens: Option<ServerTokensHandle>, relay: Arc<RelayState>) -> Router {
+/// the loopback interface. Every request, a refused one included, leaves one
+/// line in `logs`.
+pub(crate) fn compat_router(
+    tokens: Option<ServerTokensHandle>,
+    relay: Arc<RelayState>,
+    logs: ServerLogsHandle,
+) -> Router {
     let router = Router::new()
         .route("/v1/models", get(relay::list_models))
         .route("/v1/chat/completions", post(relay::chat_completions))
@@ -40,13 +46,17 @@ pub(crate) fn compat_router(tokens: Option<ServerTokensHandle>, relay: Arc<Relay
         .fallback(unknown_endpoint)
         .layer(DefaultBodyLimit::max(MAX_REQUEST_BODY))
         .with_state(relay);
-    match tokens {
+    let router = match tokens {
         Some(tokens) => router.layer(axum::middleware::from_fn_with_state(
             tokens,
             super::auth::require_token,
         )),
         None => router,
-    }
+    };
+    router.layer(axum::middleware::from_fn_with_state(
+        logs,
+        super::logs::record_request,
+    ))
 }
 
 /// Answers a path no route serves, in the OpenAI error format.

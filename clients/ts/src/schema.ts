@@ -3664,6 +3664,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/server/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/server/logs`: the logs of the compatible server as SSE.
+         * @description Each `log` frame carries one line. The ring comes first, oldest line
+         *     first, then each line as it is recorded; the stream stays open until the
+         *     client disconnects or the runtime stops.
+         */
+        get: operations["stream_server_logs"];
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/v1/server/logs`: empties the logs of the compatible server.
+         *     The audit journal is not touched.
+         */
+        delete: operations["clear_server_logs"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/server/start": {
         parameters: {
             query?: never;
@@ -5983,6 +6009,11 @@ export interface components {
              */
             memoryType?: string | null;
         };
+        /** @description What `DELETE /api/v1/server/logs` answers. */
+        ClearedServerLogs: {
+            /** @description How many lines the ring held. */
+            cleared: number;
+        };
         /** @description One coaching example shown as a clickable card in the wizard's last step. */
         CoachingExample: {
             /** @description One-line description shown under the title. */
@@ -8131,6 +8162,50 @@ export interface components {
             /** @description Processing status. */
             status: string;
         };
+        /**
+         * @description How serious a line is, in increasing order.
+         * @enum {string}
+         */
+        ServerLogLevel: "debug" | "info" | "warn" | "error";
+        /** @description One line of the server's logs. */
+        ServerLogLine: {
+            /**
+             * Format: int64
+             * @description How long the server took to answer, in milliseconds. For a streamed
+             *     answer, the time until the stream opened.
+             */
+            durationMs?: number | null;
+            /** @description The path a request line asked for. */
+            endpoint?: string | null;
+            /** @description How serious it is. */
+            level: components["schemas"]["ServerLogLevel"];
+            /** @description The text an engine printed. */
+            message?: string | null;
+            /** @description The HTTP method of a request line. */
+            method?: string | null;
+            /** @description The model a request line named, when it named one. */
+            model?: string | null;
+            /**
+             * Format: int64
+             * @description Position of the line since the runtime started; it keeps growing
+             *     across a clear.
+             */
+            seq: number;
+            /** @description Where it comes from. */
+            source: components["schemas"]["ServerLogSource"];
+            /**
+             * Format: int32
+             * @description The status a request line was answered with.
+             */
+            status?: number | null;
+            /** @description When the line was recorded, RFC 3339 in UTC. */
+            timestamp: string;
+        };
+        /**
+         * @description Where a line comes from.
+         * @enum {string}
+         */
+        ServerLogSource: "request" | "engine";
         /** @description One model of a declared server. */
         ServerModel: {
             /**
@@ -17848,6 +17923,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CompatServerStatus"];
+                };
+            };
+            /** @description No compatible server in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    stream_server_logs: {
+        parameters: {
+            query?: {
+                /**
+                 * @description The lowest level sent: `debug` (every line, the default), `info`,
+                 *     `warn` or `error`.
+                 */
+                level?: components["schemas"]["ServerLogLevel"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SSE stream of the server's logs: each `log` frame carries one ServerLogLine, the lines held first, then the live ones */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["ServerLogLine"];
+                };
+            };
+            /** @description Unknown level */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No compatible server in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    clear_server_logs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The logs are empty; how many lines they held */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClearedServerLogs"];
                 };
             };
             /** @description No compatible server in this runtime */

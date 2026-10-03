@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use apollia_llm::model_index::{ModelIndex, INDEX_FILE_NAME};
 
+use super::logs::ServerLogsHandle;
 use crate::engine_store::Engine;
 use crate::llama_server::{LlamaServerSupervisor, LoadedModel, ModelKind, ModelLease};
 use crate::local_engine::LocalEngine;
@@ -75,6 +76,13 @@ impl LocalModels {
             llama,
             mlx,
             models_dir,
+        }
+    }
+
+    /// Sends the lines the local `llama-server` processes print to `logs`.
+    pub(crate) fn send_engine_lines_to(&self, logs: &ServerLogsHandle) {
+        if let Some(llama) = &self.llama {
+            llama.send_lines_to(logs.clone());
         }
     }
 
