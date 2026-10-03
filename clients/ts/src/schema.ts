@@ -717,6 +717,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/batches/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/batches/{id}/export`: the result of a batch as a file.
+         * @description One row per item, in source order: the input columns of the item, then
+         *     its output, its status and the sources its answer cites. `xlsx` is a
+         *     workbook of one sheet, `csv` is UTF-8 with one header row, `json` is one
+         *     document with the batch and an object per item. The file is offered as
+         *     `batch-<id>.<format>`. A batch still running exports the items as they
+         *     stand.
+         */
+        get: operations["export_batch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/batches/{id}/pause": {
         parameters: {
             query?: never;
@@ -1028,6 +1053,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["install_engine"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engines/nodejs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["node_runtime_state"];
+        put?: never;
+        post: operations["ensure_node_runtime"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1934,108 +1975,6 @@ export interface paths {
          *     Returns `{"backends": []}` if no `LlmRouter` is configured in `AppState`.
          */
         get: operations["get_llm_status"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/local-ai/dictation": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * `POST /api/v1/local-ai/dictation`: makes a Whisper file the dictation model
-         *     and marks the onboarding progress as dictation-ready.
-         */
-        post: operations["setup_dictation"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/local-ai/llm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * `POST /api/v1/local-ai/llm`: copies a GGUF file into the models folder and
-         *     makes it the `local` backend.
-         * @description The copy runs in its own task, so a client that stops waiting does not
-         *     leave half a model in the folder.
-         */
-        post: operations["setup_local_llm"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/local-ai/models/gguf": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * `GET /api/v1/local-ai/models/gguf`: the GGUF models already on disk,
-         *     largest first, each graded for this machine.
-         */
-        get: operations["scan_gguf_models"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/local-ai/models/whisper": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * `GET /api/v1/local-ai/models/whisper`: the Whisper models already on disk,
-         *     each graded for this machine.
-         */
-        get: operations["scan_whisper_models"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/local-ai/system": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * `GET /api/v1/local-ai/system`: memory, system and accelerator of the
-         *     machine the daemon runs on.
-         */
-        get: operations["get_local_ai_system"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4066,9 +4005,12 @@ export interface paths {
          * @description Accepts `multipart/form-data` with:
          *     - `audio` (required): WAV audio file
          *     - `language` (optional): language hint (ISO 639-1 code)
+         *     - `source` (optional): what the audio is, `api` (default), `file` or
+         *       `hotkey`, the tag the history shows; the desktop attached to this runtime
+         *       sends a file it read or a dictation it captured
          *
          *     Returns `200 OK` with the persisted transcript row (`TranscriptRow`).
-         *     Returns `400 Bad Request` on missing or invalid audio.
+         *     Returns `400 Bad Request` on missing or invalid audio, or an unknown source.
          *     Returns `503 Service Unavailable` when the engine is absent.
          */
         post: operations["transcribe_audio"];
@@ -5824,13 +5766,6 @@ export interface components {
             /** @description The key removed. */
             deleted: string;
         };
-        /** @description What the dictation setup did. */
-        DictationConfigured: {
-            /** @description The transcription language stored, `None` when none is set. */
-            language?: string | null;
-            /** @description The Whisper model file dictation now reads. */
-            model_path: string;
-        };
         /** @description The dictation category of the registry, and the entry for this machine. */
         DictationModelsResponse: {
             /** @description The machine the recommendation was made for. */
@@ -5936,7 +5871,7 @@ export interface components {
          * @description An inference engine the store can hold.
          * @enum {string}
          */
-        EngineName: "llama-server" | "vllm-mlx";
+        EngineName: "llama-server" | "vllm-mlx" | "nodejs";
         /** @description Body of the settings routes. */
         EngineSettingsBody: {
             /** @description Base address manifests and archives are fetched from. */
@@ -5978,6 +5913,11 @@ export interface components {
             /** @description List of global events. */
             events: string[];
         };
+        /**
+         * @description The format a batch is exported in.
+         * @enum {string}
+         */
+        ExportFormat: "xlsx" | "csv" | "json";
         /** @description Response for `POST /api/v1/triggers/:id/fire`. */
         FireResponse: {
             /** @description Identifier of the submitted task. */
@@ -6028,22 +5968,6 @@ export interface components {
         GeneratedTitle: {
             /** @description The title stored on the session. */
             title: string;
-        };
-        /** @description GGUF model file detected on the local filesystem. */
-        GgufModelInfo: {
-            /** @description Filename of the model. */
-            filename: string;
-            /** @description Absolute path to the model file. */
-            path: string;
-            /** @description Whether the memory estimator says this model fits this machine. */
-            recommended: boolean;
-            /**
-             * Format: int64
-             * @description File size in bytes.
-             */
-            size_bytes: number;
-            /** @description Human-readable file size (e.g. `"4.2 GB"`). */
-            size_human: string;
         };
         /** @description Global timeline event for display. */
         GlobalTimelineEvent: {
@@ -6651,6 +6575,37 @@ export interface components {
             fromLlm: boolean;
             /** @description The cards, in display order. */
             steps: Record<string, never>[];
+        };
+        /** @description Where Node.js stands on this machine. */
+        NodeRuntimeState: {
+            /** @enum {string} */
+            state: "absent";
+        } | {
+            /**
+             * Format: int64
+             * @description Bytes of the archive received so far.
+             */
+            received: number;
+            /** @enum {string} */
+            state: "downloading";
+            /**
+             * Format: int64
+             * @description Size of the archive the verified manifest states; 0 until the
+             *     manifest is verified.
+             */
+            total: number;
+        } | {
+            /** @description Directory it was extracted into. */
+            path: string;
+            /** @enum {string} */
+            state: "ready";
+            /** @description Release tag, `v22.11.0`. */
+            tag: string;
+        } | {
+            /** @description Why, readable as is. */
+            error: string;
+            /** @enum {string} */
+            state: "failed";
         };
         /**
          * @description One provider's OAuth client, as the settings draw it.
@@ -7568,30 +7523,6 @@ export interface components {
             /** @description Plain-text value. */
             value: string;
         };
-        /** @description Request body for `POST /api/v1/local-ai/dictation`. */
-        SetupDictationBody: {
-            /** @description The language of the interface, stored only when none is set yet. */
-            language?: string | null;
-            /** @description Absolute path of the Whisper model file chosen. */
-            modelPath: string;
-        };
-        /** @description Request body for `POST /api/v1/local-ai/llm`. */
-        SetupLlmBody: {
-            /**
-             * Format: int32
-             * @description The context window chosen, in tokens; absent keeps the stored one.
-             */
-            contextWindow?: number | null;
-            /** @description Absolute path of the GGUF file chosen. */
-            ggufPath: string;
-        };
-        /** @description What the local language model setup did. */
-        SetupLlmResult: {
-            /** @description Absolute path where the model is stored. */
-            model_path: string;
-            /** @description Inferred quantization from the filename (e.g. `"q8_0"`, `"q4_k_m"`). */
-            quantization: string;
-        };
         /** @description Response body for the shutdown endpoint. */
         ShutdownResponse: {
             status: string;
@@ -7786,32 +7717,6 @@ export interface components {
              *     own dispatch picks the handler as before.
              */
             skill_id?: string | null;
-        };
-        /** @description System information used to compute model recommendations in the AI setup step. */
-        SystemInfo: {
-            /** @description CPU architecture identifier (e.g. `"aarch64"`, `"x86_64"`). */
-            arch: string;
-            /**
-             * Format: double
-             * @description Available RAM in gigabytes.
-             */
-            available_ram_gb: number;
-            /** @description Whether a GPU is available (basic heuristic). */
-            gpu_available: boolean;
-            /**
-             * Format: double
-             * @description The accelerator's dedicated memory in gigabytes, when the engine's
-             *     device list names one. `None` on a processor-only machine and on
-             *     platforms where the heuristic above answers without a device list.
-             */
-            gpu_vram_gb?: number | null;
-            /** @description Operating system identifier (e.g. `"macos"`, `"linux"`). */
-            os: string;
-            /**
-             * Format: double
-             * @description Total RAM in gigabytes.
-             */
-            total_ram_gb: number;
         };
         /** @description One entry in the task list. */
         TaskListItem: {
@@ -8389,22 +8294,6 @@ export interface components {
              * @description Number of distinct runs covered by the global chain.
              */
             runs_checked: number;
-        };
-        /** @description Whisper GGML model file detected on the local filesystem. */
-        WhisperModelInfo: {
-            /** @description Filename of the model. */
-            filename: string;
-            /** @description Size variant parsed from the filename (`tiny`, `base`, `small`, `medium`, `large`). */
-            model_size: string;
-            /** @description Absolute path to the model file. */
-            path: string;
-            /** @description Whether the dictation verdict says this file fits this machine. */
-            recommended: boolean;
-            /**
-             * Format: int64
-             * @description File size in bytes.
-             */
-            size_bytes: number;
         };
         /** @description Error body of the workflow routes. */
         WorkflowErrorResponse: {
@@ -10030,6 +9919,61 @@ export interface operations {
             };
         };
     };
+    export_batch: {
+        parameters: {
+            query: {
+                /** @description `xlsx`, `csv` or `json`. */
+                format: components["schemas"]["ExportFormat"];
+            };
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The batch as an Excel workbook, CSV or JSON file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": number[];
+                    "text/csv": string;
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description A format other than xlsx, csv or json */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description No such batch */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
     pause_batch: {
         parameters: {
             query?: never;
@@ -10857,6 +10801,64 @@ export interface operations {
             };
             /** @description The mirror could not be reached */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description This build carries no distribution key */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    node_runtime_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Where Node.js stands */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeRuntimeState"];
+                };
+            };
+        };
+    };
+    ensure_node_runtime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Node.js ready, or its download started or running; a failure is read from the state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeRuntimeState"];
+                };
+            };
+            /** @description Settings file unreadable */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -13163,132 +13165,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LlmStatusResponse"];
-                };
-            };
-        };
-    };
-    setup_dictation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetupDictationBody"];
-            };
-        };
-        responses: {
-            /** @description The dictation model stored */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DictationConfigured"];
-                };
-            };
-            /** @description The onboarding store did not open */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
-    setup_local_llm: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetupLlmBody"];
-            };
-        };
-        responses: {
-            /** @description Where the model is stored */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SetupLlmResult"];
-                };
-            };
-            /** @description No such file, or not a GGUF file */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
-    scan_gguf_models: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The GGUF files found */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GgufModelInfo"][];
-                };
-            };
-        };
-    };
-    scan_whisper_models: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The Whisper files found */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WhisperModelInfo"][];
-                };
-            };
-        };
-    };
-    get_local_ai_system: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description What this machine can run */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SystemInfo"];
                 };
             };
         };
@@ -17690,7 +17566,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        /** @description Multipart form with an `audio` WAV field (required) and an optional `language` hint */
+        /** @description Multipart form with an `audio` WAV field (required), an optional `language` hint and an optional `source` tag */
         requestBody: {
             content: {
                 "multipart/form-data": {
@@ -17701,6 +17577,11 @@ export interface operations {
                     audio: string;
                     /** @description Language hint, an ISO 639-1 code */
                     language?: string;
+                    /**
+                     * @description What the audio is, the tag the history shows: api (default), file or hotkey
+                     * @enum {string}
+                     */
+                    source?: "api" | "file" | "hotkey";
                 };
             };
         };

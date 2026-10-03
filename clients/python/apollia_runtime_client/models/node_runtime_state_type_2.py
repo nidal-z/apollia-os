@@ -6,48 +6,40 @@ from typing import Any, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="GgufModelInfo")
+from ..models.node_runtime_state_type_2_state import NodeRuntimeStateType2State
+
+T = TypeVar("T", bound="NodeRuntimeStateType2")
 
 
 @_attrs_define
-class GgufModelInfo:
-    """GGUF model file detected on the local filesystem.
+class NodeRuntimeStateType2:
+    """Installed and verified.
 
     Attributes:
-        filename (str): Filename of the model.
-        path (str): Absolute path to the model file.
-        recommended (bool): Whether the memory estimator says this model fits this machine.
-        size_bytes (int): File size in bytes.
-        size_human (str): Human-readable file size (e.g. `"4.2 GB"`).
+        path (str): Directory it was extracted into.
+        state (NodeRuntimeStateType2State):
+        tag (str): Release tag, `v22.11.0`.
     """
 
-    filename: str
     path: str
-    recommended: bool
-    size_bytes: int
-    size_human: str
+    state: NodeRuntimeStateType2State
+    tag: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        filename = self.filename
-
         path = self.path
 
-        recommended = self.recommended
+        state = self.state.value
 
-        size_bytes = self.size_bytes
-
-        size_human = self.size_human
+        tag = self.tag
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "filename": filename,
                 "path": path,
-                "recommended": recommended,
-                "size_bytes": size_bytes,
-                "size_human": size_human,
+                "state": state,
+                "tag": tag,
             }
         )
 
@@ -56,26 +48,20 @@ class GgufModelInfo:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        filename = d.pop("filename")
-
         path = d.pop("path")
 
-        recommended = d.pop("recommended")
+        state = NodeRuntimeStateType2State(d.pop("state"))
 
-        size_bytes = d.pop("size_bytes")
+        tag = d.pop("tag")
 
-        size_human = d.pop("size_human")
-
-        gguf_model_info = cls(
-            filename=filename,
+        node_runtime_state_type_2 = cls(
             path=path,
-            recommended=recommended,
-            size_bytes=size_bytes,
-            size_human=size_human,
+            state=state,
+            tag=tag,
         )
 
-        gguf_model_info.additional_properties = d
-        return gguf_model_info
+        node_runtime_state_type_2.additional_properties = d
+        return node_runtime_state_type_2
 
     @property
     def additional_keys(self) -> list[str]:

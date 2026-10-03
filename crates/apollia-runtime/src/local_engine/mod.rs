@@ -268,6 +268,9 @@ pub fn route_local<L: LocalEngine, M: LocalEngine>(
                 reason: refusal.to_string(),
             }) as Arc<dyn CompletionModel>)
         }
+        // The store also holds Node.js for the tool servers; it runs no
+        // model, and `engine_for_format` never names it.
+        Engine::NodeJs => None,
     }
 }
 

@@ -25,6 +25,7 @@ use apollia_stt::{SttRepository, TranscriptRow};
 use crate::attached::RuntimeLink;
 
 mod daemon;
+mod transcriptions;
 
 /// Description of an available STT model file on disk.
 #[derive(Debug, Clone, Serialize)]
@@ -452,11 +453,15 @@ async fn with_input_available(mut value: serde_json::Value) -> serde_json::Value
 /// Defaults to the 50 most recent transcriptions when `limit` is `None`.
 #[tauri::command]
 pub async fn list_transcriptions(
-    runtime: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     limit: Option<u32>,
 ) -> Result<Vec<TranscriptRow>, String> {
-    let repo = stt_repo(&runtime).await?;
     let limit = limit.unwrap_or(50);
+    let runtime = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => return Ok(transcriptions::list_on(remote, limit).await?),
+    };
+    let repo = stt_repo(runtime).await?;
 
     let rows = repo
         .lock()
@@ -471,11 +476,12 @@ pub async fn list_transcriptions(
 ///
 /// Silently succeeds if the ID does not exist (no-op delete).
 #[tauri::command]
-pub async fn delete_transcription(
-    runtime: State<'_, RuntimeHandle>,
-    id: String,
-) -> Result<(), String> {
-    let repo = stt_repo(&runtime).await?;
+pub async fn delete_transcription(link: State<'_, RuntimeLink>, id: String) -> Result<(), String> {
+    let runtime = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => return Ok(transcriptions::delete_on(remote, &id).await?),
+    };
+    let repo = stt_repo(runtime).await?;
 
     repo.lock()
         .map_err(|e| format!("repository lock error: {e}"))?
@@ -489,15 +495,22 @@ pub async fn delete_transcription(
 ///
 /// Reads the file at `file_path`, decodes the WAV data, resamples to 16 kHz
 /// mono, and submits it to the STT engine. The result is persisted and returned.
+/// Attached, the file is read on this machine and the daemon transcribes it.
 #[tauri::command]
 pub async fn transcribe_file(
-    runtime: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     file_path: String,
 ) -> Result<TranscriptRow, String> {
+    let runtime = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => {
+            return transcriptions::transcribe_on(remote, &file_path).await
+        }
+    };
     let engine = runtime.stt_engine.read().await.clone().ok_or_else(|| {
         "STT engine not available (enable dictation and load a model in Settings)".to_owned()
     })?;
-    let repo = stt_repo(&runtime).await?;
+    let repo = stt_repo(runtime).await?;
 
     let raw_bytes =
         std::fs::read(&file_path).map_err(|e| format!("failed to read file '{file_path}': {e}"))?;

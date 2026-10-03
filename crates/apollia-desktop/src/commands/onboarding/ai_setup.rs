@@ -1,188 +1,733 @@
 //! The AI setup step of onboarding: what the machine can run, which GGUF and
-//! Whisper models it already has on disk, and the Whisper model chosen for
-//! dictation.
-//!
-//! Embedded, each command calls [`apollia_runtime::local_ai`] in this process.
-//! Attached, it reaches the same functions through `/api/v1/local-ai/...` on
-//! the daemon, which runs the models and owns the folders they are read from.
+//! Whisper models it already has on disk, and which of them are worth
+//! recommending on this machine.
 
-use std::time::Duration;
+use apollia_runtime::embedded::RuntimeHandle;
+use serde::{Deserialize, Serialize};
+use tauri::State;
 
-use apollia_runtime::api::routes_local_ai::SetupDictationBody;
-use apollia_runtime::local_ai::{
-    self, DictationConfigured, GgufModelInfo, SystemInfo, WhisperModelInfo,
-};
-use apollia_runtime::profile::ProfileStore;
-use tauri::{Manager, State};
+use super::memory::{get_repo, load_state_from_memory, persist_state};
+use super::state::{OnboardingError, OnboardingState};
 
-use crate::attached::{AttachedClient, AttachedError, RuntimeLink};
+// ---------------------------------------------------------------------------
+// AI Setup - types
+// ---------------------------------------------------------------------------
 
-/// The daemon route of the system information.
-const SYSTEM_ROUTE: &str = "/api/v1/local-ai/system";
-/// The daemon route of the GGUF scan.
-const GGUF_ROUTE: &str = "/api/v1/local-ai/models/gguf";
-/// The daemon route of the Whisper scan.
-const WHISPER_ROUTE: &str = "/api/v1/local-ai/models/whisper";
-/// The daemon route of the dictation setup.
-const DICTATION_ROUTE: &str = "/api/v1/local-ai/dictation";
-/// The daemon route that loads the stored dictation model.
-const STT_RELOAD_ROUTE: &str = "/api/v1/stt/reload";
-
-/// How long the daemon may take to scan its folders: each GGUF header is
-/// probed, and a large LM Studio library holds dozens of files.
-const SCAN_DEADLINE: Duration = Duration::from_secs(120);
-
-/// The home folder and the data directory of this machine.
-fn local_roots() -> (std::path::PathBuf, std::path::PathBuf) {
-    let home = apollia_core::paths::home_dir().unwrap_or_default();
-    let data_dir = apollia_core::paths::data_dir_under(&home);
-    (home, data_dir)
+/// System information used to compute model recommendations in the AI setup step.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemInfo {
+    /// Total RAM in gigabytes.
+    pub total_ram_gb: f64,
+    /// Available RAM in gigabytes.
+    pub available_ram_gb: f64,
+    /// Operating system identifier (e.g. `"macos"`, `"linux"`).
+    pub os: String,
+    /// CPU architecture identifier (e.g. `"aarch64"`, `"x86_64"`).
+    pub arch: String,
+    /// Whether a GPU is available (basic heuristic).
+    pub gpu_available: bool,
+    /// The accelerator's dedicated memory in gigabytes, when the engine's
+    /// device list names one. `None` on a processor-only machine and on
+    /// platforms where the heuristic above answers without a device list.
+    pub gpu_vram_gb: Option<f64>,
 }
 
-/// Reads what the daemon's machine can run.
-pub(crate) async fn system_info_on(remote: &AttachedClient) -> Result<SystemInfo, AttachedError> {
-    remote.get(SYSTEM_ROUTE).await
+/// GGUF model file detected on the local filesystem.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GgufModelInfo {
+    /// Absolute path to the model file.
+    pub path: String,
+    /// Filename of the model.
+    pub filename: String,
+    /// File size in bytes.
+    pub size_bytes: u64,
+    /// Human-readable file size (e.g. `"4.2 GB"`).
+    pub size_human: String,
+    /// Whether the memory estimator says this model fits this machine.
+    pub recommended: bool,
 }
 
-/// Lists the GGUF models the daemon finds on its machine.
-pub(crate) async fn gguf_models_on(
-    remote: &AttachedClient,
-) -> Result<Vec<GgufModelInfo>, AttachedError> {
-    remote.get_within(GGUF_ROUTE, SCAN_DEADLINE).await
+/// Whisper GGML model file detected on the local filesystem.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WhisperModelInfo {
+    /// Absolute path to the model file.
+    pub path: String,
+    /// Filename of the model.
+    pub filename: String,
+    /// File size in bytes.
+    pub size_bytes: u64,
+    /// Size variant parsed from the filename (`tiny`, `base`, `small`, `medium`, `large`).
+    pub model_size: String,
+    /// Whether the dictation verdict says this file fits this machine.
+    pub recommended: bool,
 }
 
-/// Lists the Whisper models the daemon finds on its machine.
-pub(crate) async fn whisper_models_on(
-    remote: &AttachedClient,
-) -> Result<Vec<WhisperModelInfo>, AttachedError> {
-    remote.get_within(WHISPER_ROUTE, SCAN_DEADLINE).await
-}
+// ---------------------------------------------------------------------------
+// AI Setup - Tauri commands
+// ---------------------------------------------------------------------------
 
 /// Returns system information for AI setup model recommendations.
 ///
 /// Queries total and available RAM, OS, architecture, and basic GPU
-/// availability, on the machine that runs the models.
+/// availability. Runs the sysinfo query on a blocking thread.
 #[tauri::command]
-pub async fn get_ai_setup_info(link: State<'_, RuntimeLink>) -> Result<SystemInfo, String> {
-    match link.inner() {
-        RuntimeLink::Embedded(_) => local_ai::system_info().await.map_err(|e| e.to_string()),
-        RuntimeLink::Attached(remote) => Ok(system_info_on(remote).await?),
-    }
+pub async fn get_ai_setup_info() -> Result<SystemInfo, String> {
+    tokio::task::spawn_blocking(get_system_info_sync)
+        .await
+        .map_err(|e| format!("system info query failed: {e}"))
 }
 
 /// Scans standard filesystem locations for `.gguf` model files.
 ///
-/// Locations scanned: the models folder of the data directory and
-/// `~/Downloads/` (flat), `~/.cache/lm-studio/models/` (up to 4 levels deep).
-/// Results are sorted by file size descending; an empty list is not an error.
+/// Locations scanned:
+/// 1. `~/.apollia/models/` (flat)
+/// 2. `~/Downloads/` (flat)
+/// 3. `~/.cache/lm-studio/models/` (recursive, up to 4 levels deep)
+///
+/// Results are sorted by file size descending. Missing or unreadable
+/// directories are silently skipped - an empty list is not an error.
 #[tauri::command]
-pub async fn scan_for_gguf_models(
-    link: State<'_, RuntimeLink>,
-) -> Result<Vec<GgufModelInfo>, String> {
-    match link.inner() {
-        RuntimeLink::Embedded(_) => {
-            let (home, data_dir) = local_roots();
-            local_ai::gguf_models(home, data_dir)
-                .await
-                .map_err(|e| e.to_string())
+pub async fn scan_for_gguf_models() -> Result<Vec<GgufModelInfo>, String> {
+    tokio::task::spawn_blocking(|| {
+        let home = apollia_core::paths::home_string().unwrap_or_default();
+        let home_path = std::path::PathBuf::from(&home);
+        let hardware = apollia_llm::hardware::detect();
+
+        let flat_dirs = [
+            apollia_core::paths::data_dir_under(&home_path).join("models"),
+            home_path.join("Downloads"),
+        ];
+        let lm_studio_root = home_path.join(".cache").join("lm-studio").join("models");
+
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut models: Vec<GgufModelInfo> = Vec::new();
+
+        for dir in &flat_dirs {
+            for mut info in scan_gguf_in_dir(dir) {
+                if seen.insert(info.path.clone()) {
+                    info.recommended = fits_this_machine(&info, &hardware);
+                    models.push(info);
+                }
+            }
         }
-        RuntimeLink::Attached(remote) => Ok(gguf_models_on(remote).await?),
-    }
+
+        let mut recursive_buf: Vec<GgufModelInfo> = Vec::new();
+        collect_gguf_recursive(&lm_studio_root, &mut recursive_buf, 0, 4);
+        for mut info in recursive_buf {
+            if seen.insert(info.path.clone()) {
+                info.recommended = fits_this_machine(&info, &hardware);
+                models.push(info);
+            }
+        }
+
+        models.sort_by_key(|b| std::cmp::Reverse(b.size_bytes));
+        models
+    })
+    .await
+    .map_err(|e| format!("GGUF scan failed: {e}"))
 }
 
 /// Scans standard filesystem locations for Whisper GGML model files.
 ///
-/// Locations scanned: the models folder of the data directory,
-/// `~/Downloads/` and `~/.cache/whisper/`. Only `ggml-*.bin` files are
-/// returned; an empty list is not an error.
-#[tauri::command]
-pub async fn scan_for_whisper_models(
-    link: State<'_, RuntimeLink>,
-) -> Result<Vec<WhisperModelInfo>, String> {
-    match link.inner() {
-        RuntimeLink::Embedded(_) => {
-            let (home, data_dir) = local_roots();
-            local_ai::whisper_models(home, data_dir)
-                .await
-                .map_err(|e| e.to_string())
-        }
-        RuntimeLink::Attached(remote) => Ok(whisper_models_on(remote).await?),
-    }
-}
-
-/// Stores the chosen Whisper model on the daemon, then asks it to load it.
+/// Locations scanned:
+/// 1. `~/.apollia/models/ggml-*.bin`
+/// 2. `~/Downloads/ggml-*.bin`
+/// 3. `~/.cache/whisper/*.bin`
 ///
-/// A failed load is logged, not returned: the model is configured and the
-/// engine still runs the previous one, as in the embedded mode.
-pub(crate) async fn setup_dictation_on(
-    remote: &AttachedClient,
-    model_path: String,
-    language: Option<String>,
-) -> Result<DictationConfigured, AttachedError> {
-    let body = SetupDictationBody {
-        model_path,
-        language,
-    };
-    let done: DictationConfigured = remote.post(DICTATION_ROUTE, &body).await?;
-    if let Err(e) = remote
-        .post::<serde_json::Value>(STT_RELOAD_ROUTE, &serde_json::json!({}))
-        .await
-    {
-        tracing::event!(
-            tracing::Level::WARN,
-            error = %e,
-            detail = "the model is configured but the engine still runs the previous one",
-            "stt.engine.reload.failed"
-        );
-    }
-    Ok(done)
+/// Only filenames matching the `ggml-(tiny|base|small|medium|large)` pattern
+/// are returned. An empty list is not an error.
+#[tauri::command]
+pub async fn scan_for_whisper_models() -> Result<Vec<WhisperModelInfo>, String> {
+    tokio::task::spawn_blocking(|| {
+        let home = apollia_core::paths::home_string().unwrap_or_default();
+        let home_path = std::path::PathBuf::from(&home);
+        let hardware = apollia_llm::hardware::detect();
+
+        let scan_dirs = [
+            apollia_core::paths::data_dir_under(&home_path).join("models"),
+            home_path.join("Downloads"),
+            home_path.join(".cache").join("whisper"),
+        ];
+
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut models: Vec<WhisperModelInfo> = Vec::new();
+
+        for dir in &scan_dirs {
+            for model in scan_whisper_in_dir(dir, &hardware) {
+                if seen.insert(model.path.clone()) {
+                    models.push(model);
+                }
+            }
+        }
+        models
+    })
+    .await
+    .map_err(|e| format!("Whisper scan failed: {e}"))
 }
 
 /// Configures the Whisper STT backend with the selected model and marks
 /// the onboarding state as STT-configured.
 ///
-/// Persists `enabled = true` and the provided `model_path` to `system.db`,
-/// then sets `stt_configured` and `voice_enabled` in the onboarding state, and
-/// loads the model so onboarding "Tester" and the dictation hotkey work
-/// immediately, without restarting the app.
+/// Persists `enabled = true` and the provided `model_path` to
+/// `~/.apollia/system.db`, then sets `stt_configured` and `voice_enabled`
+/// to `true` in the onboarding state.
 #[tauri::command]
 pub async fn setup_whisper_model(
     model_path: String,
     language: Option<String>,
-    link: State<'_, RuntimeLink>,
+    state: State<'_, RuntimeHandle>,
     app: tauri::AppHandle,
-) -> Result<DictationConfigured, String> {
-    let runtime = match link.inner() {
-        RuntimeLink::Embedded(runtime) => runtime,
-        RuntimeLink::Attached(remote) => {
-            return Ok(setup_dictation_on(remote, model_path, language).await?);
-        }
-    };
-    let data_dir = apollia_core::paths::data_dir_under(apollia_core::paths::home_dir_or_temp());
-    let done = local_ai::setup_dictation(
-        &data_dir,
-        runtime.user_memory.as_ref().map(ProfileStore),
-        model_path,
-        language,
-    )
-    .await
-    .map_err(|e| {
-        tracing::event!(tracing::Level::ERROR, error = %e, "stt.model.setup.failed");
-        e.to_string()
-    })?;
+    stt_flow_state: State<'_, crate::commands::stt::SttFlowState>,
+) -> Result<OnboardingState, String> {
+    let result = setup_whisper_model_inner(model_path, language, &state)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "stt.model.setup.failed");
+            e.to_string()
+        })?;
 
-    if let Some(flow) = app.try_state::<crate::commands::stt::SttFlowState>() {
-        if let Err(e) = crate::commands::stt::reload_stt_inner(runtime, &app, &flow).await {
-            tracing::event!(
-                tracing::Level::WARN,
-                error = %e,
-                detail = "the model is configured but the engine still runs the previous one",
-                "stt.engine.reload.failed"
-            );
-        }
+    // Hot-load the freshly-configured model so onboarding "Tester" and the
+    // dictation hotkey work immediately, without restarting the app.
+    if let Err(e) = crate::commands::stt::reload_stt_inner(&state, &app, &stt_flow_state).await {
+        tracing::warn!(
+            error = %e,
+            detail = "the model is configured but the engine still runs the previous one",
+            "stt.engine.reload.failed"
+        );
     }
-    Ok(done)
+
+    Ok(result)
 }
 
+async fn setup_whisper_model_inner(
+    model_path: String,
+    language: Option<String>,
+    state: &RuntimeHandle,
+) -> Result<OnboardingState, OnboardingError> {
+    let db_path = apollia_core::paths::DataFile::System.path(&apollia_core::paths::data_dir_under(
+        apollia_core::paths::home_dir_or_temp(),
+    ));
+
+    let mp = model_path.clone();
+    tokio::task::spawn_blocking(move || -> Result<(), OnboardingError> {
+        let repo = apollia_core::SttConfigRepository::open(&db_path)
+            .map_err(|e| OnboardingError::PersistenceError(format!("open system.db: {e}")))?;
+        let mut row = repo
+            .get_or_default()
+            .map_err(|e| OnboardingError::PersistenceError(format!("read STT config: {e}")))?;
+        row.model_path = mp;
+        row.enabled = true;
+        // Pre-set the transcription language from the user's app locale so
+        // dictation transcribes in their language instead of defaulting to
+        // English. Only when unset, to preserve an explicit Settings choice.
+        if row.language.is_none() {
+            if let Some(lang) = language.filter(|l| !l.trim().is_empty()) {
+                row.language = Some(lang);
+            }
+        }
+        repo.upsert(&row)
+            .map_err(|e| OnboardingError::PersistenceError(format!("persist STT config: {e}")))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| OnboardingError::PersistenceError(format!("spawn_blocking failed: {e}")))??;
+
+    let repo = get_repo(state)?;
+    let result = tokio::task::spawn_blocking(move || {
+        let repo = repo
+            .lock()
+            .map_err(|e| OnboardingError::PersistenceError(format!("mutex poisoned: {e}")))?;
+        let mut onboarding = load_state_from_memory(&repo)?;
+        onboarding.stt_configured = true;
+        onboarding.voice_enabled = true;
+        persist_state(&repo, &onboarding)?;
+        Ok::<OnboardingState, OnboardingError>(onboarding)
+    })
+    .await
+    .map_err(|e| OnboardingError::PersistenceError(format!("spawn_blocking failed: {e}")))??;
+
+    tracing::info!(model_path = %model_path, "stt.model.configured");
+
+    Ok(result)
+}
+
+// ---------------------------------------------------------------------------
+// AI Setup - helper functions
+// ---------------------------------------------------------------------------
+
+/// Returns current system information synchronously.
+///
+/// Memory is read via sysinfo; OS and architecture are compile-time constants.
+/// Intended for use inside `spawn_blocking` from async commands.
+pub fn get_system_info_sync() -> SystemInfo {
+    let mut sys = sysinfo::System::new();
+    sys.refresh_memory();
+    let total_bytes = sys.total_memory();
+    let available_bytes = sys.available_memory();
+
+    SystemInfo {
+        total_ram_gb: total_bytes as f64 / (1024.0 * 1024.0 * 1024.0),
+        available_ram_gb: available_bytes as f64 / (1024.0 * 1024.0 * 1024.0),
+        os: std::env::consts::OS.to_owned(),
+        arch: std::env::consts::ARCH.to_owned(),
+        gpu_available: detect_gpu_basic(),
+        gpu_vram_gb: detect_gpu_vram_gb(),
+    }
+}
+
+/// The accelerator's memory as the engine's device list reports it.
+///
+/// Read from the same cached profile as the Windows availability check, so
+/// the chip that says "GPU" can also say how much of it there is: an operator
+/// choosing a model wants the number, not the word. `None` when the profile
+/// names no accelerator.
+fn detect_gpu_vram_gb() -> Option<f64> {
+    vram_gb_of(&apollia_llm::hardware::detect().accelerator)
+}
+
+/// The dedicated memory a profile carries, whatever the accelerator's kind.
+fn vram_gb_of(accelerator: &apollia_llm::AcceleratorProfile) -> Option<f64> {
+    use apollia_llm::AcceleratorProfile;
+    match accelerator {
+        AcceleratorProfile::None => None,
+        AcceleratorProfile::AppleSilicon { vram_gb, .. }
+        | AcceleratorProfile::Cuda { vram_gb, .. }
+        | AcceleratorProfile::Generic { vram_gb, .. } => Some(*vram_gb),
+    }
+}
+
+/// Scans a single directory (non-recursive) for `.gguf` files.
+///
+/// Returns an empty `Vec` for non-existent or unreadable directories.
+/// The `recommended` field defaults to `false`; callers grade it with the estimator.
+pub fn scan_gguf_in_dir(dir: &std::path::Path) -> Vec<GgufModelInfo> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut results = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("gguf") {
+            continue;
+        }
+        let size_bytes = size_on_disk(&path);
+        let filename = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        results.push(GgufModelInfo {
+            path: path.display().to_string(),
+            filename,
+            size_bytes,
+            size_human: format_size_human(size_bytes),
+            recommended: false,
+        });
+    }
+    results
+}
+
+/// Collects `.gguf` files recursively from `dir` up to `max_depth` levels.
+///
+/// Fills `out` in place. Unreadable directories and symlink loops are
+/// silently skipped via `file_type()` rather than `is_dir()`.
+fn collect_gguf_recursive(
+    dir: &std::path::Path,
+    out: &mut Vec<GgufModelInfo>,
+    depth: u8,
+    max_depth: u8,
+) {
+    if depth >= max_depth {
+        return;
+    }
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let file_type = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        if file_type.is_dir() {
+            collect_gguf_recursive(&path, out, depth + 1, max_depth);
+        } else if file_type.is_file() && path.extension().and_then(|e| e.to_str()) == Some("gguf") {
+            let size_bytes = size_on_disk(&path);
+            let filename = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            out.push(GgufModelInfo {
+                path: path.display().to_string(),
+                filename,
+                size_bytes,
+                size_human: format_size_human(size_bytes),
+                recommended: false,
+            });
+        }
+    }
+}
+
+/// Scans a single directory for Whisper GGML model files.
+///
+/// Only files matching `ggml-(tiny|base|small|medium|large)*.bin` are included.
+/// Each is judged by the dictation verdict the catalogue gives its entries.
+/// Returns an empty `Vec` for non-existent or unreadable directories.
+fn scan_whisper_in_dir(
+    dir: &std::path::Path,
+    hardware: &apollia_llm::HardwareProfile,
+) -> Vec<WhisperModelInfo> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut results = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let filename = match path.file_name().map(|n| n.to_string_lossy().into_owned()) {
+            Some(n) => n,
+            None => continue,
+        };
+
+        if !filename.starts_with("ggml-") || !filename.ends_with(".bin") {
+            continue;
+        }
+
+        let model_size = match detect_whisper_model_size(&filename) {
+            Some(s) => s,
+            None => continue,
+        };
+
+        let size_bytes = size_on_disk(&path);
+        let recommended = apollia_llm::recommend::dictation_fits(size_bytes, hardware);
+
+        results.push(WhisperModelInfo {
+            path: path.display().to_string(),
+            filename,
+            size_bytes,
+            model_size,
+            recommended,
+        });
+    }
+    results
+}
+
+/// Parses the Whisper size variant from a filename.
+///
+/// Matches `ggml-(tiny|base|small|medium|large)` in the lowercased filename.
+/// Falls back to `"base"` for any other `ggml-*.bin` file (e.g. `ggml-model-q5_0.bin`)
+/// so that generic Whisper GGML models are still detected.
+pub fn detect_whisper_model_size(filename: &str) -> Option<String> {
+    let lower = filename.to_lowercase();
+    for variant in ["tiny", "base", "small", "medium", "large"] {
+        let pattern = format!("ggml-{variant}");
+        if lower.contains(pattern.as_str()) {
+            return Some(variant.to_owned());
+        }
+    }
+    // Accept any ggml-*.bin as a valid Whisper model with unknown size.
+    if lower.starts_with("ggml-") && lower.ends_with(".bin") {
+        return Some("base".to_owned());
+    }
+    None
+}
+
+/// Whether a model file on disk fits this machine, by the estimator every
+/// other surface reads.
+///
+/// The header is probed from the file itself, so the cache is sized from the
+/// model's own architecture; an unreadable header falls back to the
+/// estimator's proportional cache rather than to a size threshold.
+fn fits_this_machine(info: &GgufModelInfo, hardware: &apollia_llm::HardwareProfile) -> bool {
+    let facts = apollia_llm::gguf_probe::probe_file(
+        std::path::Path::new(&info.path),
+        apollia_llm::gguf_probe::SCREEN_BYTES,
+    )
+    .unwrap_or_default();
+    recommended_for(info.size_bytes, &facts, hardware)
+}
+
+/// The onboarding verdict for a file of `size_bytes` with header `facts`.
+fn recommended_for(
+    size_bytes: u64,
+    facts: &apollia_llm::gguf_probe::GgufHeaderFacts,
+    hardware: &apollia_llm::HardwareProfile,
+) -> bool {
+    apollia_llm::recommend::assess_fit(
+        size_bytes,
+        facts,
+        hardware,
+        &apollia_llm::recommend::RuntimeShape::default(),
+    )
+    .badge
+        == apollia_llm::CompatibilityBadge::Fits
+}
+
+/// Formats a byte count as a human-readable string using binary divisions.
+///
+/// Examples: `4_500_000_000` → `"4.2 GB"`, `500_000_000` → `"476.8 MB"`.
+/// Size of a model file, read through the path rather than the directory entry.
+///
+/// `DirEntry::metadata` does not follow a link, and on Windows a file inside a
+/// synchronised folder is a reparse point: the call succeeds and answers zero
+/// while the file is perfectly valid. The onboarding then listed a model, and
+/// a dictation model beside it, at 0 B. Reported on 2026-09-08 on the packaged
+/// Windows build. A failure is logged rather than swallowed, because a size
+/// silently read as zero is what made this take a user report to notice.
+fn size_on_disk(path: &std::path::Path) -> u64 {
+    match std::fs::metadata(path) {
+        Ok(meta) => meta.len(),
+        Err(e) => {
+            tracing::warn!(
+                path = %path.display(),
+                error = %e,
+                "model.size.unreadable"
+            );
+            0
+        }
+    }
+}
+
+pub fn format_size_human(bytes: u64) -> String {
+    const GB: f64 = 1024.0 * 1024.0 * 1024.0;
+    const MB: f64 = 1024.0 * 1024.0;
+    const KB: f64 = 1024.0;
+    let b = bytes as f64;
+    if b >= GB {
+        format!("{:.1} GB", b / GB)
+    } else if b >= MB {
+        format!("{:.1} MB", b / MB)
+    } else if b >= KB {
+        format!("{:.1} KB", b / KB)
+    } else {
+        format!("{bytes} B")
+    }
+}
+
+/// Detects GPU availability using platform-specific heuristics.
+fn detect_gpu_basic() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        // All macOS machines expose Metal GPU support
+        true
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::path::Path::new("/dev/dri/card0").exists()
+            || std::path::Path::new("/proc/driver/nvidia").exists()
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // Ask the engine, not the operating system. This arm answered `false`
+        // unconditionally, so no Windows machine ever saw the chip, including
+        // one whose engine was loading every layer onto a Radeon (measured
+        // 2026-09-09). The profile is computed once per process, so this costs
+        // nothing after the first read.
+        apollia_llm::hardware::detect().accelerator.is_available()
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        false
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_vram_follows_the_accelerator_kind_and_is_absent_without_one() {
+        use apollia_llm::AcceleratorProfile;
+        // GIVEN the four shapes an accelerator profile can take
+        let none = AcceleratorProfile::None;
+        let generic = AcceleratorProfile::Generic {
+            device_name: "AMD Radeon RX 6900 XT".to_string(),
+            vram_gb: 16.0,
+        };
+        let cuda = AcceleratorProfile::Cuda {
+            device_name: "NVIDIA GeForce RTX 4090".to_string(),
+            vram_gb: 24.0,
+            compute_capability: (8, 9),
+        };
+        let apple = AcceleratorProfile::AppleSilicon {
+            chip: "M4 Max".to_string(),
+            generation: 4,
+            vram_gb: 64.0,
+        };
+
+        // WHEN each is asked for its memory
+        // THEN the number comes out for every kind, and the processor-only
+        // profile answers nothing, which is the control for the chip
+        assert_eq!(vram_gb_of(&none), None);
+        assert_eq!(vram_gb_of(&generic), Some(16.0));
+        assert_eq!(vram_gb_of(&cuda), Some(24.0));
+        assert_eq!(vram_gb_of(&apple), Some(64.0));
+    }
+
+    #[test]
+    fn test_system_info_returns_valid_values() {
+        // GIVEN the current system
+        // WHEN calling get_system_info_sync
+        let info = get_system_info_sync();
+        // THEN RAM values are positive and os/arch are non-empty
+        assert!(info.total_ram_gb > 0.0);
+        assert!(!info.os.is_empty());
+        assert!(!info.arch.is_empty());
+    }
+
+    #[test]
+    fn test_gguf_scan_empty_dir_returns_empty_vec() {
+        // GIVEN a temporary empty directory
+        let dir = tempfile::tempdir().unwrap();
+        // WHEN scanning for GGUF models
+        let results = scan_gguf_in_dir(dir.path());
+        // THEN an empty Vec is returned
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn a_dictation_file_on_disk_is_judged_as_the_catalogue_judges_its_entry() {
+        use apollia_llm::recommend::{dictation_fits, DictationCatalogue};
+        use apollia_llm::{AcceleratorProfile, HardwareProfile};
+
+        // GIVEN a 16 GB machine with no accelerator, and on its disk the
+        // Large-v3 Q5_0 file of the catalogue at its real size (a sparse file)
+        let hardware = HardwareProfile {
+            total_ram_gb: 16.0,
+            available_ram_gb: 8.0,
+            cpu_model: "test".to_owned(),
+            cpu_cores: 8,
+            accelerator: AcceleratorProfile::None,
+            memory_budget_gb: 9.6,
+        };
+        let catalogue = DictationCatalogue::embedded().unwrap();
+        let entry = catalogue.get("whisper-large-v3-q5_0").unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let file = std::fs::File::create(dir.path().join(&entry.file)).unwrap();
+        file.set_len(entry.size_bytes).unwrap();
+
+        // WHEN the onboarding scans the folder, and the catalogue judges the
+        // entry for the same machine
+        let scanned = scan_whisper_in_dir(dir.path(), &hardware);
+        let catalogue_verdict = dictation_fits(entry.size_bytes, &hardware);
+
+        // THEN the scan says what the catalogue says: the file fits, where the
+        // former size-name threshold reserved "large" for 32 GB machines
+        assert_eq!(scanned.len(), 1);
+        assert_eq!(scanned[0].size_bytes, entry.size_bytes);
+        assert_eq!(scanned[0].recommended, catalogue_verdict);
+        assert!(catalogue_verdict);
+    }
+
+    #[test]
+    fn test_whisper_model_size_detection() {
+        // GIVEN a filename "ggml-base.bin"
+        let size = detect_whisper_model_size("ggml-base.bin");
+        // WHEN the model size is read from it
+        // THEN model_size is "base"
+        assert_eq!(size, Some("base".to_string()));
+    }
+
+    #[test]
+    fn test_whisper_model_size_unknown_filename() {
+        // GIVEN a filename without the standard pattern
+        let size = detect_whisper_model_size("random-model.bin");
+        // WHEN the model size is read from it
+        // THEN None is returned
+        assert_eq!(size, None);
+    }
+
+    #[test]
+    fn onboarding_recommends_what_the_estimator_says_fits() {
+        use apollia_llm::{AcceleratorProfile, CompatibilityBadge, HardwareProfile};
+
+        // GIVEN a 16 GiB file on a 32 GB Apple Silicon machine (24 GB budget),
+        // which the old size threshold, no limit above 16 GB of memory, and the
+        // old Hub badge, "might fit", disagreed on
+        let hardware = HardwareProfile {
+            total_ram_gb: 32.0,
+            available_ram_gb: 20.0,
+            cpu_model: "test".to_owned(),
+            cpu_cores: 8,
+            accelerator: AcceleratorProfile::AppleSilicon {
+                chip: "M3 Max".to_owned(),
+                generation: 3,
+                vram_gb: 32.0,
+            },
+            memory_budget_gb: 24.0,
+        };
+        let facts = apollia_llm::gguf_probe::GgufHeaderFacts::default();
+        let fits: u64 = 16 * 1024 * 1024 * 1024;
+        let too_large: u64 = 20 * 1024 * 1024 * 1024;
+
+        // WHEN onboarding grades each
+        // THEN it follows the estimator's badge, both ways
+        let badge = |size| {
+            apollia_llm::recommend::assess_fit(
+                size,
+                &facts,
+                &hardware,
+                &apollia_llm::recommend::RuntimeShape::default(),
+            )
+            .badge
+        };
+        assert_eq!(badge(fits), CompatibilityBadge::Fits);
+        assert!(recommended_for(fits, &facts, &hardware));
+        assert_eq!(badge(too_large), CompatibilityBadge::TooLarge);
+        assert!(!recommended_for(too_large, &facts, &hardware));
+    }
+
+    #[test]
+    fn test_human_readable_size() {
+        // GIVEN known byte counts
+        // WHEN each is formatted for the operator
+        // THEN human-readable output matches expected strings
+        assert_eq!(format_size_human(4_500_000_000), "4.2 GB");
+        assert_eq!(format_size_human(500_000_000), "476.8 MB");
+    }
+
+    #[test]
+    fn a_model_reached_through_a_link_reports_the_size_of_the_file() {
+        // GIVEN a model file and a link pointing at it, which is the shape a
+        // synchronised Windows folder presents to a directory walk
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let real = tmp.path().join("model.gguf");
+        std::fs::write(&real, vec![0u8; 4096]).expect("write the model");
+        let link = tmp.path().join("linked.gguf");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&real, &link).expect("symlink");
+        #[cfg(windows)]
+        if std::os::windows::fs::symlink_file(&real, &link).is_err() {
+            // Creating a link needs a privilege this runner may not hold; the
+            // case still proves the direct read below.
+            return;
+        }
+
+        // WHEN the size is read the way the scan reads it
+        let size = size_on_disk(&link);
+
+        // THEN it is the size of the file, not the zero a link answers when it
+        // is measured instead of followed
+        assert_eq!(size, 4096);
+    }
+
+    #[test]
+    fn a_path_that_is_not_there_reads_as_zero() {
+        // GIVEN a path no file occupies
+        let tmp = tempfile::tempdir().expect("tempdir");
+
+        // WHEN its size is read
+        let size = size_on_disk(&tmp.path().join("absent.gguf"));
+
+        // THEN zero is returned, and the warning names the path so the reader
+        // is not left with a silent 0 B in the interface
+        assert_eq!(size, 0);
+    }
+}

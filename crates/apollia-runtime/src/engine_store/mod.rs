@@ -29,9 +29,13 @@
 //! }
 //! ```
 //!
-//! - `engine` is `llama-server` or `vllm-mlx`; `variant` is `cuda`, `vulkan`,
-//!   `cpu` or `metal`; `platform` is `<os>-<arch>`, with `os` in `macos`,
-//!   `linux`, `windows` and `arch` in `x64`, `arm64`.
+//! - `engine` is `llama-server`, `vllm-mlx` or `nodejs`; `variant` is `cuda`,
+//!   `vulkan`, `cpu` or `metal`; `platform` is `<os>-<arch>`, with `os` in
+//!   `macos`, `linux`, `windows` and `arch` in `x64`, `arm64`.
+//! - A `nodejs` package is a pinned Node.js LTS release (`tag` `v22.11.0`),
+//!   always under the `cpu` variant. Its upstream archive is repackaged as
+//!   zip like the others, and installed the first time a tool server needs
+//!   it ([`node`]).
 //! - `url` is relative to the manifest: no scheme, no host, no parent step. It
 //!   ends in `.zip`, the only archive format read. An upstream build shipped
 //!   as `.tar.gz` (macOS, Linux) is repackaged as zip by the pipeline that
@@ -66,13 +70,14 @@ mod archive;
 mod fetch;
 mod installed;
 mod manifest;
+pub mod node;
 mod settings;
 
 use std::path::PathBuf;
 
 pub use fetch::{
-    import_from_dir, install_package, refresh_manifest, updates, VariantUpdate, MANIFEST_FILE,
-    SIGNATURE_FILE,
+    import_from_dir, install_package, install_package_with_progress, refresh_manifest, updates,
+    VariantUpdate, MANIFEST_FILE, SIGNATURE_FILE,
 };
 pub use installed::{
     find_binary, installed_packages, newest_installed, package_dir, preferred_llama_server,

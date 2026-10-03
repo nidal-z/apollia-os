@@ -36,7 +36,6 @@ pub mod inference_servers;
 pub mod installed_models;
 pub mod llama_server;
 pub mod llm_timings;
-pub mod local_ai;
 pub mod local_engine;
 pub mod mailbox;
 pub mod memory_maintenance;

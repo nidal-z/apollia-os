@@ -6,33 +6,30 @@ from typing import Any, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="SetupLlmResult")
+from ..models.node_runtime_state_type_0_state import NodeRuntimeStateType0State
+
+T = TypeVar("T", bound="NodeRuntimeStateType0")
 
 
 @_attrs_define
-class SetupLlmResult:
-    """What the local language model setup did.
+class NodeRuntimeStateType0:
+    """Not installed, and no download running.
 
     Attributes:
-        model_path (str): Absolute path where the model is stored.
-        quantization (str): Inferred quantization from the filename (e.g. `"q8_0"`, `"q4_k_m"`).
+        state (NodeRuntimeStateType0State):
     """
 
-    model_path: str
-    quantization: str
+    state: NodeRuntimeStateType0State
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        model_path = self.model_path
-
-        quantization = self.quantization
+        state = self.state.value
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "model_path": model_path,
-                "quantization": quantization,
+                "state": state,
             }
         )
 
@@ -41,17 +38,14 @@ class SetupLlmResult:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        model_path = d.pop("model_path")
+        state = NodeRuntimeStateType0State(d.pop("state"))
 
-        quantization = d.pop("quantization")
-
-        setup_llm_result = cls(
-            model_path=model_path,
-            quantization=quantization,
+        node_runtime_state_type_0 = cls(
+            state=state,
         )
 
-        setup_llm_result.additional_properties = d
-        return setup_llm_result
+        node_runtime_state_type_0.additional_properties = d
+        return node_runtime_state_type_0
 
     @property
     def additional_keys(self) -> list[str]:

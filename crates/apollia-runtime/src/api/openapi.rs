@@ -101,6 +101,15 @@ impl utoipa::PartialSchema for TranscribeForm {
                     .schema_type(Type::String)
                     .description(Some("Language hint, an ISO 639-1 code")),
             )
+            .property(
+                "source",
+                ObjectBuilder::new()
+                    .schema_type(Type::String)
+                    .enum_values(Some(["api", "file", "hotkey"]))
+                    .description(Some(
+                        "What the audio is, the tag the history shows: api (default), file or hotkey",
+                    )),
+            )
             .into()
     }
 }
@@ -160,7 +169,6 @@ impl ToSchema for RawWebhookBody {}
         (name = "mcp", description = "MCP servers and resources"),
         (name = "connections", description = "Everything plugged into this machine, in one list"),
         (name = "profile", description = "The user profile"),
-        (name = "local_ai", description = "Installation of the local AI: the machine, the models on disk, the models chosen"),
         (name = "onboarding", description = "The onboarding: its phases, its profile and its conversation"),
         (name = "artifacts", description = "The artifacts captured in a conversation"),
         (name = "memory", description = "The memory of the agents, read and upkept per namespace"),
@@ -187,6 +195,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_batches::resume_batch,
         crate::api::routes_batches::stop_batch,
         crate::api::routes_batches::retry_batch,
+        crate::api::routes_batches::export_batch,
         crate::api::routes_workflows::launch_workflow,
         crate::api::routes_workflows::list_workflow_runs,
         crate::api::routes_workflows::get_workflow_run,
@@ -280,9 +289,9 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_stt::list_transcriptions,
         crate::api::routes_stt::delete_transcription,
         crate::api::routes_stt::list_models,
-        crate::api::routes_stt::get_stt_config,
-        crate::api::routes_stt::update_stt_config,
-        crate::api::routes_stt::reload_stt_engine,
+        crate::api::routes_stt::settings::get_stt_config,
+        crate::api::routes_stt::settings::update_stt_config,
+        crate::api::routes_stt::settings::reload_stt_engine,
         crate::api::routes_webhooks::handle_webhook,
         crate::api::routes_llm::get_llm_status,
         crate::api::routes_llm::ping_llm_backend,
@@ -330,6 +339,8 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_engines::check_engines,
         crate::api::routes_engines::install_engine,
         crate::api::routes_engines::import_engines,
+        crate::api::routes_engines::node_runtime_state,
+        crate::api::routes_engines::ensure_node_runtime,
         crate::api::routes_model_hub::embeddings::list_embedding_models,
         crate::api::routes_model_hub::dictation::list_dictation_models,
         crate::api::routes_model_hub::installed::delete_installed_model,
@@ -363,11 +374,6 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_tool_credentials::set_tool_credential,
         crate::api::routes_tool_credentials::delete_tool_credential,
         crate::api::routes_tool_credentials::test_tool_credential,
-        crate::api::routes_local_ai::get_local_ai_system,
-        crate::api::routes_local_ai::scan_gguf_models,
-        crate::api::routes_local_ai::scan_whisper_models,
-        crate::api::routes_local_ai::setup_local_llm,
-        crate::api::routes_local_ai::setup_dictation,
         crate::api::routes_onboarding::get_onboarding_state,
         crate::api::routes_onboarding::advance_onboarding_phase,
         crate::api::routes_onboarding::set_onboarding_profile,
@@ -458,6 +464,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_batches::BatchDetailView,
         crate::api::routes_batches::BatchListView,
         crate::api::routes_batches::BatchAccessesView,
+        crate::batch::ExportFormat,
         crate::batch::BatchAccess,
         crate::batch::BatchRetry,
         crate::api::routes_workflows::WorkflowLaunch,
@@ -558,7 +565,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_stt::TranscriptionsListResponse,
         crate::api::routes_stt::ModelInfo,
         crate::api::routes_stt::ModelsListResponse,
-        crate::api::routes_stt::SttReloadResponse,
+        crate::api::routes_stt::settings::SttReloadResponse,
         crate::api::routes_llm::LlmStatusResponse,
         crate::api::routes_llm::PingRequest,
         crate::api::routes_llm::PingResponse,
@@ -631,13 +638,6 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_tool_credentials::SetCredentialBody,
         crate::api::routes_tool_credentials::StoredCredential,
         crate::api::routes_tool_credentials::DeletedCredential,
-        crate::api::routes_local_ai::SetupLlmBody,
-        crate::api::routes_local_ai::SetupDictationBody,
-        crate::local_ai::SystemInfo,
-        crate::local_ai::GgufModelInfo,
-        crate::local_ai::WhisperModelInfo,
-        crate::local_ai::SetupLlmResult,
-        crate::local_ai::DictationConfigured,
         crate::onboarding::state::OnboardingPhase,
         crate::onboarding::state::OnboardingStats,
         crate::onboarding::state::OnboardingState,

@@ -171,6 +171,12 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "memory_export_namespace",
     "memory_import_namespace",
     "purge_memory",
+    // The transcription history, over `/api/v1/stt/transcriptions`, and the
+    // transcription of a file: the file is read on the machine of the window,
+    // the daemon transcribes its content and keeps the row.
+    "delete_transcription",
+    "list_transcriptions",
+    "transcribe_file",
     // The onboarding, over `/api/v1/onboarding`: its state and phases, the
     // profile chosen, the conversation with its agent and its completion.
     "advance_onboarding_phase",
@@ -270,14 +276,6 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "meta_generate_next_steps",
     "meta_parse_automation",
     "meta_rewrite_input",
-    // The installation of the local AI at onboarding, over
-    // `/api/v1/local-ai/...`: the daemon describes its machine, scans its own
-    // folders, and copies and registers the models it will load.
-    "get_ai_setup_info",
-    "scan_for_gguf_models",
-    "scan_for_whisper_models",
-    "setup_local_llm",
-    "setup_whisper_model",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no
@@ -320,6 +318,14 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "list_audio_input_devices",
         "lists the microphones of this machine",
+    ),
+    (
+        "start_tour_recording",
+        "captures the microphone of this machine, the daemon transcribing what it heard",
+    ),
+    (
+        "stop_tour_recording",
+        "stops the capture of this machine and sends its audio to the daemon",
     ),
     (
         "open_config_in_editor",
@@ -491,6 +497,41 @@ where
     }
 }
 
+/// Arms the dictation of this window against the daemon: the microphone is
+/// the one of this machine, the engine and the history the daemon's, the
+/// thresholds its configuration, read once when the window attaches. Nothing
+/// is armed while the daemon has dictation off, as in the embedded mode.
+async fn arm_dictation(
+    app: tauri::AppHandle,
+    client: AttachedClient,
+    bus: EventBusSender,
+    state: crate::commands::stt::SttFlowState,
+) {
+    let config: apollia_core::SttConfigRow = match client.get("/api/v1/stt/config").await {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                error = %error,
+                "desktop.attached.dictation_unarmed"
+            );
+            return;
+        }
+    };
+    if !config.enabled {
+        return;
+    }
+    let flow = crate::stt::flow::SttFlow::new(
+        config,
+        crate::stt::transcriber::Transcriber::Daemon(client),
+        bus,
+        app,
+    );
+    if let Ok(mut guard) = state.lock() {
+        *guard = Some(std::sync::Arc::new(flow));
+    }
+}
+
 /// Runs the application attached to the daemon serving `port`, and never
 /// returns.
 ///
@@ -515,12 +556,15 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
 
     let setup_client = client.clone();
     let setup_bus = bus.clone();
+    let dictation: crate::commands::stt::SttFlowState =
+        std::sync::Arc::new(std::sync::Mutex::new(None));
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(RuntimeLink::Attached(client))
+        .manage(dictation.clone())
         .manage(
             std::sync::Arc::new(tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()))
                 as crate::commands::model_hub::SharedDownloadManager,
@@ -540,6 +584,12 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
             crate::events::spawn_event_bridge(app.handle().clone(), setup_bus.clone());
             relay::spawn_event_relay(setup_client.clone(), setup_bus.clone());
             relay::spawn_liveness(app.handle().clone(), setup_client.clone());
+            tauri::async_runtime::spawn(arm_dictation(
+                app.handle().clone(),
+                setup_client.clone(),
+                setup_bus.clone(),
+                dictation.clone(),
+            ));
 
             let main_window = app
                 .get_webview_window("main")
