@@ -12,6 +12,8 @@
 //! intact for their business use (immutable audit, cost aggregations); the
 //! duplication is deliberate and limited to this one new log.
 
+pub mod global_timeline;
+pub mod mailbox_rows;
 pub mod persistor;
 pub mod repository;
 pub mod resilience_subscriber;

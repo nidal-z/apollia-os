@@ -29,6 +29,7 @@ from .answer_user_input_request import AnswerUserInputRequest
 from .answer_user_input_request_answers_item import AnswerUserInputRequestAnswersItem
 from .api_error_body import ApiErrorBody
 from .applied_proposal import AppliedProposal
+from .artifact import Artifact
 from .audit_entry_dto import AuditEntryDto
 from .audit_event_response import AuditEventResponse
 from .audit_journal_page_response import AuditJournalPageResponse
@@ -66,6 +67,8 @@ from .chat_response_value_type_0 import ChatResponseValueType0
 from .clear_agent_model_response import ClearAgentModelResponse
 from .clear_cache_response import ClearCacheResponse
 from .clear_memory_body import ClearMemoryBody
+from .coaching_example import CoachingExample
+from .coaching_request import CoachingRequest
 from .companion_enabled import CompanionEnabled
 from .companion_session import CompanionSession
 from .complete_consent_body import CompleteConsentBody
@@ -104,6 +107,7 @@ from .delete_backend_response import DeleteBackendResponse
 from .delete_preset_response import DeletePresetResponse
 from .delete_response import DeleteResponse
 from .delete_server_response import DeleteServerResponse
+from .deleted_artifact import DeletedArtifact
 from .deleted_credential import DeletedCredential
 from .deleted_installed_model import DeletedInstalledModel
 from .deleted_profile_entry import DeletedProfileEntry
@@ -139,9 +143,12 @@ from .fs_hitl_decision_body_type_2 import FsHitlDecisionBodyType2
 from .fs_hitl_decision_body_type_2_decision import FsHitlDecisionBodyType2Decision
 from .fs_hitl_decision_body_type_3 import FsHitlDecisionBodyType3
 from .fs_hitl_decision_body_type_3_decision import FsHitlDecisionBodyType3Decision
+from .generate_next_steps_body import GenerateNextStepsBody
 from .generate_title_body import GenerateTitleBody
 from .generated_title import GeneratedTitle
 from .get_model_card_response_200 import GetModelCardResponse200
+from .global_timeline_event import GlobalTimelineEvent
+from .global_timeline_event_detail import GlobalTimelineEventDetail
 from .hardware_response import HardwareResponse
 from .hardware_response_accelerator import HardwareResponseAccelerator
 from .health_response import HealthResponse
@@ -184,6 +191,7 @@ from .loaded_model_dto import LoadedModelDto
 from .loaded_models_response import LoadedModelsResponse
 from .logs_response import LogsResponse
 from .logs_response_entries_item import LogsResponseEntriesItem
+from .mailbox_message_row import MailboxMessageRow
 from .memory_entry_deleted import MemoryEntryDeleted
 from .memory_entry_view import MemoryEntryView
 from .memory_imported import MemoryImported
@@ -197,6 +205,8 @@ from .model_cards_response_publishers import ModelCardsResponsePublishers
 from .model_info import ModelInfo
 from .model_source_dto import ModelSourceDto
 from .models_list_response import ModelsListResponse
+from .next_steps_reply import NextStepsReply
+from .next_steps_reply_steps_item import NextStepsReplyStepsItem
 from .oauth_client_id_status import OauthClientIdStatus
 from .oauth_client_test_result import OauthClientTestResult
 from .oauth_client_value_body import OauthClientValueBody
@@ -222,6 +232,8 @@ from .package_notice_type_3 import PackageNoticeType3
 from .package_notice_type_3_code import PackageNoticeType3Code
 from .package_preview import PackagePreview
 from .package_preview_request import PackagePreviewRequest
+from .parse_automation_request import ParseAutomationRequest
+from .parse_automation_response_200 import ParseAutomationResponse200
 from .pending_approval_response import PendingApprovalResponse
 from .pending_approval_response_context_type_0 import PendingApprovalResponseContextType0
 from .pending_approval_response_payload_type_0 import PendingApprovalResponsePayloadType0
@@ -270,6 +282,10 @@ from .resume_response import ResumeResponse
 from .revoke_all_body import RevokeAllBody
 from .revoked_rule import RevokedRule
 from .revoked_rules import RevokedRules
+from .rewrite_fallback_reason import RewriteFallbackReason
+from .rewrite_prompt_body import RewritePromptBody
+from .rewrite_reply import RewriteReply
+from .save_artifact_request import SaveArtifactRequest
 from .send_message_request import SendMessageRequest
 from .send_message_response import SendMessageResponse
 from .server_model import ServerModel
@@ -366,6 +382,7 @@ from .trust_key_request import TrustKeyRequest
 from .trusted_key_view import TrustedKeyView
 from .unload_model_request import UnloadModelRequest
 from .unload_model_response import UnloadModelResponse
+from .update_artifact_request import UpdateArtifactRequest
 from .update_channel_request import UpdateChannelRequest
 from .update_channel_request_config_type_0 import UpdateChannelRequestConfigType0
 from .update_diff import UpdateDiff
@@ -422,6 +439,7 @@ __all__ = (
     "AnswerUserInputRequestAnswersItem",
     "ApiErrorBody",
     "AppliedProposal",
+    "Artifact",
     "AuditEntryDto",
     "AuditEventResponse",
     "AuditJournalPageResponse",
@@ -459,6 +477,8 @@ __all__ = (
     "ClearAgentModelResponse",
     "ClearCacheResponse",
     "ClearMemoryBody",
+    "CoachingExample",
+    "CoachingRequest",
     "CompanionEnabled",
     "CompanionSession",
     "CompleteConsentBody",
@@ -494,6 +514,7 @@ __all__ = (
     "DelegateRequest",
     "DelegateRequestInput",
     "DeleteBackendResponse",
+    "DeletedArtifact",
     "DeletedCredential",
     "DeletedInstalledModel",
     "DeletedProfileEntry",
@@ -533,8 +554,11 @@ __all__ = (
     "FsHitlDecisionBodyType3",
     "FsHitlDecisionBodyType3Decision",
     "GeneratedTitle",
+    "GenerateNextStepsBody",
     "GenerateTitleBody",
     "GetModelCardResponse200",
+    "GlobalTimelineEvent",
+    "GlobalTimelineEventDetail",
     "HardwareResponse",
     "HardwareResponseAccelerator",
     "HealthResponse",
@@ -577,6 +601,7 @@ __all__ = (
     "LoadedModelsResponse",
     "LogsResponse",
     "LogsResponseEntriesItem",
+    "MailboxMessageRow",
     "MemoryEntryDeleted",
     "MemoryEntryView",
     "MemoryImported",
@@ -590,6 +615,8 @@ __all__ = (
     "ModelInfo",
     "ModelsListResponse",
     "ModelSourceDto",
+    "NextStepsReply",
+    "NextStepsReplyStepsItem",
     "OauthClientIdStatus",
     "OauthClientTestResult",
     "OauthClientValueBody",
@@ -615,6 +642,8 @@ __all__ = (
     "PackageNoticeType3Code",
     "PackagePreview",
     "PackagePreviewRequest",
+    "ParseAutomationRequest",
+    "ParseAutomationResponse200",
     "PendingApprovalResponse",
     "PendingApprovalResponseContextType0",
     "PendingApprovalResponsePayloadType0",
@@ -659,6 +688,10 @@ __all__ = (
     "RevokeAllBody",
     "RevokedRule",
     "RevokedRules",
+    "RewriteFallbackReason",
+    "RewritePromptBody",
+    "RewriteReply",
+    "SaveArtifactRequest",
     "SendMessageRequest",
     "SendMessageResponse",
     "ServerModel",
@@ -753,6 +786,7 @@ __all__ = (
     "TrustKeyRequest",
     "UnloadModelRequest",
     "UnloadModelResponse",
+    "UpdateArtifactRequest",
     "UpdateChannelRequest",
     "UpdateChannelRequestConfigType0",
     "UpdateDiff",

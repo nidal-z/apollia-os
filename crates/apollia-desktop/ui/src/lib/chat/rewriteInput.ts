@@ -40,8 +40,8 @@ interface RewriteInputRequest {
 /**
  * Why no rewrite happened.
  *
- * Mirrors `RewriteFallbackIpc` in
- * `crates/apollia-desktop/src/commands/meta_rewrite.rs`. Only the first two
+ * Mirrors `RewriteFallbackReason` in
+ * `crates/apollia-runtime/src/chat_assists.rs`. Only the first two
  * mean the operator has no engine to configure; the last two mean the engine
  * answered, and telling them to go set one up would be false.
  */
