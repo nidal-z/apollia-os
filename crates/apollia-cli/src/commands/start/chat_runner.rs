@@ -45,12 +45,6 @@ pub(super) struct AIPChatAgentRunner {
     pub(super) tool_registry: Arc<std::sync::OnceLock<ToolRegistryHandle>>,
     /// Audit trail, populated after supervisor.start().
     pub(super) audit_trail: Arc<std::sync::OnceLock<AuditTrailHandle>>,
-    /// Global user memory repository, populated after supervisor.start().
-    pub(super) user_memory: Arc<
-        std::sync::OnceLock<
-            Option<Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
-        >,
-    >,
     /// Chat manager's `ask_user` pending-input registry, populated after
     /// `supervisor.start()` so the native dispatcher can wire
     /// `AskUserExecutor` to the chat HITL loop.
@@ -239,16 +233,6 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 Some(iface)
             });
 
-        // Build user_context from UserMemoryRepository (chat mode only).
-        let user_context = self
-            .user_memory
-            .get()
-            .and_then(|opt| opt.as_ref())
-            .and_then(|repo_mutex| {
-                let repo = repo_mutex.lock().ok()?;
-                build_user_context_from_repo(&repo)
-            });
-
         let profile_interface = {
             let user_memory_db = self
                 .data_dir
@@ -282,7 +266,6 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 memory_interface,
                 None, // mailbox: not available in chat runner context
                 agent_name.to_string(),
-                user_context,
                 a2a_invoker,
                 manifest.user_memory_write, // user_memory_writable: manifest-controlled
             )
@@ -340,26 +323,6 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
 /// not go through.
 pub(super) fn chat_agent_budget_view(manifest: &AgentManifest) -> StepBudgetView {
     direct_path_budget(&manifest.step_budget.clone().unwrap_or_default()).to_live_budget_view()
-}
-
-/// Builds the `user_context` dict from a [`UserMemoryRepository`].
-///
-/// Returns a `HashMap` with a single `"profile"` key mapping to the flat
-/// list of `(key, value)` pairs from [`UserMemoryRepository::list_all`].
-/// Returns `None` if the profile is empty.
-pub(super) fn build_user_context_from_repo(
-    repo: &apollia_memory::user_memory::UserMemoryRepository,
-) -> Option<std::collections::HashMap<String, Vec<(String, String)>>> {
-    let entries = repo.list_all().unwrap_or_default();
-    if entries.is_empty() {
-        return None;
-    }
-    let mut map = std::collections::HashMap::new();
-    map.insert(
-        "profile".to_string(),
-        entries.into_iter().map(|e| (e.key, e.value)).collect(),
-    );
-    Some(map)
 }
 
 /// Every executor an agent dispatcher takes beyond the native tool set: the MCP

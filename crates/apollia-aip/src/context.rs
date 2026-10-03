@@ -18,8 +18,6 @@ pub use tool_proxy::{
 };
 pub use workspace::WorkspaceContextPy;
 
-use std::collections::HashMap;
-
 use apollia_core::events::{AgentId, EventBusSender, RuntimeEvent};
 use apollia_llm::StepBudgetView;
 use apollia_runtime::a2a::A2AInvoker;
@@ -97,11 +95,6 @@ pub struct RuntimeContext {
     mailbox_send_requires_approval: bool,
     /// Name of the agent owning this context.
     agent_name: String,
-    /// User memory injected in chat mode; `None` in task mode.
-    ///
-    /// Structure: `{"preferences": [("key", "value"), ...], "habits": [...], "context": [...]}`.
-    /// The agent decides what to do with it; this is never deterministic.
-    user_context: Option<HashMap<String, Vec<(String, String)>>>,
     /// High-level A2A orchestrator; `None` if unavailable in this context.
     ///
     /// Exposes `ctx.a2a_invoke`, `ctx.a2a_discover`, `ctx.a2a_list_skills` to Python agents.
@@ -508,19 +501,6 @@ impl RuntimeContext {
         logging.call_method1("getLogger", (logger_name,))
     }
 
-    /// User context injected in chat mode; `None` in task mode.
-    ///
-    /// Python property `ctx.user_context`. Returns a `dict[str, list[tuple[str, str]]]`
-    /// with the categories `preferences`, `habits`, `context`, or Python `None`
-    /// if the agent is not in chat mode or the user memory is empty.
-    #[getter]
-    fn user_context(&self, py: Python<'_>) -> PyResult<PyObject> {
-        match &self.user_context {
-            Some(ctx) => Ok(ctx.clone().into_pyobject(py)?.into_any().unbind()),
-            None => Ok(py.None()),
-        }
-    }
-
     /// Whether this agent can write into the global user memory (`__user__`)
     /// via `ctx.memory.remember_user()`.
     ///
@@ -711,7 +691,6 @@ mod runtime_context_tests {
             None,          // memory_interface
             None,          // mailbox
             String::new(), // agent_name
-            None,          // user_context
             None,          // a2a_invoker
             false,         // user_memory_writable
         );
@@ -738,7 +717,6 @@ mod runtime_context_tests {
             None,          // memory_interface
             None,          // mailbox
             String::new(), // agent_name
-            None,          // user_context
             None,          // a2a_invoker
             false,         // user_memory_writable
         );
@@ -771,7 +749,6 @@ mod runtime_context_tests {
             None,          // memory_interface
             None,          // mailbox
             String::new(), // agent_name
-            None,          // user_context
             None,          // a2a_invoker
             false,         // user_memory_writable
         );
@@ -845,7 +822,6 @@ mod runtime_context_tests {
             None,          // memory_interface
             None,          // mailbox
             String::new(), // agent_name
-            None,          // user_context
             None,          // a2a_invoker
             false,         // user_memory_writable
         );
@@ -1673,88 +1649,6 @@ mod a2a_tests {
         assert!(result.is_none());
 
         handle.shutdown().await;
-    }
-
-    #[tokio::test]
-    async fn test_user_context_some_in_chat_mode() {
-        // GIVEN a RuntimeContext with user_context populated (chat mode)
-        let mut uc = HashMap::new();
-        uc.insert(
-            "preferences".to_string(),
-            vec![
-                ("langue".to_string(), "francais".to_string()),
-                ("format".to_string(), "markdown".to_string()),
-            ],
-        );
-        uc.insert(
-            "habits".to_string(),
-            vec![("working_hours".to_string(), "9h-18h".to_string())],
-        );
-        uc.insert("context".to_string(), vec![]);
-
-        let mut ctx = RuntimeContext::for_test();
-        ctx.user_context = Some(uc);
-
-        // WHEN the context is read back
-        // THEN user_context is Some with expected categories
-        assert!(ctx.user_context.is_some());
-        let uc = ctx.user_context.as_ref().expect("should be Some");
-        assert_eq!(uc.get("preferences").expect("preferences").len(), 2);
-        assert_eq!(uc.get("habits").expect("habits").len(), 1);
-        assert!(uc.get("context").expect("context").is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_user_context_none_in_task_mode() {
-        // GIVEN a RuntimeContext with user_context = None (task mode)
-        let ctx = RuntimeContext::for_test();
-
-        // WHEN user_context is read
-        // THEN user_context is None
-        assert!(ctx.user_context.is_none());
-    }
-
-    // GIVEN a RuntimeContext whose user_context is populated
-    // WHEN the Python `ctx.user_context` getter is invoked
-    // THEN it converts to a Python dict without unwrapping / panicking
-    #[test]
-    fn test_user_context_getter_returns_dict() {
-        // GIVEN
-        let mut uc = HashMap::new();
-        uc.insert(
-            "preferences".to_string(),
-            vec![("langue".to_string(), "francais".to_string())],
-        );
-        let mut ctx = RuntimeContext::for_test();
-        ctx.user_context = Some(uc);
-
-        // WHEN / THEN
-        Python::with_gil(|py| {
-            let obj = ctx
-                .user_context(py)
-                .expect("getter must return Ok, not panic");
-            let bound = obj.bind(py);
-            assert!(!bound.is_none(), "populated user_context must not be None");
-            assert!(
-                bound.is_instance_of::<pyo3::types::PyDict>(),
-                "user_context must convert to a Python dict"
-            );
-        });
-    }
-
-    // GIVEN a RuntimeContext with no user_context (task mode)
-    // WHEN the Python getter is invoked
-    // THEN it returns Python None, still via a Result (no unwrap)
-    #[test]
-    fn test_user_context_getter_none() {
-        // GIVEN
-        let ctx = RuntimeContext::for_test();
-
-        // WHEN / THEN
-        Python::with_gil(|py| {
-            let obj = ctx.user_context(py).expect("getter must return Ok");
-            assert!(obj.bind(py).is_none());
-        });
     }
 }
 

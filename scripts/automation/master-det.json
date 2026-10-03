@@ -2,12 +2,6 @@
   "name": "master-det (per-page deterministic suite, one boot, no model)",
   "stopOnError": false,
   "dynamicTestids": [
-    "agent-detail-tab-activity",
-    "agent-detail-tab-memory",
-    "agent-detail-tab-overview",
-    "agent-detail-tab-settings",
-    "agent-detail-tab-tools",
-    "agent-detail-title",
     "arg-input-0",
     "automation-delete-automation-probe-trigger",
     "automation-delete-seed-trigger-daily-digest",
@@ -192,7 +186,6 @@
     "task-detail-tab-overview",
     "task-detail-tab-technical",
     "task-detail-tab-trace",
-    "task-detail-title",
     "tasks-filter-all",
     "tasks-filter-approval",
     "tasks-filter-done",
@@ -4017,6 +4010,11 @@
       "testid": "apollia-chat-pinned"
     },
     {
+      "kind": "click",
+      "testid": "apollia-sheet-adjust",
+      "timeoutMs": 2500
+    },
+    {
       "kind": "waitFor",
       "testid": "apollia-chat-config-panel",
       "timeoutMs": 6000
@@ -4114,12 +4112,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-tabbar",
+      "testid": "agent-sheet",
       "timeoutMs": 2500
     },
     {
       "kind": "expect",
-      "testid": "agent-detail-tab-content"
+      "testid": "agent-detail-content"
     },
     {
       "kind": "screenshot",
@@ -4321,13 +4319,13 @@
       "label": "05i-agent-update-error-cleared (changing agent retires the banner)"
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-tools",
+      "kind": "waitFor",
+      "testid": "agent-sheet-access",
       "timeoutMs": 2500
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-tab-content",
+      "testid": "agent-detail-content",
       "timeoutMs": 2500
     },
     {
@@ -4335,8 +4333,8 @@
       "label": "06-agent-tools"
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-activity",
+      "kind": "waitFor",
+      "testid": "agent-sheet-activity",
       "timeoutMs": 2500
     },
     {
@@ -4356,8 +4354,8 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-activity",
+      "kind": "waitFor",
+      "testid": "agent-sheet-activity",
       "timeoutMs": 2500
     },
     {
@@ -4375,13 +4373,8 @@
       "label": "07-agent-activity"
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-settings",
-      "timeoutMs": 2500
-    },
-    {
       "kind": "waitFor",
-      "testid": "agent-detail-settings",
+      "testid": "agent-sheet-activity",
       "timeoutMs": 2500
     },
     {
@@ -4389,8 +4382,8 @@
       "label": "08-agent-settings"
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-overview",
+      "kind": "waitFor",
+      "testid": "agent-sheet-mission",
       "timeoutMs": 2500
     },
     {
@@ -4405,18 +4398,13 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-settings",
+      "kind": "waitFor",
+      "testid": "agent-sheet-activity",
       "timeoutMs": 2500
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-settings",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "agent-detail-tab-overview",
+      "testid": "agent-sheet-mission",
       "timeoutMs": 2500
     },
     {
@@ -4431,8 +4419,8 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-memory",
+      "kind": "waitFor",
+      "testid": "agent-sheet-memory",
       "timeoutMs": 2500
     },
     {
@@ -4949,20 +4937,15 @@
     },
     {
       "kind": "expect",
-      "testid": "agent-detail-tab-content"
+      "testid": "agent-detail-content"
     },
     {
       "kind": "screenshot",
       "label": "14-agent-detail-builder-overview"
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-settings",
-      "timeoutMs": 2500
-    },
-    {
       "kind": "waitFor",
-      "testid": "agent-detail-settings",
+      "testid": "agent-sheet-activity",
       "timeoutMs": 2500
     },
     {
@@ -4970,8 +4953,8 @@
       "label": "15-agent-settings-builder"
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-activity",
+      "kind": "waitFor",
+      "testid": "agent-sheet-activity",
       "timeoutMs": 2500
     },
     {
@@ -4995,8 +4978,8 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-memory",
+      "kind": "waitFor",
+      "testid": "agent-sheet-memory",
       "timeoutMs": 2500
     },
     {
