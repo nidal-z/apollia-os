@@ -693,6 +693,8 @@ guards:
       "scripts/check_cli_json_contract.py"
       "scripts/check_cli_json_contract.py taxonomy"
       "scripts/check_cli_parse_tests.py"
+      "scripts/check_compat_routes.py"
+      "scripts/check_compat_routes.py --selftest"
       "scripts/check_config_reference.py"
       "scripts/check_config_reference.py --selftest"
       "scripts/check_corpus_claims.py"

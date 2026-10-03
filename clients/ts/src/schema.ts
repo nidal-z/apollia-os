@@ -3644,6 +3644,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/server": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/server`: whether the compatible server listens, its port, why
+         *     its last start failed, and how many of its tokens are in use.
+         */
+        get: operations["server_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/server/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/server/start`: opens the compatible server on its configured
+         *     port and writes `[server] enabled = true`.
+         */
+        post: operations["start_server"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/server/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/server/stop`: closes the compatible server and writes
+         *     `[server] enabled = false`. The native API keeps answering.
+         */
+        post: operations["stop_server"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/server/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/server/tokens`: every token, in use and revoked, oldest first. */
+        get: operations["list_server_tokens"];
+        put?: never;
+        /**
+         * `POST /api/v1/server/tokens`: creates a named token and answers its value,
+         *     the only time it is given.
+         */
+        post: operations["create_server_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/server/tokens/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/v1/server/tokens/{token}`: revokes a token by identifier or
+         *     by name. The row stays listed, marked revoked.
+         */
+        delete: operations["revoke_server_token"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions": {
         parameters: {
             query?: never;
@@ -5908,6 +6009,23 @@ export interface components {
             /** @description Identifier of the guide session just opened. */
             session_id: string;
         };
+        /** @description What the compatible server is doing. */
+        CompatServerStatus: {
+            /**
+             * Format: int64
+             * @description How many tokens of the server are in use (not revoked).
+             */
+            activeTokens: number;
+            /** @description Why the last start failed, cleared by the next successful start. */
+            lastError?: string | null;
+            /**
+             * Format: int32
+             * @description The port it listens on, or the configured port when it is stopped.
+             */
+            port: number;
+            /** @description Whether the listener is open. */
+            running: boolean;
+        };
         /** @description Body of `POST /api/v1/connectors/oauth/complete`. */
         CompleteConsentBody: {
             /** @description The authorization `code` the provider returned. */
@@ -6144,6 +6262,14 @@ export interface components {
             /** @description Unique name, pattern `^[a-z0-9_-]+$`. */
             name: string;
         };
+        /** @description Body of `POST /api/v1/server/tokens`. */
+        CreateServerTokenRequest: {
+            /**
+             * @description Who holds the token, usually the application it is for. At most 64
+             *     characters, not digits only, unique among the tokens in use.
+             */
+            name: string;
+        };
         /** @description Request body for `POST /api/v1/sessions`. */
         CreateSessionRequest: {
             /** @description Agent name (required when `mode == "agent"`). */
@@ -6171,6 +6297,11 @@ export interface components {
             on_busy?: string | null;
             /** @description Trigger source configuration. */
             source: components["schemas"]["TriggerSourceInput"];
+        };
+        /** @description Answer of `POST /api/v1/server/tokens`: the token and, this once, its value. */
+        CreatedServerTokenView: components["schemas"]["ServerTokenView"] & {
+            /** @description The value (`apo_` and 64 hexadecimal characters). Shown this once. */
+            value: string;
         };
         /**
          * @description A credential as listed: its owner, its key name and its dates, never its
@@ -8045,6 +8176,26 @@ export interface components {
             has_key: boolean;
             /** @description Unique name, the first segment of `<server>/<model>`. */
             name: string;
+        };
+        /** @description A token as the list shows it: never its value. */
+        ServerTokenView: {
+            /** @description When it was created, RFC 3339. */
+            createdAt: string;
+            /**
+             * Format: int64
+             * @description Identifier, usable to revoke it.
+             */
+            id: number;
+            /** @description The last four characters of the value. */
+            lastFour: string;
+            /** @description When it last opened the server, RFC 3339; absent if never. */
+            lastUsedAt?: string | null;
+            /** @description Name given at creation. */
+            name: string;
+            /** @description Whether it was revoked. */
+            revoked: boolean;
+            /** @description When it was revoked, RFC 3339. */
+            revokedAt?: string | null;
         };
         /** @description Body of `GET /api/v1/llm/servers`. */
         ServersListResponse: {
@@ -14337,6 +14488,15 @@ export interface operations {
                     "application/json": components["schemas"]["ServerResponse"];
                 };
             };
+            /** @description The organisation policy refuses this server; nothing was saved */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
             /** @description Invalid name or address */
             422: {
                 headers: {
@@ -14377,6 +14537,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TestServerResponse"];
+                };
+            };
+            /** @description The organisation policy refuses this server; nothing was sent to it, `kind` is `policy` */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerProbeErrorResponse"];
                 };
             };
             /** @description The address is not an HTTP URL */
@@ -17654,6 +17823,268 @@ export interface operations {
             };
             /** @description Resilience layer mutex poisoned */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    server_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description State of the compatible server */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompatServerStatus"];
+                };
+            };
+            /** @description No compatible server in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    start_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The compatible server listens */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompatServerStatus"];
+                };
+            };
+            /** @description Another program holds the port */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The listener or the setting failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No compatible server in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    stop_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The compatible server is stopped */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompatServerStatus"];
+                };
+            };
+            /** @description The setting could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No compatible server in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_server_tokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tokens, without their values */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerTokenView"][];
+                };
+            };
+            /** @description The token store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No compatible server in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    create_server_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateServerTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description The token and its value, shown once */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedServerTokenView"];
+                };
+            };
+            /** @description The name is empty, too long or digits only */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description A token in use already carries the name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The token store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No compatible server in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    revoke_server_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifier (digits) or name of the token */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The token, revoked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerTokenView"];
+                };
+            };
+            /** @description No token matches */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The token store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No compatible server in this runtime */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

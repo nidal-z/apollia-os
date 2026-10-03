@@ -10,6 +10,7 @@
 use std::path::Path;
 use std::time::Duration;
 
+use apollia_core::config::PolicySettings;
 use apollia_core::ModelsConfig;
 
 use super::{cached_index, store_index, verify_index, CardError, RegistryIndex};
@@ -32,6 +33,9 @@ pub struct RegistrySource {
     pub mirror_url: Option<String>,
     /// `false` when the registry is turned off.
     pub enabled: bool,
+    /// `true` when the organisation policy turned the registry off, so the
+    /// catalogue says the choice is not the user's.
+    pub disabled_by_policy: bool,
 }
 
 impl From<&ModelsConfig> for RegistrySource {
@@ -41,11 +45,44 @@ impl From<&ModelsConfig> for RegistrySource {
             url: config.registry_url.trim().to_owned(),
             mirror_url: (!mirror.is_empty()).then(|| mirror.to_owned()),
             enabled: config.registry_enabled,
+            disabled_by_policy: false,
         }
     }
 }
 
+/// The settings of `[models]` an organisation policy may fix.
+const URL_SETTING: &str = "models.registry_url";
+const MIRROR_SETTING: &str = "models.registry_mirror_url";
+const ENABLED_SETTING: &str = "models.registry_enabled";
+
 impl RegistrySource {
+    /// This source with the registry settings the organisation policy fixes
+    /// laid over it: an internal mirror in place of the address, no fallback,
+    /// or the registry turned off.
+    #[must_use]
+    pub fn under_policy(mut self, imposed: &PolicySettings) -> Self {
+        let text = |key| {
+            imposed
+                .imposed(key)
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+        };
+        if let Some(url) = text(URL_SETTING) {
+            url.clone_into(&mut self.url);
+        }
+        if let Some(mirror) = text(MIRROR_SETTING) {
+            self.mirror_url = (!mirror.is_empty()).then(|| mirror.to_owned());
+        }
+        if let Some(enabled) = imposed
+            .imposed(ENABLED_SETTING)
+            .and_then(serde_json::Value::as_bool)
+        {
+            self.enabled = enabled;
+            self.disabled_by_policy = !enabled;
+        }
+        self
+    }
+
     /// The source an `apollia.toml` text configures: its `[models]` section,
     /// or the defaults when the section is absent.
     ///
@@ -274,6 +311,12 @@ pub async fn open_catalogue(
     public_key: Option<&str>,
     lang: &str,
 ) -> Result<CatalogueView, RegistryError> {
+    if source.disabled_by_policy {
+        return Ok(CatalogueView::empty(
+            "disabled",
+            "The model catalogue is turned off, imposed by the organisation policy. A model can still be imported from a disk.",
+        ));
+    }
     match load_index(source, cache_dir, public_key).await {
         Ok(loaded) => Ok(CatalogueView {
             status: "ok".to_owned(),

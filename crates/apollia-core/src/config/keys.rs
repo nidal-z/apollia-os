@@ -118,6 +118,8 @@ pub const KEYS: &[ConfigKey] = &[
     key("llm.pricing_overrides", Table, Some("{}"), Restart, "Prices per million tokens, keyed by model identifier."),
     key("llm.cost_alert_threshold_usd", Float, None, Restart, "Cost in USD above which a token budget update is flagged."),
     key("llm.runner.backend", KeyType::String, Some("\"auto\""), Restart, "Speech-to-text runner binary: auto, cpu, cuda, metal or rocm."),
+    locked(key("llm.guardrails.level", Enum(&["disabled", "lenient", "balanced", "strict", "ceiling"]), Some("\"balanced\""), Reloadable, "How strictly a local model launch is held to the machine's memory; an unknown level holds to balanced.")),
+    locked(key("llm.guardrails.ceiling_gb", Float, None, Reloadable, "Largest estimate, in gigabytes, the ceiling level launches.")),
     withdrawn("llm.vertex", "the Google Vertex AI client was removed; declare an OpenAI-compatible server instead"),
     // [api]
     key("api.bind", KeyType::String, Some("\"127.0.0.1\""), Restart, "Address the daemon's TCP listener binds to."),
@@ -155,10 +157,10 @@ pub const KEYS: &[ConfigKey] = &[
     key("tools.web_read.ssrf_guard", Boolean, Some("true"), Reloadable, "Refuse an address on the local network or the machine itself."),
     key("tools.python_interpreter", Path, None, Reloadable, "Python interpreter used instead of the bundled one."),
     // [mcp]
-    key("mcp.approval_ttl_hours", Integer, Some("24"), Reloadable, "Hours an MCP tool approval stays valid; 0 never expires (0 to 8760)."),
-    key("mcp.tool_loading", Enum(&["eager", "deferred"]), Some("\"deferred\""), Reloadable, "Load every MCP tool schema up front, or on first use."),
-    key("mcp.tool_search_limit", Integer, Some("20"), Reloadable, "Results returned by the tool_search tool (1 to 500)."),
-    key("mcp.server_enabled", Boolean, Some("false"), Reloadable, "Let an MCP client reach the agents and workflows marked exposed, through apollia-os mcp server."),
+    locked(key("mcp.approval_ttl_hours", Integer, Some("24"), Reloadable, "Hours an MCP tool approval stays valid; 0 never expires (0 to 8760).")),
+    locked(key("mcp.tool_loading", Enum(&["eager", "deferred"]), Some("\"deferred\""), Reloadable, "Load every MCP tool schema up front, or on first use.")),
+    locked(key("mcp.tool_search_limit", Integer, Some("20"), Reloadable, "Results returned by the tool_search tool (1 to 500).")),
+    locked(key("mcp.server_enabled", Boolean, Some("false"), Reloadable, "Let an MCP client reach the agents and workflows marked exposed, through apollia-os mcp server.")),
     // [hooks]
     key("hooks.handlers", TableArray, Some("[]"), Reloadable, "Lifecycle hook handlers, a command or an HTTP endpoint each."),
     // [chat]
@@ -171,16 +173,20 @@ pub const KEYS: &[ConfigKey] = &[
     key("filesystem.journal.root", Path, Some("\"~/.apollia/journal\""), Reloadable, "Folder of the reversible journal."),
     key("filesystem.trusted_paths", StringArray, Some("[\"~\"]"), Reloadable, "Folders an agent may work in without asking."),
     // [models]
-    key("models.registry_url", KeyType::String, Some("\"https://registry.apollia.fr/models/stable/index.json\""), Reloadable, "Address of the signed index of model cards."),
-    key("models.registry_mirror_url", KeyType::String, Some("\"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json\""), Reloadable, "Address tried when the index does not answer; empty disables it."),
-    key("models.registry_enabled", Boolean, Some("true"), Reloadable, "Read the online index of model cards."),
-    key("models.import.require_verified", Boolean, Some("false"), Reloadable, "Refuse an imported model file that matches no signed card."),
+    locked(key("models.registry_url", KeyType::String, Some("\"https://registry.apollia.fr/models/stable/index.json\""), Reloadable, "Address of the signed index of model cards.")),
+    locked(key("models.registry_mirror_url", KeyType::String, Some("\"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json\""), Reloadable, "Address tried when the index does not answer; empty disables it.")),
+    locked(key("models.registry_enabled", Boolean, Some("true"), Reloadable, "Read the online index of model cards.")),
+    locked(key("models.import.require_verified", Boolean, Some("false"), Reloadable, "Refuse an imported model file that matches no signed card.")),
     // [workflows]
     key("workflows.max_steps", Integer, Some("200"), Restart, "Steps a workflow run may take."),
     key("workflows.max_tool_calls", Integer, Some("400"), Restart, "Tool calls a workflow run may make."),
     key("workflows.wall_clock_secs", Integer, Some("3600"), Restart, "Seconds a workflow run may last."),
     // [desktop]
     locked(key("desktop.developer_mode", Boolean, Some("false"), Reloadable, "Show the advanced surfaces of the application.")),
+    // [server]
+    locked(key("server.enabled", Boolean, Some("false"), Restart, "Start the compatible server (OpenAI and Anthropic formats) with the engine.")),
+    locked(key("server.port", Integer, Some("7772"), Restart, "TCP port of the compatible server, on the loopback interface.")),
+    locked(key("server.require_auth", Boolean, Some("false"), Restart, "Require a token of the compatible server on every request; read when the listener opens.")),
     // [observability]
     key("observability.max_input_bytes", Integer, Some("32768"), Reloadable, "Largest run input kept, in bytes."),
     key("observability.max_output_bytes", Integer, Some("32768"), Reloadable, "Largest run output kept, in bytes."),

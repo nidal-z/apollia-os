@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     ApiConfig, ChatConfig, DesktopConfig, FilesystemConfig, HitlConfig, HooksConfig, LlmConfig,
-    McpConfig, ModelsConfig, RuntimeConfig, ToolsConfig, WorkflowsConfig,
+    McpConfig, ModelsConfig, RuntimeConfig, ServerConfig, ToolsConfig, WorkflowsConfig,
 };
 use crate::ObservabilityConfig;
 
@@ -58,6 +58,9 @@ pub struct ApolliaConfig {
     /// `[desktop]`: the settings of the desktop application that Rust reads.
     #[serde(default)]
     pub desktop: DesktopConfig,
+    /// `[server]`: the compatible server, its switch and its port.
+    #[serde(default)]
+    pub server: ServerConfig,
     /// `[observability]`: truncation and capture of persisted run data.
     #[serde(default)]
     pub observability: ObservabilityConfig,

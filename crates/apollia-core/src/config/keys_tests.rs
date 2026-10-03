@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use super::keys::{is_live_path, lookup, withdrawn_covering, ReloadClass, KEYS};
-use super::{ApolliaConfig, LlmConfig};
+use super::{check_imposed_setting, ApolliaConfig, LlmConfig, SettingError};
 
 /// Every leaf path of a JSON value: a scalar, a null, an array, or an empty
 /// object ends a path; a non-empty object is walked.
@@ -128,17 +128,22 @@ fn every_section_carries_the_reload_class_of_the_measured_table() {
         ("observability", ReloadClass::Reloadable),
         ("ui", ReloadClass::Reloadable),
         ("desktop", ReloadClass::Reloadable),
+        ("server", ReloadClass::Restart),
+        // Read again at every model launch, unlike the rest of `[llm]`.
+        ("llm.guardrails", ReloadClass::Reloadable),
     ];
 
-    // WHEN every live key of those sections is read
+    // WHEN every live key of those sections is read, against its longest
+    // listed prefix
     let wrong: Vec<_> = KEYS
         .iter()
         .filter(|k| k.withdrawn.is_none())
         .filter(|k| {
-            let section = k.path.split('.').next().unwrap_or_default();
             expected
                 .iter()
-                .any(|(s, class)| *s == section && *class != k.reload)
+                .filter(|(s, _)| k.path.starts_with(&format!("{s}.")))
+                .max_by_key(|(s, _)| s.len())
+                .is_some_and(|(_, class)| *class != k.reload)
         })
         .map(|k| k.path)
         .collect();
@@ -177,13 +182,55 @@ fn the_formerly_inert_and_deprecated_sections_are_withdrawn() {
 }
 
 #[test]
-fn only_the_desktop_settings_are_lockable() {
+fn a_key_is_lockable_exactly_when_the_policy_can_impose_it() {
+    // GIVEN the live keys of the registry
+    let live = KEYS.iter().filter(|k| k.withdrawn.is_none());
+
+    // WHEN each is offered to the policy check, which knows the named settings
+    let wrong: Vec<_> = live
+        .filter(|k| {
+            let named = !matches!(
+                check_imposed_setting(k.path, &serde_json::Value::Null),
+                Err(SettingError::UnknownKey { .. })
+            );
+            named != k.lockable
+        })
+        .map(|k| k.path)
+        .collect();
+
+    // THEN the registry marks lockable the named settings, and only them
+    assert!(
+        wrong.is_empty(),
+        "lockable flag disagrees with the policy: {wrong:?}"
+    );
+}
+
+#[test]
+fn the_named_settings_are_lockable() {
     // GIVEN the registry
     // WHEN the lockable keys are listed
     let lockable: Vec<_> = KEYS.iter().filter(|k| k.lockable).map(|k| k.path).collect();
 
     // THEN they are the named settings the policy can impose today
-    assert_eq!(lockable, vec!["desktop.developer_mode"]);
+    assert_eq!(
+        lockable,
+        vec![
+            "llm.guardrails.level",
+            "llm.guardrails.ceiling_gb",
+            "mcp.approval_ttl_hours",
+            "mcp.tool_loading",
+            "mcp.tool_search_limit",
+            "mcp.server_enabled",
+            "models.registry_url",
+            "models.registry_mirror_url",
+            "models.registry_enabled",
+            "models.import.require_verified",
+            "desktop.developer_mode",
+            "server.enabled",
+            "server.port",
+            "server.require_auth",
+        ]
+    );
 }
 
 #[test]

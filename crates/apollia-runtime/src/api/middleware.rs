@@ -104,7 +104,10 @@ pub fn load_or_generate_token(data_dir: &Path) -> Result<String, TokenFileError>
 }
 
 /// Generates a 64-character hex string from 32 random bytes.
-fn generate_hex_token() -> String {
+///
+/// The one generator of secrets handed to a client: the internal token here,
+/// and the tokens of the compatible server ([`crate::compat_server`]).
+pub(crate) fn generate_hex_token() -> String {
     use rand::RngCore;
     let mut bytes = [0u8; 32];
     rand::rng().fill_bytes(&mut bytes);

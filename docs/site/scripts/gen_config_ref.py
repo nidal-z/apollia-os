@@ -68,6 +68,8 @@ PURPOSES = {
                   "happens outside them* below.",
     "models": "The signed index of model cards, its mirror, and the rule applied "
               "to an imported model file.",
+    "server": "The compatible server, which answers the OpenAI and Anthropic "
+              "formats on the loopback interface.",
     "workflows": "The budget a workflow run starts with. It is shared: every agent "
                  "a step runs and every workflow a step calls spend from it.",
     "desktop": "Settings of the desktop application that the engine reads.",

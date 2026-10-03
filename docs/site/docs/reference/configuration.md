@@ -86,6 +86,7 @@ still accepted, with a `config.key.retired` warning.
 | `[filesystem]` | The reversible journal, and the paths an agent works in without being asked (`trusted_paths`, see below). |
 | `[workflows]` | The budget a workflow run starts with, shared by every agent and workflow it runs. |
 | `[models]` | The signed index of model cards, and the rule applied to an imported model file. |
+| `[server]` | The compatible server (OpenAI and Anthropic formats), its port and its token. |
 | `[desktop]` | Settings of the desktop application that the engine reads. |
 | `[observability]` | Trace capture and retention, documented below. |
 | `[ui]` | The opt-in link preview of the desktop application. |
@@ -157,6 +158,8 @@ LLM backends, routing, and the speech-to-text runner. The default file leaves th
 | `llm.pricing_overrides` | table | `{}` | Prices per million tokens, keyed by model identifier. |
 | `llm.cost_alert_threshold_usd` | float | not set | Cost in USD above which a token budget update is flagged. |
 | `llm.runner.backend` | string | `"auto"` | Speech-to-text runner binary: auto, cpu, cuda, metal or rocm. |
+| `llm.guardrails.level` | one of disabled, lenient, balanced, strict, ceiling | `"balanced"` | How strictly a local model launch is held to the machine's memory; an unknown level holds to balanced. The organization policy can fix it. |
+| `llm.guardrails.ceiling_gb` | float | not set | Largest estimate, in gigabytes, the ceiling level launches. The organization policy can fix it. |
 
 ### `[api]`
 
@@ -223,10 +226,10 @@ MCP client: approvals, tool loading, and the bridge that serves exposed agents a
 
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `mcp.approval_ttl_hours` | integer | `24` | Hours an MCP tool approval stays valid; 0 never expires (0 to 8760). |
-| `mcp.tool_loading` | one of eager, deferred | `"deferred"` | Load every MCP tool schema up front, or on first use. |
-| `mcp.tool_search_limit` | integer | `20` | Results returned by the tool_search tool (1 to 500). |
-| `mcp.server_enabled` | boolean | `false` | Let an MCP client reach the agents and workflows marked exposed, through apollia-os mcp server. |
+| `mcp.approval_ttl_hours` | integer | `24` | Hours an MCP tool approval stays valid; 0 never expires (0 to 8760). The organization policy can fix it. |
+| `mcp.tool_loading` | one of eager, deferred | `"deferred"` | Load every MCP tool schema up front, or on first use. The organization policy can fix it. |
+| `mcp.tool_search_limit` | integer | `20` | Results returned by the tool_search tool (1 to 500). The organization policy can fix it. |
+| `mcp.server_enabled` | boolean | `false` | Let an MCP client reach the agents and workflows marked exposed, through apollia-os mcp server. The organization policy can fix it. |
 
 ### `[hooks]`
 
@@ -263,10 +266,10 @@ The signed index of model cards, its mirror, and the rule applied to an imported
 
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `models.registry_url` | string | `"https://registry.apollia.fr/models/stable/index.json"` | Address of the signed index of model cards. |
-| `models.registry_mirror_url` | string | `"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json"` | Address tried when the index does not answer; empty disables it. |
-| `models.registry_enabled` | boolean | `true` | Read the online index of model cards. |
-| `models.import.require_verified` | boolean | `false` | Refuse an imported model file that matches no signed card. |
+| `models.registry_url` | string | `"https://registry.apollia.fr/models/stable/index.json"` | Address of the signed index of model cards. The organization policy can fix it. |
+| `models.registry_mirror_url` | string | `"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json"` | Address tried when the index does not answer; empty disables it. The organization policy can fix it. |
+| `models.registry_enabled` | boolean | `true` | Read the online index of model cards. The organization policy can fix it. |
+| `models.import.require_verified` | boolean | `false` | Refuse an imported model file that matches no signed card. The organization policy can fix it. |
 
 ### `[workflows]`
 
@@ -285,6 +288,16 @@ Settings of the desktop application that the engine reads.
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `desktop.developer_mode` | boolean | `false` | Show the advanced surfaces of the application. The organization policy can fix it. |
+
+### `[server]`
+
+The compatible server, which answers the OpenAI and Anthropic formats on the loopback interface.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `server.enabled` | boolean | `false` | Start the compatible server (OpenAI and Anthropic formats) with the engine. The organization policy can fix it. |
+| `server.port` | integer | `7772` | TCP port of the compatible server, on the loopback interface. The organization policy can fix it. |
+| `server.require_auth` | boolean | `false` | Require a token of the compatible server on every request; read when the listener opens. The organization policy can fix it. |
 
 ### `[observability]`
 

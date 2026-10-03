@@ -2237,7 +2237,9 @@
         "companion_focus": "Focaliser la saisie du Companion",
         "approvals_accept": "Accepter l'approbation courante",
         "approvals_refuse": "Refuser l'approbation courante",
-        "approvals_next": "Approbation suivante / précédente"
+        "approvals_next": "Approbation suivante / précédente",
+        "settings_engines": "Ouvrir Système > Moteurs",
+        "settings_hardware": "Ouvrir Système > Matériel"
       },
       "reserved": "Réservé OS",
       "reserved_hint": "Réservé par le système d'exploitation, non réassignable.",
@@ -3128,7 +3130,24 @@
       "mode_hint": "Affiche les vues techniques (Transcriptions, Observabilité, Mémoire) et les réglages avancés ci-dessous.",
       "mode_off": "Éteint",
       "mode_on": "Allumé",
-      "write_failed": "Le mode développeur n'a pas pu être enregistré."
+      "write_failed": "Le mode développeur n'a pas pu être enregistré.",
+      "mcp": {
+        "title": "Apollia comme serveur MCP",
+        "switch_label": "Exposer Apollia comme serveur MCP",
+        "switch_hint": "Un client MCP (Claude Desktop, un éditeur de code) appelle les agents et workflows cochés comme des outils.",
+        "write_failed": "Le réglage du serveur MCP n'a pas pu être enregistré.",
+        "items_label": "Agents et workflows exposés",
+        "items_hint": "Cochez ce qu'un client MCP peut appeler.",
+        "items_empty": "Aucun agent ni workflow installé pour l'instant. Ceux que vous installez depuis la Bibliothèque apparaîtront ici, à cocher.",
+        "items_failed": "Les agents et workflows n'ont pas pu être lus : {error}",
+        "expose_failed": "{name} n'a pas pu être mis à jour.",
+        "kind_agent": "Agent",
+        "kind_workflow": "Workflow",
+        "config_label": "À coller dans la configuration du client MCP",
+        "copy": "Copier",
+        "copied": "Copié",
+        "copy_failed": "La configuration n'a pas pu être copiée."
+      }
     },
     "general": {
       "subtitle": "Mise à jour, langue, dossier de l'application, aide et zone de danger.",
@@ -3153,6 +3172,10 @@
     },
     "engines": {
       "subtitle": "Les moteurs qui font tourner les modèles et la dictée sur ce poste."
+    },
+    "window": {
+      "label": "Réglages",
+      "close": "Fermer les réglages"
     }
   },
   "onboarding": {

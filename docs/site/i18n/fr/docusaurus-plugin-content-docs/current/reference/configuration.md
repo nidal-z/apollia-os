@@ -89,6 +89,7 @@ avertissement `config.key.retired`.
 | `[filesystem]` | Le journal réversible, et les chemins où un agent travaille sans demander (`trusted_paths`, voir plus bas). |
 | `[workflows]` | Le budget avec lequel démarre l'exécution d'un workflow, partagé par chaque agent et chaque workflow qu'elle lance. |
 | `[models]` | L'index signé des fiches de modèles, et la règle appliquée à un fichier de modèle importé. |
+| `[server]` | Le serveur compatible (formats OpenAI et Anthropic), son port et son jeton. |
 | `[desktop]` | Réglages de l'application de bureau que le moteur lit. |
 | `[observability]` | Capture et rétention des traces, documentées plus bas. |
 | `[ui]` | L'aperçu de lien, sur option, de l'application de bureau. |
@@ -162,6 +163,8 @@ Backends LLM, routage, et le runner de transcription. Le fichier par défaut lai
 | `llm.pricing_overrides` | table | `{}` | Tarifs par million de tokens, par identifiant de modèle. |
 | `llm.cost_alert_threshold_usd` | décimal | non définie | Coût en USD au-delà duquel une mise à jour du budget de tokens est signalée. |
 | `llm.runner.backend` | chaîne | `"auto"` | Binaire du runner de transcription : auto, cpu, cuda, metal ou rocm. |
+| `llm.guardrails.level` | l'une de disabled, lenient, balanced, strict, ceiling | `"balanced"` | Sévérité avec laquelle le lancement d'un modèle local est tenu à la mémoire de la machine ; un niveau inconnu vaut balanced. La politique de l'organisation peut l'imposer. |
+| `llm.guardrails.ceiling_gb` | décimal | non définie | Plus grande estimation, en gigaoctets, que le niveau ceiling lance. La politique de l'organisation peut l'imposer. |
 
 ### `[api]`
 
@@ -228,10 +231,10 @@ Client MCP : approbations, chargement des outils, et le pont qui sert les agents
 
 | Clé | Type | Défaut | Rôle |
 | --- | --- | --- | --- |
-| `mcp.approval_ttl_hours` | entier | `24` | Heures pendant lesquelles l'approbation d'un outil MCP reste valide ; 0 n'expire jamais (0 à 8760). |
-| `mcp.tool_loading` | l'une de eager, deferred | `"deferred"` | Charger tous les schémas d'outils MCP d'emblée, ou au premier usage. |
-| `mcp.tool_search_limit` | entier | `20` | Résultats rendus par l'outil tool_search (1 à 500). |
-| `mcp.server_enabled` | booléen | `false` | Laisser un client MCP atteindre les agents et workflows marqués exposés, par apollia-os mcp server. |
+| `mcp.approval_ttl_hours` | entier | `24` | Heures pendant lesquelles l'approbation d'un outil MCP reste valide ; 0 n'expire jamais (0 à 8760). La politique de l'organisation peut l'imposer. |
+| `mcp.tool_loading` | l'une de eager, deferred | `"deferred"` | Charger tous les schémas d'outils MCP d'emblée, ou au premier usage. La politique de l'organisation peut l'imposer. |
+| `mcp.tool_search_limit` | entier | `20` | Résultats rendus par l'outil tool_search (1 à 500). La politique de l'organisation peut l'imposer. |
+| `mcp.server_enabled` | booléen | `false` | Laisser un client MCP atteindre les agents et workflows marqués exposés, par apollia-os mcp server. La politique de l'organisation peut l'imposer. |
 
 ### `[hooks]`
 
@@ -268,10 +271,10 @@ L'index signé des fiches de modèles, son miroir, et la règle appliquée à un
 
 | Clé | Type | Défaut | Rôle |
 | --- | --- | --- | --- |
-| `models.registry_url` | chaîne | `"https://registry.apollia.fr/models/stable/index.json"` | Adresse de l'index signé des fiches de modèles. |
-| `models.registry_mirror_url` | chaîne | `"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json"` | Adresse essayée quand l'index ne répond pas ; vide, elle est désactivée. |
-| `models.registry_enabled` | booléen | `true` | Lire l'index en ligne des fiches de modèles. |
-| `models.import.require_verified` | booléen | `false` | Refuser un fichier de modèle importé qui ne correspond à aucune fiche signée. |
+| `models.registry_url` | chaîne | `"https://registry.apollia.fr/models/stable/index.json"` | Adresse de l'index signé des fiches de modèles. La politique de l'organisation peut l'imposer. |
+| `models.registry_mirror_url` | chaîne | `"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json"` | Adresse essayée quand l'index ne répond pas ; vide, elle est désactivée. La politique de l'organisation peut l'imposer. |
+| `models.registry_enabled` | booléen | `true` | Lire l'index en ligne des fiches de modèles. La politique de l'organisation peut l'imposer. |
+| `models.import.require_verified` | booléen | `false` | Refuser un fichier de modèle importé qui ne correspond à aucune fiche signée. La politique de l'organisation peut l'imposer. |
 
 ### `[workflows]`
 
@@ -290,6 +293,16 @@ Réglages de l'application de bureau que le moteur lit.
 | Clé | Type | Défaut | Rôle |
 | --- | --- | --- | --- |
 | `desktop.developer_mode` | booléen | `false` | Afficher les surfaces avancées de l'application. La politique de l'organisation peut l'imposer. |
+
+### `[server]`
+
+Le serveur compatible, qui répond aux formats OpenAI et Anthropic sur l'interface de boucle locale.
+
+| Clé | Type | Défaut | Rôle |
+| --- | --- | --- | --- |
+| `server.enabled` | booléen | `false` | Démarrer le serveur compatible (formats OpenAI et Anthropic) avec le moteur. La politique de l'organisation peut l'imposer. |
+| `server.port` | entier | `7772` | Port TCP du serveur compatible, sur l'interface de boucle locale. La politique de l'organisation peut l'imposer. |
+| `server.require_auth` | booléen | `false` | Exiger un jeton du serveur compatible à chaque requête ; lu à l'ouverture de l'écoute. La politique de l'organisation peut l'imposer. |
 
 ### `[observability]`
 
