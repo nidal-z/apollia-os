@@ -23,6 +23,7 @@ pub mod routes_mcp_secrets;
 pub mod routes_messages;
 pub mod routes_model_hub;
 pub mod routes_notifications;
+pub mod routes_oauth_clients;
 pub mod routes_packages;
 pub mod routes_plan_cache;
 pub mod routes_profile;

@@ -156,6 +156,10 @@ pub enum IntegrationsError {
     /// Catch-all internal failure.
     #[error("internal: {0}")]
     Internal(String),
+    /// The daemon this window is attached to refused or did not answer; the
+    /// detail is its own message.
+    #[error("{0}")]
+    Service(String),
 }
 
 // ─── DTOs ───────────────────────────────────────────────────────────────────
