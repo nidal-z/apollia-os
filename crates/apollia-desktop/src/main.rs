@@ -36,6 +36,7 @@ mod commands;
 )]
 mod embedded_docs;
 mod events;
+mod file_log;
 mod handlers;
 pub mod i18n;
 pub mod mcp;
@@ -72,7 +73,8 @@ use bootstrap::{
 pub type SharedLlmRouter = Arc<std::sync::RwLock<Option<Arc<LlmRouter>>>>;
 
 fn main() {
-    // Initialize tracing so Rust logs appear in the terminal during development.
+    // Initialize tracing so Rust logs appear in the terminal during development
+    // and in the log file the settings open.
     // RUST_LOG controls verbosity (e.g. RUST_LOG=apollia=debug); defaults to info.
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("apollia=info,warn"));
@@ -84,14 +86,45 @@ fn main() {
         Ok(directive) => env_filter.add_directive(directive),
         Err(_) => env_filter,
     };
-    tracing_subscriber::fmt().with_env_filter(env_filter).init();
-
     let apollia_data_dir = {
         let home = apollia_core::paths::home_dir_or_temp()
             .display()
             .to_string();
         apollia_core::paths::data_dir_under(home)
     };
+    // The same traces go to the terminal and to `~/.apollia/logs/desktop.log`,
+    // rotated by size; a folder that cannot be opened leaves the terminal
+    // alone, and says so once the subscriber is up.
+    let logs_dir = file_log::logs_dir_under(&apollia_data_dir);
+    let (file_layer, file_error) = match file_log::RotatingFile::open(&logs_dir) {
+        Ok(file) => (
+            Some(
+                tracing_subscriber::fmt::layer()
+                    .with_ansi(false)
+                    .with_writer(std::sync::Mutex::new(file)),
+            ),
+            None,
+        ),
+        Err(error) => (None, Some(error)),
+    };
+    {
+        use tracing_subscriber::layer::SubscriberExt as _;
+        use tracing_subscriber::util::SubscriberInitExt as _;
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(tracing_subscriber::fmt::layer())
+            .with(file_layer)
+            .init();
+    }
+    if let Some(error) = file_error {
+        tracing::event!(
+            tracing::Level::WARN,
+            path = %logs_dir.display(),
+            error = %error,
+            detail = "the traces go to the terminal only",
+            "desktop.log_file.unavailable"
+        );
+    }
 
     // Start, attach or refuse, before PyO3, any database or any listener of
     // the runtime. The claimed port is handed to the runtime below as is.

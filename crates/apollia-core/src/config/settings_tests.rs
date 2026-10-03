@@ -452,3 +452,41 @@ fn test_writing_an_unknown_update_channel_is_refused_and_leaves_the_file() {
         "{written}"
     );
 }
+
+#[test]
+fn test_the_engine_log_level_resolves_to_debug_and_writes_a_known_level_only() {
+    // GIVEN a file that does not name the engine log level
+    let original = "[desktop]\ndeveloper_mode = true\n";
+    let (_dir, path) = config_with(original);
+
+    // WHEN it is resolved, then a level the engine does not have is written,
+    // then the info level
+    let resolved = resolve_setting(&path, "engines.log_level", &PolicySettings::none()).unwrap();
+    let refused = write_setting(
+        &path,
+        "engines.log_level",
+        json!("trace"),
+        &PolicySettings::none(),
+    );
+    let unchanged = std::fs::read_to_string(&path).unwrap();
+    write_setting(
+        &path,
+        "engines.log_level",
+        json!("info"),
+        &PolicySettings::none(),
+    )
+    .unwrap();
+
+    // THEN the default is debug, the unknown level is refused with the file
+    // untouched, and info is written under [engines], outside [llm]
+    assert_eq!(resolved.value, json!("debug"));
+    assert_eq!(resolved.source, SettingSource::Default);
+    assert!(matches!(refused, Err(SettingError::InvalidValue { .. })));
+    assert_eq!(unchanged, original);
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        written.contains("[engines]\nlog_level = \"info\""),
+        "{written}"
+    );
+    assert!(!written.contains("[llm"), "{written}");
+}

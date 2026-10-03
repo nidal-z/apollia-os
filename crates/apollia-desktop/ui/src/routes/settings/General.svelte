@@ -16,6 +16,9 @@
   import AboutBlock from "../../components/settings/about/AboutBlock.svelte";
   import HelpBlock from "../../components/settings/help/HelpBlock.svelte";
   import DangerZone from "../../components/settings/DangerZone.svelte";
+  import { developerMode } from "$lib/stores/developerMode";
+  import { openLogsDir } from "$lib/ipc/app";
+  import { addToast } from "$lib/components/ui/toast";
   import {
     UPDATE_CHANNELS,
     hydrateUpdateChannel,
@@ -56,6 +59,14 @@
   function selectLocale(value: string) {
     locale.set(value);
     setLocale(value);
+  }
+
+  async function openLogs(): Promise<void> {
+    try {
+      await openLogsDir();
+    } catch {
+      addToast($t("settings.general.logs_failed"), "error");
+    }
   }
 
   async function reportProblem(): Promise<void> {
@@ -171,6 +182,19 @@
     data-testid="general-application"
   >
     {#snippet icon()}<FolderOpen size={15} strokeWidth={1.75} />{/snippet}
+    {#if $developerMode}
+      <SettingsFieldRow
+        label={$t("settings.general.logs_label")}
+        hint={$t("settings.general.logs_hint")}
+        data-testid="general-logs"
+      >
+        {#snippet control()}
+          <Button variant="outline" size="sm" onclick={openLogs} data-testid="general-open-logs">
+            {$t("settings.general.logs_button")}
+          </Button>
+        {/snippet}
+      </SettingsFieldRow>
+    {/if}
     <SettingsFieldRow
       label={$t("settings.about.kv_data_dir")}
       hint={$t("settings.about.data_desc")}

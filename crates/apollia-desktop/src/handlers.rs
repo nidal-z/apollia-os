@@ -113,6 +113,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::config::lifecycle::reset_onboarding,
         commands::config::lifecycle::clear_all_memories,
         commands::config::lifecycle::clear_logs,
+        commands::config::lifecycle::open_logs_dir,
         commands::config::lifecycle::factory_reset,
         commands::config::lifecycle::app_restart,
         commands::config::lifecycle::quit_app,

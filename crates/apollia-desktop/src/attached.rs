@@ -374,6 +374,10 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "stops the capture of this machine and sends its audio to the daemon",
     ),
     (
+        "open_logs_dir",
+        "opens the folder of this window's own log file in the file manager of this machine",
+    ),
+    (
         "open_config_in_editor",
         "opens the configuration file in the editor of this machine",
     ),
