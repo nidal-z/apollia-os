@@ -230,7 +230,30 @@
       "runtime_down": "Runtime hors ligne - reconnexion en cours"
     },
     "search_aria": "Recherche et palette de commandes",
-    "agents_at_work": "{count} agents au travail"
+    "agents_at_work": "{count} agents au travail",
+    "downloads": {
+      "button_aria": "Téléchargements",
+      "button_aria_count": "Téléchargements, {count} en cours",
+      "title": "Téléchargements",
+      "empty": "Aucun téléchargement pour l'instant.",
+      "group_active": "En cours",
+      "group_finished": "Terminés",
+      "group_failed": "En échec",
+      "amount": "{done} sur {total}",
+      "cancel": "Annuler",
+      "cancel_aria": "Annuler le téléchargement de {name}",
+      "completed": "Terminé",
+      "cancelled": "Annulé, le fichier partiel a été supprimé",
+      "reason": {
+        "network": "La connexion au serveur a été perdue. Vérifiez le réseau puis relancez le téléchargement.",
+        "disk": "Le fichier n'a pas pu être écrit sur le disque : place ou droits insuffisants.",
+        "access": "Le serveur a refusé l'accès ({status}) : ce modèle demande peut-être un jeton Hugging Face.",
+        "not_found": "Le fichier n'existe plus chez son éditeur ({status}).",
+        "server": "Le serveur a répondu par une erreur ({status}). Réessayez plus tard.",
+        "integrity": "Le fichier reçu ne correspond pas à celui publié ; il a été supprimé.",
+        "unknown": "Le téléchargement s'est arrêté sur une erreur."
+      }
+    }
   },
   "userMenu": {
     "open_label": "Ouvrir le menu utilisateur",
@@ -3163,7 +3186,10 @@
       "report_button": "Ouvrir dans le navigateur",
       "help_title": "Aide",
       "about_title": "À propos",
-      "report_hint": "Ouvre la page de signalement dans le navigateur. Vos diagnostics restent sur ce poste tant que vous ne les joignez pas."
+      "report_hint": "Ouvre la page de signalement dans le navigateur. Vos diagnostics restent sur ce poste tant que vous ne les joignez pas.",
+      "behaviours_title": "Comportements",
+      "downloads_open_label": "Ouvrir le panneau des téléchargements au démarrage d'un téléchargement",
+      "downloads_open_hint": "Le panneau s'ouvre sous l'icône des téléchargements de la barre du haut."
     },
     "chat": {
       "subtitle": "Comportement des conversations et raccourcis clavier.",

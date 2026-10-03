@@ -230,7 +230,30 @@
       "runtime_down": "Runtime offline - reconnecting"
     },
     "search_aria": "Search and command palette",
-    "agents_at_work": "{count} agents at work"
+    "agents_at_work": "{count} agents at work",
+    "downloads": {
+      "button_aria": "Downloads",
+      "button_aria_count": "Downloads, {count} in progress",
+      "title": "Downloads",
+      "empty": "No downloads yet.",
+      "group_active": "In progress",
+      "group_finished": "Finished",
+      "group_failed": "Failed",
+      "amount": "{done} of {total}",
+      "cancel": "Cancel",
+      "cancel_aria": "Cancel the download of {name}",
+      "completed": "Completed",
+      "cancelled": "Cancelled, the partial file was deleted",
+      "reason": {
+        "network": "The connection to the server was lost. Check the network, then start the download again.",
+        "disk": "The file could not be written to disk: not enough space or no permission.",
+        "access": "The server refused access ({status}): this model may need a Hugging Face token.",
+        "not_found": "The file no longer exists at its publisher ({status}).",
+        "server": "The server answered with an error ({status}). Try again later.",
+        "integrity": "The file received does not match the one published; it was deleted.",
+        "unknown": "The download stopped on an error."
+      }
+    }
   },
   "userMenu": {
     "open_label": "Open user menu",
@@ -3163,7 +3186,10 @@
       "report_button": "Open in browser",
       "help_title": "Help",
       "about_title": "About",
-      "report_hint": "Opens the reporting page in your browser. Your diagnostics stay on this machine unless you attach them."
+      "report_hint": "Opens the reporting page in your browser. Your diagnostics stay on this machine unless you attach them.",
+      "behaviours_title": "Behaviour",
+      "downloads_open_label": "Open the downloads panel when a download starts",
+      "downloads_open_hint": "The panel opens under the downloads icon of the top bar."
     },
     "chat": {
       "subtitle": "How conversations behave, and the keyboard shortcuts.",
