@@ -50,7 +50,6 @@ use std::sync::Arc;
 
 use apollia_core::{PendingApprovals, ToolsConfig};
 use apollia_llm::LlmRouter;
-use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use apollia_runtime::coordinator::DynBackend;
 use apollia_runtime::embedded::{EmbeddedConfig, RuntimeHandle};
@@ -172,9 +171,6 @@ fn main() {
     // Inter-agent mailbox, exposed as `ctx.mailbox` in Python agents.
     let mailbox_handle_lock: Arc<std::sync::OnceLock<AgentMailboxHandle>> =
         Arc::new(std::sync::OnceLock::new());
-    // Global user memory, used by Chat Agent runner to build `ctx.user_context`.
-    let user_memory_lock: Arc<std::sync::OnceLock<Arc<std::sync::Mutex<UserMemoryRepository>>>> =
-        Arc::new(std::sync::OnceLock::new());
     // Tools config (`[tools]` from apollia.toml) drives web_search/web_read
     // params and statically-disabled tools. Populated from RuntimeHandle.
     let trusted_paths_lock: Arc<std::sync::OnceLock<Vec<std::path::PathBuf>>> =
@@ -266,7 +262,6 @@ fn main() {
                 agent_registry: agent_registry_lock.clone(),
                 task_router: task_router_lock.clone(),
                 mailbox_handle: mailbox_handle_lock.clone(),
-                user_memory: user_memory_lock.clone(),
                 tools_config: tools_config_lock.clone(),
                 trusted_paths: trusted_paths_lock.clone(),
             })),
@@ -337,7 +332,6 @@ fn main() {
             agent_registry: &agent_registry_lock,
             task_router: &task_router_lock,
             mailbox_handle: &mailbox_handle_lock,
-            user_memory: &user_memory_lock,
             tools_config: &tools_config_lock,
         },
     );
