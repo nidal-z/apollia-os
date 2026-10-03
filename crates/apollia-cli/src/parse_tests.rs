@@ -982,6 +982,30 @@ fn test_cli_parses_chat_config_reset_with_confirm() {
     assert!(db.is_none());
 }
 
+#[test]
+fn test_cli_parses_chat_capabilities_with_its_session() {
+    // GIVEN "apollia-os chat capabilities s-1"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "chat", "capabilities", "s-1"]);
+    // THEN the chat sub-command carries the session whose model is described
+    let Commands::Chat { command, .. } = cli.command else {
+        panic!("expected chat");
+    };
+    let Some(ChatHygieneCommand::Capabilities { session_id }) = command else {
+        panic!("expected chat capabilities");
+    };
+    assert_eq!(session_id, "s-1");
+}
+
+#[test]
+fn test_cli_refuses_chat_capabilities_without_a_session() {
+    // GIVEN "apollia-os chat capabilities" with no session id
+    // WHEN the top-level parser reads it
+    let parsed = Cli::try_parse_from(["apollia-os", "chat", "capabilities"]);
+    // THEN it is refused: the session is required
+    assert!(parsed.is_err());
+}
+
 // ─── mcp ─────────────────────────────────────────────────────────────────────
 
 #[test]
@@ -1081,29 +1105,28 @@ fn test_cli_parses_mcp_revoke_approval() {
 }
 
 #[test]
-fn test_cli_parses_mcp_server_with_runtime() {
-    // GIVEN "apollia-os mcp server --with-runtime --sandbox-root /tmp/box"
+fn test_cli_parses_mcp_server() {
+    // GIVEN "apollia-os mcp server"
     // WHEN the top-level parser reads it
-    let cli = parse(&[
-        "apollia-os",
-        "mcp",
-        "server",
-        "--with-runtime",
-        "--sandbox-root",
-        "/tmp/box",
-    ]);
-    // THEN the server arguments are carried in their flattened struct
+    let cli = parse(&["apollia-os", "mcp", "server"]);
+    // THEN it is the bridge, which takes no tool flag
     let Commands::Mcp {
-        command: McpCommand::Server(args),
+        command: McpCommand::Server,
     } = cli.command
     else {
         panic!("expected mcp server");
     };
-    assert!(args.with_runtime);
-    assert_eq!(
-        args.sandbox_root,
-        Some(std::path::PathBuf::from("/tmp/box"))
-    );
+}
+
+#[test]
+fn test_cli_refuses_the_retired_mcp_server_flags() {
+    // GIVEN the flags the native-tool server used to take
+    for flag in ["--with-runtime", "--sandbox-root"] {
+        // WHEN the parser reads them
+        let parsed = Cli::try_parse_from(["apollia-os", "mcp", "server", flag]);
+        // THEN they are refused
+        assert!(parsed.is_err(), "{flag} must be refused");
+    }
 }
 
 // ─── config ──────────────────────────────────────────────────────────────────

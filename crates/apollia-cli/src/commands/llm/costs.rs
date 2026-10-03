@@ -43,10 +43,9 @@ pub(super) async fn run_costs(
 
 /// Locates the `apollia.toml` the cost alert threshold lives in.
 ///
-/// Delegates to the runtime's own search order (`./apollia.toml`, then
-/// `$XDG_CONFIG_HOME/apollia/apollia.toml`). `~/.apollia/` holds the data files,
-/// not the configuration: a threshold written there is a threshold the router
-/// never loads.
+/// Delegates to the location every surface shares, `~/.apollia/apollia.toml`
+/// unless `--config` names another file, so the threshold is written where
+/// the router loads it.
 pub(super) fn resolve_apollia_toml(override_path: Option<&std::path::Path>) -> PathBuf {
     crate::commands::config::resolve_path(override_path)
 }
@@ -195,9 +194,7 @@ pub(super) fn run_setup(args: SetupArgs<'_>) -> i32 {
     let apollia_home = apollia_core::paths::home_dir()
         .map(apollia_core::paths::data_dir_under)
         .unwrap_or_else(|| PathBuf::from(apollia_core::paths::DATA_DIR_NAME));
-    let models_dir = models_dir_override
-        .map(|p| p.to_path_buf())
-        .unwrap_or_else(|| apollia_home.join("models"));
+    let models_dir = apollia_core::config::resolve_models_dir(&apollia_home, models_dir_override);
     if let Err(e) = std::fs::create_dir_all(&models_dir) {
         return emit_llm_error(format!("create {} failed: {e}", models_dir.display()), json);
     }
@@ -410,6 +407,11 @@ mod tests {
         assert_eq!(
             costs_path, runtime_path,
             "llm costs writes to a file the runtime never loads"
+        );
+        assert_eq!(
+            Some(costs_path),
+            apollia_core::paths::config_file(),
+            "llm costs writes outside the shared configuration file"
         );
     }
 

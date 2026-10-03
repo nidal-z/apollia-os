@@ -83,11 +83,14 @@ impl CheckResult {
 /// reachability check.
 pub async fn run(socket: Option<PathBuf>, json: bool) -> i32 {
     let home = apollia_core::paths::home_dir_or_temp();
-    let data_dir = apollia_core::paths::data_dir_under(home);
+    let data_dir = apollia_core::paths::data_dir_under(&home);
 
     let mut checks: Vec<CheckResult> = Vec::new();
     checks.push(check_apollia_home(&data_dir));
-    checks.push(check_config_file(&data_dir));
+    checks.push(check_config_file(&home));
+    let cwd = std::env::current_dir().ok();
+    let xdg = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
+    checks.extend(check_legacy_config(&home, cwd.as_deref(), xdg.as_deref()));
     checks.push(check_governance_db(&data_dir));
     checks.push(check_agents_db(&data_dir));
     checks.push(check_models_dir(&data_dir));
@@ -158,25 +161,17 @@ fn check_apollia_home(data_dir: &Path) -> CheckResult {
 /// All operational data (triggers, notifications, agents, MCP servers, LLM
 /// backends, projects, ...) lives in SQLite and is managed via `apollia-os`
 /// subcommands or the Desktop app, so absence is expected for most setups.
-fn check_config_file(data_dir: &Path) -> CheckResult {
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let local = cwd.join("apollia.toml");
-    let user_cfg = data_dir
-        .parent()
-        .map(|p| p.join(".config").join("apollia").join("apollia.toml"))
-        .unwrap_or_else(|| PathBuf::from("~/.config/apollia/apollia.toml"));
-
-    let path = if local.exists() {
-        local
-    } else if user_cfg.exists() {
-        user_cfg
-    } else {
+///
+/// The file is `~/.apollia/apollia.toml`, the one every surface reads.
+fn check_config_file(home: &Path) -> CheckResult {
+    let path = apollia_core::paths::config_file_under(home);
+    if !path.is_file() {
         return CheckResult::ok(
             "config_file",
             "Config file",
             "no apollia.toml (optional - runtime tuning only; defaults are fine)",
         );
-    };
+    }
 
     match crate::config::parse_apollia_toml(&path) {
         Ok(_) => CheckResult::ok(
@@ -191,6 +186,40 @@ fn check_config_file(data_dir: &Path) -> CheckResult {
             "Fix the TOML syntax or remove the offending section",
         ),
     }
+}
+
+/// Name every `apollia.toml` left at a location no surface reads any more
+/// (the working directory, `$XDG_CONFIG_HOME/apollia/`, `~/.config/apollia/`),
+/// with the command that moves it. `None` when there is none.
+fn check_legacy_config(
+    home: &Path,
+    cwd: Option<&Path>,
+    xdg_config_home: Option<&Path>,
+) -> Option<CheckResult> {
+    let legacy = crate::config_location::legacy_files(home, cwd, xdg_config_home);
+    if legacy.is_empty() {
+        return None;
+    }
+    let canonical = apollia_core::paths::config_file_under(home);
+    let names: Vec<String> = legacy.iter().map(|p| p.display().to_string()).collect();
+    let hint = if canonical.is_file() {
+        format!(
+            "Copy the keys you still want into {}, then delete the ignored file",
+            canonical.display()
+        )
+    } else {
+        let commands: Vec<String> = legacy
+            .iter()
+            .map(|p| crate::config_location::move_command(p, &canonical))
+            .collect();
+        format!("Move it: {}", commands.join(" ; "))
+    };
+    Some(CheckResult::warn(
+        "config_legacy_location",
+        "Former config location",
+        format!("ignored, never read: {}", names.join(", ")),
+        hint,
+    ))
 }
 
 /// Verify that `governance.db` opens cleanly if it exists.
@@ -256,7 +285,7 @@ fn check_agents_db(data_dir: &Path) -> CheckResult {
 fn check_models_dir(data_dir: &Path) -> CheckResult {
     const MODELS_HINT: &str = "Place a .gguf file in ~/.apollia/models/, or run `apollia-os llm setup --local --model <path.gguf>`";
 
-    let dir = data_dir.join("models");
+    let dir = apollia_core::config::models_dir(data_dir);
     if !dir.exists() {
         return CheckResult::warn(
             "models_dir",
@@ -470,6 +499,50 @@ mod tests {
         }
         // THEN we must not crash; exit code is either 0 or 1 depending on warns.
         assert!(code == 0 || code == 1);
+    }
+
+    #[test]
+    fn a_config_at_a_former_location_is_named_with_the_move_command() {
+        // GIVEN a configuration in the working directory and none at
+        // ~/.apollia/apollia.toml
+        let home = tempfile::tempdir().unwrap();
+        let cwd = tempfile::tempdir().unwrap();
+        std::fs::write(cwd.path().join("apollia.toml"), "[api]\nport = 7001\n").unwrap();
+        // WHEN doctor checks the configuration locations
+        let check = check_legacy_config(home.path(), Some(cwd.path()), None)
+            .expect("a former location is reported");
+        // THEN it warns, names the file, and gives the command that moves it
+        // to the shared location
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(check.message.contains(&cwd.path().display().to_string()));
+        let canonical = apollia_core::paths::config_file_under(home.path());
+        let hint = check.hint.unwrap();
+        assert!(hint.contains("mv ") || hint.contains("move "), "{hint}");
+        assert!(hint.contains(&canonical.display().to_string()), "{hint}");
+    }
+
+    #[test]
+    fn no_former_location_reports_nothing() {
+        // GIVEN an empty home and an empty working directory
+        let home = tempfile::tempdir().unwrap();
+        let cwd = tempfile::tempdir().unwrap();
+        // WHEN doctor checks the configuration locations
+        // THEN there is no line to show
+        assert!(check_legacy_config(home.path(), Some(cwd.path()), None).is_none());
+    }
+
+    #[test]
+    fn the_config_check_reads_the_shared_location() {
+        // GIVEN an invalid file at ~/.apollia/apollia.toml
+        let home = tempfile::tempdir().unwrap();
+        let path = apollia_core::paths::config_file_under(home.path());
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "this = is = invalid\n").unwrap();
+        // WHEN doctor checks the configuration file
+        let check = check_config_file(home.path());
+        // THEN that file is the one parsed, and reported invalid
+        assert_eq!(check.status, CheckStatus::Error, "{}", check.message);
+        assert!(check.message.contains(&path.display().to_string()));
     }
 
     #[test]

@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use apollia_core::{PendingApprovals, SttConfigRepository, ToolsConfig};
 use apollia_llm::LlmRouter;
-use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_runtime::api::routes_agents::AgentBackendFactory;
 use apollia_runtime::coordinator::DynBackend;
 use apollia_runtime::embedded::{EmbeddedConfig, RuntimeHandle};
@@ -18,40 +17,32 @@ use apollia_runtime::router::TaskRouterHandle;
 use apollia_tools::tools::ask_user::PendingUserInputs;
 use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 
-/// Searches for `apollia.toml` in priority order and applies all parsable sections
-/// (llm, triggers, notifications) to the provided `EmbeddedConfig`.
+/// Reads `~/.apollia/apollia.toml` and applies all parsable sections (llm,
+/// triggers, notifications) to the provided `EmbeddedConfig`.
 ///
-/// Search order (first match wins):
-///   1. `~/.apollia/apollia.toml` : canonical desktop config (the same file
-///      `crate::commands::config` reads/writes and `sync_to_toml` mirrors backends to)
-///   2. `./apollia.toml`          : CWD (useful when running from workspace root)
-///
-/// The legacy XDG location `~/.config/apollia/apollia.toml` is deliberately NOT
-/// searched. It is not the desktop's canonical config path, yet a stale copy
-/// left there on a developer machine would be resolved on a clean profile
-/// (after `rm -rf ~/.apollia`) and its `[[llm.backends]]` entries would be
-/// silently imported into a fresh `system.db` by the supervisor's
-/// TOML-to-`system.db` migration, resurrecting a backend the user never
-/// configured. `system.db` is the source of truth for LLM backends; a clean
-/// install must start with none.
+/// It is the one file every surface reads and writes (the CLI, the daemon,
+/// `crate::commands::config`, and `sync_to_toml` which mirrors backends to
+/// it). The working directory is not searched: an agent package keeps its
+/// manifest under the same name. The former XDG location
+/// `~/.config/apollia/apollia.toml` is not searched either: a stale copy left
+/// there would be resolved on a clean profile (after `rm -rf ~/.apollia`) and
+/// its `[[llm.backends]]` entries silently imported into a fresh `system.db`
+/// by the supervisor's TOML-to-`system.db` migration, resurrecting a backend
+/// the user never configured.
 ///
 /// Returns the config unchanged if no file is found.
 pub(crate) fn load_toml_config(config: EmbeddedConfig) -> EmbeddedConfig {
-    let candidates = [
-        apollia_core::paths::data_dir().map(|d| d.join("apollia.toml")),
-        std::env::current_dir().ok().map(|d| d.join("apollia.toml")),
-    ];
-
-    for maybe_path in candidates.into_iter().flatten() {
-        if maybe_path.exists() {
-            if let Ok(content) = std::fs::read_to_string(&maybe_path) {
-                let mut updated = config.apply_toml(&content);
-                updated.config_path = Some(maybe_path);
-                return updated;
-            }
+    let Some(path) = apollia_core::paths::config_file().filter(|p| p.exists()) else {
+        return config;
+    };
+    match std::fs::read_to_string(&path) {
+        Ok(content) => {
+            let mut updated = config.apply_toml(&content);
+            updated.config_path = Some(path);
+            updated
         }
+        Err(_) => config,
     }
-    config
 }
 
 /// Point the embedded Python interpreter at the bundled `python-build-standalone`
@@ -232,7 +223,6 @@ pub(crate) struct RuntimeLocks<'a> {
     pub(crate) agent_registry: &'a std::sync::OnceLock<AgentRegistryHandle>,
     pub(crate) task_router: &'a std::sync::OnceLock<TaskRouterHandle<DynBackend>>,
     pub(crate) mailbox_handle: &'a std::sync::OnceLock<AgentMailboxHandle>,
-    pub(crate) user_memory: &'a std::sync::OnceLock<Arc<std::sync::Mutex<UserMemoryRepository>>>,
     pub(crate) tools_config: &'a std::sync::OnceLock<ToolsConfig>,
 }
 
@@ -240,7 +230,7 @@ pub(crate) struct RuntimeLocks<'a> {
 ///
 /// Required for parity between Chat Libre, Chat Agent, and task-mode flows.
 /// Without these, Python agents in non-chat-libre flows lose `ctx.a2a_invoke`,
-/// `ctx.mailbox`, `ctx.user_context`, and apollia.toml's `[tools]` overrides.
+/// `ctx.mailbox`, and apollia.toml's `[tools]` overrides.
 pub(crate) fn populate_runtime_locks(runtime_handle: &RuntimeHandle, locks: RuntimeLocks<'_>) {
     let _ = locks.event_bus.set(runtime_handle.event_sender.clone());
     *locks
@@ -271,9 +261,6 @@ pub(crate) fn populate_runtime_locks(runtime_handle: &RuntimeHandle, locks: Runt
     let _ = locks.task_router.set(runtime_handle.router_handle.clone());
     if let Some(mailbox) = runtime_handle.mailbox_handle.clone() {
         let _ = locks.mailbox_handle.set(mailbox);
-    }
-    if let Some(um) = runtime_handle.user_memory.clone() {
-        let _ = locks.user_memory.set(um);
     }
     let _ = locks.tools_config.set(runtime_handle.tools_config.clone());
 }
@@ -411,7 +398,7 @@ pub(crate) fn setup_stt_hotkey(
 
     let flow = Arc::new(crate::stt::flow::SttFlow::new(
         stt_cfg.clone(),
-        runtime_handle.stt_engine.clone(),
+        crate::stt::transcriber::Transcriber::Local(runtime_handle.stt_engine.clone()),
         runtime_handle.event_sender.clone(),
         app.clone(),
     ));

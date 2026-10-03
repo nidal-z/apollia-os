@@ -29,14 +29,17 @@
 
 pub mod agent_definition;
 mod agent_overrides;
+pub mod agent_package;
 pub mod agent_repository;
 pub(crate) mod agents_db;
 pub mod apo_archive;
 pub mod apollia_manifest;
 pub mod audit;
+pub mod default_access;
 pub mod descriptor;
 pub mod dispatcher_invoker;
 pub mod executor;
+pub mod exposed_items;
 pub mod file_path_extractor;
 pub mod governance_db;
 pub mod granted_access;
@@ -63,6 +66,7 @@ pub use agent_repository::{AgentRepository, AgentRepositoryError, InstalledAgent
 pub use audit::{
     compute_input_hash, AuditStats, AuditTrailError, AuditTrailHandle, ToolInvocationRecord,
 };
+pub use default_access::{reading_family, reads_by_default, with_default_access, AgentAccess};
 pub use descriptor::{
     ActionFamily, ApprovalRiskLevel, FamilySource, McpTransport, ToolDescriptor,
     ToolDescriptorError, ToolKind,
@@ -70,6 +74,7 @@ pub use descriptor::{
 pub use executor::{
     SessionToolFilter, ToolBatchCall, ToolDispatcher, ToolExecutionError, ToolExecutor,
 };
+pub use exposed_items::{ExposedItem, ExposedItemError, ExposedItemRepository, ExposedKind};
 pub use file_path_extractor::FilePathExtractor;
 pub use governance_db::{
     GovernanceDb, GovernanceError, GOVERNANCE_DB_FILENAME, LEGACY_BACKUP_FILENAME,

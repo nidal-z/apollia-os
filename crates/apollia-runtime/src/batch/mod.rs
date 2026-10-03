@@ -18,10 +18,34 @@
 //! Defaults: a concurrency of [`DEFAULT_CONCURRENCY`] (at most
 //! [`MAX_CONCURRENCY`]) and a threshold of [`DEFAULT_MAX_FAILURES`] failed
 //! items.
+//!
+//! A running batch is paused (no further item starts, those running end on
+//! their own, and a restart leaves it paused), resumed, or stopped: its
+//! running items are cancelled through their task, the pending ones are
+//! canceled without running. The items that failed, or that wait for an
+//! access, are run again from their input as read at launch.
+//!
+//! An item runs unattended. Before the batch starts, the sensitive accesses of
+//! its agent are listed ([`BatchHandle::accesses`]); those granted at launch
+//! are recorded as consents scoped to the batch and withdrawn when it ends.
+//! An item whose agent reaches for an access nobody granted stops and waits
+//! (`awaiting`) instead of failing, the batch goes on with the others, and
+//! [`RuntimeEvent::BatchItemAwaitingApproval`] asks for the decision. When a
+//! batch ends, [`RuntimeEvent::BatchEnded`] carries its counters.
+//!
+//! [`RuntimeEvent::BatchItemAwaitingApproval`]: apollia_core::RuntimeEvent::BatchItemAwaitingApproval
+//! [`RuntimeEvent::BatchEnded`]: apollia_core::RuntimeEvent::BatchEnded
 
+mod access;
 mod actor;
+mod control;
+mod export;
 mod runner;
 
+#[cfg(test)]
+mod control_tests;
+#[cfg(test)]
+mod export_tests;
 #[cfg(test)]
 mod tests;
 
@@ -34,6 +58,10 @@ use apollia_tools::{BatchItemRow, BatchRow, TaskRepoError, TaskRepository};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 
+use crate::eventbus::EventBusSender;
+
+pub use access::BatchAccess;
+pub use export::{export, BatchExport, ExportError, ExportFormat, XLSX_CELL_MAX};
 pub use runner::AgentItemRunner;
 
 /// Items of one batch run at once when the launch names no concurrency.
@@ -70,7 +98,8 @@ pub struct BatchLaunch {
     pub agent: String,
     /// Where the items come from.
     pub source: SourceDescriptor,
-    /// The accesses granted for the duration of the batch.
+    /// The sensitive accesses granted for the duration of the batch, by
+    /// their id as `GET /api/v1/batches/accesses` lists them.
     #[serde(default)]
     pub grants: Vec<String>,
     /// How many items run at once, 1 to 16; 1 when absent.
@@ -100,6 +129,22 @@ pub enum BatchError {
     /// The batch actor is gone.
     #[error("the batch engine is not running")]
     Stopped,
+    /// No batch has this id.
+    #[error("no batch '{0}'")]
+    NotFound(String),
+    /// The batch is not in a state the command applies to.
+    #[error("{0}")]
+    State(String),
+}
+
+/// What the failed items of a batch are run again with.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchRetry {
+    /// Accesses granted for the rest of the batch, on top of those granted
+    /// at launch: an item that waited for one of them runs again with it.
+    #[serde(default)]
+    pub grants: Vec<String>,
 }
 
 /// How the run of one item ended.
@@ -108,6 +153,8 @@ pub enum ItemStatus {
     Completed,
     Failed,
     Canceled,
+    /// Stopped on an access nobody granted; waits for a decision.
+    Awaiting,
 }
 
 impl ItemStatus {
@@ -117,6 +164,7 @@ impl ItemStatus {
             Self::Completed => "completed",
             Self::Failed => "failed",
             Self::Canceled => "canceled",
+            Self::Awaiting => "awaiting",
         }
     }
 }
@@ -127,6 +175,8 @@ pub struct ItemEnd {
     pub status: ItemStatus,
     /// The answer, or the failure.
     pub output: String,
+    /// For an item that waits: the access its agent reached for.
+    pub awaiting: Option<String>,
 }
 
 /// An item run that has started.
@@ -141,15 +191,33 @@ pub struct StartedItem {
 /// Runs the items of a batch: the agent run outside any conversation in
 /// production, a scripted runner in tests.
 pub trait ItemRunner: Send + Sync + 'static {
-    /// Checks that `agent` can run a batch, before anything is recorded.
-    fn check(&self, agent: &str) -> impl Future<Output = Result<(), String>> + Send;
+    /// Checks that `agent` can run a batch, before anything is recorded, and
+    /// returns its sensitive accesses.
+    fn check(&self, agent: &str) -> impl Future<Output = Result<Vec<BatchAccess>, String>> + Send;
 
-    /// Starts `agent` on one item whose input is `input`.
+    /// Records `grants` as consents of `agent` for the duration of the batch
+    /// `batch_id`.
+    fn grant(
+        &self,
+        batch_id: &str,
+        agent: &str,
+        grants: &[BatchAccess],
+    ) -> impl Future<Output = Result<(), String>> + Send;
+
+    /// Withdraws every consent given for the batch `batch_id`.
+    fn release(&self, batch_id: &str) -> impl Future<Output = Result<(), String>> + Send;
+
+    /// Starts `agent` on one item of the batch `batch_id` whose input is
+    /// `input`, with the accesses granted to it now.
     fn start(
         &self,
+        batch_id: &str,
         agent: &str,
         input: &serde_json::Value,
     ) -> impl Future<Output = Result<StartedItem, String>> + Send;
+
+    /// Cancels the run of the task `task_id`; its end is reported as usual.
+    fn cancel(&self, task_id: &str) -> impl Future<Output = ()> + Send;
 }
 
 /// A batch with its items, as read.
@@ -159,10 +227,44 @@ pub struct BatchDetail {
     pub items: Vec<BatchItemRow>,
 }
 
+/// A change asked of one batch.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BatchControl {
+    /// No further item starts; those running end on their own.
+    Pause,
+    /// A paused batch starts its items again.
+    Resume,
+    /// Running items are cancelled, pending ones never run, the batch ends.
+    Stop,
+    /// The failed and waiting items run again, with more grants if given.
+    Retry(BatchRetry),
+}
+
+impl BatchControl {
+    /// The verb, as the routes and the traces name it.
+    pub fn verb(&self) -> &'static str {
+        match self {
+            Self::Pause => "pause",
+            Self::Resume => "resume",
+            Self::Stop => "stop",
+            Self::Retry(_) => "retry",
+        }
+    }
+}
+
 enum BatchCommand {
     Launch {
         launch: BatchLaunch,
         reply: oneshot::Sender<Result<BatchRow, BatchError>>,
+    },
+    Control {
+        batch_id: String,
+        control: BatchControl,
+        reply: oneshot::Sender<Result<BatchRow, BatchError>>,
+    },
+    Accesses {
+        agent: String,
+        reply: oneshot::Sender<Result<Vec<BatchAccess>, BatchError>>,
     },
 }
 
@@ -181,9 +283,11 @@ impl BatchHandle {
         repository: Arc<TaskRepository>,
         sources: Arc<SourceRegistry>,
         runner: R,
+        event_bus: EventBusSender,
     ) -> Self {
         let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
-        let actor = actor::BatchActor::new(rx, repository.clone(), sources, Arc::new(runner));
+        let actor =
+            actor::BatchActor::new(rx, repository.clone(), sources, Arc::new(runner), event_bus);
         tokio::spawn(actor.run());
         Self { tx, repository }
     }
@@ -201,6 +305,50 @@ impl BatchHandle {
         let (reply, rx) = oneshot::channel();
         self.tx
             .send(BatchCommand::Launch { launch, reply })
+            .await
+            .map_err(|_| BatchError::Stopped)?;
+        rx.await.map_err(|_| BatchError::Stopped)?
+    }
+
+    /// Pauses, resumes, stops or retries a batch. Returns it as changed.
+    ///
+    /// # Errors
+    ///
+    /// [`BatchError::NotFound`] for an unknown batch, [`BatchError::State`]
+    /// when the batch is not in a state the command applies to,
+    /// [`BatchError::Invalid`] for a grant the agent cannot take,
+    /// [`BatchError::Store`] or [`BatchError::Stopped`] otherwise.
+    pub async fn control(
+        &self,
+        batch_id: &str,
+        control: BatchControl,
+    ) -> Result<BatchRow, BatchError> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(BatchCommand::Control {
+                batch_id: batch_id.to_string(),
+                control,
+                reply,
+            })
+            .await
+            .map_err(|_| BatchError::Stopped)?;
+        rx.await.map_err(|_| BatchError::Stopped)?
+    }
+
+    /// The sensitive accesses of `agent`: those a launch may grant for the
+    /// duration of a batch.
+    ///
+    /// # Errors
+    ///
+    /// [`BatchError::Agent`] for an agent that cannot run a batch, or
+    /// [`BatchError::Stopped`].
+    pub async fn accesses(&self, agent: &str) -> Result<Vec<BatchAccess>, BatchError> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(BatchCommand::Accesses {
+                agent: agent.to_string(),
+                reply,
+            })
             .await
             .map_err(|_| BatchError::Stopped)?;
         rx.await.map_err(|_| BatchError::Stopped)?

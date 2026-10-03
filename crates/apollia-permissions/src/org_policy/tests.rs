@@ -313,7 +313,7 @@ fn test_full_fixture_round_trips() {
         vec![PolicyFamily::ExecuteCode, PolicyFamily::SendExternal]
     );
     assert!(policy.inference.require_model_hash);
-    assert_eq!(policy.settings.len(), 3);
+    assert_eq!(policy.settings.len(), 1);
     assert_eq!(policy.packages.trusted_publishers.len(), 1);
     assert_eq!(policy.journal.retention_days, Some(365));
     assert_eq!(policy.journal.export.detail, Some(ExportDetail::Forbid));
@@ -448,15 +448,104 @@ fn test_unknown_key_in_inference_is_refused() {
 
 #[test]
 fn test_settings_must_be_a_table() {
-    // GIVEN [settings] given as a scalar, and as a table of free keys
-    let free_keys = format!("{MINIMAL_POLICY}[settings]\n\"any.key\" = 3\n");
+    // GIVEN [settings] given as a scalar, and as a table fixing a real setting
+    let table = format!("{MINIMAL_POLICY}[settings]\n\"desktop.developer_mode\" = false\n");
 
     // WHEN each is parsed
-    let table = parse_policy(&free_keys);
+    let parsed = parse_policy(&table);
 
-    // THEN the scalar is refused and the free keys are kept
+    // THEN the scalar is refused and the table is kept
     assert!(is_refused("settings = 1\n"));
-    assert_eq!(table.unwrap().settings.len(), 1);
+    assert_eq!(parsed.unwrap().settings.len(), 1);
+}
+
+#[test]
+fn test_a_setting_unknown_to_the_socle_makes_the_policy_invalid() {
+    // GIVEN a policy fixing a key no setting carries, and one fixing a real
+    //   setting at a value of the wrong type
+    let unknown = format!("{MINIMAL_POLICY}[settings]\n\"any.key\" = 3\n");
+    let mistyped = format!("{MINIMAL_POLICY}[settings]\n\"desktop.developer_mode\" = \"on\"\n");
+
+    // WHEN each is parsed
+    let [unknown, mistyped] = [unknown, mistyped].map(|text| parse_policy(&text));
+
+    // THEN both are refused, naming the key
+    assert!(
+        matches!(&unknown, Err(PolicySchemaError::InvalidSetting { key, .. }) if key == "any.key"),
+        "{unknown:?}"
+    );
+    assert!(
+        matches!(&mistyped, Err(PolicySchemaError::InvalidSetting { key, .. }) if key == "desktop.developer_mode"),
+        "{mistyped:?}"
+    );
+}
+
+#[test]
+fn test_a_signed_policy_fixing_an_unknown_setting_is_invalid_schema() {
+    // GIVEN a correctly signed folder whose [settings] names no real setting
+    let root = tempfile::tempdir().unwrap();
+    let dir = write_policy_dir(
+        root.path(),
+        &format!("{MINIMAL_POLICY}[settings]\n\"desktop.inconnu\" = true\n"),
+    );
+
+    // WHEN it is read
+    let verdict = load(&dir);
+
+    // THEN it is refused for its schema, and it fixes nothing
+    assert_eq!(reason_of(&verdict), Some(PolicyInvalidReason::Schema));
+    assert!(!verdict.imposed_settings().locks("desktop.inconnu"));
+}
+
+#[test]
+fn test_a_valid_policy_feeds_the_settings_contract() {
+    // GIVEN a correctly signed folder fixing developer mode off, and a user
+    //   file that turned it on
+    let root = tempfile::tempdir().unwrap();
+    let dir = write_policy_dir(
+        root.path(),
+        &format!("{MINIMAL_POLICY}[settings]\n\"desktop.developer_mode\" = false\n"),
+    );
+    let config = root.path().join("apollia.toml");
+    std::fs::write(&config, "[desktop]\ndeveloper_mode = true\n").unwrap();
+
+    // WHEN the policy is read, the setting resolved against it, then written
+    let imposed = load(&dir).imposed_settings();
+    let resolved =
+        apollia_core::config::resolve_setting(&config, "desktop.developer_mode", &imposed).unwrap();
+    let written = apollia_core::config::write_setting(
+        &config,
+        "desktop.developer_mode",
+        serde_json::json!(true),
+        &imposed,
+    );
+
+    // THEN the policy's value is in force with the source policy, the write is
+    //   refused, and the user's file is left as it was
+    assert_eq!(resolved.value, serde_json::json!(false));
+    assert_eq!(resolved.source, apollia_core::config::SettingSource::Policy);
+    assert!(matches!(
+        written,
+        Err(apollia_core::config::SettingError::LockedByPolicy { .. })
+    ));
+    assert_eq!(
+        std::fs::read_to_string(&config).unwrap(),
+        "[desktop]\ndeveloper_mode = true\n"
+    );
+}
+
+#[test]
+fn test_without_a_policy_nothing_is_fixed_nor_required() {
+    // GIVEN no policy folder
+    let root = tempfile::tempdir().unwrap();
+
+    // WHEN it is read
+    let verdict = load(&root.path().join("absent"));
+
+    // THEN it fixes no setting and requires no signature
+    assert!(matches!(verdict, PolicyVerdict::Absent));
+    assert!(!verdict.imposed_settings().locks("desktop.developer_mode"));
+    assert_eq!(verdict.packages(), PackagesPolicy::default());
 }
 
 #[test]
@@ -508,5 +597,73 @@ fn test_missing_policy_file_is_invalid_schema() {
     let verdict = load(&dir);
 
     // THEN the schema is the reason
+    assert_eq!(reason_of(&verdict), Some(PolicyInvalidReason::Schema));
+}
+
+#[test]
+fn test_require_model_hash_fixes_the_import_rule_to_true() {
+    // GIVEN a correctly signed folder requiring a model hash, whose [settings]
+    //   tries to leave the import rule off
+    let root = tempfile::tempdir().unwrap();
+    let dir = write_policy_dir(
+        root.path(),
+        &format!(
+            "{MINIMAL_POLICY}[inference]\nrequire_model_hash = true\n\
+             [settings]\n\"models.import.require_verified\" = false\n"
+        ),
+    );
+
+    // WHEN the settings it fixes are read
+    let imposed = load(&dir).imposed_settings();
+
+    // THEN the import rule is fixed to true
+    assert_eq!(
+        imposed.imposed(crate::REQUIRE_VERIFIED_SETTING),
+        Some(&serde_json::json!(true))
+    );
+}
+
+#[test]
+fn test_settings_fix_the_guardrail_and_the_model_registry() {
+    // GIVEN a correctly signed folder fixing the guardrail level and cutting
+    //   the model registry
+    let root = tempfile::tempdir().unwrap();
+    let dir = write_policy_dir(
+        root.path(),
+        &format!(
+            "{MINIMAL_POLICY}[settings]\n\"llm.guardrails.level\" = \"strict\"\n\
+             \"models.registry_enabled\" = false\n"
+        ),
+    );
+
+    // WHEN it is read
+    let verdict = load(&dir);
+    let imposed = verdict.imposed_settings();
+
+    // THEN it is valid and both keys are fixed at their values
+    assert!(matches!(verdict, PolicyVerdict::Valid(_)), "{verdict:?}");
+    assert_eq!(
+        imposed.imposed("llm.guardrails.level"),
+        Some(&serde_json::json!("strict"))
+    );
+    assert_eq!(
+        imposed.imposed("models.registry_enabled"),
+        Some(&serde_json::json!(false))
+    );
+}
+
+#[test]
+fn test_a_guardrail_level_the_guardrail_does_not_know_is_invalid_schema() {
+    // GIVEN a correctly signed folder fixing an unknown guardrail level
+    let root = tempfile::tempdir().unwrap();
+    let dir = write_policy_dir(
+        root.path(),
+        &format!("{MINIMAL_POLICY}[settings]\n\"llm.guardrails.level\" = \"relaxed\"\n"),
+    );
+
+    // WHEN it is read
+    let verdict = load(&dir);
+
+    // THEN it is refused for its schema
     assert_eq!(reason_of(&verdict), Some(PolicyInvalidReason::Schema));
 }

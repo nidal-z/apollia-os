@@ -73,7 +73,16 @@ impl AgentLoader for AIPAgentLoader {
         // resolves the SDK + the enclosing package root the same way
         // (otherwise installed agents that validated fine through the CLI
         // would 400 the moment the runtime tries to load them).
-        let extras = crate::community::validation_sys_paths(path);
+        self.load_and_validate_with(path, &[])
+    }
+
+    fn load_and_validate_with(
+        &self,
+        path: &Path,
+        extra_sys_paths: &[PathBuf],
+    ) -> Result<AgentManifest, String> {
+        let mut extras = extra_sys_paths.to_vec();
+        extras.extend(crate::community::validation_sys_paths(path));
         let module = apollia_aip::loader::load_agent_module_with_sys_paths(path, &extras)
             .map_err(|e| e.to_string())?;
         let validated =
@@ -116,7 +125,14 @@ fn open_secret_store(data_dir: &Path) -> Option<Arc<std::sync::Mutex<ToolCredent
 /// Returns `Ok(true)` when shutdown was triggered by SIGINT (Ctrl+C), so the
 /// caller can exit with code 5 to distinguish voluntary interruption from
 /// success (0) or error (1–4).
-pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, StartError> {
+///
+/// `config` is the configuration file named by `--config`; without it the
+/// runtime reads `~/.apollia/apollia.toml`.
+pub async fn run(
+    socket: Option<PathBuf>,
+    port: Option<u16>,
+    config: Option<PathBuf>,
+) -> Result<bool, StartError> {
     let start = Instant::now();
     let socket_path = socket.unwrap_or_else(default_socket_path);
     let tcp_port = port.unwrap_or(DEFAULT_TCP_PORT);
@@ -140,7 +156,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
 
     // Load apollia.toml if found. Agents, triggers, pipelines, notifications, and stt
     // are loaded from SQLite by the Supervisor; only static sections are parsed here.
-    let (loaded_config, config_path) = load_start_config()?;
+    let (loaded_config, config_path) = load_start_config(config.as_deref())?;
     let (
         llm_config,
         api_file_config,
@@ -313,11 +329,6 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         Arc::new(std::sync::OnceLock::new());
     let router_lock: Arc<std::sync::OnceLock<TaskRouterHandle<DynBackend>>> =
         Arc::new(std::sync::OnceLock::new());
-    let user_memory_lock: Arc<
-        std::sync::OnceLock<
-            Option<Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
-        >,
-    > = Arc::new(std::sync::OnceLock::new());
     let pending_user_inputs_lock: Arc<std::sync::OnceLock<PendingUserInputs>> =
         Arc::new(std::sync::OnceLock::new());
     let mcp_handle_lock: Arc<
@@ -350,7 +361,6 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
             llm_router: llm_router_lock.clone(),
             tool_registry: tool_registry_lock.clone(),
             audit_trail: audit_trail_lock.clone(),
-            user_memory: user_memory_lock.clone(),
             pending_user_inputs: pending_user_inputs_lock.clone(),
             agent_registry: registry_lock.clone(),
             task_router: router_lock.clone(),
@@ -380,7 +390,6 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     set_lock_if_some(&plan_gates_lock, handles.plan_gates.clone());
     set_lock_if_some(&plan_cache_lock, handles.plan_cache.clone());
     set_lock_if_some(&task_repository_lock, handles.task_repository.clone());
-    let _ = user_memory_lock.set(handles.user_memory.clone());
     // Cloned (not moved) so the ShutdownController still receives handles.mcp_handle.
     let _ = mcp_handle_lock.set(handles.mcp_handle.clone());
     set_lock_if_some(
@@ -412,12 +421,14 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     }
 
     // The Python tools of the installed packages join the registry, read from
-    // their manifests; each module is imported on its first call only.
+    // their manifests; each module is imported on its first call only. The
+    // onboarding tool the desktop installed keeps the profile it records.
     apollia_aip::package_tools::attach(
         &data_dir_for_package_tools,
         &handles.tool_registry_handle,
         handles.chat_manager.as_ref(),
         agent_idle_unload,
+        &[apollia_aip::package_tools::ProfileGrant::onboarding()],
     )
     .await;
     // The workflows of the installed packages, read from the same manifests.
@@ -479,6 +490,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         mcp_handle: handles.mcp_handle,
         runner_supervisor: handles.runner_supervisor,
         llama_server_supervisor: handles.llama_server_supervisor,
+        mlx_engine: handles.mlx_engine,
     });
 
     match shutdown.shutdown().await {

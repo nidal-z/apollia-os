@@ -1,7 +1,7 @@
 //! Apollia OS runtime configuration.
 //!
-//! Ten `apollia.toml` sections are consulted by a loader, the list held by
-//! `apollia_cli::config::KNOWN_SECTIONS`. Nine of them are defined here:
+//! The `apollia.toml` sections a loader consults are listed by
+//! `apollia_cli::config::KNOWN_SECTIONS`. Those defined here include:
 //! - [`RuntimeConfig`]: `[runtime]`, EventBus and mailbox capacity.
 //! - [`ApiConfig`]: `[api]`, the TCP listener, authentication, TLS, and the
 //!   Unix socket.
@@ -15,8 +15,18 @@
 //! - [`ModelsConfig`]: `[models]`, the signed index of model cards the
 //!   catalogue reads, its mirror, and the switch that turns it off. Read when
 //!   the catalogue opens, not by the embedded loader.
+//! - [`DesktopConfig`]: `[desktop]`, the settings of the desktop application
+//!   that Rust reads, each a named setting resolved with its source by
+//!   [`resolve_setting`] and written by [`write_setting`], which refuses a key
+//!   the organization policy locks.
+//! - [`ServerConfig`]: `[server]`, the compatible server, a second listener
+//!   of the runtime on its own port, switched off by default; its two keys
+//!   are named settings too.
+//! - [`EnginesConfig`]: `[engines]`, the settings of the local inference
+//!   engines, the engine log level first; named settings, read when a model
+//!   loads.
 //!
-//! The tenth is `[llm]`, whose type lives in `apollia-llm`.
+//! `[llm]` is another, whose type lives in `apollia-llm`.
 //!
 //! The other types in this module are runtime parameters, not `apollia.toml`
 //! sections. No loader deserializes an `[a2a]` or an `[oria]` table, and both
@@ -31,6 +41,8 @@ mod a2a;
 mod api;
 mod autonomy;
 mod chat;
+mod desktop;
+mod engines;
 mod filesystem;
 mod filesystem_risk;
 mod hitl;
@@ -43,6 +55,8 @@ mod permissions;
 mod registry;
 mod retired;
 mod runtime;
+mod server;
+mod settings;
 mod tools;
 mod triggers;
 mod web;
@@ -50,6 +64,8 @@ mod workflows;
 
 #[cfg(test)]
 mod autonomy_tests;
+#[cfg(test)]
+mod settings_tests;
 #[cfg(test)]
 mod tests;
 
@@ -59,18 +75,28 @@ pub use autonomy::{
     AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, AutonomyLevelParseError, GatePolicy,
 };
 pub use chat::ChatConfig;
+pub use desktop::{DesktopConfig, UpdateChannel};
+pub use engines::{EngineLogLevel, EnginesConfig, ENGINE_LOG_LEVELS};
 pub use filesystem::{FilesystemConfig, JournalConfig};
 pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
 pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig, LlmRunnerConfig};
 pub use mcp::{McpConfig, McpToolLoading};
-pub use models::{ModelsConfig, DEFAULT_MODEL_REGISTRY_MIRROR_URL, DEFAULT_MODEL_REGISTRY_URL};
+pub use models::{
+    default_models_dir, models_dir, resolve_models_dir, ModelsConfig,
+    DEFAULT_MODEL_REGISTRY_MIRROR_URL, DEFAULT_MODEL_REGISTRY_URL, MODELS_DIR_KEY, MODELS_DIR_NAME,
+};
 pub use oria::ORIAConfig;
 pub use permissions::BashValidatorConfig;
 pub use registry::RegistryConfig;
 pub use retired::{retired_keys_in, warn_retired_keys, RetiredKey, RETIRED_KEYS};
 pub use runtime::RuntimeConfig;
+pub use server::{ServerConfig, DEFAULT_COMPAT_SERVER_PORT};
+pub use settings::{
+    check_imposed_setting, resolve_setting, resolve_setting_in, write_setting, PolicySettings,
+    ResolvedSetting, SettingError, SettingSource, GUARDRAIL_LEVELS,
+};
 pub use tools::ToolsConfig;
 pub use triggers::TriggersConfig;
 pub use web::{

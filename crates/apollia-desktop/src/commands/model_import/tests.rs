@@ -3,9 +3,13 @@
 
 use std::path::{Path, PathBuf};
 
+use apollia_core::config::PolicySettings;
 use apollia_llm::{ModelFormat, ModelImportRule, ModelOrigin};
 
-use super::{import_model_file_into, import_rule, registry_digests, ImportModelError};
+use super::{
+    import_model_file_into, import_model_file_under, import_rule, registry_digests,
+    ImportModelError,
+};
 use crate::commands::model_index;
 
 fn gguf_bytes(tag: u8) -> Vec<u8> {
@@ -40,7 +44,7 @@ fn import(source: &Path, dir: &Path, rule: ModelImportRule) -> Result<String, Im
 fn test_an_import_adds_its_entry_to_the_index() {
     let tmp = tempfile::tempdir().unwrap();
     let source = write(tmp.path(), "picked.gguf", &gguf_bytes(0));
-    let dir = tmp.path().join("models");
+    let dir = apollia_core::config::default_models_dir(tmp.path());
 
     import(&source, &dir, ModelImportRule::default()).unwrap();
 
@@ -57,7 +61,7 @@ fn test_an_import_adds_its_entry_to_the_index() {
 #[test]
 fn test_an_import_of_a_known_digest_is_verified() {
     let tmp = tempfile::tempdir().unwrap();
-    let dir = tmp.path().join("models");
+    let dir = apollia_core::config::default_models_dir(tmp.path());
     let downloaded = write(&dir, "qwen.gguf", &gguf_bytes(1));
     let digest = apollia_llm::check_import(&downloaded, &[], ModelImportRule::default())
         .unwrap()
@@ -88,7 +92,7 @@ fn test_an_import_of_a_known_digest_is_verified() {
 #[test]
 fn test_an_import_of_an_unknown_digest_is_unverified() {
     let tmp = tempfile::tempdir().unwrap();
-    let dir = tmp.path().join("models");
+    let dir = apollia_core::config::default_models_dir(tmp.path());
     let source = write(tmp.path(), "key/private.gguf", &gguf_bytes(2));
 
     import(&source, &dir, ModelImportRule::default()).unwrap();
@@ -106,7 +110,7 @@ fn test_an_import_of_an_unknown_digest_is_unverified() {
 #[test]
 fn test_a_text_file_renamed_gguf_is_refused() {
     let tmp = tempfile::tempdir().unwrap();
-    let dir = tmp.path().join("models");
+    let dir = apollia_core::config::default_models_dir(tmp.path());
     let source = write(tmp.path(), "key/notes.gguf", b"meeting notes\n");
 
     let err = import(&source, &dir, ModelImportRule::default()).unwrap_err();
@@ -123,7 +127,7 @@ fn test_a_text_file_renamed_gguf_is_refused() {
 #[test]
 fn test_require_verified_refuses_an_unverified_import() {
     let tmp = tempfile::tempdir().unwrap();
-    let dir = tmp.path().join("models");
+    let dir = apollia_core::config::default_models_dir(tmp.path());
     let source = write(tmp.path(), "key/private.gguf", &gguf_bytes(3));
     let rule = ModelImportRule {
         require_verified: true,
@@ -141,7 +145,7 @@ fn test_require_verified_refuses_an_unverified_import() {
 #[test]
 fn test_an_mlx_folder_is_imported_whole() {
     let tmp = tempfile::tempdir().unwrap();
-    let dir = tmp.path().join("models");
+    let dir = apollia_core::config::default_models_dir(tmp.path());
     let source = tmp.path().join("key/qwen-mlx");
     write(&source, "config.json", br#"{"model_type": "qwen2"}"#);
     write(&source, "model.safetensors", b"weights");
@@ -169,9 +173,10 @@ fn test_the_rule_is_read_from_the_settings_file() {
         b"[models.import]\nrequire_verified = true\n",
     );
 
-    let rule = import_rule(tmp.path());
+    let rule = import_rule(tmp.path(), &PolicySettings::none());
 
-    assert!(rule.require_verified);
+    assert!(rule.rule.require_verified);
+    assert!(!rule.fixed_by_policy);
 }
 
 // GIVEN no apollia.toml, then one without the key
@@ -180,13 +185,13 @@ fn test_the_rule_is_read_from_the_settings_file() {
 #[test]
 fn test_the_rule_is_off_by_default() {
     let tmp = tempfile::tempdir().unwrap();
-    let missing = import_rule(tmp.path());
+    let missing = import_rule(tmp.path(), &PolicySettings::none());
     write(tmp.path(), "apollia.toml", b"[llm]\n");
 
-    let without_key = import_rule(tmp.path());
+    let without_key = import_rule(tmp.path(), &PolicySettings::none());
 
-    assert!(!missing.require_verified);
-    assert!(!without_key.require_verified);
+    assert!(!missing.rule.require_verified);
+    assert!(!without_key.rule.require_verified);
 }
 
 // GIVEN the registry's embeddings entries
@@ -203,4 +208,40 @@ fn test_an_import_knows_the_digests_the_registry_pins() {
     assert!(digests
         .iter()
         .any(|d| d == "06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439"));
+}
+
+// GIVEN an apollia.toml that leaves unverified imports on, a policy that
+//       requires a model hash, and a GGUF of unknown digest
+// WHEN the rule is read under the policy and the file is imported
+// THEN the rule is fixed to true by the policy, the import is refused with the
+//      policy as its reason, and nothing is copied
+#[test]
+fn test_a_policy_requiring_a_hash_refuses_an_unverified_import() {
+    // GIVEN
+    let tmp = tempfile::tempdir().unwrap();
+    write(
+        tmp.path(),
+        "apollia.toml",
+        b"[models.import]\nrequire_verified = false\n",
+    );
+    let imposed = PolicySettings::none().impose(
+        apollia_permissions::REQUIRE_VERIFIED_SETTING,
+        serde_json::json!(true),
+    );
+    let dir = apollia_core::config::default_models_dir(tmp.path());
+    let source = write(tmp.path(), "key/private.gguf", &gguf_bytes(4));
+
+    // WHEN
+    let rule = import_rule(tmp.path(), &imposed);
+    let err = import_model_file_under(&source.to_string_lossy(), &gguf(), &dir, rule).unwrap_err();
+
+    // THEN
+    assert!(rule.rule.require_verified);
+    assert!(rule.fixed_by_policy);
+    assert!(
+        matches!(err, ImportModelError::RefusedByPolicy { .. }),
+        "{err}"
+    );
+    assert!(err.to_string().contains("organisation policy"), "{err}");
+    assert!(!dir.join("private.gguf").exists());
 }

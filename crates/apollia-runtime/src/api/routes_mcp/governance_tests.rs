@@ -150,6 +150,7 @@ async fn harness(admission: Arc<dyn ConnectionAdmission>) -> Harness {
         audit_trail: None,
         audit_journal: Some(journal.clone()),
         connection_governance: ConnectionGovernance::new(admission, Some(journal.clone())),
+        inference_governance: Default::default(),
         obs_config: apollia_core::ObservabilityConfig::default(),
         llm_call_repository: None,
         trigger_def_repo: None,
@@ -170,9 +171,11 @@ async fn harness(admission: Arc<dyn ConnectionAdmission>) -> Harness {
         resilience_layer: None,
         runner_proxy: None,
         llama_server_supervisor: None,
+        mlx_engine: None,
         secret_store: crate::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     };
     Harness {
         dir,

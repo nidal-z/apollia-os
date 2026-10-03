@@ -10,7 +10,10 @@ from .a2a_skill_dto import A2ASkillDto
 from .a2a_skill_dto_input_schema_type_0 import A2ASkillDtoInputSchemaType0
 from .a2a_skills_response import A2ASkillsResponse
 from .access_preview import AccessPreview
+from .add_permission_rule_body import AddPermissionRuleBody
 from .added_access import AddedAccess
+from .added_permission_rule import AddedPermissionRule
+from .advance_phase_body import AdvancePhaseBody
 from .agent_list_response import AgentListResponse
 from .agent_message_dto import AgentMessageDto
 from .agent_message_dto_payload import AgentMessageDtoPayload
@@ -18,6 +21,17 @@ from .agent_messages_response import AgentMessagesResponse
 from .agent_model_fallback_response import AgentModelFallbackResponse
 from .agent_model_response import AgentModelResponse
 from .agent_origin_dto import AgentOriginDto
+from .agent_package_agent import AgentPackageAgent
+from .agent_package_detail import AgentPackageDetail
+from .agent_package_detail_manifest import AgentPackageDetailManifest
+from .agent_package_install_body import AgentPackageInstallBody
+from .agent_package_install_report import AgentPackageInstallReport
+from .agent_package_list_item import AgentPackageListItem
+from .agent_package_preview import AgentPackagePreview
+from .agent_package_preview_body import AgentPackagePreviewBody
+from .agent_package_trigger import AgentPackageTrigger
+from .agent_package_trigger_config import AgentPackageTriggerConfig
+from .agent_package_uninstalled import AgentPackageUninstalled
 from .agent_preview import AgentPreview
 from .agent_response import AgentResponse
 from .agent_response_manifest_type_0 import AgentResponseManifestType0
@@ -25,6 +39,9 @@ from .agent_skill_view import AgentSkillView
 from .answer_user_input_request import AnswerUserInputRequest
 from .answer_user_input_request_answers_item import AnswerUserInputRequestAnswersItem
 from .api_error_body import ApiErrorBody
+from .applied_proposal import AppliedProposal
+from .artifact import Artifact
+from .audit_entry_dto import AuditEntryDto
 from .audit_event_response import AuditEventResponse
 from .audit_journal_page_response import AuditJournalPageResponse
 from .audit_journal_page_response_entries_item import AuditJournalPageResponseEntriesItem
@@ -33,6 +50,8 @@ from .audit_journal_response_entries_item import AuditJournalResponseEntriesItem
 from .audit_list_response import AuditListResponse
 from .audit_stats_response import AuditStatsResponse
 from .authorize_tool_request import AuthorizeToolRequest
+from .batch_access import BatchAccess
+from .batch_accesses_view import BatchAccessesView
 from .batch_detail_view import BatchDetailView
 from .batch_error_response import BatchErrorResponse
 from .batch_item_view import BatchItemView
@@ -40,6 +59,7 @@ from .batch_item_view_input import BatchItemViewInput
 from .batch_item_view_sources_type_0 import BatchItemViewSourcesType0
 from .batch_launch import BatchLaunch
 from .batch_list_view import BatchListView
+from .batch_retry import BatchRetry
 from .batch_view import BatchView
 from .batch_view_source import BatchViewSource
 from .broken_link import BrokenLink
@@ -48,12 +68,21 @@ from .brought_server_preview import BroughtServerPreview
 from .channel_delete_response import ChannelDeleteResponse
 from .channel_response import ChannelResponse
 from .channel_response_config import ChannelResponseConfig
+from .chat_approval_history_entry import ChatApprovalHistoryEntry
+from .chat_plan_snapshot import ChatPlanSnapshot
+from .chat_plan_snapshot_plan_type_0 import ChatPlanSnapshotPlanType0
 from .chat_request import ChatRequest
 from .chat_request_schema_type_0 import ChatRequestSchemaType0
 from .chat_response import ChatResponse
 from .chat_response_value_type_0 import ChatResponseValueType0
 from .clear_agent_model_response import ClearAgentModelResponse
 from .clear_cache_response import ClearCacheResponse
+from .clear_memory_body import ClearMemoryBody
+from .coaching_example import CoachingExample
+from .coaching_request import CoachingRequest
+from .companion_enabled import CompanionEnabled
+from .companion_session import CompanionSession
+from .compat_server_status import CompatServerStatus
 from .complete_consent_body import CompleteConsentBody
 from .complete_request import CompleteRequest
 from .complete_request_schema_type_0 import CompleteRequestSchemaType0
@@ -63,19 +92,26 @@ from .connection_kind import ConnectionKind
 from .connection_state import ConnectionState
 from .connection_tool import ConnectionTool
 from .connector_account_response import ConnectorAccountResponse
+from .conversation_stats_view import ConversationStatsView
+from .cost_alert_threshold_response import CostAlertThresholdResponse
 from .cost_summary_row import CostSummaryRow
 from .costs_response import CostsResponse
 from .counted_language_model import CountedLanguageModel
 from .create_channel_request import CreateChannelRequest
 from .create_channel_request_config import CreateChannelRequestConfig
+from .create_companion_session_body import CreateCompanionSessionBody
 from .create_llm_backend_request import CreateLlmBackendRequest
 from .create_llm_backend_request_config_json import CreateLlmBackendRequestConfigJson
 from .create_preset_request import CreatePresetRequest
 from .create_preset_request_load import CreatePresetRequestLoad
 from .create_preset_request_request import CreatePresetRequestRequest
 from .create_server_request import CreateServerRequest
+from .create_server_token_request import CreateServerTokenRequest
 from .create_session_request import CreateSessionRequest
 from .create_trigger_request import CreateTriggerRequest
+from .created_server_token_view import CreatedServerTokenView
+from .credential_entry_view import CredentialEntryView
+from .credential_test_view import CredentialTestView
 from .daily_cost_entry import DailyCostEntry
 from .daily_costs_response import DailyCostsResponse
 from .default_model_response import DefaultModelResponse
@@ -85,26 +121,70 @@ from .delete_backend_response import DeleteBackendResponse
 from .delete_preset_response import DeletePresetResponse
 from .delete_response import DeleteResponse
 from .delete_server_response import DeleteServerResponse
+from .deleted_artifact import DeletedArtifact
+from .deleted_credential import DeletedCredential
+from .deleted_installed_model import DeletedInstalledModel
 from .deleted_profile_entry import DeletedProfileEntry
+from .dictation_configured import DictationConfigured
 from .dictation_models_response import DictationModelsResponse
 from .dictation_models_response_models_item import DictationModelsResponseModelsItem
 from .dictation_models_response_reason_type_0 import DictationModelsResponseReasonType0
+from .directory_removed import DirectoryRemoved
+from .dismissed_proposal import DismissedProposal
+from .drive_folder_status import DriveFolderStatus
+from .embedding_default_response import EmbeddingDefaultResponse
 from .embedding_models_response import EmbeddingModelsResponse
 from .embedding_models_response_models_item import EmbeddingModelsResponseModelsItem
 from .embedding_models_response_reason_type_0 import EmbeddingModelsResponseReasonType0
+from .engine_channel import EngineChannel
+from .engine_check_response import EngineCheckResponse
+from .engine_entry import EngineEntry
+from .engine_import_request import EngineImportRequest
+from .engine_install_request import EngineInstallRequest
+from .engine_installed_response import EngineInstalledResponse
+from .engine_name import EngineName
+from .engine_settings_body import EngineSettingsBody
+from .engine_source import EngineSource
+from .engine_variant import EngineVariant
+from .engines_response import EnginesResponse
 from .events_response import EventsResponse
+from .export_format import ExportFormat
+from .export_memory_namespace_response_200 import ExportMemoryNamespaceResponse200
 from .fire_response import FireResponse
 from .fork_session_request import ForkSessionRequest
+from .fs_hitl_decision_body_type_0 import FsHitlDecisionBodyType0
+from .fs_hitl_decision_body_type_0_decision import FsHitlDecisionBodyType0Decision
+from .fs_hitl_decision_body_type_1 import FsHitlDecisionBodyType1
+from .fs_hitl_decision_body_type_1_decision import FsHitlDecisionBodyType1Decision
+from .fs_hitl_decision_body_type_2 import FsHitlDecisionBodyType2
+from .fs_hitl_decision_body_type_2_decision import FsHitlDecisionBodyType2Decision
+from .fs_hitl_decision_body_type_3 import FsHitlDecisionBodyType3
+from .fs_hitl_decision_body_type_3_decision import FsHitlDecisionBodyType3Decision
+from .generate_next_steps_body import GenerateNextStepsBody
+from .generate_title_body import GenerateTitleBody
+from .generated_title import GeneratedTitle
 from .get_model_card_response_200 import GetModelCardResponse200
+from .gguf_model_info import GgufModelInfo
+from .global_timeline_event import GlobalTimelineEvent
+from .global_timeline_event_detail import GlobalTimelineEventDetail
+from .guardrail_level import GuardrailLevel
+from .guardrail_refused_body import GuardrailRefusedBody
 from .hardware_response import HardwareResponse
 from .hardware_response_accelerator import HardwareResponseAccelerator
 from .health_response import HealthResponse
 from .imap_account_body import ImapAccountBody
 from .imap_account_response import ImapAccountResponse
 from .imap_error_body import ImapErrorBody
+from .import_memory_body import ImportMemoryBody
+from .import_memory_body_content import ImportMemoryBodyContent
+from .import_oauth_client_body import ImportOauthClientBody
 from .inject_message_body import InjectMessageBody
 from .inject_message_body_payload import InjectMessageBodyPayload
 from .inject_message_response import InjectMessageResponse
+from .injected_memory_entry_view import InjectedMemoryEntryView
+from .input_error_code import InputErrorCode
+from .input_field import InputField
+from .input_kind import InputKind
 from .install_agent_request import InstallAgentRequest
 from .install_agent_response import InstallAgentResponse
 from .install_refusal_type_0 import InstallRefusalType0
@@ -115,6 +195,8 @@ from .install_refusal_type_2 import InstallRefusalType2
 from .install_refusal_type_2_code import InstallRefusalType2Code
 from .install_refusal_type_3 import InstallRefusalType3
 from .install_refusal_type_3_code import InstallRefusalType3Code
+from .install_refusal_type_4 import InstallRefusalType4
+from .install_refusal_type_4_code import InstallRefusalType4Code
 from .install_report import InstallReport
 from .installed_agent_view import InstalledAgentView
 from .invoke_request import InvokeRequest
@@ -123,6 +205,8 @@ from .item_preview import ItemPreview
 from .journal_anchor import JournalAnchor
 from .journal_break import JournalBreak
 from .journal_break_reason import JournalBreakReason
+from .link_project_body import LinkProjectBody
+from .list_plan_mutations_response_200_item import ListPlanMutationsResponse200Item
 from .llm_backend_response import LlmBackendResponse
 from .llm_backend_response_config_json import LlmBackendResponseConfigJson
 from .llm_backends_list_response import LlmBackendsListResponse
@@ -132,14 +216,55 @@ from .loaded_model_dto import LoadedModelDto
 from .loaded_models_response import LoadedModelsResponse
 from .logs_response import LogsResponse
 from .logs_response_entries_item import LogsResponseEntriesItem
+from .mailbox_message_row import MailboxMessageRow
+from .mcp_bridge_call import McpBridgeCall
+from .mcp_bridge_call_arguments import McpBridgeCallArguments
+from .mcp_bridge_call_result import McpBridgeCallResult
+from .mcp_bridge_error_body import McpBridgeErrorBody
+from .mcp_bridge_tool import McpBridgeTool
+from .mcp_bridge_tool_input_schema import McpBridgeToolInputSchema
+from .mcp_bridge_tool_list import McpBridgeToolList
+from .mcp_exposed_item import McpExposedItem
+from .mcp_exposed_item_list import McpExposedItemList
+from .mcp_exposed_item_state import McpExposedItemState
+from .mcp_exposure import McpExposure
+from .memory_entry_deleted import MemoryEntryDeleted
+from .memory_entry_view import MemoryEntryView
+from .memory_imported import MemoryImported
+from .memory_removed import MemoryRemoved
+from .memory_search_result_view import MemorySearchResultView
+from .memory_wiped import MemoryWiped
 from .message_dto import MessageDto
 from .model_cards_response import ModelCardsResponse
 from .model_cards_response_cards_item import ModelCardsResponseCardsItem
 from .model_cards_response_publishers import ModelCardsResponsePublishers
 from .model_info import ModelInfo
+from .model_kind import ModelKind
 from .model_source_dto import ModelSourceDto
 from .models_list_response import ModelsListResponse
+from .next_steps_reply import NextStepsReply
+from .next_steps_reply_steps_item import NextStepsReplyStepsItem
+from .node_runtime_state_type_0 import NodeRuntimeStateType0
+from .node_runtime_state_type_0_state import NodeRuntimeStateType0State
+from .node_runtime_state_type_1 import NodeRuntimeStateType1
+from .node_runtime_state_type_1_state import NodeRuntimeStateType1State
+from .node_runtime_state_type_2 import NodeRuntimeStateType2
+from .node_runtime_state_type_2_state import NodeRuntimeStateType2State
+from .node_runtime_state_type_3 import NodeRuntimeStateType3
+from .node_runtime_state_type_3_state import NodeRuntimeStateType3State
+from .oauth_client_id_status import OauthClientIdStatus
+from .oauth_client_test_result import OauthClientTestResult
+from .oauth_client_value_body import OauthClientValueBody
+from .oauth_client_written import OauthClientWritten
 from .ok_response import OkResponse
+from .onboarding_dismissed import OnboardingDismissed
+from .onboarding_finalized import OnboardingFinalized
+from .onboarding_marked import OnboardingMarked
+from .onboarding_phase import OnboardingPhase
+from .onboarding_profile_body import OnboardingProfileBody
+from .onboarding_reset import OnboardingReset
+from .onboarding_state import OnboardingState
+from .onboarding_stats import OnboardingStats
 from .package_error_body import PackageErrorBody
 from .package_install_request import PackageInstallRequest
 from .package_notice_type_0 import PackageNoticeType0
@@ -152,28 +277,42 @@ from .package_notice_type_3 import PackageNoticeType3
 from .package_notice_type_3_code import PackageNoticeType3Code
 from .package_preview import PackagePreview
 from .package_preview_request import PackagePreviewRequest
+from .parse_automation_request import ParseAutomationRequest
+from .parse_automation_response_200 import ParseAutomationResponse200
 from .pending_approval_response import PendingApprovalResponse
 from .pending_approval_response_context_type_0 import PendingApprovalResponseContextType0
 from .pending_approval_response_payload_type_0 import PendingApprovalResponsePayloadType0
 from .pending_user_input_view import PendingUserInputView
+from .permission_rule_dto import PermissionRuleDto
 from .ping_request import PingRequest
 from .ping_response import PingResponse
+from .plan_action_response import PlanActionResponse
 from .plan_cache_stats_response import PlanCacheStatsResponse
 from .plan_decision_request import PlanDecisionRequest
+from .plan_decision_request_revised_steps_type_0_item import (
+    PlanDecisionRequestRevisedStepsType0Item,
+)
 from .plan_decision_response import PlanDecisionResponse
+from .plan_mode_default import PlanModeDefault
 from .preset_response import PresetResponse
 from .preset_response_load import PresetResponseLoad
 from .preset_response_request import PresetResponseRequest
 from .presets_list_response import PresetsListResponse
 from .profile_entry_view import ProfileEntryView
 from .profile_reset import ProfileReset
+from .proposed_rule_view import ProposedRuleView
+from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
 from .readme_response import ReadmeResponse
+from .reasoning_profile_dto import ReasoningProfileDto
+from .reject_plan_request import RejectPlanRequest
 from .reject_user_input_request import RejectUserInputRequest
 from .reload_response import ReloadResponse
 from .reload_router_response import ReloadRouterResponse
 from .reload_router_response_backends_item import ReloadRouterResponseBackendsItem
+from .rename_session_body import RenameSessionBody
 from .required_connection_preview import RequiredConnectionPreview
+from .resend_message_request import ResendMessageRequest
 from .reset_response import ResetResponse
 from .resilience_status_response import ResilienceStatusResponse
 from .resilience_status_response_circuit_breakers_item import (
@@ -182,24 +321,43 @@ from .resilience_status_response_circuit_breakers_item import (
 from .resolved_agent_response import ResolvedAgentResponse
 from .resolved_agent_response_definition import ResolvedAgentResponseDefinition
 from .resolved_approval_response import ResolvedApprovalResponse
+from .resolved_filesystem_approval import ResolvedFilesystemApproval
 from .resume_error_body import ResumeErrorBody
 from .resume_request import ResumeRequest
 from .resume_response import ResumeResponse
+from .revoke_all_body import RevokeAllBody
+from .revoked_rule import RevokedRule
+from .revoked_rules import RevokedRules
+from .rewrite_fallback_reason import RewriteFallbackReason
+from .rewrite_prompt_body import RewritePromptBody
+from .rewrite_reply import RewriteReply
+from .save_artifact_request import SaveArtifactRequest
 from .send_message_request import SendMessageRequest
 from .send_message_response import SendMessageResponse
 from .server_model import ServerModel
 from .server_models_response import ServerModelsResponse
 from .server_probe_error_response import ServerProbeErrorResponse
 from .server_response import ServerResponse
+from .server_token_view import ServerTokenView
 from .servers_list_response import ServersListResponse
+from .session_metrics import SessionMetrics
+from .session_model_capabilities import SessionModelCapabilities
+from .session_workspace import SessionWorkspace
 from .set_agent_model_request import SetAgentModelRequest
 from .set_approval_body import SetApprovalBody
+from .set_credential_body import SetCredentialBody
 from .set_default_model_request import SetDefaultModelRequest
 from .set_default_response import SetDefaultResponse
+from .set_drive_folder_body import SetDriveFolderBody
+from .set_embedding_default_body import SetEmbeddingDefaultBody
 from .set_events_request import SetEventsRequest
 from .set_override_request import SetOverrideRequest
 from .set_override_request_value import SetOverrideRequestValue
+from .set_plan_mode_request import SetPlanModeRequest
 from .set_profile_entry_body import SetProfileEntryBody
+from .setup_dictation_body import SetupDictationBody
+from .setup_llm_body import SetupLlmBody
+from .setup_llm_result import SetupLlmResult
 from .shutdown_response import ShutdownResponse
 from .sidechain_row import SidechainRow
 from .signature_preview import SignaturePreview
@@ -214,11 +372,13 @@ from .sse_task_event import SseTaskEvent
 from .start_agent_request import StartAgentRequest
 from .start_consent_body import StartConsentBody
 from .start_consent_response import StartConsentResponse
+from .stored_credential import StoredCredential
 from .stt_reload_response import SttReloadResponse
 from .stt_status_response import SttStatusResponse
 from .submit_task_request import SubmitTaskRequest
 from .submit_task_request_input import SubmitTaskRequestInput
 from .submit_task_request_run_options import SubmitTaskRequestRunOptions
+from .system_info import SystemInfo
 from .task_list_item import TaskListItem
 from .task_list_item_payload_type_0 import TaskListItemPayloadType0
 from .task_list_response import TaskListResponse
@@ -250,25 +410,37 @@ from .timeline_response import TimelineResponse
 from .todo_read_response import TodoReadResponse
 from .todo_read_response_items_item import TodoReadResponseItemsItem
 from .token_usage_response import TokenUsageResponse
+from .tool_config_body import ToolConfigBody
+from .tool_config_body_config_type_0 import ToolConfigBodyConfigType0
+from .tool_enabled_body import ToolEnabledBody
 from .tool_list_response import ToolListResponse
 from .tool_list_response_tools_item import ToolListResponseToolsItem
+from .tool_stat_entry import ToolStatEntry
+from .tool_status_dto import ToolStatusDto
+from .tool_status_dto_config_type_0 import ToolStatusDtoConfigType0
 from .trace_response import TraceResponse
 from .trace_response_events_item import TraceResponseEventsItem
 from .transcribe_audio_body import TranscribeAudioBody
+from .transcribe_audio_body_source import TranscribeAudioBodySource
 from .transcriptions_list_response import TranscriptionsListResponse
 from .transcriptions_list_response_transcriptions_item import (
     TranscriptionsListResponseTranscriptionsItem,
 )
 from .trigger_definition_response import TriggerDefinitionResponse
 from .trigger_definition_response_source_config import TriggerDefinitionResponseSourceConfig
+from .trigger_onboarding_body import TriggerOnboardingBody
 from .trigger_preview import TriggerPreview
+from .trigger_result import TriggerResult
 from .trigger_source_input import TriggerSourceInput
 from .trust_key_request import TrustKeyRequest
 from .trusted_key_view import TrustedKeyView
+from .turn_llm_call import TurnLlmCall
+from .turn_llm_calls_response import TurnLlmCallsResponse
 from .uninstall_report import UninstallReport
 from .uninstall_request import UninstallRequest
 from .unload_model_request import UnloadModelRequest
 from .unload_model_response import UnloadModelResponse
+from .update_artifact_request import UpdateArtifactRequest
 from .update_channel_request import UpdateChannelRequest
 from .update_channel_request_config_type_0 import UpdateChannelRequestConfigType0
 from .update_diff import UpdateDiff
@@ -277,11 +449,14 @@ from .update_llm_backend_request_config_json import UpdateLlmBackendRequestConfi
 from .update_preset_request import UpdatePresetRequest
 from .update_preset_request_load import UpdatePresetRequestLoad
 from .update_preset_request_request import UpdatePresetRequestRequest
+from .update_session_body import UpdateSessionBody
 from .update_stt_config_body import UpdateSttConfigBody
 from .update_trigger_request import UpdateTriggerRequest
 from .user_profile_view import UserProfileView
+from .variant_update import VariantUpdate
 from .verify_chain_report import VerifyChainReport
 from .verify_journal_report import VerifyJournalReport
+from .whisper_model_info import WhisperModelInfo
 from .workflow_error_response import WorkflowErrorResponse
 from .workflow_launch import WorkflowLaunch
 from .workflow_launch_inputs import WorkflowLaunchInputs
@@ -292,6 +467,7 @@ from .workflow_run_view import WorkflowRunView
 from .workflow_run_view_inputs import WorkflowRunViewInputs
 from .workflow_run_view_output_type_0 import WorkflowRunViewOutputType0
 from .workflow_step_view import WorkflowStepView
+from .workflow_view import WorkflowView
 
 __all__ = (
     "A2AAgentDto",
@@ -305,6 +481,9 @@ __all__ = (
     "A2ASkillsResponse",
     "AccessPreview",
     "AddedAccess",
+    "AddedPermissionRule",
+    "AddPermissionRuleBody",
+    "AdvancePhaseBody",
     "AgentListResponse",
     "AgentMessageDto",
     "AgentMessageDtoPayload",
@@ -312,6 +491,17 @@ __all__ = (
     "AgentModelFallbackResponse",
     "AgentModelResponse",
     "AgentOriginDto",
+    "AgentPackageAgent",
+    "AgentPackageDetail",
+    "AgentPackageDetailManifest",
+    "AgentPackageInstallBody",
+    "AgentPackageInstallReport",
+    "AgentPackageListItem",
+    "AgentPackagePreview",
+    "AgentPackagePreviewBody",
+    "AgentPackageTrigger",
+    "AgentPackageTriggerConfig",
+    "AgentPackageUninstalled",
     "AgentPreview",
     "AgentResponse",
     "AgentResponseManifestType0",
@@ -319,6 +509,9 @@ __all__ = (
     "AnswerUserInputRequest",
     "AnswerUserInputRequestAnswersItem",
     "ApiErrorBody",
+    "AppliedProposal",
+    "Artifact",
+    "AuditEntryDto",
     "AuditEventResponse",
     "AuditJournalPageResponse",
     "AuditJournalPageResponseEntriesItem",
@@ -327,6 +520,8 @@ __all__ = (
     "AuditListResponse",
     "AuditStatsResponse",
     "AuthorizeToolRequest",
+    "BatchAccess",
+    "BatchAccessesView",
     "BatchDetailView",
     "BatchErrorResponse",
     "BatchItemView",
@@ -334,6 +529,7 @@ __all__ = (
     "BatchItemViewSourcesType0",
     "BatchLaunch",
     "BatchListView",
+    "BatchRetry",
     "BatchView",
     "BatchViewSource",
     "BrokenLink",
@@ -342,12 +538,21 @@ __all__ = (
     "ChannelDeleteResponse",
     "ChannelResponse",
     "ChannelResponseConfig",
+    "ChatApprovalHistoryEntry",
+    "ChatPlanSnapshot",
+    "ChatPlanSnapshotPlanType0",
     "ChatRequest",
     "ChatRequestSchemaType0",
     "ChatResponse",
     "ChatResponseValueType0",
     "ClearAgentModelResponse",
     "ClearCacheResponse",
+    "ClearMemoryBody",
+    "CoachingExample",
+    "CoachingRequest",
+    "CompanionEnabled",
+    "CompanionSession",
+    "CompatServerStatus",
     "CompleteConsentBody",
     "CompleteRequest",
     "CompleteRequestSchemaType0",
@@ -357,48 +562,99 @@ __all__ = (
     "ConnectionState",
     "ConnectionTool",
     "ConnectorAccountResponse",
+    "ConversationStatsView",
+    "CostAlertThresholdResponse",
     "CostsResponse",
     "CostSummaryRow",
     "CountedLanguageModel",
     "CreateChannelRequest",
     "CreateChannelRequestConfig",
+    "CreateCompanionSessionBody",
+    "CreatedServerTokenView",
     "CreateLlmBackendRequest",
     "CreateLlmBackendRequestConfigJson",
     "CreatePresetRequest",
     "CreatePresetRequestLoad",
     "CreatePresetRequestRequest",
     "CreateServerRequest",
+    "CreateServerTokenRequest",
     "CreateSessionRequest",
     "CreateTriggerRequest",
+    "CredentialEntryView",
+    "CredentialTestView",
     "DailyCostEntry",
     "DailyCostsResponse",
     "DefaultModelResponse",
     "DelegateRequest",
     "DelegateRequestInput",
     "DeleteBackendResponse",
+    "DeletedArtifact",
+    "DeletedCredential",
+    "DeletedInstalledModel",
     "DeletedProfileEntry",
     "DeletePresetResponse",
     "DeleteResponse",
     "DeleteServerResponse",
+    "DictationConfigured",
     "DictationModelsResponse",
     "DictationModelsResponseModelsItem",
     "DictationModelsResponseReasonType0",
+    "DirectoryRemoved",
+    "DismissedProposal",
+    "DriveFolderStatus",
+    "EmbeddingDefaultResponse",
     "EmbeddingModelsResponse",
     "EmbeddingModelsResponseModelsItem",
     "EmbeddingModelsResponseReasonType0",
+    "EngineChannel",
+    "EngineCheckResponse",
+    "EngineEntry",
+    "EngineImportRequest",
+    "EngineInstalledResponse",
+    "EngineInstallRequest",
+    "EngineName",
+    "EngineSettingsBody",
+    "EngineSource",
+    "EnginesResponse",
+    "EngineVariant",
     "EventsResponse",
+    "ExportFormat",
+    "ExportMemoryNamespaceResponse200",
     "FireResponse",
     "ForkSessionRequest",
+    "FsHitlDecisionBodyType0",
+    "FsHitlDecisionBodyType0Decision",
+    "FsHitlDecisionBodyType1",
+    "FsHitlDecisionBodyType1Decision",
+    "FsHitlDecisionBodyType2",
+    "FsHitlDecisionBodyType2Decision",
+    "FsHitlDecisionBodyType3",
+    "FsHitlDecisionBodyType3Decision",
+    "GeneratedTitle",
+    "GenerateNextStepsBody",
+    "GenerateTitleBody",
     "GetModelCardResponse200",
+    "GgufModelInfo",
+    "GlobalTimelineEvent",
+    "GlobalTimelineEventDetail",
+    "GuardrailLevel",
+    "GuardrailRefusedBody",
     "HardwareResponse",
     "HardwareResponseAccelerator",
     "HealthResponse",
     "ImapAccountBody",
     "ImapAccountResponse",
     "ImapErrorBody",
+    "ImportMemoryBody",
+    "ImportMemoryBodyContent",
+    "ImportOauthClientBody",
+    "InjectedMemoryEntryView",
     "InjectMessageBody",
     "InjectMessageBodyPayload",
     "InjectMessageResponse",
+    "InputErrorCode",
+    "InputField",
+    "InputKind",
     "InstallAgentRequest",
     "InstallAgentResponse",
     "InstalledAgentView",
@@ -410,6 +666,8 @@ __all__ = (
     "InstallRefusalType2Code",
     "InstallRefusalType3",
     "InstallRefusalType3Code",
+    "InstallRefusalType4",
+    "InstallRefusalType4Code",
     "InstallReport",
     "InvokeRequest",
     "InvokeRequestInput",
@@ -417,6 +675,8 @@ __all__ = (
     "JournalAnchor",
     "JournalBreak",
     "JournalBreakReason",
+    "LinkProjectBody",
+    "ListPlanMutationsResponse200Item",
     "LlmBackendResponse",
     "LlmBackendResponseConfigJson",
     "LlmBackendsListResponse",
@@ -426,14 +686,55 @@ __all__ = (
     "LoadedModelsResponse",
     "LogsResponse",
     "LogsResponseEntriesItem",
+    "MailboxMessageRow",
+    "McpBridgeCall",
+    "McpBridgeCallArguments",
+    "McpBridgeCallResult",
+    "McpBridgeErrorBody",
+    "McpBridgeTool",
+    "McpBridgeToolInputSchema",
+    "McpBridgeToolList",
+    "McpExposedItem",
+    "McpExposedItemList",
+    "McpExposedItemState",
+    "McpExposure",
+    "MemoryEntryDeleted",
+    "MemoryEntryView",
+    "MemoryImported",
+    "MemoryRemoved",
+    "MemorySearchResultView",
+    "MemoryWiped",
     "MessageDto",
     "ModelCardsResponse",
     "ModelCardsResponseCardsItem",
     "ModelCardsResponsePublishers",
     "ModelInfo",
+    "ModelKind",
     "ModelsListResponse",
     "ModelSourceDto",
+    "NextStepsReply",
+    "NextStepsReplyStepsItem",
+    "NodeRuntimeStateType0",
+    "NodeRuntimeStateType0State",
+    "NodeRuntimeStateType1",
+    "NodeRuntimeStateType1State",
+    "NodeRuntimeStateType2",
+    "NodeRuntimeStateType2State",
+    "NodeRuntimeStateType3",
+    "NodeRuntimeStateType3State",
+    "OauthClientIdStatus",
+    "OauthClientTestResult",
+    "OauthClientValueBody",
+    "OauthClientWritten",
     "OkResponse",
+    "OnboardingDismissed",
+    "OnboardingFinalized",
+    "OnboardingMarked",
+    "OnboardingPhase",
+    "OnboardingProfileBody",
+    "OnboardingReset",
+    "OnboardingState",
+    "OnboardingStats",
     "PackageErrorBody",
     "PackageInstallRequest",
     "PackageNoticeType0",
@@ -446,37 +747,57 @@ __all__ = (
     "PackageNoticeType3Code",
     "PackagePreview",
     "PackagePreviewRequest",
+    "ParseAutomationRequest",
+    "ParseAutomationResponse200",
     "PendingApprovalResponse",
     "PendingApprovalResponseContextType0",
     "PendingApprovalResponsePayloadType0",
     "PendingUserInputView",
+    "PermissionRuleDto",
     "PingRequest",
     "PingResponse",
+    "PlanActionResponse",
     "PlanCacheStatsResponse",
     "PlanDecisionRequest",
+    "PlanDecisionRequestRevisedStepsType0Item",
     "PlanDecisionResponse",
+    "PlanModeDefault",
     "PresetResponse",
     "PresetResponseLoad",
     "PresetResponseRequest",
     "PresetsListResponse",
     "ProfileEntryView",
     "ProfileReset",
+    "ProposedRuleView",
+    "PurgeMemoryBody",
     "PutMcpSecretBody",
     "ReadmeResponse",
+    "ReasoningProfileDto",
+    "RejectPlanRequest",
     "RejectUserInputRequest",
     "ReloadResponse",
     "ReloadRouterResponse",
     "ReloadRouterResponseBackendsItem",
+    "RenameSessionBody",
     "RequiredConnectionPreview",
+    "ResendMessageRequest",
     "ResetResponse",
     "ResilienceStatusResponse",
     "ResilienceStatusResponseCircuitBreakersItem",
     "ResolvedAgentResponse",
     "ResolvedAgentResponseDefinition",
     "ResolvedApprovalResponse",
+    "ResolvedFilesystemApproval",
     "ResumeErrorBody",
     "ResumeRequest",
     "ResumeResponse",
+    "RevokeAllBody",
+    "RevokedRule",
+    "RevokedRules",
+    "RewriteFallbackReason",
+    "RewritePromptBody",
+    "RewriteReply",
+    "SaveArtifactRequest",
     "SendMessageRequest",
     "SendMessageResponse",
     "ServerModel",
@@ -484,14 +805,25 @@ __all__ = (
     "ServerProbeErrorResponse",
     "ServerResponse",
     "ServersListResponse",
+    "ServerTokenView",
+    "SessionMetrics",
+    "SessionModelCapabilities",
+    "SessionWorkspace",
     "SetAgentModelRequest",
     "SetApprovalBody",
+    "SetCredentialBody",
     "SetDefaultModelRequest",
     "SetDefaultResponse",
+    "SetDriveFolderBody",
+    "SetEmbeddingDefaultBody",
     "SetEventsRequest",
     "SetOverrideRequest",
     "SetOverrideRequestValue",
+    "SetPlanModeRequest",
     "SetProfileEntryBody",
+    "SetupDictationBody",
+    "SetupLlmBody",
+    "SetupLlmResult",
     "ShutdownResponse",
     "SidechainRow",
     "SignaturePreview",
@@ -506,11 +838,13 @@ __all__ = (
     "StartAgentRequest",
     "StartConsentBody",
     "StartConsentResponse",
+    "StoredCredential",
     "SttReloadResponse",
     "SttStatusResponse",
     "SubmitTaskRequest",
     "SubmitTaskRequestInput",
     "SubmitTaskRequestRunOptions",
+    "SystemInfo",
     "TaskListItem",
     "TaskListItemPayloadType0",
     "TaskListResponse",
@@ -542,23 +876,35 @@ __all__ = (
     "TodoReadResponse",
     "TodoReadResponseItemsItem",
     "TokenUsageResponse",
+    "ToolConfigBody",
+    "ToolConfigBodyConfigType0",
+    "ToolEnabledBody",
     "ToolListResponse",
     "ToolListResponseToolsItem",
+    "ToolStatEntry",
+    "ToolStatusDto",
+    "ToolStatusDtoConfigType0",
     "TraceResponse",
     "TraceResponseEventsItem",
     "TranscribeAudioBody",
+    "TranscribeAudioBodySource",
     "TranscriptionsListResponse",
     "TranscriptionsListResponseTranscriptionsItem",
     "TriggerDefinitionResponse",
     "TriggerDefinitionResponseSourceConfig",
+    "TriggerOnboardingBody",
     "TriggerPreview",
+    "TriggerResult",
     "TriggerSourceInput",
     "TrustedKeyView",
     "TrustKeyRequest",
+    "TurnLlmCall",
+    "TurnLlmCallsResponse",
     "UninstallReport",
     "UninstallRequest",
     "UnloadModelRequest",
     "UnloadModelResponse",
+    "UpdateArtifactRequest",
     "UpdateChannelRequest",
     "UpdateChannelRequestConfigType0",
     "UpdateDiff",
@@ -567,11 +913,14 @@ __all__ = (
     "UpdatePresetRequest",
     "UpdatePresetRequestLoad",
     "UpdatePresetRequestRequest",
+    "UpdateSessionBody",
     "UpdateSttConfigBody",
     "UpdateTriggerRequest",
     "UserProfileView",
+    "VariantUpdate",
     "VerifyChainReport",
     "VerifyJournalReport",
+    "WhisperModelInfo",
     "WorkflowErrorResponse",
     "WorkflowLaunch",
     "WorkflowLaunchInputs",
@@ -582,4 +931,5 @@ __all__ = (
     "WorkflowRunViewInputs",
     "WorkflowRunViewOutputType0",
     "WorkflowStepView",
+    "WorkflowView",
 )

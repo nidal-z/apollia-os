@@ -673,15 +673,21 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
 
 /// Request body for `POST /api/v1/tasks/{id}/plan-decision`.
 ///
-/// The operator approves the generated plan or rejects it with optional
-/// feedback used to guide replanning.
-#[derive(Debug, Deserialize, utoipa::ToSchema)]
+/// The operator approves the generated plan, rejects it with optional
+/// feedback used to guide replanning, or submits an edited plan.
+#[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct PlanDecisionRequest {
-    /// `"approved"` to execute the plan, `"rejected"` to replan.
+    /// `"approved"` to execute the plan, `"rejected"` to replan, `"edited"` to
+    /// execute `revised_steps` instead.
     pub decision: String,
     /// Optional feedback injected into the next planning attempt on rejection.
     #[serde(default)]
     pub feedback: Option<String>,
+    /// The edited plan, required with `"edited"`, validated by the engine
+    /// before it runs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<Vec<Object>>)]
+    pub revised_steps: Option<Vec<apollia_core::plan::PlanStep>>,
 }
 
 /// Response body for `POST /api/v1/tasks/{id}/plan-decision`.
@@ -689,7 +695,7 @@ pub struct PlanDecisionRequest {
 pub struct PlanDecisionResponse {
     /// Run identifier whose gate was resolved.
     pub run_id: String,
-    /// Decision applied (`"approved"` or `"rejected"`).
+    /// Decision applied (`"approved"`, `"rejected"` or `"edited"`).
     pub decision: String,
 }
 
@@ -701,7 +707,7 @@ pub struct PlanDecisionResponse {
 ///
 /// ## HTTP codes
 /// - `200 OK`, decision recorded and the gate resolved
-/// - `400 Bad Request`, unknown `decision` value
+/// - `400 Bad Request`, unknown `decision` value, or `edited` without steps
 /// - `404 Not Found`, no gate pending for this run (unknown, resolved, expired)
 /// - `503 Service Unavailable`, the plan gate is not configured
 #[utoipa::path(
@@ -712,7 +718,7 @@ pub struct PlanDecisionResponse {
     request_body = PlanDecisionRequest,
     responses(
         (status = 200, description = "Plan decision recorded", body = PlanDecisionResponse),
-        (status = 400, description = "Unknown decision value", body = crate::api::openapi::ApiErrorBody),
+        (status = 400, description = "Unknown decision value, or an edit without steps", body = crate::api::openapi::ApiErrorBody),
         (status = 404, description = "No gate pending", body = crate::api::openapi::ApiErrorBody),
         (status = 503, description = "Plan gate not configured", body = crate::api::openapi::ApiErrorBody),
     )
@@ -738,11 +744,24 @@ pub async fn submit_plan_decision<B: ExecutionBackend + Clone>(
     let outcome = match body.decision.as_str() {
         "approved" | "approve" => handle.approve(&run_id),
         "rejected" | "reject" => handle.reject(&run_id, body.feedback.clone()),
+        "edited" | "edit" => match body.revised_steps.clone() {
+            Some(steps) => handle.edit(&run_id, steps),
+            None => {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(ErrorResponse {
+                        error: "an edited plan carries its revised_steps".into(),
+                    }),
+                ));
+            }
+        },
         other => {
             return Err((
                 StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
-                    error: format!("invalid decision '{other}', expected 'approved' or 'rejected'"),
+                    error: format!(
+                        "invalid decision '{other}', expected 'approved', 'rejected' or 'edited'"
+                    ),
                 }),
             ));
         }
@@ -893,6 +912,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -913,9 +933,11 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         };
         Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -951,6 +973,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -971,9 +994,11 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         }
     }
 
@@ -994,6 +1019,7 @@ mod tests {
             Json(PlanDecisionRequest {
                 decision: "approved".into(),
                 feedback: None,
+                revised_steps: None,
             }),
         )
         .await;
@@ -1020,6 +1046,7 @@ mod tests {
             Json(PlanDecisionRequest {
                 decision: "approved".into(),
                 feedback: None,
+                revised_steps: None,
             }),
         )
         .await;
@@ -1027,6 +1054,62 @@ mod tests {
         // THEN it is a 404
         let err = resp.expect_err("should fail");
         assert_eq!(err.0, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_plan_decision_runs_an_edited_plan() {
+        // GIVEN a run paused at the plan gate
+        let gates = apollia_oria::PendingPlanGates::new();
+        let rx = gates.register("run-edit");
+        let state = state_with_plan_gates(gates);
+        let step: apollia_core::plan::PlanStep =
+            serde_json::from_value(serde_json::json!({ "step_id": "s1", "description": "Read" }))
+                .unwrap();
+
+        // WHEN the operator submits an edited plan
+        let resp = submit_plan_decision(
+            Path("run-edit".to_string()),
+            State(state),
+            Json(PlanDecisionRequest {
+                decision: "edited".into(),
+                feedback: None,
+                revised_steps: Some(vec![step]),
+            }),
+        )
+        .await;
+
+        // THEN the gate resolves to the edited steps
+        assert!(resp.is_ok());
+        let decision = rx.await.expect("gate should resolve");
+        assert!(matches!(
+            decision,
+            apollia_oria::PlanGateDecision::Edited { ref revised_steps } if revised_steps[0].step_id == "s1"
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_plan_decision_refuses_an_edit_without_steps() {
+        // GIVEN a run paused at the plan gate
+        let gates = apollia_oria::PendingPlanGates::new();
+        let _rx = gates.register("run-edit-empty");
+        let state = state_with_plan_gates(gates);
+
+        // WHEN an edit carries no steps
+        let resp = submit_plan_decision(
+            Path("run-edit-empty".to_string()),
+            State(state),
+            Json(PlanDecisionRequest {
+                decision: "edited".into(),
+                feedback: None,
+                revised_steps: None,
+            }),
+        )
+        .await;
+
+        // THEN it is a 400 that says what is missing
+        let err = resp.expect_err("should fail");
+        assert_eq!(err.0, StatusCode::BAD_REQUEST);
+        assert!(err.1.error.contains("revised_steps"));
     }
 
     /// Build a test environment with an active agent and coordinator registered.
@@ -1072,6 +1155,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -1092,9 +1176,11 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -1163,6 +1249,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -1183,9 +1270,11 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<NeverMockBackend>))
@@ -1498,6 +1587,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -1518,9 +1608,11 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         };
         let app = Router::new()
             .route(
@@ -1630,6 +1722,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -1650,9 +1743,11 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/resume", post(resume_task::<MockBackend>))

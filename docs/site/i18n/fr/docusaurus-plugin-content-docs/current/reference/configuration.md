@@ -7,18 +7,27 @@ title: Configuration (apollia.toml)
 
 Référence de la surface de configuration `apollia.toml`.
 
-Le fichier a trois emplacements, et les deux runtimes ne cherchent pas aux
-mêmes.
+Le fichier a un seul emplacement, `~/.apollia/apollia.toml`, et toutes les
+surfaces lisent et écrivent celui-là : le démon lancé par `apollia-os start`,
+l'application desktop, et chaque commande qui touche la configuration
+(`apollia-os config`, `apollia-os llm costs`, `apollia-os tools config`,
+`apollia-os doctor`). Une clé réglée par l'une est la clé que lisent les autres.
 
-| Lecteur | Ordre de recherche, le premier trouvé gagne |
+Seul un chemin donné explicitement le remplace :
+
+| Commande | Option |
 | --- | --- |
-| Le démon, lancé par `apollia-os start` | `./apollia.toml`, puis `$XDG_CONFIG_HOME/apollia/apollia.toml`, à défaut `~/.config/apollia/apollia.toml` |
-| L'application desktop | `~/.apollia/apollia.toml`, puis `./apollia.toml`. L'emplacement `~/.config` n'est jamais lu, délibérément : une copie oubliée là ressusciterait des backends sur un profil neuf |
+| `apollia-os start` | `--config <CHEMIN>`. Le fichier doit exister, sinon le démarrage échoue |
+| `apollia-os config get`, `set`, `show`, `validate`, `edit` | `--file <CHEMIN>` |
+| `apollia-os llm costs` | `--config <CHEMIN>` |
 
-La ligne de commande écrit dans les deux, selon la sous-commande. `apollia-os config set` écrit le fichier du démon ;
-`apollia-os llm costs --threshold 25` écrit `~/.apollia/apollia.toml`, que seule
-l'application desktop lit. Vérifiez quel fichier vous avez modifié avant de
-conclure qu'une clé n'a eu aucun effet.
+Le dossier courant n'est pas consulté : un paquet d'agent range son manifeste
+sous le même nom, `apollia.toml`, et lancer le démon dans le dossier d'un paquet
+ne le lit pas. Un fichier laissé à un ancien emplacement (`./apollia.toml`,
+`$XDG_CONFIG_HOME/apollia/apollia.toml`, `~/.config/apollia/apollia.toml`) n'est
+jamais lu ni importé. Le démon émet pour lui un avertissement
+`config.legacy_location.ignored` au démarrage, et `apollia-os doctor` le nomme
+avec la commande qui le déplace vers `~/.apollia/apollia.toml`.
 
 Chaque section est optionnelle : une section absente retombe sur ses valeurs par
 défaut. Les données d'exécution (bases de données, jeton API, modèles) vivent
@@ -168,6 +177,7 @@ Client MCP : chargement des outils et limites de réponse.
 | `approval_ttl_hours` | `u64` | `24` | Durée de validité des approbations HITL MCP, en heures. |
 | `tool_loading` | `McpToolLoading` | défaut du type | Stratégie de chargement des schémas d'outils pour tous les serveurs MCP. |
 | `tool_search_limit` | `usize` | `20` | Nombre maximal de résultats renvoyés par l'outil synthétique `tool_search`. |
+| `server_enabled` | `bool` | `false` | Si le démon accepte le pont MCP, `apollia-os mcp server`, qui sert à un client MCP les agents et workflows marqués exposés. |
 
 ### `[hooks]`
 
@@ -362,6 +372,37 @@ Ces clés sont listées plutôt que masquées parce que la page de réglages en
 affiche encore certaines. Un interrupteur qui ressemble à un contrôle de
 confidentialité et ne fait rien est pire qu'un interrupteur absent, donc tant
 qu'elles ne sont pas implémentées ou retirées, ce tableau fait foi.
+
+## Garde-fous de chargement (`[llm.guardrails]`)
+
+Avant le lancement d'un modèle local, sa mémoire est estimée avec la fenêtre de
+contexte et le nombre de requêtes parallèles avec lesquels il tournerait
+vraiment, puis jugée face à ce poste : il tient, il pourrait tenir (partagé entre
+une carte graphique et la mémoire système), ou il est trop gros. Le niveau décide
+de ce qui est lancé.
+
+```toml
+[llm.guardrails]
+level = "balanced"   # disabled, lenient, balanced, strict ou ceiling
+ceiling_gb = 12.0    # lu par le niveau ceiling seulement
+```
+
+| Niveau | Lance |
+| --- | --- |
+| `disabled` | tous les modèles, sans estimation |
+| `lenient` | tous les modèles, avec un avertissement au journal au-delà de « pourrait tenir » |
+| `balanced` | jusqu'à « pourrait tenir ». Le défaut |
+| `strict` | seulement un modèle qui tient |
+| `ceiling` | un modèle estimé à `ceiling_gb` gigaoctets ou moins |
+
+La section est relue à chaque lancement : un changement vaut pour le prochain
+modèle chargé, sans redémarrage. Un modèle déjà chargé n'est pas arrêté. Un refus
+donne l'estimation et la limite : `POST /api/v1/llm/chat` et
+`POST /api/v1/llm/complete` y répondent par le statut 409, le code
+`guardrail_refused`, le niveau, `estimatedGb` et `budgetGb`. Une section illisible, un niveau inconnu ou un
+niveau `ceiling` sans `ceiling_gb` positif valent `balanced` : une faute de
+frappe ne coupe jamais le garde-fou. Un modèle dont l'empreinte ne peut pas être
+estimée est lancé.
 
 ## Dictée (`system.db`, pas `apollia.toml`)
 

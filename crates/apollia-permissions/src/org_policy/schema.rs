@@ -37,6 +37,15 @@ pub enum PolicySchemaError {
         /// The value as written.
         value: String,
     },
+    /// A key of `[settings]` names no setting this build knows, or fixes it
+    /// at a value of the wrong type.
+    #[error("[settings] cannot fix {key:?}: {reason}")]
+    InvalidSetting {
+        /// The dotted key as written.
+        key: String,
+        /// Why the setting cannot be fixed.
+        reason: String,
+    },
 }
 
 /// An organisation policy, as written in `policy.toml`.
@@ -57,7 +66,9 @@ pub struct OrgPolicy {
     /// Inference servers and models.
     #[serde(default)]
     pub inference: InferencePolicy,
-    /// Settings fixed by the organisation, by key.
+    /// Settings fixed by the organisation, by dotted key. Every key names a
+    /// setting of `apollia.toml` and every value has its type: the parser
+    /// refuses the policy otherwise.
     #[serde(default)]
     pub settings: BTreeMap<String, toml::Value>,
     /// Agent package requirements.
@@ -195,8 +206,10 @@ struct VersionProbe {
 /// another version, [`PolicySchemaError::IncompleteSignedAt`] when `signed_at`
 /// lacks its date, its time or its offset,
 /// [`PolicySchemaError::InvalidPublisherFingerprint`] when a
-/// trusted publisher is not a fingerprint, and [`PolicySchemaError::Invalid`]
-/// for any other deviation.
+/// trusted publisher is not a fingerprint,
+/// [`PolicySchemaError::InvalidSetting`] when `[settings]` names a setting this
+/// build does not know or gives it a value of the wrong type, and
+/// [`PolicySchemaError::Invalid`] for any other deviation.
 pub fn parse_policy(text: &str) -> Result<OrgPolicy, PolicySchemaError> {
     // The version is read first, on its own, so a document written for a
     // later schema is reported as such rather than as a list of unknown keys.
@@ -237,7 +250,22 @@ pub fn parse_policy(text: &str) -> Result<OrgPolicy, PolicySchemaError> {
     {
         return Err(PolicySchemaError::InvalidPublisherFingerprint { value: bad.clone() });
     }
+    for (key, value) in &policy.settings {
+        check_setting(key, value)?;
+    }
     Ok(policy)
+}
+
+/// Refuses a `[settings]` entry the settings contract would not accept: a key
+/// that names no setting, or a value of another type. The policy fails closed
+/// on it, whole, rather than fixing what it can.
+fn check_setting(key: &str, value: &toml::Value) -> Result<(), PolicySchemaError> {
+    let refused = |reason: String| PolicySchemaError::InvalidSetting {
+        key: key.to_owned(),
+        reason,
+    };
+    let value = serde_json::to_value(value).map_err(|e| refused(e.to_string()))?;
+    apollia_core::config::check_imposed_setting(key, &value).map_err(|e| refused(e.to_string()))
 }
 
 fn is_fingerprint(value: &str) -> bool {

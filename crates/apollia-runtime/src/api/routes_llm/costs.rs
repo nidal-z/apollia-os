@@ -1,7 +1,9 @@
-//! Cost and token accounting endpoints, `GET /api/v1/llm/costs[/daily]`.
+//! Cost and token accounting endpoints, `GET /api/v1/llm/costs[/daily]`, and
+//! the cost alert threshold, `GET /api/v1/llm/cost-alert-threshold`.
 //!
-//! Both read the observability store the LLM router writes to; the daily
-//! breakdown windows on the local calendar day, not on UTC.
+//! The first two read the observability store the LLM router writes to; the
+//! daily breakdown windows on the local calendar day, not on UTC. The
+//! threshold is read off the live router.
 
 use std::sync::Arc;
 
@@ -232,6 +234,40 @@ pub async fn get_llm_daily_costs<B: ExecutionBackend + Clone>(
         .collect();
 
     Ok(Json(DailyCostsResponse { entries, days }))
+}
+
+// ─────────────────────────────────────────────
+// Cost alert threshold
+// ─────────────────────────────────────────────
+
+/// Response body for `GET /api/v1/llm/cost-alert-threshold`.
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct CostAlertThresholdResponse {
+    /// The cost alert threshold of the live router in USD, `null` when none is
+    /// set or no router is configured.
+    pub threshold_usd: Option<f64>,
+}
+
+/// Handler for `GET /api/v1/llm/cost-alert-threshold`.
+///
+/// Reads the threshold of the router the runtime serves now, the one a reload
+/// swapped in. A runtime without a router has no threshold, which is an answer
+/// and not an error, as the desktop has always read it.
+#[utoipa::path(
+    get,
+    path = "/api/v1/llm/cost-alert-threshold",
+    tag = "llm",
+    responses(
+        (status = 200, description = "The cost alert threshold of the live router", body = CostAlertThresholdResponse),
+    )
+)]
+pub async fn get_cost_alert_threshold<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+) -> Json<CostAlertThresholdResponse> {
+    let router = state.llm_router.read().await.clone();
+    Json(CostAlertThresholdResponse {
+        threshold_usd: router.and_then(|router| router.cost_alert_threshold_usd()),
+    })
 }
 
 #[cfg(test)]

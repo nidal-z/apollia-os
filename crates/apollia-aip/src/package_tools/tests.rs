@@ -239,3 +239,135 @@ async fn test_a_package_is_unloaded_after_ten_minutes_without_a_call() {
     assert_eq!(again["path"], "a.pdf");
     assert_eq!(std::fs::read_to_string(&count).unwrap(), "2");
 }
+
+/// A tool that reports what its context holds and, when it holds the profile
+/// and the memory, writes to both.
+const GRANTED_MODULE: &str = r#"
+import types
+
+
+async def extract_totals(ctx, path):
+    seen = {"profile": ctx.profile is not None, "memory": ctx.memory is not None}
+    if ctx.profile is not None and ctx.memory is not None:
+        await ctx.profile.set(key="user.name", value=path)
+        await ctx.memory.remember(key="onboarding.completed_at", value="now", source="test")
+        seen["name"] = await ctx.profile.get("user.name")
+        seen["completed"] = await ctx.memory.recall("onboarding.completed_at")
+    return seen
+
+
+extract_totals.__apollia_tool__ = types.SimpleNamespace(name="extract_totals")
+"#;
+
+/// The grant the test hands the host: the package `invoices`, its module,
+/// exactly [`GRANTED_MODULE`].
+fn test_grant() -> super::ProfileGrant {
+    super::ProfileGrant {
+        package: "invoices",
+        module: "tools/extract.py",
+        source: GRANTED_MODULE,
+        memory_namespace: "onboarding",
+    }
+}
+
+/// Calls the one tool of a store holding `invoices` whose module is `module`,
+/// under [`test_grant`], with the stores under `data_dir`.
+async fn call_with_grant(data_dir: &Path, module: &str) -> serde_json::Value {
+    use apollia_runtime::package_tools::PackageToolHost;
+    pyo3::prepare_freethreaded_python();
+    let root = data_dir.join("packages/invoices");
+    std::fs::create_dir_all(root.join("tools")).unwrap();
+    std::fs::write(root.join("tools/extract.py"), module).unwrap();
+    let repo = PackageRepository::open(&data_dir.join("agents.db")).unwrap();
+    let json = serde_json::to_string(&manifest()).unwrap();
+    repo.save(&package(&root, "invoices", json)).unwrap();
+    repo.link_item("invoices", PackageItemKind::Tool, "extract_totals")
+        .unwrap();
+    declare_profile_source(data_dir, "onboarding-agent");
+    let tools = PackageTools::read(&repo, data_dir.join("venvs"))
+        .unwrap()
+        .with_grants(&[test_grant()], data_dir);
+    let cancel = apollia_runtime::coordinator::CancellationToken::new();
+    let executor = tools.executors("onboarding-agent", &cancel).remove(0);
+    executor
+        .execute(serde_json::json!({"path": "Lea"}))
+        .await
+        .unwrap()
+}
+
+/// Stores `agent` in the `agents.db` of `data_dir`, its package declaring the
+/// profile source, as the onboarding of Apollia declares it.
+fn declare_profile_source(data_dir: &Path, agent: &str) {
+    apollia_tools::AgentRepository::open(&data_dir.join("agents.db"))
+        .unwrap()
+        .save_definition(&apollia_tools::StoredAgent {
+            name: agent.to_owned(),
+            origin: apollia_tools::AgentOrigin::Package,
+            package: Some(agent.to_owned()),
+            version: "1".to_owned(),
+            definition: serde_json::json!({
+                "id": agent,
+                "name": agent,
+                "mission": "",
+                "defaults": { "sources": ["profile"] },
+            }),
+            enabled: true,
+            installed_at: "2026-10-03T00:00:00Z".to_owned(),
+            updated_at: "2026-10-03T00:00:00Z".to_owned(),
+        })
+        .unwrap();
+}
+
+// GIVEN a package tool whose module is, byte for byte, the source a host grant
+//       names
+// WHEN an agent calls it
+// THEN its context holds the user profile, writable, and the memory namespace
+//      of the grant, and what it writes lands in the user profile database and
+//      in the memory database the desktop reads
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_a_granted_tool_writes_the_profile_and_its_memory() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+
+    // WHEN
+    let seen = call_with_grant(dir.path(), GRANTED_MODULE).await;
+
+    // THEN
+    assert_eq!(seen["profile"], true, "{seen}");
+    assert_eq!(seen["memory"], true, "{seen}");
+    assert_eq!(seen["name"], "Lea");
+    assert_eq!(seen["completed"], "now");
+    let profile = apollia_memory::user_memory::UserMemoryRepository::new(
+        &apollia_core::paths::DataFile::UserMemory.path(dir.path()),
+    )
+    .unwrap();
+    assert_eq!(
+        profile.get("name").unwrap().map(|e| e.value),
+        Some("Lea".to_string())
+    );
+    let store =
+        apollia_memory::store::MemoryStore::open(&dir.path().join("memory/onboarding.db")).unwrap();
+    let entries = apollia_memory::semantic::SemanticMemory::new(&store)
+        .recall_all("onboarding", None)
+        .unwrap();
+    assert!(entries.iter().any(|e| e.key == "onboarding.completed_at"));
+}
+
+// GIVEN a package that takes the granted name and module with other code
+// WHEN an agent calls its tool
+// THEN its context holds neither the profile nor the memory, and nothing is
+//      written
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_other_code_under_the_granted_name_gets_nothing() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let other = format!("{GRANTED_MODULE}\n# changed\n");
+
+    // WHEN
+    let seen = call_with_grant(dir.path(), &other).await;
+
+    // THEN
+    assert_eq!(seen["profile"], false, "{seen}");
+    assert_eq!(seen["memory"], false, "{seen}");
+    assert!(!dir.path().join("memory/onboarding.db").exists());
+}

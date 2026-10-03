@@ -24,7 +24,7 @@ use crate::governance::NoPolicyGovernance;
 use crate::packages::{self, UninstallError, UninstallOptions, UninstallReport, UninstallTargets};
 
 /// Body of both uninstall routes: what the user chose to erase.
-#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Default, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UninstallRequest {
     /// Erase the memory of the agents instead of keeping it.
@@ -107,6 +107,17 @@ pub(crate) async fn uninstall_agent<B: ExecutionBackend + Clone>(
     Json(request): Json<UninstallRequest>,
 ) -> Result<Json<UninstallReport>, ApiError> {
     run(&state, Subject::Agent(&name), &request).await
+}
+
+/// Uninstalls the package `name` on the one path every caller takes, as
+/// `request` chooses. The route of the packages installed from a folder
+/// reaches it too.
+pub(crate) async fn package<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    name: &str,
+    request: &UninstallRequest,
+) -> Result<Json<UninstallReport>, ApiError> {
+    run(state, Subject::Package(name), request).await
 }
 
 async fn run<B: ExecutionBackend + Clone>(

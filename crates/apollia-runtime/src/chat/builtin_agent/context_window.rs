@@ -54,6 +54,7 @@ impl BuiltInChatAgent {
             paused: false,
             context_window_tokens,
             context_tokens_used,
+            llm_calls: acc.llm_calls,
         }
     }
 

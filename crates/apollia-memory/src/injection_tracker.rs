@@ -214,4 +214,17 @@ mod tests {
         // THEN it comes back whole, with nothing appended
         assert_eq!(preview("hi", 10), "hi");
     }
+
+    #[test]
+    fn global_clear_empties_the_tracker_of_the_process() {
+        // GIVEN one entry recorded in the global tracker, the only test of
+        // this binary that touches it
+        global_record("turn-global-clear", sample_entry("g-1"));
+
+        // WHEN the global tracker is cleared
+        global_tracker_clear();
+
+        // THEN the turn has no entry left
+        assert!(global_entries_for("turn-global-clear").is_empty());
+    }
 }

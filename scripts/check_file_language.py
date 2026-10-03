@@ -296,10 +296,10 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-desktop/src/i18n.rs": 16,
     "crates/apollia-desktop/ui/src/lib/i18n/identicalLocales.ts": 4,
     "crates/apollia-desktop/ui/src/components/settings/stt/SttEssentialSection.svelte": 2,
-    "crates/apollia-memory/src/profile_schema.rs": 26,
+    "crates/apollia-memory/src/profile_schema.rs": 9,
+    "crates/apollia-memory/src/user_memory/persona.rs": 1,
     "scripts/check_release_artifacts.py": 1,
     # parser: French words the code matches on, or folds
-    "agents/system/onboarding-agent/agent.py": 36,
     # The typed-pause payload keys are the product's wire vocabulary (`genre`,
     # `libelle`, `autre`...): the parser and the TypedDict declaring them match on
     # those names. Only `autre` is a word the detector knows.
@@ -320,7 +320,6 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-memory/src/lib.rs": 1,
     "crates/apollia-memory/src/search.rs": 2,
     "crates/apollia-memory/src/store.rs": 1,
-    "crates/apollia-memory/src/user_memory.rs": 1,
     "scripts/check_docs_lang.py": 8,
     "scripts/check_docs_routes.py": 4,
     # This file: its own French word list, and the French lines its self-test
@@ -335,9 +334,10 @@ FRENCH_DATA: dict[str, int] = {
     "scripts/check_method_references.py": 18,
     "scripts/check_python_rules.py": 4,
     "tests/cli/seed/files/agents/onboarding-agent/agent.py": 28,
-    "tests/test_onboarding_heuristic_recovery.py": 9,
+    "agents/system/onboarding-agent/tools/onboarding.py": 21,
+    "tests/test_onboarding_tool.py": 2,
     # prompt: French text sent to a model, because the operator writes French
-    "crates/apollia-desktop/src/commands/chat/title.rs": 17,
+    "crates/apollia-runtime/src/chat/title.rs": 17,
     # fixture: French user text, or a multi-byte character, a test feeds to the
     # code under test
     "tests/hitl/hitl_e2e_agent.py": 1,
@@ -357,8 +357,6 @@ FRENCH_DATA: dict[str, int] = {
     "sdk/tests/test_formatting.py": 2,
     "tests/integration/test_chat_memory.rs": 4,
     "tests/integration/test_onboarding.rs": 9,
-    "tests/test_onboarding_agent.py": 41,
-    "tests/test_onboarding_contracts.py": 2,
     # Latin, not French: the lorem ipsum of a search-result fixture shares its
     # function words with French ("et", "est", "qui", "in"). Named rather than
     # taught to the detector, because a Latin lexicon would blunt it.

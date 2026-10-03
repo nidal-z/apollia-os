@@ -2,9 +2,9 @@
  * Command palette action catalogue.
  *
  * Builds the static list of navigation and command actions offered by
- * the palette. Actions carry an optional `persona` tag so the palette
- * can hide builder-only actions from operator mode (and vice versa),
- * and an optional `shortcut` rendered as kbd chips.
+ * the palette. Actions carry an optional `developer` flag so the palette
+ * hides technical actions while the developer mode is off, and an optional
+ * `shortcut` rendered as kbd chips.
  *
  * Runtime-derived groups (Sessions, Settings sub-routes, Recently used)
  * live in `paletteIndex.ts` - this module is static data only.
@@ -47,7 +47,7 @@ import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
 type SvelteComponentType = ComponentType; // NOSONAR typescript:S1874
 import { navigateTo, type Route } from "$lib/stores/navigation";
 import { navigateToSettings } from "$lib/router";
-import { uiMode, type UIMode } from "$lib/stores/mode";
+import { toggleDeveloperMode } from "$lib/stores/developerMode";
 import { themeMode } from "$lib/stores/theme";
 import { companionStore } from "$lib/stores/companion";
 import { onboardingModalOpen } from "$lib/stores/onboarding";
@@ -76,8 +76,8 @@ export interface PaletteAction {
   shortcut?: string[];
   /** Group bucket. */
   kind: PaletteGroupKind;
-  /** Persona scoping. `undefined` → visible in both modes. */
-  persona?: UIMode;
+  /** `true` for a technical action, shown only with the developer mode on. */
+  developer?: boolean;
   /** `true` if this is a navigation action (hidden in actions-only mode). */
   navigation?: boolean;
   /** Invoked on Enter / click. */
@@ -106,33 +106,33 @@ export function buildPaletteActions(): PaletteAction[] {
     labelKey: string,
     icon: SvelteComponentType,
     keywords: string[] = [],
-    persona?: UIMode,
+    developer?: boolean,
   ): PaletteAction => ({
     id,
     label: tr(labelKey),
     keywords: [...keywords, tr(labelKey).toLowerCase()],
     icon,
     kind: "pages",
-    persona,
+    developer,
     navigation: true,
     execute: () => navigateTo(route),
   });
 
   return [
     // ── Pages ─────────────────────────────────────────────────────
-    nav("nav.dashboard", "dashboard", "nav.dashboard", LayoutDashboard, ["home"], "operator"),
+    nav("nav.dashboard", "dashboard", "nav.dashboard", LayoutDashboard, ["home"]),
     nav("nav.agents", "agents", "nav.agents", Bot, ["assistants", "bots"]),
     nav("nav.projects", "projects", "nav.projects", FolderOpen, ["project", "workspaces"]),
     nav("nav.tasks", "tasks", "nav.tasks", ListChecks, ["tasks", "activity"]),
     nav("nav.chat", "chat", "nav.chat", MessageSquare, ["chat", "conversation"]),
     nav("nav.inbox", "inbox", "nav.inbox", ShieldCheck, ["inbox", "approvals", "hitl"]),
     nav("nav.integrations", "integrations", "nav.connections", Plug, ["integrations", "mcp"]),
-    nav("nav.llm", "llm", "nav.llm", Brain, ["llm", "models"], "builder"),
+    nav("nav.llm", "llm", "nav.llm", Brain, ["llm", "models"]),
     nav("nav.automations", "automations", "nav.automations", Timer, ["automations", "triggers", "cron"]),
-    nav("nav.memory", "memory", "nav.memory", Database, ["memory", "recall"], "builder"),
-    nav("nav.transcriptions", "transcriptions", "nav.transcriptions", Mic, ["stt", "speech"], "builder"),
+    nav("nav.memory", "memory", "nav.memory", Database, ["memory", "recall"], true),
+    nav("nav.transcriptions", "transcriptions", "nav.transcriptions", Mic, ["stt", "speech"], true),
     nav("nav.notifications", "notifications", "nav.notifications", Bell, ["notifications"]),
-    nav("nav.observability", "observability", "nav.observability", Activity, ["observability", "metrics"], "builder"),
+    nav("nav.observability", "observability", "nav.observability", Activity, ["observability", "metrics"], true),
     nav("nav.settings", "settings", "nav.settings", SettingsIcon, ["settings", "preferences"]),
 
     // ── Create / run actions ──────────────────────────────────────
@@ -166,7 +166,6 @@ export function buildPaletteActions(): PaletteAction[] {
       keywords: ["agent", "create", "new"],
       icon: Bot,
       kind: "actions",
-      persona: "builder",
       execute: () => {
         navigateTo("agents");
         globalThis.dispatchEvent(new CustomEvent("apollia:agents:create"));
@@ -185,11 +184,11 @@ export function buildPaletteActions(): PaletteAction[] {
     },
     {
       id: "mode.toggle",
-      label: tr("commandPalette.actions.toggleMode"),
-      keywords: ["operator", "builder", "toggle", "mode", "persona"],
+      label: tr("commandPalette.actions.toggleDeveloperMode"),
+      keywords: ["developer", "toggle", "mode", "builder", "operator"],
       icon: ToggleRight,
       kind: "actions",
-      execute: () => uiMode.update((m) => (m === "operator" ? "builder" : "operator")),
+      execute: () => void toggleDeveloperMode(),
     },
     {
       id: "companion.toggle",
@@ -226,7 +225,7 @@ export function buildPaletteActions(): PaletteAction[] {
       icon: Keyboard,
       kind: "settings",
       execute: () => {
-        navigateToSettings("shortcuts");
+        navigateToSettings("chat");
       },
     },
     {
@@ -236,7 +235,7 @@ export function buildPaletteActions(): PaletteAction[] {
       icon: RefreshCcw,
       kind: "settings",
       execute: () => {
-        navigateToSettings("danger");
+        navigateToSettings("appearance");
       },
     },
     {
@@ -246,7 +245,7 @@ export function buildPaletteActions(): PaletteAction[] {
       icon: Brain,
       kind: "settings",
       execute: () => {
-        navigateToSettings("danger");
+        navigateToSettings("general", "clear-memories");
       },
     },
     {
@@ -256,7 +255,7 @@ export function buildPaletteActions(): PaletteAction[] {
       icon: Terminal,
       kind: "settings",
       execute: () => {
-        navigateToSettings("danger");
+        navigateToSettings("general", "clear-logs");
       },
     },
     {
@@ -266,7 +265,7 @@ export function buildPaletteActions(): PaletteAction[] {
       icon: RefreshCcw,
       kind: "settings",
       execute: () => {
-        navigateToSettings("danger");
+        navigateToSettings("general", "factory-reset");
       },
     },
     {
@@ -276,7 +275,7 @@ export function buildPaletteActions(): PaletteAction[] {
       icon: Info,
       kind: "help",
       execute: () => {
-        navigateToSettings("help");
+        navigateToSettings("general");
       },
     },
     {
@@ -286,7 +285,7 @@ export function buildPaletteActions(): PaletteAction[] {
       icon: Info,
       kind: "help",
       execute: () => {
-        navigateToSettings("about");
+        navigateToSettings("general");
       },
     },
     // Removed: help.docs action (was navigating to obsolete onboarding route)

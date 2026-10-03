@@ -73,11 +73,15 @@ async fn a_filled_row_becomes_the_settings_of_apollia() {
     let journal = journal(dir.path()).await;
     let governance = NoPolicyGovernance::new(journal.clone());
 
+    // AND web_search and web_read active, the reading family of this start
+    let reading = ["web_read".to_string(), "web_search".to_string()];
+
     // WHEN the settings are carried over
-    let outcome = carry_over_chat_config(dir.path(), &governance).expect("carry over");
+    let outcome = carry_over_chat_config(dir.path(), &governance, &reading).expect("carry over");
 
     // THEN the prompt, followed by the built-in prompt, is the mission; the
-    // tools are the access; the backend is the local model of Apollia
+    // access is the reading family then the legacy tools it lacks; the
+    // backend is the local model of Apollia
     assert_eq!(
         outcome,
         CarryOver::Done {
@@ -88,7 +92,12 @@ async fn a_filled_row_becomes_the_settings_of_apollia() {
     let agent = apollia(dir.path());
     let built_in = crate::chat::builtin_agent::built_in_prompt(agent.autonomy);
     assert_eq!(agent.mission, format!("Answer in French.\n\n{built_in}"));
-    assert_eq!(agent.access, vec!["web_search", "file_read"]);
+    assert_eq!(agent.access, vec!["web_read", "web_search", "file_read"]);
+    // AND the carried-over access is kept: Apollia no longer reads by default
+    assert_eq!(
+        apollia_tools::AgentAccess::of(&agent),
+        apollia_tools::AgentAccess::Listed(agent.access.clone())
+    );
     let model = LlmBackendRepository::open(&DataFile::System.path(dir.path()))
         .expect("system.db")
         .agent_model(APOLLIA_AGENT_ID)
@@ -110,7 +119,7 @@ async fn a_filled_row_becomes_the_settings_of_apollia() {
         .iter()
         .filter(|e| e.kind == JournalEntryKind::AccessChanged)
         .count();
-    assert_eq!((overrides, granted), (2, 2));
+    assert_eq!((overrides, granted), (2, 3));
     journal.shutdown().await;
 }
 
@@ -122,11 +131,12 @@ async fn the_default_row_writes_nothing_and_is_dropped() {
     let governance = NoPolicyGovernance::new(journal.clone());
 
     // WHEN the settings are carried over, then again at the next start
-    let first = carry_over_chat_config(dir.path(), &governance).expect("carry over");
-    let second = carry_over_chat_config(dir.path(), &governance).expect("second");
+    let reading = ["web_search".to_string()];
+    let first = carry_over_chat_config(dir.path(), &governance, &reading).expect("carry over");
+    let second = carry_over_chat_config(dir.path(), &governance, &reading).expect("second");
 
-    // THEN no override and no model are written, the table is dropped, and
-    // the second start finds nothing to do
+    // THEN no override and no model are written, the table is dropped, the
+    // second start finds nothing to do, and Apollia reads by default
     assert_eq!(
         first,
         CarryOver::Done {
@@ -137,6 +147,7 @@ async fn the_default_row_writes_nothing_and_is_dropped() {
     assert_eq!(second, CarryOver::AlreadyDone);
     let agent = apollia(dir.path());
     assert!(agent.overridden.is_empty());
+    assert!(apollia_tools::reads_by_default(&agent));
     assert_eq!(agent.name, "Apollia");
     assert!(!legacy_table_exists(dir.path()));
     assert!(journal
@@ -161,7 +172,7 @@ async fn the_row_waits_for_the_access_upgrade() {
     let governance = NoPolicyGovernance::new(journal.clone());
 
     // WHEN the carry-over runs
-    let outcome = carry_over_chat_config(dir.path(), &governance).expect("carry over");
+    let outcome = carry_over_chat_config(dir.path(), &governance, &[]).expect("carry over");
 
     // THEN it waits, and the row stays for the access upgrade to read
     assert_eq!(outcome, CarryOver::Waiting);

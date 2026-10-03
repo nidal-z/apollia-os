@@ -131,6 +131,7 @@ async fn build_app_state_with_repos(
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        inference_governance: Default::default(),
         backend: MockBackend,
         llm_router: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         trigger_engine: Some(engine_handle),
@@ -161,9 +162,11 @@ async fn build_app_state_with_repos(
         resilience_layer: None,
         runner_proxy: None,
         llama_server_supervisor: None,
+        mlx_engine: None,
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     }
 }
 

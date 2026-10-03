@@ -1286,6 +1286,7 @@ async fn exchange_complete_records_paused_state() {
         paused: true,
         context_window_tokens: None,
         context_tokens_used: 0,
+        llm_calls: Vec::new(),
     };
 
     // WHEN the exchange completes as paused
@@ -1293,6 +1294,75 @@ async fn exchange_complete_records_paused_state() {
 
     // THEN the session is recorded Paused, ready to resume
     assert_eq!(manager.pause_state("sess-1"), Some(PauseState::Paused));
+}
+
+#[tokio::test]
+async fn exchange_complete_writes_the_generation_total_under_the_turn_answer() {
+    // GIVEN a session whose exchange started with an answer identifier, and a
+    // response that made three model calls
+    let dir = tempfile::tempdir().expect("tempdir");
+    let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Executing);
+    let started = (chrono::Utc::now() - chrono::Duration::seconds(3)).to_rfc3339();
+    manager.sessions.get_mut("sess-1").unwrap().active_exchange = Some(ExchangeState {
+        message_id: "msg-1".into(),
+        started_at: started,
+        run_id: RunId::new(),
+        answer_id: Some("answer-1".into()),
+    });
+    let call =
+        |tokens: u32, ttft: Option<u64>, end: apollia_llm::CallEnd| apollia_llm::CallMeasure {
+            usage: apollia_llm::types::TokenUsage {
+                completion_tokens: tokens,
+                ..Default::default()
+            },
+            latency_ms: 1_000,
+            ttft_ms: ttft,
+            generation_ms: Some(500),
+            end,
+        };
+    let response = ChatAgentResponse {
+        content: "Voici.".into(),
+        tool_calls: vec![],
+        newly_authorized: vec![],
+        tokens_used: apollia_llm::types::TokenUsage::default(),
+        thinking_trace: None,
+        reasoning_boundaries: vec![],
+        verification_report: None,
+        frontier_ceiling_reached: false,
+        final_plan_phase: None,
+        paused: false,
+        context_window_tokens: None,
+        context_tokens_used: 0,
+        llm_calls: vec![
+            call(10, Some(250), apollia_llm::CallEnd::ToolCalls),
+            call(20, Some(90), apollia_llm::CallEnd::ToolCalls),
+            call(30, Some(80), apollia_llm::CallEnd::Length),
+        ],
+    };
+
+    // WHEN the exchange completes
+    manager.handle_exchange_complete("sess-1", "msg-1", response);
+
+    // THEN the answer is stored under the turn's identifier, with the total of
+    // its three calls under `generation`
+    let answer = manager
+        .sessions
+        .get("sess-1")
+        .unwrap()
+        .history
+        .last()
+        .cloned()
+        .expect("an answer");
+    assert_eq!(answer.id, "answer-1");
+    let generation = &answer.metadata.expect("metadata")["generation"];
+    assert_eq!(generation["calls"], 3);
+    assert_eq!(generation["output_tokens"], 60);
+    assert_eq!(generation["tokens_per_second"], 40.0);
+    assert_eq!(generation["ttft_ms"], 250);
+    assert_eq!(generation["stop_reason"], "length");
+    assert!(generation["duration_ms"]
+        .as_u64()
+        .is_some_and(|ms| ms >= 3_000));
 }
 
 #[tokio::test]
@@ -1487,6 +1557,7 @@ fn make_response(paused: bool) -> ChatAgentResponse {
         paused,
         context_window_tokens: None,
         context_tokens_used: 0,
+        llm_calls: Vec::new(),
     }
 }
 
@@ -1620,6 +1691,7 @@ async fn test_validate_create_request_accepts_a_declarative_agent_outside_the_re
         sources: Vec::new(),
         model: None,
         autonomy: apollia_core::AutonomyLevel::Assisted,
+        profile: None,
         overridden: Vec::new(),
         definition: serde_json::json!({}),
     };

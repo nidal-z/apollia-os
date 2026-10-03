@@ -11,6 +11,7 @@ pub mod agent_chat;
 pub mod agent_executor;
 pub mod builtin_agent;
 pub mod extractor;
+pub mod generation;
 pub mod manager;
 pub mod native_wrappers;
 pub mod plan_actor;
@@ -20,6 +21,7 @@ pub mod project_context;
 pub mod repository;
 pub(crate) mod schema;
 pub mod summarizer;
+pub mod title;
 pub mod todo_actor;
 pub mod todo_handle;
 pub mod todo_tool;
@@ -49,6 +51,7 @@ pub use repository::{
     AppendMessageParams, ChatApprovalLogRow, ChatSessionRepository, MessageRow, SessionRow,
 };
 pub use summarizer::{summarize, SummarizerError};
+pub use title::TitleError;
 pub use todo_actor::spawn_todo_actor;
 pub use todo_handle::TodoHandle;
 pub use types::PastSessionSummary;

@@ -127,27 +127,14 @@ pub fn run(cmd: &ConfigCommand, json: bool) -> i32 {
     }
 }
 
-/// Resolve the apollia.toml location: explicit override wins, then `./apollia.toml`,
-/// then `$XDG_CONFIG_HOME/apollia/apollia.toml` (or `~/.config/apollia/apollia.toml`).
+/// Resolve the apollia.toml location: the `--file` override when given,
+/// otherwise `~/.apollia/apollia.toml`, the file every surface reads.
 ///
-/// This is the order the runtime itself walks when it starts, so every command
-/// that reads or writes `apollia.toml` goes through here rather than guessing a
-/// location of its own. A command writing somewhere else writes a file the
-/// daemon never reads.
+/// Every command that reads or writes `apollia.toml` goes through here rather
+/// than guessing a location of its own. A command writing somewhere else
+/// writes a file the daemon never reads.
 pub(crate) fn resolve_path(override_path: Option<&Path>) -> PathBuf {
-    if let Some(p) = override_path {
-        return p.to_path_buf();
-    }
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let local = cwd.join("apollia.toml");
-    if local.exists() {
-        return local;
-    }
-    let xdg = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
-    let base = xdg
-        .or_else(|| apollia_core::paths::home_dir().map(|h| h.join(".config")))
-        .unwrap_or_else(|| PathBuf::from("."));
-    base.join("apollia").join("apollia.toml")
+    crate::config_location::resolve(override_path)
 }
 
 fn emit_error(msg: impl Into<String>, json: bool) {
@@ -283,6 +270,28 @@ fn toml_value_to_json(v: &toml::Value) -> serde_json::Value {
 // ─── set ─────────────────────────────────────────────────────────────────────
 
 fn run_set(key: &str, value_str: &str, file: Option<&Path>, json: bool) -> i32 {
+    let location = apollia_permissions::policy_location();
+    let policy = apollia_permissions::load_policy(&location.dir, location.owner);
+    run_set_under(key, value_str, file, json, &policy.imposed_settings())
+}
+
+/// `config set` against the settings `policy` fixes: a key the organisation
+/// policy imposes is refused before the file is opened, and the file is left
+/// as it was.
+fn run_set_under(
+    key: &str,
+    value_str: &str,
+    file: Option<&Path>,
+    json: bool,
+    policy: &apollia_core::config::PolicySettings,
+) -> i32 {
+    if policy.locks(key) {
+        emit_error(
+            format!("'{key}' is fixed by the organisation policy and cannot be changed"),
+            json,
+        );
+        return exit_codes::GENERAL_ERROR;
+    }
     let path = resolve_path(file);
     if let Some(parent) = path.parent() {
         if !parent.exists() {
@@ -847,6 +856,38 @@ mod tests {
     }
 
     #[test]
+    fn without_file_the_commands_use_the_shared_configuration() {
+        // GIVEN no --file on a `config` command, HOME held under the shared
+        // lock so a test swapping it cannot run between the two reads
+        let _guard = crate::commands::HOME_ENV_LOCK.blocking_lock();
+        // WHEN its file is resolved
+        let resolved = resolve_path(None);
+        // THEN it is ~/.apollia/apollia.toml, the file the daemon and the
+        // desktop read, never one relative to the working directory
+        assert!(resolved.is_absolute(), "{}", resolved.display());
+        assert!(
+            resolved.ends_with(Path::new(".apollia").join("apollia.toml")),
+            "{}",
+            resolved.display()
+        );
+    }
+
+    #[test]
+    fn file_option_replaces_the_shared_location() {
+        // GIVEN a throwaway directory holding a file named with --file
+        let dir = tempfile::tempdir().unwrap();
+        let explicit = dir.path().join("elsewhere.toml");
+        // WHEN a key is written through `config set --file`
+        let code = run_set("desktop.developer_mode", "true", Some(&explicit), true);
+        // THEN the explicit file holds it, and resolution answers it verbatim
+        assert_eq!(code, exit_codes::SUCCESS);
+        assert!(std::fs::read_to_string(&explicit)
+            .unwrap()
+            .contains("developer_mode = true"));
+        assert_eq!(resolve_path(Some(&explicit)), explicit);
+    }
+
+    #[test]
     fn run_set_then_run_get_round_trip() {
         // GIVEN an empty configuration file
         let tmp = tempfile::NamedTempFile::new().unwrap();
@@ -868,6 +909,60 @@ mod tests {
         std::fs::write(&path, "").unwrap();
         // WHEN setting an unknown top-level key path
         let code = run_set("not.a.real.key", "somevalue", Some(&path), true);
+        // THEN it fails and leaves the file unchanged
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "");
+    }
+
+    #[test]
+    fn run_set_writes_desktop_developer_mode() {
+        // GIVEN a throwaway home holding an empty apollia.toml
+        let home = tempfile::tempdir().unwrap();
+        let path = home.path().join(".apollia").join("apollia.toml");
+        // WHEN developer mode is set through the command
+        let code = run_set("desktop.developer_mode", "true", Some(&path), true);
+        // THEN it succeeds and the key is in the file, under its section
+        assert_eq!(code, exit_codes::SUCCESS);
+        let written = std::fs::read_to_string(&path).unwrap();
+        assert!(written.contains("[desktop]"), "{written}");
+        assert!(written.contains("developer_mode = true"), "{written}");
+        let typed = crate::config::validate_apollia_toml_str(&written).unwrap();
+        assert!(typed.desktop.unwrap().developer_mode);
+    }
+
+    #[test]
+    fn run_set_refuses_a_key_the_policy_fixes() {
+        // GIVEN a file where the user turned developer mode on, and a policy
+        // fixing it off
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        std::fs::write(&path, "[desktop]\ndeveloper_mode = true\n").unwrap();
+        let policy = apollia_core::config::PolicySettings::none()
+            .impose("desktop.developer_mode", serde_json::json!(false));
+        // WHEN the command sets it
+        let code = run_set_under(
+            "desktop.developer_mode",
+            "false",
+            Some(&path),
+            true,
+            &policy,
+        );
+        // THEN it fails and the file is left as it was
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "[desktop]\ndeveloper_mode = true\n"
+        );
+    }
+
+    #[test]
+    fn run_set_rejects_an_unknown_desktop_key() {
+        // GIVEN an empty config file
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        std::fs::write(&path, "").unwrap();
+        // WHEN a key the [desktop] section does not declare is set
+        let code = run_set("desktop.inconnu", "true", Some(&path), true);
         // THEN it fails and leaves the file unchanged
         assert_eq!(code, exit_codes::GENERAL_ERROR);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "");

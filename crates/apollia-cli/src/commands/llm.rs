@@ -53,10 +53,7 @@ pub enum LlmCommand {
         #[arg(long, value_name = "USD")]
         threshold: Option<f64>,
         /// Optional `apollia.toml` path override. Without it, the same file
-        /// the runtime loads at startup: `./apollia.toml` when the working
-        /// directory holds one, otherwise
-        /// `$XDG_CONFIG_HOME/apollia/apollia.toml` (default
-        /// `~/.config/apollia/apollia.toml`).
+        /// the runtime loads at startup: `~/.apollia/apollia.toml`.
         #[arg(long, value_name = "PATH")]
         config: Option<PathBuf>,
     },
@@ -103,7 +100,8 @@ pub enum LlmCommand {
         /// Override the system database path (default: `~/.apollia/system.db`).
         #[arg(long, value_name = "PATH")]
         system_db: Option<PathBuf>,
-        /// Override the models directory (default: `~/.apollia/models/`).
+        /// Override the models directory. Without it, `[models] dir` of
+        /// `apollia.toml`, else `~/.apollia/models/`.
         #[arg(long, value_name = "DIR")]
         models_dir: Option<PathBuf>,
     },
@@ -347,19 +345,19 @@ mod tests {
         let help = published_help(&["costs"], "config");
 
         // WHEN it is read as an operator reads the CLI reference page
-        // THEN it names the runtime's own search order, and no longer points at
-        // the data directory, which holds no configuration
+        // THEN it names the single location every surface shares, and none of
+        // the former ones the runtime no longer reads
         assert!(
-            !help.contains(".apollia/apollia.toml"),
-            "help still points at the data directory: {help}"
+            help.contains("~/.apollia/apollia.toml"),
+            "help omits the shared configuration file: {help}"
         );
         assert!(
-            help.contains("./apollia.toml"),
-            "help omits the working-directory file: {help}"
+            !help.contains("./apollia.toml"),
+            "help still names the working-directory file: {help}"
         );
         assert!(
-            help.contains(".config/apollia/apollia.toml"),
-            "help omits the user config file: {help}"
+            !help.contains(".config/apollia/apollia.toml"),
+            "help still names the former user config file: {help}"
         );
     }
 

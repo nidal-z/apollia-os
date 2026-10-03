@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from ..models.install_refusal_type_1 import InstallRefusalType1
     from ..models.install_refusal_type_2 import InstallRefusalType2
     from ..models.install_refusal_type_3 import InstallRefusalType3
+    from ..models.install_refusal_type_4 import InstallRefusalType4
     from ..models.item_preview import ItemPreview
     from ..models.package_notice_type_0 import PackageNoticeType0
     from ..models.package_notice_type_1 import PackageNoticeType1
@@ -51,7 +52,8 @@ class PackagePreview:
         version (str): Incoming version.
         workflows (list[WorkflowPreview]): Workflows.
         installed_version (None | str | Unset): Installed version, when the package is installed.
-        refusal (InstallRefusalType0 | InstallRefusalType1 | InstallRefusalType2 | InstallRefusalType3 | None | Unset):
+        refusal (InstallRefusalType0 | InstallRefusalType1 | InstallRefusalType2 | InstallRefusalType3 |
+            InstallRefusalType4 | None | Unset):
         update (None | Unset | UpdateDiff):
     """
 
@@ -75,6 +77,7 @@ class PackagePreview:
         | InstallRefusalType1
         | InstallRefusalType2
         | InstallRefusalType3
+        | InstallRefusalType4
         | None
         | Unset
     ) = UNSET
@@ -86,6 +89,7 @@ class PackagePreview:
         from ..models.install_refusal_type_1 import InstallRefusalType1
         from ..models.install_refusal_type_2 import InstallRefusalType2
         from ..models.install_refusal_type_3 import InstallRefusalType3
+        from ..models.install_refusal_type_4 import InstallRefusalType4
         from ..models.package_notice_type_0 import PackageNoticeType0
         from ..models.package_notice_type_1 import PackageNoticeType1
         from ..models.package_notice_type_2 import PackageNoticeType2
@@ -166,6 +170,8 @@ class PackagePreview:
             refusal = self.refusal.to_dict()
         elif isinstance(self.refusal, InstallRefusalType3):
             refusal = self.refusal.to_dict()
+        elif isinstance(self.refusal, InstallRefusalType4):
+            refusal = self.refusal.to_dict()
         else:
             refusal = self.refusal
 
@@ -214,6 +220,7 @@ class PackagePreview:
         from ..models.install_refusal_type_1 import InstallRefusalType1
         from ..models.install_refusal_type_2 import InstallRefusalType2
         from ..models.install_refusal_type_3 import InstallRefusalType3
+        from ..models.install_refusal_type_4 import InstallRefusalType4
         from ..models.item_preview import ItemPreview
         from ..models.package_notice_type_0 import PackageNoticeType0
         from ..models.package_notice_type_1 import PackageNoticeType1
@@ -339,6 +346,7 @@ class PackagePreview:
             | InstallRefusalType1
             | InstallRefusalType2
             | InstallRefusalType3
+            | InstallRefusalType4
             | None
             | Unset
         ):
@@ -378,11 +386,20 @@ class PackagePreview:
                 return componentsschemas_install_refusal_type_3
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                componentsschemas_install_refusal_type_4 = InstallRefusalType4.from_dict(data)
+
+                return componentsschemas_install_refusal_type_4
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
             return cast(
                 InstallRefusalType0
                 | InstallRefusalType1
                 | InstallRefusalType2
                 | InstallRefusalType3
+                | InstallRefusalType4
                 | None
                 | Unset,
                 data,

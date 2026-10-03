@@ -3,52 +3,20 @@
 //! Accesses the SQLite files `~/.apollia/memory/<namespace>.db` directly via the
 //! `apollia-memory` APIs (MemoryStore, EpisodicMemory, SemanticMemory,
 //! ProceduralMemory, MemorySearch). Admin view: no namespace access control.
+//! The commands that change the memory live in [`maintenance`].
 
 use std::path::PathBuf;
 
-use apollia_memory::episodic::EpisodicMemory;
-use apollia_memory::injection_tracker::{global_entries_for, InjectedEntry};
-use apollia_memory::procedural::ProceduralMemory;
-use apollia_memory::search::{MemorySearch, SearchQuery, SearchSource};
-use apollia_memory::semantic::SemanticMemory;
-use apollia_memory::store::MemoryStore;
-use serde::Serialize;
+use apollia_runtime::memory_view;
+pub use apollia_runtime::memory_view::{
+    InjectedMemoryEntryView, MemoryEntryView as MemoryEntry,
+    MemorySearchResultView as MemorySearchResult,
+};
+use tauri::State;
 
-/// Unified memory entry for display in the UI.
-#[derive(Debug, Serialize)]
-pub struct MemoryEntry {
-    /// Entry UUID.
-    pub id: String,
-    /// Type: `"episodic"` | `"semantic"` | `"procedural"`.
-    pub entry_type: String,
-    /// Key or subject (key for semantic, trigger for procedural, agent_id for episodic).
-    pub key: String,
-    /// Value or text content.
-    pub value: String,
-    /// ISO 8601 creation date.
-    pub created_at: String,
-    /// ISO 8601 expiration date, or `null` if no TTL.
-    pub expires_at: Option<String>,
-    /// BM25 score (search mode only, otherwise `null`).
-    pub score: Option<f64>,
-}
+use crate::attached::{segment, RuntimeLink};
 
-/// FTS5 search result for the UI.
-#[derive(Debug, Serialize)]
-pub struct MemorySearchResult {
-    /// UUID of the source entry.
-    pub id: String,
-    /// Type: `"episodic"` | `"semantic"`.
-    pub entry_type: String,
-    /// Text content of the result.
-    pub content: String,
-    /// BM25 score (higher = more relevant).
-    pub score: f64,
-    /// Importance (episodic) or confidence (semantic).
-    pub relevance: Option<f64>,
-    /// ISO 8601 creation date.
-    pub created_at: String,
-}
+pub mod maintenance;
 
 /// Resolves the memory directory path (`~/.apollia/memory/`).
 fn memory_base_dir() -> Result<PathBuf, String> {
@@ -58,353 +26,104 @@ fn memory_base_dir() -> Result<PathBuf, String> {
 }
 
 /// Lists the available memory namespaces (one `.db` file = one namespace).
-///
-/// Scans `~/.apollia/memory/*.db` and returns the names without the extension.
+/// Attached to a daemon, `GET /api/v1/memory/namespaces` answers the same list.
 #[tauri::command]
-pub async fn list_memory_namespaces() -> Result<Vec<String>, String> {
-    let base = memory_base_dir()?;
-
-    if !base.exists() {
-        return Ok(Vec::new());
-    }
-
-    let entries =
-        std::fs::read_dir(&base).map_err(|e| format!("failed to read memory directory: {e}"))?;
-
-    let mut namespaces: Vec<String> = entries
-        .filter_map(|entry| {
-            let entry = entry.ok()?;
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) == Some("db") {
-                path.file_stem().and_then(|s| s.to_str()).map(String::from)
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    namespaces.sort();
-    Ok(namespaces)
+pub async fn list_memory_namespaces(link: State<'_, RuntimeLink>) -> Result<Vec<String>, String> {
+    namespaces_on(link.inner()).await
 }
 
-/// Lists all memory entries of a namespace (episodic + semantic + procedural).
-///
-/// Returns a unified list of entries sorted by creation date descending.
-#[tauri::command]
-pub async fn list_memory_entries(namespace: String) -> Result<Vec<MemoryEntry>, String> {
-    let base = memory_base_dir()?;
-    let db_path = base.join(format!("{namespace}.db"));
-
-    if !db_path.exists() {
-        return Ok(Vec::new());
+pub(crate) async fn namespaces_on(link: &RuntimeLink) -> Result<Vec<String>, String> {
+    match link {
+        RuntimeLink::Embedded(_) => memory_view::list_namespaces(memory_base_dir()?)
+            .await
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => Ok(remote.get("/api/v1/memory/namespaces").await?),
     }
-
-    let store = MemoryStore::open(&db_path).map_err(|e| format!("failed to open store: {e}"))?;
-    let mut entries = Vec::new();
-
-    let episodic = EpisodicMemory::new(&store);
-    if let Ok(episodes) = episodic.history(&namespace, 500, None) {
-        for ep in episodes {
-            entries.push(MemoryEntry {
-                id: ep.id,
-                entry_type: "episodic".to_string(),
-                key: ep.agent_id,
-                value: ep.content,
-                created_at: ep.created_at,
-                expires_at: ep.expires_at,
-                score: None,
-            });
-        }
-    }
-
-    let semantic = SemanticMemory::new(&store);
-    if let Ok(facts) = semantic.recall_all(&namespace, None) {
-        for fact in facts {
-            entries.push(MemoryEntry {
-                id: fact.id,
-                entry_type: "semantic".to_string(),
-                key: fact.key,
-                value: serde_json::to_string(&fact.value).unwrap_or_default(),
-                created_at: fact.created_at,
-                expires_at: fact.expires_at,
-                score: None,
-            });
-        }
-    }
-
-    let procedural = ProceduralMemory::new(&store);
-    if let Ok(procedures) = procedural.list(&namespace) {
-        for proc in procedures {
-            entries.push(MemoryEntry {
-                id: proc.id,
-                entry_type: "procedural".to_string(),
-                key: proc.trigger,
-                value: proc.steps.join(" -> "),
-                created_at: proc.created_at,
-                expires_at: None,
-                score: None,
-            });
-        }
-    }
-
-    entries.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-
-    Ok(entries)
 }
 
-/// FTS5 search within a memory namespace.
-///
-/// Returns the results sorted by BM25 score descending.
+/// Lists all memory entries of a namespace (episodic + semantic + procedural),
+/// newest first.
+#[tauri::command]
+pub async fn list_memory_entries(
+    link: State<'_, RuntimeLink>,
+    namespace: String,
+) -> Result<Vec<MemoryEntry>, String> {
+    entries_on(link.inner(), namespace).await
+}
+
+pub(crate) async fn entries_on(
+    link: &RuntimeLink,
+    namespace: String,
+) -> Result<Vec<MemoryEntry>, String> {
+    match link {
+        RuntimeLink::Embedded(_) => memory_view::namespace_entries(memory_base_dir()?, namespace)
+            .await
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => {
+            let path = format!("/api/v1/memory/namespaces/{}/entries", segment(&namespace));
+            Ok(remote.get(&path).await?)
+        }
+    }
+}
+
+/// FTS5 search within a memory namespace, best BM25 score first.
 #[tauri::command]
 pub async fn search_memory(
+    link: State<'_, RuntimeLink>,
     namespace: String,
     query: String,
 ) -> Result<Vec<MemorySearchResult>, String> {
-    let base = memory_base_dir()?;
-    let db_path = base.join(format!("{namespace}.db"));
-
-    if !db_path.exists() {
-        return Ok(Vec::new());
-    }
-
-    let store = MemoryStore::open(&db_path).map_err(|e| format!("failed to open store: {e}"))?;
-    let search = MemorySearch::new(&store);
-
-    let results = search
-        .query(SearchQuery {
-            namespace: &namespace,
-            query: &query,
-            limit: 50,
-            sources: None,
-            min_importance: None,
-        })
-        .map_err(|e| format!("search failed: {e}"))?;
-
-    Ok(results
-        .into_iter()
-        .map(|r| MemorySearchResult {
-            id: r.source_id,
-            entry_type: match r.source {
-                SearchSource::Episodic => "episodic".to_string(),
-                SearchSource::Semantic => "semantic".to_string(),
-            },
-            content: r.content,
-            score: r.score,
-            relevance: r.relevance,
-            created_at: r.created_at,
-        })
-        .collect())
+    search_on(link.inner(), namespace, query).await
 }
 
-/// Clears all memory entries of a namespace by type.
-///
-/// `memory_type` can be `"episodic"`, `"semantic"`, `"procedural"`, or `"all"` (default).
-/// Returns the total number of removed entries.
-#[tauri::command]
-pub async fn clear_memory(namespace: String, memory_type: Option<String>) -> Result<u64, String> {
-    let base = memory_base_dir()?;
-    let db_path = base.join(format!("{namespace}.db"));
-
-    if !db_path.exists() {
-        return Ok(0);
-    }
-
-    let store = MemoryStore::open(&db_path).map_err(|e| format!("failed to open store: {e}"))?;
-    let kind = memory_type.as_deref().unwrap_or("all");
-    let mut total: u64 = 0;
-
-    match kind {
-        "episodic" => {
-            total += store
-                .clear_episodic(&namespace)
-                .map_err(|e| format!("clear_episodic failed: {e}"))?;
-        }
-        "semantic" => {
-            total += store
-                .clear_semantic(&namespace)
-                .map_err(|e| format!("clear_semantic failed: {e}"))?;
-        }
-        "procedural" => {
-            total += store
-                .clear_procedural(&namespace)
-                .map_err(|e| format!("clear_procedural failed: {e}"))?;
-        }
-        // "all" or any unrecognized scope: clear everything.
-        _ => {
-            total += store
-                .clear_episodic(&namespace)
-                .map_err(|e| format!("clear_episodic failed: {e}"))?;
-            total += store
-                .clear_semantic(&namespace)
-                .map_err(|e| format!("clear_semantic failed: {e}"))?;
-            total += store
-                .clear_procedural(&namespace)
-                .map_err(|e| format!("clear_procedural failed: {e}"))?;
-        }
-    }
-
-    Ok(total)
-}
-
-/// Purges memory entries older than N days.
-///
-/// `memory_type` can be `"episodic"`, `"semantic"`, `"procedural"`, or `"all"` (default).
-/// Returns the total number of purged entries.
-#[tauri::command]
-pub async fn purge_memory(
+pub(crate) async fn search_on(
+    link: &RuntimeLink,
     namespace: String,
-    older_than_days: u32,
-    memory_type: Option<String>,
-) -> Result<u64, String> {
-    let base = memory_base_dir()?;
-    let db_path = base.join(format!("{namespace}.db"));
-
-    if !db_path.exists() {
-        return Ok(0);
-    }
-
-    let store = MemoryStore::open(&db_path).map_err(|e| format!("failed to open store: {e}"))?;
-    let kind = memory_type.as_deref().unwrap_or("all");
-    let mut total: u64 = 0;
-
-    match kind {
-        "episodic" => {
-            let ep = EpisodicMemory::new(&store);
-            total += ep
-                .purge_older_than(&namespace, older_than_days)
-                .map_err(|e| format!("purge_episodic failed: {e}"))?;
-        }
-        "semantic" => {
-            let sem = SemanticMemory::new(&store);
-            total += sem
-                .purge_older_than(&namespace, older_than_days)
-                .map_err(|e| format!("purge_semantic failed: {e}"))?;
-        }
-        "procedural" => {
-            let proc = ProceduralMemory::new(&store);
-            total += proc
-                .purge_older_than(&namespace, older_than_days)
-                .map_err(|e| format!("purge_procedural failed: {e}"))?;
-        }
-        // "all" or any unrecognized scope: purge everything.
-        _ => {
-            let ep = EpisodicMemory::new(&store);
-            total += ep
-                .purge_older_than(&namespace, older_than_days)
-                .map_err(|e| format!("purge_episodic failed: {e}"))?;
-            let sem = SemanticMemory::new(&store);
-            total += sem
-                .purge_older_than(&namespace, older_than_days)
-                .map_err(|e| format!("purge_semantic failed: {e}"))?;
-            let proc = ProceduralMemory::new(&store);
-            total += proc
-                .purge_older_than(&namespace, older_than_days)
-                .map_err(|e| format!("purge_procedural failed: {e}"))?;
+    query: String,
+) -> Result<Vec<MemorySearchResult>, String> {
+    match link {
+        RuntimeLink::Embedded(_) => memory_view::search(memory_base_dir()?, namespace, query)
+            .await
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => {
+            let path = format!(
+                "/api/v1/memory/namespaces/{}/search?q={}",
+                segment(&namespace),
+                segment(&query)
+            );
+            Ok(remote.get(&path).await?)
         }
     }
-
-    Ok(total)
-}
-
-/// Deletes a memory entry by its UUID.
-///
-/// Searches all tables (episodic, semantic, procedural) and deletes the
-/// matching entry along with its FTS5 index.
-#[tauri::command]
-pub async fn delete_memory_entry(namespace: String, entry_id: String) -> Result<bool, String> {
-    let base = memory_base_dir()?;
-    let db_path = base.join(format!("{namespace}.db"));
-
-    if !db_path.exists() {
-        return Err(format!("namespace '{namespace}' not found"));
-    }
-
-    let store = MemoryStore::open(&db_path).map_err(|e| format!("failed to open store: {e}"))?;
-
-    store
-        .delete_entry_by_id(&entry_id)
-        .map_err(|e| format!("failed to delete entry: {e}"))
-}
-
-/// Exports a namespace's memory to a JSON file.
-///
-/// `output_path`: absolute path of the output file.
-/// Returns a confirmation message with the export statistics.
-#[tauri::command]
-pub async fn memory_export_namespace(
-    namespace: String,
-    output_path: String,
-) -> Result<String, String> {
-    let base = memory_base_dir()?;
-
-    let out = std::path::PathBuf::from(&output_path);
-    let export = apollia_memory::export::export_namespace(&base, &namespace)
-        .map_err(|e| format!("export failed: {e}"))?;
-
-    let json_str =
-        serde_json::to_string_pretty(&export).map_err(|e| format!("serialize failed: {e}"))?;
-    std::fs::write(&out, &json_str).map_err(|e| format!("write failed: {e}"))?;
-
-    Ok(format!(
-        "Exported {} episodic, {} semantic, {} procedural entries to {}",
-        export.episodic.len(),
-        export.semantic.len(),
-        export.procedural.len(),
-        out.display(),
-    ))
-}
-
-/// Imports memory from a JSON file into a namespace.
-///
-/// `mode` can be `"replace"` or `"merge"` (default: `"merge"`).
-/// Returns the number of imported entries.
-#[tauri::command]
-pub async fn memory_import_namespace(
-    namespace: String,
-    input_path: String,
-    mode: String,
-) -> Result<String, String> {
-    let base = memory_base_dir()?;
-
-    let content = std::fs::read_to_string(&input_path).map_err(|e| format!("read failed: {e}"))?;
-    let export: apollia_memory::export::MemoryExport =
-        serde_json::from_str(&content).map_err(|e| format!("parse failed: {e}"))?;
-
-    let import_mode = if mode == "replace" {
-        apollia_memory::export::ImportMode::Replace
-    } else {
-        apollia_memory::export::ImportMode::Merge
-    };
-
-    let count = apollia_memory::export::import_namespace(&base, &namespace, &export, import_mode)
-        .map_err(|e| format!("import failed: {e}"))?;
-
-    Ok(format!(
-        "{count} entries imported into namespace '{namespace}' (mode: {mode})"
-    ))
 }
 
 /// Returns the memory entries the agent injected into a specific turn.
 ///
-/// Backs the `<InjectedMemorySheet />` panel (memory injection visibility).
-/// Reads from the process-local injection
-/// tracker populated by the PyO3 `recall_entry()` / `recall_all()` wrappers.
+/// Backs the `<InjectedMemorySheet />` panel. The tracker is the one of the
+/// process running the agents: this one embedded, the daemon's attached.
 #[tauri::command]
-pub async fn get_injected_memory_entries(turn_id: String) -> Result<Vec<InjectedEntry>, String> {
-    Ok(global_entries_for(&turn_id))
+pub async fn get_injected_memory_entries(
+    link: State<'_, RuntimeLink>,
+    turn_id: String,
+) -> Result<Vec<InjectedMemoryEntryView>, String> {
+    injected_on(link.inner(), turn_id).await
+}
+
+pub(crate) async fn injected_on(
+    link: &RuntimeLink,
+    turn_id: String,
+) -> Result<Vec<InjectedMemoryEntryView>, String> {
+    match link {
+        RuntimeLink::Embedded(_) => Ok(memory_view::injected_entries(&turn_id)),
+        RuntimeLink::Attached(remote) => {
+            let path = format!("/api/v1/memory/injections/{}", segment(&turn_id));
+            Ok(remote.get(&path).await?)
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use apollia_memory::injection_tracker::{global_record, global_tracker_clear, InjectedEntry};
-    use std::sync::{Mutex, OnceLock};
-
-    // Serialises tests that mutate the global injection tracker to prevent races.
-    fn tracker_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-    }
 
     #[test]
     fn test_memory_entry_serializes() {
@@ -503,76 +222,6 @@ mod tests {
         assert!(path.to_str().expect("utf8").contains(".apollia/memory"));
     }
 
-    #[tokio::test]
-    // The tracker lock serializes tests touching the global injected-memory
-    // tracker; it is deliberately held across the command await so a concurrent
-    // test cannot clear or record between this test's setup and assertion.
-    #[allow(clippy::await_holding_lock)]
-    async fn test_get_injected_memory_entries_returns_tracked_entries() {
-        let _guard = tracker_lock().lock().unwrap();
-        // GIVEN a turn with two injected entries recorded in the global tracker
-        global_tracker_clear();
-        let turn = "turn-p7-test";
-        global_record(
-            turn,
-            InjectedEntry {
-                id: "sem-1".to_string(),
-                content_preview: "client dupont budget 15000".to_string(),
-                namespace: "agent-x".to_string(),
-                injection_reason: "Matched query: budget client".to_string(),
-                relevance_score: 0.92,
-            },
-        );
-        global_record(
-            turn,
-            InjectedEntry {
-                id: "ep-1".to_string(),
-                content_preview: "Quote sent to Dupont".to_string(),
-                namespace: "agent-x".to_string(),
-                injection_reason: "Contexte devis".to_string(),
-                relevance_score: 0.71,
-            },
-        );
-
-        // WHEN the Tauri command is invoked
-        let entries = get_injected_memory_entries(turn.to_string())
-            .await
-            .expect("command should succeed");
-
-        // THEN both entries are returned with preserved fields
-        assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].id, "sem-1");
-        assert_eq!(entries[0].namespace, "agent-x");
-        assert_eq!(entries[0].injection_reason, "Matched query: budget client");
-        assert!((entries[0].relevance_score - 0.92).abs() < f32::EPSILON);
-        assert_eq!(entries[1].id, "ep-1");
-
-        // AND the JSON payload matches the frontend contract
-        let json = serde_json::to_value(&entries).expect("serialize");
-        assert_eq!(json[0]["content_preview"], "client dupont budget 15000");
-        let score = json[0]["relevance_score"]
-            .as_f64()
-            .expect("score is number");
-        assert!((score - 0.92).abs() < 1e-4);
-    }
-
-    #[tokio::test]
-    // Held across the await to keep global-tracker tests serial (see above).
-    #[allow(clippy::await_holding_lock)]
-    async fn test_get_injected_memory_entries_unknown_turn_is_empty() {
-        let _guard = tracker_lock().lock().unwrap();
-        // GIVEN a cleared tracker
-        global_tracker_clear();
-
-        // WHEN the command is invoked for a turn that was never tracked
-        let entries = get_injected_memory_entries("never-seen".to_string())
-            .await
-            .expect("command should succeed");
-
-        // THEN the response is empty (not an error)
-        assert!(entries.is_empty());
-    }
-
     #[test]
     fn test_memory_entry_procedural_serializes() {
         // GIVEN a procedural memory entry
@@ -595,3 +244,6 @@ mod tests {
         assert!(json["expires_at"].is_null());
     }
 }
+
+#[cfg(test)]
+mod attached_tests;

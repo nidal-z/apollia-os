@@ -7,6 +7,7 @@
 //! task).
 
 pub mod agent_packages;
+pub mod agent_sheet;
 pub mod agents;
 pub mod artifacts;
 #[cfg(debug_assertions)]
@@ -16,12 +17,14 @@ pub mod chat_libre;
 pub mod cli;
 pub mod config;
 pub mod connections;
+pub mod hf_token;
 pub mod hitl;
 pub mod integrations;
 pub mod link_preview;
 pub mod llm;
 pub mod llm_loaded;
 pub mod mcp;
+pub mod mcp_bridge;
 pub mod mcp_coaching;
 pub mod memory;
 pub mod meta_automation;
@@ -259,5 +262,9 @@ async fn http_request_json(
         return Err(error_msg);
     }
 
+    // A route that answers `204 No Content` has nothing to parse.
+    if resp_bytes.is_empty() {
+        return Ok(serde_json::Value::Null);
+    }
     serde_json::from_str(&body_str).map_err(|e| format!("invalid JSON response: {e}"))
 }

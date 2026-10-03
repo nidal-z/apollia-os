@@ -54,10 +54,12 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ApiErrorBody | ModelsListResponse]:
-    """`GET /api/v1/stt/models`, list available `.bin` model files.
+    """`GET /api/v1/stt/models`, list available model files.
 
-     Scans `~/.apollia/models/` for `.bin` files and returns their name,
-    path, and size. Returns an empty list if the directory does not exist.
+     Scans `~/.apollia/models/` for the extensions in
+    [`MODEL_EXTENSIONS`](crate::stt::MODEL_EXTENSIONS) and returns their name,
+    path, and size, the list the desktop shows in both modes. Returns an empty
+    list if the directory does not exist.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -80,10 +82,12 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> ApiErrorBody | ModelsListResponse | None:
-    """`GET /api/v1/stt/models`, list available `.bin` model files.
+    """`GET /api/v1/stt/models`, list available model files.
 
-     Scans `~/.apollia/models/` for `.bin` files and returns their name,
-    path, and size. Returns an empty list if the directory does not exist.
+     Scans `~/.apollia/models/` for the extensions in
+    [`MODEL_EXTENSIONS`](crate::stt::MODEL_EXTENSIONS) and returns their name,
+    path, and size, the list the desktop shows in both modes. Returns an empty
+    list if the directory does not exist.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -102,10 +106,12 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ApiErrorBody | ModelsListResponse]:
-    """`GET /api/v1/stt/models`, list available `.bin` model files.
+    """`GET /api/v1/stt/models`, list available model files.
 
-     Scans `~/.apollia/models/` for `.bin` files and returns their name,
-    path, and size. Returns an empty list if the directory does not exist.
+     Scans `~/.apollia/models/` for the extensions in
+    [`MODEL_EXTENSIONS`](crate::stt::MODEL_EXTENSIONS) and returns their name,
+    path, and size, the list the desktop shows in both modes. Returns an empty
+    list if the directory does not exist.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -126,10 +132,12 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> ApiErrorBody | ModelsListResponse | None:
-    """`GET /api/v1/stt/models`, list available `.bin` model files.
+    """`GET /api/v1/stt/models`, list available model files.
 
-     Scans `~/.apollia/models/` for `.bin` files and returns their name,
-    path, and size. Returns an empty list if the directory does not exist.
+     Scans `~/.apollia/models/` for the extensions in
+    [`MODEL_EXTENSIONS`](crate::stt::MODEL_EXTENSIONS) and returns their name,
+    path, and size, the list the desktop shows in both modes. Returns an empty
+    list if the directory does not exist.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

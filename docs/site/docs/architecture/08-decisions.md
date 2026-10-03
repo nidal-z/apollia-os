@@ -228,6 +228,26 @@ weight: the engine and its dependencies add about 150 MB to the macOS disk
 image, and they need macOS 14 or later, the floor of the MLX wheels at the
 pinned version. The Windows and Linux bundles do not carry it.
 
+Engines have an update channel of their own and do not follow the version of
+Apollia. The embedded engine serves every machine from the first launch; an
+accelerated build, CUDA on a machine with an NVIDIA card, is downloaded on
+demand, or imported from a disk without network, and the launcher then takes the
+newest installed build of that variant over the embedded one. Every download or
+import of an engine is preceded by the verification of a digest manifest
+signed in the minisign format with a dedicated distribution key. Each channel,
+stable or preview, publishes one such manifest, listing every engine archive
+with its SHA-256. The public half of that key is compiled into the binary and
+is the only key accepted. No archive is requested before the signature holds,
+an archive whose digest differs from the manifest is deleted, and a manifest
+older than the last one accepted on its channel is refused. A mirror can replace
+the address manifests and archives are fetched from; it cannot replace the key.
+Engine archives are read as zip only, the format already read for agent
+packages, and no other archive format is parsed. Upstream builds published as
+`.tar.gz`, those for macOS and Linux among them, are repackaged as zip by the
+release pipeline that publishes the manifest, and the manifest carries the
+digest of that zip. The MLX engine environment is listed in the same manifest
+and installed through the same verification.
+
 There is no dedicated cloud provider. A remote model is reached through one
 generic connection to an OpenAI-compatible server, at the address the
 organization designates: a self-hosted vLLM or LM Studio, or a gateway. Any
@@ -297,8 +317,18 @@ dictation and nothing else.
 
 ## Model Context Protocol {#mcp}
 
-Apollia is an MCP client over stdio and HTTP transports, and also exposes its
-own native tools as an MCP server over stdio.
+Apollia is an MCP client over stdio and HTTP transports. It is also an MCP
+server, for the agents and workflows the user chooses and nothing else:
+`apollia-os mcp server` is a stdio bridge to the running daemon, which lists
+the agents and workflows marked exposed and runs one to its end when a client
+calls it. An agent takes one message, under the tool name `agent__<id>`; a
+workflow takes the inputs its schema declares, under
+`workflow__<package>_<workflow>`. A name keeps to `[A-Za-z0-9_-]` and 64
+characters, as the model APIs require, and two items whose names would
+collide are both left out. The bridge is off by default: the daemon refuses
+it until `[mcp] server_enabled` is turned on, a setting it reads again each
+time a bridge opens. The native tools (shell, files, agent installation) are
+no longer served to an MCP client.
 
 Every MCP response is treated as untrusted input. Responses are capped per
 server, tool names and descriptions are validated at ingestion against a
@@ -308,6 +338,20 @@ runtime.
 
 Servers requiring OAuth go through a dedicated flow with its own, smaller
 response cap.
+
+Node.js is not shipped with Apollia, which keeps principle 2 (zero external
+dependency): nothing has to be installed on the machine beforehand. A pinned
+LTS release of Node.js is published in the signed digest manifest of the engine
+channel, the manifest signed in the minisign format with Apollia's dedicated
+distribution key (see [Local inference](#local-inference)), and it is
+downloaded the first time a server launched by `node` or `npx` needs it: the
+manifest signature is verified before any archive is requested, then the
+archive digest, then the archive is extracted into the engine store. Such a
+server then runs on that Node.js by its absolute path, never through the
+`PATH`; while none is installed, its launch fails with a typed "Node.js
+required" error. A machine without network imports Node.js from a disk,
+through the same verification. The npm packages of the servers install from a
+lockfile carrying an integrity digest for each package.
 
 ## Connectors {#connectors}
 
@@ -345,6 +389,20 @@ The cost is named: two crates and their small trees (`imap-proto`, `hashify`,
 `stop-token`, `async-channel`) enter every build, for a protocol whose
 servers vary in how strictly they follow it. A server that misreads a command
 answers a typed protocol error rather than a crash.
+
+## Batch export {#batch-export}
+
+The result of a batch is exported as an Excel workbook, as CSV or as JSON, one
+row per item. CSV and JSON are written without a dependency. The workbook is
+written by `rust_xlsxwriter` (MIT or Apache-2.0), a writer only, with no
+network access, pinned to 0.92.0: it is the last release that depends on the
+major version of `zip` the workspace already carries, and a later one would
+put two versions of `zip` in every build. It adds three crates to the lock
+file, itself, `zopfli` and `zlib-rs` (see [Package archive](#package-archive)).
+
+`rust_xlsxwriter` cannot change a workbook that already exists. Writing results
+back into the file a batch was read from is decided with the reader of
+spreadsheets, not here.
 
 ## Agent-to-agent messaging {#agent-messaging}
 
@@ -571,9 +629,14 @@ already in the tree through the desktop updater; no crate entered the lock
 file. `zip` is compiled with deflate only: no encryption, no bzip2, lzma, zstd
 or deflate64. `flate2` is declared beside it for one reason, to choose the
 pure-Rust backend (`miniz_oxide`) of that deflate: `zip` leaves the backend to
-the caller, `flate2` refuses to compile without one, and the `deflate` feature
-of `zip` that would pick one itself pulls in `zopfli` and `zlib-rs`, which the
-tree does not hold.
+the caller, and `flate2` refuses to compile without one.
+
+The Excel export of a batch (see [Batch export](#batch-export)) changed one
+part of this. Its writer turns on the `deflate` feature of `zip`, which brings
+two pure-Rust crates, `zopfli` (Apache-2.0) and `zlib-rs` (Zlib), and makes
+`zlib-rs` the deflate backend of `flate2` across the build. Both were accepted
+rather than writing the workbook by hand over `zip` alone. The read bounds
+above are unchanged.
 
 The packages Apollia ships inside its own binary, the in-app guide first, are
 not signed. The desktop assembles each of them on start from files embedded at
@@ -588,6 +651,16 @@ distribution signature covers, so signing the package again would prove
 nothing more. Like any package, it is recorded in the audit journal, a newer
 installed version is never downgraded, and the user's overrides and the
 disabled state of its agents survive an update.
+
+A package tool runs with a bare context: no memory, no user profile. One
+exception is decided by the host, never by a package. The onboarding of
+Apollia ships as a declarative agent with one tool that records the profile
+facts of the first conversation, the right the onboarding agent held when it
+ran code. The runtime grants that tool the user profile, writable, and the
+memory of the onboarding, which the desktop reads to learn that the
+onboarding is complete. The grant names the package, the module and the
+source the binary carries: a tool whose module on disk is not that source byte
+for byte, whatever its package is called, gets nothing.
 
 ## Host integration {#host-integration}
 

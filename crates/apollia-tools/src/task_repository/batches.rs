@@ -4,6 +4,11 @@
 //! item `pending`. The batch engine then moves each item to `running` with
 //! the task that runs it, and to a terminal status with its output; the
 //! counters of the batch follow in the same transaction.
+//!
+//! A batch is `running`, `paused`, or ended `completed`, `interrupted` or
+//! `stopped`. An item is `pending`, `running`, `completed`, `failed`,
+//! `canceled`, or `awaiting`: stopped because the agent reached for an access
+//! nobody granted for the batch, and run again once it is granted.
 
 use rusqlite::{params, OptionalExtension};
 
@@ -37,12 +42,14 @@ pub struct BatchRow {
     pub grants: Vec<String>,
     pub concurrency: u32,
     pub max_failures: u32,
-    /// `running`, `completed` or `interrupted`.
+    /// `running`, `paused`, `completed`, `interrupted` or `stopped`.
     pub state: String,
     pub total: u64,
     pub completed: u64,
     pub failed: u64,
     pub canceled: u64,
+    /// Items waiting for an access to be granted.
+    pub awaiting: u64,
     pub created_at: String,
     pub updated_at: String,
     pub ended_at: Option<String>,
@@ -57,7 +64,7 @@ pub struct BatchItemRow {
     pub origin: String,
     /// Its input as read from the source.
     pub input: serde_json::Value,
-    /// `pending`, `running`, `completed`, `failed` or `canceled`.
+    /// `pending`, `running`, `completed`, `failed`, `canceled` or `awaiting`.
     pub status: String,
     /// The answer, or the failure.
     pub output: Option<String>,
@@ -68,7 +75,20 @@ pub struct BatchItemRow {
 }
 
 const BATCH_COLUMNS: &str = "batch_id, agent_name, source_json, grants_json, concurrency, \
-     max_failures, state, total, completed, failed, canceled, created_at, updated_at, ended_at";
+     max_failures, state, total, completed, failed, canceled, created_at, updated_at, ended_at, \
+     (SELECT COUNT(*) FROM batch_items i \
+      WHERE i.batch_id = batches.batch_id AND i.status = 'awaiting')";
+
+/// Recounts the terminal items of batch `?1` into its counters.
+const RECOUNT: &str = "UPDATE batches SET \
+         completed  = (SELECT COUNT(*) FROM batch_items \
+                       WHERE batch_id = ?1 AND status = 'completed'), \
+         failed     = (SELECT COUNT(*) FROM batch_items \
+                       WHERE batch_id = ?1 AND status = 'failed'), \
+         canceled   = (SELECT COUNT(*) FROM batch_items \
+                       WHERE batch_id = ?1 AND status = 'canceled'), \
+         updated_at = CURRENT_TIMESTAMP \
+     WHERE batch_id = ?1";
 
 const ITEM_COLUMNS: &str =
     "rank, origin_ref, input_json, status, output_text, sources_json, task_id";
@@ -104,6 +124,7 @@ fn batch_row(row: &rusqlite::Row<'_>) -> Result<BatchRow, rusqlite::Error> {
         created_at: row.get(11)?,
         updated_at: row.get(12)?,
         ended_at: row.get(13)?,
+        awaiting: count(row, 14)?,
     })
 }
 
@@ -367,18 +388,7 @@ impl TaskRepository {
                     &output
                 ],
             )?;
-            tx.execute(
-                "UPDATE batches SET \
-                     completed  = (SELECT COUNT(*) FROM batch_items \
-                                   WHERE batch_id = ?1 AND status = 'completed'), \
-                     failed     = (SELECT COUNT(*) FROM batch_items \
-                                   WHERE batch_id = ?1 AND status = 'failed'), \
-                     canceled   = (SELECT COUNT(*) FROM batch_items \
-                                   WHERE batch_id = ?1 AND status = 'canceled'), \
-                     updated_at = CURRENT_TIMESTAMP \
-                 WHERE batch_id = ?1",
-                params![&batch_id],
-            )?;
+            tx.execute(RECOUNT, params![&batch_id])?;
             let row = get_batch(&tx, &batch_id)?
                 .ok_or_else(|| TaskRepoError::NotFound(batch_id.clone()))?;
             tx.commit()?;
@@ -387,22 +397,110 @@ impl TaskRepository {
         .await
     }
 
-    /// Ends a batch in `state`, `completed` or `interrupted`.
+    /// Ends a batch in `state`, `completed`, `interrupted` or `stopped`.
     ///
     /// # Errors
     ///
     /// [`TaskRepoError::Sqlite`].
     pub async fn end_batch(&self, batch_id: &str, state: &str) -> Result<(), TaskRepoError> {
+        self.set_batch_state(batch_id, state, true).await
+    }
+
+    /// Moves a batch to `state`. An ended state stamps `ended_at`; `running`
+    /// and `paused` clear it, so a batch run again is no longer ended.
+    ///
+    /// # Errors
+    ///
+    /// [`TaskRepoError::Sqlite`].
+    pub async fn set_batch_state(
+        &self,
+        batch_id: &str,
+        state: &str,
+        ended: bool,
+    ) -> Result<(), TaskRepoError> {
         let batch_id = batch_id.to_string();
         let state = state.to_string();
         self.blocking(move |conn| {
             conn.execute(
-                "UPDATE batches SET state = ?2, ended_at = CURRENT_TIMESTAMP, \
+                "UPDATE batches SET state = ?2, \
+                     ended_at = CASE WHEN ?3 THEN CURRENT_TIMESTAMP ELSE NULL END, \
                      updated_at = CURRENT_TIMESTAMP \
                  WHERE batch_id = ?1",
-                params![&batch_id, &state],
+                params![&batch_id, &state, ended],
             )?;
             Ok(())
+        })
+        .await
+    }
+
+    /// Cancels the items of a batch that never started, with `reason` as
+    /// their output, and counts them. Returns how many.
+    ///
+    /// # Errors
+    ///
+    /// [`TaskRepoError::Sqlite`].
+    pub async fn cancel_pending_items(
+        &self,
+        batch_id: &str,
+        reason: &str,
+    ) -> Result<u64, TaskRepoError> {
+        let batch_id = batch_id.to_string();
+        let reason = reason.to_string();
+        self.blocking(move |conn| {
+            let tx = conn.transaction()?;
+            let n = tx.execute(
+                "UPDATE batch_items SET status = 'canceled', output_text = ?2, \
+                     updated_at = CURRENT_TIMESTAMP \
+                 WHERE batch_id = ?1 AND status = 'pending'",
+                params![&batch_id, &reason],
+            )?;
+            tx.execute(RECOUNT, params![&batch_id])?;
+            tx.commit()?;
+            Ok(n as u64)
+        })
+        .await
+    }
+
+    /// Puts back to `pending` the items of a batch that failed or wait for an
+    /// access, from their input as read at launch: their output, sources and
+    /// task are forgotten. `grants` are added to those of the batch. Returns
+    /// how many items are run again.
+    ///
+    /// # Errors
+    ///
+    /// [`TaskRepoError::Sqlite`] or [`TaskRepoError::Json`].
+    pub async fn requeue_for_retry(
+        &self,
+        batch_id: &str,
+        grants: Vec<String>,
+    ) -> Result<u64, TaskRepoError> {
+        let batch_id = batch_id.to_string();
+        self.blocking(move |conn| {
+            let tx = conn.transaction()?;
+            let held: String = tx.query_row(
+                "SELECT grants_json FROM batches WHERE batch_id = ?1",
+                params![&batch_id],
+                |row| row.get(0),
+            )?;
+            let mut merged: Vec<String> = serde_json::from_str(&held)?;
+            for grant in grants {
+                if !merged.contains(&grant) {
+                    merged.push(grant);
+                }
+            }
+            tx.execute(
+                "UPDATE batches SET grants_json = ?2 WHERE batch_id = ?1",
+                params![&batch_id, serde_json::to_string(&merged)?],
+            )?;
+            let n = tx.execute(
+                "UPDATE batch_items SET status = 'pending', output_text = NULL, \
+                     sources_json = NULL, task_id = NULL, updated_at = CURRENT_TIMESTAMP \
+                 WHERE batch_id = ?1 AND status IN ('failed', 'awaiting')",
+                params![&batch_id],
+            )?;
+            tx.execute(RECOUNT, params![&batch_id])?;
+            tx.commit()?;
+            Ok(n as u64)
         })
         .await
     }

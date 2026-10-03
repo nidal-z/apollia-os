@@ -157,6 +157,9 @@ pub struct SessionWiring {
     /// Runs the agents and workflows the agent was granted; `None` offers
     /// none of them.
     pub composition: Option<Composition>,
+    /// The conversation turn the run answers, the identifier of its answer
+    /// message; `None` outside a conversation.
+    pub turn_id: Option<String>,
 }
 
 /// What the granted agent and workflow calls of a run go through.
@@ -285,7 +288,8 @@ impl AgentExecutor {
         .with_tool_turn_temperature(wiring.tool_turn_temperature)
         .with_prefix_checker(wiring.prefix_checker)
         .with_approval_timeout(wiring.approval_timeout)
-        .with_preferred_backend(spec.model.clone());
+        .with_preferred_backend(spec.model.clone())
+        .with_turn_id(wiring.turn_id);
         Self {
             spec,
             agent,

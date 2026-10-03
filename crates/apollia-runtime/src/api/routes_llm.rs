@@ -29,18 +29,20 @@ use apollia_llm::{BackendInfo, ChatMessage, CompletionRequest};
 
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
+use crate::local_engine::guardrails::{GuardrailRefusedBody, GUARDRAIL_REFUSED_CODE};
 
 pub mod backends;
 pub mod costs;
 pub mod loaded;
 pub mod presets;
 pub mod servers;
+pub mod turn_calls;
 
 use backends::{
     create_llm_backend, delete_llm_backend, get_llm_backend, list_llm_backends, reload_llm_router,
     set_default_llm_backend, update_llm_backend,
 };
-use costs::{get_llm_costs, get_llm_daily_costs};
+use costs::{get_cost_alert_threshold, get_llm_costs, get_llm_daily_costs};
 
 // ─────────────────────────────────────────────
 // Response / Request types
@@ -315,6 +317,7 @@ pub async fn ping_llm_backend<B: ExecutionBackend + Clone>(
     request_body = ChatRequest,
     responses(
         (status = 200, description = "Completion result", body = ChatResponse),
+        (status = 409, description = "A local model the load guardrail refused; confirm the load to go ahead", body = crate::local_engine::guardrails::GuardrailRefusedBody),
         (status = 503, description = "No router configured or backend call failed", body = crate::api::openapi::ApiErrorBody),
     )
 )]
@@ -373,9 +376,19 @@ pub async fn llm_chat<B: ExecutionBackend + Clone>(
 /// A structured-output failure is the caller's to fix, not the backend's to
 /// retry: a schema no grammar can express and an answer the schema refuses are
 /// both 422, where an unreachable backend stays 503. Collapsing the three into
-/// one status is what made a malformed schema look like an outage.
+/// one status is what made a malformed schema look like an outage. A local
+/// model the load guardrail refused is 409 with [`GuardrailRefusedBody`]: the
+/// estimate and the budget, for the interface to word in its own language.
 fn llm_error_response(err: apollia_llm::LlmError) -> (StatusCode, Json<serde_json::Value>) {
     use apollia_llm::LlmError;
+    if let Some(refused) = GuardrailRefusedBody::from_llm_error(&err) {
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::to_value(refused).unwrap_or_else(
+                |_| serde_json::json!({"error": err.to_string(), "code": GUARDRAIL_REFUSED_CODE}),
+            )),
+        );
+    }
     let status = match &err {
         LlmError::StructuredOutputUnavailable { .. }
         | LlmError::StructuredOutputUnsupported { .. }
@@ -431,6 +444,7 @@ fn validated_value(
     responses(
         (status = 200, description = "Completion result", body = ChatResponse),
         (status = 400, description = "Unknown message role", body = crate::api::openapi::ApiErrorBody),
+        (status = 409, description = "A local model the load guardrail refused; confirm the load to go ahead", body = crate::local_engine::guardrails::GuardrailRefusedBody),
         (status = 503, description = "No router configured or backend call failed", body = crate::api::openapi::ApiErrorBody),
     )
 )]
@@ -519,6 +533,7 @@ pub async fn llm_complete<B: ExecutionBackend + Clone>(
 /// - `POST /api/v1/llm/chat`                           , send a one-shot prompt
 /// - `GET  /api/v1/llm/costs`                          , aggregate cost/token stats
 /// - `GET  /api/v1/llm/costs/daily`                    , daily cost breakdown per backend
+/// - `GET  /api/v1/llm/cost-alert-threshold`           , cost alert threshold of the live router
 /// - `GET    /api/v1/llm/backends`                     , list configured backends
 /// - `GET    /api/v1/llm/backends/:name`               , get one backend
 /// - `POST   /api/v1/llm/backends`                     , create backend
@@ -527,6 +542,7 @@ pub async fn llm_complete<B: ExecutionBackend + Clone>(
 /// - `POST   /api/v1/llm/backends/:name/set-default`   , mark as default
 /// - `GET    /api/v1/llm/loaded-models`                , list resident local models
 /// - `POST   /api/v1/llm/loaded-models/unload`         , unload one resident model
+/// - `GET    /api/v1/sessions/:id/turns/:turn_id/llm-calls`, the model calls of one turn
 pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
         .route("/api/v1/llm/status", get(get_llm_status::<B>))
@@ -535,6 +551,10 @@ pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route("/api/v1/llm/complete", post(llm_complete::<B>))
         .route("/api/v1/llm/costs", get(get_llm_costs::<B>))
         .route("/api/v1/llm/costs/daily", get(get_llm_daily_costs::<B>))
+        .route(
+            "/api/v1/llm/cost-alert-threshold",
+            get(get_cost_alert_threshold::<B>),
+        )
         .route(
             "/api/v1/llm/backends",
             get(list_llm_backends::<B>).post(create_llm_backend::<B>),
@@ -550,6 +570,10 @@ pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             post(set_default_llm_backend::<B>),
         )
         .route("/api/v1/llm/reload", post(reload_llm_router::<B>))
+        .route(
+            "/api/v1/sessions/:id/turns/:turn_id/llm-calls",
+            get(turn_calls::get_turn_llm_calls::<B>),
+        )
         .merge(loaded::loaded_model_routes::<B>())
         .merge(servers::server_routes::<B>())
         .merge(presets::preset_routes::<B>())
@@ -558,6 +582,10 @@ pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
 // ─────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────
+
+// The engine routes' tests build their state with the same helper.
+#[cfg(test)]
+pub(crate) use tests::{test_app_state_no_llm, MockBackend};
 
 #[cfg(test)]
 pub mod tests {
@@ -621,6 +649,7 @@ pub mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -641,9 +670,11 @@ pub mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         }
     }
 
@@ -815,6 +846,88 @@ pub mod tests {
         // says the request is the thing to fix rather than the backend
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(json["path"], "$.count");
+    }
+
+    /// A local backend whose load guardrail refuses its model, as the local
+    /// engine backend reports it.
+    struct RefusedLoadModel;
+
+    #[async_trait::async_trait]
+    impl apollia_llm::CompletionModel for RefusedLoadModel {
+        async fn complete(
+            &self,
+            _req: apollia_llm::CompletionRequest,
+        ) -> Result<apollia_llm::CompletionResponse, apollia_llm::LlmError> {
+            Err(apollia_llm::LlmError::LoadRefused {
+                backend: "local".to_owned(),
+                model: "/models/big.gguf".to_owned(),
+                level: "strict".to_owned(),
+                estimated_gb: 18.3,
+                budget_gb: 12.0,
+            })
+        }
+
+        async fn stream(
+            &self,
+            _req: apollia_llm::CompletionRequest,
+        ) -> Result<
+            Pin<
+                Box<
+                    dyn futures::Stream<
+                            Item = Result<apollia_llm::StreamChunk, apollia_llm::LlmError>,
+                        > + Send,
+                >,
+            >,
+            apollia_llm::LlmError,
+        > {
+            Err(apollia_llm::LlmError::InferenceError("not used".into()))
+        }
+
+        fn is_available(&self) -> bool {
+            true
+        }
+
+        fn backend_name(&self) -> &str {
+            "local"
+        }
+
+        fn model_id(&self) -> &str {
+            "big"
+        }
+    }
+
+    #[tokio::test]
+    async fn a_load_the_guardrail_refuses_answers_its_typed_body() {
+        // GIVEN a router whose local backend is refused by the load guardrail
+        let state = test_app_state_no_llm();
+        let model: Arc<dyn apollia_llm::CompletionModel> = Arc::new(RefusedLoadModel);
+        let mut backends = std::collections::HashMap::new();
+        backends.insert("local".to_owned(), model);
+        *state.llm_router.write().await =
+            Some(Arc::new(LlmRouter::with_backends(backends, "local")));
+
+        // WHEN a chat call reaches it
+        let (status, json) = post_chat(
+            state,
+            serde_json::json!({"prompt": "bonjour", "backend": "local"}),
+        )
+        .await;
+
+        // THEN the answer is the guardrail body: its code, its level, the
+        // estimate and the budget, for an interface to word in French or in
+        // English, beside the English sentence
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(json["code"], "guardrail_refused");
+        assert_eq!(json["model"], "/models/big.gguf");
+        assert_eq!(json["level"], "strict");
+        assert_eq!(json["estimatedGb"], 18.3);
+        assert_eq!(json["budgetGb"], 12.0);
+        assert!(
+            json["error"]
+                .as_str()
+                .is_some_and(|e| e.contains("18.3 GB")),
+            "{json}"
+        );
     }
 
     #[tokio::test]
@@ -1265,5 +1378,50 @@ pub mod tests {
             cell.read().await.is_some(),
             "a failed reload must not drop the previously-loaded router"
         );
+    }
+
+    async fn read_cost_alert_threshold(
+        state: AppState<MockBackend>,
+    ) -> (StatusCode, serde_json::Value) {
+        let app_router = llm_routes::<MockBackend>().with_state(state);
+        let req = Request::builder()
+            .uri("/api/v1/llm/cost-alert-threshold")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app_router.oneshot(req).await.unwrap();
+        let status = resp.status();
+        let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        (status, serde_json::from_slice(&bytes).unwrap())
+    }
+
+    #[tokio::test]
+    async fn test_cost_alert_threshold_reads_the_live_router() {
+        // GIVEN a runtime serving a router, the one a reload swapped in
+        let state = test_app_state_no_llm();
+        let router = Arc::new(LlmRouter::empty());
+        let expected = router.cost_alert_threshold_usd();
+        *state.llm_router.write().await = Some(router);
+
+        // WHEN the cost alert threshold is read
+        let (status, json) = read_cost_alert_threshold(state).await;
+
+        // THEN it is the threshold that router carries, under its field
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(json["threshold_usd"], serde_json::json!(expected));
+        assert!(json.as_object().unwrap().contains_key("threshold_usd"));
+    }
+
+    #[tokio::test]
+    async fn test_cost_alert_threshold_without_a_router_is_null_not_an_error() {
+        // GIVEN a runtime started without any LLM router
+        let state = test_app_state_no_llm();
+
+        // WHEN the cost alert threshold is read
+        let (status, json) = read_cost_alert_threshold(state).await;
+
+        // THEN the answer is no threshold, as the embedded command always
+        // answered, and not a refusal the settings page would show
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(json, serde_json::json!({ "threshold_usd": null }));
     }
 }

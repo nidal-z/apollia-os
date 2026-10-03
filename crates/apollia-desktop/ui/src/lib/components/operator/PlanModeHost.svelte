@@ -3,7 +3,7 @@
   // it owns the runtime-event subscription (cleaned up on destroy) and renders
   // the right surface from the shared store, adapting to the active UI mode.
   // Operator: compact review. Builder: detailed review with diff and edit entry.
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { planModeState, startPlanModeListener } from "$lib/stores/planMode";
   import PlanReview from "./PlanReview.svelte";
   import PlanReviewBuilder from "./PlanReviewBuilder.svelte";
@@ -32,7 +32,7 @@
         state.status === "editing" ||
         state.status === "error"),
   );
-  const isBuilder = $derived($uiMode === "builder");
+  const isBuilder = $derived($developerMode);
 </script>
 
 {#if visible && runId}

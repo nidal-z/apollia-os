@@ -81,29 +81,40 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     };
     use crate::api::routes_agents::installed::{install_agent, list_installed_agents};
     use crate::api::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
+    use crate::api::routes_app_lifecycle::app_lifecycle_router;
     use crate::api::routes_approvals::{list_pending_approvals, list_resolved_approvals};
+    use crate::api::routes_artifacts::artifacts_router;
     use crate::api::routes_audit::{
         get_audit_anchor, get_audit_stats, list_audit, list_audit_journal, post_replay_run,
         show_audit_run, verify_audit_journal, verify_audit_run,
     };
+    use crate::api::routes_chat::conversations::{conversations_router, update_session};
     use crate::api::routes_chat::user_inputs::{
         answer_user_input, list_pending_user_inputs, reject_user_input,
     };
+    use crate::api::routes_chat::{approval_history, turns};
     use crate::api::routes_chat::{
         authorize_tool as chat_authorize_tool, close_session, create_session,
         fork_session as chat_fork_session, get_session as chat_get_session,
         get_session_todo as chat_get_session_todo, list_recent_sessions, list_session_children,
-        list_sessions, pause::pause_session, resume_session as chat_resume_session, send_message,
-        stream_session,
+        list_sessions, pause::pause_session, plan, resume_session as chat_resume_session,
+        send_message, stream_session,
     };
+    use crate::api::routes_chat_assists::chat_assists_router;
+    use crate::api::routes_companion::companion_router;
     use crate::api::routes_connections::connections_router;
     use crate::api::routes_connectors::connectors_router;
+    use crate::api::routes_drive_folders::drive_folders_router;
+    use crate::api::routes_engines::engines_router;
     use crate::api::routes_hooks::list_hooks;
     use crate::api::routes_imap::imap_router;
     use crate::api::routes_llm::llm_routes;
+    use crate::api::routes_local_ai::local_ai_router;
     use crate::api::routes_mcp::mcp_router;
     use crate::api::routes_mcp_registry::mcp_registry_router;
     use crate::api::routes_mcp_secrets::mcp_secrets_router;
+    use crate::api::routes_memory::memory_router;
+    use crate::api::routes_memory_maintenance::memory_maintenance_router;
     use crate::api::routes_messages::{inject_agent_message, list_agent_messages, stream_mailbox};
     use crate::api::routes_model_hub::model_hub_routes;
     use crate::api::routes_notifications::logs::notification_logs;
@@ -111,20 +122,25 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_notifications::{
         create_channel, delete_channel, get_events, list_channels, set_events, update_channel,
     };
+    use crate::api::routes_oauth_clients::oauth_clients_router;
+    use crate::api::routes_onboarding::onboarding_router;
+    use crate::api::routes_permissions::permissions_router;
     use crate::api::routes_plan_cache::{clear_plan_cache, get_plan_cache_stats};
     use crate::api::routes_profile::profile_router;
     use crate::api::routes_resilience::resilience_router;
     use crate::api::routes_review::post_review;
     use crate::api::routes_sse::stream_task;
+    use crate::api::routes_stt::settings::{get_stt_config, reload_stt_engine, update_stt_config};
     use crate::api::routes_stt::{
-        delete_transcription, get_stt_config, list_models, list_transcriptions, reload_stt_engine,
-        stt_status, transcribe_audio, update_stt_config,
+        delete_transcription, list_models, list_transcriptions, stt_status, transcribe_audio,
     };
     use crate::api::routes_tasks::summaries::list_task_summaries;
     use crate::api::routes_tasks::{
         cancel_task, get_task, list_tasks, resume_task, submit_plan_decision, submit_task,
     };
     use crate::api::routes_timeline::get_task_timeline;
+    use crate::api::routes_tool_credentials::tool_credentials_router;
+    use crate::api::routes_tool_governance::tool_governance_router;
     use crate::api::routes_tools::{describe_tool, list_tools};
     use crate::api::routes_trace::get_task_trace;
     use crate::api::routes_triggers::{
@@ -250,6 +266,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(llm_routes::<B>())
         .merge(crate::api::routes_agent_definitions::agent_definition_routes::<B>())
         .merge(model_hub_routes::<B>())
+        .merge(engines_router::<B>())
         .merge(resilience_router::<B>())
         // Chat session routes
         .route(
@@ -259,16 +276,63 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         // /recent must be registered before /:id to avoid the path param capturing "recent"
         .route("/api/v1/sessions/recent", get(list_recent_sessions::<B>))
         .route(
+            "/api/v1/sessions/approval-history",
+            get(approval_history::list_approval_history::<B>),
+        )
+        .route(
             "/api/v1/sessions/:id",
-            get(chat_get_session::<B>).delete(close_session::<B>),
+            get(chat_get_session::<B>)
+                .patch(update_session::<B>)
+                .delete(close_session::<B>),
         )
         .route("/api/v1/sessions/:id/messages", post(send_message::<B>))
+        .route(
+            "/api/v1/sessions/:id/messages/:message_id/regenerate",
+            post(turns::regenerate_response::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/messages/:message_id/resend",
+            post(turns::resend_message::<B>),
+        )
         .route(
             "/api/v1/sessions/:id/authorize",
             post(chat_authorize_tool::<B>),
         )
         .route("/api/v1/sessions/:id/stream", get(stream_session::<B>))
         .route("/api/v1/sessions/:id/pause", post(pause_session::<B>))
+        .route(
+            "/api/v1/sessions/:id/metrics",
+            get(crate::api::routes_chat::session_reads::get_session_metrics::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/workspace",
+            get(crate::api::routes_chat::session_reads::get_session_workspace::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/model-capabilities",
+            get(crate::api::routes_chat::session_reads::get_session_model_capabilities::<B>),
+        )
+        .route(
+            "/api/v1/sessions/plan-mode-default",
+            get(plan::get_plan_mode_default::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/plan-mode",
+            axum::routing::put(plan::set_plan_mode::<B>),
+        )
+        .route("/api/v1/sessions/:id/plan", get(plan::get_session_plan::<B>))
+        .route(
+            "/api/v1/sessions/:id/plan/mutations",
+            get(plan::list_plan_mutations::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/plan/approve",
+            post(plan::approve_plan::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/plan/reject",
+            post(plan::reject_plan::<B>),
+        )
         .route("/api/v1/sessions/:id/todo", get(chat_get_session_todo::<B>))
         .route(
             "/api/v1/sessions/:id/resume",
@@ -310,10 +374,28 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         // Native connector consent routes
         .merge(connections_router::<B>())
         .merge(profile_router::<B>())
+        .merge(companion_router::<B>())
+        .merge(local_ai_router::<B>())
+        .merge(tool_credentials_router::<B>())
+        .merge(onboarding_router::<B>())
+        .merge(artifacts_router::<B>())
+        .merge(memory_maintenance_router::<B>())
+        .merge(app_lifecycle_router::<B>())
+        .merge(crate::api::routes_server::server_router::<B>())
+        .merge(conversations_router::<B>())
+        .merge(memory_router::<B>())
+        .merge(permissions_router::<B>())
+        .merge(tool_governance_router::<B>())
+        .merge(oauth_clients_router::<B>())
+        .merge(crate::api::routes_observability::observability_router::<B>())
+        .merge(chat_assists_router::<B>())
         .merge(connectors_router::<B>())
+        .merge(drive_folders_router::<B>())
         .merge(imap_router::<B>())
         .merge(crate::api::routes_batches::batch_routes::<B>())
         .merge(crate::api::routes_workflows::workflow_routes::<B>())
+        .merge(crate::api::routes_mcp_bridge::mcp_bridge_routes::<B>())
         .merge(crate::api::routes_packages::package_routes::<B>())
+        .merge(crate::api::routes_agent_packages::agent_package_routes::<B>())
         .with_state(state)
 }

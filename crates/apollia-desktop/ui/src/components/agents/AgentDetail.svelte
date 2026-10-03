@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import type { AgentListItem } from "$lib/types";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { navigateTo } from "$lib/stores/navigation";
   import { Sheet, SheetContent } from "$lib/components/ui/sheet";
   import { Avatar } from "$lib/components/ui/avatar";
@@ -10,7 +10,6 @@
   import { ExternalLink, Wrench, Tag, Cpu, Terminal, MessageSquare } from "lucide-svelte";
   import AgentActivity from "./AgentActivity.svelte";
   import AgentTriggers from "./AgentTriggers.svelte";
-  import AgentLlmInfo from "./AgentLlmInfo.svelte";
   import AgentMessagesPanel from "./AgentMessagesPanel.svelte";
   import { Card } from "$lib/components/ui/card";
   import { availability, statusLabel, type Availability } from "./agentStatus";
@@ -32,7 +31,7 @@
 
   const status = $derived(availability(agent));
   const isAvailable = $derived(status !== "unavailable");
-  const showMessagesSection = $derived(agent.supports_a2a === true && $uiMode === "builder");
+  const showMessagesSection = $derived(agent.supports_a2a === true && $developerMode);
   const allTools = $derived([
     ...agent.tools_required.map((t) => ({ name: t, required: true })),
     ...agent.tools_optional.map((t) => ({ name: t, required: false })),
@@ -128,8 +127,8 @@
         </Card>
       {/if}
 
-      <!-- Tools -->
-      {#if allTools.length > 0}
+      <!-- Tools: raw identifiers, developer mode only -->
+      {#if $developerMode && allTools.length > 0}
         <Card class="rounded-lg overflow-hidden" data-testid="agent-detail-tools">
           <div class="flex items-center gap-2 px-4 pt-3.5 pb-2">
             <Wrench size={12} class="text-muted-foreground/50" />
@@ -161,11 +160,6 @@
         <AgentTriggers agentName={agent.name} />
       </Card>
 
-      <!-- LLM info -->
-      <Card class="rounded-lg px-4 py-3.5">
-        <AgentLlmInfo />
-      </Card>
-
       <!-- Agent messages (A2A + builder mode only) -->
       {#if showMessagesSection}
         <Card class="rounded-lg px-4 py-3.5" data-testid="agent-messages-tab">
@@ -178,7 +172,7 @@
       {/if}
 
       <!-- Memory link (builder only) -->
-      {#if $uiMode === "builder"}
+      {#if $developerMode}
         <button
           class="flex w-full items-center gap-2 rounded-lg glass-card glass-border px-4 py-3 text-sm text-primary hover:bg-primary/5 transition-colors"
           onclick={handleMemoryLink}

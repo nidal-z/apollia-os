@@ -116,7 +116,9 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// Runtime ceiling the tier's budget is capped by.
     pub(in crate::chat::manager) runtime_budget: StepBudgetConfig,
     pub(in crate::chat::manager) history: Vec<ChatMessage>,
-    pub(in crate::chat::manager) available_tools: Vec<String>,
+    /// The access of the agent: a list, or the reading family read when the
+    /// exchange starts.
+    pub(in crate::chat::manager) available_tools: apollia_tools::AgentAccess,
     pub(in crate::chat::manager) authorized_tools: std::collections::HashSet<String>,
     pub(in crate::chat::manager) system_prompt: String,
     pub(in crate::chat::manager) inject_project_context: bool,
@@ -162,6 +164,9 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// Backend the session prefers (the free chat's stored choice), tried
     /// before the default at each call of the turn.
     pub(in crate::chat::manager) preferred_backend: Option<String>,
+    /// The turn the exchange answers: the identifier its answer is persisted
+    /// under.
+    pub(in crate::chat::manager) turn_id: Option<String>,
 }
 
 /// Resolved tool invoker plus the agent workspace path for a session.
@@ -210,9 +215,10 @@ pub enum InjectError {
 /// `executing` then `done`. The desktop hydrates the plan tab from `plan` and
 /// decides whether to show the approval card from `phase`, never from the
 /// plan's own status.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct ChatPlanSnapshot {
     /// Current plan, or `None` when the session has produced none.
+    #[schema(value_type = Option<Object>)]
     pub plan: Option<Plan>,
     /// Session plan-mode phase: `discovery`, `drafting`, `awaiting_approval`,
     /// `executing`, or `done`.

@@ -1,12 +1,3 @@
-<script lang="ts" context="module">
-  export const meta = {
-    title: "settings.nav.system",
-    icon: "info",
-    group: "settings.nav.cluster_system",
-    cluster: "system",
-  } as const;
-</script>
-
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { t } from "svelte-i18n";
@@ -32,7 +23,6 @@
   import SettingsSection from "../../components/settings/SettingsSection.svelte";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
   import SettingsToggle from "../../components/settings/SettingsToggle.svelte";
-  import UpdateCheckPanel from "../../components/settings/UpdateCheckPanel.svelte";
   import {
     systemInfoStore,
     securityPostureStore,
@@ -207,7 +197,7 @@
 {#if $systemInfoStore.loading && !$systemInfoStore.loaded}
   <SettingSectionSkeleton />
 {:else}
-  <SettingsSubPage route="system" data-testid="advanced-section">
+  <SettingsSubPage route="hardware" data-testid="advanced-section">
     <div class="flex items-center justify-between gap-3">
       <span class="text-caption text-muted-foreground" data-testid="system-info-last-refreshed">
         {$t("settings.system.last_refreshed", {
@@ -351,8 +341,6 @@
         </FormField>
       {/if}
     </SettingsSection>
-
-    <UpdateCheckPanel />
 
     {#if ($cliStatusStore.data as CliStatus | null)?.bundled}
       {@const cliStatus = $cliStatusStore.data as CliStatus}

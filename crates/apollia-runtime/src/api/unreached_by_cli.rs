@@ -178,14 +178,14 @@ fn unreached_ops() -> Vec<UnreachedOp> {
         UnreachedOp {
             id: "put_mcp_secret",
             method: Method::PUT,
-            path: "/api/v1/mcp/servers/probe/secrets/not-a-variable",
+            path: "/api/v1/mcp/servers/probe/secrets/1-not-a-variable",
             absent_method: Method::POST,
             live_probed: true,
         },
         UnreachedOp {
             id: "delete_mcp_secret",
             method: Method::DELETE,
-            path: "/api/v1/mcp/servers/probe/secrets/not-a-variable",
+            path: "/api/v1/mcp/servers/probe/secrets/1-not-a-variable",
             absent_method: Method::POST,
             live_probed: true,
         },
@@ -343,6 +343,7 @@ fn base_state(data_dir: &std::path::Path) -> AppState<MockBackend> {
         audit_trail: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        inference_governance: Default::default(),
         obs_config: apollia_core::ObservabilityConfig::default(),
         llm_call_repository: None,
         trigger_def_repo: None,
@@ -363,9 +364,11 @@ fn base_state(data_dir: &std::path::Path) -> AppState<MockBackend> {
         resilience_layer: None,
         runner_proxy: None,
         llama_server_supervisor: None,
+        mlx_engine: None,
         secret_store: crate::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     }
 }
 
@@ -859,6 +862,11 @@ async fn test_daily_costs_aggregates_the_calls_the_repository_holds() {
         latency_ms: Some(5),
         prompt_text: None,
         completion_text: None,
+        session_id: None,
+        turn_id: None,
+        ttft_ms: None,
+        finish_reason: None,
+        generation_ms: None,
     })
     .expect("save call");
     let mut state = base_state(dir.path());
@@ -991,18 +999,18 @@ async fn test_secret_routes_refuse_a_key_no_placeholder_can_carry() {
     let dir = tempfile::tempdir().expect("temp dir");
     let router = APIServer::build_router_for_test(base_state(dir.path()));
 
-    // WHEN a secret is put and deleted under a key with a dash in it
+    // WHEN a secret is put and deleted under a key that starts with a digit
     let (put_status, put_body) = call(
         router.clone(),
         Method::PUT,
-        "/api/v1/mcp/servers/probe/secrets/not-a-variable",
+        "/api/v1/mcp/servers/probe/secrets/1-not-a-variable",
         Body::from(r#"{"value":"v"}"#),
     )
     .await;
     let (delete_status, _) = call(
         router,
         Method::DELETE,
-        "/api/v1/mcp/servers/probe/secrets/not-a-variable",
+        "/api/v1/mcp/servers/probe/secrets/1-not-a-variable",
         Body::empty(),
     )
     .await;
@@ -1013,7 +1021,7 @@ async fn test_secret_routes_refuse_a_key_no_placeholder_can_carry() {
     assert_eq!(delete_status, StatusCode::BAD_REQUEST);
     let text = String::from_utf8_lossy(&put_body).to_string();
     assert!(
-        text.contains("environment variable name"),
+        text.contains("environment variable or header name"),
         "body was: {text}"
     );
 }

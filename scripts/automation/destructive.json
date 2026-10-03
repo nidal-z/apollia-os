@@ -13,7 +13,6 @@
     "user-menu-quit is played last with quit_app answered by a stub: the real command exits the process before the report is written, so the gesture is exercised up to the IPC call and the window is asserted still alive afterwards."
   ],
   "dynamicTestids": [
-    "agent-detail-title",
     "command-item-companion.toggle",
     "command-item-session.seed-session-2",
     "mcp-detail-tab-settings",
@@ -22,12 +21,13 @@
     "project-tab-settings",
     "provider-card-seed-provider-alpha-rules",
     "provider-delete-seed-provider-alpha-rules",
-    "settings-nav-danger",
+    "settings-nav-appearance",
+    "settings-nav-developer",
+    "settings-nav-general",
     "settings-nav-llm",
     "settings-nav-model-hub",
     "settings-nav-permissions",
-    "settings-nav-profile",
-    "sidebar-mode-option-builder"
+    "settings-nav-profile"
   ],
   "steps": [
     {
@@ -200,17 +200,26 @@
       "label": "09-chat-after"
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-builder"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
     },
     {
       "kind": "sleep",
@@ -990,11 +999,11 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger"
+      "testid": "settings-nav-appearance"
     },
     {
       "kind": "waitFor",
-      "testid": "danger-section",
+      "testid": "appearance-reset-onboarding",
       "timeoutMs": 15000
     },
     {
@@ -1051,7 +1060,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "waitFor",
@@ -1195,7 +1204,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "waitFor",

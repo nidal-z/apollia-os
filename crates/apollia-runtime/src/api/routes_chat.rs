@@ -9,6 +9,13 @@
 //! - `POST   /api/v1/sessions/:id/authorize`  , resolve approval
 //! - `GET    /api/v1/sessions/:id/stream`     , SSE stream
 //! - `POST   /api/v1/sessions/:id/pause`      , pause the turn in flight
+//! - `GET    /api/v1/sessions/:id/metrics`    , the metrics panel
+//! - `GET    /api/v1/sessions/:id/workspace`  , the working directory
+//! - `POST   /api/v1/sessions/:id/messages/:message_id/regenerate`, run a turn again
+//! - `POST   /api/v1/sessions/:id/messages/:message_id/resend`, edit and resend
+//! - `GET    /api/v1/sessions/approval-history`, decisions on chat tool calls
+//!
+//! The plan mode of a session lives in [`plan`].
 
 use std::convert::Infallible;
 
@@ -28,8 +35,13 @@ use crate::api::server::AppState;
 use crate::chat::types::{ChatMode, SessionStatus, ToolDecision};
 use crate::coordinator::ExecutionBackend;
 
+pub mod approval_history;
+pub mod conversations;
 pub mod pause;
+pub mod plan;
+pub mod session_reads;
 mod sse;
+pub mod turns;
 pub mod user_inputs;
 
 use sse::chat_event_to_sse;
@@ -734,7 +746,7 @@ mod tests {
     use tower::ServiceExt;
 
     #[derive(Clone)]
-    struct MockBackend;
+    pub(super) struct MockBackend;
 
     impl From<DynBackend> for MockBackend {
         fn from(_: DynBackend) -> Self {
@@ -805,6 +817,29 @@ mod tests {
     }
 
     fn test_router_with_chat(dir: &tempfile::TempDir) -> axum::Router {
+        test_router_with_chat_plan_default(dir, false)
+    }
+
+    /// A router over a chat manager whose sessions start in plan mode when
+    /// `plan_mode_default` is set, its database `chat.db` under `dir`.
+    pub(super) fn test_router_with_chat_plan_default(
+        dir: &tempfile::TempDir,
+        plan_mode_default: bool,
+    ) -> axum::Router {
+        APIServer::build_router_for_test(chat_state_plan_default(dir, plan_mode_default))
+    }
+
+    /// The state of a runtime whose chat subsystem is up, with no model.
+    pub(super) fn chat_state(dir: &tempfile::TempDir) -> AppState<MockBackend> {
+        chat_state_plan_default(dir, false)
+    }
+
+    /// The state of a runtime whose chat subsystem is up, with no model, its
+    /// sessions starting in plan mode when `plan_mode_default` is set.
+    fn chat_state_plan_default(
+        dir: &tempfile::TempDir,
+        plan_mode_default: bool,
+    ) -> AppState<MockBackend> {
         let (event_tx, _) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_tx.clone());
         let router_handle: TaskRouterHandle<MockBackend> =
@@ -829,12 +864,12 @@ mod tests {
             None,
             apollia_mcp::session::LoadingMode::Eager,
             20,
-            None,  // no hooks in tests
-            false, // plan-mode default off in tests
+            None, // no hooks in tests
+            plan_mode_default,
         )
         .expect("spawn chat manager");
 
-        let state: AppState<MockBackend> = AppState {
+        AppState {
             router_handle,
             registry_handle,
             event_sender: event_tx,
@@ -854,6 +889,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -874,12 +910,12 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
-        };
-
-        APIServer::build_router_for_test(state)
+            compat_server: None,
+        }
     }
 
     #[tokio::test]

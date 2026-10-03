@@ -139,3 +139,85 @@ async fn ended_batches_leave_the_running_set() {
     assert!(ended.ended_at.is_some());
     assert!(repo.batch("missing").await.unwrap().is_none());
 }
+
+// GIVEN a batch whose items failed, waited for an access, completed and never ran
+// WHEN the batch is retried with one more grant
+// THEN only the failed and waiting items are pending again, from their input as
+//      read at launch, their output and task forgotten, and the grant is added
+#[tokio::test]
+async fn retrying_puts_failed_and_waiting_items_back_from_their_input() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let repo = repo(&dir).await;
+    repo.create_batch(new_batch("b-r", 4)).await.unwrap();
+    for (rank, status) in [(0, "failed"), (1, "awaiting"), (2, "completed")] {
+        repo.start_batch_item("b-r", rank, &format!("t-{rank}"))
+            .await
+            .unwrap();
+        repo.finish_batch_item("b-r", rank, status, "a short preview")
+            .await
+            .unwrap();
+    }
+    let before = repo.batch("b-r").await.unwrap().unwrap();
+    assert_eq!(
+        (before.failed, before.awaiting, before.completed),
+        (1, 1, 1)
+    );
+
+    // WHEN
+    let requeued = repo
+        .requeue_for_retry("b-r", vec!["send_email".into(), "file_read".into()])
+        .await
+        .unwrap();
+
+    // THEN
+    assert_eq!(requeued, 2);
+    let items = repo.batch_items("b-r").await.unwrap();
+    let statuses: Vec<&str> = items.iter().map(|i| i.status.as_str()).collect();
+    assert_eq!(statuses, vec!["pending", "pending", "completed", "pending"]);
+    assert_eq!(items[0].input, json!({"text": "item 0"}));
+    assert_eq!(items[1].input, json!({"text": "item 1"}));
+    assert_eq!(
+        (items[0].output.as_deref(), items[0].task_id.as_deref()),
+        (None, None)
+    );
+    let after = repo.batch("b-r").await.unwrap().unwrap();
+    assert_eq!((after.failed, after.awaiting, after.completed), (0, 0, 1));
+    assert_eq!(
+        after.grants,
+        vec!["file_read".to_string(), "send_email".to_string()]
+    );
+}
+
+// GIVEN a batch of three items, one of them running
+// WHEN its pending items are canceled and it is stopped, then run again
+// THEN the two that never ran are canceled and counted, the stop stamps the end,
+//      and running it again clears that end
+#[tokio::test]
+async fn stopping_cancels_what_never_ran_and_a_new_run_clears_the_end() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let repo = repo(&dir).await;
+    repo.create_batch(new_batch("b-s", 3)).await.unwrap();
+    repo.start_batch_item("b-s", 0, "t-0").await.unwrap();
+
+    // WHEN
+    let canceled = repo
+        .cancel_pending_items("b-s", "stopped before it ran")
+        .await
+        .unwrap();
+    repo.set_batch_state("b-s", "stopped", true).await.unwrap();
+    let stopped = repo.batch("b-s").await.unwrap().unwrap();
+    repo.set_batch_state("b-s", "running", false).await.unwrap();
+    let running = repo.batch("b-s").await.unwrap().unwrap();
+
+    // THEN
+    assert_eq!(canceled, 2);
+    assert_eq!((stopped.state.as_str(), stopped.canceled), ("stopped", 2));
+    assert!(stopped.ended_at.is_some());
+    assert_eq!(running.state, "running");
+    assert!(running.ended_at.is_none());
+    let items = repo.batch_items("b-s").await.unwrap();
+    assert_eq!(items[0].status, "running");
+    assert_eq!(items[2].output.as_deref(), Some("stopped before it ran"));
+}

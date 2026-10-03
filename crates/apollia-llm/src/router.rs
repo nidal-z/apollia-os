@@ -23,11 +23,13 @@ mod budget;
 mod completion;
 mod config;
 mod construct;
+mod observed_stream;
 mod routing;
 mod servers;
 
 pub use agent_model::{AgentModelBinding, AgentModelFallback};
 pub use config::{BackendConfig, BackendKind, LlmConfig, ObservabilityConfig};
+pub use observed_stream::{call_completed_event, observe_stream, ObservedCall};
 pub use servers::ServerEndpoint;
 
 /// Routing context for [`LlmRouter::complete_with_fallback`].
@@ -818,6 +820,56 @@ mod tests {
             ),
             "the received event must be LlmCallCompleted with backend == \"mock\", got: {event:?}"
         );
+    }
+
+    // GIVEN a request made for a conversation turn
+    // WHEN it is completed with observability
+    // THEN the published call names the turn and its finish reason, and an
+    // unmeasured TTFT stays unknown
+    #[tokio::test]
+    async fn test_llm_call_completed_names_the_turn_of_its_request() {
+        use apollia_core::events::RuntimeEvent;
+        use tokio::sync::broadcast;
+
+        // GIVEN
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(16);
+        let mut backends = HashMap::new();
+        backends.insert(
+            "mock".into(),
+            Arc::new(MockCompletionModel::default()) as Arc<dyn CompletionModel>,
+        );
+        let router = make_test_router(backends, "mock");
+        let req = CompletionRequest {
+            messages: vec![crate::types::ChatMessage::user("test")],
+            call_context: Some(crate::call_measure::CallContext {
+                session_id: "s-7".into(),
+                turn_id: "answer-7".into(),
+            }),
+            ..Default::default()
+        };
+
+        // WHEN
+        router
+            .complete_with_observability(None, req, Some(&tx), &ObservabilityConfig::default())
+            .await
+            .expect("the mock answers");
+
+        // THEN
+        match rx.try_recv().expect("one event") {
+            RuntimeEvent::LlmCallCompleted {
+                session_id,
+                turn_id,
+                ttft_ms,
+                finish_reason,
+                ..
+            } => {
+                assert_eq!(session_id.as_deref(), Some("s-7"));
+                assert_eq!(turn_id.as_deref(), Some("answer-7"));
+                assert_eq!(ttft_ms, None);
+                assert_eq!(finish_reason.as_deref(), Some("stop"));
+            }
+            other => panic!("unexpected event {other:?}"),
+        }
     }
 
     // GIVEN a router whose backend returns an error and an EventBusSender

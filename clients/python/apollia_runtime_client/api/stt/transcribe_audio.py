@@ -78,9 +78,12 @@ def sync_detailed(
      Accepts `multipart/form-data` with:
     - `audio` (required): WAV audio file
     - `language` (optional): language hint (ISO 639-1 code)
+    - `source` (optional): what the audio is, `api` (default), `file` or
+      `hotkey`, the tag the history shows; the desktop attached to this runtime
+      sends a file it read or a dictation it captured
 
     Returns `200 OK` with the persisted transcript row (`TranscriptRow`).
-    Returns `400 Bad Request` on missing or invalid audio.
+    Returns `400 Bad Request` on missing or invalid audio, or an unknown source.
     Returns `503 Service Unavailable` when the engine is absent.
 
     Args:
@@ -115,9 +118,12 @@ def sync(
      Accepts `multipart/form-data` with:
     - `audio` (required): WAV audio file
     - `language` (optional): language hint (ISO 639-1 code)
+    - `source` (optional): what the audio is, `api` (default), `file` or
+      `hotkey`, the tag the history shows; the desktop attached to this runtime
+      sends a file it read or a dictation it captured
 
     Returns `200 OK` with the persisted transcript row (`TranscriptRow`).
-    Returns `400 Bad Request` on missing or invalid audio.
+    Returns `400 Bad Request` on missing or invalid audio, or an unknown source.
     Returns `503 Service Unavailable` when the engine is absent.
 
     Args:
@@ -147,9 +153,12 @@ async def asyncio_detailed(
      Accepts `multipart/form-data` with:
     - `audio` (required): WAV audio file
     - `language` (optional): language hint (ISO 639-1 code)
+    - `source` (optional): what the audio is, `api` (default), `file` or
+      `hotkey`, the tag the history shows; the desktop attached to this runtime
+      sends a file it read or a dictation it captured
 
     Returns `200 OK` with the persisted transcript row (`TranscriptRow`).
-    Returns `400 Bad Request` on missing or invalid audio.
+    Returns `400 Bad Request` on missing or invalid audio, or an unknown source.
     Returns `503 Service Unavailable` when the engine is absent.
 
     Args:
@@ -182,9 +191,12 @@ async def asyncio(
      Accepts `multipart/form-data` with:
     - `audio` (required): WAV audio file
     - `language` (optional): language hint (ISO 639-1 code)
+    - `source` (optional): what the audio is, `api` (default), `file` or
+      `hotkey`, the tag the history shows; the desktop attached to this runtime
+      sends a file it read or a dictation it captured
 
     Returns `200 OK` with the persisted transcript row (`TranscriptRow`).
-    Returns `400 Bad Request` on missing or invalid audio.
+    Returns `400 Bad Request` on missing or invalid audio, or an unknown source.
     Returns `503 Service Unavailable` when the engine is absent.
 
     Args:

@@ -7,31 +7,30 @@
 //! journal and announces each removed agent on the bus. The memory and the
 //! history of the agents are erased only when the caller asks.
 
+use serde_json::Value;
 use tauri::State;
 
-use crate::attached::RuntimeLink;
+use crate::attached::{segment, RuntimeLink};
 
 /// The body both uninstall routes read.
-fn erase(clear_memory: Option<bool>, clear_history: Option<bool>) -> serde_json::Value {
+fn erase(clear_memory: Option<bool>, clear_history: Option<bool>) -> Value {
     serde_json::json!({
         "clearMemory": clear_memory.unwrap_or(false),
         "clearHistory": clear_history.unwrap_or(false),
     })
 }
 
-/// Uninstalls the package `name` and everything it installed, through
+/// Uninstalls the package `name` through
 /// `POST /api/v1/packages/{name}/uninstall`. Returns what was removed and
 /// kept.
-#[tauri::command]
-pub async fn uninstall_agent_package(
-    state: State<'_, RuntimeLink>,
-    name: String,
+pub(crate) async fn package(
+    link: &RuntimeLink,
+    name: &str,
     clear_memory: Option<bool>,
     clear_history: Option<bool>,
-) -> Result<serde_json::Value, String> {
-    let path = format!("/api/v1/packages/{name}/uninstall");
-    state
-        .post_json(&path, &erase(clear_memory, clear_history))
+) -> Result<Value, String> {
+    let path = format!("/api/v1/packages/{}/uninstall", segment(name));
+    link.post_json(&path, &erase(clear_memory, clear_history))
         .await
 }
 
@@ -44,8 +43,8 @@ pub async fn uninstall_agent(
     name: String,
     clear_memory: Option<bool>,
     clear_history: Option<bool>,
-) -> Result<serde_json::Value, String> {
-    let path = format!("/api/v1/agents/installed/{name}/uninstall");
+) -> Result<Value, String> {
+    let path = format!("/api/v1/agents/installed/{}/uninstall", segment(&name));
     state
         .post_json(&path, &erase(clear_memory, clear_history))
         .await

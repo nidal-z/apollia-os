@@ -48,6 +48,10 @@ check_exit    "audit show (unknown id) → 1"  1     "${Q[@]}" audit show nonexi
 check         "resilience list"                    "${Q[@]}" resilience list
 check         "model hardware (daemon on)"         "${Q[@]}" model hardware
 check_json    "model hardware --json"              "${Q[@]}" model hardware --json
+check_content "model embeddings show (none set)" "keywords alone" "${Q[@]}" model embeddings show
+check_exit    "model embeddings set-default (chat model) → 1" 1 "${Q[@]}" model embeddings set-default qwen3-8b
+check_content "model embeddings set-default" "multilingual-e5-small" "${Q[@]}" model embeddings set-default multilingual-e5-small
+check_json    "model embeddings show --json"       "${Q[@]}" model embeddings show --json
 check         "digest --since 24h"                 "${Q[@]}" digest --since 24h
 check_json    "digest --json"                      "${Q[@]}" digest --since 24h --json
 
@@ -68,6 +72,9 @@ check_exit    "mcp show removed server → 1"  1     "${Q[@]}" mcp show notes
 # spawn error (ENOENT), well before the 30s init timeout a bad-but-spawnable
 # command would hit; nothing is persisted on that path.
 check_exit    "mcp add (unspawnable command) → 1"  1 "${Q[@]}" mcp add e2e-ghost --command /nonexistent-mcp-server-binary
+# The seeded apollia.toml leaves `mcp.server_enabled` off, so the daemon
+# refuses the MCP bridge with a reason that names the setting.
+check_exit    "mcp server (bridge off) → 2"  2    bash -c "'${Q[0]}' ${Q[*]:1} mcp server </dev/null"
 skip          "mcp add (live server)" "needs a single-binary MCP server; a bad-but-spawnable command blocks 30s on init timeout (seeded servers cover show/test/restart/update/remove)"
 
 # ── tools / audit ───────────────────────────────────────────────────────────
@@ -230,6 +237,9 @@ section "batches"
 check_json_field "batch list --json holds no batch" "len(d['batches'])" 0 "${Q[@]}" batch list --json
 check_exit    "batch run unknown source type → 1" 1  "${Q[@]}" batch run apollia-chat --source-type spreadsheet --source /data/requests.xlsx
 check_exit    "batch status unknown → 1"          1  "${Q[@]}" batch status 00000000-0000-0000-0000-000000000000
+check_exit    "batch stop unknown → 1"            1  "${Q[@]}" batch stop 00000000-0000-0000-0000-000000000000
+check_exit    "batch retry unknown → 1"           1  "${Q[@]}" batch retry 00000000-0000-0000-0000-000000000000
+check_exit    "batch export unknown → 1"          1  "${Q[@]}" batch export 00000000-0000-0000-0000-000000000000 --format json -o -
 
 # ── workflows ───────────────────────────────────────────────────────────────
 # The workflow engine runs in the daemon. The seed installs no package with a
@@ -237,6 +247,7 @@ check_exit    "batch status unknown → 1"          1  "${Q[@]}" batch status 00
 # history of any workflow is empty.
 section "workflows"
 check_json_field "workflow logs --json holds no run" "len(d['runs'])" 0 "${Q[@]}" workflow logs invoices/close-month --json
+check_exit    "workflow show unknown → 1"         1  "${Q[@]}" workflow show invoices/close-month
 check_exit    "workflow run unknown → 1"          1  "${Q[@]}" workflow run invoices/close-month --input folder=/data/march
 check_exit    "workflow status unknown → 1"       1  "${Q[@]}" workflow status 00000000-0000-0000-0000-000000000000
 check_exit    "workflow cancel unknown → 1"       1  "${Q[@]}" workflow cancel 00000000-0000-0000-0000-000000000000 --confirm
@@ -288,6 +299,9 @@ check_content "agent set mission"                  "Answer in one line." "${Q[@]
 check_content "agent show carries the override"    "Answer in one line." "${Q[@]}" agent show apollia-chat
 check_exit    "agent reset without --confirm → 1"  1 "${Q[@]}" agent reset apollia-chat
 check         "agent reset --field mission"        "${Q[@]}" agent reset apollia-chat --field mission --confirm
+check_content "agent set sources profile"          "profile" "${Q[@]}" agent set apollia-chat sources profile
+check_content "agent show lists the profile source" "profile" "${Q[@]}" agent show apollia-chat
+check         "agent reset --field sources"        "${Q[@]}" agent reset apollia-chat --field sources --confirm
 check         "agent reset --confirm"              "${Q[@]}" agent reset apollia-chat --confirm
 check_exit    "agent set unknown agent → 1"        1 "${Q[@]}" agent set e2e-ghost-agent mission "x"
 # The settings of the chat are the overrides and the model of the Apollia

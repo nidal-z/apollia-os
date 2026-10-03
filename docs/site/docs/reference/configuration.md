@@ -7,17 +7,28 @@ title: Configuration (apollia.toml)
 
 Reference for the `apollia.toml` configuration surface.
 
-The file has three locations, and the two runtimes do not search the same ones.
+The file has one location, `~/.apollia/apollia.toml`, and every surface reads
+and writes that one: the daemon started by `apollia-os start`, the desktop
+application, and every command that touches the configuration
+(`apollia-os config`, `apollia-os llm costs`, `apollia-os tools config`,
+`apollia-os doctor`).
+A key set by one of them is the key the others read.
 
-| Reader | Search order, first match wins |
+Only a path given explicitly replaces it:
+
+| Command | Option |
 | --- | --- |
-| The daemon, started by `apollia-os start` | `./apollia.toml`, then `$XDG_CONFIG_HOME/apollia/apollia.toml`, falling back to `~/.config/apollia/apollia.toml` |
-| The desktop application | `~/.apollia/apollia.toml`, then `./apollia.toml`. The `~/.config` location is never read, deliberately: a copy forgotten there would resurrect backends on a fresh profile |
+| `apollia-os start` | `--config <PATH>`. The file must exist, or the start fails |
+| `apollia-os config get`, `set`, `show`, `validate`, `edit` | `--file <PATH>` |
+| `apollia-os llm costs` | `--config <PATH>` |
 
-The command line writes to both, depending on the subcommand. `apollia-os config
-set` writes the daemon's file; `apollia-os llm costs --threshold 25` writes
-`~/.apollia/apollia.toml`, which only the desktop application reads. Check which
-file you edited before concluding that a key had no effect.
+The working directory is not searched: an agent package keeps its manifest under
+the same name, `apollia.toml`, and starting the daemon in a package folder does
+not read it. A file left at a former location (`./apollia.toml`,
+`$XDG_CONFIG_HOME/apollia/apollia.toml`, `~/.config/apollia/apollia.toml`) is
+never read nor imported. The daemon logs a `config.legacy_location.ignored`
+warning for it at startup, and `apollia-os doctor` names it with the command
+that moves it to `~/.apollia/apollia.toml`.
 
 Every section is optional: an absent section falls back to its defaults. Runtime
 data (databases, the API token, models) lives separately under `~/.apollia/`.
@@ -162,6 +173,7 @@ MCP client: tool loading and response limits.
 | `approval_ttl_hours` | `u64` | `24` | Validity duration of MCP HITL approvals, in hours. |
 | `tool_loading` | `McpToolLoading` | type default | Tool schema loading strategy for all MCP servers. |
 | `tool_search_limit` | `usize` | `20` | Maximum number of results returned by the `tool_search` synthetic tool. |
+| `server_enabled` | `bool` | `false` | Whether the daemon accepts the MCP bridge, `apollia-os mcp server`, which serves the agents and workflows marked exposed to an MCP client. |
 
 ### `[hooks]`
 
@@ -348,6 +360,36 @@ These are listed rather than hidden because the settings page still shows some o
 them. A switch that looks like a privacy control and does nothing is worse than
 an absent one, so until they are implemented or removed, this table is the
 authority.
+
+## Load guardrails (`[llm.guardrails]`)
+
+Before a local model is launched, its memory footprint is estimated with the
+context window and the number of parallel slots it would really run with, and
+graded against this machine: it fits, it might fit (split between a graphics
+card and system memory), or it is too large. The level decides what is launched.
+
+```toml
+[llm.guardrails]
+level = "balanced"   # disabled, lenient, balanced, strict or ceiling
+ceiling_gb = 12.0    # read by the ceiling level only
+```
+
+| Level | Launches |
+| --- | --- |
+| `disabled` | every model, without an estimate |
+| `lenient` | every model, with a warning in the log past "might fit" |
+| `balanced` | up to "might fit". The default |
+| `strict` | only a model that fits |
+| `ceiling` | a model estimated at `ceiling_gb` gigabytes or less |
+
+The section is read at every launch, so a change applies to the next model
+loaded, without a restart. A model already loaded is not stopped. A refusal
+names the estimate and the limit: `POST /api/v1/llm/chat` and
+`POST /api/v1/llm/complete` answer it with status 409, the code
+`guardrail_refused`, the level, `estimatedGb` and `budgetGb`. A section that cannot be read, an unknown
+level, or a `ceiling` level without a positive `ceiling_gb` holds to `balanced`:
+a typo never turns the guardrail off. A model whose footprint cannot be
+estimated is launched.
 
 ## Dictation (`system.db`, not `apollia.toml`)
 

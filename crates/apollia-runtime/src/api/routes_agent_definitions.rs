@@ -81,8 +81,12 @@ pub struct ResolvedAgentResponse {
     /// `bounded_autonomous` or `long_autonomous`. The user's, else the
     /// package's, else the global default.
     pub autonomy: String,
+    /// Identifier of the user profile designated for the agent; absent when
+    /// it runs with the default profile.
+    pub profile: Option<String>,
     /// Fields whose value is the user's rather than the package's:
-    /// `name`, `mission`, `examples`, `access`, `sources`, `autonomy`.
+    /// `name`, `mission`, `examples`, `access`, `sources`, `autonomy`,
+    /// `profile`.
     pub overridden: Vec<String>,
     /// The definition as the package declares it, before any override.
     #[schema(value_type = Object)]
@@ -104,6 +108,7 @@ impl From<ResolvedAgent> for ResolvedAgentResponse {
             sources: agent.sources,
             model: agent.model.map(Into::into),
             autonomy: agent.autonomy.as_str().to_owned(),
+            profile: agent.profile,
             overridden: agent
                 .overridden
                 .into_iter()
@@ -118,7 +123,7 @@ impl From<ResolvedAgent> for ResolvedAgentResponse {
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct SetOverrideRequest {
     /// The user's value: a string for `name` and `mission`, a tier name for
-    /// `autonomy`, a list of strings for `examples`, `access` and `sources`.
+    /// `autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`.
     #[schema(value_type = Object)]
     pub value: serde_json::Value,
 }
@@ -185,7 +190,7 @@ fn resolved<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
     repo: &AgentRepository,
     name: &str,
-) -> Result<ResolvedAgentResponse, ApiError> {
+) -> Result<ResolvedAgent, ApiError> {
     let model = match state.llm_backend_repo.as_ref() {
         Some(llm) => {
             let guard = llm.lock().map_err(|_| {
@@ -200,8 +205,21 @@ fn resolved<B: ExecutionBackend + Clone>(
     };
     repo.resolved(name, model, crate::agents::global_default_autonomy())
         .map_err(store_error)?
-        .map(Into::into)
         .ok_or_else(|| api_err(StatusCode::NOT_FOUND, format!("agent '{name}' not found")))
+}
+
+/// `agent` as its card shows it: an agent created without code that reads by
+/// default lists the reading family active on the machine.
+async fn shown<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    agent: ResolvedAgent,
+) -> ResolvedAgentResponse {
+    match state.tool_registry_handle.as_ref() {
+        Some(registry) => apollia_tools::with_default_access(agent, registry)
+            .await
+            .into(),
+        None => agent.into(),
+    }
 }
 
 /// `GET /api/v1/agent-definitions`: every stored agent, resolved.
@@ -222,8 +240,13 @@ pub async fn list_agent_definitions<B: ExecutionBackend + Clone>(
     let agents = stored
         .iter()
         .map(|agent| resolved(&state, &repo, &agent.name))
-        .collect::<Result<_, _>>()?;
-    Ok(Json(agents))
+        .collect::<Result<Vec<_>, _>>()?;
+    drop(repo);
+    let mut shown_agents = Vec::with_capacity(agents.len());
+    for agent in agents {
+        shown_agents.push(shown(&state, agent).await);
+    }
+    Ok(Json(shown_agents))
 }
 
 /// `GET /api/v1/agent-definitions/{name}`: one agent, resolved.
@@ -242,7 +265,9 @@ pub async fn get_agent_definition<B: ExecutionBackend + Clone>(
     Path(name): Path<String>,
 ) -> Result<Json<ResolvedAgentResponse>, ApiError> {
     let repo = open_agents(&state)?;
-    resolved(&state, &repo, &name).map(Json)
+    let agent = resolved(&state, &repo, &name)?;
+    drop(repo);
+    Ok(Json(shown(&state, agent).await))
 }
 
 /// `PUT /api/v1/agent-definitions/{name}/overrides/{field}`: set the user's
@@ -253,7 +278,7 @@ pub async fn get_agent_definition<B: ExecutionBackend + Clone>(
     tag = "agents",
     params(
         ("name" = String, Path, description = "Agent identifier"),
-        ("field" = String, Path, description = "name, mission, examples, access, sources or autonomy"),
+        ("field" = String, Path, description = "name, mission, examples, access, sources, autonomy or profile"),
     ),
     request_body = SetOverrideRequest,
     responses(
@@ -280,7 +305,9 @@ pub async fn set_agent_override<B: ExecutionBackend + Clone>(
         field = %field.as_str(),
         "agents.override.set"
     );
-    resolved(&state, &repo, &name).map(Json)
+    let agent = resolved(&state, &repo, &name)?;
+    drop(repo);
+    Ok(Json(shown(&state, agent).await))
 }
 
 /// `DELETE /api/v1/agent-definitions/{name}/overrides/{field}`: remove the
@@ -291,7 +318,7 @@ pub async fn set_agent_override<B: ExecutionBackend + Clone>(
     tag = "agents",
     params(
         ("name" = String, Path, description = "Agent identifier"),
-        ("field" = String, Path, description = "name, mission, examples, access, sources or autonomy"),
+        ("field" = String, Path, description = "name, mission, examples, access, sources, autonomy or profile"),
     ),
     responses(
         (status = 200, description = "Override removed, or there was none; the agent in force", body = ResolvedAgentResponse),
@@ -317,7 +344,9 @@ pub async fn remove_agent_override<B: ExecutionBackend + Clone>(
         removed = removed,
         "agents.override.removed"
     );
-    resolved(&state, &repo, &name).map(Json)
+    let agent = resolved(&state, &repo, &name)?;
+    drop(repo);
+    Ok(Json(shown(&state, agent).await))
 }
 
 /// `DELETE /api/v1/agent-definitions/{name}/overrides`: back to defaults,
@@ -348,7 +377,9 @@ pub async fn reset_agent_overrides<B: ExecutionBackend + Clone>(
         removed = fields.len(),
         "agents.override.reset"
     );
-    resolved(&state, &repo, &name).map(Json)
+    let agent = resolved(&state, &repo, &name)?;
+    drop(repo);
+    Ok(Json(shown(&state, agent).await))
 }
 
 /// Routes of the stored agents.

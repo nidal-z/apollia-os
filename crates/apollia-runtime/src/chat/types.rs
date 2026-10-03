@@ -283,6 +283,10 @@ pub struct ExchangeState {
     /// [`SessionId`] (conversation lifetime) and [`MessageId`] (single message).
     #[serde(default)]
     pub run_id: RunId,
+    /// Identifier the answer of this exchange is persisted under, chosen when
+    /// the exchange starts so every model call of the turn can name it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answer_id: Option<MessageId>,
 }
 
 /// A single message in a chat session.
@@ -471,7 +475,7 @@ impl ToolDecision {
 }
 
 /// Per-tool aggregated statistics within a session.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ToolStatEntry {
     /// Tool name (scoped, e.g. `"bash"` or `"native:read_file"`).
     pub tool_name: String,
@@ -491,9 +495,10 @@ pub struct ToolStatEntry {
 ///
 /// `cost_usd` is `None` when the backend does not report pricing (e.g. local
 /// runner sidecar via `RunnerLlmBackend`).
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SessionMetrics {
     /// Target session.
+    #[schema(value_type = String)]
     pub session_id: SessionId,
     /// Input tokens consumed (prompt + cache reads + cache writes).
     pub prompt_tokens: u32,

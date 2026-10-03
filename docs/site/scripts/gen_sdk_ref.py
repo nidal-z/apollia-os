@@ -374,6 +374,34 @@ def module_alias(module: ast.Module, name: str) -> str | None:
     return None
 
 
+def documented_aliases(source: str, module: ast.Module) -> list[tuple[str, str, str]]:
+    """Module-level bindings carrying a ``#:`` comment: name, value, comment.
+
+    A type alias (``LongText``, ``FileInput``) or a constant (``DATE_FORMAT``)
+    is part of the contract an agent writes against, and it has no docstring:
+    its description is the ``#:`` comment above it, which ``ast`` drops.
+    """
+    lines = source.splitlines()
+    found: list[tuple[str, str, str]] = []
+    for node in module.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target, value = node.targets[0], node.value
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            target, value = node.target, node.value
+        else:
+            continue
+        if not isinstance(target, ast.Name) or target.id.startswith("_"):
+            continue
+        comment: list[str] = []
+        back = node.lineno - 2
+        while back >= 0 and lines[back].strip().startswith("#:"):
+            comment.insert(0, lines[back].strip()[2:].strip())
+            back -= 1
+        if comment:
+            found.append((target.id, ast.unparse(value), " ".join(comment)))
+    return found
+
+
 def member_comment(source: str, class_name: str, attr: str) -> str:
     """The ``#:`` comment written above ``attr`` in ``class_name``, joined.
 
@@ -573,6 +601,16 @@ def main() -> int:
     ]
     for cls in typed_dicts:
         body_parts.append(render_class(cls))
+
+    aliases = documented_aliases(TYPES_PY.read_text(encoding="utf-8"), types_mod)
+    if aliases:
+        body_parts.append("## Aliases and constants")
+        body_parts.append("")
+        body_parts.append("| Name | Value | Meaning |")
+        body_parts.append("| --- | --- | --- |")
+        for name, value, comment in aliases:
+            body_parts.append(f"| `{name}` | `{cell(value)}` | {cell(comment)} |")
+        body_parts.append("")
 
     helpers = public_functions(types_mod)
     if helpers:

@@ -106,6 +106,9 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os model show`↴](#apollia-os-model-show)
 * [`apollia-os model hardware`↴](#apollia-os-model-hardware)
 * [`apollia-os model recommend`↴](#apollia-os-model-recommend)
+* [`apollia-os model embeddings`↴](#apollia-os-model-embeddings)
+* [`apollia-os model embeddings show`↴](#apollia-os-model-embeddings-show)
+* [`apollia-os model embeddings set-default`↴](#apollia-os-model-embeddings-set-default)
 * [`apollia-os model delete`↴](#apollia-os-model-delete)
 * [`apollia-os trigger`↴](#apollia-os-trigger)
 * [`apollia-os trigger list`↴](#apollia-os-trigger-list)
@@ -150,6 +153,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os chat delete`↴](#apollia-os-chat-delete)
 * [`apollia-os chat rename`↴](#apollia-os-chat-rename)
 * [`apollia-os chat export`↴](#apollia-os-chat-export)
+* [`apollia-os chat capabilities`↴](#apollia-os-chat-capabilities)
 * [`apollia-os chat config`↴](#apollia-os-chat-config)
 * [`apollia-os chat config get`↴](#apollia-os-chat-config-get)
 * [`apollia-os chat config set`↴](#apollia-os-chat-config-set)
@@ -208,7 +212,14 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os batch run`↴](#apollia-os-batch-run)
 * [`apollia-os batch status`↴](#apollia-os-batch-status)
 * [`apollia-os batch list`↴](#apollia-os-batch-list)
+* [`apollia-os batch accesses`↴](#apollia-os-batch-accesses)
+* [`apollia-os batch pause`↴](#apollia-os-batch-pause)
+* [`apollia-os batch resume`↴](#apollia-os-batch-resume)
+* [`apollia-os batch stop`↴](#apollia-os-batch-stop)
+* [`apollia-os batch retry`↴](#apollia-os-batch-retry)
+* [`apollia-os batch export`↴](#apollia-os-batch-export)
 * [`apollia-os workflow`↴](#apollia-os-workflow)
+* [`apollia-os workflow show`↴](#apollia-os-workflow-show)
 * [`apollia-os workflow run`↴](#apollia-os-workflow-run)
 * [`apollia-os workflow status`↴](#apollia-os-workflow-status)
 * [`apollia-os workflow logs`↴](#apollia-os-workflow-logs)
@@ -262,8 +273,13 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os config show`↴](#apollia-os-config-show)
 * [`apollia-os config reset`↴](#apollia-os-config-reset)
 * [`apollia-os profile`↴](#apollia-os-profile)
+* [`apollia-os profile list`↴](#apollia-os-profile-list)
 * [`apollia-os profile show`↴](#apollia-os-profile-show)
+* [`apollia-os profile create`↴](#apollia-os-profile-create)
+* [`apollia-os profile rename`↴](#apollia-os-profile-rename)
 * [`apollia-os profile set`↴](#apollia-os-profile-set)
+* [`apollia-os profile set-default`↴](#apollia-os-profile-set-default)
+* [`apollia-os profile delete`↴](#apollia-os-profile-delete)
 * [`apollia-os profile forget`↴](#apollia-os-profile-forget)
 * [`apollia-os profile reset`↴](#apollia-os-profile-reset)
 * [`apollia-os profile schema`↴](#apollia-os-profile-schema)
@@ -325,8 +341,8 @@ Apollia OS CLI binary (apollia-os)
 * `policy` - Organisation policy: create the key, write, sign, verify, show
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
-* `batch` - Run an agent on every item of a source (run, status, list)
-* `workflow` - Run the workflows of installed packages (run, status, logs, cancel)
+* `batch` - Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry, export)
+* `workflow` - Run the workflows of installed packages (show, run, status, logs, cancel)
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
 * `plan` - Plan domain management (cache: stats, clear, evict)
 * `service` - Run the runtime as a service of your session (install, uninstall, status)
@@ -373,6 +389,7 @@ Start the runtime in foreground
 ###### **Options:**
 
 * `--port <PORT>` - TCP port to listen on (default: 7771)
+* `--config <PATH>` - Configuration file to load instead of `~/.apollia/apollia.toml`
 
 
 
@@ -508,14 +525,14 @@ Display detailed information about an agent, with its definition as resolved (pa
 
 Override one field of an agent's definition; a package update keeps it.
 
-Fields: `name`, `mission` and `autonomy` take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). Recorded in the audit journal.
+Fields: `name`, `mission`, `autonomy` and `profile` (a profile identifier, see `profile list`) take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). The source `profile` lets the agent read your profile through `ctx.profile`: `agent set <id> sources profile` checks it, a list without it unchecks it, and `agent reset --field sources` goes back to the package default. Recorded in the audit journal.
 
 **Usage:** `apollia-os agent set <AGENT_ID> <FIELD> [VALUES]...`
 
 ###### **Arguments:**
 
 * `<AGENT_ID>` - Agent identifier
-* `<FIELD>` - Field to override: name, mission, examples, access, sources or autonomy
+* `<FIELD>` - Field to override: name, mission, examples, access, sources, autonomy or profile
 * `<VALUES>` - The value, or the items of a list
 
 
@@ -1593,7 +1610,7 @@ Without flags, prints the cost table. Use `--get-threshold` to print `[llm] cost
 
 * `--get-threshold` - Read the cost alert threshold from `apollia.toml` instead of the cost table
 * `--threshold <USD>` - Set the cost alert threshold (USD). Writes `[llm] cost_alert_threshold_usd = N` to `apollia.toml`. Pass `0` or a negative value to clear the threshold
-* `--config <PATH>` - Optional `apollia.toml` path override. Without it, the same file the runtime loads at startup: `./apollia.toml` when the working directory holds one, otherwise `$XDG_CONFIG_HOME/apollia/apollia.toml` (default `~/.config/apollia/apollia.toml`)
+* `--config <PATH>` - Optional `apollia.toml` path override. Without it, the same file the runtime loads at startup: `~/.apollia/apollia.toml`
 
 
 
@@ -1757,7 +1774,7 @@ First-run helper: configure a local LLM in one step.
 
    It selects nothing today. The local engine offloads according to the llama-server build it ships with and to `APOLLIA_LLAMA_N_GPU_LAYERS`, and reads no device field.
 * `--system-db <PATH>` - Override the system database path (default: `~/.apollia/system.db`)
-* `--models-dir <DIR>` - Override the models directory (default: `~/.apollia/models/`)
+* `--models-dir <DIR>` - Override the models directory. Without it, `[models] dir` of `apollia.toml`, else `~/.apollia/models/`
 
 
 
@@ -1774,6 +1791,7 @@ Local model file management
 * `show` - Fetch metadata + file list for a HuggingFace model
 * `hardware` - Report the runtime's detected hardware profile (RAM, CPU, GPU)
 * `recommend` - Rank the models this machine should run
+* `embeddings` - The embeddings model search by meaning uses
 * `delete` - Remove a local model file from `~/.apollia/models/`
 
 
@@ -1838,6 +1856,39 @@ Rank the models this machine should run
 * `--n-ctx <N_CTX>` - Context window the memory estimate is sized against, in tokens.
 
    Defaults to what the runtime launches with. Lower it to see the larger models that then fit.
+
+
+
+## `apollia-os model embeddings`
+
+The embeddings model search by meaning uses
+
+**Usage:** `apollia-os model embeddings <COMMAND>`
+
+###### **Subcommands:**
+
+* `show` - Show the default embeddings model, and whether its file is installed
+* `set-default` - Set the default embeddings model, by its registry identifier
+
+
+
+## `apollia-os model embeddings show`
+
+Show the default embeddings model, and whether its file is installed
+
+**Usage:** `apollia-os model embeddings show`
+
+
+
+## `apollia-os model embeddings set-default`
+
+Set the default embeddings model, by its registry identifier
+
+**Usage:** `apollia-os model embeddings set-default <MODEL>`
+
+###### **Arguments:**
+
+* `<MODEL>` - Identifier of an embeddings entry of the registry, as `GET /api/v1/llm/embeddings` lists them (for example `multilingual-e5-small`)
 
 
 
@@ -2431,6 +2482,7 @@ Without a subcommand: launches the REPL (resume with `--resume <id>`, or list re
 * `delete` - Delete a persisted chat session and all of its messages
 * `rename` - Set the user-defined title of a persisted chat session
 * `export` - Export a persisted chat session to a file
+* `capabilities` - Show what the model of a chat session can do: the reasoning setting it offers (none, on or off, or a level) and whether it reads images
 * `config` - Manage the Chat Libre configuration (system prompt, allowed tools, backend)
 
 ###### **Options:**
@@ -2494,6 +2546,20 @@ Export a persisted chat session to a file
   Possible values: `markdown`, `json`
 
 * `--db <PATH>` - Override the chat database path
+
+
+
+## `apollia-os chat capabilities`
+
+Show what the model of a chat session can do: the reasoning setting it offers (none, on or off, or a level) and whether it reads images.
+
+Reaches the runtime; exits 2 when it is not running.
+
+**Usage:** `apollia-os chat capabilities <SESSION_ID>`
+
+###### **Arguments:**
+
+* `<SESSION_ID>` - Session id
 
 
 
@@ -2651,7 +2717,7 @@ MCP server management (list, add, remove, show, test, restart, update, raw-confi
 * `raw-config` - Show the raw persisted configuration of an MCP server
 * `oauth` - Interactive OAuth (PKCE) management for HTTP/streamable-http MCP servers
 * `secret` - Manage MCP server secrets (env-var values) in the OS keychain
-* `server` - Launch Apollia as an MCP stdio server for external clients
+* `server` - Serve the exposed agents and workflows to an MCP client over stdio
 
 
 
@@ -3028,22 +3094,11 @@ Delete the stored secret for `(<server>, <env_var>)`
 
 ## `apollia-os mcp server`
 
-Launch Apollia as an MCP stdio server for external clients.
+Serve the exposed agents and workflows to an MCP client over stdio.
 
-Exposes native tools to MCP clients (Claude Desktop, VS Code, Cursor). Use `--with-runtime` to additionally expose `submit_task`.
+A bridge to the running daemon: an MCP client (an editor, another assistant) spawns it and sees the agents and workflows marked exposed, and nothing else. The daemon refuses it until `mcp.server_enabled` is turned on.
 
-**Usage:** `apollia-os mcp server [OPTIONS]`
-
-###### **Options:**
-
-* `--with-runtime` - Enable the `submit_task` tool by starting the full Apollia runtime.
-
-   Without this flag, only the 9 stateless native tools are exposed.
-
-  Default value: `false`
-* `--sandbox-root <PATH>` - Sandbox root for file tools (default: user home directory).
-
-   File operations are restricted to this directory tree.
+**Usage:** `apollia-os mcp server`
 
 
 
@@ -3338,7 +3393,7 @@ Automated code or plan review via the apollia-review agent
 
 ## `apollia-os batch`
 
-Run an agent on every item of a source (run, status, list)
+Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry, export)
 
 **Usage:** `apollia-os batch <COMMAND>`
 
@@ -3347,6 +3402,12 @@ Run an agent on every item of a source (run, status, list)
 * `run` - Run an agent on every item of a source, in the runtime
 * `status` - Show a batch: its state, its counters and each of its items
 * `list` - List the batches, newest first
+* `accesses` - List the sensitive accesses of an agent, those `run --grant` may grant
+* `pause` - Pause a running batch: no further item starts
+* `resume` - Resume a paused batch
+* `stop` - Stop a batch: running items are cancelled, pending ones never run
+* `retry` - Run the failed items of a batch, and those waiting for an access, again
+* `export` - Export the result of a batch to a file: one row per item, its input columns, its output, its status and the sources it cites
 
 
 
@@ -3365,7 +3426,7 @@ Run an agent on every item of a source, in the runtime
 * `--source-type <SOURCE_TYPE>` - The type of source, as a reader registers it
 * `--source <SOURCE>` - What the source is opened on: a file, a folder, a connection
 * `--option <KEY=VALUE>` - An option of the source type, as `key=value`; repeatable
-* `--grant <GRANTS>` - An access granted for the duration of the batch; repeatable
+* `--grant <GRANTS>` - A sensitive access granted for the duration of the batch, as `batch accesses` lists it; repeatable
 * `--concurrency <CONCURRENCY>` - How many items run at once, 1 to 16 (default 1)
 * `--max-failures <MAX_FAILURES>` - Failed items tolerated before the batch is interrupted (default 10)
 
@@ -3397,18 +3458,115 @@ List the batches, newest first
 
 
 
+## `apollia-os batch accesses`
+
+List the sensitive accesses of an agent, those `run --grant` may grant
+
+**Usage:** `apollia-os batch accesses <AGENT>`
+
+###### **Arguments:**
+
+* `<AGENT>` - The agent a batch would run
+
+
+
+## `apollia-os batch pause`
+
+Pause a running batch: no further item starts
+
+**Usage:** `apollia-os batch pause <BATCH_ID>`
+
+###### **Arguments:**
+
+* `<BATCH_ID>` - The batch id
+
+
+
+## `apollia-os batch resume`
+
+Resume a paused batch
+
+**Usage:** `apollia-os batch resume <BATCH_ID>`
+
+###### **Arguments:**
+
+* `<BATCH_ID>` - The batch id
+
+
+
+## `apollia-os batch stop`
+
+Stop a batch: running items are cancelled, pending ones never run
+
+**Usage:** `apollia-os batch stop <BATCH_ID>`
+
+###### **Arguments:**
+
+* `<BATCH_ID>` - The batch id
+
+
+
+## `apollia-os batch retry`
+
+Run the failed items of a batch, and those waiting for an access, again
+
+**Usage:** `apollia-os batch retry [OPTIONS] <BATCH_ID>`
+
+###### **Arguments:**
+
+* `<BATCH_ID>` - The batch id
+
+###### **Options:**
+
+* `--grant <GRANTS>` - A sensitive access granted for the rest of the batch; repeatable
+
+
+
+## `apollia-os batch export`
+
+Export the result of a batch to a file: one row per item, its input columns, its output, its status and the sources it cites
+
+**Usage:** `apollia-os batch export [OPTIONS] --format <FORMAT> <BATCH_ID>`
+
+###### **Arguments:**
+
+* `<BATCH_ID>` - The batch id
+
+###### **Options:**
+
+* `--format <FORMAT>` - The file format
+
+  Possible values: `xlsx`, `csv`, `json`
+
+* `-o`, `--output <PATH>` - Where to write the file; `-` writes it to standard output. Default: `batch-<id>.<format>` in the current folder
+
+
+
 ## `apollia-os workflow`
 
-Run the workflows of installed packages (run, status, logs, cancel)
+Run the workflows of installed packages (show, run, status, logs, cancel)
 
 **Usage:** `apollia-os workflow <COMMAND>`
 
 ###### **Subcommands:**
 
+* `show` - Show a workflow: what it does, its steps, and each input with its type
 * `run` - Run a workflow, in the runtime
 * `status` - Show a run: its status, its result and each of its steps
 * `logs` - The runs of a workflow, newest first
 * `cancel` - Stop a run: its step in progress is interrupted, the next ones never start
+
+
+
+## `apollia-os workflow show`
+
+Show a workflow: what it does, its steps, and each input with its type
+
+**Usage:** `apollia-os workflow show <WORKFLOW>`
+
+###### **Arguments:**
+
+* `<WORKFLOW>` - The workflow, `<package>/<workflow>`
 
 
 
@@ -3424,7 +3582,7 @@ Run a workflow, in the runtime
 
 ###### **Options:**
 
-* `--input <KEY=VALUE>` - An input, as `key=value`; repeatable. A value is read as the type the workflow declares for it
+* `--input <KEY=VALUE>` - An input, as `key=value`; repeatable. A value is read as the type the workflow declares for it: a date as `YYYY-MM-DD`, a file as its absolute path
 * `--wait` - Follow the run to its end; exit 3 when it fails or is stopped
 
 
@@ -4156,8 +4314,13 @@ Operates on `~/.apollia/user_memory.db` directly; no runtime required.
 
 ###### **Subcommands:**
 
-* `show` - Display every key currently stored in the global user profile
-* `set` - Insert or replace the value of `KEY`
+* `list` - List the profiles: identifier, name, and which one is the default
+* `show` - Display a profile: its fields, then the free-form entries every profile shares. Without an identifier, the default profile
+* `create` - Create a profile with empty fields; it is not the default
+* `rename` - Rename a profile
+* `set` - Write one field of a profile: `name`, `role`, `function`, `tools`, `preferences` or `free_text`. Any other key is a free-form entry, shared by every profile
+* `set-default` - Make a profile the default; the previous default stops being one
+* `delete` - Delete a profile. The default profile cannot be deleted: make another one the default first
 * `forget` - Remove the entry stored at `KEY`
 * `reset` - Reset the entire profile (deletes every entry)
 * `schema` - Print the canonical schema (the known structured fields)
@@ -4166,11 +4329,11 @@ Operates on `~/.apollia/user_memory.db` directly; no runtime required.
 
 
 
-## `apollia-os profile show`
+## `apollia-os profile list`
 
-Display every key currently stored in the global user profile
+List the profiles: identifier, name, and which one is the default
 
-**Usage:** `apollia-os profile show [OPTIONS]`
+**Usage:** `apollia-os profile list [OPTIONS]`
 
 ###### **Options:**
 
@@ -4178,19 +4341,102 @@ Display every key currently stored in the global user profile
 
 
 
-## `apollia-os profile set`
+## `apollia-os profile show`
 
-Insert or replace the value of `KEY`
+Display a profile: its fields, then the free-form entries every profile shares. Without an identifier, the default profile
 
-**Usage:** `apollia-os profile set [OPTIONS] <KEY> <VALUE>`
+**Usage:** `apollia-os profile show [OPTIONS] [ID]`
 
 ###### **Arguments:**
 
-* `<KEY>` - Profile key (e.g. `name`, `email`, `preferences.tone`)
-* `<VALUE>` - Value to store
+* `<ID>` - Profile identifier, or `default` (the default when omitted)
 
 ###### **Options:**
 
+* `--db <PATH>` - Optional override for the user_memory.db path
+
+
+
+## `apollia-os profile create`
+
+Create a profile with empty fields; it is not the default
+
+**Usage:** `apollia-os profile create [OPTIONS] <NAME>`
+
+###### **Arguments:**
+
+* `<NAME>` - Display name of the profile (e.g. `Formateur`)
+
+###### **Options:**
+
+* `--db <PATH>`
+
+
+
+## `apollia-os profile rename`
+
+Rename a profile
+
+**Usage:** `apollia-os profile rename [OPTIONS] <ID> <NAME>`
+
+###### **Arguments:**
+
+* `<ID>` - Profile identifier, or `default`
+* `<NAME>` - New display name
+
+###### **Options:**
+
+* `--db <PATH>`
+
+
+
+## `apollia-os profile set`
+
+Write one field of a profile: `name`, `role`, `function`, `tools`, `preferences` or `free_text`. Any other key is a free-form entry, shared by every profile
+
+**Usage:** `apollia-os profile set [OPTIONS] <ID> <FIELD> <VALUE>`
+
+###### **Arguments:**
+
+* `<ID>` - Profile identifier, or `default`
+* `<FIELD>` - Field to write (e.g. `role`)
+* `<VALUE>` - Value to store; an empty value empties a field
+
+###### **Options:**
+
+* `--db <PATH>`
+
+
+
+## `apollia-os profile set-default`
+
+Make a profile the default; the previous default stops being one
+
+**Usage:** `apollia-os profile set-default [OPTIONS] <ID>`
+
+###### **Arguments:**
+
+* `<ID>` - Profile identifier
+
+###### **Options:**
+
+* `--db <PATH>`
+
+
+
+## `apollia-os profile delete`
+
+Delete a profile. The default profile cannot be deleted: make another one the default first
+
+**Usage:** `apollia-os profile delete [OPTIONS] <ID>`
+
+###### **Arguments:**
+
+* `<ID>` - Profile identifier
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 * `--db <PATH>`
 
 

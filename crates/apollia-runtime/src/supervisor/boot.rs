@@ -98,19 +98,43 @@ impl Supervisor {
             .config
             .data_dir
             .join(apollia_core::paths::DataFile::System.file_name());
+        // `apollia.toml`, whose `[llm.guardrails]` both engines read at every
+        // launch: the file the runtime was started with, else the one in its
+        // data directory.
+        let guardrails_file = self.config.config_path.clone().unwrap_or_else(|| {
+            self.config
+                .data_dir
+                .join(apollia_core::paths::CONFIG_FILE_NAME)
+        });
         let llama_server_supervisor = crate::llama_server::LlamaServerSupervisor::new(
             crate::llama_server::LlamaServerConfig::default(),
             Some(system_db_path.clone()),
             Some(event_sender.clone()),
+            Some(guardrails_file.clone()),
+            org_policy.imposed_settings(),
         )
         .ok();
         if let Some(supervisor) = &llama_server_supervisor {
             Arc::clone(supervisor).spawn_supervision();
         }
+        // The MLX engine, on a Mac with Apple Silicon whose build carries it.
+        // An MLX model elsewhere is refused with its reason by the router.
+        let mlx_engine = crate::mlx_engine::MlxEngineSupervisor::for_this_machine(
+            Some(guardrails_file),
+            org_policy.imposed_settings(),
+        );
+        if let Some(engine) = &mlx_engine {
+            Arc::clone(engine).spawn_supervision();
+        }
 
         // Phase 4 (pos 5): LlmRouter + LlmBackendRepository, loads backends from system.db
         let (llm_router, llm_backend_repo) = self
-            .start_llm_router(&system_db_path, &llama_server_supervisor)
+            .start_llm_router(
+                &system_db_path,
+                &llama_server_supervisor,
+                &mlx_engine,
+                &crate::governance::InferenceGovernance::new(Arc::clone(&org_policy)),
+            )
             .await;
 
         // Phase 4b: LlmCallRepository, an EventBus subscriber that persists LLM calls.
@@ -202,15 +226,25 @@ impl Supervisor {
 
         // Phase 8d: the settings the chat kept before it was the Apollia
         // agent, carried over once the access upgrade has read them.
+        let reading = apollia_tools::reading_family(
+            &tool_registry_handle,
+            &startup_disabled_tools(&self.config.data_dir, &self.config.tools_config),
+        )
+        .await;
         crate::agents::apollia::carry_over::run_at_startup(
             &self.config.data_dir,
             audit_journal_handle.as_ref(),
+            &reading,
         );
 
-        // Connections answer to governance: admitted before they are added,
-        // journaled when they change. No policy is deposited yet.
-        let connection_governance =
-            crate::governance::ConnectionGovernance::without_policy(audit_journal_handle.clone());
+        // Connections answer to governance: admitted by the organisation
+        // policy read above before they are added, journaled when they change.
+        let connection_governance = crate::governance::ConnectionGovernance::new(
+            Arc::new(crate::governance::PolicyAdmission::new(Arc::clone(
+                &org_policy,
+            ))),
+            audit_journal_handle.clone(),
+        );
 
         // Phase 9 (pos 10): APIServer
         info!("supervisor.api.starting");
@@ -445,11 +479,12 @@ impl Supervisor {
         // source; it needs the task store and the agent executor, and resumes
         // the batches left running as soon as it starts. No source reader is
         // registered yet: a launch on any kind answers that it is unknown.
+        // Governance says which accesses of the agent are sensitive.
         let batches = match (&task_repository, &chat_manager) {
             (Some(repo), Some(chat)) => Some(crate::batch::BatchHandle::spawn(
                 repo.clone(),
                 Arc::new(apollia_core::batch_source::SourceRegistry::new()),
-                crate::batch::AgentItemRunner::new(
+                batch_runner(
                     crate::agents::task::AgentTaskLauncher {
                         router: router_handle.clone(),
                         chat: chat.clone(),
@@ -458,7 +493,9 @@ impl Supervisor {
                         observability: self.config.obs_config.clone(),
                     },
                     self.config.data_dir.clone(),
+                    audit_journal_handle.clone(),
                 ),
+                event_sender.clone(),
             )),
             _ => None,
         };
@@ -498,6 +535,17 @@ impl Supervisor {
             )))
             .await;
         }
+        // The compatible server reads and writes its switch in the file the
+        // runtime was started with, or in the data directory's apollia.toml,
+        // the file the desktop reads, when it was started without one.
+        let compat_server = crate::compat_server::CompatServerHandle::spawn(
+            self.config
+                .config_path
+                .clone()
+                .unwrap_or_else(|| self.config.data_dir.join("apollia.toml")),
+            system_db_path.clone(),
+            &event_sender,
+        );
         let shared_llm_router = crate::api::server::shared_llm_router_from(llm_router.clone());
         let state = AppState {
             router_handle: router_handle.clone(),
@@ -517,6 +565,9 @@ impl Supervisor {
             audit_trail: audit_trail_handle.clone(),
             audit_journal: audit_journal_handle.clone(),
             connection_governance: connection_governance.clone(),
+            inference_governance: crate::governance::InferenceGovernance::new(Arc::clone(
+                &org_policy,
+            )),
             obs_config: self.config.obs_config.clone(),
             llm_call_repository: llm_call_repository.clone(),
             trigger_def_repo: Some(trigger_def_repo.clone()),
@@ -537,9 +588,11 @@ impl Supervisor {
             resilience_layer: Some(shared_resilience_layer.clone()),
             runner_proxy: runner_supervisor.as_ref().map(|s| s.proxy()),
             llama_server_supervisor: llama_server_supervisor.clone(),
+            mlx_engine: mlx_engine.clone(),
             secret_store: crate::inference_servers::default_store_opener(),
             batches,
             workflows: workflows.clone(),
+            compat_server: Some(compat_server),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -663,6 +716,7 @@ impl Supervisor {
             project_repository,
             runner_supervisor,
             llama_server_supervisor,
+            mlx_engine,
             org_policy,
         })
     }
@@ -702,4 +756,39 @@ fn read_org_policy() -> apollia_permissions::PolicyVerdict {
         }
     }
     verdict
+}
+
+/// The item runner of the batch engine, asking the default governance which
+/// accesses are sensitive when the audit journal is open; without it, an
+/// access is sensitive when its tool declares it so, the same rule.
+fn batch_runner<B: crate::coordinator::ExecutionBackend>(
+    launcher: crate::agents::task::AgentTaskLauncher<B>,
+    data_dir: std::path::PathBuf,
+    journal: Option<crate::audit_journal::AuditJournalHandle>,
+) -> crate::batch::AgentItemRunner<B> {
+    let runner = crate::batch::AgentItemRunner::new(launcher, data_dir);
+    match journal {
+        Some(journal) => runner.with_governance(Arc::new(
+            crate::governance::NoPolicyGovernance::new(journal),
+        )),
+        None => runner,
+    }
+}
+
+/// The tools switched off at this start: the operator's `[tools] disabled`
+/// list and the tools disabled in `governance.db`. An unreadable governance
+/// database leaves the static list alone, the tolerance the runners apply.
+fn startup_disabled_tools(
+    data_dir: &std::path::Path,
+    tools_config: &apollia_core::ToolsConfig,
+) -> Vec<String> {
+    let mut disabled = apollia_tools::load_governance_snapshot(data_dir)
+        .map(|snapshot| snapshot.disabled_tools)
+        .unwrap_or_default();
+    for name in &tools_config.disabled {
+        if !disabled.contains(name) {
+            disabled.push(name.clone());
+        }
+    }
+    disabled
 }

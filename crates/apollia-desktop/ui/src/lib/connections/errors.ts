@@ -30,13 +30,12 @@ export function isMissingSecretError(e: unknown): boolean {
 }
 
 /**
- * True when the command refused the flow because the sovereignty profile is
- * `local-only`, or is absent, which reads the same way on purpose. The dialog
- * turns this one into a choice rather than a dead end: the operator can allow
- * cloud connectors on the spot, which writes `constraints.sovereignty`.
+ * True when the connection admission refused the flow: the organisation
+ * policy forbids it. The dialog says so in its own box rather than as an
+ * error, since retrying cannot change the outcome.
  */
-export function isSovereigntyBlocked(e: unknown): boolean {
-  return (e as TauriErrorShape | null)?.kind === "sovereignty_blocked";
+export function isRefusedByPolicy(e: unknown): boolean {
+  return (e as TauriErrorShape | null)?.kind === "refused_by_policy";
 }
 
 /**
@@ -46,8 +45,8 @@ export function isSovereigntyBlocked(e: unknown): boolean {
 export function formatTauriError(e: unknown, translate: ErrorTranslate): string {
   if (typeof e === "string") return e;
   const err = (e ?? {}) as TauriErrorShape;
-  if (err.kind === "sovereignty_blocked") {
-    return translate("connections.error_sovereignty_blocked");
+  if (err.kind === "refused_by_policy") {
+    return translate("connections.error_refused_by_policy");
   }
   if (err.kind === "oauth_client_not_configured") {
     return translate("connections.error_oauth_client_missing");
@@ -61,6 +60,10 @@ export function formatTauriError(e: unknown, translate: ErrorTranslate): string 
     const reason = err.detail ?? "";
     const label = translate("connections.error_invalid_client_file");
     return reason ? `${label} ${reason}` : label;
+  }
+  if (err.kind === "service" && err.detail) {
+    // The daemon this window is attached to already wrote the sentence.
+    return err.detail;
   }
   if (err.kind && err.detail) return `${err.kind}: ${err.detail}`;
   if (err.message) return err.message;

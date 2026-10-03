@@ -7,7 +7,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use apollia_core::AgentManifest;
-use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_runtime::api::routes_agents::AgentLoader;
 use apollia_tools::ToolCredentialStore;
 
@@ -50,7 +49,16 @@ pub struct AIPAgentLoader;
 
 impl AgentLoader for AIPAgentLoader {
     fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String> {
-        let extras = venv_site_packages_for_agent_path(path);
+        self.load_and_validate_with(path, &[])
+    }
+
+    fn load_and_validate_with(
+        &self,
+        path: &Path,
+        extra_sys_paths: &[PathBuf],
+    ) -> Result<AgentManifest, String> {
+        let mut extras = extra_sys_paths.to_vec();
+        extras.extend(venv_site_packages_for_agent_path(path));
         let module = apollia_aip::loader::load_agent_module_with_sys_paths(path, &extras)
             .map_err(|e| e.to_string())?;
         let validated =
@@ -112,22 +120,4 @@ fn merge_disabled(static_disabled: &[String], mut runtime_disabled: Vec<String>)
         }
     }
     runtime_disabled
-}
-
-/// Flattens a [`UserMemoryRepository`] into the `{"profile": [(k, v), ...]}`
-/// shape consumed by `RuntimeContext.user_context`. Returns `None` for an empty
-/// repo so chat-mode agents see no profile rather than an empty object.
-fn build_user_context_from_repo(
-    repo: &UserMemoryRepository,
-) -> Option<std::collections::HashMap<String, Vec<(String, String)>>> {
-    let entries = repo.list_all().unwrap_or_default();
-    if entries.is_empty() {
-        return None;
-    }
-    let mut map = std::collections::HashMap::new();
-    map.insert(
-        "profile".to_string(),
-        entries.into_iter().map(|e| (e.key, e.value)).collect(),
-    );
-    Some(map)
 }

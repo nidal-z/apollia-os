@@ -160,7 +160,7 @@ async fn a_guide_installed_as_code_becomes_the_package_agent_and_stays_disabled(
     // WHEN the desktop starts: the code guide is retired before the agents
     // that run code are loaded, then the shipped guide is installed under a
     // governance that requires signatures
-    retire_code_guide(&repo);
+    retire_code_agents(&repo);
     let archive = assemble_guide(dir.path()).unwrap();
     let outcome = install_embedded(&archive, dir.path(), &governance)
         .await
@@ -229,4 +229,118 @@ async fn a_newer_guide_is_not_downgraded_and_the_current_one_is_left_alone() {
         "99.0.0"
     );
     assert!(matches!(again, EmbeddedOutcome::Current { .. }));
+}
+
+/// The row an earlier desktop wrote for the onboarding: Python code at
+/// `version`.
+fn code_onboarding(dir: &Path, version: &str) -> InstalledAgent {
+    let path = dir.join("agents/onboarding-agent/agent.py");
+    InstalledAgent {
+        name: ONBOARDING.into(),
+        version: version.into(),
+        install_path: path.clone(),
+        source_path: path,
+        manifest: serde_json::from_value(serde_json::json!({
+            "name": ONBOARDING,
+            "version": version,
+            "description": "Onboarding.",
+            "tools_required": []
+        }))
+        .unwrap(),
+        enabled: true,
+        installed_at: "2026-09-01T00:00:00Z".into(),
+        updated_at: "2026-09-01T00:00:00Z".into(),
+    }
+}
+
+#[test]
+fn the_onboarding_is_a_declarative_agent_granted_its_one_tool() {
+    // GIVEN the manifest of the onboarding embedded in the binary
+    // WHEN it is read
+    let manifest = onboarding_manifest().unwrap();
+
+    // THEN it is one agent and one tool, the tool in the module the binary
+    // carries, granted to the agent, at the product version
+    assert_eq!(manifest.package.name, ONBOARDING);
+    assert_eq!(manifest.package.version, env!("CARGO_PKG_VERSION"));
+    assert!(manifest.workflows.is_empty());
+    assert!(manifest.pip.is_none() && manifest.mcp_servers.is_empty());
+    assert_eq!(manifest.agents.len(), 1);
+    let agent = &manifest.agents[0];
+    assert_eq!(agent.id, ONBOARDING);
+    assert!(agent.mission.contains("propose_profile"));
+    assert_eq!(manifest.tools.len(), 1);
+    let tool = &manifest.tools[0];
+    assert_eq!(tool.name, "propose_profile");
+    assert_eq!(tool.module, ONBOARDING_MODULE);
+    assert_eq!(
+        agent.defaults.access,
+        vec![format!("pkg:{ONBOARDING}/propose_profile")]
+    );
+}
+
+#[test]
+fn the_onboarding_assembles_with_its_tool_unsigned() {
+    // GIVEN an empty data directory
+    let dir = tempfile::tempdir().unwrap();
+
+    // WHEN the onboarding is assembled
+    let path = assemble_onboarding(dir.path()).unwrap();
+
+    // THEN the archive reads back with its manifest, unsigned, and carries
+    // the module of its tool as the binary ships it
+    let mut archive = ApoArchive::open(&path).unwrap();
+    assert_eq!(archive.manifest(), &onboarding_manifest().unwrap());
+    assert_eq!(archive.signature_state().unwrap(), SignatureState::Unsigned);
+    let out = dir.path().join("unpacked");
+    archive.extract_to(&out).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(out.join(ONBOARDING_MODULE)).unwrap(),
+        ONBOARDING_SOURCE
+    );
+}
+
+#[tokio::test]
+async fn an_onboarding_installed_as_code_becomes_the_package_agent_and_its_tool_is_granted() {
+    // GIVEN the onboarding an earlier version installed as Python code,
+    // disabled by the user
+    let dir = tempfile::tempdir().unwrap();
+    let repo = agents(dir.path());
+    repo.save(&code_onboarding(dir.path(), "0.1.0")).unwrap();
+    repo.set_enabled(ONBOARDING, false).unwrap();
+    let governance = StrictGovernance::default();
+
+    // WHEN the desktop starts: the code onboarding is retired, then the
+    // shipped onboarding is installed under a governance that requires
+    // signatures
+    retire_code_agents(&repo);
+    let archive = assemble_onboarding(dir.path()).unwrap();
+    let outcome = install_embedded(&archive, dir.path(), &governance)
+        .await
+        .unwrap();
+
+    // THEN no code is loaded, the agent is the package's and stays disabled,
+    // and the installed tool is the code the host grants the profile to
+    assert!(
+        matches!(outcome, EmbeddedOutcome::Installed(_)),
+        "{outcome:?}"
+    );
+    assert!(repo.get(ONBOARDING).unwrap().is_none(), "no code is loaded");
+    let stored = repo.stored(ONBOARDING).unwrap().unwrap();
+    assert_eq!(stored.origin, AgentOrigin::Package);
+    assert_eq!(stored.package.as_deref(), Some(ONBOARDING));
+    assert!(
+        !stored.enabled,
+        "a disabled onboarding is never enabled again"
+    );
+    let packages =
+        PackageRepository::open(&apollia_core::paths::DataFile::Agents.path(dir.path())).unwrap();
+    let installed = packages.get(ONBOARDING).unwrap().unwrap();
+    assert!(
+        apollia_aip::package_tools::ProfileGrant::onboarding().covers(
+            ONBOARDING,
+            &installed.root_path,
+            ONBOARDING_MODULE
+        )
+    );
 }

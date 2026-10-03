@@ -9,9 +9,6 @@
   ],
   "stopOnError": false,
   "dynamicTestids": [
-    "agent-detail-tab-overview",
-    "agent-detail-tab-settings",
-    "agent-detail-tab-tools",
     "automation-history-seed-trigger-daily-digest",
     "automation-menu-seed-trigger-daily-digest",
     "automation-row-seed-trigger-daily-digest",
@@ -28,7 +25,6 @@
     "inbox-tab-activity",
     "inbox-tab-notifications",
     "inbox-tab-pending",
-    "language-en",
     "mcp-detail-tab-overview",
     "observability-tab-audit-trail",
     "observability-tab-llm-costs",
@@ -40,13 +36,13 @@
     "project-tab-context",
     "project-tab-conversations",
     "settings-nav-appearance",
-    "settings-nav-danger",
+    "settings-nav-chat",
+    "settings-nav-developer",
+    "settings-nav-general",
     "settings-nav-model-hub",
     "settings-nav-permissions",
     "settings-nav-profile",
-    "settings-nav-shortcuts",
     "settings-nav-stt",
-    "sidebar-mode-option-operator",
     "trigger-logs-filter-all"
   ],
   "steps": [
@@ -66,37 +62,63 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-appearance",
+      "testid": "settings-nav-general",
       "timeoutMs": 8000
     },
     {
       "kind": "waitFor",
-      "testid": "language-toggle",
+      "testid": "language-select",
       "timeoutMs": 5000
     },
     {
-      "kind": "click",
-      "testid": "language-en"
+      "kind": "selectOption",
+      "testid": "language-select",
+      "value": "en",
+      "timeoutMs": 4000
     },
     {
       "kind": "sleep",
       "ms": 600
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu"
+      "testid": "settings-page",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-operator"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
       "ms": 400
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-general",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "language-select",
+      "timeoutMs": 5000
     },
     {
       "kind": "waitFor",
@@ -211,16 +233,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-tabbar",
+      "testid": "agent-sheet",
       "timeoutMs": 5000
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-tools"
+      "kind": "waitFor",
+      "testid": "agent-sheet-access",
+      "timeoutMs": 2500
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-tab-content",
+      "testid": "agent-detail-content",
       "timeoutMs": 5000
     },
     {
@@ -1308,12 +1331,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-tabbar",
+      "testid": "agent-sheet",
       "timeoutMs": 8000
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-tab-content",
+      "testid": "agent-detail-content",
       "timeoutMs": 8000
     },
     {
@@ -1421,18 +1444,13 @@
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-tabbar",
+      "testid": "agent-sheet",
       "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "agent-detail-tab-settings",
-      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-settings",
-      "timeoutMs": 8000
+      "testid": "agent-sheet-activity",
+      "timeoutMs": 6000
     },
     {
       "kind": "click",
@@ -1467,13 +1485,13 @@
       "timeoutMs": 6000
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-overview",
+      "kind": "waitFor",
+      "testid": "agent-sheet-mission",
       "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-tab-content",
+      "testid": "agent-detail-content",
       "timeoutMs": 8000
     },
     {
@@ -2201,7 +2219,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-shortcuts",
+      "testid": "settings-nav-chat",
       "timeoutMs": 5000
     },
     {
@@ -2224,7 +2242,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger",
+      "testid": "settings-nav-general",
       "timeoutMs": 5000
     },
     {

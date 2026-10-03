@@ -31,6 +31,11 @@ def _parse_response(
         response_200 = cast(Any, None)
         return response_200
 
+    if response.status_code == 403:
+        response_403 = PackageErrorBody.from_dict(response.json())
+
+        return response_403
+
     if response.status_code == 404:
         response_404 = PackageErrorBody.from_dict(response.json())
 

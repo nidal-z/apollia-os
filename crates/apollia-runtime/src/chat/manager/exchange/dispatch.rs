@@ -65,6 +65,10 @@ impl ChatSessionManager {
             let history: Vec<ChatMessage> =
                 session.history[..session.history.len().saturating_sub(1)].to_vec();
             let session_plan_mode = session.plan_mode;
+            let turn_id = session
+                .active_exchange
+                .as_ref()
+                .and_then(|exchange| exchange.answer_id.clone());
             let session_plan_phase = session.plan_phase;
             let preferred_backend = match &declarative {
                 Some(agent) => agent.model.as_ref().map(|m| m.model_id.clone()),
@@ -98,12 +102,16 @@ impl ChatSessionManager {
                 None => session.system_prompt.clone(),
             };
             // The agent is offered its granted accesses, read on every message
-            // so a change on its card applies to open conversations.
+            // so a change on its card applies to open conversations. An agent
+            // created in the interface whose access nobody chose reads by
+            // default.
             let available_tools = match &declarative {
-                Some(agent) => agent.access.clone(),
+                Some(agent) => apollia_tools::AgentAccess::of(agent),
                 None => {
                     super::super::apollia_agent::apollia_access(self.governance_db_path.as_deref())
-                        .unwrap_or_else(|| session.available_tools.clone())
+                        .unwrap_or_else(|| {
+                            apollia_tools::AgentAccess::Listed(session.available_tools.clone())
+                        })
                 }
             };
             // Live merge: governance.db is re-read on every message so Apollia
@@ -217,6 +225,7 @@ impl ChatSessionManager {
                 cancel,
                 pending_injection,
                 preferred_backend,
+                turn_id,
             }));
         }
 

@@ -17,8 +17,10 @@
 //! The runtime is single-user by design; a connected account is the
 //! instance's account, as it is under the desktop.
 //!
-//! An account is submitted to the connection admission before its code is
-//! exchanged, and connecting or disconnecting one is journaled.
+//! An account is submitted to the connection admission when its consent starts,
+//! and again before its code is exchanged; connecting or disconnecting one is
+//! journaled. The admission reads the organisation policy, so a policy that
+//! denies remote connections refuses the consent before any URL is issued.
 
 use std::sync::OnceLock;
 
@@ -64,7 +66,7 @@ pub fn connectors_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
         .route(
             "/api/v1/connectors/oauth/start",
-            post(start_connector_consent),
+            post(start_connector_consent::<B>),
         )
         .route(
             "/api/v1/connectors/oauth/complete",
@@ -190,14 +192,25 @@ pub struct ConnectorAccountResponse {
     responses(
         (status = 200, description = "Consent started", body = StartConsentResponse),
         (status = 400, description = "Unknown provider or scope, or invalid redirect URI", body = ApiErrorBody),
+        (status = 403, description = "Refused by the connection admission", body = ApiErrorBody),
         (status = 429, description = "Too many consents pending", body = ApiErrorBody),
         (status = 503, description = "The provider's OAuth client is not configured", body = ApiErrorBody),
     )
 )]
-pub(crate) async fn start_connector_consent(
+pub(crate) async fn start_connector_consent<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    body: Json<StartConsentBody>,
+) -> Result<Json<StartConsentResponse>, ApiError> {
+    start_consent(&state.connection_governance, body)
+}
+
+/// Body of [`start_connector_consent`]: validate, admit, then begin the consent.
+fn start_consent(
+    governance: &ConnectionGovernance,
     Json(body): Json<StartConsentBody>,
 ) -> Result<Json<StartConsentResponse>, ApiError> {
     let provider = connector_consent::provider_from_id(&body.provider).map_err(consent_err)?;
+    admit_account(governance, provider)?;
     connector_consent::validate_redirect_uri(&body.redirect_uri).map_err(consent_err)?;
     let provider_config =
         connector_consent::provider_config_for(provider, &body.scopes).map_err(consent_err)?;
@@ -408,7 +421,7 @@ mod tests {
         let body = start_body("github", &[], "https://app.example.test/cb");
 
         // WHEN a consent is started for it
-        let (code, Json(err)) = start_connector_consent(body).await.unwrap_err();
+        let (code, Json(err)) = start_consent(&ConnectionGovernance::default(), body).unwrap_err();
 
         // THEN it is a bad request naming the provider
         assert_eq!(code, StatusCode::BAD_REQUEST);
@@ -425,7 +438,7 @@ mod tests {
         );
 
         // WHEN it is started
-        let (code, Json(err)) = start_connector_consent(body).await.unwrap_err();
+        let (code, Json(err)) = start_consent(&ConnectionGovernance::default(), body).unwrap_err();
 
         // THEN it is a bad request naming the scope
         assert_eq!(code, StatusCode::BAD_REQUEST);
@@ -438,11 +451,101 @@ mod tests {
         let body = start_body("microsoft", &["mail.read"], "http://app.example.test/cb");
 
         // WHEN a consent is started with it
-        let (code, Json(err)) = start_connector_consent(body).await.unwrap_err();
+        let (code, Json(err)) = start_consent(&ConnectionGovernance::default(), body).unwrap_err();
 
         // THEN it is refused before the user is sent anywhere
         assert_eq!(code, StatusCode::BAD_REQUEST);
         assert!(err.error.contains("redirect URI"));
+    }
+
+    // A policy denying remote connections refuses the consent before any URL.
+    #[test]
+    fn test_start_refused_by_a_policy_denying_remote_connections() {
+        // GIVEN a loaded organisation policy carrying `connections.remote = "deny"`
+        let admission = crate::governance::PolicyAdmission::new(
+            crate::governance::policy_admission::valid_verdict_with_connections(
+                "remote = \"deny\"",
+            ),
+        );
+        let governance = ConnectionGovernance::new(std::sync::Arc::new(admission), None);
+        let body = start_body("google", &["mail.send"], "https://app.example.test/cb");
+
+        // WHEN a Google consent is started
+        let (code, Json(err)) = start_consent(&governance, body).unwrap_err();
+
+        // THEN it is forbidden by the policy, and no URL is issued
+        assert_eq!(code, StatusCode::FORBIDDEN);
+        assert_eq!(err.error, crate::governance::REMOTE_DENIED_REASON);
+    }
+
+    // Once the profile carries no sovereignty key and no policy is deposited,
+    // nothing refuses a Google consent: the route reads no profile at all.
+    #[test]
+    fn test_start_not_refused_without_a_policy() {
+        // GIVEN no organisation policy, the admission the runtime boots with
+        let admission = crate::governance::PolicyAdmission::new(std::sync::Arc::new(
+            apollia_permissions::PolicyVerdict::Absent,
+        ));
+        let governance = ConnectionGovernance::new(std::sync::Arc::new(admission), None);
+        let body = start_body("google", &["mail.send"], "https://app.example.test/cb");
+
+        // WHEN a Google consent is started
+        let outcome = start_consent(&governance, body);
+
+        // THEN the admission does not refuse it (a build without a Google
+        // client stops later, on the missing client, never on a refusal)
+        if let Err((code, Json(err))) = outcome {
+            assert_ne!(code, StatusCode::FORBIDDEN, "{}", err.error);
+        }
+        assert!(admit_account(&governance, ConnectorProvider::Google).is_ok());
+    }
+
+    // The profile migration drops the sovereignty key of a former profile that
+    // forbade the cloud; no Google consent is refused afterwards.
+    #[test]
+    fn test_start_not_refused_after_the_profile_migration() {
+        use apollia_memory::semantic::{RememberInput, SemanticMemory};
+        use apollia_memory::store::MemoryStore;
+        use apollia_memory::user_memory::{UserMemoryRepository, USER_NAMESPACE};
+
+        // GIVEN a former profile that asked for local-only data, migrated by a first open
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("user_memory.db");
+        {
+            let store = MemoryStore::open(&path).unwrap();
+            SemanticMemory::new(&store)
+                .remember(RememberInput {
+                    namespace: USER_NAMESPACE,
+                    key: "constraints.sovereignty",
+                    value: &serde_json::json!("local-only"),
+                    confidence: 1.0,
+                    source: Some("onboarding"),
+                    expires_at: None,
+                })
+                .unwrap();
+        }
+        let repo = UserMemoryRepository::new(&path).unwrap();
+        assert!(repo
+            .list_all()
+            .unwrap()
+            .iter()
+            .all(|e| e.key != "constraints.sovereignty"));
+        let governance = ConnectionGovernance::new(
+            std::sync::Arc::new(crate::governance::PolicyAdmission::new(
+                std::sync::Arc::new(apollia_permissions::PolicyVerdict::Absent),
+            )),
+            None,
+        );
+        let body = start_body("google", &["mail.send"], "https://app.example.test/cb");
+
+        // WHEN a Google consent is started with no policy deposited
+        let outcome = start_consent(&governance, body);
+
+        // THEN nothing refuses it
+        if let Err((code, Json(err))) = outcome {
+            assert_ne!(code, StatusCode::FORBIDDEN, "{}", err.error);
+        }
+        assert!(admit_account(&governance, ConnectorProvider::Google).is_ok());
     }
 
     #[tokio::test]

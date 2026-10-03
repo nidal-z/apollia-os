@@ -287,6 +287,9 @@ pub(super) fn with_structured_output(
 /// embedded engine. A caller that asks for `top_k` on a server that does not
 /// know the field gets whatever that server does with it, refusal included,
 /// rather than a setting this crate dropped without a word.
+///
+/// The reasoning settings travel the same way, in `chat_template_kwargs` (see
+/// [`chat_template_kwargs`]).
 pub(super) fn with_sampling_extensions(
     mut body: serde_json::Value,
     req: &crate::types::CompletionRequest,
@@ -301,14 +304,43 @@ pub(super) fn with_sampling_extensions(
         if let Some(penalty) = req.repeat_penalty {
             map.insert("repeat_penalty".to_string(), serde_json::json!(penalty));
         }
+        if let Some(kwargs) = chat_template_kwargs(req) {
+            map.insert("chat_template_kwargs".to_string(), kwargs);
+        }
     }
     body
+}
+
+/// The `chat_template_kwargs` object that carries the reasoning settings a
+/// caller fixed, `None` when it fixed none.
+///
+/// It is the one per-request form both local engines read: llama-server at
+/// `b10092` (`chat_template_kwargs` in its request parser, where
+/// `reasoning_effort` is not a request field of its own) and vllm-mlx 0.5.0
+/// (`ChatCompletionRequest.chat_template_kwargs`, merged into the template
+/// arguments). Each variable is written only when fixed, so the template keeps
+/// its own default otherwise, and nothing is ever added to a message.
+fn chat_template_kwargs(req: &crate::types::CompletionRequest) -> Option<serde_json::Value> {
+    let mut kwargs = serde_json::Map::new();
+    if let Some(thinking) = req.thinking {
+        kwargs.insert(
+            crate::capabilities::THINKING_VARIABLE.to_string(),
+            serde_json::json!(thinking),
+        );
+    }
+    if let Some(effort) = req.reasoning_effort {
+        kwargs.insert(
+            crate::capabilities::REASONING_EFFORT_VARIABLE.to_string(),
+            serde_json::json!(effort.as_str()),
+        );
+    }
+    (!kwargs.is_empty()).then_some(serde_json::Value::Object(kwargs))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{ChatMessage, CompletionRequest};
+    use crate::types::{ChatMessage, CompletionRequest, ReasoningEffort};
     use async_openai::types::CreateChatCompletionRequestArgs;
     use serde_json::json;
 
@@ -422,5 +454,70 @@ mod tests {
         assert!(body.get("grammar").is_none());
         assert!(body.get("response_format").is_none());
         assert_eq!(body["model"], json!("test-model"));
+    }
+
+    fn reasoning_body(
+        thinking: Option<bool>,
+        effort: Option<ReasoningEffort>,
+    ) -> serde_json::Value {
+        let req = CompletionRequest {
+            messages: vec![ChatMessage::user("hello")],
+            thinking,
+            reasoning_effort: effort,
+            ..Default::default()
+        };
+        let body = serde_json::to_value(built_request()).expect("a serializable request");
+        with_sampling_extensions(body, &req)
+    }
+
+    #[test]
+    fn no_reasoning_setting_sends_no_template_kwargs() {
+        // GIVEN a request that fixes neither reasoning setting
+        // WHEN its body is built
+        let body = reasoning_body(None, None);
+
+        // THEN the body carries no `chat_template_kwargs`, so the template
+        // keeps its own default
+        assert!(body.get("chat_template_kwargs").is_none(), "{body}");
+    }
+
+    #[test]
+    fn thinking_off_travels_as_the_enable_thinking_template_variable() {
+        // GIVEN a request that turns reasoning off
+        // WHEN its body is built
+        let body = reasoning_body(Some(false), None);
+
+        // THEN it carries exactly that switch in `chat_template_kwargs`
+        assert_eq!(
+            body["chat_template_kwargs"],
+            json!({"enable_thinking": false})
+        );
+        assert!(body.get("enable_thinking").is_none());
+        assert!(body.get("reasoning_effort").is_none());
+    }
+
+    #[test]
+    fn a_reasoning_level_travels_as_the_reasoning_effort_template_variable() {
+        // GIVEN a request that asks for each level, then one fixing both settings
+        for (effort, wire) in [
+            (ReasoningEffort::Low, "low"),
+            (ReasoningEffort::Medium, "medium"),
+            (ReasoningEffort::High, "high"),
+        ] {
+            // WHEN its body is built
+            let body = reasoning_body(None, Some(effort));
+
+            // THEN the level is a template variable, never a top-level field
+            assert_eq!(
+                body["chat_template_kwargs"],
+                json!({"reasoning_effort": wire})
+            );
+            assert!(body.get("reasoning_effort").is_none());
+        }
+        let both = reasoning_body(Some(true), Some(ReasoningEffort::High));
+        assert_eq!(
+            both["chat_template_kwargs"],
+            json!({"enable_thinking": true, "reasoning_effort": "high"})
+        );
     }
 }

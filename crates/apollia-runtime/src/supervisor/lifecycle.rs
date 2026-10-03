@@ -206,6 +206,8 @@ impl Supervisor {
         &self,
         system_db_path: &std::path::Path,
         llama_server_supervisor: &Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
+        mlx_engine: &Option<Arc<crate::mlx_engine::MlxEngineSupervisor>>,
+        governance: &crate::governance::InferenceGovernance,
     ) -> (
         Option<Arc<LlmRouter>>,
         Option<Arc<std::sync::Mutex<LlmBackendRepository>>>,
@@ -240,18 +242,23 @@ impl Supervisor {
         let server_endpoints = crate::inference_servers::server_endpoints(
             &repo,
             crate::inference_servers::default_store,
+            governance,
         );
 
         // Override instantiation of `LlamaCpp` backends so they route through
-        // the managed llama-server. Cloud backends keep their standard
-        // `instantiate_from_config` path. The factory is shared with the reload
-        // paths (see `llama_server_backend::llama_server_override`).
+        // the local engine their model's format calls for. Cloud backends keep
+        // their standard `instantiate_from_config` path. The factory is shared
+        // with the reload paths (see `local_engine::local_engine_override`).
         let router_result = {
-            let factory =
-                crate::llama_server_backend::llama_server_override(llama_server_supervisor.clone());
+            let factory = crate::local_engine::local_engine_override(
+                llama_server_supervisor.clone(),
+                mlx_engine.clone(),
+                Some(crate::installed_models::models_dir(&self.config.data_dir)),
+            );
             match crate::backend_keys::routable_configs(
                 &repo,
                 crate::inference_servers::default_store,
+                governance,
             ) {
                 Ok((configs, Some(default))) => {
                     LlmRouter::from_backend_configs_with_override(configs, default, factory).await

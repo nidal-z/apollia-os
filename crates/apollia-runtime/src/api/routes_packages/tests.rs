@@ -317,3 +317,18 @@ async fn test_trusted_keys_import_list_remove_and_trust_the_publisher() {
     assert_eq!(invalid, StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(invalid_body["code"], "invalid_key");
 }
+
+#[test]
+fn test_removing_a_key_the_policy_trusts_is_forbidden() {
+    // GIVEN the keyring's refusal to remove a key the policy trusts
+    let refusal = apollia_tools::TrustedKeyError::HeldByPolicy {
+        fingerprint: "ab".repeat(32),
+    };
+
+    // WHEN the route answers it
+    let (status, axum::Json(body)) = super::removal_error(refusal);
+
+    // THEN it is forbidden, with its own code
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body.code, "policy_key");
+}

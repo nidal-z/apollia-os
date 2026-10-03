@@ -33,12 +33,17 @@
 //! keyring ([`apollia_tools::TrustedKeyRepository`]); the preview then names
 //! it by the label the user gave. Any other signed package is named by the
 //! publisher it declares, which nothing verifies, and by its key fingerprint.
+//! When the organisation policy names its trusted publishers, only their keys
+//! are trusted, and with a signature required a package signed by any other
+//! key is refused ([`InstallRefusal::PublisherNotTrusted`]).
 
 mod embedded;
 mod install;
 mod preview;
 mod uninstall;
 
+#[cfg(test)]
+mod policy_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

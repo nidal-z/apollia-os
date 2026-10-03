@@ -64,9 +64,42 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # the seam (models, MCP servers, connections, notifications, triggers, tools),
 # then at 168 once the commands of the window were named as such, then at 164
 # once the profile had its routes, then at 162 once the settings of the chat
-# became those of the Apollia agent, then at 158 once the uninstall of an agent
-# and of a package went through the runtime.
-EMBEDDED_ONLY_CEILING = 158
+# became those of the Apollia agent, then at 155 once the memory could be
+# cleared, purged, exported and imported through the daemon, then at 149 once
+# the conversations of the chat could be configured, renamed, named, erased and
+# linked to a project, then at 146 once the metrics of a conversation were read
+# from the daemon and its export and reveal named as window commands, then at
+# 141 once the memory was read through its routes, then at 136 once the chat
+# could play a turn again, decide on a tool call and read those decisions, then
+# at 131 once the proposed permission rules and the answers to a request to
+# touch a file had their routes, then at 123 once the tools, their
+# configuration, the permission rules and the audit of the tool governance had
+# their routes, then at 116 once the accounts of the native connectors and
+# their Drive folder were served by the daemon, then at 110 once the OAuth
+# clients of the connectors were served by the daemon, then at 103 once the plan
+# mode had its routes, then at 96 once the MCP secrets and registry had their
+# routes and the MCP sign-in was named a window command, then at 92 once the
+# credentials of the native tools had their routes, then at 88 once the
+# downloads, the import and the removal of a model served the daemon, then at 83
+# once the LLM engines were listed, tested and reloaded, and the cost alert
+# threshold read, through the daemon, then at 78 once the settings, the status
+# and the models of the dictation were served by the daemon, then at 70 once the
+# onboarding had its routes, then at 65 once the onboarding, the memory, the logs
+# and the whole data directory could be reset or erased through the daemon,
+# then at 61 once the artifacts of a conversation were served by the daemon,
+# then at 58 once the timeline, the tool audit and the mailbox of the
+# Observability view were, then at 54 once the assists around the chat
+# (rewrite, next steps, automation, coaching) were, then at 49 once the
+# transcription history and the transcription of a file reached the daemon and
+# the dictation was named a command of the window, then at 44 once the reading
+# side of the Model Hub (hardware, search, cards, installed models,
+# recommendation) reached the daemon, then at 39 once the local AI could be
+# installed at onboarding through the daemon, then at 34 once the agent
+# packages were installed, listed and uninstalled through the daemon, then at
+# 30 once the companion read its preference and opened its guide session
+# through the daemon, then at 29 once the uninstall of an agent went through
+# the runtime.
+EMBEDDED_ONLY_CEILING = 29
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

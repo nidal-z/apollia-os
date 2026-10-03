@@ -1,8 +1,9 @@
 //! Tauri IPC commands for managing LLM backends.
 //!
-//! Each command delegates to the internal REST API (`/api/v1/llm/*`) via the
-//! parent module's HTTP helpers. CRUD operations target
-//! `/api/v1/llm/backends`; ping and statistics use their own dedicated routes.
+//! Each command delegates to the runtime's REST API (`/api/v1/llm/*`) through
+//! [`RuntimeLink`], so it serves the runtime in this process and the daemon
+//! alike. CRUD operations target `/api/v1/llm/backends`; ping, statistics,
+//! the cost alert threshold and the reload use their own dedicated routes.
 
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -14,7 +15,7 @@ use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use super::{http_get_json, http_post_json};
+use super::http_post_json;
 use crate::SharedLlmRouter;
 
 /// Snapshot of the most recent ping result for a single backend.
@@ -142,10 +143,19 @@ fn parse_backend_view(json: serde_json::Value) -> Result<LlmBackendView, String>
 /// latest ping data from the in-memory `LlmPingCache`.
 #[tauri::command]
 pub async fn list_llm_backends(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     cache: State<'_, LlmPingCache>,
 ) -> Result<Vec<LlmBackendView>, String> {
-    let json = http_get_json(state.api_port, "/api/v1/llm/backends").await?;
+    backends_with_pings(&link, &cache).await
+}
+
+/// The backends of the runtime `link` drives, each with the last ping this
+/// window recorded for it.
+pub(crate) async fn backends_with_pings(
+    link: &RuntimeLink,
+    cache: &LlmPingCache,
+) -> Result<Vec<LlmBackendView>, String> {
+    let json = link.get_json("/api/v1/llm/backends").await?;
 
     let backends = json
         .get("backends")
@@ -245,12 +255,22 @@ pub async fn set_default_llm_backend(
 /// `last_ping_error` / `last_ping_at` onto the returned views.
 #[tauri::command]
 pub async fn ping_llm_backend(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     cache: State<'_, LlmPingCache>,
     name: String,
 ) -> Result<PingResult, String> {
+    Ok(ping_and_record(&link, &cache, name).await)
+}
+
+/// Pings `name` on the runtime `link` drives and records the outcome in
+/// `cache`. A refusal is a failed ping carrying the runtime's message.
+pub(crate) async fn ping_and_record(
+    link: &RuntimeLink,
+    cache: &LlmPingCache,
+    name: String,
+) -> PingResult {
     let body = serde_json::json!({ "backend": name });
-    let json = http_post_json(state.api_port, "/api/v1/llm/ping", &body).await;
+    let json = link.post_json("/api/v1/llm/ping", &body).await;
 
     let result = match json {
         Ok(resp) => PingResult {
@@ -286,20 +306,24 @@ pub async fn ping_llm_backend(
         );
     }
 
-    Ok(result)
+    result
 }
 
 /// Returns the configured LLM cost-alert threshold in USD.
 ///
-/// Returns `None` if `cost_alert_threshold_usd` is not configured in `apollia.toml`.
+/// Delegates to `GET /api/v1/llm/cost-alert-threshold`, which reads the live
+/// router. Returns `None` when no threshold is set.
 #[tauri::command]
-pub async fn get_cost_alert_threshold(
-    state: State<'_, RuntimeHandle>,
-) -> Result<Option<f64>, String> {
-    Ok(state
-        .llm_router
-        .as_ref()
-        .and_then(|router| router.cost_alert_threshold_usd()))
+pub async fn get_cost_alert_threshold(link: State<'_, RuntimeLink>) -> Result<Option<f64>, String> {
+    cost_alert_threshold(&link).await
+}
+
+/// The cost alert threshold of the runtime `link` drives.
+pub(crate) async fn cost_alert_threshold(link: &RuntimeLink) -> Result<Option<f64>, String> {
+    let json = link.get_json("/api/v1/llm/cost-alert-threshold").await?;
+    Ok(json
+        .get("threshold_usd")
+        .and_then(serde_json::Value::as_f64))
 }
 
 /// Fetches the cost/token statistics aggregated over N days.
@@ -357,11 +381,8 @@ pub async fn get_llm_cost_stats(
 /// frontend callers. All LLM configuration now lives in `system.db`;
 /// `apollia.toml` is no longer the source of truth.
 #[tauri::command]
-pub async fn reload_llm(
-    shared: State<'_, SharedLlmRouter>,
-    runtime: State<'_, RuntimeHandle>,
-) -> Result<(), String> {
-    reload_llm_from_db(shared, runtime).await
+pub async fn reload_llm(app: tauri::AppHandle, link: State<'_, RuntimeLink>) -> Result<(), String> {
+    reload_llm_from_db(app, link).await
 }
 
 /// Rebuilds the `SharedLlmRouter` from `system.db` (SQLite).
@@ -372,14 +393,43 @@ pub async fn reload_llm(
 ///
 /// The old `Arc<LlmRouter>` is explicitly dropped before writing the new one,
 /// which frees the GGUF model from RAM as soon as no requests are in flight.
+///
+/// Attached to a daemon, this window holds no router: the daemon rebuilds its
+/// own through `POST /api/v1/llm/reload`, and its refusal is the error shown.
 #[tauri::command]
 pub async fn reload_llm_from_db(
-    shared: State<'_, SharedLlmRouter>,
-    runtime: State<'_, RuntimeHandle>,
+    app: tauri::AppHandle,
+    link: State<'_, RuntimeLink>,
+) -> Result<(), String> {
+    match &*link {
+        RuntimeLink::Embedded(runtime) => {
+            let shared = tauri::Manager::try_state::<SharedLlmRouter>(&app)
+                .ok_or_else(|| "LLM router not available".to_string())?;
+            rebuild_desktop_router(&shared, runtime).await
+        }
+        RuntimeLink::Attached(_) => reload_runtime_router(&link).await,
+    }
+}
+
+/// Asks the runtime `link` drives to rebuild its router from `system.db`.
+pub(crate) async fn reload_runtime_router(link: &RuntimeLink) -> Result<(), String> {
+    link.post_json("/api/v1/llm/reload", &serde_json::json!({}))
+        .await
+        .map(|_| ())
+}
+
+/// Rebuilds the router of this process, then the embedded runtime's.
+async fn rebuild_desktop_router(
+    shared: &SharedLlmRouter,
+    runtime: &RuntimeHandle,
 ) -> Result<(), String> {
     let home = apollia_core::paths::home_dir_or_temp();
     let db_path = apollia_core::paths::data_dir_under(home)
         .join(apollia_core::paths::DataFile::System.file_name());
+
+    // A row naming a server the organisation policy refuses is turned off.
+    let governance =
+        apollia_runtime::governance::InferenceGovernance::new(runtime.org_policy.clone());
 
     // LlmBackendRepository is !Send (uses RefCell<Connection>), so all DB work
     // must stay inside spawn_blocking. We extract the raw configs and return them.
@@ -390,6 +440,7 @@ pub async fn reload_llm_from_db(
         let (all, default_name) = apollia_runtime::backend_keys::routable_configs(
             &repo,
             apollia_runtime::inference_servers::default_store,
+            &governance,
         )
         .map_err(|e| format!("failed to list LLM backends: {e}"))?;
         let default_name = default_name
@@ -421,8 +472,10 @@ pub async fn reload_llm_from_db(
     // the reload would rebuild a router without the local backend (local
     // inference would become unreachable). We reuse the same factory as the
     // supervisor at boot.
-    let factory = apollia_runtime::llama_server_backend::llama_server_override(
+    let factory = apollia_runtime::local_engine::local_engine_override(
         runtime.llama_server_supervisor.clone(),
+        runtime.mlx_engine.clone(),
+        apollia_core::paths::data_dir().map(|d| apollia_runtime::installed_models::models_dir(&d)),
     );
 
     // `system.db` holds neither `[llm.routing]` nor the agents' last

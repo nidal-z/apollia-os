@@ -247,6 +247,27 @@ environ 150 Mo à l'image disque macOS, et ils demandent macOS 14 ou plus
 récent, plancher des roues MLX à la version épinglée. Les paquets Windows et
 Linux ne le portent pas.
 
+Les moteurs ont leur propre canal de mise à jour et ne suivent pas la version
+d'Apollia. Le moteur embarqué sert chaque machine dès le premier lancement ; une
+version accélérée, CUDA sur une machine dotée d'une carte NVIDIA, se télécharge
+à la demande, ou s'importe depuis un disque sans réseau, et le lanceur prend
+alors la version installée la plus récente de cette variante plutôt que le
+moteur embarqué. Tout téléchargement ou import de moteur est précédé de la
+vérification d'un manifeste d'empreintes signé au format minisign avec une clé
+de distribution dédiée. Chaque canal, stable ou préversion, publie un tel
+manifeste, qui liste chaque archive de moteur avec son SHA-256. La moitié
+publique de cette clé est compilée dans le binaire et c'est la seule clé
+acceptée. Aucune archive n'est demandée avant que la signature tienne, une
+archive dont l'empreinte diffère du manifeste est supprimée, et un manifeste
+plus ancien que le dernier accepté sur son canal est refusé. Un miroir peut
+remplacer l'adresse d'où viennent manifestes et archives ; il ne peut pas
+remplacer la clé. Les archives de moteur se lisent au format zip seul, celui déjà
+lu pour les paquets d'agents, et aucun autre format d'archive n'est analysé. Les
+versions amont publiées en `.tar.gz`, dont celles pour macOS et Linux, sont
+reconditionnées en zip par la chaîne de publication qui produit le manifeste, et
+le manifeste porte l'empreinte de ce zip. L'environnement du moteur MLX figure
+dans le même manifeste et s'installe par la même vérification.
+
 Il n'y a aucun fournisseur cloud dédié. Un modèle distant se joint par une seule
 connexion générique à un serveur compatible OpenAI, à l'adresse que
 l'organisation désigne : un vLLM ou un LM Studio auto-hébergé, ou une
@@ -320,8 +341,18 @@ optionnelle : une compilation sans elle perd la dictée, et rien d'autre.
 
 ## Model Context Protocol {#mcp}
 
-Apollia est un client MCP sur les transports stdio et HTTP, et expose aussi ses
-propres outils natifs comme serveur MCP sur stdio.
+Apollia est un client MCP sur les transports stdio et HTTP. C'est aussi un
+serveur MCP, pour les agents et workflows que l'utilisateur choisit et rien
+d'autre : `apollia-os mcp server` est un pont stdio vers le démon en cours, qui
+liste les agents et workflows marqués exposés et en exécute un jusqu'à sa fin
+quand un client l'appelle. Un agent prend un message, sous le nom d'outil
+`agent__<id>` ; un workflow prend les entrées que son schéma déclare, sous
+`workflow__<paquet>_<workflow>`. Un nom s'en tient à `[A-Za-z0-9_-]` et à 64
+caractères, comme l'exigent les API des modèles, et deux éléments dont les noms
+se confondraient sont tous deux écartés. Le pont est désactivé par défaut : le
+démon le refuse tant que `[mcp] server_enabled` n'est pas activé, réglage qu'il
+relit à chaque ouverture d'un pont. Les outils natifs (shell, fichiers,
+installation d'agents) ne sont plus servis à un client MCP.
 
 Toute réponse MCP est traitée comme une entrée non fiable. Les réponses sont
 plafonnées par serveur, les noms et descriptions d'outils sont validés dès
@@ -331,6 +362,20 @@ mal se dégrade lui-même, pas le runtime.
 
 Les serveurs qui exigent OAuth passent par un flux dédié, avec son propre
 plafond de réponse, plus petit.
+
+Node.js n'est pas embarqué dans Apollia, ce qui tient le principe 2 (zéro
+dépendance externe) : rien n'est à installer sur le poste au préalable. Une
+version LTS épinglée de Node.js est publiée dans le manifeste d'empreintes
+signé du canal des moteurs, signé au format minisign avec la clé de
+distribution dédiée d'Apollia (voir [Inférence locale](#local-inference)), et
+elle se télécharge au premier serveur lancé par `node` ou `npx` qui en a
+besoin : la signature du manifeste est vérifiée avant toute requête d'archive,
+puis l'empreinte de l'archive, puis l'archive est extraite dans le magasin des
+moteurs. Un tel serveur tourne alors sur ce Node.js par son chemin absolu,
+jamais par le `PATH` ; tant qu'aucun n'est installé, son lancement échoue sur
+une erreur typée « Node.js requis ». Un poste sans réseau importe Node.js depuis
+un disque, par la même vérification. Les paquets npm des serveurs s'installent
+depuis un verrou qui porte une empreinte d'intégrité par paquet.
 
 ## Connecteurs {#connectors}
 
@@ -369,6 +414,21 @@ Le coût est nommé : deux crates et leurs petits arbres (`imap-proto`, `hashify
 `stop-token`, `async-channel`) entrent dans chaque compilation, pour un
 protocole dont les serveurs varient dans leur rigueur. Un serveur qui comprend
 mal une commande donne une erreur de protocole typée, pas un plantage.
+
+## Export d'un lot {#batch-export}
+
+Le résultat d'un lot s'exporte en classeur Excel, en CSV ou en JSON, une ligne
+par élément. CSV et JSON s'écrivent sans dépendance. Le classeur est écrit par
+`rust_xlsxwriter` (MIT ou Apache-2.0), un écrivain seul, sans accès réseau,
+épinglé à 0.92.0 : c'est la dernière version qui dépend de la version majeure
+de `zip` que l'espace de travail porte déjà, et une version plus récente
+mettrait deux versions de `zip` dans chaque build. Il ajoute trois crates au
+fichier de verrouillage, lui-même, `zopfli` et `zlib-rs` (voir
+[Archive de paquet](#package-archive)).
+
+`rust_xlsxwriter` ne sait pas modifier un classeur existant. Écrire les
+résultats dans le fichier d'où un lot a été lu se décide avec le lecteur de
+tableurs, pas ici.
 
 ## Messagerie entre agents {#agent-messaging}
 
@@ -617,9 +677,15 @@ déjà dans l'arbre par le programme de mise à jour du bureau ; aucune crate n'
 entrée dans le fichier de verrouillage. `zip` est compilée avec deflate seul :
 ni chiffrement, ni bzip2, lzma, zstd ou deflate64. `flate2` est déclarée à côté
 pour une seule raison, choisir l'implémentation en Rust pur (`miniz_oxide`) de
-ce deflate : `zip` laisse ce choix à l'appelant, `flate2` refuse de compiler
-sans implémentation, et la fonctionnalité `deflate` de `zip`, qui en choisirait
-une d'elle-même, tire `zopfli` et `zlib-rs`, absentes de l'arbre.
+ce deflate : `zip` laisse ce choix à l'appelant, et `flate2` refuse de
+compiler sans implémentation.
+
+L'export Excel d'un lot (voir [Export d'un lot](#batch-export)) a changé un
+point de ce choix. Son écrivain active la fonctionnalité `deflate` de `zip`,
+qui apporte deux crates en Rust pur, `zopfli` (Apache-2.0) et `zlib-rs` (Zlib),
+et fait de `zlib-rs` l'implémentation deflate de `flate2` dans tout le
+programme. Les deux ont été acceptées plutôt qu'écrire le classeur à la main
+avec `zip` seul. Les bornes de lecture ci-dessus ne changent pas.
 
 Les paquets qu'Apollia livre dans son propre binaire, le guide de l'application
 d'abord, ne sont pas signés. Le bureau assemble chacun d'eux au démarrage à
@@ -635,6 +701,17 @@ signer le paquet une seconde fois ne prouverait rien de plus. Comme tout paquet,
 il est inscrit au journal d'audit, une version installée plus récente n'est
 jamais rétrogradée, et les surcharges de l'utilisateur comme l'état désactivé de
 ses agents survivent à une mise à jour.
+
+Un outil de paquet s'exécute avec un contexte nu : ni mémoire, ni profil de
+l'utilisateur. Une exception est décidée par l'hôte, jamais par un paquet.
+L'onboarding d'Apollia est livré comme un agent déclaratif doté d'un outil qui
+enregistre les faits de profil de la première conversation, le droit que
+l'agent d'onboarding tenait quand il exécutait du code. Le runtime accorde à cet
+outil le profil de l'utilisateur, en écriture, et la mémoire de l'onboarding,
+que le bureau lit pour savoir que l'onboarding est terminé. L'accord nomme le
+paquet, le module et la source que porte le binaire : un outil dont le module
+sur le disque n'est pas cette source octet pour octet, quel que soit le nom de
+son paquet, n'obtient rien.
 
 ## Intégration hôte {#host-integration}
 
