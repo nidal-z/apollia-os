@@ -1100,6 +1100,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/cost-alert-threshold": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/llm/cost-alert-threshold`.
+         * @description Reads the threshold of the router the runtime serves now, the one a reload
+         *     swapped in. A runtime without a router has no threshold, which is an answer
+         *     and not an error, as the desktop has always read it.
+         */
+        get: operations["get_cost_alert_threshold"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/costs": {
         parameters: {
             query?: never;
@@ -3908,6 +3930,15 @@ export interface components {
             account_id: string;
             /** @description Provider identifier. */
             provider: string;
+        };
+        /** @description Response body for `GET /api/v1/llm/cost-alert-threshold`. */
+        CostAlertThresholdResponse: {
+            /**
+             * Format: double
+             * @description The cost alert threshold of the live router in USD, `null` when none is
+             *     set or no router is configured.
+             */
+            threshold_usd?: number | null;
         };
         /** @description A single backend/model cost summary row. */
         CostSummaryRow: {
@@ -8640,6 +8671,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_cost_alert_threshold: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The cost alert threshold of the live router */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostAlertThresholdResponse"];
                 };
             };
         };

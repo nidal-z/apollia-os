@@ -126,6 +126,14 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "start_variant_download",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
+    // LLM engines: the list, the test, the reload, the cost alert threshold.
+    // The last ping of each engine stays in this window's memory, which
+    // [`run`] manages in both modes.
+    "get_cost_alert_threshold",
+    "list_llm_backends",
+    "ping_llm_backend",
+    "reload_llm",
+    "reload_llm_from_db",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no
@@ -337,6 +345,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
             std::sync::Arc::new(tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()))
                 as crate::commands::model_hub::SharedDownloadManager,
         )
+        .manage(crate::commands::llm::LlmPingCache::default())
         .on_menu_event(|app, event| {
             if event.id().as_ref() == crate::tray::MENU_QUIT_APP {
                 crate::tray::initiate_quit(app);
