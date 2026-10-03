@@ -6,7 +6,7 @@ sidebar_position: 7
 
 # Comprendre les permissions MCP
 
-> Pour tout operator qui veut savoir pourquoi un outil demande une approbation, comment changer une règle, et ce que fait le mode local-only.
+> Pour tout operator qui veut savoir pourquoi un outil demande une approbation, comment changer une règle, et ce que la politique de votre organisation interdit.
 
 ## Prérequis
 
@@ -46,16 +46,17 @@ Le niveau d'approbation par serveur n'est pas sur cette page : il se trouve dans
 
 Une règle se crée de deux façons. La plupart du temps elle apparaît toute seule, quand vous répondez « Toujours autoriser » à une demande d'approbation. Vous pouvez aussi en créer une à la main depuis cette page, via le formulaire **Ajouter une règle**, ce qui permet d'autoriser quelque chose avant même qu'un agent le demande.
 
-## Ce que fait le profil de souveraineté
+## Ce que la politique de l'organisation interdit
 
-Le **profil de souveraineté** est une décision globale, indépendante des règles par outil.
+Interdire le cloud est une décision de votre organisation, pas une règle par
+outil. Elle est écrite dans la politique signée que l'informatique peut déployer
+sur le poste, sous la forme `connections.remote = "deny"`, et c'est le runtime
+qui la vérifie.
 
-Il se règle dans **Réglages, Profil**, sous **Souveraineté des données**, et prend l'une de trois valeurs.
+- **Aucune politique** : vous êtes libre. Aucune connexion n'est refusée parce qu'elle est en ligne.
+- **Une politique avec `connections.remote = "deny"`** : ajouter une connexion à un service en ligne est refusé, qu'il s'agisse d'un compte Google ou Microsoft ou d'un serveur MCP distant. La fenêtre affiche « Refusé par la politique de l'organisation » et rien n'est envoyé.
 
-- **Cloud autorisé** et **Local préféré** : ouvrir une connexion OAuth cloud est permis.
-- **Local strict** : ouvrir une connexion OAuth cloud est refusé, et il l'est aussi tant que le réglage n'a jamais reçu de réponse, un réglage sensible sans réponse ne valant pas accord.
-
-C'est tout ce que le profil applique en `v0.1.0-preview`. Il est vérifié à un seul endroit, au clic sur **Connecter** d'un connecteur natif, et nulle part ailleurs. Il ne filtre **pas** les serveurs MCP : un serveur HTTP ou SSE distant déjà installé reste joignable sous *Local strict*, et aucun agent ne reçoit d'erreur de souveraineté, puisqu'aucune n'est levée sur le chemin des outils. Voyez le profil comme une barrière à la connexion d'un compte cloud, pas comme une frontière réseau.
+La politique est vérifiée à l'ajout d'une connexion, pas à chaque appel d'outil : aucun agent ne reçoit d'erreur de politique sur le chemin des outils. Voyez-la comme une barrière à la connexion, pas comme une frontière réseau.
 
 ## Ce qu'un serveur MCP peut, et ne peut pas, vous demander
 

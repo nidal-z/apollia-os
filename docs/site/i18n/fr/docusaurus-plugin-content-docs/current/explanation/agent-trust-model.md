@@ -144,8 +144,10 @@ elles sont sur la feuille de route plutôt que livrées :
   qu'une simple métadonnée.
 - Une véritable prison de système de fichiers pour les exécuteurs shell et
   Python.
-- L'application du profil de souveraineté (`local_only`) comme barrière
-  automatique.
+- Une politique d'organisation qui interdit le cloud sur tous les chemins
+  sortants. Aujourd'hui, sa règle `connections.remote = "deny"` refuse l'ajout
+  d'une connexion à un service en ligne, vérifiée par le runtime ; elle ne
+  couvre pas encore les points d'accès d'inférence.
 
 Tant que ces éléments ne sont pas livrés, le modèle de confiance décrit
 ci-dessus est toute l'histoire. Quand ils le seront, cette page et le
