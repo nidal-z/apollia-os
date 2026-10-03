@@ -53,6 +53,7 @@ fn dispatcher_config(
         web_search_config: WebSearchConfig::default(),
         web_read_config: WebReadConfig::default(),
         python_interpreter: None,
+        max_output_chars: apollia_tools::executor::DEFAULT_MAX_OUTPUT_CHARS,
     }
 }
 

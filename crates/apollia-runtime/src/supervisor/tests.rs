@@ -1902,3 +1902,35 @@ async fn test_a_runtime_whose_compatible_server_is_on_opens_it_at_start() {
     let _ = handles.event_sender.send(RuntimeEvent::ShutdownRequested);
     shutdown_handles(handles, &socket_path).await;
 }
+
+#[test]
+fn the_production_router_carries_the_prompt_debug_log_of_the_file() {
+    // GIVEN an apollia.toml whose [llm.observability] turns debug_log_prompt on
+    let llm: LlmConfig = toml::from_str(
+        "default = \"local\"\nbackends = []\n[observability]\ndebug_log_prompt = true\n",
+    )
+    .expect("a valid [llm] section");
+    let (mut config, _dir) = test_config(0, temp_socket_path());
+    config.llm_config = Some(llm);
+    let supervisor = Supervisor::new(config);
+
+    // WHEN the runtime builds its router, from system.db, then grafted with
+    // what the file declares
+    let router = supervisor.finalize_llm_router(apollia_llm::LlmRouter::empty());
+
+    // THEN the option is on in the router every model call goes through
+    assert!(router.observability().debug_log_prompt);
+}
+
+#[test]
+fn the_production_router_leaves_the_prompt_debug_log_off_by_default() {
+    // GIVEN no [llm] section in the file
+    let (config, _dir) = test_config(0, temp_socket_path());
+    let supervisor = Supervisor::new(config);
+
+    // WHEN the runtime builds its router
+    let router = supervisor.finalize_llm_router(apollia_llm::LlmRouter::empty());
+
+    // THEN prompts are not logged
+    assert!(!router.observability().debug_log_prompt);
+}

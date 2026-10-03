@@ -324,10 +324,18 @@ impl Supervisor {
         }
     }
 
-    /// Propagate the `[llm.routing]` TOML section onto the freshly built router
-    /// and log the ready backends. `system.db` does not store routing.
-    fn finalize_llm_router(&self, mut router: LlmRouter) -> LlmRouter {
+    /// Propagate the `[llm.routing]` and `[llm.observability]` TOML sections
+    /// onto the freshly built router and log the ready backends. `system.db`
+    /// stores neither.
+    pub(in crate::supervisor) fn finalize_llm_router(&self, mut router: LlmRouter) -> LlmRouter {
         if let Some(llm_cfg) = self.config.llm_config.as_ref() {
+            router = router.with_observability(llm_cfg.observability.clone());
+            if llm_cfg.observability.debug_log_prompt {
+                tracing::info!(
+                    detail = "every prompt is logged at trace level",
+                    "llm.observability.debug_log_prompt.on"
+                );
+            }
             if let Some(routing) = llm_cfg.routing.as_ref() {
                 router = router.with_routing(routing.clone());
                 tracing::info!(

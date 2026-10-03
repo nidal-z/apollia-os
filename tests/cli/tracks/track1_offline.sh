@@ -310,12 +310,8 @@ check_json   "chat export .json is valid JSON"       /bin/cat "$SCRATCH/c.json"
 check_exit   "chat export unknown session"  1        "$BIN" chat export ghost-sess-id
 check        "chat delete seed-session-4 --confirm"  "$BIN" chat delete seed-session-4 --confirm
 
-# ── A.11 llm (threshold + setup validation, no daemon) ──────────────────────
+# ── A.11 llm (setup validation, no daemon) ──────────────────────────────────
 section "A.11 llm (offline)"
-LCFG="$SCRATCH/llm.toml"
-check        "llm costs --get-threshold (absent)"    "$BIN" llm costs --get-threshold --config "$LCFG"
-check        "llm costs --threshold 0.5"             "$BIN" llm costs --threshold 0.5 --config "$LCFG"
-check_grep   "llm costs threshold = 0.5" "0.5"       "$BIN" llm costs --get-threshold --config "$LCFG"
 check_exit   "llm setup without --local"  1          "$BIN" llm setup --model /tmp/never.gguf
 check_exit   "llm setup --local missing model"  1    "$BIN" llm setup --local --model /definitely/missing.gguf
 

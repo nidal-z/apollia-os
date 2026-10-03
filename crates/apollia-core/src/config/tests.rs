@@ -778,7 +778,6 @@ fn test_tools_config_below_min_fails() {
     // GIVEN max_output_chars below minimum (min = 10)
     let cfg = ToolsConfig {
         max_output_chars: 5,
-        file_path_extraction_pattern: None,
         disabled: Vec::new(),
         web_search: WebSearchConfig::default(),
         web_read: WebReadConfig::default(),
@@ -798,7 +797,6 @@ fn test_tools_config_above_max_fails() {
     // GIVEN max_output_chars above maximum
     let cfg = ToolsConfig {
         max_output_chars: 2_000_000,
-        file_path_extraction_pattern: None,
         disabled: Vec::new(),
         web_search: WebSearchConfig::default(),
         web_read: WebReadConfig::default(),
@@ -937,7 +935,7 @@ fn test_config_module_doc_lists_only_sections_a_loader_reads() {
         .collect();
     listed.sort_unstable();
 
-    // THEN it is exactly the thirteen sections this crate defines that a loader
+    // THEN it is exactly the twelve sections this crate defines that a loader
     // deserializes, and it names neither `[a2a]` nor `[oria]`, which no loader
     // ever reads from a file
     assert_eq!(
@@ -955,7 +953,6 @@ fn test_config_module_doc_lists_only_sections_a_loader_reads() {
             "runtime",
             "server",
             "tools",
-            "ui",
         ],
         "the module doc bullet list does not match the sections a loader reads"
     );

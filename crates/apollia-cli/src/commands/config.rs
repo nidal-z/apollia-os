@@ -965,6 +965,38 @@ mod tests {
     }
 
     #[test]
+    fn run_set_writes_an_observability_key() {
+        // GIVEN a throwaway home holding an empty apollia.toml
+        let home = tempfile::tempdir().unwrap();
+        let path = home.path().join(".apollia").join("apollia.toml");
+        // WHEN a key of [observability] is set through the command
+        let code = run_set("observability.retention_days", "30", Some(&path), true);
+        // THEN it succeeds, and the daemon's schema reads the value back
+        assert_eq!(code, exit_codes::SUCCESS);
+        let written = std::fs::read_to_string(&path).unwrap();
+        let typed = crate::config::validate_apollia_toml_str(&written).unwrap();
+        assert_eq!(typed.observability.retention_days, 30);
+    }
+
+    #[test]
+    fn run_set_writes_the_link_preview_under_desktop_and_refuses_its_former_place() {
+        // GIVEN a throwaway home holding an empty apollia.toml
+        let home = tempfile::tempdir().unwrap();
+        let path = home.path().join(".apollia").join("apollia.toml");
+        // WHEN the link preview is set at its place, then at its former one
+        let moved = run_set("desktop.link_preview_enabled", "true", Some(&path), true);
+        let former = run_set("ui.link_preview_enabled", "true", Some(&path), true);
+        // THEN the first is written under [desktop], the second refused as a
+        // withdrawn key
+        assert_eq!(moved, exit_codes::SUCCESS);
+        assert_eq!(former, exit_codes::GENERAL_ERROR);
+        let written = std::fs::read_to_string(&path).unwrap();
+        assert!(!written.contains("[ui]"), "{written}");
+        let typed = crate::config::validate_apollia_toml_str(&written).unwrap();
+        assert!(typed.desktop.link_preview_enabled);
+    }
+
+    #[test]
     fn run_set_refuses_a_key_the_policy_fixes() {
         // GIVEN a file where the user turned developer mode on, and a policy
         // fixing it off

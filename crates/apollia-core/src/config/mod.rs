@@ -13,8 +13,7 @@
 //! - [`McpConfig`]: `[mcp]`, the MCP client.
 //! - [`HooksConfig`]: `[hooks]`, lifecycle hook handlers.
 //! - [`ChatConfig`]: `[chat]`, chat session defaults.
-//! - [`FilesystemConfig`]: `[filesystem]`, the reversible journal and the
-//!   trusted paths.
+//! - [`FilesystemConfig`]: `[filesystem]`, the trusted paths.
 //! - [`ModelsConfig`]: `[models]`, the signed index of model cards the
 //!   catalogue reads, its mirror, the switch that turns it off, and the rule
 //!   applied to an imported file.
@@ -26,8 +25,7 @@
 //!   of the runtime on its own port, switched off by default; its two keys
 //!   are named settings too.
 //! - [`LlmConfig`]: `[llm]`, the backends declared in the file, routing and
-//!   the runner; `apollia-llm` re-exports its shapes.
-//! - [`UiConfig`]: `[ui]`, the desktop link preview.
+//!   the prompt debug log; `apollia-llm` re-exports its shapes.
 //!
 //! The other types in this module are runtime parameters, not `apollia.toml`
 //! sections. No loader deserializes an `[a2a]` or an `[oria]` table, both are
@@ -85,14 +83,14 @@ pub use autonomy::{
 };
 pub use chat::ChatConfig;
 pub use desktop::DesktopConfig;
-pub use filesystem::{FilesystemConfig, JournalConfig};
+pub use filesystem::FilesystemConfig;
 pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
-pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig, LlmRunnerConfig};
+pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig};
 pub use llm_section::{
     infer_api_provider_from_url, LlmApiBackendEntry, LlmBackendEntry, LlmBackendKind, LlmConfig,
-    LlmObservabilityConfig, PricingTier,
+    LlmObservabilityConfig,
 };
 pub use mcp::{McpConfig, McpToolLoading};
 pub use models::{
@@ -102,7 +100,7 @@ pub use oria::ORIAConfig;
 pub use permissions::BashValidatorConfig;
 pub use registry::RegistryConfig;
 pub(crate) use retired::warn_retired_keys;
-pub use root::{ApolliaConfig, UiConfig};
+pub use root::ApolliaConfig;
 pub use runtime::RuntimeConfig;
 pub use server::{ServerConfig, DEFAULT_COMPAT_SERVER_PORT};
 pub use settings::{

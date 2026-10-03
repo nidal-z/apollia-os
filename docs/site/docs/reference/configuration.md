@@ -10,8 +10,7 @@ Reference for the `apollia.toml` configuration surface.
 The file has one location, `~/.apollia/apollia.toml`, and every surface reads
 and writes that one: the daemon started by `apollia-os start`, the desktop
 application, and every command that touches the configuration
-(`apollia-os config`, `apollia-os llm costs`, `apollia-os tools config`,
-`apollia-os doctor`).
+(`apollia-os config`, `apollia-os tools config`, `apollia-os doctor`).
 A key set by one of them is the key the others read.
 
 Only a path given explicitly replaces it:
@@ -20,7 +19,6 @@ Only a path given explicitly replaces it:
 | --- | --- |
 | `apollia-os start` | `--config <PATH>`. The file must exist, or the start fails |
 | `apollia-os config get`, `set`, `show`, `validate`, `edit` | `--file <PATH>` |
-| `apollia-os llm costs` | `--config <PATH>` |
 
 The working directory is not searched: an agent package keeps its manifest under
 the same name, `apollia.toml`, and starting the daemon in a package folder does
@@ -48,17 +46,16 @@ still accepted, with a `config.key.retired` warning.
 |---|---|
 | `[llm]` | LLM backend configuration. |
 | `[api]` | TCP listener and authentication (`bind`, `require_token`, `tls_cert`, `tls_key`). |
-| `[runtime]` | EventBus and mailbox capacities. |
+| `[runtime]` | EventBus and mailbox capacities, and the time the runtime may take to start. |
 | `[hitl]` | Human-in-the-loop timeout and scan interval. |
 | `[tools]` | Native tools: limits, static disabling, and per-tool `[tools.web_search]` / `[tools.web_read]` configuration. |
 | `[mcp]` | MCP module configuration, including `[[mcp.servers]]` (see below). |
 | `[hooks]` | Lifecycle hook handlers (command or HTTP). |
 | `[chat]` | Chat subsystem session-level defaults (for example `plan_mode_default`). |
-| `[filesystem]` | The reversible journal, and the paths an agent works in without being asked (`trusted_paths`, see below). |
+| `[filesystem]` | The paths an agent works in without being asked (`trusted_paths`, see below). |
 | `[workflows]` | The budget a workflow run starts with, shared by every agent and workflow it runs. |
-
-The desktop application reads one more section, `[observability]`, documented
-below. It is not settable from the CLI.
+| `[observability]` | Trace capture and retention, documented below. |
+| `[desktop]` | Settings of the desktop application: `developer_mode`, and `link_preview_enabled`, which fetches the preview of a link shown in a conversation. Off by default, since the fetch leaves the machine. |
 
 The tables below are generated from the Rust types, so a field cannot drift out
 of them. They cover the **top level of each section**. A nested table, such as an
@@ -93,15 +90,10 @@ application, and `tls_cert` there is inert.
 `--port` flag of `apollia-os start` and falls back to 7771; a file that sets `port = 8080`
 still gets 7771.
 
-`[llm] pricing_overrides` is not applied. A running daemon builds its backends
-from the backends stored in its database, and that path hands the client an
-empty override table, so a price written here never reaches a cost calculation.
-
-`[llm.runner]` selects the speech-to-text sidecar, not the LLM engine. Its
-`backend` key decides which `apollia-runner-*` binary the daemon spawns for
-transcription. Local text inference runs through the bundled llama-server,
-which is tuned from
-[Environment variables](/reference/environment-variables) instead.
+Local text inference runs through the bundled llama-server, which is tuned
+from [Environment variables](/reference/environment-variables), not from this
+file. The speech-to-text runner is chosen from the detected hardware, with no
+key to override it.
 
 <!-- BEGIN GENERATED: config-fields -->
 
@@ -114,11 +106,8 @@ LLM backends and routing.
 | `format_version` | `u32` | `1` | Version of this on-disk format. A file written before versioning has no key and reads as format 1; a future format bumps the default and the reader branches on the value it finds. |
 | `default` | `String` | **required** | Default backend name (must exist in `backends`). |
 | `backends` | `Vec<LlmBackendEntry>` | **required** | Backends declared with `[[llm.backends]]`. |
-| `observability` | `LlmObservabilityConfig` | type default | Observability settings of the router (tokens, latency, cost, prompt debug). |
+| `observability` | `LlmObservabilityConfig` | type default | Observability settings of the router: the prompt debug log. |
 | `routing` | `Option<LlmRoutingConfig>` | `None` | LLM routing by precision level (`[llm.routing]` section). Optional. |
-| `pricing_overrides` | `HashMap<String, PricingTier>` | empty | Operator pricing overrides (`[llm.pricing_overrides]` section), not applied by a running daemon: only `LlmRouter::from_config` passes them to a client, and the daemon instead builds its backends from `system.db` through `instantiate_cloud_backend`, which hands over an empty table. |
-| `cost_alert_threshold_usd` | `Option<f64>` | `None` | Cost threshold in USD above which `RuntimeEvent::TokenBudgetUpdated` is emitted with `threshold_exceeded = true`. `None` disables the alert. |
-| `runner` | `LlmRunnerConfig` | type default | Speech-to-text sidecar runner configuration (`[llm.runner]` section). |
 
 ### `[runtime]`
 
@@ -165,7 +154,6 @@ Native tools: static disabling and per-tool settings.
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `max_output_chars` | `usize` | `30_000` | Maximum size of a tool output forwarded to the LLM, in UTF-8 bytes. |
-| `file_path_extraction_pattern` | `Option<String>` | `None` | Regex pattern for extracting paths from bash output. |
 | `disabled` | `Vec<String>` | empty | Native tools statically disabled by the operator in `apollia.toml`. |
 | `web_search` | `WebSearchConfig` | type default | Configuration of the native `web_search` tool. |
 | `web_read` | `WebReadConfig` | type default | Configuration of the native `web_read` tool. |
@@ -202,11 +190,10 @@ Chat session defaults.
 
 ### `[filesystem]`
 
-The reversible journal, and the paths an agent works in without being asked. `trusted_paths` sets friction rather than a wall, and the two surfaces read it differently; see *Trusted paths, and what happens outside them* below.
+The paths an agent works in without being asked. `trusted_paths` sets friction rather than a wall, and the two surfaces read it differently; see *Trusted paths, and what happens outside them* below.
 
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `journal` | `JournalConfig` | type default | Sub-section dedicated to the reversible journal. |
 | `trusted_paths` | `Vec<PathBuf>` | `vec![PathBuf::from("~")]` | Paths an agent may read and write without an approval prompt. |
 
 ### `[workflows]`
@@ -221,7 +208,7 @@ The budget a workflow run starts with. It is shared: every agent a step runs and
 
 ### `[observability]`
 
-Trace capture and retention. Read by the desktop application only.
+Trace capture and retention. Read by the daemon and by the desktop application.
 
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -296,6 +283,22 @@ startup. Removing them changed no behaviour, because they had none.
 read at startup and reaches the risk classifier, which is what decides whether an
 operation runs or asks.
 
+Some keys were withdrawn for the same reason, because nothing read them. A file
+that still carries one is accepted, with a `config.key.retired` warning naming
+it, and `apollia-os config set` refuses to write it:
+
+| Withdrawn key | What to do instead |
+| --- | --- |
+| `[llm.runner]`, and its `backend` key | Nothing: the speech-to-text runner is chosen from the detected hardware. |
+| `[llm] pricing_overrides`, `cost_alert_threshold_usd` | Nothing: no running daemon applied them. `apollia-os llm costs` reads the cost history and no longer writes either. |
+| `[llm.observability] log_token_usage`, `log_latency`, `log_cost` | Nothing: tokens and latency are always logged. |
+| `[tools] file_path_extraction_pattern` | Nothing. |
+| `[filesystem.journal]` | Nothing. |
+| `[ui] link_preview_enabled` | Write `[desktop] link_preview_enabled`. Until it is written, the former key is still read, with a `config.key.moved` warning. |
+
+`[autonomy]` is not a section: no loader reads it, and a file that carries one
+is refused as an unknown key.
+
 `[permissions]` is worth spelling out, since its name suggests otherwise: not
 one of its four keys ever had a reader on an execution path. The governance that
 does run, prefix rules and approvals, takes nothing from this section. See
@@ -308,8 +311,9 @@ Sampling parameters are documented separately in
 
 ## Trace capture (`[observability]`)
 
-Read by the desktop application only; the CLI daemon uses the defaults. Editable
-from Settings, Observability, or by hand.
+Read by the daemon started with `apollia-os start` and by the desktop
+application. Editable from Settings, Observability, with
+`apollia-os config set observability.<key> <value>`, or by hand.
 
 These switches decide what an agent's execution leaves behind on disk, in
 `runtime_events.db`. Everything stays on the machine, so the question is not who
@@ -352,9 +356,12 @@ out. Seeing it requires both `debug_log_prompt = true` and a trace-level filter,
 for instance `RUST_LOG=apollia=trace`. That is a deliberate second lock, not an
 oversight, and it is why the setting is safe to leave visible in the interface.
 
-A `debug_log_prompt` written under `[observability]` is read by nothing: the two
-sections deserialize into two different types, and only the `[llm.observability]`
-one reaches the router.
+The section is read when the runtime builds its router, so a change applies at
+the next start. A `debug_log_prompt` written under `[observability]` is refused
+as an unknown key: the two sections are two different types, and only the
+`[llm.observability]` one reaches the router. The other keys that section used
+to carry, `log_token_usage`, `log_latency` and `log_cost`, are withdrawn: the
+tokens and the latency of every model call are always logged.
 
 ### Keys that are declared but not implemented
 

@@ -16647,20 +16647,6 @@
       "label": "05-llm-builder-stats"
     },
     {
-      "kind": "waitFor",
-      "testid": "llm-cost-threshold",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-cost-threshold-unset",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "05b-llm-cost-threshold-unset (the seed config declares no ceiling)"
-    },
-    {
       "kind": "goto",
       "route": "settings"
     },

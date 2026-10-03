@@ -169,7 +169,7 @@ pub struct ToolBatchCall {
 }
 
 /// Default maximum size of a tool output forwarded to the LLM, in UTF-8 bytes.
-const DEFAULT_MAX_OUTPUT_CHARS: usize = 30_000;
+pub const DEFAULT_MAX_OUTPUT_CHARS: usize = 30_000;
 
 /// Maximum number of read-only tool calls driven concurrently in [`ToolDispatcher::execute_batch`].
 ///

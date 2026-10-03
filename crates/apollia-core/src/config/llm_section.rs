@@ -4,24 +4,21 @@
 //! file, [`ApolliaConfig`](super::ApolliaConfig), can name them: `apollia-llm`
 //! depends on this crate and not the reverse. `apollia-llm` re-exports each of
 //! them under its historical name (`LlmConfig`, `BackendConfig`,
-//! `BackendKind`, `ObservabilityConfig`, `PricingTier`) and builds its router
-//! and its clients from them.
-
-use std::collections::HashMap;
+//! `BackendKind`, `ObservabilityConfig`) and builds its router and its clients
+//! from them.
 
 use serde::{Deserialize, Serialize};
 
-use super::{LlmRoutingConfig, LlmRunnerConfig};
+use super::LlmRoutingConfig;
 use crate::{LlmBackendConfig, LlmProvider};
 
 /// LLM configuration deserialized from the `[llm]` section of `apollia.toml`.
 ///
 /// Read by `LlmRouter::from_config`, which no production path calls: the
 /// daemon builds its router from the backends stored in `system.db`. Of this
-/// struct, only `routing` (grafted after construction by the supervisor),
-/// `runner` (read by the runner supervisor) and `backends` (migrated into
-/// `system.db` on a first boot by [`LlmConfig::to_db_configs`]) reach a running
-/// daemon.
+/// struct, `routing` and `observability` (grafted after construction by the
+/// supervisor) and `backends` (migrated into `system.db` on a first boot by
+/// [`LlmConfig::to_db_configs`]) reach a running daemon.
 ///
 /// `default` and `backends` have no default: a `[llm]` table without them is
 /// refused, as it always was.
@@ -37,26 +34,12 @@ pub struct LlmConfig {
     pub default: String,
     /// Backends declared with `[[llm.backends]]`.
     pub backends: Vec<LlmBackendEntry>,
-    /// Observability settings of the router (tokens, latency, cost, prompt
-    /// debug).
+    /// Observability settings of the router: the prompt debug log.
     #[serde(default)]
     pub observability: LlmObservabilityConfig,
     /// LLM routing by precision level (`[llm.routing]` section). Optional.
     #[serde(default)]
     pub routing: Option<LlmRoutingConfig>,
-    /// Operator pricing overrides (`[llm.pricing_overrides]` section), not
-    /// applied by a running daemon: only `LlmRouter::from_config` passes them
-    /// to a client, and the daemon instead builds its backends from `system.db`
-    /// through `instantiate_cloud_backend`, which hands over an empty table.
-    #[serde(default)]
-    pub pricing_overrides: HashMap<String, PricingTier>,
-    /// Cost threshold in USD above which `RuntimeEvent::TokenBudgetUpdated`
-    /// is emitted with `threshold_exceeded = true`. `None` disables the alert.
-    #[serde(default)]
-    pub cost_alert_threshold_usd: Option<f64>,
-    /// Speech-to-text sidecar runner configuration (`[llm.runner]` section).
-    #[serde(default)]
-    pub runner: LlmRunnerConfig,
 }
 
 impl LlmConfig {
@@ -73,9 +56,6 @@ impl LlmConfig {
             backends: Vec::new(),
             observability: LlmObservabilityConfig::default(),
             routing: None,
-            pricing_overrides: HashMap::new(),
-            cost_alert_threshold_usd: None,
-            runner: LlmRunnerConfig::default(),
         }
     }
 
@@ -94,57 +74,20 @@ impl LlmConfig {
 
 /// Observability settings of the LLM router (`[llm.observability]`).
 ///
-/// `log_token_usage` and `log_latency` are on by default; `log_cost` and
-/// `debug_log_prompt` are off.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Grafted onto the production router by the supervisor, after the router is
+/// built from `system.db`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LlmObservabilityConfig {
-    /// Log the number of tokens consumed after each call.
-    #[serde(default = "default_true")]
-    pub log_token_usage: bool,
-    /// Log the total latency of each call.
-    #[serde(default = "default_true")]
-    pub log_latency: bool,
-    /// Log the estimated cost in USD (cloud backends only).
-    #[serde(default)]
-    pub log_cost: bool,
-    /// Log the full prompt at `TRACE` level (debug only).
+    /// Log the full prompt at `TRACE` level (debug only). Off by default.
     #[serde(default)]
     pub debug_log_prompt: bool,
-}
-
-impl Default for LlmObservabilityConfig {
-    fn default() -> Self {
-        Self {
-            log_token_usage: true,
-            log_latency: true,
-            log_cost: false,
-            debug_log_prompt: false,
-        }
-    }
-}
-
-fn default_true() -> bool {
-    true
 }
 
 /// Current version of the persisted format, and the value read for files
 /// written before the key existed.
 fn default_format_version() -> u32 {
     1
-}
-
-/// Pricing of an LLM model in dollars per million tokens.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PricingTier {
-    /// Version of this on-disk format; read as 1 when absent.
-    #[serde(default = "default_format_version", skip_serializing)]
-    pub format_version: u32,
-    /// Cost per million input (prompt) tokens.
-    pub input_per_mtok: f64,
-    /// Cost per million output (completion) tokens.
-    pub output_per_mtok: f64,
 }
 
 /// One entry of `[[llm.backends]]`.

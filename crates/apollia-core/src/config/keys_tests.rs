@@ -126,7 +126,6 @@ fn every_section_carries_the_reload_class_of_the_measured_table() {
         ("chat", ReloadClass::Reloadable),
         ("filesystem", ReloadClass::Reloadable),
         ("observability", ReloadClass::Reloadable),
-        ("ui", ReloadClass::Reloadable),
         ("desktop", ReloadClass::Reloadable),
         ("server", ReloadClass::Restart),
     ];
@@ -216,6 +215,7 @@ fn the_named_settings_are_lockable() {
             "mcp.tool_search_limit",
             "mcp.server_enabled",
             "desktop.developer_mode",
+            "desktop.link_preview_enabled",
             "server.enabled",
             "server.port",
         ]
@@ -228,7 +228,7 @@ fn a_live_path_is_a_registered_key_or_lies_under_a_free_table() {
     // WHEN each is checked
     // THEN only the first two are live
     assert!(is_live_path("api.port"));
-    assert!(is_live_path("llm.pricing_overrides.m.input_per_mtok"));
+    assert!(!is_live_path("llm.pricing_overrides.m.input_per_mtok"));
     assert!(is_live_path("llm.routing.precise"));
     assert!(!is_live_path("api.typo"));
     assert!(!is_live_path("api"));

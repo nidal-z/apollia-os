@@ -10,8 +10,7 @@ Référence de la surface de configuration `apollia.toml`.
 Le fichier a un seul emplacement, `~/.apollia/apollia.toml`, et toutes les
 surfaces lisent et écrivent celui-là : le démon lancé par `apollia-os start`,
 l'application desktop, et chaque commande qui touche la configuration
-(`apollia-os config`, `apollia-os llm costs`, `apollia-os tools config`,
-`apollia-os doctor`). Une clé réglée par l'une est la clé que lisent les autres.
+(`apollia-os config`, `apollia-os tools config`, `apollia-os doctor`). Une clé réglée par l'une est la clé que lisent les autres.
 
 Seul un chemin donné explicitement le remplace :
 
@@ -19,7 +18,6 @@ Seul un chemin donné explicitement le remplace :
 | --- | --- |
 | `apollia-os start` | `--config <CHEMIN>`. Le fichier doit exister, sinon le démarrage échoue |
 | `apollia-os config get`, `set`, `show`, `validate`, `edit` | `--file <CHEMIN>` |
-| `apollia-os llm costs` | `--config <CHEMIN>` |
 
 Le dossier courant n'est pas consulté : un paquet d'agent range son manifeste
 sous le même nom, `apollia.toml`, et lancer le démon dans le dossier d'un paquet
@@ -48,17 +46,16 @@ avertissement `config.key.retired`.
 |---|---|
 | `[llm]` | Configuration du backend LLM. |
 | `[api]` | Écouteur TCP et authentification (`bind`, `require_token`, `tls_cert`, `tls_key`). |
-| `[runtime]` | Capacités de l'EventBus et des mailbox. |
+| `[runtime]` | Capacités de l'EventBus et des mailbox, et le temps accordé au démarrage du runtime. |
 | `[hitl]` | Délai d'expiration et intervalle de scan du human-in-the-loop. |
 | `[tools]` | Outils natifs : limites, désactivation statique, et configuration par outil `[tools.web_search]` / `[tools.web_read]`. |
 | `[mcp]` | Configuration du module MCP, y compris `[[mcp.servers]]` (voir plus bas). |
 | `[hooks]` | Gestionnaires de hooks de cycle de vie (commande ou HTTP). |
 | `[chat]` | Valeurs par défaut au niveau session du sous-système de chat (par exemple `plan_mode_default`). |
-| `[filesystem]` | Le journal réversible, et les chemins où un agent travaille sans demander (`trusted_paths`, voir plus bas). |
+| `[filesystem]` | Les chemins où un agent travaille sans demander (`trusted_paths`, voir plus bas). |
 | `[workflows]` | Le budget avec lequel démarre l'exécution d'un workflow, partagé par chaque agent et chaque workflow qu'elle lance. |
-
-L'application desktop lit une section supplémentaire, `[observability]`,
-documentée plus bas. Elle n'est pas modifiable depuis la CLI.
+| `[observability]` | Capture et rétention des traces, documentées plus bas. |
+| `[desktop]` | Réglages de l'application de bureau : `developer_mode`, et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
 
 Les tableaux ci-dessous sont générés à partir des types Rust, si bien qu'aucun
 champ ne peut s'en écarter. Ils couvrent le **niveau racine de chaque section**.
@@ -96,16 +93,10 @@ est inerte.
 l'option `--port` d'`apollia-os start` et retombe sur 7771 ; un fichier qui pose `port =
 8080` obtient quand même 7771.
 
-`[llm] pricing_overrides` n'est pas appliqué. Un démon en marche construit ses
-backends depuis ceux stockés dans sa base, et ce chemin passe au client une
-table de surcharges vide : un tarif écrit ici n'atteint jamais un calcul de
-coût.
-
-`[llm.runner]` sélectionne le sidecar de transcription vocale, pas le moteur
-LLM. Sa clé `backend` décide quel binaire `apollia-runner-*` le démon lance pour
-la transcription. L'inférence texte locale passe par le llama-server embarqué,
-qui se règle depuis les
-[variables d'environnement](/reference/environment-variables).
+L'inférence texte locale passe par le llama-server embarqué, qui se règle
+depuis les [variables d'environnement](/reference/environment-variables), pas
+depuis ce fichier. Le moteur de transcription vocale est choisi d'après le
+matériel détecté, sans clé pour le forcer.
 
 <!-- BEGIN GENERATED: config-fields -->
 
@@ -117,11 +108,8 @@ Backends LLM et routage.
 | --- | --- | --- | --- |
 | `default` | `String` | **requis** | Nom du backend par défaut (doit exister dans `backends`). |
 | `backends` | `Vec<BackendConfig>` | **requis** | Backends à instancier depuis `[[llm.backends]]`. |
-| `observability` | `ObservabilityConfig` | défaut du type | Réglages d'observabilité (tokens, latence, coût, debug des prompts). |
+| `observability` | `LlmObservabilityConfig` | défaut du type | Réglages d'observabilité du routeur : le journal de debug des prompts. |
 | `routing` | `Option<LlmRoutingConfig>` | `None` | Routage LLM par niveau de précision (section `[llm.routing]`). |
-| `pricing_overrides` | `HashMap<String, PricingTier>` | vide | Surcharges de tarification par l'opérateur (section `[llm.pricing_overrides]`). |
-| `cost_alert_threshold_usd` | `Option<f64>` | `None` | Seuil de coût en USD au-delà duquel `RuntimeEvent::TokenBudgetUpdated` est émis avec `threshold_exceeded = true`. |
-| `runner` | `LlmRunnerConfig` | défaut du type | Configuration du sidecar LLM local (section `[llm.runner]`). |
 
 ### `[runtime]`
 
@@ -167,7 +155,6 @@ Outils natifs : désactivation statique et réglages par outil.
 | Clé | Type | Valeur par défaut | Signification |
 | --- | --- | --- | --- |
 | `max_output_chars` | `usize` | `30_000` | Taille maximale d'une sortie d'outil transmise au LLM, en octets UTF-8. |
-| `file_path_extraction_pattern` | `Option<String>` | `None` | Motif regex pour extraire des chemins depuis une sortie bash. |
 | `disabled` | `Vec<String>` | vide | Outils natifs désactivés statiquement par l'opérateur dans `apollia.toml`. |
 | `web_search` | `WebSearchConfig` | défaut du type | Configuration de l'outil natif `web_search`. |
 | `web_read` | `WebReadConfig` | défaut du type | Configuration de l'outil natif `web_read`. |
@@ -204,11 +191,10 @@ Valeurs par défaut de session de chat.
 
 ### `[filesystem]`
 
-Le journal réversible, et les chemins dans lesquels un agent travaille sans qu'on lui demande. `trusted_paths` règle une friction plutôt qu'un mur, et les deux surfaces ne le lisent pas de la même façon ; voir *Chemins de confiance, et ce qui se passe en dehors* plus bas.
+Les chemins dans lesquels un agent travaille sans qu'on lui demande. `trusted_paths` règle une friction plutôt qu'un mur, et les deux surfaces ne le lisent pas de la même façon ; voir *Chemins de confiance, et ce qui se passe en dehors* plus bas.
 
 | Clé | Type | Défaut | Signification |
 | --- | --- | --- | --- |
-| `journal` | `JournalConfig` | défaut du type | Sous-section dédiée au journal réversible. |
 | `trusted_paths` | `Vec<PathBuf>` | `vec![PathBuf::from("~")]` | Chemins qu'un agent peut lire et écrire sans demande d'approbation. |
 
 ### `[workflows]`
@@ -223,7 +209,7 @@ Le budget avec lequel démarre l'exécution d'un workflow. Il est partagé : cha
 
 ### `[observability]`
 
-Capture et rétention des traces. Lu par l'application desktop uniquement.
+Capture et rétention des traces. Lu par le démon et par l'application desktop.
 
 | Clé | Type | Valeur par défaut | Signification |
 | --- | --- | --- | --- |
@@ -302,6 +288,23 @@ retirer n'a changé aucun comportement, puisque ces sections n'en avaient aucun.
 `trusted_paths` est lue au démarrage et parvient au classifieur de risque, qui
 décide si une opération s'exécute ou demande.
 
+Des clés ont été retirées pour la même raison, parce que rien ne les lisait. Un
+fichier qui en porte encore une est accepté, avec un avertissement
+`config.key.retired` qui la nomme, et `apollia-os config set` refuse de
+l'écrire :
+
+| Clé retirée | Que faire à la place |
+| --- | --- |
+| `[llm.runner]`, et sa clé `backend` | Rien : le moteur de transcription vocale est choisi d'après le matériel détecté. |
+| `[llm] pricing_overrides`, `cost_alert_threshold_usd` | Rien : aucun démon en marche ne les appliquait. `apollia-os llm costs` lit l'historique des coûts et n'écrit plus ni l'une ni l'autre. |
+| `[llm.observability] log_token_usage`, `log_latency`, `log_cost` | Rien : les tokens et la latence sont toujours journalisés. |
+| `[tools] file_path_extraction_pattern` | Rien. |
+| `[filesystem.journal]` | Rien. |
+| `[ui] link_preview_enabled` | Écrire `[desktop] link_preview_enabled`. Tant qu'elle n'est pas écrite, l'ancienne clé reste lue, avec un avertissement `config.key.moved`. |
+
+`[autonomy]` n'est pas une section : aucun chargeur ne la lit, et un fichier qui
+en porte une est refusé comme clé inconnue.
+
 `[permissions]` mérite d'être détaillée, car son nom suggère le contraire :
 aucune de ses quatre clés n'a jamais eu de lecteur sur un chemin d'exécution. La
 gouvernance qui s'exécute réellement, règles de préfixe et approbations, ne
@@ -315,8 +318,9 @@ avec `apollia-os tools config set <tool>.<key> <value>`.
 
 ## Capture de trace (`[observability]`)
 
-Lu par l'application desktop uniquement ; le démon CLI utilise les valeurs par
-défaut. Modifiable depuis Réglages, Observabilité, ou à la main.
+Lu par le démon lancé avec `apollia-os start` et par l'application desktop.
+Modifiable depuis Réglages, Observabilité, avec
+`apollia-os config set observability.<clé> <valeur>`, ou à la main.
 
 Ces interrupteurs décident de ce qu'une exécution d'agent laisse sur disque,
 dans `runtime_events.db`. Tout reste sur la machine, la question n'est donc pas
@@ -362,9 +366,13 @@ et un filtre au niveau trace, par exemple `RUST_LOG=apollia=trace`. C'est un
 second verrou délibéré, pas un oubli, et c'est pourquoi le réglage peut sans
 risque rester visible dans l'interface.
 
-Un `debug_log_prompt` écrit sous `[observability]` n'est lu par rien : les
-deux sections se désérialisent en deux types différents, et seul celui de
-`[llm.observability]` atteint le routeur.
+La section est lue quand le runtime construit son routeur : un changement
+s'applique au démarrage suivant. Un `debug_log_prompt` écrit sous
+`[observability]` est refusé comme clé inconnue : les deux sections sont deux
+types différents, et seul celui de `[llm.observability]` atteint le routeur.
+Les autres clés que portait cette section, `log_token_usage`, `log_latency` et
+`log_cost`, sont retirées : les tokens et la latence de chaque appel au modèle
+sont toujours journalisés.
 
 ### Clés déclarées mais non implémentées
 

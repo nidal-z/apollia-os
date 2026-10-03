@@ -66,7 +66,7 @@ SECTIONS = [
     ("chat", "ChatConfig", "crates/apollia-core/src/config/chat.rs",
      "Chat session defaults."),
     ("filesystem", "FilesystemConfig", "crates/apollia-core/src/config/filesystem.rs",
-     "The reversible journal, and the paths an agent works in without being "
+     "The paths an agent works in without being "
      "asked. `trusted_paths` sets friction rather than a wall, and the two "
      "surfaces read it differently; see *Trusted paths, and what happens "
      "outside them* below."),
@@ -74,7 +74,8 @@ SECTIONS = [
      "The budget a workflow run starts with. It is shared: every agent a step "
      "runs and every workflow a step calls spend from it."),
     ("observability", "ObservabilityConfig", "crates/apollia-core/src/observability.rs",
-     "Trace capture and retention. Read by the desktop application only."),
+     "Trace capture and retention. Read by the daemon and by the desktop "
+     "application."),
 ]
 
 # The pointers this generator commits to, read by `declared_sources.require`

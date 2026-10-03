@@ -282,10 +282,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // Models: the removal of an installed model, refused while a backend or
     // the dictation engine of the runtime uses it.
     "delete_installed_model",
-    // LLM engines: the list, the test, the reload, the cost alert threshold.
-    // The last ping of each engine stays in this window's memory, which
-    // [`run`] manages in both modes.
-    "get_cost_alert_threshold",
+    // LLM engines: the list, the test, the reload. The last ping of each
+    // engine stays in this window's memory, which [`run`] manages in both
+    // modes.
     "list_llm_backends",
     "ping_llm_backend",
     "reload_llm",

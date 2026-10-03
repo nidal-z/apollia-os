@@ -174,4 +174,86 @@ model_id   = "claude-sonnet-4-6@20251001"
             assert_eq!(found, vec!["llm.vertex"]);
         }
     }
+
+    /// Every key the keys-without-a-reader pass withdrew, as a file written
+    /// for an earlier version spells them.
+    const WITH_KEYS_NOBODY_READ: &str = r#"
+[llm]
+default = "local"
+cost_alert_threshold_usd = 5.0
+
+[[llm.backends]]
+name = "local"
+type = "api"
+model = "qwen"
+api_url = "http://localhost:8080/v1"
+api_key_env = "LOCAL_SERVER_KEY"
+
+[llm.observability]
+log_token_usage = true
+log_latency = false
+log_cost = true
+debug_log_prompt = true
+
+[llm.pricing_overrides.gpt-4o]
+input_per_mtok = 1.0
+output_per_mtok = 2.0
+
+[llm.runner]
+backend = "cuda"
+
+[tools]
+max_output_chars = 100
+file_path_extraction_pattern = "(?:/[^\\s]+)"
+
+[filesystem.journal]
+enabled = false
+max_sessions = 3
+
+[ui]
+link_preview_enabled = true
+"#;
+
+    #[test]
+    fn the_keys_nobody_read_load_with_one_warning_each() {
+        // GIVEN a file carrying every key withdrawn because nothing read it,
+        // [llm.runner] backend among them
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let recorder = Recorder(Arc::clone(&events));
+
+        // WHEN the file is validated
+        let result = tracing::subscriber::with_default(recorder, || {
+            crate::config::validate(WITH_KEYS_NOBODY_READ)
+        });
+
+        // THEN it loads, the keys still read keep their value, and each
+        // withdrawn key is reported once as a config.key.retired warning
+        let config = result.expect("a withdrawn key never refuses the file");
+        let llm = config.llm.expect("[llm] present");
+        assert!(llm.observability.debug_log_prompt);
+        assert_eq!(config.tools.max_output_chars, 100);
+        let events = events.lock().unwrap();
+        let mut reported: Vec<&str> = events
+            .iter()
+            .filter(|(level, fields)| {
+                *level == Level::WARN && field(fields, "message") == Some("config.key.retired")
+            })
+            .filter_map(|(_, fields)| field(fields, "key"))
+            .collect();
+        reported.sort_unstable();
+        assert_eq!(
+            reported,
+            vec![
+                "filesystem.journal",
+                "llm.cost_alert_threshold_usd",
+                "llm.observability.log_cost",
+                "llm.observability.log_latency",
+                "llm.observability.log_token_usage",
+                "llm.pricing_overrides",
+                "llm.runner",
+                "tools.file_path_extraction_pattern",
+                "ui",
+            ]
+        );
+    }
 }
