@@ -404,6 +404,8 @@ from .trigger_result import TriggerResult
 from .trigger_source_input import TriggerSourceInput
 from .trust_key_request import TrustKeyRequest
 from .trusted_key_view import TrustedKeyView
+from .turn_llm_call import TurnLlmCall
+from .turn_llm_calls_response import TurnLlmCallsResponse
 from .unload_model_request import UnloadModelRequest
 from .unload_model_response import UnloadModelResponse
 from .update_artifact_request import UpdateArtifactRequest
@@ -833,6 +835,8 @@ __all__ = (
     "TriggerSourceInput",
     "TrustedKeyView",
     "TrustKeyRequest",
+    "TurnLlmCall",
+    "TurnLlmCallsResponse",
     "UnloadModelRequest",
     "UnloadModelResponse",
     "UpdateArtifactRequest",

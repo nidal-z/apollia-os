@@ -11624,6 +11624,67 @@
         }
       }
     },
+    "/api/v1/sessions/{id}/turns/{turn_id}/llm-calls": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/turns/{turn_id}/llm-calls`.",
+        "operationId": "get_turn_llm_calls",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Conversation identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "turn_id",
+            "in": "path",
+            "description": "Identifier of the answer message of the turn",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The model calls of the turn, in order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TurnLlmCallsResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Query failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No LLM call repository configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{id}/workspace": {
       "get": {
         "tags": [
@@ -22464,6 +22525,92 @@
           "publicKey": {
             "type": "string",
             "description": "The public key, 64 hexadecimal characters."
+          }
+        }
+      },
+      "TurnLlmCall": {
+        "type": "object",
+        "description": "One model call of a turn.",
+        "required": [
+          "backend",
+          "model"
+        ],
+        "properties": {
+          "backend": {
+            "type": "string",
+            "description": "Logical backend name."
+          },
+          "completion_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Tokens generated.",
+            "minimum": 0
+          },
+          "finish_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the call ended: `stop`, `tool_calls`, `length`, `error` or\n`cancelled`."
+          },
+          "generation_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Time spent generating in milliseconds; `null` when not measured.",
+            "minimum": 0
+          },
+          "latency_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Duration of the call in milliseconds, from dispatch to its last chunk.",
+            "minimum": 0
+          },
+          "model": {
+            "type": "string",
+            "description": "Model identifier."
+          },
+          "prompt_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Tokens read.",
+            "minimum": 0
+          },
+          "ttft_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Time to first token in milliseconds; `null` when not measured.",
+            "minimum": 0
+          }
+        }
+      },
+      "TurnLlmCallsResponse": {
+        "type": "object",
+        "description": "Response body for `GET /api/v1/sessions/{id}/turns/{turn_id}/llm-calls`.",
+        "required": [
+          "calls"
+        ],
+        "properties": {
+          "calls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TurnLlmCall"
+            },
+            "description": "The calls, in the order they were made. Empty for a turn that made\nnone or that is unknown."
           }
         }
       },

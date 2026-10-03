@@ -27,7 +27,15 @@ impl BuiltInChatAgent {
             preferred_backend: None,
             agent_id: crate::chat::manager::APOLLIA_CHAT_AGENT_ID.to_string(),
             approval_timeout: Some(CHAT_APPROVAL_TIMEOUT),
+            turn_id: None,
         }
+    }
+
+    /// Name the conversation turn the run's model calls are made for, the
+    /// identifier of the answer. `None` outside a conversation.
+    pub fn with_turn_id(mut self, turn_id: Option<String>) -> Self {
+        self.turn_id = turn_id;
+        self
     }
 
     /// Set the delay after which a pending tool approval is refused. `None`

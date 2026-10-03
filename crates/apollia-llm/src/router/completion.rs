@@ -7,8 +7,10 @@ use std::time::Instant;
 
 use apollia_core::events::{EventBusSender, RuntimeEvent};
 
+use crate::call_measure::CallMeasure;
 use crate::router::analyse_call_failure;
 use crate::router::config::ObservabilityConfig;
+use crate::router::observed_stream::{call_completed_event, observe_stream, ObservedCall};
 use crate::router::{FallbackPlan, LlmRouter};
 use crate::types::{CompletionRequest, CompletionResponse, LlmError};
 
@@ -62,6 +64,7 @@ impl LlmRouter {
             );
         }
 
+        let context = req.call_context.clone();
         let started = Instant::now();
         let response = match backend.complete(req).await {
             Ok(response) => response,
@@ -90,17 +93,12 @@ impl LlmRouter {
 
         // Fire-and-forget emission: send() errors are silently ignored.
         if let Some(b) = bus {
-            let _ = b.send(RuntimeEvent::LlmCallCompleted {
-                backend: backend_key.to_owned(),
-                model: backend.model_id().to_owned(),
-                task_id: None,
-                step_id: None,
-                prompt_tokens: response.usage.prompt_tokens,
-                completion_tokens: response.usage.completion_tokens,
-                latency_ms,
-                cost_usd: response.usage.cost_usd,
-                run_id: None,
-            });
+            let _ = b.send(call_completed_event(
+                backend_key,
+                backend.model_id(),
+                context.as_ref(),
+                &CallMeasure::of_response(&response, latency_ms),
+            ));
         }
 
         if obs.log_token_usage {
@@ -184,8 +182,10 @@ impl LlmRouter {
     /// Open a stream of [`StreamChunk`]s from the resolved backend.
     ///
     /// Resolves the backend (by name or default), calls `backend.stream(req)`,
-    /// and returns the raw stream. The caller is responsible for emitting the
-    /// `LlmCallCompleted` event once the stream is consumed.
+    /// and returns its stream wrapped so the call is measured as it is read:
+    /// time to first token, tokens, engine timings and finish reason. One
+    /// `LlmCallCompleted` goes on `bus` when the stream ends, or when the
+    /// reader drops it first, with the turn of `req.call_context`.
     ///
     /// # Errors
     ///
@@ -195,6 +195,7 @@ impl LlmRouter {
         &self,
         backend_name: Option<&str>,
         req: CompletionRequest,
+        bus: Option<&EventBusSender>,
         obs: &ObservabilityConfig,
     ) -> Result<
         std::pin::Pin<
@@ -215,7 +216,14 @@ impl LlmRouter {
             tracing::trace!(prompt = ?req.messages, "llm.stream.prompt");
         }
 
+        let call = ObservedCall {
+            backend: backend_key.to_owned(),
+            model: backend.model_id().to_owned(),
+            context: req.call_context.clone(),
+            bus: bus.cloned(),
+            started: Instant::now(),
+        };
         let stream = backend.stream(req).await?;
-        Ok(stream)
+        Ok(observe_stream(stream, call))
     }
 }
