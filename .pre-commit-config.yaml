@@ -287,6 +287,13 @@ repos:
         files: '^(crates/apollia-desktop/ui/(src/.+|tailwind\.config\.ts)|scripts/check_design_tokens\.py)$'
         pass_filenames: false
 
+      - id: check-ui-vocabulary
+        name: no banned technical term in the interface texts outside developer mode
+        entry: python3 scripts/check_ui_vocabulary.py
+        language: system
+        files: '^(crates/apollia-desktop/ui/src/(lib/i18n/(en|fr|glossary)\.json|.+\.svelte)|scripts/check_ui_vocabulary\.py)$'
+        pass_filenames: false
+
       - id: check-eventbus-variants
         name: every RuntimeEvent variant is emitted and read, and lag stays one rule
         entry: python3 scripts/check_eventbus_variants.py
@@ -454,7 +461,7 @@ repos:
         name: artifact names bind producer and consumers
         entry: python3 scripts/check_release_artifacts.py
         language: system
-        files: '^(packaging/artifacts\.json|packaging/fetch-llama-server\.sh|\.github/workflows/release\.yml|crates/apollia-cli/src/commands/update\.rs|crates/apollia-desktop/tauri\.conf\.json|docs/site/docs/how-to/install-the-desktop-app\.md|docs/site/i18n/fr/docusaurus-plugin-content-docs/current/how-to/install-the-desktop-app\.md|scripts/check_release_artifacts\.py)$'
+        files: '^(packaging/artifacts\.json|packaging/fetch-llama-server\.sh|\.github/workflows/release\.yml|\.github/workflows/preview-channel\.yml|crates/apollia-desktop/src/commands/updates\.rs|crates/apollia-cli/src/commands/update\.rs|crates/apollia-desktop/tauri\.conf\.json|docs/site/docs/how-to/install-the-desktop-app\.md|docs/site/i18n/fr/docusaurus-plugin-content-docs/current/how-to/install-the-desktop-app\.md|scripts/check_release_artifacts\.py)$'
         pass_filenames: false
 
       # The connector replay fixtures against the operations the crate declares.

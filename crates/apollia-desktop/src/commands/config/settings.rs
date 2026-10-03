@@ -29,6 +29,12 @@ pub(crate) fn write_at(
     write_setting(path, key, value, &PolicySettings::none()).map_err(|e| e.to_string())
 }
 
+/// Resolves `key` against the `apollia.toml` of the data directory, for a
+/// Rust reader of a desktop setting.
+pub(crate) fn resolve_in_force(key: &str) -> Result<ResolvedSetting, String> {
+    resolve_at(&default_config_path(), key)
+}
+
 /// The value in force of the named setting `key` (dotted, for example
 /// `desktop.developer_mode`), with its source.
 #[tauri::command]
