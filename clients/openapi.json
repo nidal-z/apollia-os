@@ -10220,6 +10220,304 @@
         }
       }
     },
+    "/api/v1/server": {
+      "get": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`GET /api/v1/server`: whether the compatible server listens, its port, why\nits last start failed, and how many of its tokens are in use.",
+        "operationId": "server_status",
+        "responses": {
+          "200": {
+            "description": "State of the compatible server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompatServerStatus"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/server/start": {
+      "post": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`POST /api/v1/server/start`: opens the compatible server on its configured\nport and writes `[server] enabled = true`.",
+        "operationId": "start_server",
+        "responses": {
+          "200": {
+            "description": "The compatible server listens",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompatServerStatus"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another program holds the port",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The listener or the setting failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/server/stop": {
+      "post": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`POST /api/v1/server/stop`: closes the compatible server and writes\n`[server] enabled = false`. The native API keeps answering.",
+        "operationId": "stop_server",
+        "responses": {
+          "200": {
+            "description": "The compatible server is stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompatServerStatus"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The setting could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/server/tokens": {
+      "get": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`GET /api/v1/server/tokens`: every token, in use and revoked, oldest first.",
+        "operationId": "list_server_tokens",
+        "responses": {
+          "200": {
+            "description": "The tokens, without their values",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ServerTokenView"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The token store failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`POST /api/v1/server/tokens`: creates a named token and answers its value,\nthe only time it is given.",
+        "operationId": "create_server_token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateServerTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The token and its value, shown once",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedServerTokenView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The name is empty, too long or digits only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A token in use already carries the name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The token store failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/server/tokens/{token}": {
+      "delete": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`DELETE /api/v1/server/tokens/{token}`: revokes a token by identifier or\nby name. The row stays listed, marked revoked.",
+        "operationId": "revoke_server_token",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "description": "Identifier (digits) or name of the token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The token, revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerTokenView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No token matches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The token store failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions": {
       "get": {
         "tags": [
@@ -16520,6 +16818,40 @@
           }
         }
       },
+      "CompatServerStatus": {
+        "type": "object",
+        "description": "What the compatible server is doing.",
+        "required": [
+          "running",
+          "port",
+          "activeTokens"
+        ],
+        "properties": {
+          "activeTokens": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many tokens of the server are in use (not revoked).",
+            "minimum": 0
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the last start failed, cleared by the next successful start."
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The port it listens on, or the configured port when it is stopped.",
+            "minimum": 0
+          },
+          "running": {
+            "type": "boolean",
+            "description": "Whether the listener is open."
+          }
+        }
+      },
       "CompleteConsentBody": {
         "type": "object",
         "description": "Body of `POST /api/v1/connectors/oauth/complete`.",
@@ -17048,6 +17380,19 @@
           }
         }
       },
+      "CreateServerTokenRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/server/tokens`.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Who holds the token, usually the application it is for. At most 64\ncharacters, not digits only, unique among the tokens in use."
+          }
+        }
+      },
       "CreateSessionRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/sessions`.",
@@ -17134,6 +17479,27 @@
             "description": "Trigger source configuration."
           }
         }
+      },
+      "CreatedServerTokenView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ServerTokenView",
+            "description": "The token as the list will show it."
+          },
+          {
+            "type": "object",
+            "required": [
+              "value"
+            ],
+            "properties": {
+              "value": {
+                "type": "string",
+                "description": "The value (`apo_` and 64 hexadecimal characters). Shown this once."
+              }
+            }
+          }
+        ],
+        "description": "Answer of `POST /api/v1/server/tokens`: the token and, this once, its value."
       },
       "CredentialEntryView": {
         "type": "object",
@@ -21336,6 +21702,54 @@
           }
         }
       },
+      "ServerTokenView": {
+        "type": "object",
+        "description": "A token as the list shows it: never its value.",
+        "required": [
+          "id",
+          "name",
+          "lastFour",
+          "createdAt",
+          "revoked"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "description": "When it was created, RFC 3339."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Identifier, usable to revoke it."
+          },
+          "lastFour": {
+            "type": "string",
+            "description": "The last four characters of the value."
+          },
+          "lastUsedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When it last opened the server, RFC 3339; absent if never."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name given at creation."
+          },
+          "revoked": {
+            "type": "boolean",
+            "description": "Whether it was revoked."
+          },
+          "revokedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When it was revoked, RFC 3339."
+          }
+        }
+      },
       "ServersListResponse": {
         "type": "object",
         "description": "Body of `GET /api/v1/llm/servers`.",
@@ -24142,6 +24556,10 @@
     {
       "name": "lifecycle",
       "description": "Resets and erasures of the installation"
+    },
+    {
+      "name": "server",
+      "description": "Starting and stopping the compatible server, the second listener"
     },
     {
       "name": "connectors",
