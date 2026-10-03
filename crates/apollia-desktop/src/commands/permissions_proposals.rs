@@ -181,4 +181,52 @@ mod tests {
             "{error}"
         );
     }
+
+    #[tokio::test]
+    async fn test_attached_a_refused_listing_shows_the_daemon_message() {
+        // GIVEN a daemon whose namespace database does not open
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/permissions/proposals"))
+            .and(header("authorization", bearer().as_str()))
+            .respond_with(ResponseTemplate::new(500).set_body_json(
+                serde_json::json!({"error": "failed to open /data/memory/onboarding.db: locked"}),
+            ))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+
+        // WHEN the attached arm lists the proposals
+        let error = list_attached(&client).await.unwrap_err();
+
+        // THEN the interface shows the daemon's words
+        assert!(
+            error.contains("failed to open /data/memory/onboarding.db: locked"),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_attached_a_refused_dismissal_shows_the_daemon_message() {
+        // GIVEN a daemon holding no proposal any more
+        let server = MockServer::start().await;
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/permissions/proposals/0"))
+            .and(header("authorization", bearer().as_str()))
+            .respond_with(
+                ResponseTemplate::new(404)
+                    .set_body_json(serde_json::json!({"error": "no proposed rules in memory"})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+
+        // WHEN the attached arm dismisses the proposal at 0
+        let error = dismiss_attached(&client, 0).await.unwrap_err();
+
+        // THEN the interface shows the daemon's words
+        assert!(error.contains("no proposed rules in memory"), "{error}");
+    }
 }

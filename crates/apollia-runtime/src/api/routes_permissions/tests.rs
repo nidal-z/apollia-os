@@ -86,6 +86,24 @@ async fn test_the_proposals_are_listed_and_one_applied_over_http() {
 }
 
 #[tokio::test]
+async fn test_listing_over_a_namespace_database_that_does_not_open_is_refused() {
+    // GIVEN a daemon whose onboarding namespace database is a directory, so
+    // the store cannot open it
+    let dir = TempDir::new().unwrap();
+    let unreadable = dir.path().join("memory").join("onboarding.db");
+    std::fs::create_dir_all(&unreadable).unwrap();
+
+    // WHEN a client lists the proposals
+    let (status, body) = call(state(&dir), "GET", "/api/v1/permissions/proposals", None).await;
+
+    // THEN it is a 500 that names the database, as the embedded desktop says it
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR, "{body}");
+    let error = body["error"].as_str().unwrap();
+    assert!(error.starts_with("failed to open "), "{error}");
+    assert!(error.contains("onboarding.db"), "{error}");
+}
+
+#[tokio::test]
 async fn test_applying_past_the_end_is_refused_with_the_embedded_words() {
     // GIVEN one proposal
     let dir = TempDir::new().unwrap();
