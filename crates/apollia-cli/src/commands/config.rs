@@ -127,27 +127,14 @@ pub fn run(cmd: &ConfigCommand, json: bool) -> i32 {
     }
 }
 
-/// Resolve the apollia.toml location: explicit override wins, then `./apollia.toml`,
-/// then `$XDG_CONFIG_HOME/apollia/apollia.toml` (or `~/.config/apollia/apollia.toml`).
+/// Resolve the apollia.toml location: the `--file` override when given,
+/// otherwise `~/.apollia/apollia.toml`, the file every surface reads.
 ///
-/// This is the order the runtime itself walks when it starts, so every command
-/// that reads or writes `apollia.toml` goes through here rather than guessing a
-/// location of its own. A command writing somewhere else writes a file the
-/// daemon never reads.
+/// Every command that reads or writes `apollia.toml` goes through here rather
+/// than guessing a location of its own. A command writing somewhere else
+/// writes a file the daemon never reads.
 pub(crate) fn resolve_path(override_path: Option<&Path>) -> PathBuf {
-    if let Some(p) = override_path {
-        return p.to_path_buf();
-    }
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let local = cwd.join("apollia.toml");
-    if local.exists() {
-        return local;
-    }
-    let xdg = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
-    let base = xdg
-        .or_else(|| apollia_core::paths::home_dir().map(|h| h.join(".config")))
-        .unwrap_or_else(|| PathBuf::from("."));
-    base.join("apollia").join("apollia.toml")
+    crate::config_location::resolve(override_path)
 }
 
 fn emit_error(msg: impl Into<String>, json: bool) {
@@ -844,6 +831,38 @@ mod tests {
         let rendered = doc.to_string();
         assert!(rendered.contains("default = \"anthropic\""));
         assert!(!rendered.contains("openai"));
+    }
+
+    #[test]
+    fn without_file_the_commands_use_the_shared_configuration() {
+        // GIVEN no --file on a `config` command, HOME held under the shared
+        // lock so a test swapping it cannot run between the two reads
+        let _guard = crate::commands::HOME_ENV_LOCK.blocking_lock();
+        // WHEN its file is resolved
+        let resolved = resolve_path(None);
+        // THEN it is ~/.apollia/apollia.toml, the file the daemon and the
+        // desktop read, never one relative to the working directory
+        assert!(resolved.is_absolute(), "{}", resolved.display());
+        assert!(
+            resolved.ends_with(Path::new(".apollia").join("apollia.toml")),
+            "{}",
+            resolved.display()
+        );
+    }
+
+    #[test]
+    fn file_option_replaces_the_shared_location() {
+        // GIVEN a throwaway directory holding a file named with --file
+        let dir = tempfile::tempdir().unwrap();
+        let explicit = dir.path().join("elsewhere.toml");
+        // WHEN a key is written through `config set --file`
+        let code = run_set("desktop.developer_mode", "true", Some(&explicit), true);
+        // THEN the explicit file holds it, and resolution answers it verbatim
+        assert_eq!(code, exit_codes::SUCCESS);
+        assert!(std::fs::read_to_string(&explicit)
+            .unwrap()
+            .contains("developer_mode = true"));
+        assert_eq!(resolve_path(Some(&explicit)), explicit);
     }
 
     #[test]

@@ -220,10 +220,9 @@ syntax follows SQLite's FTS5 (`tag:value`, `+required`, `-excluded`).
 ## 6. Configuration
 
 Runtime config : `apollia.toml`, resolved as an explicit `--config` override,
-then an `apollia.toml` in the working directory, then
-`$XDG_CONFIG_HOME/apollia/apollia.toml` (or
-`~/.config/apollia/apollia.toml`). It is not under `~/.apollia/`, which holds
-the data files. Parsed via `serde` into the
+otherwise `apollia_core::paths::config_file()`, that is
+`~/.apollia/apollia.toml`, the one file every surface reads. The working
+directory and `~/.config/apollia/` are never read. Parsed via `serde` into the
 `RuntimeConfig` struct (`crates/apollia-core/src/config/runtime.rs`).
 
 There is no `SIGHUP` handler. What reloads does so through an explicit
