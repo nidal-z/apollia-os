@@ -273,8 +273,13 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os config show`↴](#apollia-os-config-show)
 * [`apollia-os config reset`↴](#apollia-os-config-reset)
 * [`apollia-os profile`↴](#apollia-os-profile)
+* [`apollia-os profile list`↴](#apollia-os-profile-list)
 * [`apollia-os profile show`↴](#apollia-os-profile-show)
+* [`apollia-os profile create`↴](#apollia-os-profile-create)
+* [`apollia-os profile rename`↴](#apollia-os-profile-rename)
 * [`apollia-os profile set`↴](#apollia-os-profile-set)
+* [`apollia-os profile set-default`↴](#apollia-os-profile-set-default)
+* [`apollia-os profile delete`↴](#apollia-os-profile-delete)
 * [`apollia-os profile forget`↴](#apollia-os-profile-forget)
 * [`apollia-os profile reset`↴](#apollia-os-profile-reset)
 * [`apollia-os profile schema`↴](#apollia-os-profile-schema)
@@ -384,6 +389,7 @@ Start the runtime in foreground
 ###### **Options:**
 
 * `--port <PORT>` - TCP port to listen on (default: 7771)
+* `--config <PATH>` - Configuration file to load instead of `~/.apollia/apollia.toml`
 
 
 
@@ -519,14 +525,14 @@ Display detailed information about an agent, with its definition as resolved (pa
 
 Override one field of an agent's definition; a package update keeps it.
 
-Fields: `name`, `mission` and `autonomy` take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). Recorded in the audit journal.
+Fields: `name`, `mission`, `autonomy` and `profile` (a profile identifier, see `profile list`) take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). Recorded in the audit journal.
 
 **Usage:** `apollia-os agent set <AGENT_ID> <FIELD> [VALUES]...`
 
 ###### **Arguments:**
 
 * `<AGENT_ID>` - Agent identifier
-* `<FIELD>` - Field to override: name, mission, examples, access, sources or autonomy
+* `<FIELD>` - Field to override: name, mission, examples, access, sources, autonomy or profile
 * `<VALUES>` - The value, or the items of a list
 
 
@@ -1596,7 +1602,7 @@ Without flags, prints the cost table. Use `--get-threshold` to print `[llm] cost
 
 * `--get-threshold` - Read the cost alert threshold from `apollia.toml` instead of the cost table
 * `--threshold <USD>` - Set the cost alert threshold (USD). Writes `[llm] cost_alert_threshold_usd = N` to `apollia.toml`. Pass `0` or a negative value to clear the threshold
-* `--config <PATH>` - Optional `apollia.toml` path override. Without it, the same file the runtime loads at startup: `./apollia.toml` when the working directory holds one, otherwise `$XDG_CONFIG_HOME/apollia/apollia.toml` (default `~/.config/apollia/apollia.toml`)
+* `--config <PATH>` - Optional `apollia.toml` path override. Without it, the same file the runtime loads at startup: `~/.apollia/apollia.toml`
 
 
 
@@ -2703,7 +2709,7 @@ MCP server management (list, add, remove, show, test, restart, update, raw-confi
 * `raw-config` - Show the raw persisted configuration of an MCP server
 * `oauth` - Interactive OAuth (PKCE) management for HTTP/streamable-http MCP servers
 * `secret` - Manage MCP server secrets (env-var values) in the OS keychain
-* `server` - Launch Apollia as an MCP stdio server for external clients
+* `server` - Serve the exposed agents and workflows to an MCP client over stdio
 
 
 
@@ -3080,22 +3086,11 @@ Delete the stored secret for `(<server>, <env_var>)`
 
 ## `apollia-os mcp server`
 
-Launch Apollia as an MCP stdio server for external clients.
+Serve the exposed agents and workflows to an MCP client over stdio.
 
-Exposes native tools to MCP clients (Claude Desktop, VS Code, Cursor). Use `--with-runtime` to additionally expose `submit_task`.
+A bridge to the running daemon: an MCP client (an editor, another assistant) spawns it and sees the agents and workflows marked exposed, and nothing else. The daemon refuses it until `mcp.server_enabled` is turned on.
 
-**Usage:** `apollia-os mcp server [OPTIONS]`
-
-###### **Options:**
-
-* `--with-runtime` - Enable the `submit_task` tool by starting the full Apollia runtime.
-
-   Without this flag, only the 9 stateless native tools are exposed.
-
-  Default value: `false`
-* `--sandbox-root <PATH>` - Sandbox root for file tools (default: user home directory).
-
-   File operations are restricted to this directory tree.
+**Usage:** `apollia-os mcp server`
 
 
 
@@ -4311,8 +4306,13 @@ Operates on `~/.apollia/user_memory.db` directly; no runtime required.
 
 ###### **Subcommands:**
 
-* `show` - Display every key currently stored in the global user profile
-* `set` - Insert or replace the value of `KEY`
+* `list` - List the profiles: identifier, name, and which one is the default
+* `show` - Display a profile: its fields, then the free-form entries every profile shares. Without an identifier, the default profile
+* `create` - Create a profile with empty fields; it is not the default
+* `rename` - Rename a profile
+* `set` - Write one field of a profile: `name`, `role`, `function`, `tools`, `preferences` or `free_text`. Any other key is a free-form entry, shared by every profile
+* `set-default` - Make a profile the default; the previous default stops being one
+* `delete` - Delete a profile. The default profile cannot be deleted: make another one the default first
 * `forget` - Remove the entry stored at `KEY`
 * `reset` - Reset the entire profile (deletes every entry)
 * `schema` - Print the canonical schema (the known structured fields)
@@ -4321,11 +4321,11 @@ Operates on `~/.apollia/user_memory.db` directly; no runtime required.
 
 
 
-## `apollia-os profile show`
+## `apollia-os profile list`
 
-Display every key currently stored in the global user profile
+List the profiles: identifier, name, and which one is the default
 
-**Usage:** `apollia-os profile show [OPTIONS]`
+**Usage:** `apollia-os profile list [OPTIONS]`
 
 ###### **Options:**
 
@@ -4333,19 +4333,102 @@ Display every key currently stored in the global user profile
 
 
 
-## `apollia-os profile set`
+## `apollia-os profile show`
 
-Insert or replace the value of `KEY`
+Display a profile: its fields, then the free-form entries every profile shares. Without an identifier, the default profile
 
-**Usage:** `apollia-os profile set [OPTIONS] <KEY> <VALUE>`
+**Usage:** `apollia-os profile show [OPTIONS] [ID]`
 
 ###### **Arguments:**
 
-* `<KEY>` - Profile key (e.g. `name`, `email`, `preferences.tone`)
-* `<VALUE>` - Value to store
+* `<ID>` - Profile identifier, or `default` (the default when omitted)
 
 ###### **Options:**
 
+* `--db <PATH>` - Optional override for the user_memory.db path
+
+
+
+## `apollia-os profile create`
+
+Create a profile with empty fields; it is not the default
+
+**Usage:** `apollia-os profile create [OPTIONS] <NAME>`
+
+###### **Arguments:**
+
+* `<NAME>` - Display name of the profile (e.g. `Formateur`)
+
+###### **Options:**
+
+* `--db <PATH>`
+
+
+
+## `apollia-os profile rename`
+
+Rename a profile
+
+**Usage:** `apollia-os profile rename [OPTIONS] <ID> <NAME>`
+
+###### **Arguments:**
+
+* `<ID>` - Profile identifier, or `default`
+* `<NAME>` - New display name
+
+###### **Options:**
+
+* `--db <PATH>`
+
+
+
+## `apollia-os profile set`
+
+Write one field of a profile: `name`, `role`, `function`, `tools`, `preferences` or `free_text`. Any other key is a free-form entry, shared by every profile
+
+**Usage:** `apollia-os profile set [OPTIONS] <ID> <FIELD> <VALUE>`
+
+###### **Arguments:**
+
+* `<ID>` - Profile identifier, or `default`
+* `<FIELD>` - Field to write (e.g. `role`)
+* `<VALUE>` - Value to store; an empty value empties a field
+
+###### **Options:**
+
+* `--db <PATH>`
+
+
+
+## `apollia-os profile set-default`
+
+Make a profile the default; the previous default stops being one
+
+**Usage:** `apollia-os profile set-default [OPTIONS] <ID>`
+
+###### **Arguments:**
+
+* `<ID>` - Profile identifier
+
+###### **Options:**
+
+* `--db <PATH>`
+
+
+
+## `apollia-os profile delete`
+
+Delete a profile. The default profile cannot be deleted: make another one the default first
+
+**Usage:** `apollia-os profile delete [OPTIONS] <ID>`
+
+###### **Arguments:**
+
+* `<ID>` - Profile identifier
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 * `--db <PATH>`
 
 

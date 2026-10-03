@@ -16,9 +16,30 @@ _Bases: Protocol_
 
 User profile surface.
 
+The user may keep several profiles ("IT manager", "trainer"), one of
+them the default. ``ctx.profile`` serves the profile resolved for the
+execution: the one the user designated for this agent if it still exists,
+otherwise the default profile. The resolution happens at each call, so a
+designation changed while the agent runs applies to its next read.
+
+A profile carries five fields and a free text, all optional:
+
+* ``name``: the name of the person;
+* ``role``: their role;
+* ``function``: their function;
+* ``tools``: the tools they work with;
+* ``preferences``: how they like to work;
+* ``free_text``: anything else, written freely.
+
+`schema_keys` returns these six keys. Any other key reads and
+writes a free-form entry, shared by every profile. The ``user.`` prefix
+of the historical ``remember_user("user.X")`` keys is accepted and
+stripped.
+
 Read-only by default; write methods require the agent manifest to
 declare ``@agent(user_memory_write=True)``.  Calling `set` or
-`update` from a non-writable context raises a runtime error.
+`update` from a non-writable context raises a runtime error. A
+field written goes to the resolved profile.
 
 | Field | Type | Default |
 | --- | --- | --- |
@@ -55,6 +76,9 @@ def schema_keys(self) -> list[str]
 ```
 
 Return the keys the profile schema declares, set or not.
+
+The five fields (``name``, ``role``, ``function``, ``tools``,
+``preferences``) then the free text (``free_text``).
 
 #### `set`
 

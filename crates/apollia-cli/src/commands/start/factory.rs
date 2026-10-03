@@ -196,32 +196,14 @@ pub(super) fn default_memory_dir() -> PathBuf {
     apollia_core::paths::data_dir_under(home).join("memory")
 }
 
-/// Resolves `~` to `$HOME` in a path string.
-pub(super) fn expand_tilde_str(s: &str) -> PathBuf {
-    if s.starts_with("~/") {
-        let home = apollia_core::paths::home_string().unwrap_or_default();
-        PathBuf::from(format!("{}{}", home, &s[1..]))
-    } else {
-        PathBuf::from(s)
-    }
-}
-
-/// Finds `apollia.toml` by searching in order:
-///   1. `./apollia.toml`      (current working directory)
-///   2. `~/.config/apollia/apollia.toml`  (user config dir)
+/// The configuration file the runtime loads when no `--config` is given:
+/// `~/.apollia/apollia.toml` when it exists, `None` otherwise.
 ///
-/// Returns `None` if neither exists.
+/// The working directory and `~/.config/apollia/` are not searched: the first
+/// is where an agent package keeps a manifest of the same name, and both made
+/// the CLI, the daemon and the desktop disagree on which file was in force.
 pub(crate) fn find_config_file() -> Option<PathBuf> {
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let local = cwd.join("apollia.toml");
-    if local.exists() {
-        return Some(local);
-    }
-    let user_cfg = expand_tilde_str("~/.config/apollia/apollia.toml");
-    if user_cfg.exists() {
-        return Some(user_cfg);
-    }
-    None
+    apollia_core::paths::config_file().filter(|p| p.is_file())
 }
 
 /// Returns `true` if a TCP listener is already bound on `port`.

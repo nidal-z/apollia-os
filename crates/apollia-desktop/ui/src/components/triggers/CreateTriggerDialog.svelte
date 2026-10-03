@@ -3,7 +3,7 @@
   import { slide } from "svelte/transition";
   import { createTrigger } from "$lib/ipc/triggers";
   import { listAgents } from "$lib/ipc/connections";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import type {
     AgentListItem,
     CreateTriggerRequest,
@@ -41,7 +41,7 @@
 
   type SourceType = "cron" | "interval" | "oneshot" | "file_watch" | "webhook";
 
-  const isBuilder = $derived($uiMode === "builder");
+  const isBuilder = $derived($developerMode);
 
   const TRIGGER_TYPE_CONFIGS: {
     value: SourceType;

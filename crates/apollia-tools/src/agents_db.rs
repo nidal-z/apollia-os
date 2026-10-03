@@ -4,7 +4,9 @@
 //! [`crate::agent_repository`]) and the package tables
 //! (`installed_packages`, `package_items`, owned by
 //! [`crate::package_repository`]), and the keys of the publishers the user
-//! trusts (`trusted_keys`, owned by [`crate::trusted_keys`]). `PRAGMA user_version` belongs to the
+//! trusts (`trusted_keys`, owned by [`crate::trusted_keys`]), and the items
+//! the user exposes to an MCP client (`exposed_items`, owned by
+//! [`crate::exposed_items`]). `PRAGMA user_version` belongs to the
 //! database file, not to a table, so the two repositories share one
 //! migration list: whichever opens first brings the whole file to the
 //! current version, and both refuse a file written by a newer binary.
@@ -18,14 +20,14 @@ use rusqlite::Connection;
 use apollia_core::schema::Migration;
 
 /// Current schema version of `agents.db`.
-pub(crate) const AGENTS_DB_SCHEMA_VERSION: u32 = 4;
+pub(crate) const AGENTS_DB_SCHEMA_VERSION: u32 = 5;
 
 /// Numbered migration steps of `agents.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`AGENTS_DB_SCHEMA_VERSION`].
 pub(crate) const AGENTS_DB_MIGRATIONS: &[Migration] =
-    &[migrate_v1, migrate_v2, migrate_v3, migrate_v4];
+    &[migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -109,6 +111,13 @@ fn migrate_v4(conn: &Connection) -> Result<(), rusqlite::Error> {
         }
     }
     tx.commit()
+}
+
+/// v5: `exposed_items` records the agents and workflows the user exposes to
+/// an MCP client. The table starts empty: nothing is exposed until the user
+/// says so.
+fn migrate_v5(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(include_str!("../migrations/013_exposed_items.sql"))
 }
 
 /// `true` when `table` has a column named `column`.

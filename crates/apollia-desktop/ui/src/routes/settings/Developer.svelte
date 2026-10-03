@@ -1,11 +1,4 @@
 <script module lang="ts">
-  export const meta = {
-    title: "settings.nav.developer",
-    icon: "code",
-    group: "settings.nav.cluster_system",
-    cluster: "system",
-  } as const;
-
   /** The two choices of the switch, in reading order. */
   export const DEVELOPER_MODE_CHOICES = [
     { on: false, labelKey: "settings.developer.mode_off", testid: "developer-mode-off" },
@@ -25,6 +18,9 @@
   import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
   import SettingsSection from "../../components/settings/SettingsSection.svelte";
   import SettingsFieldRow from "../../components/settings/SettingsFieldRow.svelte";
+  import ConfigurationReadOnly from "../../components/settings/ConfigurationReadOnly.svelte";
+  import McpServerSection from "../../components/settings/developer/McpServerSection.svelte";
+  import { mcpSectionVisible } from "../../components/settings/developer/mcpServer";
 
   const locked = $derived($developerModeSource === "policy");
 
@@ -99,4 +95,15 @@
       {/snippet}
     </SettingsFieldRow>
   </SettingsSection>
+
+  {#if $developerMode}
+    <h2 class="px-1 pt-2 text-overline uppercase text-muted-foreground">
+      {$t("settings.nav.configuration")}
+    </h2>
+    <ConfigurationReadOnly />
+  {/if}
+
+  {#if mcpSectionVisible($developerMode)}
+    <McpServerSection />
+  {/if}
 </SettingsSubPage>

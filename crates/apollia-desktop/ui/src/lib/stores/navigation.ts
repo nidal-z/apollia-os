@@ -1,10 +1,11 @@
 import { writable, derived, get } from "svelte/store";
+import { DEFAULT_ROUTE } from "$lib/navigation/developerRoutes";
 
 /** Routes available in the desktop application. */
 export type Route = "dashboard" | "agents" | "tasks" | "chat" | "inbox" | "integrations" | "llm" | "automations" | "projects" | "memory" | "transcriptions" | "notifications" | "observability" | "settings" | "design" | "design-motion" | "design-empty-states" | "design-dark-mode";
 
-/** Reactive store of the active route. Default = 'dashboard'. */
-export const currentRoute = writable<Route>("dashboard");
+/** Reactive store of the active route, `DEFAULT_ROUTE` at launch. */
+export const currentRoute = writable<Route>(DEFAULT_ROUTE);
 
 /** Navigation history for back/forward. */
 const pastRoutes = writable<Route[]>([]);

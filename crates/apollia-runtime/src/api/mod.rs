@@ -26,6 +26,7 @@ pub mod routes_imap;
 pub mod routes_llm;
 pub mod routes_local_ai;
 pub mod routes_mcp;
+pub mod routes_mcp_bridge;
 pub mod routes_mcp_registry;
 pub mod routes_mcp_secrets;
 pub mod routes_memory;

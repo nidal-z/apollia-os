@@ -68,7 +68,7 @@ describe("breadcrumbSegments - non-settings routes", () => {
   test("a flat route keeps a single segment", () => {
     // GIVEN a flat route while the settings store points at some sub-page
     // WHEN the breadcrumb segments are built
-    const segments = buildBreadcrumbSegments("agents", "danger");
+    const segments = buildBreadcrumbSegments("agents", "general");
 
     // THEN the trail is the route alone, with no settings leaf appended
     expect(segments.map((s) => s.labelKey)).toEqual(["nav.agents"]);

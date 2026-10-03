@@ -320,3 +320,40 @@ fn test_a_server_port_out_of_range_is_refused_and_the_file_unchanged() {
         "[server]\nport = 8000\n"
     );
 }
+
+// ── The MCP bridge switch ────────────────────────────────────────────────
+
+#[test]
+fn test_the_mcp_bridge_switch_is_a_named_setting_off_by_default() {
+    // GIVEN a file without an [mcp] section
+    let (_dir, path) = config_with("[desktop]\ndeveloper_mode = true\n");
+
+    // WHEN the bridge switch is resolved
+    let resolved = resolve_setting(&path, "mcp.server_enabled", &PolicySettings::none()).unwrap();
+
+    // THEN it is known, off, and comes from the default
+    assert_eq!(resolved.value, json!(false));
+    assert_eq!(resolved.source, SettingSource::Default);
+}
+
+#[test]
+fn test_the_mcp_bridge_switch_written_on_resolves_on_from_the_user() {
+    // GIVEN an empty file
+    let (_dir, path) = config_with("");
+
+    // WHEN the bridge switch is written on, then resolved
+    write_setting(
+        &path,
+        "mcp.server_enabled",
+        json!(true),
+        &PolicySettings::none(),
+    )
+    .unwrap();
+    let resolved = resolve_setting(&path, "mcp.server_enabled", &PolicySettings::none()).unwrap();
+
+    // THEN the file carries it under [mcp], and it resolves on from the user
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(written.contains("[mcp]"), "{written}");
+    assert_eq!(resolved.value, json!(true));
+    assert_eq!(resolved.source, SettingSource::User);
+}

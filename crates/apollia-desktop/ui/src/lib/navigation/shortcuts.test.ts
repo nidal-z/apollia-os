@@ -2,7 +2,7 @@
  * Keyboard shortcut registry tests.
  *
  * These tests lock in the structural invariants consumed by
- * `routes/settings/Shortcuts.svelte` and the Command Palette:
+ * `components/settings/shortcuts/ShortcutCatalog.svelte` and the Command Palette:
  *   - every entry has a platform combo string on both mac and win
  *   - every entry belongs to one of the known categories
  *   - `filterShortcuts` narrows the list correctly by description and

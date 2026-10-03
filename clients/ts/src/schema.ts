@@ -2291,6 +2291,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mcp/bridge/call": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/mcp/bridge/call`: run an exposed item to its end. */
+        post: operations["call_bridge_tool"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp/bridge/tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/mcp/bridge/tools`: the exposed items, as MCP tools. */
+        get: operations["list_bridge_tools"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp/exposed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/mcp/exposed`: the agents and workflows marked exposed. */
+        get: operations["list_exposed"];
+        /**
+         * `PUT /api/v1/mcp/exposed`: mark an agent or a workflow exposed, or not.
+         * @description Exposing an item checks that it exists; withdrawing one does not, so an
+         *     item that has since been removed can still be withdrawn.
+         */
+        put: operations["set_exposed"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mcp/registry": {
         parameters: {
             query?: never;
@@ -7060,6 +7116,84 @@ export interface components {
             /** @description Receiving agent name. */
             to_agent: string;
         };
+        /** @description Body of `POST /api/v1/mcp/bridge/call`. */
+        McpBridgeCall: {
+            /**
+             * @description The arguments: `{"message": "..."}` for an agent, the inputs for a
+             *     workflow.
+             */
+            arguments?: Record<string, never>;
+            /** @description The tool, as `GET /api/v1/mcp/bridge/tools` names it. */
+            name: string;
+        };
+        /** @description The end of a bridge call. */
+        McpBridgeCallResult: {
+            /** @description `true` when the run failed or was stopped. */
+            isError: boolean;
+            /** @description The agent name, or `<package>/<workflow>`. */
+            itemId: string;
+            /** @description `agent` or `workflow`. */
+            kind: string;
+            /** @description `completed`, `failed` or `canceled`. */
+            status: string;
+            /**
+             * @description The answer of the agent, or what the workflow returned; the failure
+             *     when the run did not complete.
+             */
+            text: string;
+        };
+        /** @description Error body of the MCP bridge routes. */
+        McpBridgeErrorBody: {
+            /**
+             * @description Stable code: `bridge_disabled`, `unknown_tool`, `invalid_arguments`,
+             *     `invalid_kind`, `unknown_item`, `unavailable` or `internal`.
+             */
+            code: string;
+            /** @description What went wrong, in words a person can act on. */
+            error: string;
+        };
+        /** @description One tool of the bridge, an MCP tool descriptor. */
+        McpBridgeTool: {
+            /** @description What the agent or the workflow does. */
+            description: string;
+            /** @description JSON Schema of the arguments. */
+            inputSchema: Record<string, never>;
+            /** @description `agent__<id>` or `workflow__<package>_<workflow>`. */
+            name: string;
+        };
+        /** @description The tools the bridge serves. */
+        McpBridgeToolList: {
+            tools: components["schemas"]["McpBridgeTool"][];
+        };
+        /** @description One item marked exposed. */
+        McpExposedItem: {
+            /** @description The agent name, or `<package>/<workflow>`. */
+            itemId: string;
+            /** @description `agent` or `workflow`. */
+            kind: string;
+        };
+        /** @description The items marked exposed. */
+        McpExposedItemList: {
+            items: components["schemas"]["McpExposedItem"][];
+        };
+        /** @description The exposure flag of one item, as stored. */
+        McpExposedItemState: {
+            /** @description Whether the bridge serves the item. */
+            exposed: boolean;
+            /** @description The agent name, or `<package>/<workflow>`. */
+            itemId: string;
+            /** @description `agent` or `workflow`. */
+            kind: string;
+        };
+        /** @description Body of `PUT /api/v1/mcp/exposed`. */
+        McpExposure: {
+            /** @description Whether the bridge serves the item. */
+            exposed: boolean;
+            /** @description The agent name, or `<package>/<workflow>`. */
+            itemId: string;
+            /** @description `agent` or `workflow`. */
+            kind: string;
+        };
         /** @description Answer of `DELETE /api/v1/memory/namespaces/{namespace}/entries/{entry_id}`. */
         MemoryEntryDeleted: {
             /** @description Whether an entry had this identifier. */
@@ -7792,11 +7926,17 @@ export interface components {
             origin: components["schemas"]["AgentOriginDto"];
             /**
              * @description Fields whose value is the user's rather than the package's:
-             *     `name`, `mission`, `examples`, `access`, `sources`, `autonomy`.
+             *     `name`, `mission`, `examples`, `access`, `sources`, `autonomy`,
+             *     `profile`.
              */
             overridden: string[];
             /** @description Package the agent came with. */
             package?: string | null;
+            /**
+             * @description Identifier of the user profile designated for the agent; absent when
+             *     it runs with the default profile.
+             */
+            profile?: string | null;
             /** @description Sources checked. */
             sources: string[];
             /** @description Version of the definition. */
@@ -8147,7 +8287,7 @@ export interface components {
         SetOverrideRequest: {
             /**
              * @description The user's value: a string for `name` and `mission`, a tier name for
-             *     `autonomy`, a list of strings for `examples`, `access` and `sources`.
+             *     `autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`.
              */
             value: Record<string, never>;
         };
@@ -9456,7 +9596,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access, sources or autonomy */
+                /** @description name, mission, examples, access, sources, autonomy or profile */
                 field: string;
             };
             cookie?: never;
@@ -9512,7 +9652,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access, sources or autonomy */
+                /** @description name, mission, examples, access, sources, autonomy or profile */
                 field: string;
             };
             cookie?: never;
@@ -14653,6 +14793,184 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    call_bridge_tool: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["McpBridgeCall"];
+            };
+        };
+        responses: {
+            /** @description The run ended; `isError` says whether it failed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeCallResult"];
+                };
+            };
+            /** @description The arguments do not fit the tool (`invalid_arguments`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description The bridge is turned off (`bridge_disabled`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description No exposed item carries this name (`unknown_tool`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description The agent executor or the workflow engine is not running (`unavailable`) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+        };
+    };
+    list_bridge_tools: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tools the bridge serves */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeToolList"];
+                };
+            };
+            /** @description The bridge is turned off (`bridge_disabled`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description A store could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+        };
+    };
+    list_exposed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The items marked exposed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpExposedItemList"];
+                };
+            };
+            /** @description agents.db could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+        };
+    };
+    set_exposed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["McpExposure"];
+            };
+        };
+        responses: {
+            /** @description The flag, as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpExposedItemState"];
+                };
+            };
+            /** @description The kind is neither `agent` nor `workflow` (`invalid_kind`), or the identifier is empty (`unknown_item`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description No agent or workflow by that identifier (`unknown_item`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description agents.db could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
             };
         };
     };
