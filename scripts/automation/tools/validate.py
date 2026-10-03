@@ -235,8 +235,9 @@ def build_corpus(ui_root=UI):
                     prefixes.update(lit + frags[1] for lit in pool)  # `{testid}-{opt.value}`
         # TabBar/FilterChipBar: a `testidPrefix="X"` prop yields child ids
         # `X-tabbar`, `X-tab-<key>` (TabBar) and `X-<key>` (FilterChipBar).
-        # SplitLayout: sidebarTestid="X" / detailTestid="X" render as data-testid.
-        for pm in re.finditer(f'(?:sidebarTestid|detailTestid)\\s*=\\s*["\\\']({ID}+)["\\\']', txt):
+        # SplitLayout: sidebarTestid="X" / detailTestid="X" render as data-testid,
+        # and so does DetailHeader's titleTestid="X" on its title.
+        for pm in re.finditer(f'(?:sidebarTestid|detailTestid|titleTestid)\\s*=\\s*["\\\']({ID}+)["\\\']', txt):
             static_ids.add(pm.group(1))
         for pm in re.finditer(f'testidPrefix\\s*=\\s*["\\\']({ID}+)["\\\']', txt):
             X = pm.group(1)

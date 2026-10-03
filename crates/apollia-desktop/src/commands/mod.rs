@@ -7,6 +7,7 @@
 //! task).
 
 pub mod agent_packages;
+pub mod agent_sheet;
 pub mod agents;
 pub mod artifacts;
 #[cfg(debug_assertions)]
