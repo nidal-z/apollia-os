@@ -46,9 +46,9 @@ EXCLUSIONS: dict[str, tuple[str, str]] = {
     ),
     "mcp server": (
         "blocking",
-        "serves the MCP stdio protocol on stdin until the peer closes; with "
-        "stdin on /dev/null it exits on EOF, which measures the EOF path and "
-        "not the server",
+        "bridges an MCP client on stdin to the daemon until the peer closes; "
+        "offline it refuses at once for want of a daemon, which Track 1 of "
+        "the end-to-end suite asserts, and with a daemon it would wait on stdin",
     ),
     "update": (
         "destructive-host",

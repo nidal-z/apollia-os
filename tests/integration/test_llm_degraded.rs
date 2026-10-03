@@ -122,6 +122,7 @@ async fn test_runtime_starts_without_llm_router() {
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     };
 
     // WHEN the APIServer starts
@@ -285,6 +286,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     };
 
     let api = APIServer::new(

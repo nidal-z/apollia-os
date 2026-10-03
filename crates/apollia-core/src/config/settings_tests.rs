@@ -209,39 +209,6 @@ fn test_the_source_serializes_as_the_interface_reads_it() {
     assert_eq!(names, ["\"default\"", "\"user\"", "\"policy\""]);
 }
 
-// ── What a policy may impose ─────────────────────────────────────────────
-
-#[test]
-fn test_a_policy_may_impose_a_known_setting_with_its_type() {
-    // GIVEN a setting of the socle and a value of its type
-    let value = json!(true);
-
-    // WHEN a policy imposing it is checked
-    let checked = check_imposed_setting(KEY, &value);
-
-    // THEN it is accepted
-    assert!(checked.is_ok(), "{checked:?}");
-}
-
-#[test]
-fn test_a_policy_may_not_impose_an_unknown_key_nor_a_wrong_type() {
-    // GIVEN a key the socle does not declare, a whole section, and a known
-    // key given a value of another type
-    let cases = [
-        ("desktop.inconnu", json!(true)),
-        ("desktop", json!(true)),
-        (KEY, json!("yes")),
-    ];
-
-    // WHEN a policy imposing each is checked
-    let [unknown, section, mistyped] = cases.map(|(key, value)| check_imposed_setting(key, &value));
-
-    // THEN each is refused, naming the key
-    assert!(matches!(unknown, Err(SettingError::UnknownKey { key }) if key == "desktop.inconnu"));
-    assert!(matches!(section, Err(SettingError::UnknownKey { key }) if key == "desktop"));
-    assert!(matches!(mistyped, Err(SettingError::InvalidValue { key, .. }) if key == KEY));
-}
-
 // ── The compatible server's keys ─────────────────────────────────────────
 
 #[test]
@@ -300,4 +267,74 @@ fn test_a_server_port_out_of_range_is_refused_and_the_file_unchanged() {
         std::fs::read_to_string(&path).unwrap(),
         "[server]\nport = 8000\n"
     );
+}
+
+// ── What a policy may impose ─────────────────────────────────────────────
+
+#[test]
+fn test_a_policy_may_impose_a_known_setting_with_its_type() {
+    // GIVEN a setting of the socle and a value of its type
+    let value = json!(true);
+
+    // WHEN a policy imposing it is checked
+    let checked = check_imposed_setting(KEY, &value);
+
+    // THEN it is accepted
+    assert!(checked.is_ok(), "{checked:?}");
+}
+
+#[test]
+fn test_a_policy_may_not_impose_an_unknown_key_nor_a_wrong_type() {
+    // GIVEN a key the socle does not declare, a whole section, and a known
+    // key given a value of another type
+    let cases = [
+        ("desktop.inconnu", json!(true)),
+        ("desktop", json!(true)),
+        (KEY, json!("yes")),
+    ];
+
+    // WHEN a policy imposing each is checked
+    let [unknown, section, mistyped] = cases.map(|(key, value)| check_imposed_setting(key, &value));
+
+    // THEN each is refused, naming the key
+    assert!(matches!(unknown, Err(SettingError::UnknownKey { key }) if key == "desktop.inconnu"));
+    assert!(matches!(section, Err(SettingError::UnknownKey { key }) if key == "desktop"));
+    assert!(matches!(mistyped, Err(SettingError::InvalidValue { key, .. }) if key == KEY));
+}
+
+// ── The MCP bridge switch ────────────────────────────────────────────────
+
+#[test]
+fn test_the_mcp_bridge_switch_is_a_named_setting_off_by_default() {
+    // GIVEN a file without an [mcp] section
+    let (_dir, path) = config_with("[desktop]\ndeveloper_mode = true\n");
+
+    // WHEN the bridge switch is resolved
+    let resolved = resolve_setting(&path, "mcp.server_enabled", &PolicySettings::none()).unwrap();
+
+    // THEN it is known, off, and comes from the default
+    assert_eq!(resolved.value, json!(false));
+    assert_eq!(resolved.source, SettingSource::Default);
+}
+
+#[test]
+fn test_the_mcp_bridge_switch_written_on_resolves_on_from_the_user() {
+    // GIVEN an empty file
+    let (_dir, path) = config_with("");
+
+    // WHEN the bridge switch is written on, then resolved
+    write_setting(
+        &path,
+        "mcp.server_enabled",
+        json!(true),
+        &PolicySettings::none(),
+    )
+    .unwrap();
+    let resolved = resolve_setting(&path, "mcp.server_enabled", &PolicySettings::none()).unwrap();
+
+    // THEN the file carries it under [mcp], and it resolves on from the user
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(written.contains("[mcp]"), "{written}");
+    assert_eq!(resolved.value, json!(true));
+    assert_eq!(resolved.source, SettingSource::User);
 }

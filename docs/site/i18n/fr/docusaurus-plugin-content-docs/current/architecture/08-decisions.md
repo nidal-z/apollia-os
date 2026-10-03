@@ -341,8 +341,18 @@ optionnelle : une compilation sans elle perd la dictée, et rien d'autre.
 
 ## Model Context Protocol {#mcp}
 
-Apollia est un client MCP sur les transports stdio et HTTP, et expose aussi ses
-propres outils natifs comme serveur MCP sur stdio.
+Apollia est un client MCP sur les transports stdio et HTTP. C'est aussi un
+serveur MCP, pour les agents et workflows que l'utilisateur choisit et rien
+d'autre : `apollia-os mcp server` est un pont stdio vers le démon en cours, qui
+liste les agents et workflows marqués exposés et en exécute un jusqu'à sa fin
+quand un client l'appelle. Un agent prend un message, sous le nom d'outil
+`agent__<id>` ; un workflow prend les entrées que son schéma déclare, sous
+`workflow__<paquet>_<workflow>`. Un nom s'en tient à `[A-Za-z0-9_-]` et à 64
+caractères, comme l'exigent les API des modèles, et deux éléments dont les noms
+se confondraient sont tous deux écartés. Le pont est désactivé par défaut : le
+démon le refuse tant que `[mcp] server_enabled` n'est pas activé, réglage qu'il
+relit à chaque ouverture d'un pont. Les outils natifs (shell, fichiers,
+installation d'agents) ne sont plus servis à un client MCP.
 
 Toute réponse MCP est traitée comme une entrée non fiable. Les réponses sont
 plafonnées par serveur, les noms et descriptions d'outils sont validés dès

@@ -8,7 +8,7 @@
   import { t } from "svelte-i18n";
   import { Wrench } from "lucide-svelte";
   import { Card } from "$lib/components/ui/card";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import ConnectionStatusIndicator from "../../integrations/ConnectionStatusIndicator.svelte";
   import type { McpHealth } from "$lib/types";
   import type { TestState } from "../shared/types";
@@ -37,7 +37,7 @@
     reconnectError,
   }: Props = $props();
 
-  const isOperator = $derived($uiMode === "operator");
+  const isOperator = $derived(!$developerMode);
 </script>
 
 <div class="max-w-3xl space-y-4">

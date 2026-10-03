@@ -317,8 +317,18 @@ dictation and nothing else.
 
 ## Model Context Protocol {#mcp}
 
-Apollia is an MCP client over stdio and HTTP transports, and also exposes its
-own native tools as an MCP server over stdio.
+Apollia is an MCP client over stdio and HTTP transports. It is also an MCP
+server, for the agents and workflows the user chooses and nothing else:
+`apollia-os mcp server` is a stdio bridge to the running daemon, which lists
+the agents and workflows marked exposed and runs one to its end when a client
+calls it. An agent takes one message, under the tool name `agent__<id>`; a
+workflow takes the inputs its schema declares, under
+`workflow__<package>_<workflow>`. A name keeps to `[A-Za-z0-9_-]` and 64
+characters, as the model APIs require, and two items whose names would
+collide are both left out. The bridge is off by default: the daemon refuses
+it until `[mcp] server_enabled` is turned on, a setting it reads again each
+time a bridge opens. The native tools (shell, files, agent installation) are
+no longer served to an MCP client.
 
 Every MCP response is treated as untrusted input. Responses are capped per
 server, tool names and descriptions are validated at ingestion against a
