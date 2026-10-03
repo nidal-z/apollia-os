@@ -1,25 +1,21 @@
-//! The commands that change an agent's state: install, uninstall, update, and
-//! the restart an update owes the operator when it cycled a running agent.
+//! The commands that change an agent's state: install, uninstall, update. The
+//! uninstall and the update, restart included, are routes of the runtime.
 //!
 //! There is no start, stop, enable or disable here: an installed agent is
 //! always available, loaded by its first task and released once idle. The
 //! install makes it available at once.
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
-use apollia_core::{EventBusSender, ProcessState};
-use apollia_runtime::api::routes_agents::installed::{copy_python_tree, place_agent};
+use apollia_core::EventBusSender;
+use apollia_runtime::api::routes_agents::installed::place_agent;
 use apollia_runtime::api::routes_agents::AgentLoader;
-use apollia_runtime::embedded::RuntimeHandle;
-use apollia_tools::{AgentRepository, InstalledAgent};
 use tauri::{Manager, State};
 
 use super::{
-    agent_repository, apollia_data_dir, http_post_json, now_rfc3339, restart_outcome,
-    InstallAgentResponse, UpdateAgentResponse,
+    agent_repository, apollia_data_dir, http_post_json, InstallAgentResponse, UpdateAgentResponse,
 };
-use crate::attached::RuntimeLink;
+use crate::attached::{segment, RuntimeLink};
 
 /// Registers the agent at `path` with the runtime, through
 /// `POST /api/v1/agents`: loading Python requires `AgentLoader` and
@@ -46,60 +42,6 @@ fn agent_id_of(resp: &serde_json::Value) -> Result<String, String> {
         .and_then(|v| v.as_str())
         .map(String::from)
         .ok_or_else(|| "missing agent_id in response".to_string())
-}
-
-/// True while the agent still answers tasks.
-///
-/// `Stopping` counts as not running: the transition is already under way and
-/// the registry refuses a second stop, so the caller must not try to cycle it.
-fn is_running(state: &ProcessState) -> bool {
-    matches!(
-        state,
-        ProcessState::Initializing | ProcessState::Active | ProcessState::Degraded
-    )
-}
-
-/// Takes the running instance of an agent out of service before an update.
-///
-/// The order is load-bearing: `Stopping` first so the window sees the
-/// transition, then the coordinator leaves the router so no new task is
-/// dispatched, then `Stopped`. Unregistering before the state change would let
-/// a task be routed to a coordinator that is already gone.
-async fn stop_agent_inner(runtime: &RuntimeHandle, agent_id: &str) -> Result<(), String> {
-    let entry = runtime
-        .registry_handle
-        .get_agent(agent_id)
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("agent not found: {agent_id}"))?;
-
-    if entry.process_state == ProcessState::Stopped {
-        return Err(format!("agent already stopped: {agent_id}"));
-    }
-    if entry.process_state == ProcessState::Stopping {
-        return Err(format!("agent already stopping: {agent_id}"));
-    }
-
-    let canonical_id = entry.id;
-
-    runtime
-        .registry_handle
-        .update_state(canonical_id.as_str(), ProcessState::Stopping)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let _ = runtime
-        .router_handle
-        .unregister_coordinator(&canonical_id)
-        .await;
-
-    runtime
-        .registry_handle
-        .update_state(canonical_id.as_str(), ProcessState::Stopped)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -170,242 +112,53 @@ pub async fn install_agent(
     })
 }
 
+/// The route of an installed agent on the runtime.
+fn installed_path(name: &str) -> String {
+    format!("/api/v1/agents/installed/{}", segment(name))
+}
+
 /// Uninstalls an installed agent.
 ///
-/// 1. Removes the entry from `agents.db` and the install directory.
-/// 2. Removes the agent from the runtime registry (avoids a ghost in `list_agents`).
-/// 3. Emits a `RuntimeEvent::AgentUninstalled` on the EventBus.
+/// The runtime removes the row of `agents.db` and the install directory, then
+/// the agent from its registry, and emits `RuntimeEvent::AgentUninstalled`
+/// (`DELETE /api/v1/agents/installed/{name}`), on the listener of the runtime
+/// in this process or on the daemon's.
 #[tauri::command]
-pub async fn uninstall_agent(
-    name: String,
-    runtime: State<'_, RuntimeHandle>,
-    repo: State<'_, Arc<std::sync::Mutex<AgentRepository>>>,
-    event_bus: State<'_, EventBusSender>,
-) -> Result<(), String> {
-    let repo_clone = Arc::clone(&repo);
-    let name_clone = name.clone();
+pub async fn uninstall_agent(name: String, link: State<'_, RuntimeLink>) -> Result<(), String> {
+    uninstall_on(link.inner(), &name).await
+}
 
-    // Verify agent exists, then delete in one blocking call.
-    let existing = tokio::task::spawn_blocking({
-        let repo = Arc::clone(&repo_clone);
-        let name = name_clone.clone();
-        move || {
-            let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
-            let agent = repo
-                .get(&name)
-                .map_err(|e| format!("database error: {e}"))?
-                .ok_or_else(|| format!("agent '{name}' not found in installed agents"))?;
-            repo.delete(&name)
-                .map_err(|e| format!("failed to delete from database: {e}"))?;
-            Ok::<_, String>(agent)
-        }
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))??;
-
-    // Remove install directory (best-effort).
-    if let Some(parent) = existing.install_path.parent() {
-        let _ = std::fs::remove_dir_all(parent);
-    }
-
-    // Remove from in-memory registry so list_agents no longer returns it, and
-    // drop its coordinator for good: a stopped agent would otherwise be loaded
-    // again by the next task that names it.
-    if let Ok(Some(agent_id)) = runtime.registry_handle.find_by_name(&name).await {
-        let _ = runtime.router_handle.forget_coordinator(&agent_id).await;
-        let _ = runtime.registry_handle.unregister(agent_id.as_str()).await;
-    }
-
-    let _ = event_bus.send(apollia_core::events::RuntimeEvent::AgentUninstalled { name });
-
+/// The body of [`uninstall_agent`], on either arm of the seam.
+pub(crate) async fn uninstall_on(link: &RuntimeLink, name: &str) -> Result<(), String> {
+    link.delete_json(&installed_path(name)).await?;
     Ok(())
 }
 
 /// Updates an installed agent with a new Python file.
 ///
-/// Validates the new module via `AgentLoader`, replaces the file, updates the
-/// entry in `agents.db`, and cycles the runtime instance when there is one.
-///
-/// The cycle is the point of the command, not a courtesy. The embedded
-/// interpreter holds the module it imported at start time, so replacing the
-/// file on disk leaves a running agent serving the previous code: without the
-/// stop and the start, the window would report a new version while the old one
-/// keeps answering. The start drops the cached modules of the agent directory
-/// before importing, so the helpers copied next to the entry file are re-read
-/// too and not only the entry file. When the cycle cannot be completed the
-/// answer says so through `restart_outcome`, and the caller renders the real
-/// situation instead of a success.
-///
-/// Emits `RuntimeEvent::AgentInstalled` once the runtime has settled, so a list
-/// refresh triggered by the event reads the final state and not the gap between
-/// the stop and the start.
-// REASON: four of the six are Tauri-injected State, not a call signature an
-// author picks; splitting them into a bag would only hide the injection.
-// REASON: Tauri command: each parameter is one invoke key or injected State; a struct would change the IPC contract.
-#[allow(clippy::too_many_arguments)]
+/// The runtime validates the new module, replaces the installed one, records
+/// the new version and cycles the running instance when there is one
+/// (`PUT /api/v1/agents/installed/{name}`). The answer says which of the two
+/// versions now serves tasks, through its `restart_outcome`.
 #[tauri::command]
 pub async fn update_agent(
     name: String,
     path: String,
-    runtime: State<'_, RuntimeHandle>,
-    loader: State<'_, Arc<dyn AgentLoader>>,
-    repo: State<'_, Arc<std::sync::Mutex<AgentRepository>>>,
-    event_bus: State<'_, EventBusSender>,
+    link: State<'_, RuntimeLink>,
 ) -> Result<UpdateAgentResponse, String> {
-    let source_path = PathBuf::from(&path);
-    if !source_path.exists() {
-        return Err(format!("file not found: {path}"));
-    }
-
-    let canonical = source_path
-        .canonicalize()
-        .map_err(|e| format!("cannot resolve path {path}: {e}"))?;
-
-    // Verify agent exists.
-    let existing = {
-        let repo_clone = Arc::clone(&repo);
-        let name_clone = name.clone();
-        tokio::task::spawn_blocking(move || {
-            let repo = repo_clone
-                .lock()
-                .map_err(|e| format!("mutex poisoned: {e}"))?;
-            repo.get(&name_clone)
-                .map_err(|e| format!("database error: {e}"))
-        })
-        .await
-        .map_err(|e| format!("spawn_blocking failed: {e}"))??
-        .ok_or_else(|| format!("agent '{name}' not found in installed agents"))?
-    };
-
-    // Validate the new Python module. Same reasoning as the install path: the
-    // Python cause is the actionable part and must survive the boundary.
-    let manifest = loader.load_and_validate(&canonical).map_err(|e| {
-        tracing::warn!(
-            agent = %name,
-            path = %canonical.display(),
-            cause = %e,
-            "agent.update.rejected"
-        );
-        e
-    })?;
-
-    // Copy new file to install location.
-    std::fs::copy(&canonical, &existing.install_path).map_err(|e| {
-        format!(
-            "cannot copy {} to {}: {e}",
-            canonical.display(),
-            existing.install_path.display()
-        )
-    })?;
-
-    // Copy sibling .py files and Python sub-packages so local imports resolve.
-    if let Some(source_dir) = canonical.parent() {
-        if let Some(install_dir) = existing.install_path.parent() {
-            copy_python_tree(source_dir, install_dir, &canonical);
-        }
-    }
-
-    let updated = InstalledAgent {
-        name: existing.name.clone(),
-        version: manifest.version.clone(),
-        install_path: existing.install_path.clone(),
-        source_path: canonical,
-        manifest,
-        enabled: existing.enabled,
-        installed_at: existing.installed_at,
-        updated_at: now_rfc3339(),
-    };
-
-    let updated_for_db = updated.clone();
-    let repo_clone = Arc::clone(&repo);
-    tokio::task::spawn_blocking(move || {
-        let repo = repo_clone
-            .lock()
-            .map_err(|e| format!("mutex poisoned: {e}"))?;
-        repo.save(&updated_for_db)
-            .map_err(|e| format!("failed to update database: {e}"))
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))??;
-
-    let install_path_str = existing.install_path.to_string_lossy().to_string();
-    let (outcome, restart_error) = restart_after_update(&runtime, &name, &install_path_str).await;
-
-    let _ = event_bus.send(apollia_core::events::RuntimeEvent::AgentInstalled {
-        name: updated.name.clone(),
-        version: updated.version.clone(),
-    });
-
-    Ok(UpdateAgentResponse {
-        name: updated.name,
-        version: updated.version,
-        install_path: install_path_str,
-        restart_outcome: outcome.to_string(),
-        restart_error,
-    })
+    update_on(link.inner(), &name, &path).await
 }
 
-/// Cycle the runtime instance of *name* so it picks up the module just written.
-///
-/// Returns the [`restart_outcome`] constant and the raw cause of a failure. A
-/// registry lookup that itself fails is reported as "not running" rather than
-/// as a failed restart: nothing was stopped, so the previous instance, if any,
-/// is untouched, and the operator is told the new module applies at the next
-/// start.
-async fn restart_after_update(
-    runtime: &RuntimeHandle,
+/// The body of [`update_agent`], on either arm of the seam.
+pub(crate) async fn update_on(
+    link: &RuntimeLink,
     name: &str,
-    install_path: &str,
-) -> (&'static str, Option<String>) {
-    let live_id = match runtime.registry_handle.find_by_name(name).await {
-        Ok(Some(id)) => id,
-        Ok(None) => return (restart_outcome::NOT_RUNNING, None),
-        Err(e) => {
-            tracing::warn!(agent = %name, cause = %e, "agent.update.registry_unreachable");
-            return (restart_outcome::NOT_RUNNING, None);
-        }
-    };
-
-    let running = matches!(
-        runtime.registry_handle.get_agent(live_id.as_str()).await,
-        Ok(Some(ref entry)) if is_running(&entry.process_state)
-    );
-    if !running {
-        return (restart_outcome::NOT_RUNNING, None);
-    }
-
-    if let Err(e) = stop_agent_inner(runtime, live_id.as_str()).await {
-        tracing::warn!(agent = %name, cause = %e, "agent.update.stop_failed");
-        return (restart_outcome::STOP_FAILED, Some(e));
-    }
-
-    // `register` evicts the entry that carries the same manifest name, so the
-    // start replaces the stopped one instead of leaving two rows behind.
-    match start_agent_inner(runtime.api_port, install_path).await {
-        Ok(agent_id) => {
-            tracing::info!(agent = %name, agent_id = %agent_id, "agent.update.restarted");
-            (restart_outcome::RESTARTED, None)
-        }
-        Err(e) => {
-            tracing::warn!(agent = %name, cause = %e, "agent.update.start_failed");
-            (restart_outcome::START_FAILED, Some(e))
-        }
-    }
+    path: &str,
+) -> Result<UpdateAgentResponse, String> {
+    let body = serde_json::json!({ "path": path });
+    let answer = link.put_json(&installed_path(name), &body).await?;
+    serde_json::from_value(answer).map_err(|e| format!("invalid update answer: {e}"))
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_is_running_covers_live_states_only() {
-        // GIVEN every ProcessState variant
-        // WHEN asked whether the agent still answers tasks
-        // THEN only the live ones qualify, Stopping included in the negatives
-        assert!(is_running(&ProcessState::Initializing));
-        assert!(is_running(&ProcessState::Active));
-        assert!(is_running(&ProcessState::Degraded));
-        assert!(!is_running(&ProcessState::Stopping));
-        assert!(!is_running(&ProcessState::Stopped));
-    }
-}
+mod attached_tests;
