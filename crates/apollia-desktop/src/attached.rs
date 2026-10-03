@@ -126,6 +126,14 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "start_variant_download",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
+    // Memory upkeep, over `/api/v1/memory/namespaces/{namespace}/...`. The
+    // export and import files stay on the machine of the window; the daemon,
+    // which owns the memory, sends and receives their content.
+    "clear_memory",
+    "delete_memory_entry",
+    "memory_export_namespace",
+    "memory_import_namespace",
+    "purge_memory",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no
