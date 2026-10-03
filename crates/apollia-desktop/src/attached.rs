@@ -138,6 +138,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_profile",
     "reset_user_profile",
     "set_profile_entry",
+    // The credentials of the native tools, over `/api/v1/tool-credentials`.
+    "governance_delete_credential",
+    "governance_list_credentials",
+    "governance_set_credential",
+    "governance_test_credential",
     // Memory, read side: the namespaces, their entries, the search, the
     // entries recalled during a turn, the statistics of a conversation.
     "get_conversation_stats",
