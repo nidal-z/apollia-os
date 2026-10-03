@@ -1,12 +1,3 @@
-<script lang="ts" context="module">
-  export const meta = {
-    title: "settings.nav.shortcuts",
-    icon: "keyboard",
-    group: "settings.nav.cluster_system",
-    cluster: "system",
-  } as const;
-</script>
-
 <script lang="ts">
   import { get } from "svelte/store";
   import { t } from "svelte-i18n";
@@ -21,11 +12,10 @@
     type ShortcutEntry,
     type ShortcutScope,
   } from "$lib/navigation/shortcuts";
-  import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
-  import SettingsSection from "../../components/settings/SettingsSection.svelte";
-  import ScopeBadge from "../../components/settings/shortcuts/ScopeBadge.svelte";
-  import ShortcutCatalogRow from "../../components/settings/shortcuts/ShortcutCatalogRow.svelte";
-  import { isReserved, overlapsGlobal } from "../../components/settings/shortcuts/coverage";
+  import SettingsSection from "../SettingsSection.svelte";
+  import ScopeBadge from "./ScopeBadge.svelte";
+  import ShortcutCatalogRow from "./ShortcutCatalogRow.svelte";
+  import { isReserved, overlapsGlobal } from "./coverage";
 
   const mac = isMacPlatform();
 
@@ -73,7 +63,7 @@
   }
 </script>
 
-<SettingsSubPage route="shortcuts" data-testid="shortcuts-section">
+<div class="flex flex-col gap-4" data-testid="shortcuts-section">
   <div class="flex flex-wrap items-center gap-3">
     <div class="relative min-w-[14rem] flex-1">
       <Search
@@ -131,4 +121,4 @@
       {/if}
     {/each}
   {/if}
-</SettingsSubPage>
+</div>

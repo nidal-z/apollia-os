@@ -69,7 +69,6 @@
     "danger-card-clear-logs",
     "danger-card-clear-memories",
     "danger-card-factory-reset",
-    "danger-card-reset-onboarding",
     "dashboard-agent-row-seed-classifier",
     "disclaimer-check-code_on_machine",
     "disclaimer-check-external_data",
@@ -96,8 +95,6 @@
     "inbox-tab-notifications",
     "inbox-tab-pending",
     "install-secret-input-seed-deps-webhook",
-    "language-en",
-    "language-fr",
     "mcp-detail-tab-overview",
     "mcp-detail-tab-settings",
     "mcp-detail-tab-tools",
@@ -136,6 +133,7 @@
     "oauth-card-microsoft",
     "oauth-configure-google",
     "observability-tab-audit-trail",
+    "observability-tab-capture",
     "observability-tab-delegation",
     "observability-tab-hooks",
     "observability-tab-llm-costs",
@@ -170,21 +168,19 @@
     "project-tab-settings",
     "project-tab-tasks",
     "quickpicker-agent-seed-classifier",
-    "settings-nav-about",
     "settings-nav-appearance",
-    "settings-nav-configuration",
-    "settings-nav-danger",
+    "settings-nav-chat",
     "settings-nav-developer",
-    "settings-nav-help",
+    "settings-nav-engines",
+    "settings-nav-general",
+    "settings-nav-hardware",
     "settings-nav-integrations",
     "settings-nav-llm",
+    "settings-nav-model-defaults",
     "settings-nav-model-hub",
-    "settings-nav-observability",
     "settings-nav-permissions",
     "settings-nav-profile",
-    "settings-nav-shortcuts",
     "settings-nav-stt",
-    "settings-nav-system",
     "settings-nav-tools",
     "sidebar-mcp-automation-stub-mcp",
     "sidebar-mcp-seed-stub",
@@ -574,7 +570,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "user-menu-reset-onboarding lands on the danger settings card"
+      "label": "user-menu-reset-onboarding lands on the onboarding reminders row of Appearance"
     },
     {
       "kind": "goto",
@@ -13725,7 +13721,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-appearance"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "waitFor",
@@ -13738,7 +13734,19 @@
     },
     {
       "kind": "screenshot",
-      "label": "02-nav-appearance"
+      "label": "02-nav-general"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-appearance"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "02b-nav-appearance"
     },
     {
       "kind": "click",
@@ -13754,6 +13762,18 @@
     },
     {
       "kind": "click",
+      "testid": "settings-nav-chat"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "03b-nav-chat"
+    },
+    {
+      "kind": "click",
       "testid": "settings-nav-stt"
     },
     {
@@ -13763,6 +13783,30 @@
     {
       "kind": "screenshot",
       "label": "04-nav-stt"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-model-defaults"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-nav-model-defaults"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "04c-nav-developer"
     },
     {
       "kind": "click",
@@ -13787,18 +13831,6 @@
     {
       "kind": "screenshot",
       "label": "06-nav-model-hub"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-configuration"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-nav-configuration"
     },
     {
       "kind": "click",
@@ -13838,7 +13870,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-system"
+      "testid": "settings-nav-engines"
     },
     {
       "kind": "sleep",
@@ -13846,11 +13878,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "11-nav-system"
+      "label": "11a-nav-engines"
     },
     {
       "kind": "click",
-      "testid": "settings-nav-shortcuts"
+      "testid": "settings-nav-hardware"
     },
     {
       "kind": "sleep",
@@ -13858,19 +13890,41 @@
     },
     {
       "kind": "screenshot",
-      "label": "12-nav-shortcuts"
+      "label": "11-nav-hardware"
     },
     {
       "kind": "click",
-      "testid": "settings-nav-observability"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
     },
     {
       "kind": "sleep",
-      "ms": 350
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "observability"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "observability-tab-capture"
     },
     {
       "kind": "screenshot",
-      "label": "13-nav-observability"
+      "label": "13-observability-capture-tab"
     },
     {
       "kind": "waitFor",
@@ -13964,9 +14018,8 @@
       "ms": 300
     },
     {
-      "kind": "waitFor",
-      "testid": "settings-unsaved-badge",
-      "timeoutMs": 5000
+      "kind": "sleep",
+      "ms": 300
     },
     {
       "kind": "screenshot",
@@ -13982,27 +14035,38 @@
       "ms": 300
     },
     {
-      "kind": "waitGone",
-      "testid": "settings-unsaved-badge",
-      "timeoutMs": 5000
+      "kind": "sleep",
+      "ms": 300
     },
     {
       "kind": "screenshot",
       "label": "13b5-sensitive-reset"
     },
     {
-      "kind": "click",
-      "testid": "observability-open-dashboard",
-      "timeoutMs": 4000
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "observability-page",
+      "testid": "settings-page",
       "timeoutMs": 15000
     },
     {
-      "kind": "screenshot",
-      "label": "13c-observability-open-dashboard"
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
     },
     {
       "kind": "goto",
@@ -14020,7 +14084,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "sleep",
@@ -14028,7 +14092,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "14-nav-danger"
+      "label": "14-general-danger-zone"
     },
     {
       "kind": "click",
@@ -14041,7 +14105,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "plan-mode-default-toggle",
+      "testid": "reset-onboarding-btn",
       "timeoutMs": 4000
     },
     {
@@ -14082,7 +14146,18 @@
     },
     {
       "kind": "click",
-      "testid": "language-fr"
+      "testid": "settings-nav-general"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "language-select",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "language-select",
+      "value": "fr",
+      "timeoutMs": 4000
     },
     {
       "kind": "sleep",
@@ -14093,8 +14168,10 @@
       "label": "18-language-fr"
     },
     {
-      "kind": "click",
-      "testid": "language-en"
+      "kind": "selectOption",
+      "testid": "language-select",
+      "value": "en",
+      "timeoutMs": 4000
     },
     {
       "kind": "sleep",
@@ -14131,17 +14208,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-appearance"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "theme-toggle",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "plan-mode-default-toggle",
-      "timeoutMs": 4000
+      "testid": "settings-nav-chat"
     },
     {
       "kind": "waitFor",
@@ -14179,7 +14246,20 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-configuration"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
     },
     {
       "kind": "waitFor",
@@ -14233,7 +14313,15 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-system"
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-hardware"
     },
     {
       "kind": "waitFor",
@@ -14309,6 +14397,10 @@
       "label": "27-agent-install-section"
     },
     {
+      "kind": "click",
+      "testid": "settings-nav-general"
+    },
+    {
       "kind": "waitFor",
       "testid": "update-checker",
       "timeoutMs": 4000
@@ -14332,16 +14424,16 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger"
+      "testid": "settings-nav-hardware"
     },
     {
       "kind": "waitFor",
-      "testid": "danger-section",
+      "testid": "system-info-section",
       "timeoutMs": 6000
     },
     {
       "kind": "click",
-      "testid": "settings-nav-system"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "waitFor",
@@ -14490,16 +14582,16 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger"
+      "testid": "settings-nav-hardware"
     },
     {
       "kind": "waitFor",
-      "testid": "danger-section",
+      "testid": "system-info-section",
       "timeoutMs": 6000
     },
     {
       "kind": "click",
-      "testid": "settings-nav-system"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "waitFor",
@@ -14572,7 +14664,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "waitFor",
@@ -14582,11 +14674,6 @@
     {
       "kind": "waitFor",
       "testid": "danger-warning-banner",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "danger-card-reset-onboarding",
       "timeoutMs": 4000
     },
     {
@@ -14638,7 +14725,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-system"
+      "testid": "settings-nav-hardware"
     },
     {
       "kind": "waitFor",
@@ -14718,7 +14805,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-system"
+      "testid": "settings-nav-hardware"
     },
     {
       "kind": "waitFor",
@@ -14841,6 +14928,18 @@
     },
     {
       "kind": "click",
+      "testid": "settings-nav-general"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "36b-builder-nav-general"
+    },
+    {
+      "kind": "click",
       "testid": "settings-nav-appearance"
     },
     {
@@ -14865,6 +14964,18 @@
     },
     {
       "kind": "click",
+      "testid": "settings-nav-chat"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "38b-builder-nav-chat"
+    },
+    {
+      "kind": "click",
       "testid": "settings-nav-stt"
     },
     {
@@ -14874,6 +14985,30 @@
     {
       "kind": "screenshot",
       "label": "39-builder-nav-stt"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-model-defaults"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "39b-builder-nav-model-defaults"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "42-builder-nav-developer-configuration"
     },
     {
       "kind": "click",
@@ -14898,18 +15033,6 @@
     {
       "kind": "screenshot",
       "label": "41-builder-nav-model-hub"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-configuration"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "42-builder-nav-configuration"
     },
     {
       "kind": "click",
@@ -14949,7 +15072,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-system"
+      "testid": "settings-nav-engines"
     },
     {
       "kind": "sleep",
@@ -14957,11 +15080,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "46-builder-nav-system"
+      "label": "46a-builder-nav-engines"
     },
     {
       "kind": "click",
-      "testid": "settings-nav-shortcuts"
+      "testid": "settings-nav-hardware"
     },
     {
       "kind": "sleep",
@@ -14969,11 +15092,20 @@
     },
     {
       "kind": "screenshot",
-      "label": "47-builder-nav-shortcuts"
+      "label": "46-builder-nav-hardware"
+    },
+    {
+      "kind": "goto",
+      "route": "observability"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 15000
     },
     {
       "kind": "click",
-      "testid": "settings-nav-observability"
+      "testid": "observability-tab-capture"
     },
     {
       "kind": "waitFor",
@@ -14982,20 +15114,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "48-builder-observability-settings"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-danger"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "danger-section",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "screenshot",
-      "label": "49-builder-nav-danger"
+      "label": "48-builder-observability-capture"
     },
     {
       "kind": "goto",
@@ -15034,7 +15153,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "waitFor",
@@ -15044,10 +15163,6 @@
     {
       "kind": "screenshot",
       "label": "50-back-operator"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-help"
     },
     {
       "kind": "waitFor",
@@ -15179,7 +15294,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-about"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "waitFor",
@@ -15188,24 +15303,16 @@
     },
     {
       "kind": "waitFor",
-      "testid": "about-hero",
+      "testid": "general-updates",
       "timeoutMs": 4000
     },
     {
       "kind": "expect",
-      "testid": "about-logo"
-    },
-    {
-      "kind": "expect",
-      "testid": "about-version"
-    },
-    {
-      "kind": "expect",
-      "testid": "about-os"
+      "testid": "general-version"
     },
     {
       "kind": "screenshot",
-      "label": "53-about-hero-logo"
+      "label": "53-general-version"
     },
     {
       "kind": "waitFor",
@@ -15251,6 +15358,15 @@
     {
       "kind": "expect",
       "testid": "about-link-github"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-engines"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-section",
+      "timeoutMs": 6000
     },
     {
       "kind": "click",
@@ -15312,6 +15428,15 @@
     },
     {
       "kind": "click",
+      "testid": "settings-nav-general"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "about-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
       "testid": "about-copy-contact",
       "timeoutMs": 4000
     },
@@ -15325,7 +15450,33 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-observability"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "observability"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "observability-tab-capture"
     },
     {
       "kind": "waitFor",
@@ -15359,6 +15510,32 @@
     {
       "kind": "clearStubs",
       "command": "open_config_in_editor"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
     },
     {
       "kind": "screenshot",
