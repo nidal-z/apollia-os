@@ -4369,6 +4369,78 @@
         }
       }
     },
+    "/api/v1/llm/installed-models": {
+      "delete": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`DELETE /api/v1/llm/installed-models?path=...`",
+        "operationId": "delete_installed_model",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "description": "Absolute path of the installed model file",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file and its index entry are gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedInstalledModel"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The path resolves outside the models directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such file, or no models directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "An LLM backend or the dictation engine uses the file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file could not be removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/loaded-models": {
       "get": {
         "tags": [
@@ -14685,6 +14757,19 @@
           "removed": {
             "type": "boolean",
             "description": "Whether a value was there to remove."
+          }
+        }
+      },
+      "DeletedInstalledModel": {
+        "type": "object",
+        "description": "Answer of `DELETE /api/v1/llm/installed-models`.",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "string",
+            "description": "The path removed, as it was asked for."
           }
         }
       },

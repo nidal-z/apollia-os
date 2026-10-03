@@ -79,8 +79,9 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # clients of the connectors were served by the daemon, then at 103 once the plan
 # mode had its routes, then at 96 once the MCP secrets and registry had their
 # routes and the MCP sign-in was named a window command, then at 92 once the
-# credentials of the native tools had their routes.
-EMBEDDED_ONLY_CEILING = 92
+# credentials of the native tools had their routes, then at 88 once the
+# downloads, the import and the removal of a model served the daemon.
+EMBEDDED_ONLY_CEILING = 88
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

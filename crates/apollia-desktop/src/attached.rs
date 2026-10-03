@@ -213,6 +213,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "delete_mcp_secret",
     "fetch_mcp_registry",
     "store_mcp_secret",
+    // Models: the removal of an installed model, refused while a backend or
+    // the dictation engine of the runtime uses it.
+    "delete_installed_model",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no
@@ -267,6 +270,18 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "reveal_session_path",
         "shows a file in the file manager of this machine, the session folder read from the runtime",
+    ),
+    (
+        "start_model_download",
+        "downloads into the models folder of this machine with the download manager of this window, which also holds the variant downloads",
+    ),
+    (
+        "cancel_model_download",
+        "cancels a download held by the download manager of this window",
+    ),
+    (
+        "import_model_file",
+        "copies a file or folder of this machine, picked in this window, into its models folder",
     ),
     (
         "automation_script",

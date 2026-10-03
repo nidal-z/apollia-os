@@ -8,18 +8,22 @@
 //! - [`start_variant_download`]: downloads a whole variant (parts, projector,
 //!   MLX folder) as one download
 //! - [`cancel_model_download`]: cancels an in-progress download
+//! - [`delete_installed_model`]: removes an installed model, unless in use
 //!
 //! The import of a model from a disk lives in `model_import`.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use apollia_core::LlmBackendRepository;
 use apollia_llm::hardware::detect as detect_hardware;
 use apollia_llm::{AcceleratorProfile, HardwareProfile, IndexedModel, ModelCategory, ModelFormat};
+use apollia_runtime::api::routes_model_hub::installed::DeletedInstalledModel;
+use apollia_runtime::installed_models::{delete_installed, in_use_refs, used_by, ModelRef};
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, State};
 use tokio::sync::Mutex;
+
+use crate::attached::{segment, RuntimeLink};
 
 // ─────────────────────────────────────────────
 // Shared download manager state
@@ -445,14 +449,6 @@ pub struct InstalledModelView {
     pub capabilities: Option<apollia_llm::Capabilities>,
 }
 
-/// A model file referenced by the active configuration.
-struct ModelRef {
-    /// Basename of the referenced file, used for a conservative match.
-    name: String,
-    /// Owner label surfaced to the operator.
-    label: String,
-}
-
 pub(super) fn home_dir() -> PathBuf {
     apollia_core::paths::home_dir_or_temp()
 }
@@ -469,57 +465,9 @@ fn expand_tilde(raw: &str) -> PathBuf {
     }
 }
 
-/// Collect every model file referenced by an LLM backend or the STT config.
-///
-/// Read-only over `~/.apollia/system.db`. A backend whose `model` is a cloud
-/// model name (not a path) simply never matches a local `.gguf`, so it is
-/// harmless here.
-fn collect_in_use_refs() -> Vec<ModelRef> {
-    let mut refs = Vec::new();
-    let db_path = apollia_core::paths::DataFile::System
-        .path(&apollia_core::paths::data_dir_under(home_dir()));
-
-    let mut push = |raw: &str, label: String| {
-        if let Some(name) = expand_tilde(raw).file_name().map(|n| n.to_owned()) {
-            refs.push(ModelRef {
-                name: name.to_string_lossy().to_string(),
-                label,
-            });
-        }
-    };
-
-    if let Ok(repo) = LlmBackendRepository::open(&db_path) {
-        if let Ok(list) = repo.list() {
-            for cfg in list {
-                let label = format!("LLM backend '{}'", cfg.name);
-                push(&cfg.model, label.clone());
-                if let Some(mp) = cfg.config_json.get("model_path").and_then(|v| v.as_str()) {
-                    push(mp, label);
-                }
-            }
-        }
-    }
-
-    if let Ok(repo) = apollia_core::SttConfigRepository::open(&db_path) {
-        if let Ok(row) = repo.get_or_default() {
-            push(&row.model_path, "STT engine".to_string());
-        }
-    }
-
-    refs
-}
-
-/// Conservative match: same file name as a referenced model. Prefers a false
-/// "in use" (blocks a delete) over an accidental removal of a live model.
-fn used_by(file: &Path, refs: &[ModelRef]) -> Option<String> {
-    let name = file.file_name()?.to_string_lossy().to_string();
-    refs.iter()
-        .find(|r| r.name == name)
-        .map(|r| r.label.clone())
-}
-
 fn collect_installed_models() -> Result<Vec<InstalledModelView>, String> {
-    collect_installed_models_in(&models_dir(), &collect_in_use_refs())
+    let data_dir = apollia_core::paths::data_dir_under(home_dir());
+    collect_installed_models_in(&models_dir(), &in_use_refs(&data_dir))
 }
 
 /// The installed models of `dir`, read from its model index.
@@ -567,43 +515,6 @@ fn installed_view(model: &IndexedModel, refs: &[ModelRef]) -> InstalledModelView
     }
 }
 
-fn delete_installed_model_inner(path: &str) -> Result<(), String> {
-    let target = PathBuf::from(path);
-
-    // The file must exist and resolve to a real path inside the managed models
-    // directory: reject traversal, symlinks pointing outside, and stray paths.
-    let canonical_target = target
-        .canonicalize()
-        .map_err(|e| format!("model file not found: {e}"))?;
-    let canonical_dir = models_dir()
-        .canonicalize()
-        .map_err(|e| format!("models directory not found: {e}"))?;
-    if !canonical_target.starts_with(&canonical_dir) {
-        return Err("refusing to delete a file outside the models directory".to_string());
-    }
-
-    // In-use guard: never delete a model referenced by a live backend or STT.
-    if let Some(owner) = used_by(&canonical_target, &collect_in_use_refs()) {
-        return Err(format!(
-            "model is in use by {owner}; change or remove that configuration first"
-        ));
-    }
-
-    std::fs::remove_file(&canonical_target)
-        .map_err(|e| format!("failed to delete model file: {e}"))?;
-    if let Err(e) = super::model_index::forget(&models_dir(), &target)
-        .and_then(|()| super::model_index::forget(&models_dir(), &canonical_target))
-    {
-        tracing::event!(
-            tracing::Level::WARN,
-            path = %target.display(),
-            error = %e,
-            "model.index.forget.failed"
-        );
-    }
-    Ok(())
-}
-
 /// Reconciles the model index with `~/.apollia/models/`. Run once at startup,
 /// so a model copied in or removed while the application was closed is seen.
 pub(crate) fn reconcile_model_index() {
@@ -629,12 +540,35 @@ pub async fn list_installed_models() -> Result<Vec<InstalledModelView>, String> 
 /// Deletes an installed model file after a path and in-use safety check.
 ///
 /// Refuses any path outside `~/.apollia/models/` and any file still referenced
-/// by an LLM backend or the STT configuration.
+/// by an LLM backend or the STT configuration. The check and the removal are
+/// the runtime's, served in this process or by the daemon.
 #[tauri::command]
-pub async fn delete_installed_model(path: String) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || delete_installed_model_inner(&path))
+pub async fn delete_installed_model(
+    link: State<'_, RuntimeLink>,
+    path: String,
+) -> Result<(), String> {
+    delete_installed_through(link.inner(), path).await
+}
+
+/// The removal of `path` through `link`: the runtime's function in this
+/// process, `DELETE /api/v1/llm/installed-models` on the daemon.
+pub(crate) async fn delete_installed_through(
+    link: &RuntimeLink,
+    path: String,
+) -> Result<(), String> {
+    match link {
+        RuntimeLink::Embedded(_) => tokio::task::spawn_blocking(move || {
+            let data_dir = apollia_core::paths::data_dir_under(home_dir());
+            delete_installed(&data_dir, &path).map_err(|e| e.to_string())
+        })
         .await
-        .map_err(|e| format!("spawn_blocking failed: {e}"))?
+        .map_err(|e| format!("spawn_blocking failed: {e}"))?,
+        RuntimeLink::Attached(remote) => {
+            let route = format!("/api/v1/llm/installed-models?path={}", segment(&path));
+            let _: DeletedInstalledModel = remote.delete(&route).await?;
+            Ok(())
+        }
+    }
 }
 
 #[cfg(test)]

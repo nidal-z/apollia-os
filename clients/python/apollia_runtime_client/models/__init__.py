@@ -100,6 +100,7 @@ from .delete_preset_response import DeletePresetResponse
 from .delete_response import DeleteResponse
 from .delete_server_response import DeleteServerResponse
 from .deleted_credential import DeletedCredential
+from .deleted_installed_model import DeletedInstalledModel
 from .deleted_profile_entry import DeletedProfileEntry
 from .dictation_models_response import DictationModelsResponse
 from .dictation_models_response_models_item import DictationModelsResponseModelsItem
@@ -472,6 +473,7 @@ __all__ = (
     "DelegateRequestInput",
     "DeleteBackendResponse",
     "DeletedCredential",
+    "DeletedInstalledModel",
     "DeletedProfileEntry",
     "DeletePresetResponse",
     "DeleteResponse",

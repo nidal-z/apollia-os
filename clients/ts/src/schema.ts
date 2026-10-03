@@ -1413,6 +1413,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/installed-models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** `DELETE /api/v1/llm/installed-models?path=...` */
+        delete: operations["delete_installed_model"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/loaded-models": {
         parameters: {
             query?: never;
@@ -5198,6 +5215,11 @@ export interface components {
         DeletedCredential: {
             /** @description Whether a value was there to remove. */
             removed: boolean;
+        };
+        /** @description Answer of `DELETE /api/v1/llm/installed-models`. */
+        DeletedInstalledModel: {
+            /** @description The path removed, as it was asked for. */
+            deleted: string;
         };
         /** @description Answer of `DELETE /api/v1/profile/entries/{key}`. */
         DeletedProfileEntry: {
@@ -11036,6 +11058,65 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HardwareResponse"];
+                };
+            };
+        };
+    };
+    delete_installed_model: {
+        parameters: {
+            query: {
+                /** @description Absolute path of the installed model file */
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file and its index entry are gone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedInstalledModel"];
+                };
+            };
+            /** @description The path resolves outside the models directory */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No such file, or no models directory */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description An LLM backend or the dictation engine uses the file */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The file could not be removed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };
