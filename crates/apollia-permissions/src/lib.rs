@@ -3,25 +3,22 @@
 //!
 //! ## What actually gates a tool call
 //!
-//! - [`PrefixRuleEngine`] as a **rule store**: the chat manager lists its
-//!   persisted rules once per message and seeds a name-only authorization set
-//!   from the allow rules that carry no `arg_prefix`
-//!   (`apply_chat_prefix_allow_rules` in `apollia-runtime`). That set is the
-//!   mechanism behind "always allow" for ordinary tools.
-//! - The **per-invocation prefix matching**: on a miss of that set, the chat
-//!   ReAct loop consults [`PrefixRuleEngine::check_with_scope`] with the
-//!   call's first argument (`build_prefix_checker` in `apollia-runtime`), which
-//!   it extracts with [`prefix_rule_engine::extract_first_arg`].
-//!   For a code executor the match goes through
-//!   [`executor_guard::is_single_simple_command`], so an allowed prefix only
-//!   ever covers a single simple command, and a rule without a prefix never
-//!   matches an executor.
-//! - [`executor_guard::is_code_executor`]: the invariant that `bash_executor`
-//!   and `python_executor` are never blanket-authorised; the runtime filters
-//!   them out of the authorization set on every seeding route.
+//! The governance decision of `apollia-runtime` decides every tool call of
+//! every agent, before it runs. This crate holds what it reads:
 //!
-//! Anything the chat path does not auto-approve asks a human, through the HITL
-//! flow of `apollia-runtime`.
+//! - [`PrefixRuleEngine`] as the **rule store**: the fine rules, by argument
+//!   prefix, listed by the governance actor; [`rule_matches`] matches one
+//!   against a call, with the call's first argument extracted by
+//!   [`prefix_rule_engine::extract_first_arg`]. For a code executor the match
+//!   goes through [`executor_guard::is_single_simple_command`], so an allowed
+//!   prefix only ever covers a single simple command, and a rule without a
+//!   prefix never matches an executor.
+//! - [`executor_guard::is_code_executor`]: `bash_executor` and
+//!   `python_executor` execute code whatever their descriptor says, so no
+//!   standing consent and no grant ever covers them.
+//!
+//! Anything the decision does not allow or refuse asks a human, through the
+//! HITL flow of `apollia-runtime`.
 //!
 //! [`org_policy`] reads and verifies the signed organisation policy that IT
 //! drops in a system folder; [`load_policy`] answers whether it is absent,
@@ -68,5 +65,6 @@ pub use org_policy::{
     ValidPolicy,
 };
 pub use prefix_rule_engine::{
-    extract_first_arg, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction, ScopeContext,
+    extract_first_arg, rule_matches, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction,
+    ScopeContext,
 };

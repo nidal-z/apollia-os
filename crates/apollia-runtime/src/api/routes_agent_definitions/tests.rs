@@ -93,6 +93,10 @@ async fn state(
                 .await
                 .unwrap();
         state.audit_journal = Some(handle.clone());
+        state.governance = Some(crate::governance::GovernanceHandle::detached(
+            crate::governance::GovernanceState::default(),
+            Some(handle.clone()),
+        ));
         Some(handle)
     } else {
         None

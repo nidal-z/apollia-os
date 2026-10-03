@@ -1,5 +1,10 @@
 use super::*;
 
+use apollia_tools::ActionFamily;
+
+use super::governed::{family_of, refusal_text, AskedConsent};
+use crate::governance::{AccessDecision, ConsentAnswer};
+
 impl BuiltInChatAgent {
     /// Record one ReAct turn that produced tool calls: capture reasoning,
     /// append the assistant message, and dispatch each tool call.
@@ -84,10 +89,12 @@ impl BuiltInChatAgent {
         // the tool's usage card instead (see `tool_guide`). Tools absent from
         // the registry are not checked here.
         let mut read_only: Vec<bool> = Vec::with_capacity(effective_calls.len());
+        let mut families: Vec<ActionFamily> = Vec::with_capacity(effective_calls.len());
         let mut malformed: Vec<Option<String>> = Vec::with_capacity(effective_calls.len());
         for call in effective_calls.iter() {
             let descriptor = self.tool_registry.describe(&call.name).await;
             read_only.push(descriptor.as_ref().is_some_and(|d| d.is_read_only));
+            families.push(family_of(&call.name, descriptor.as_ref()));
             // A call repeated verbatim past the allowance is answered the same
             // way, with a reminder in place of a result it has already seen.
             let repeated = super::tool_guide::repeated_call_reminder(
@@ -161,9 +168,9 @@ impl BuiltInChatAgent {
 
         // Phase A: invoke the parallel-safe calls concurrently, keyed by index.
         // Denied calls never run, even when read-only. Calls beyond the budget
-        // allowance never run either. A persisted deny rule wins over the
-        // name-only authorization: a call it matches is kept out of the fast
-        // path and refused by the sequential path.
+        // allowance never run either. Only a call governance allows takes the
+        // fast path: one it refuses or asks about is left to the sequential
+        // path, which answers it.
         let mut precomputed: std::collections::HashMap<usize, (ToolCallRecord, String, bool)> = {
             use futures::stream::{self, StreamExt};
             let parallel = (0..effective_calls.len())
@@ -173,8 +180,14 @@ impl BuiltInChatAgent {
                         && malformed[i].is_none()
                         && !rewritten_by_hook[i]
                         && read_only[i]
-                        && acc.authorized.contains(&effective_calls[i].name)
-                        && !self.prefix_rule_denies(&effective_calls[i])
+                        && self
+                            .decide_call(
+                                &effective_calls[i],
+                                families[i],
+                                acc,
+                                rewritten_by_hook[i],
+                            )
+                            .is_allowed()
                 })
                 .map(|i| async move {
                     let outcome = self
@@ -332,6 +345,7 @@ impl BuiltInChatAgent {
                                     run_id: ids.run_id,
                                     pending_approvals: ids.pending_approvals,
                                     rewritten_by_hook: rewritten_by_hook[i],
+                                    family: families[i],
                                 },
                                 llm_messages,
                                 acc,
@@ -394,9 +408,9 @@ impl BuiltInChatAgent {
         !result.ok
     }
 
-    /// Execute a single tool call via the [`ToolInvoker`], emitting events.
-    /// Process one tool call: run it directly when authorized, otherwise go
-    /// through the HITL approval flow. Mutates `llm_messages` and `acc`.
+    /// Process one tool call: governance decides it first; an allowed call
+    /// runs, a refused one does not, and one governance asks about goes
+    /// through the approval flow. Mutates `llm_messages` and `acc`.
     ///
     /// Returns a [`ToolCallOutcome`]: `failed` for the escalation counter, and
     /// the executed output when the tool actually ran (for the `PostToolUse`
@@ -414,67 +428,55 @@ impl BuiltInChatAgent {
             run_id,
             pending_approvals,
             rewritten_by_hook,
+            family,
         } = ctx;
 
-        // The persisted prefix rules are evaluated first, against this call's
-        // argument, so a deny rule wins even over a name-authorized tool: an
-        // operator's standing refusal cannot be bypassed by a broader "always
-        // allow". The grant side is per invocation, so an allow is
-        // deliberately NOT inserted into `acc.authorized`: the next call
-        // re-evaluates with its own argument. A code executor can only match
-        // through the strict matcher (prefix plus single simple command),
-        // never a blanket rule.
-        let rule_hit = self.prefix_rule_decision(call);
-
-        if let Some((rule_id, apollia_permissions::prefix_rule_engine::RuleAction::Deny)) = rule_hit
-        {
-            tracing::info!(
-                tool = %call.name,
-                rule_id,
-                "chat.tool.prefix_rule_denied"
-            );
-            let refusal = "Tool refused by a permission rule".to_string();
-            llm_messages.push(LlmChatMessage::tool_result(&call.id, &refusal));
-            acc.all_tool_calls.push(ToolCallRecord {
-                tool_name: call.name.clone(),
-                input: call.arguments.clone(),
-                output: Some(refusal),
-                status: ToolCallStatus::Refused,
-                rationale: None,
-                retry_attempts: Vec::new(),
-            });
-            return ToolCallOutcome {
-                failed: true,
-                executed: None,
-            };
-        }
-
-        let rule_allows = matches!(
-            rule_hit,
-            Some((
-                _,
-                apollia_permissions::prefix_rule_engine::RuleAction::Allow
-            ))
-        );
-        if !rewritten_by_hook && (acc.authorized.contains(&call.name) || rule_allows) {
-            if rule_allows && !acc.authorized.contains(&call.name) {
-                if let Some((rule_id, _)) = rule_hit {
-                    tracing::info!(
-                        tool = %call.name,
-                        rule_id,
-                        "chat.tool.prefix_rule_allowed"
-                    );
-                }
+        let decision = self.decide_call(call, family, acc, rewritten_by_hook);
+        match &decision {
+            AccessDecision::Denied { reason } => {
+                tracing::info!(
+                    tool = %call.name,
+                    reason = ?reason,
+                    "chat.tool.governance_denied"
+                );
+                let refusal = refusal_text(reason);
+                llm_messages.push(LlmChatMessage::tool_result(&call.id, &refusal));
+                acc.all_tool_calls.push(ToolCallRecord {
+                    tool_name: call.name.clone(),
+                    input: call.arguments.clone(),
+                    output: Some(refusal),
+                    status: ToolCallStatus::Refused,
+                    rationale: None,
+                    retry_attempts: Vec::new(),
+                });
+                return ToolCallOutcome {
+                    failed: true,
+                    executed: None,
+                };
             }
-            let (record, tool_result, success) = self
-                .execute_tool_call(session_id, message_id, call, run_id)
-                .await;
-            llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
-            acc.all_tool_calls.push(record);
-            return ToolCallOutcome {
-                failed: !success,
-                executed: Some((tool_result, success)),
-            };
+            AccessDecision::Allowed { reason } => {
+                tracing::info!(
+                    tool = %call.name,
+                    reason = ?reason,
+                    "chat.tool.governance_allowed"
+                );
+                let (record, tool_result, success) = self
+                    .execute_tool_call(session_id, message_id, call, run_id)
+                    .await;
+                llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
+                acc.all_tool_calls.push(record);
+                return ToolCallOutcome {
+                    failed: !success,
+                    executed: Some((tool_result, success)),
+                };
+            }
+            AccessDecision::AskUser { .. } | AccessDecision::Pending { .. } => {
+                tracing::info!(
+                    tool = %call.name,
+                    pending = matches!(decision, AccessDecision::Pending { .. }),
+                    "chat.tool.governance_asks"
+                );
+            }
         }
 
         // HITL approval. The key is scoped by the unique tool-call id (not the
@@ -509,11 +511,11 @@ impl BuiltInChatAgent {
         // typed or reached by timeout, runs no tool at all, so this is the only
         // point at which the wait can be attributed to anything.
         let approval_started = std::time::Instant::now();
-        let decision = rx.await.unwrap_or(ToolDecision::refuse());
+        let answer = rx.await.unwrap_or(ToolDecision::refuse());
         crate::perf_trace::approval_resolved(
             &call.name,
             approval_started.elapsed().as_secs_f64() * 1000.0,
-            !matches!(decision, ToolDecision::Refuse { .. }),
+            !matches!(answer, ToolDecision::Refuse { .. }),
         );
 
         self.apply_tool_decision(
@@ -522,15 +524,24 @@ impl BuiltInChatAgent {
                 message_id,
                 call,
                 run_id,
+                asked: AskedConsent {
+                    family,
+                    always_offered: decision.answers().contains(&ConsentAnswer::Always),
+                },
             },
-            decision,
+            answer,
             llm_messages,
             acc,
         )
         .await
     }
 
-    /// Apply the operator's HITL decision for an unauthorized tool call.
+    /// Apply the operator's answer to a tool call governance asked about.
+    ///
+    /// "Always" becomes a standing consent of this agent for the family of
+    /// the tool, never a grant by tool name; where governance did not offer
+    /// it (executing code, a tool nobody classified) it holds for this call
+    /// only.
     ///
     /// Returns a [`ToolCallOutcome`]: `failed` is set on an execution failure or
     /// a refusal; `executed` carries the output when the tool ran, enabling the
@@ -547,6 +558,7 @@ impl BuiltInChatAgent {
             message_id,
             call,
             run_id,
+            asked,
         } = target;
         match decision {
             ToolDecision::Accept => {
@@ -561,17 +573,28 @@ impl BuiltInChatAgent {
                 }
             }
             ToolDecision::AlwaysAccept { .. } => {
-                // A code executor takes an arbitrary-code payload, so a grant by
-                // name would let every later call of the exchange run unseen.
-                // "Always" is downgraded to this one call; the next one asks.
-                if apollia_permissions::is_code_executor(&call.name) {
+                if asked.always_offered {
+                    match self
+                        .governance
+                        .grant_always(&self.agent_id, asked.family)
+                        .await
+                    {
+                        Ok(new) => tracing::info!(
+                            tool = %call.name,
+                            new,
+                            "chat.tool.always_accept.granted"
+                        ),
+                        Err(error) => tracing::warn!(
+                            tool = %call.name,
+                            error = %error,
+                            "chat.tool.always_accept.not_recorded"
+                        ),
+                    }
+                } else {
                     tracing::warn!(
                         tool = %call.name,
                         "chat.tool.always_accept.downgraded"
                     );
-                } else {
-                    acc.authorized.insert(call.name.clone());
-                    acc.newly_authorized.push(call.name.clone());
                 }
                 let (record, tool_result, success) = self
                     .execute_tool_call(session_id, message_id, call, run_id)
@@ -606,27 +629,6 @@ impl BuiltInChatAgent {
                 }
             }
         }
-    }
-
-    /// Evaluate the persisted prefix rules for one call, if a checker is
-    /// attached. Returns the matched rule id and action, `None` otherwise.
-    fn prefix_rule_decision(
-        &self,
-        call: &apollia_llm::types::ToolCall,
-    ) -> Option<(i64, apollia_permissions::prefix_rule_engine::RuleAction)> {
-        let checker = self.prefix_checker.as_ref()?;
-        let first_arg = apollia_permissions::extract_first_arg(&call.arguments);
-        checker(&call.name, first_arg.as_deref())
-    }
-
-    /// Whether a persisted deny rule matches this call. Used by the parallel
-    /// read-only fast path to keep rule-denied calls on the sequential path,
-    /// where the refusal is synthesized.
-    fn prefix_rule_denies(&self, call: &apollia_llm::types::ToolCall) -> bool {
-        matches!(
-            self.prefix_rule_decision(call),
-            Some((_, apollia_permissions::prefix_rule_engine::RuleAction::Deny))
-        )
     }
 
     async fn execute_tool_call(

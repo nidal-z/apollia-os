@@ -268,6 +268,11 @@ pub enum ChatCommand {
         /// Used by every run that starts afterwards.
         composer: Arc<dyn crate::composition::Composer>,
     },
+    /// Hand the governance every tool call is decided by to the actor.
+    SetGovernance {
+        /// Used by every run that starts afterwards.
+        governance: crate::governance::GovernanceHandle,
+    },
     /// Fork a session, creating a child with a copy of the history.
     ForkSession {
         /// Parent session to fork from.

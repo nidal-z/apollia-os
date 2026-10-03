@@ -7,13 +7,15 @@
 //! where to record a change of access, an installation, an update, or an
 //! uninstallation.
 //!
-//! [`GovernanceContract`] carries those four calls. [`NoPolicyGovernance`] is
-//! the implementation in force when no policy is deposited: everything is
-//! allowed, an access is sensitive only when its tool declares it so, no
-//! signature is required, and every record lands in the hash-chained audit
-//! journal next to the run entries, chained and signed like them.
-//! [`PackagePolicyGovernance`] is the same, except that the `[packages]`
-//! section of the organisation policy answers whether a signature is required.
+//! [`GovernanceContract`] carries those four calls. [`GovernanceHandle`] is
+//! the implementation the runtime runs on: an actor owns what decisions read
+//! (the organisation policy, the fine rules and the standing consents of
+//! `governance.db`, the developer mode) and publishes it as one
+//! [`GovernanceState`]; [`decide`] answers a tool call from that state in a
+//! fixed order, with its reason and the answers offered. A record lands in the
+//! hash-chained audit journal next to the run entries, chained and signed like
+//! them. The `[packages]` section of the policy answers whether a signature is
+//! required.
 //!
 //! Connections answer to the same governance. [`tool_attributes`] describes
 //! every tool by what governance reads (family, connection, provenance,
@@ -27,11 +29,13 @@
 //! persisted before standing consents, and journals every change it makes.
 
 pub mod access_upgrade;
+mod actor;
 mod admission;
 mod connection;
 mod contract;
+mod decision;
+#[cfg(test)]
 mod no_policy;
-mod package_policy;
 pub(crate) mod policy_admission;
 mod record;
 mod tool_attributes;
@@ -42,12 +46,14 @@ pub use admission::{
 };
 pub use connection::{connection_run_id, ConnectionEvent, ConnectionGovernance, ConnectionRecord};
 
+pub use actor::{GovernanceHandle, GovernanceSources, GovernanceWriteError};
 pub use contract::{
-    AccessCall, AccessDecision, DeclaredAccess, EffectiveAccess, GovernanceContract,
-    GovernanceError, InstallSubject,
+    AccessCall, AccessDecision, ConsentAnswer, DecisionReason, DeclaredAccess, EffectiveAccess,
+    GovernanceContract, GovernanceError, InstallSubject, ALL_ANSWERS, NO_ALWAYS_ANSWERS,
 };
+pub use decision::{decide, GovernanceState, PolicyRefusals};
+#[cfg(test)]
 pub use no_policy::NoPolicyGovernance;
-pub use package_policy::PackagePolicyGovernance;
 pub use policy_admission::{PolicyAdmission, REMOTE_DENIED_REASON};
 pub use record::{
     governance_run_id, package_run_id, AccessChange, GovernanceEvent, GovernanceRecord,

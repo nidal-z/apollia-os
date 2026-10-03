@@ -150,6 +150,7 @@ async fn harness(admission: Arc<dyn ConnectionAdmission>) -> Harness {
         audit_trail: None,
         audit_journal: Some(journal.clone()),
         connection_governance: ConnectionGovernance::new(admission, Some(journal.clone())),
+        governance: None,
         obs_config: apollia_core::ObservabilityConfig::default(),
         llm_call_repository: None,
         trigger_def_repo: None,

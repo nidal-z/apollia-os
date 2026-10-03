@@ -37,6 +37,9 @@ pub struct ToolAttributes {
     pub runs_local_code: bool,
 }
 
+// TEST-ONLY: production decides a call from the tool's descriptor family and
+// its identifier (`governance::decide`); these attributes join the decision
+// once the policy on connections reaches the connections already added.
 /// The attributes of every tool `sources` knows: the tools of each
 /// connection, then every registered tool no connection claims.
 ///
