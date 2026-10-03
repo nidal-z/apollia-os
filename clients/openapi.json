@@ -5258,6 +5258,86 @@
         }
       }
     },
+    "/api/v1/llm/embeddings/default": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/embeddings/default`",
+        "operationId": "get_embedding_default",
+        "responses": {
+          "200": {
+            "description": "The default embeddings model, absent when none is chosen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingDefaultResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "system.db could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`PUT /api/v1/llm/embeddings/default`",
+        "operationId": "set_embedding_default",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetEmbeddingDefaultBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The default embeddings model, as now set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingDefaultResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an embeddings model of the registry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "system.db could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/hardware": {
       "get": {
         "tags": [
@@ -17381,6 +17461,33 @@
           }
         }
       },
+      "EmbeddingDefaultResponse": {
+        "type": "object",
+        "description": "The default embeddings model, and whether this machine has its file.",
+        "required": [
+          "installed"
+        ],
+        "properties": {
+          "installed": {
+            "type": "boolean",
+            "description": "Whether the file of that entry is in the model index."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the registry entry; absent when none is chosen, and\nsearch then uses keywords alone."
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Path of that file, when installed."
+          }
+        }
+      },
       "EmbeddingModelsResponse": {
         "type": "object",
         "description": "The embeddings category of the registry, and the entry for this machine.",
@@ -18889,6 +18996,7 @@
         "description": "One resident model.",
         "required": [
           "engine",
+          "kind",
           "model",
           "modelPath",
           "port",
@@ -18907,6 +19015,10 @@
           "engine": {
             "$ref": "#/components/schemas/EngineName",
             "description": "The engine serving the model, chosen by its format: `llama-server` for\nGGUF, `vllm-mlx` for MLX."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ModelKind",
+            "description": "What the model serves: `chat`, or `embeddings` for the instance that\nserves search by meaning, which does not count against `maxLoaded`."
           },
           "lastUsedAt": {
             "type": "string",
@@ -19261,6 +19373,14 @@
             "minimum": 0
           }
         }
+      },
+      "ModelKind": {
+        "type": "string",
+        "description": "What a resident model serves.",
+        "enum": [
+          "chat",
+          "embeddings"
+        ]
       },
       "ModelSourceDto": {
         "type": "string",
@@ -21394,6 +21514,19 @@
           "folder_path": {
             "type": "string",
             "description": "Folder path under My Drive, `Documents/Apollia` for instance. Empty\nmeans the root of My Drive."
+          }
+        }
+      },
+      "SetEmbeddingDefaultBody": {
+        "type": "object",
+        "description": "Body of `PUT /api/v1/llm/embeddings/default`.",
+        "required": [
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Identifier of an embeddings entry of the registry."
           }
         }
       },

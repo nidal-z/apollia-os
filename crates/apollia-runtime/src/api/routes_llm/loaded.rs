@@ -18,7 +18,7 @@ use crate::api::openapi::ApiErrorBody;
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 use crate::engine_store::Engine;
-use crate::llama_server::{LoadedModel, UnloadError};
+use crate::llama_server::{LoadedModel, ModelKind, UnloadError};
 use crate::local_engine::LocalEngine;
 
 /// One resident model.
@@ -28,6 +28,9 @@ pub struct LoadedModelDto {
     /// The engine serving the model, chosen by its format: `llama-server` for
     /// GGUF, `vllm-mlx` for MLX.
     pub engine: Engine,
+    /// What the model serves: `chat`, or `embeddings` for the instance that
+    /// serves search by meaning, which does not count against `maxLoaded`.
+    pub kind: ModelKind,
     /// Display name, the model file name without its extension.
     pub model: String,
     /// Path the model was loaded from; the key an unload takes.
@@ -54,6 +57,7 @@ impl From<LoadedModel> for LoadedModelDto {
     fn from(m: LoadedModel) -> Self {
         Self {
             engine: m.engine,
+            kind: m.kind,
             model: m.model,
             model_path: m.model_path,
             port: m.port,

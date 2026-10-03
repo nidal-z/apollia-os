@@ -402,6 +402,10 @@ check_exit   "model search (off) → 2"  2  "$BIN" --socket "$OFFSOCK" model sea
 # The ranking is computed by the daemon (hardware probe, live HuggingFace
 # listing), so with the daemon off the refusal is the deterministic path.
 check_exit   "model recommend (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model recommend
+# The default embeddings model lives in the daemon's system.db, which checks the
+# identifier against the registry: daemon off, both leaves refuse with 2.
+check_exit   "model embeddings show (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model embeddings show
+check_exit   "model embeddings set-default (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model embeddings set-default multilingual-e5-small
 check        "agent list (off, local fallback)"      "$BIN" --socket "$OFFSOCK" agent list
 check_content "agent list shows 4 seeded agents" "apollia-chat" "$BIN" --socket "$OFFSOCK" agent list
 check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK" agent install /tmp/never-exists.py

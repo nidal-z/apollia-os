@@ -7,6 +7,7 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..models.engine_name import EngineName
+from ..models.model_kind import ModelKind
 from ..types import UNSET, Unset
 
 T = TypeVar("T", bound="LoadedModelDto")
@@ -19,6 +20,7 @@ class LoadedModelDto:
     Attributes:
         active_requests (int): Requests being answered right now. An unload is refused above zero.
         engine (EngineName): An inference engine the store can hold.
+        kind (ModelKind): What a resident model serves.
         last_used_at (str): When a request last used the model, RFC 3339.
         loaded_at (str): When the model finished loading, RFC 3339.
         model (str): Display name, the model file name without its extension.
@@ -32,6 +34,7 @@ class LoadedModelDto:
 
     active_requests: int
     engine: EngineName
+    kind: ModelKind
     last_used_at: str
     loaded_at: str
     model: str
@@ -46,6 +49,8 @@ class LoadedModelDto:
         active_requests = self.active_requests
 
         engine = self.engine.value
+
+        kind = self.kind.value
 
         last_used_at = self.last_used_at
 
@@ -73,6 +78,7 @@ class LoadedModelDto:
             {
                 "activeRequests": active_requests,
                 "engine": engine,
+                "kind": kind,
                 "lastUsedAt": last_used_at,
                 "loadedAt": loaded_at,
                 "model": model,
@@ -93,6 +99,8 @@ class LoadedModelDto:
         active_requests = d.pop("activeRequests")
 
         engine = EngineName(d.pop("engine"))
+
+        kind = ModelKind(d.pop("kind"))
 
         last_used_at = d.pop("lastUsedAt")
 
@@ -120,6 +128,7 @@ class LoadedModelDto:
         loaded_model_dto = cls(
             active_requests=active_requests,
             engine=engine,
+            kind=kind,
             last_used_at=last_used_at,
             loaded_at=loaded_at,
             model=model,

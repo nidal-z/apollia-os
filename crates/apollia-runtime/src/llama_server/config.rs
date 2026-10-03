@@ -84,7 +84,7 @@ use std::str::FromStr;
 /// Loopback address the server binds to. Never configurable: the OpenAI-compatible
 /// surface is for this machine only, and binding elsewhere would expose an
 /// unauthenticated inference endpoint.
-const HOST: &str = "127.0.0.1";
+pub(super) const HOST: &str = "127.0.0.1";
 
 pub(crate) const ENV_N_CTX: &str = "APOLLIA_LLAMA_N_CTX";
 /// Read by `ngl::apply_offload_plan` too, which leaves the offload count alone

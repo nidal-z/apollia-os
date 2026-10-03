@@ -102,6 +102,7 @@ impl Instance {
     fn loaded(&self) -> LoadedModel {
         LoadedModel {
             engine: Engine::VllmMlx,
+            kind: crate::llama_server::ModelKind::Chat,
             model: display_name(&self.model_path),
             model_path: self.model_path.clone(),
             port: self.port,
