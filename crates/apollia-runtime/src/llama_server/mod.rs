@@ -18,18 +18,23 @@
 //! engine moves here.
 
 mod config;
+mod embeddings;
 mod engine_facts;
 mod guard;
 mod load_settings;
 mod loaded;
+mod locate;
 mod ngl;
 mod parallel;
 mod projector;
 mod reload;
 
 pub use config::{FlashAttn, LlamaServerConfig, ParseFlashAttnError, SpecType};
+#[cfg(test)]
+pub(crate) use embeddings::tests::{fake_engine, launches as fake_engine_launches};
+pub use embeddings::{embedding_window, EMBEDDING_IDLE, EMBEDDING_MAX_CTX};
 pub use load_settings::LoadSettings;
-pub use loaded::{LoadedModel, ModelLease, UnloadError};
+pub use loaded::{LoadedModel, ModelKind, ModelLease, UnloadError};
 
 use std::net::TcpListener;
 use std::path::PathBuf;
@@ -46,6 +51,9 @@ use tokio::sync::Mutex;
 
 use apollia_core::EventBusSender;
 use config::{build_args, display_opt, env_getter, resolve_env_overrides};
+#[cfg(test)]
+use locate::env_or_store_binary;
+use locate::locate_llama_server_binary;
 
 /// Errors from spawning or supervising the embedded `llama-server`.
 #[derive(Debug, Error)]
@@ -223,6 +231,9 @@ pub struct LlamaServerSupervisor {
     system_db: Option<PathBuf>,
     /// Where a relaunch under new load settings is announced.
     events: Option<EventBusSender>,
+    /// The instance serving embeddings, outside the residency ceiling. See
+    /// [`embeddings`].
+    embedding: Mutex<Option<embeddings::EmbeddingInstance>>,
     /// `apollia.toml`, whose `[llm.guardrails]` is read at every launch.
     /// `None` holds every launch to the default level.
     config_file: Option<PathBuf>,
@@ -267,6 +278,7 @@ impl LlamaServerSupervisor {
             shutting_down: Arc::new(Mutex::new(false)),
             system_db,
             events,
+            embedding: Mutex::new(None),
             config_file,
             imposed,
         }))
@@ -370,6 +382,7 @@ impl LlamaServerSupervisor {
                 if *self.shutting_down.lock().await {
                     return;
                 }
+                self.stop_idle_embedding(std::time::Instant::now()).await;
 
                 // An instance is only listed once it has existed, so a fresh
                 // install with no model yet has nothing to supervise and never
@@ -455,6 +468,7 @@ impl LlamaServerSupervisor {
             shutting_down: Arc::new(Mutex::new(false)),
             system_db: None,
             events: None,
+            embedding: Mutex::new(None),
             config_file: None,
             imposed: apollia_core::config::PolicySettings::none(),
         }
@@ -484,6 +498,7 @@ impl LlamaServerSupervisor {
             shutting_down: Arc::new(Mutex::new(false)),
             system_db: None,
             events: None,
+            embedding: Mutex::new(None),
             config_file: None,
             imposed: apollia_core::config::PolicySettings::none(),
         })
@@ -496,6 +511,10 @@ impl LlamaServerSupervisor {
         for mut instance in std::mem::take(&mut *self.instances.lock().await) {
             let _ = instance.child.kill().await;
             let _ = instance.child.wait().await;
+        }
+        if let Some(mut resident) = self.embedding.lock().await.take() {
+            let _ = resident.instance.child.kill().await;
+            let _ = resident.instance.child.wait().await;
         }
     }
 
@@ -599,13 +618,29 @@ impl LlamaServerSupervisor {
             "llama_server_path": self.bin_path.display().to_string(),
         }));
 
+        let mut child = self.spawn_child(&args)?;
+        self.wait_until_healthy(&mut child, port).await?;
+
+        let instance = Instance::new(config, load, port, child, self.next_tick());
+        let lease = ModelLease::new(
+            instance.base_url(),
+            instance.n_ctx,
+            Arc::clone(&instance.in_flight),
+        );
+        tracing::info!(port, model = %instance.model_path, "llama.server.healthy");
+        self.instances.lock().await.push(instance);
+        Ok(lease)
+    }
+
+    /// Launch the binary with `args`, its output drained into tracing.
+    fn spawn_child(&self, args: &[String]) -> Result<Child, LlamaServerError> {
         let mut server_cmd = Command::new(&self.bin_path);
         // Same reason as the runner: a console-subsystem child of a GUI parent
         // gets its own terminal window on Windows, one per resident model, and
         // the supervision loop below reopens it on every respawn.
         apollia_core::subprocess_window::hide_console_async(&mut server_cmd);
         let mut child = server_cmd
-            .args(&args)
+            .args(args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)
@@ -623,18 +658,7 @@ impl LlamaServerSupervisor {
         if let Some(stderr) = child.stderr.take() {
             tokio::spawn(drain_pipe(BufReader::new(stderr)));
         }
-
-        self.wait_until_healthy(&mut child, port).await?;
-
-        let instance = Instance::new(config, load, port, child, self.next_tick());
-        let lease = ModelLease::new(
-            instance.base_url(),
-            instance.n_ctx,
-            Arc::clone(&instance.in_flight),
-        );
-        tracing::info!(port, model = %instance.model_path, "llama.server.healthy");
-        self.instances.lock().await.push(instance);
-        Ok(lease)
+        Ok(child)
     }
 
     /// Poll `GET /health` until the server answers or the deadline elapses,
@@ -682,121 +706,6 @@ pub(crate) fn pick_free_port() -> Result<u16, LlamaServerError> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let port = listener.local_addr()?.port();
     Ok(port)
-}
-
-/// Locate the bundled `llama-server` binary, falling back to `PATH` in dev.
-///
-/// Resolution order: the `APOLLIA_LLAMA_SERVER_BIN` override, then the bundle
-/// layouts (next to the executable, a `runners/` sibling, the macOS
-/// `Contents/Resources/runners/`, and the Linux product directory), then
-/// the ambient `PATH`, then the common install dirs. The override lets a
-/// developer whose `llama-server` lives in a non-standard directory (a llama.cpp
-/// build tree) point the app at it, which a GUI launch cannot reach via `PATH`.
-fn locate_llama_server_binary() -> Result<PathBuf, LlamaServerError> {
-    let ext = if cfg!(windows) { ".exe" } else { "" };
-    let name = format!("llama-server{ext}");
-
-    let store_root = apollia_core::paths::data_dir().map(|d| crate::engine_store::store_root(&d));
-    if let Some(path) = env_or_store_binary(
-        std::env::var_os("APOLLIA_LLAMA_SERVER_BIN").map(PathBuf::from),
-        store_root.as_deref(),
-        &name,
-        || {
-            matches!(
-                apollia_llm::hardware::detect().accelerator,
-                apollia_llm::AcceleratorProfile::Cuda { .. }
-            )
-        },
-    ) {
-        return Ok(path);
-    }
-
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let mut candidates = vec![dir.join(&name)];
-            candidates.extend(
-                apollia_core::paths::bundled_resource_dirs(dir, "runners")
-                    .into_iter()
-                    .map(|d| d.join(&name)),
-            );
-            if let Some(found) = candidates.iter().find(|c| c.exists()) {
-                return Ok(found.clone());
-            }
-        }
-    }
-
-    if let Ok(path) = which_on_path(&name) {
-        tracing::warn!(
-            path = %path.display(),
-            detail = "bundled binary absent, dev fallback", "llama.server.binary.path_fallback"
-        );
-        return Ok(path);
-    }
-
-    // A GUI launch (Finder / .desktop) inherits a minimal PATH that omits the
-    // usual install dirs, so a developer's system llama-server is invisible to
-    // `which_on_path`. Probe the common locations explicitly as a last resort.
-    let home = apollia_core::paths::home_string().unwrap_or_default();
-    let common = [
-        format!("/opt/homebrew/bin/{name}"),
-        format!("/usr/local/bin/{name}"),
-        format!("/usr/bin/{name}"),
-        format!("{home}/.local/bin/{name}"),
-        format!("{home}/.cargo/bin/{name}"),
-    ];
-    if let Some(found) = common.iter().map(PathBuf::from).find(|c| c.is_file()) {
-        tracing::warn!(
-            path = %found.display(),
-            detail = "bundled binary absent, dev fallback", "llama.server.binary.system_fallback"
-        );
-        return Ok(found);
-    }
-
-    Err(LlamaServerError::BinaryNotFound(format!(
-        "{name} not found next to the executable, in a bundled runners/ dir, on PATH, \
-         or in the common install directories"
-    )))
-}
-
-/// The two sources that come before the embedded engine.
-///
-/// An explicit override wins: `APOLLIA_LLAMA_SERVER_BIN=/path/to/llama-server`.
-/// Then the engine store: its newest verified CUDA build, on a machine where an
-/// NVIDIA card is detected. `None` leaves the choice to the embedded engine.
-fn env_or_store_binary(
-    env_bin: Option<PathBuf>,
-    store_root: Option<&std::path::Path>,
-    name: &str,
-    nvidia_detected: impl FnOnce() -> bool,
-) -> Option<PathBuf> {
-    if let Some(path) = env_bin {
-        if path.is_file() {
-            tracing::info!(path = %path.display(), "llama.server.binary.from_env");
-            return Some(path);
-        }
-        tracing::warn!(
-            path = %path.display(),
-            detail = "falling back to auto-detection", "llama.server.binary.env_invalid"
-        );
-    }
-    let path = crate::engine_store::preferred_llama_server(store_root?, name, nvidia_detected)?;
-    tracing::info!(path = %path.display(), "llama.server.binary.from_engine_store");
-    Some(path)
-}
-
-/// Minimal `PATH` lookup, avoiding a dependency on an external `which` crate.
-fn which_on_path(name: &str) -> Result<PathBuf, LlamaServerError> {
-    let path_var = std::env::var_os("PATH")
-        .ok_or_else(|| LlamaServerError::BinaryNotFound("PATH is unset".to_owned()))?;
-    for dir in std::env::split_paths(&path_var) {
-        let candidate = dir.join(name);
-        if candidate.is_file() {
-            return Ok(candidate);
-        }
-    }
-    Err(LlamaServerError::BinaryNotFound(format!(
-        "{name} not on PATH"
-    )))
 }
 
 /// Forward a child pipe line-by-line into the daemon's tracing log.
@@ -858,6 +767,7 @@ mod test_support {
             shutting_down: Arc::new(Mutex::new(false)),
             system_db: None,
             events: None,
+            embedding: Mutex::new(None),
             config_file: None,
             imposed: apollia_core::config::PolicySettings::none(),
         }
@@ -895,6 +805,22 @@ mod test_support {
         /// path, for tests outside this module that need a populated pool.
         pub(crate) async fn with_stand_in_models(models: &[&str]) -> Arc<Self> {
             let sup = supervisor_with_ceiling(models.len().max(1));
+            for (offset, model) in (0_u16..).zip(models) {
+                let instance = live_instance(&sup, model, 9001 + offset).await;
+                sup.instances.lock().await.push(instance);
+            }
+            Arc::new(sup)
+        }
+
+        /// A supervisor launching `bin` as its engine, under a ceiling of
+        /// `max_loaded`, holding the stand-in chat models `models`.
+        pub(crate) async fn with_binary_for_test(
+            bin: PathBuf,
+            max_loaded: usize,
+            models: &[&str],
+        ) -> Arc<Self> {
+            let mut sup = supervisor_with_ceiling(max_loaded);
+            sup.bin_path = bin;
             for (offset, model) in (0_u16..).zip(models) {
                 let instance = live_instance(&sup, model, 9001 + offset).await;
                 sup.instances.lock().await.push(instance);

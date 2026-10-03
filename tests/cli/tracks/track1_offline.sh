@@ -86,19 +86,46 @@ check_exit    "project link empty session → 1"  1      "$BIN" project link see
 check         "project delete --confirm"               "$BIN" project delete "$PID" --confirm
 
 # ── A.4 profile (3 seeded __user__ keys) ────────────────────────────────────
+# The seed is a profile written before profiles existed: the first open migrates
+# `preferences.language` into the `preferences` field of the default profile.
 section "A.4 profile"
-check_content "profile show has seeded language=fr" "preferences.language" "$BIN" profile show
+check_json_field "profile show: language migrated into preferences" \
+  "[e['value'] for e in d['entries'] if e['key']=='preferences'][0]" "en" "$BIN" profile show --json
 check_content "profile show has monthly_budget"     "monthly_budget"       "$BIN" profile show
 check_json    "profile show --json"                  "$BIN" profile show --json
+check_json_field "profile list: the migrated profile is the one default" \
+  "[p['name'] for p in d if p['is_default']]" "['Mon profil']" "$BIN" profile list --json
 check         "profile schema"                       "$BIN" profile schema
 check         "profile export"                       "$BIN" profile export --output "$SCRATCH/u.json"
 [[ -f "$SCRATCH/u.json" ]] && _pass "profile export produced file" || _fail "profile export produced file" ""
 # Mutations on a throwaway profile db.
 PDB="$SCRATCH/profile.db"
-check        "profile set name Alice"                "$BIN" profile set name Alice --db "$PDB"
+check        "profile set default name Alice"        "$BIN" profile set default name Alice --db "$PDB"
 check_content "profile show throwaway has Alice" "Alice" "$BIN" profile show --db "$PDB"
 check        "profile forget name"                   "$BIN" profile forget name --confirm --db "$PDB"
 check        "profile import --overwrite"            "$BIN" profile import --db "$SCRATCH/prof-imported.db" --input "$SCRATCH/u.json" --overwrite
+# Named profiles: create, fill, rename, make default, delete; the default is never deleted.
+FIRST=$("$BIN" profile show --json --db "$PDB" 2>/dev/null | "${E2E_PYTHON:-python3}" -c "import sys,json;print(json.load(sys.stdin)['profile']['id'])" 2>/dev/null)
+SECOND=$("$BIN" profile create Formateur --json --db "$PDB" 2>/dev/null | "${E2E_PYTHON:-python3}" -c "import sys,json;print(json.load(sys.stdin)['id'])" 2>/dev/null)
+[[ -n "$FIRST" && -n "$SECOND" ]] && _pass "profile create returns an identifier" || _fail "profile create returns an identifier" "first='$FIRST' second='$SECOND'"
+check_json_field "profile list: two profiles"        "len(d)" "2"           "$BIN" profile list --json --db "$PDB"
+check         "profile set <id> role"                "$BIN" profile set "$SECOND" role Formatrice --db "$PDB"
+check_json_field "profile show <id>: role written on that profile" \
+  "d['profile']['role']" "Formatrice" "$BIN" profile show "$SECOND" --json --db "$PDB"
+check_json_field "profile show default: role not on the default" \
+  "d['profile']['role']" "None" "$BIN" profile show default --json --db "$PDB"
+check_json_field "profile rename" "d['name']" "Formation" "$BIN" profile rename "$SECOND" Formation --json --db "$PDB"
+check_exit   "profile delete default (refused)" 1    "$BIN" profile delete "$FIRST" --confirm --db "$PDB"
+check_grep   "profile delete default says why"  "default profile and cannot be deleted" \
+  bash -c '"$0" profile delete "$1" --confirm --db "$2" 2>&1; true' "$BIN" "$FIRST" "$PDB"
+check_json_field "profile delete default --json envelope" "d['error']['code']" "general_error" \
+  bash -c '"$0" profile delete "$1" --confirm --json --db "$2"; true' "$BIN" "$FIRST" "$PDB"
+check_exit   "profile show unknown id"          1    "$BIN" profile show no-such-profile --db "$PDB"
+check_exit   "profile delete (no --confirm)"    1    "$BIN" profile delete "$SECOND" --db "$PDB"
+check_json_field "profile set-default <id>" "d['is_default']" "True" "$BIN" profile set-default "$SECOND" --json --db "$PDB"
+check        "profile delete former default"         "$BIN" profile delete "$FIRST" --confirm --db "$PDB"
+check_json_field "profile list: one profile left, the default" \
+  "[(p['name'], p['is_default']) for p in d]" "[('Formation', True)]" "$BIN" profile list --json --db "$PDB"
 check_exit   "profile reset (no --confirm)"  1       "$BIN" profile reset --db "$PDB"
 check        "profile reset --confirm"               "$BIN" profile reset --confirm --db "$PDB"
 
@@ -114,6 +141,10 @@ check_exit   "chat config get --json (runtime absent) → 2" 2 "$BIN" --socket "
 check_exit   "chat config set system-prompt (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat config set system-prompt "You are helpful."
 check_exit   "chat config set bogus-key"  1          "$BIN" --socket "$CHAT_OFF" chat config set bogus-key x
 check_exit   "chat config reset --confirm (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat config reset --confirm
+# What the model of a session can do is read from the runtime: with no
+# runtime, exit 2. The real read is covered by the runtime's route tests.
+check_exit   "chat capabilities (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1
+check_exit   "chat capabilities --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1 --json
 # Apollia is built in: uninstalling it is refused, exit 1.
 check_exit   "agent uninstall apollia:chat (built in) → 1" 1 "$BIN" agent uninstall apollia:chat --confirm
 check        "chat config permissions list (empty)"  "$BIN" chat config permissions list --db "$GDB"
@@ -239,9 +270,14 @@ check_exit   "mcp oauth logout (no --confirm)"  1    "$BIN" mcp oauth logout som
 # so an unconfigured name is a deterministic, offline refusal.
 check_exit   "mcp oauth login (unconfigured server) → 1"    1 "$BIN" mcp oauth login e2e-unconfigured
 check_exit   "mcp oauth discover (unconfigured server) → 1" 1 "$BIN" mcp oauth discover e2e-unconfigured
-# `mcp server` speaks JSON-RPC over stdio and exits cleanly on stdin EOF; the
-# explicit /dev/null keeps it from blocking on a terminal when run by hand.
-check        "mcp server exits on stdin EOF"         bash -c "'$BIN' mcp server </dev/null"
+# `mcp server` is a stdio bridge to the daemon and serves no tool of its own:
+# with no daemon on its socket it stops at once, exit 2, naming the command
+# that starts one. The native-tool flags it used to take are gone.
+MCP_OFF="$RUN_TMP/mcp-off.sock"
+check_exit   "mcp server (no daemon) → 2"  2         bash -c "'$BIN' --socket '$MCP_OFF' mcp server </dev/null"
+check        "mcp server (no daemon) names apollia-os start" bash -c "out=\$('$BIN' --socket '$MCP_OFF' mcp server </dev/null 2>&1); [[ \$out == *'apollia-os start'* ]] || { echo \"\$out\"; false; }"
+check_exit   "mcp server --with-runtime (retired) → 1"  1 "$BIN" mcp server --with-runtime
+check_exit   "mcp server --sandbox-root (retired) → 1"  1 "$BIN" mcp server --sandbox-root /tmp
 
 # ── A.10 chat hygiene (4 seeded sessions) ───────────────────────────────────
 section "A.10 chat hygiene"
@@ -402,6 +438,10 @@ check_exit   "model search (off) → 2"  2  "$BIN" --socket "$OFFSOCK" model sea
 # The ranking is computed by the daemon (hardware probe, live HuggingFace
 # listing), so with the daemon off the refusal is the deterministic path.
 check_exit   "model recommend (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model recommend
+# The default embeddings model lives in the daemon's system.db, which checks the
+# identifier against the registry: daemon off, both leaves refuse with 2.
+check_exit   "model embeddings show (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model embeddings show
+check_exit   "model embeddings set-default (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model embeddings set-default multilingual-e5-small
 check        "agent list (off, local fallback)"      "$BIN" --socket "$OFFSOCK" agent list
 check_content "agent list shows 4 seeded agents" "apollia-chat" "$BIN" --socket "$OFFSOCK" agent list
 check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK" agent install /tmp/never-exists.py

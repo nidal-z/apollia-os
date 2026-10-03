@@ -1697,6 +1697,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/embeddings/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/embeddings/default` */
+        get: operations["get_embedding_default"];
+        /** `PUT /api/v1/llm/embeddings/default` */
+        put: operations["set_embedding_default"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/hardware": {
         parameters: {
             query?: never;
@@ -2266,6 +2284,62 @@ export interface paths {
          */
         get: operations["stream_mailbox"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp/bridge/call": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/mcp/bridge/call`: run an exposed item to its end. */
+        post: operations["call_bridge_tool"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp/bridge/tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/mcp/bridge/tools`: the exposed items, as MCP tools. */
+        get: operations["list_bridge_tools"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp/exposed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/mcp/exposed`: the agents and workflows marked exposed. */
+        get: operations["list_exposed"];
+        /**
+         * `PUT /api/v1/mcp/exposed`: mark an agent or a workflow exposed, or not.
+         * @description Exposing an item checks that it exists; withdrawing one does not, so an
+         *     item that has since been removed can still be withdrawn.
+         */
+        put: operations["set_exposed"];
         post?: never;
         delete?: never;
         options?: never;
@@ -3831,6 +3905,29 @@ export interface paths {
          * @description Zero-filled when no exchange has completed yet, as in the embedded desktop.
          */
         get: operations["get_session_metrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/model-capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/{id}/model-capabilities`, what the
+         *     model of a session can do.
+         * @description The model is the one the next message of the session would run on: the
+         *     model of its declarative agent, else the backend the session prefers, else
+         *     the default model of the machine.
+         */
+        get: operations["get_session_model_capabilities"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6231,6 +6328,18 @@ export interface components {
              */
             folder_path?: string | null;
         };
+        /** @description The default embeddings model, and whether this machine has its file. */
+        EmbeddingDefaultResponse: {
+            /** @description Whether the file of that entry is in the model index. */
+            installed: boolean;
+            /**
+             * @description Identifier of the registry entry; absent when none is chosen, and
+             *     search then uses keywords alone.
+             */
+            model?: string | null;
+            /** @description Path of that file, when installed. */
+            path?: string | null;
+        };
         /** @description The embeddings category of the registry, and the entry for this machine. */
         EmbeddingModelsResponse: {
             /** @description The machine the recommendation was made for. */
@@ -6868,6 +6977,11 @@ export interface components {
              *     GGUF, `vllm-mlx` for MLX.
              */
             engine: components["schemas"]["EngineName"];
+            /**
+             * @description What the model serves: `chat`, or `embeddings` for the instance that
+             *     serves search by meaning, which does not count against `maxLoaded`.
+             */
+            kind: components["schemas"]["ModelKind"];
             /** @description When a request last used the model, RFC 3339. */
             lastUsedAt: string;
             /** @description When the model finished loading, RFC 3339. */
@@ -6929,6 +7043,84 @@ export interface components {
             state: string;
             /** @description Receiving agent name. */
             to_agent: string;
+        };
+        /** @description Body of `POST /api/v1/mcp/bridge/call`. */
+        McpBridgeCall: {
+            /**
+             * @description The arguments: `{"message": "..."}` for an agent, the inputs for a
+             *     workflow.
+             */
+            arguments?: Record<string, never>;
+            /** @description The tool, as `GET /api/v1/mcp/bridge/tools` names it. */
+            name: string;
+        };
+        /** @description The end of a bridge call. */
+        McpBridgeCallResult: {
+            /** @description `true` when the run failed or was stopped. */
+            isError: boolean;
+            /** @description The agent name, or `<package>/<workflow>`. */
+            itemId: string;
+            /** @description `agent` or `workflow`. */
+            kind: string;
+            /** @description `completed`, `failed` or `canceled`. */
+            status: string;
+            /**
+             * @description The answer of the agent, or what the workflow returned; the failure
+             *     when the run did not complete.
+             */
+            text: string;
+        };
+        /** @description Error body of the MCP bridge routes. */
+        McpBridgeErrorBody: {
+            /**
+             * @description Stable code: `bridge_disabled`, `unknown_tool`, `invalid_arguments`,
+             *     `invalid_kind`, `unknown_item`, `unavailable` or `internal`.
+             */
+            code: string;
+            /** @description What went wrong, in words a person can act on. */
+            error: string;
+        };
+        /** @description One tool of the bridge, an MCP tool descriptor. */
+        McpBridgeTool: {
+            /** @description What the agent or the workflow does. */
+            description: string;
+            /** @description JSON Schema of the arguments. */
+            inputSchema: Record<string, never>;
+            /** @description `agent__<id>` or `workflow__<package>_<workflow>`. */
+            name: string;
+        };
+        /** @description The tools the bridge serves. */
+        McpBridgeToolList: {
+            tools: components["schemas"]["McpBridgeTool"][];
+        };
+        /** @description One item marked exposed. */
+        McpExposedItem: {
+            /** @description The agent name, or `<package>/<workflow>`. */
+            itemId: string;
+            /** @description `agent` or `workflow`. */
+            kind: string;
+        };
+        /** @description The items marked exposed. */
+        McpExposedItemList: {
+            items: components["schemas"]["McpExposedItem"][];
+        };
+        /** @description The exposure flag of one item, as stored. */
+        McpExposedItemState: {
+            /** @description Whether the bridge serves the item. */
+            exposed: boolean;
+            /** @description The agent name, or `<package>/<workflow>`. */
+            itemId: string;
+            /** @description `agent` or `workflow`. */
+            kind: string;
+        };
+        /** @description Body of `PUT /api/v1/mcp/exposed`. */
+        McpExposure: {
+            /** @description Whether the bridge serves the item. */
+            exposed: boolean;
+            /** @description The agent name, or `<package>/<workflow>`. */
+            itemId: string;
+            /** @description `agent` or `workflow`. */
+            kind: string;
         };
         /** @description Answer of `DELETE /api/v1/memory/namespaces/{namespace}/entries/{entry_id}`. */
         MemoryEntryDeleted: {
@@ -7037,6 +7229,11 @@ export interface components {
              */
             size_bytes: number;
         };
+        /**
+         * @description What a resident model serves.
+         * @enum {string}
+         */
+        ModelKind: "chat" | "embeddings";
         /**
          * @description Where a model runs.
          * @enum {string}
@@ -7556,6 +7753,11 @@ export interface components {
             /** @description The text. */
             text: string;
         };
+        /**
+         * @description The reasoning setting a model lets its caller fix.
+         * @enum {string}
+         */
+        ReasoningProfileDto: "none" | "toggle" | "levels";
         /** @description Request body for `POST /api/v1/sessions/:id/plan/reject`. */
         RejectPlanRequest: {
             /** @description Guidance the agent reads when it revises the plan. */
@@ -7652,11 +7854,17 @@ export interface components {
             origin: components["schemas"]["AgentOriginDto"];
             /**
              * @description Fields whose value is the user's rather than the package's:
-             *     `name`, `mission`, `examples`, `access`, `sources`, `autonomy`.
+             *     `name`, `mission`, `examples`, `access`, `sources`, `autonomy`,
+             *     `profile`.
              */
             overridden: string[];
             /** @description Package the agent came with. */
             package?: string | null;
+            /**
+             * @description Identifier of the user profile designated for the agent; absent when
+             *     it runs with the default profile.
+             */
+            profile?: string | null;
             /** @description Sources checked. */
             sources: string[];
             /** @description Version of the definition. */
@@ -7920,6 +8128,21 @@ export interface components {
             /** @description RFC-3339 timestamp of the last update. */
             updated_at?: string | null;
         };
+        /** @description Answer of `GET /api/v1/sessions/{id}/model-capabilities`. */
+        SessionModelCapabilities: {
+            /** @description The image formats its engine decodes, empty without vision. */
+            image_formats: string[];
+            /** @description Whether a local engine serves the model. */
+            local: boolean;
+            /**
+             * @description The backend or model the conversation runs on, the default model of
+             *     the machine when it names none; `null` when no model is configured.
+             */
+            model?: string | null;
+            reasoning_profile?: null | components["schemas"]["ReasoningProfileDto"];
+            /** @description Whether the model reads images. */
+            vision: boolean;
+        };
         /** @description Answer of `GET /api/v1/sessions/{id}/workspace`. */
         SessionWorkspace: {
             /**
@@ -7978,6 +8201,11 @@ export interface components {
              */
             folder_path: string;
         };
+        /** @description Body of `PUT /api/v1/llm/embeddings/default`. */
+        SetEmbeddingDefaultBody: {
+            /** @description Identifier of an embeddings entry of the registry. */
+            model: string;
+        };
         /** @description Request body for `PUT /api/v1/notifications/events`. */
         SetEventsRequest: {
             /** @description New list of global events. */
@@ -7987,7 +8215,7 @@ export interface components {
         SetOverrideRequest: {
             /**
              * @description The user's value: a string for `name` and `mission`, a tier name for
-             *     `autonomy`, a list of strings for `examples`, `access` and `sources`.
+             *     `autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`.
              */
             value: Record<string, never>;
         };
@@ -9296,7 +9524,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access, sources or autonomy */
+                /** @description name, mission, examples, access, sources, autonomy or profile */
                 field: string;
             };
             cookie?: never;
@@ -9352,7 +9580,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access, sources or autonomy */
+                /** @description name, mission, examples, access, sources, autonomy or profile */
                 field: string;
             };
             cookie?: never;
@@ -13208,6 +13436,77 @@ export interface operations {
             };
         };
     };
+    get_embedding_default: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The default embeddings model, absent when none is chosen */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmbeddingDefaultResponse"];
+                };
+            };
+            /** @description system.db could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_embedding_default: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetEmbeddingDefaultBody"];
+            };
+        };
+        responses: {
+            /** @description The default embeddings model, as now set */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmbeddingDefaultResponse"];
+                };
+            };
+            /** @description Not an embeddings model of the registry */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description system.db could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     get_hardware: {
         parameters: {
             query?: never;
@@ -14440,6 +14739,184 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    call_bridge_tool: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["McpBridgeCall"];
+            };
+        };
+        responses: {
+            /** @description The run ended; `isError` says whether it failed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeCallResult"];
+                };
+            };
+            /** @description The arguments do not fit the tool (`invalid_arguments`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description The bridge is turned off (`bridge_disabled`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description No exposed item carries this name (`unknown_tool`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description The agent executor or the workflow engine is not running (`unavailable`) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+        };
+    };
+    list_bridge_tools: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tools the bridge serves */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeToolList"];
+                };
+            };
+            /** @description The bridge is turned off (`bridge_disabled`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description A store could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+        };
+    };
+    list_exposed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The items marked exposed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpExposedItemList"];
+                };
+            };
+            /** @description agents.db could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+        };
+    };
+    set_exposed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["McpExposure"];
+            };
+        };
+        responses: {
+            /** @description The flag, as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpExposedItemState"];
+                };
+            };
+            /** @description The kind is neither `agent` nor `workflow` (`invalid_kind`), or the identifier is empty (`unknown_item`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description No agent or workflow by that identifier (`unknown_item`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description agents.db could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
             };
         };
     };
@@ -17902,6 +18379,47 @@ export interface operations {
                 };
             };
             /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_session_model_capabilities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The model of the session and what it can do */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionModelCapabilities"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem or backend repository unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;

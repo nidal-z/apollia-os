@@ -2,8 +2,9 @@
 //!
 //! `system.db` holds the LLM backend registry ([`crate::llm_backend`]), the
 //! inference servers ([`crate::inference_server`]), the model presets and the
-//! model of each agent ([`crate::model_preset`]), and the STT configuration
-//! ([`crate::stt_config`]).
+//! model of each agent ([`crate::model_preset`]), the STT configuration
+//! ([`crate::stt_config`]), and the default embeddings model
+//! ([`crate::embedding_default`]).
 //! `PRAGMA user_version` belongs to the database file, not to a table, so the
 //! stores share one migration list: whichever opens first brings the whole
 //! file to the current version, and both refuse a file written by a newer
@@ -15,14 +16,14 @@ use crate::inference_server::{openai_api_base, DEFAULT_OLLAMA_ADDRESS};
 use crate::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `system.db`.
-pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 4;
+pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 5;
 
 /// Numbered migration steps of `system.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`SYSTEM_DB_SCHEMA_VERSION`].
 pub(crate) const SYSTEM_DB_MIGRATIONS: &[Migration] =
-    &[migrate_v1, migrate_v2, migrate_v3, migrate_v4];
+    &[migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -395,6 +396,22 @@ pub(crate) fn migrate_v4(conn: &Connection) -> Result<(), rusqlite::Error> {
         no_prompt = no_system_prompt_check(),
     ))?;
     tx.commit()
+}
+
+/// v5: the default embeddings model, a singleton row.
+///
+/// `model_id` names an entry of the embeddings category of the registry, the
+/// one search by meaning loads when it needs a vector. No row means no default,
+/// and search then falls back to keywords alone. The statement is idempotent,
+/// so a replay changes nothing.
+pub(crate) fn migrate_v5(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS embedding_default (
+            id         INTEGER PRIMARY KEY CHECK (id = 1),
+            model_id   TEXT NOT NULL CHECK (length(trim(model_id)) > 0),
+            updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );",
+    )
 }
 
 /// Keys a preset may never carry, in either settings column.

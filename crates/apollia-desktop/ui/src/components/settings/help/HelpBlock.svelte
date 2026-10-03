@@ -1,22 +1,12 @@
-<script lang="ts" context="module">
-  export const meta = {
-    title: "settings.nav.help",
-    icon: "life-buoy",
-    group: "settings.nav.cluster_help",
-    cluster: "help",
-  } as const;
-</script>
-
 <script lang="ts">
   import { t, locale } from "svelte-i18n";
   import { BookOpen } from "lucide-svelte";
   import { Card } from "$lib/components/ui/card";
   import { docsUrlFor } from "$lib/utils/docsUrl";
-  import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
-  import HelpHero from "../../components/settings/help/HelpHero.svelte";
-  import HelpTopics from "../../components/settings/help/HelpTopics.svelte";
-  import HelpResources from "../../components/settings/help/HelpResources.svelte";
-  import HelpFaq from "../../components/settings/help/HelpFaq.svelte";
+  import HelpHero from "./HelpHero.svelte";
+  import HelpTopics from "./HelpTopics.svelte";
+  import HelpResources from "./HelpResources.svelte";
+  import HelpFaq from "./HelpFaq.svelte";
 
   // The hero CTA opens the operator help center, published from docs/site by
   // CI. This page is a map, not a copy: it points at the published guides
@@ -50,7 +40,7 @@
   });
 </script>
 
-<SettingsSubPage route="help" data-testid="help-section">
+<div class="flex flex-col gap-4" data-testid="help-section">
   <HelpHero
     title={$t("settings.help.hero_title")}
     body={$t("settings.help.hero_body")}
@@ -81,4 +71,4 @@
     </h2>
     <HelpFaq items={faqItems} />
   </section>
-</SettingsSubPage>
+</div>

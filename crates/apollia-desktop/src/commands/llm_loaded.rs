@@ -20,6 +20,10 @@ pub struct LoadedModelView {
     /// The engine serving the model, chosen by its format: `llama-server` for
     /// GGUF, `vllm-mlx` for MLX.
     pub engine: String,
+    /// What the model serves: `chat`, or `embeddings` for the instance that
+    /// serves search by meaning outside the residency ceiling.
+    #[serde(default = "chat_kind")]
+    pub kind: String,
     /// Display name, the model file name without its extension.
     pub model: String,
     /// Path the model was loaded from; the key an unload takes.
@@ -61,6 +65,12 @@ pub struct UnloadedModelView {
     pub model_path: String,
     /// Processes stopped.
     pub stopped: usize,
+}
+
+/// The kind a runtime that predates the field reports: every model it lists
+/// serves chat.
+fn chat_kind() -> String {
+    "chat".to_owned()
 }
 
 fn parse_loaded_models(json: serde_json::Value) -> Result<LoadedModelsView, String> {
@@ -113,6 +123,7 @@ mod tests {
             "models": [
                 {
                     "engine": "llama-server",
+                    "kind": "embeddings",
                     "model": "b", "modelPath": "/models/b.gguf", "port": 41002,
                     "nCtx": 8192, "nGpuLayers": 99, "nParallel": 2,
                     "loadedAt": "2026-10-01T10:00:00+00:00",
@@ -144,6 +155,9 @@ mod tests {
         assert_eq!(view.models[1].n_parallel, None);
         assert_eq!(view.models[0].engine, "llama-server");
         assert_eq!(view.models[1].engine, "vllm-mlx");
+        // AND the kind is read, a runtime that sends none meaning chat
+        assert_eq!(view.models[0].kind, "embeddings");
+        assert_eq!(view.models[1].kind, "chat");
     }
 
     #[test]
@@ -154,6 +168,7 @@ mod tests {
             max_loaded: 1,
             models: vec![LoadedModelView {
                 engine: "vllm-mlx".into(),
+                kind: "chat".into(),
                 model: "a".into(),
                 model_path: "/models/a.gguf".into(),
                 port: 41001,

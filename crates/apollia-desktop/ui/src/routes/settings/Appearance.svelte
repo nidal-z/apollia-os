@@ -1,53 +1,24 @@
-<script lang="ts" context="module">
-  export const meta = {
-    title: "settings.nav.appearance",
-    icon: "palette",
-    group: "settings.nav.cluster_personalization",
-    cluster: "personalization",
-  } as const;
-</script>
-
 <script lang="ts">
-  import { t, locale } from "svelte-i18n";
-  import {
-    Globe,
-    Palette,
-    Sun,
-    Moon,
-    Monitor,
-    Eye,
-    SlidersHorizontal,
-    Check,
-    User,
-    Wrench,
-  } from "lucide-svelte";
+  import { t } from "svelte-i18n";
+  import { Palette, Sun, Moon, Monitor, Lightbulb } from "lucide-svelte";
   import { themeMode, applyTheme, type ThemeMode } from "$lib/stores/theme";
-  import { uiMode, type UIMode } from "$lib/stores/mode";
-  import { planModeDefault } from "$lib/stores/planModeSetting";
-  import { setLocale } from "$lib/i18n";
-  import { Toggle } from "$lib/components/ui/toggle";
+  import { onboardingStore, onboardingModalOpen } from "$lib/stores/onboarding";
+  import { resetOnboarding } from "$lib/ipc/danger";
+  import { addToast } from "$lib/components/ui/toast";
+  import { reportError } from "$lib/errors/reportError";
+  import { Button } from "$lib/components/ui/button";
   import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
   import SettingsSection from "../../components/settings/SettingsSection.svelte";
   import SettingsFieldRow from "../../components/settings/SettingsFieldRow.svelte";
+  import DestructiveActionDialog from "../../components/settings/DestructiveActionDialog.svelte";
 
   type Glyph = typeof Sun;
   type SegOption = { value: string; labelKey: string; icon?: Glyph };
-  type ModeOption = { value: UIMode; labelKey: string; descKey: string; icon: Glyph };
-
-  const LANGUAGE_OPTIONS: SegOption[] = [
-    { value: "fr", labelKey: "settings.language_fr" },
-    { value: "en", labelKey: "settings.language_en" },
-  ];
 
   const THEME_OPTIONS: SegOption[] = [
     { value: "light", labelKey: "settings.theme_light", icon: Sun },
     { value: "dark", labelKey: "settings.theme_dark", icon: Moon },
     { value: "system", labelKey: "settings.theme_system", icon: Monitor },
-  ];
-
-  const MODE_OPTIONS: ModeOption[] = [
-    { value: "operator", labelKey: "settings.mode_operator", descKey: "settings.mode_operator_desc", icon: User },
-    { value: "builder", labelKey: "settings.mode_builder", descKey: "settings.mode_builder_desc", icon: Wrench },
   ];
 
   function selectTheme(value: string) {
@@ -56,16 +27,27 @@
     applyTheme(mode);
   }
 
-  function selectLocale(value: string) {
-    locale.set(value);
-    setLocale(value);
-  }
+  let resetOpen = $state(false);
+  let resetting = $state(false);
 
-  function selectMode(value: string) {
-    uiMode.set(value as UIMode);
+  async function runResetOnboarding(): Promise<void> {
+    resetting = true;
+    try {
+      await resetOnboarding();
+      // Reload the now-empty state so derived stores (badges, etc.) catch up.
+      await onboardingStore.refreshState();
+      // Open the onboarding modal immediately, no restart required.
+      onboardingModalOpen.set(true);
+      addToast($t("settings.danger.reset_onboarding.success"), "success", {
+        "data-testid": "danger-reset-onboarding-toast",
+      });
+      resetOpen = false;
+    } catch (err) {
+      reportError(err, { surface: "toast" });
+    } finally {
+      resetting = false;
+    }
   }
-
-  const currentLang = $derived($locale?.startsWith("fr") ? "fr" : "en");
 
   let systemDark = $state(false);
   $effect(() => {
@@ -147,9 +129,7 @@
         <span class="h-4 w-4 shrink-0 rounded bg-primary-gradient"></span>
         <span class="h-1.5 w-2/3 rounded-full bg-muted"></span>
       </div>
-      <span class="inline-flex w-fit rounded-full leading-none bg-primary/10 px-2 py-0.5 text-overline uppercase text-primary">
-        {$t($uiMode === "operator" ? "settings.mode_operator" : "settings.mode_builder")}
-      </span>
+      <span class="h-2.5 w-1/4 rounded-full bg-primary/10"></span>
       <span class="h-1.5 w-2/5 rounded-full bg-muted"></span>
       <span class="w-fit self-end rounded-lg rounded-br-sm bg-muted px-2.5 py-1 text-caption text-foreground">
         {$t("settings.appearance.preview_message")}
@@ -174,20 +154,6 @@
 {/snippet}
 
 <SettingsSubPage route="appearance" data-testid="preferences-section">
-  <!-- Language -->
-  <SettingsSection title={$t("settings.language_title")} description={$t("settings.language_help")}>
-    {#snippet icon()}<Globe size={15} strokeWidth={1.75} />{/snippet}
-    <SettingsFieldRow
-      label={$t("settings.language_label")}
-      hint={$t("settings.language_field_help")}
-      border={false}
-    >
-      {#snippet control()}
-        {@render segmented(LANGUAGE_OPTIONS, currentLang, selectLocale, "language")}
-      {/snippet}
-    </SettingsFieldRow>
-  </SettingsSection>
-
   <!-- Theme + focal live preview -->
   <SettingsSection title={$t("settings.theme_title")} description={$t("settings.theme_help")}>
     {#snippet icon()}<Palette size={15} strokeWidth={1.75} />{/snippet}
@@ -201,61 +167,40 @@
     </div>
   </SettingsSection>
 
-  <!-- Interface mode -->
-  <SettingsSection title={$t("settings.mode_title")} description={$t("settings.mode_help")}>
-    {#snippet icon()}<Eye size={15} strokeWidth={1.75} />{/snippet}
-    <div
-      role="radiogroup"
-      tabindex={-1}
-      data-testid="mode-toggle"
-      class="flex flex-col gap-3 sm:flex-row"
-      onkeydown={(e) => segKeydown(e, MODE_OPTIONS, $uiMode, selectMode)}
-    >
-      {#each MODE_OPTIONS as opt (opt.value)}
-        {@const active = $uiMode === opt.value}
-        {@const Icon = opt.icon}
-        <button
-          type="button"
-          role="radio"
-          aria-checked={active}
-          tabindex={active ? 0 : -1}
-          data-value={opt.value}
-          data-testid="mode-{opt.value}"
-          class="relative flex flex-1 items-start overflow-hidden rounded-lg border bg-background text-left ring-offset-background transition-all duration-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2
-            {active ? 'border-primary/55 ring-1 ring-primary/20' : 'border-border hover:border-primary/40'}"
-          onclick={() => selectMode(opt.value)}
-        >
-          <span class="absolute inset-y-0 left-0 w-0.5 {active ? 'bg-primary' : 'bg-muted'}" aria-hidden="true"></span>
-          <span class="flex min-w-0 flex-col gap-0.5 py-3 pl-4 pr-3">
-            <span class="flex items-center gap-2">
-              <Icon size={14} strokeWidth={1.9} class={active ? "text-primary" : "text-muted-foreground"} />
-              <span class="text-label-md text-foreground">{$t(opt.labelKey)}</span>
-              {#if active}<Check size={14} strokeWidth={2.2} class="ml-auto text-primary" />{/if}
-            </span>
-            <span class="text-caption text-muted-foreground">{$t(opt.descKey)}</span>
-          </span>
-        </button>
-      {/each}
-    </div>
-  </SettingsSection>
-
-  <!-- Options -->
-  <SettingsSection title={$t("settings.appearance.options_title")} bodyLayout="flush">
-    {#snippet icon()}<SlidersHorizontal size={15} strokeWidth={1.75} />{/snippet}
+  <!-- Onboarding reminders -->
+  <SettingsSection title={$t("settings.appearance.reminders_title")} bodyLayout="flush">
+    {#snippet icon()}<Lightbulb size={15} strokeWidth={1.75} />{/snippet}
     <SettingsFieldRow
-      label={$t("settings.planMode.title")}
-      hint={$t("settings.planMode.description")}
-      for="plan-mode-default"
+      label={$t("settings.appearance.reminders_reset_label")}
+      hint={$t("settings.appearance.reminders_reset_hint")}
+      border={false}
+      data-testid="appearance-reset-onboarding"
     >
       {#snippet control()}
-        <Toggle
-          id="plan-mode-default"
-          checked={$planModeDefault}
-          onchange={(next) => planModeDefault.set(next)}
-          aria-label={$t("settings.planMode.title")}
-          data-testid="plan-mode-default-toggle"
-        />
+        <span id="reset-onboarding">
+          <Button
+            variant="outline"
+            size="sm"
+            onclick={() => (resetOpen = true)}
+            data-testid="reset-onboarding-btn"
+          >
+            {$t("settings.appearance.reminders_reset_button")}
+          </Button>
+        </span>
       {/snippet}
     </SettingsFieldRow>
   </SettingsSection>
 </SettingsSubPage>
+
+<DestructiveActionDialog
+  open={resetOpen}
+  title={$t("settings.danger.reset_onboarding.dialog_title")}
+  description={$t("settings.danger.reset_onboarding.dialog_desc")}
+  confirmWord="RESET"
+  confirmLabel={$t("settings.appearance.reminders_reset_button")}
+  lockMs={0}
+  loading={resetting}
+  onclose={() => (resetOpen = false)}
+  onconfirm={runResetOnboarding}
+  data-testid="reset-onboarding-confirm"
+/>

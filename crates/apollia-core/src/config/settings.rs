@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use serde_json::Value;
 
-use super::{DesktopConfig, ModelsConfig};
+use super::{DesktopConfig, McpConfig, ModelsConfig};
 
 /// Wire names of the load guardrail levels, the values `llm.guardrails.level`
 /// accepts. The runtime holds its level enum to this list in a test.
@@ -145,7 +145,7 @@ pub enum SettingError {
 
 /// The defaults of every named setting, as one JSON tree keyed by section name.
 ///
-/// The whole `[desktop]` section, then the inference settings an organisation
+/// The whole `[desktop]` and `[mcp]` sections, then the inference settings an organisation
 /// may fix: the model registry (`models.registry_url`,
 /// `models.registry_mirror_url`, `models.registry_enabled`), the import rule
 /// (`models.import.require_verified`) and the load guardrail
@@ -169,6 +169,9 @@ fn defaults() -> serde_json::Map<String, Value> {
         "llm".to_owned(),
         serde_json::json!({ "guardrails": { "level": "balanced", "ceiling_gb": 0.0 } }),
     );
+    if let Ok(mcp) = serde_json::to_value(McpConfig::default()) {
+        sections.insert("mcp".to_owned(), mcp);
+    }
     sections
 }
 

@@ -2,7 +2,7 @@
   import { t } from "svelte-i18n";
   import type { TriggerStatus } from "$lib/types";
   import { triggers } from "$lib/stores/triggers";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { Badge } from "$lib/components/ui/badge";
   import { Timer, Eye, Folder, Globe, Zap } from "lucide-svelte";
 
@@ -123,7 +123,7 @@
             {/if}
           </div>
 
-          {#if $uiMode === "builder"}
+          {#if $developerMode}
             <div class="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
               <Badge variant="outline" class={SOURCE_BADGE_CLASS[trigger.source_kind] ?? ""}>
                 {trigger.source_kind.toUpperCase()}

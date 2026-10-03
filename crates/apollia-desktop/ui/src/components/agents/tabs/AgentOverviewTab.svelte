@@ -8,7 +8,7 @@
   import { t } from "svelte-i18n";
   import { Cpu, Terminal } from "lucide-svelte";
   import { Card } from "$lib/components/operator";
-  import { BuilderOnly } from "$lib/components/shared";
+  import { DeveloperOnly } from "$lib/components/shared";
   import type { AgentListItem } from "$lib/types";
 
   interface Props {
@@ -64,7 +64,7 @@
     </div>
   </Card>
 
-  <BuilderOnly>
+  <DeveloperOnly>
     {#if agent.execution_mode}
       <Card class="p-4">
         <div class="mb-1.5 flex items-center gap-2">
@@ -94,7 +94,7 @@
         </p>
       </Card>
     {/if}
-  </BuilderOnly>
+  </DeveloperOnly>
 
   {#if agent.examples.length > 0}
     <Card class="p-3.5 lg:col-span-2">

@@ -2,7 +2,8 @@
   "name": "inbox-det (inbox page, operator + builder, seeded activity + notifications; pending in-memory set empty at cold boot so pending reduced to empty state, merged decision history asserted)",
   "stopOnError": false,
   "notes": [
-    "Every activity filter has seeded rows, so the empty state and the error box are provoked through stubInvoke on list_runtime_activity (a once-reject for inbox-error-details-toggle and inbox-error-retry, a once-resolve [] for inbox-activity-empty-cta); switching to the pending tab and back re-runs loadActivity. A standalone inbox-empty-det book with a seed overlay was therefore not created: the anchor is played here inside master-det, and the CTA's only effect is a navigation to observability, undone by the goto."
+    "Every activity filter has seeded rows, so the empty state and the error box are provoked through stubInvoke on list_runtime_activity (a once-reject for inbox-error-details-toggle and inbox-error-retry, a once-resolve [] for inbox-activity-empty-cta); switching to the pending tab and back re-runs loadActivity. A standalone inbox-empty-det book with a seed overlay was therefore not created: the anchor is played here inside master-det, and the CTA's only effect is a navigation to observability, undone by the goto.",
+    "Observability is a developer screen, so its two links in the activity tab (activity-row-see-logs and inbox-activity-empty-cta) are asserted ABSENT with the developer mode off and played with the mode on."
   ],
   "dynamicTestids": [
     "inbox-activity-filter-all",
@@ -15,8 +16,7 @@
     "inbox-tab-activity",
     "inbox-tab-notifications",
     "inbox-tab-pending",
-    "sidebar-mode-option-builder",
-    "sidebar-mode-option-operator"
+    "settings-nav-developer"
   ],
   "steps": [
     {
@@ -30,17 +30,26 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-operator"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
@@ -296,26 +305,18 @@
     },
     {
       "kind": "waitFor",
-      "testid": "inbox-activity-empty-cta",
+      "testid": "inbox-page",
+      "contains": "All clear - no recent incidents.",
       "timeoutMs": 6000
     },
     {
-      "kind": "screenshot",
-      "label": "11d-activity-empty (list answered [] by the stub)"
-    },
-    {
-      "kind": "click",
+      "kind": "waitGone",
       "testid": "inbox-activity-empty-cta",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "observability-page",
-      "timeoutMs": 15000
+      "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "11e-activity-empty-cta-landed-on-observability"
+      "label": "11d-activity-empty-mode-off (list answered [] by the stub, no link to Observability)"
     },
     {
       "kind": "goto",
@@ -338,6 +339,11 @@
       "timeoutMs": 5000
     },
     {
+      "kind": "waitGone",
+      "testid": "activity-row-see-logs",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
       "testid": "inbox-tab-notifications",
       "timeoutMs": 2500
@@ -347,17 +353,26 @@
       "label": "12-inbox-tab-notifications"
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-builder"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
     },
     {
       "kind": "sleep",
@@ -401,6 +416,59 @@
       "label": "15-inbox-activity-builder"
     },
     {
+      "kind": "waitFor",
+      "testid": "activity-row-see-logs",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_runtime_activity",
+      "resolve": [],
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-activity",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-activity-empty-cta",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15a-activity-empty-developer (list answered [] by the stub)"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-activity-empty-cta",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15b-activity-empty-cta-landed-on-observability"
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
       "kind": "click",
       "testid": "inbox-tab-notifications",
       "timeoutMs": 2500
@@ -410,21 +478,39 @@
       "label": "16-inbox-notifications-builder"
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-operator"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
       "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
     },
     {
       "kind": "screenshot",

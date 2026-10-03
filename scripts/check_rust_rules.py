@@ -340,6 +340,11 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # supervisor has taken and reaped the handle. One helper, two tests.
     "crates/apollia-runtime/src/llama_server/loaded.rs": 1,
     "crates/apollia-runtime/src/llama_server/mod.rs": 1,
+    # The process is the subject: the embeddings instance has to be launched
+    # beside a resident chat model without evicting it, which only a launched
+    # process can show. The site is the shebang of the fake engine, one helper
+    # shared by the supervisor and embedder tests.
+    "crates/apollia-runtime/src/llama_server/embeddings/tests.rs": 1,
     # The process is the subject: changing a load setting of a resident model
     # has to stop its child and launch another, which only a launched process
     # can show. The site is the shell script of the fake engine, one helper

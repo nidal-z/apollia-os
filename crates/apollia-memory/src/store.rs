@@ -28,7 +28,7 @@ pub struct MemoryStats {
 }
 
 /// Current schema version for the memory database.
-const SCHEMA_VERSION: u32 = 2;
+const SCHEMA_VERSION: u32 = 3;
 
 /// SQL statements for schema version 1.
 const SCHEMA_V1: &str = "
@@ -309,6 +309,9 @@ impl MemoryStore {
         if current_version < 2 {
             Self::migrate_to_v2(conn)?;
         }
+        if current_version < 3 {
+            Self::migrate_to_v3(conn)?;
+        }
         Ok(())
     }
 
@@ -369,6 +372,46 @@ impl MemoryStore {
         tracing::info!(
             version = 2,
             detail = "v2 adds the plan_choices table",
+            "memory.schema.migrated"
+        );
+        Ok(())
+    }
+
+    /// Migration to schema version 3: the `profiles` table of the user
+    /// profiles, and the partial unique index that keeps a single default.
+    /// Its rows are written only in `user_memory.db`.
+    fn migrate_to_v3(conn: &Connection) -> Result<(), MemoryStoreError> {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS profiles (
+                id          TEXT PRIMARY KEY,
+                name        TEXT NOT NULL,
+                is_default  INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),
+                person_name TEXT,
+                role        TEXT,
+                function    TEXT,
+                tools       TEXT,
+                preferences TEXT,
+                free_text   TEXT,
+                created_at  TEXT NOT NULL,
+                updated_at  TEXT NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_single_default
+                ON profiles(is_default) WHERE is_default = 1;",
+        )
+        .map_err(|e| MemoryStoreError::MigrationFailed {
+            version: 3,
+            reason: e.to_string(),
+        })?;
+
+        conn.execute("UPDATE _schema_version SET version = 3", [])
+            .map_err(|e| MemoryStoreError::MigrationFailed {
+                version: 3,
+                reason: format!("version bump failed: {e}"),
+            })?;
+
+        tracing::info!(
+            version = 3,
+            detail = "v3 adds the profiles table",
             "memory.schema.migrated"
         );
         Ok(())

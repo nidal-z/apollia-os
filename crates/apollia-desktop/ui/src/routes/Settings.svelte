@@ -1,25 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, tick, type Component } from "svelte";
   import { t } from "svelte-i18n";
-  import {
-    Palette,
-    User,
-    Mic,
-    Cpu,
-    Sliders,
-    Info,
-    Keyboard,
-    AlertTriangle,
-    Activity,
-    Download,
-    Wrench,
-    ShieldCheck,
-    Check,
-    Menu,
-    PlugZap,
-    LifeBuoy,
-    BadgeInfo,
-  } from "lucide-svelte";
+  import { Check, Menu } from "lucide-svelte";
   import {
     settingsSubRoute,
     goToSettingsSubRoute,
@@ -27,6 +9,7 @@
     installSettingsNavigationGuard,
     DEFAULT_SETTINGS_SUB_ROUTE,
     type SettingsSubRoute,
+    type SettingsFormRoute,
   } from "$lib/stores/settings";
   import {
     settingsDirtyStore,
@@ -50,24 +33,24 @@
   import UnsavedChangesBadge from "../components/settings/UnsavedChangesBadge.svelte";
   import UnsavedChangesDialog from "../components/settings/UnsavedChangesDialog.svelte";
   import { Button } from "$lib/components/ui/button";
+  import { SETTINGS_NAV } from "$lib/settings/settingsNav";
 
   // ─── Lazy-loaded tab content (existing sub-routes own invoke()/stores) ──
   const LOADERS: Record<SettingsSubRoute, () => Promise<{ default: Component }>> = {
+    general: () => import("./settings/General.svelte"),
     appearance: () => import("./settings/Appearance.svelte"),
     profile: () => import("./settings/Profile.svelte"),
+    chat: () => import("./settings/ChatSettings.svelte"),
     stt: () => import("./settings/Stt.svelte"),
+    "model-defaults": () => import("./settings/ModelDefaults.svelte"),
+    developer: () => import("./settings/Developer.svelte"),
+    engines: () => import("./settings/Engines.svelte"),
+    hardware: () => import("./settings/System.svelte"),
     llm: () => import("./settings/Llm.svelte"),
     "model-hub": () => import("./settings/ModelHub.svelte"),
-    configuration: () => import("./settings/Configuration.svelte"),
     tools: () => import("./settings/Tools.svelte"),
     permissions: () => import("./settings/Permissions.svelte"),
     integrations: () => import("./settings/Integrations.svelte"),
-    system: () => import("./settings/System.svelte"),
-    shortcuts: () => import("./settings/Shortcuts.svelte"),
-    observability: () => import("./settings/Observability.svelte"),
-    help: () => import("./settings/Help.svelte"),
-    about: () => import("./settings/About.svelte"),
-    danger: () => import("./settings/Danger.svelte"),
   };
 
   const cache = new Map<SettingsSubRoute, Component>();
@@ -92,8 +75,8 @@
   let dialogSaving = $state(false);
 
   type SaveFn = () => Promise<boolean>;
-  const registeredSavers = new Map<SettingsSubRoute, SaveFn>();
-  const registeredResetters = new Map<SettingsSubRoute, () => void>();
+  const registeredSavers = new Map<SettingsFormRoute, SaveFn>();
+  const registeredResetters = new Map<SettingsFormRoute, () => void>();
 
   async function loadRoute(route: SettingsSubRoute): Promise<void> {
     const cached = cache.get(route);
@@ -234,7 +217,7 @@
 
   if (typeof window !== "undefined") {
     window.__apolliaRegisterSettingsForm =
-      (route: SettingsSubRoute, handle: { save: SaveFn; reset: () => void }) => {
+      (route: SettingsFormRoute, handle: { save: SaveFn; reset: () => void }) => {
         registeredSavers.set(route, handle.save);
         registeredResetters.set(route, handle.reset);
         return () => {
@@ -244,87 +227,30 @@
       };
   }
 
-  // ─── Grouped sub-nav definition (V3 design) ───────────────────────
-  type NavEntry = {
-    key: SettingsSubRoute;
-    labelKey: string;
-    icon: typeof Palette;
-  };
-  type NavCluster = {
-    labelKey: string;
-    entries: NavEntry[];
-    danger?: boolean;
-  };
-
-  const CLUSTERS: NavCluster[] = [
-    {
-      labelKey: "settings.nav.cluster_personalization",
-      entries: [
-        { key: "appearance", labelKey: "settings.nav.appearance", icon: Palette },
-        { key: "profile", labelKey: "settings.nav.profile", icon: User },
-      ],
-    },
-    {
-      labelKey: "settings.nav.cluster_ai",
-      entries: [
-        { key: "stt", labelKey: "settings.nav.stt", icon: Mic },
-        { key: "llm", labelKey: "settings.nav.llm", icon: Cpu },
-        { key: "model-hub", labelKey: "settings.nav.model_hub", icon: Download },
-      ],
-    },
-    {
-      labelKey: "settings.nav.cluster_system",
-      entries: [
-        { key: "configuration", labelKey: "settings.nav.configuration", icon: Sliders },
-        { key: "tools", labelKey: "settings.nav.tools", icon: Wrench },
-        { key: "permissions", labelKey: "settings.nav.permissions", icon: ShieldCheck },
-        { key: "integrations", labelKey: "settings.nav.integrations", icon: PlugZap },
-        { key: "system", labelKey: "settings.nav.system", icon: Info },
-        { key: "shortcuts", labelKey: "settings.nav.shortcuts", icon: Keyboard },
-        { key: "observability", labelKey: "settings.nav.observability", icon: Activity },
-      ],
-    },
-    {
-      labelKey: "settings.nav.cluster_help",
-      entries: [
-        { key: "help", labelKey: "settings.nav.help", icon: LifeBuoy },
-        { key: "about", labelKey: "settings.nav.about", icon: BadgeInfo },
-      ],
-    },
-    {
-      labelKey: "settings.nav.cluster_danger",
-      danger: true,
-      entries: [
-        { key: "danger", labelKey: "settings.nav.danger", icon: AlertTriangle },
-      ],
-    },
-  ];
-
   // ─── Per-tab heading copy ──────────────────────────────────────────
   // Title and kicker are derived from the cluster the route belongs to (single
-  // source of truth = CLUSTERS above), so nothing is retyped per entry. Only
+  // source of truth = SETTINGS_NAV), so nothing is retyped per entry. Only
   // the subtitle needs its own key; reuse an existing one where a sub-page
   // already ships copy, otherwise a dedicated `settings.<route>.subtitle`.
   const SUBTITLE_KEY: Record<SettingsSubRoute, string> = {
+    general: "settings.general.subtitle",
     appearance: "settings.appearance.subtitle",
     profile: "settings.profile_subtitle",
+    chat: "settings.chat.subtitle",
     stt: "settings.stt_subtitle",
+    "model-defaults": "settings.model_defaults.subtitle",
+    developer: "settings.developer.subtitle",
+    engines: "settings.engines.subtitle",
+    hardware: "settings.system.subtitle",
     llm: "settings.llm.subtitle",
     "model-hub": "settings.model_hub.subtitle",
-    configuration: "settings.configuration.subtitle",
     tools: "settings.tools_page.subtitle",
     permissions: "settings.permissions.subtitle",
     integrations: "settings.integrations.subtitle",
-    system: "settings.system.subtitle",
-    shortcuts: "settings.shortcuts.subtitle",
-    observability: "settings.observability.subtitle",
-    help: "settings.help.subtitle",
-    about: "settings.about.subtitle",
-    danger: "settings.danger.subtitle",
   };
 
   const ROUTE_META = new Map<SettingsSubRoute, { titleKey: string; kickerKey: string }>();
-  for (const cluster of CLUSTERS) {
+  for (const cluster of SETTINGS_NAV) {
     for (const entry of cluster.entries) {
       ROUTE_META.set(entry.key, { titleKey: entry.labelKey, kickerKey: cluster.labelKey });
     }
@@ -344,23 +270,14 @@
   const FOCUS_RING =
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background";
 
-  function clusterTextClass(danger: boolean | undefined): string {
-    return danger ? "text-destructive" : "text-muted-foreground";
-  }
-
-  function entryClass(active: boolean, danger: boolean): string {
-    const base = danger
-      ? active
-        ? "border border-destructive/20 bg-destructive/10 text-destructive font-semibold shadow-sm"
-        : "border border-transparent text-destructive/80 hover:bg-destructive/5 hover:text-destructive"
-      : active
-        ? "border border-border bg-card text-foreground font-semibold shadow-sm"
-        : "border border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground";
+  function entryClass(active: boolean): string {
+    const base = active
+      ? "border border-border bg-card text-foreground font-semibold shadow-sm"
+      : "border border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground";
     return `${base} ${FOCUS_RING}`;
   }
 
-  function entryIconClass(active: boolean, danger: boolean): string {
-    if (danger) return "text-destructive";
+  function entryIconClass(active: boolean): string {
     return active ? "text-primary" : "text-muted-foreground";
   }
 </script>
@@ -372,11 +289,9 @@
   lazy-loaded sub-route wrapped in the canonical route transition.
 -->
 {#snippet clusterNav()}
-  {#each CLUSTERS as cluster (cluster.labelKey)}
+  {#each SETTINGS_NAV as cluster (cluster.labelKey)}
     <div>
-      <div
-        class="mb-1.5 px-2.5 font-mono text-overline uppercase {clusterTextClass(cluster.danger)}"
-      >
+      <div class="mb-1.5 px-2.5 font-mono text-overline uppercase text-muted-foreground">
         {$t(cluster.labelKey)}
       </div>
       <ul class="space-y-0.5">
@@ -390,13 +305,13 @@
               align="center"
               onclick={() => onNavigate(entry.key)}
               data-testid="settings-nav-{entry.key}"
-              class={entryClass(isActive, cluster.danger === true)}
+              class={entryClass(isActive)}
             >
               <SvelteIcon
                 size={14}
                 strokeWidth={1.75}
                 aria-hidden="true"
-                class={entryIconClass(isActive, cluster.danger === true)}
+                class={entryIconClass(isActive)}
               />
               <span class="min-w-0 flex-1 truncate text-body-sm" title={$t(entry.labelKey)}>
                 {$t(entry.labelKey)}

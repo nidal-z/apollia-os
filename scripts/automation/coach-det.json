@@ -3,8 +3,7 @@
   "stopOnError": false,
   "dynamicTestids": [
     "command-item-companion.toggle",
-    "sidebar-mode-option-builder",
-    "sidebar-mode-option-operator"
+    "settings-nav-developer"
   ],
   "steps": [
     {
@@ -18,17 +17,26 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-operator"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
@@ -280,17 +288,26 @@
       "label": "08-companion-disabled (toggle resets the enabled preference to off so the builder pass opens from a clean single toggle; no panel expected here)"
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-builder"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
     },
     {
       "kind": "sleep",
@@ -373,21 +390,34 @@
       "label": "11-companion-closed-builder"
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-operator"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
       "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
     },
     {
       "kind": "screenshot",

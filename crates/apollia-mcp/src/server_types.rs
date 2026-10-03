@@ -14,7 +14,8 @@ use serde::Deserialize;
 pub struct CallToolParams {
     /// Name of the tool to invoke.
     pub name: String,
-    /// JSON arguments forwarded to the tool executor.
+    /// JSON arguments forwarded to the daemon; absent reads as `null`.
+    #[serde(default)]
     pub arguments: serde_json::Value,
 }
 
@@ -146,7 +147,7 @@ mod tests {
             "jsonrpc": "2.0",
             "id": 3,
             "method": "tools/call",
-            "params": { "name": "bash_executor", "arguments": { "command": "echo hi" } }
+            "params": { "name": "agent__mailer", "arguments": { "message": "hi" } }
         });
         // WHEN
         let req = parse_request(raw).expect("should parse");

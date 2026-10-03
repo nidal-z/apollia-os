@@ -296,7 +296,8 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-desktop/src/i18n.rs": 16,
     "crates/apollia-desktop/ui/src/lib/i18n/identicalLocales.ts": 4,
     "crates/apollia-desktop/ui/src/components/settings/stt/SttEssentialSection.svelte": 2,
-    "crates/apollia-memory/src/profile_schema.rs": 26,
+    "crates/apollia-memory/src/profile_schema.rs": 9,
+    "crates/apollia-memory/src/user_memory/persona.rs": 1,
     "scripts/check_release_artifacts.py": 1,
     # parser: French words the code matches on, or folds
     # The typed-pause payload keys are the product's wire vocabulary (`genre`,
@@ -319,7 +320,6 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-memory/src/lib.rs": 1,
     "crates/apollia-memory/src/search.rs": 2,
     "crates/apollia-memory/src/store.rs": 1,
-    "crates/apollia-memory/src/user_memory.rs": 1,
     "scripts/check_docs_lang.py": 8,
     "scripts/check_docs_routes.py": 4,
     # This file: its own French word list, and the French lines its self-test

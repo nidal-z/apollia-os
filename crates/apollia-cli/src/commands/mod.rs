@@ -93,6 +93,7 @@ pub mod mcp_oauth;
 pub mod mcp_server;
 pub mod memory;
 pub mod model;
+pub mod model_embeddings;
 pub mod notify;
 pub mod onboard;
 pub mod package;

@@ -29,7 +29,9 @@ function mainSvelteRenderBranches(): string[] {
     path.join(uiSrc, "lib", "components", "app", "Main.svelte"),
     "utf8",
   );
-  return [...source.matchAll(/\$currentRoute === "([\w-]+)"/g)].map((m) => m[1]);
+  // The branches compare the route the router shows, after the developer-mode
+  // guard, to each member.
+  return [...source.matchAll(/shownRoute === "([\w-]+)"/g)].map((m) => m[1]);
 }
 
 describe("route registry completeness", () => {

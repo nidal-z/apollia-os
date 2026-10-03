@@ -88,6 +88,7 @@ async fn test_runtime_starts_without_llm_router() {
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        inference_governance: Default::default(),
         backend: NeverMockBackend,
         llm_router: empty_shared_llm_router(), // no LLM configured
         trigger_engine: None,
@@ -251,6 +252,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        inference_governance: Default::default(),
         backend: NeverMockBackend,
         llm_router: empty_shared_llm_router(),
         trigger_engine: None,

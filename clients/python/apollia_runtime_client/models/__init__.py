@@ -129,6 +129,7 @@ from .dictation_models_response_reason_type_0 import DictationModelsResponseReas
 from .directory_removed import DirectoryRemoved
 from .dismissed_proposal import DismissedProposal
 from .drive_folder_status import DriveFolderStatus
+from .embedding_default_response import EmbeddingDefaultResponse
 from .embedding_models_response import EmbeddingModelsResponse
 from .embedding_models_response_models_item import EmbeddingModelsResponseModelsItem
 from .embedding_models_response_reason_type_0 import EmbeddingModelsResponseReasonType0
@@ -213,6 +214,17 @@ from .loaded_models_response import LoadedModelsResponse
 from .logs_response import LogsResponse
 from .logs_response_entries_item import LogsResponseEntriesItem
 from .mailbox_message_row import MailboxMessageRow
+from .mcp_bridge_call import McpBridgeCall
+from .mcp_bridge_call_arguments import McpBridgeCallArguments
+from .mcp_bridge_call_result import McpBridgeCallResult
+from .mcp_bridge_error_body import McpBridgeErrorBody
+from .mcp_bridge_tool import McpBridgeTool
+from .mcp_bridge_tool_input_schema import McpBridgeToolInputSchema
+from .mcp_bridge_tool_list import McpBridgeToolList
+from .mcp_exposed_item import McpExposedItem
+from .mcp_exposed_item_list import McpExposedItemList
+from .mcp_exposed_item_state import McpExposedItemState
+from .mcp_exposure import McpExposure
 from .memory_entry_deleted import MemoryEntryDeleted
 from .memory_entry_view import MemoryEntryView
 from .memory_imported import MemoryImported
@@ -224,6 +236,7 @@ from .model_cards_response import ModelCardsResponse
 from .model_cards_response_cards_item import ModelCardsResponseCardsItem
 from .model_cards_response_publishers import ModelCardsResponsePublishers
 from .model_info import ModelInfo
+from .model_kind import ModelKind
 from .model_source_dto import ModelSourceDto
 from .models_list_response import ModelsListResponse
 from .next_steps_reply import NextStepsReply
@@ -288,6 +301,7 @@ from .proposed_rule_view import ProposedRuleView
 from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
 from .readme_response import ReadmeResponse
+from .reasoning_profile_dto import ReasoningProfileDto
 from .reject_plan_request import RejectPlanRequest
 from .reject_user_input_request import RejectUserInputRequest
 from .reload_response import ReloadResponse
@@ -323,6 +337,7 @@ from .server_probe_error_response import ServerProbeErrorResponse
 from .server_response import ServerResponse
 from .servers_list_response import ServersListResponse
 from .session_metrics import SessionMetrics
+from .session_model_capabilities import SessionModelCapabilities
 from .session_workspace import SessionWorkspace
 from .set_agent_model_request import SetAgentModelRequest
 from .set_approval_body import SetApprovalBody
@@ -330,6 +345,7 @@ from .set_credential_body import SetCredentialBody
 from .set_default_model_request import SetDefaultModelRequest
 from .set_default_response import SetDefaultResponse
 from .set_drive_folder_body import SetDriveFolderBody
+from .set_embedding_default_body import SetEmbeddingDefaultBody
 from .set_events_request import SetEventsRequest
 from .set_override_request import SetOverrideRequest
 from .set_override_request_value import SetOverrideRequestValue
@@ -577,6 +593,7 @@ __all__ = (
     "DirectoryRemoved",
     "DismissedProposal",
     "DriveFolderStatus",
+    "EmbeddingDefaultResponse",
     "EmbeddingModelsResponse",
     "EmbeddingModelsResponseModelsItem",
     "EmbeddingModelsResponseReasonType0",
@@ -661,6 +678,17 @@ __all__ = (
     "LogsResponse",
     "LogsResponseEntriesItem",
     "MailboxMessageRow",
+    "McpBridgeCall",
+    "McpBridgeCallArguments",
+    "McpBridgeCallResult",
+    "McpBridgeErrorBody",
+    "McpBridgeTool",
+    "McpBridgeToolInputSchema",
+    "McpBridgeToolList",
+    "McpExposedItem",
+    "McpExposedItemList",
+    "McpExposedItemState",
+    "McpExposure",
     "MemoryEntryDeleted",
     "MemoryEntryView",
     "MemoryImported",
@@ -672,6 +700,7 @@ __all__ = (
     "ModelCardsResponseCardsItem",
     "ModelCardsResponsePublishers",
     "ModelInfo",
+    "ModelKind",
     "ModelsListResponse",
     "ModelSourceDto",
     "NextStepsReply",
@@ -734,6 +763,7 @@ __all__ = (
     "PurgeMemoryBody",
     "PutMcpSecretBody",
     "ReadmeResponse",
+    "ReasoningProfileDto",
     "RejectPlanRequest",
     "RejectUserInputRequest",
     "ReloadResponse",
@@ -767,6 +797,7 @@ __all__ = (
     "ServerResponse",
     "ServersListResponse",
     "SessionMetrics",
+    "SessionModelCapabilities",
     "SessionWorkspace",
     "SetAgentModelRequest",
     "SetApprovalBody",
@@ -774,6 +805,7 @@ __all__ = (
     "SetDefaultModelRequest",
     "SetDefaultResponse",
     "SetDriveFolderBody",
+    "SetEmbeddingDefaultBody",
     "SetEventsRequest",
     "SetOverrideRequest",
     "SetOverrideRequestValue",
