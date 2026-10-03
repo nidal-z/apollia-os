@@ -140,18 +140,31 @@ def _copy(root: Path) -> None:
 def _add_route(root: Path, path: str) -> None:
     router = root / MODULE / "router.rs"
     text = router.read_text(encoding="utf-8")
+    # Anchored on the constructor alone, so the chain after it (routes,
+    # fallback, layers, one call per line or not) can change shape freely.
+    anchor = "Router::new()"
+    if anchor not in text:
+        raise NotMeasured(f"{router} carries no {anchor}, the selftest cannot add a route")
     text = text.replace(
-        "Router::new().fallback(",
-        f'Router::new().route("{path}", axum::routing::post(unknown_endpoint)).fallback(',
+        anchor,
+        f'{anchor}.route("{path}", axum::routing::post(unknown_endpoint))',
         1,
     )
     router.write_text(text, encoding="utf-8")
 
 
 def _add_row(root: Path, page: Path, path: str) -> None:
+    """Inserts a row after the last row of the table that follows the marker,
+    so prose after the table does not cut the row off from it."""
     target = root / page
-    text = target.read_text(encoding="utf-8").rstrip("\n")
-    target.write_text(f"{text}\n| `POST` | `{path}` | OpenAI |\n", encoding="utf-8")
+    lines = target.read_text(encoding="utf-8").splitlines()
+    index = lines.index(MARKER) + 1
+    while index < len(lines) and not lines[index].strip():
+        index += 1
+    while index < len(lines) and lines[index].strip().startswith("|"):
+        index += 1
+    lines.insert(index, f"| `POST` | `{path}` | OpenAI |")
+    target.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def selftest() -> int:
