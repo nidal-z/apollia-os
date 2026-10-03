@@ -177,6 +177,7 @@ Client MCP : chargement des outils et limites de réponse.
 | `approval_ttl_hours` | `u64` | `24` | Durée de validité des approbations HITL MCP, en heures. |
 | `tool_loading` | `McpToolLoading` | défaut du type | Stratégie de chargement des schémas d'outils pour tous les serveurs MCP. |
 | `tool_search_limit` | `usize` | `20` | Nombre maximal de résultats renvoyés par l'outil synthétique `tool_search`. |
+| `server_enabled` | `bool` | `false` | Si le démon accepte le pont MCP, `apollia-os mcp server`, qui sert à un client MCP les agents et workflows marqués exposés. |
 
 ### `[hooks]`
 

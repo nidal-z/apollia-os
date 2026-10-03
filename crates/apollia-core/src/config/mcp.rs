@@ -31,8 +31,10 @@ pub enum McpToolLoading {
 ///
 /// Controls the MCP-layer behaviors exposed by the runtime: the TTL of the HITL
 /// approvals persisted in SQLite, the tool loading strategy, and the
-/// `tool_search` result cap. Every field has a sane default via [`Default`].
-#[derive(Debug, Clone, Deserialize)]
+/// `tool_search` result cap, and whether Apollia may serve its exposed agents
+/// and workflows to an MCP client. Every field has a sane default via
+/// [`Default`].
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct McpConfig {
     /// Validity duration of MCP HITL approvals, in hours.
     ///
@@ -60,6 +62,15 @@ pub struct McpConfig {
     /// construction time.
     #[serde(default = "default_tool_search_limit")]
     pub tool_search_limit: usize,
+
+    /// Whether the daemon accepts the MCP bridge, `apollia-os mcp server`,
+    /// which serves the agents and workflows marked exposed to an MCP client.
+    ///
+    /// Off by default: the daemon refuses the bridge until the user turns it
+    /// on. Read again each time a bridge opens, so a change applies without a
+    /// restart.
+    #[serde(default)]
+    pub server_enabled: bool,
 }
 
 impl Default for McpConfig {
@@ -68,6 +79,7 @@ impl Default for McpConfig {
             approval_ttl_hours: default_approval_ttl_hours(),
             tool_loading: McpToolLoading::default(),
             tool_search_limit: default_tool_search_limit(),
+            server_enabled: false,
         }
     }
 }

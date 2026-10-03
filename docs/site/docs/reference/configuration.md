@@ -173,6 +173,7 @@ MCP client: tool loading and response limits.
 | `approval_ttl_hours` | `u64` | `24` | Validity duration of MCP HITL approvals, in hours. |
 | `tool_loading` | `McpToolLoading` | type default | Tool schema loading strategy for all MCP servers. |
 | `tool_search_limit` | `usize` | `20` | Maximum number of results returned by the `tool_search` synthetic tool. |
+| `server_enabled` | `bool` | `false` | Whether the daemon accepts the MCP bridge, `apollia-os mcp server`, which serves the agents and workflows marked exposed to an MCP client. |
 
 ### `[hooks]`
 
