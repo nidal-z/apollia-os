@@ -4,7 +4,8 @@
    *
    * Picks an icon/color from the event name, surfaces the human-readable
    * label via `eventLabelKey`, and exposes a "Voir les logs" link that
-   * jumps to the most-relevant page for follow-up.
+   * jumps to Observability, a developer screen: the link is there only with
+   * the developer mode on.
    */
   import { t, locale } from "svelte-i18n";
   import { AlertTriangle, XCircle, Zap, type Icon } from "lucide-svelte";
@@ -12,6 +13,7 @@
   import { eventLabelKey } from "$lib/notifications/event-labels";
   import { formatRelativeTime } from "$lib/utils";
   import { navigateTo } from "$lib/stores/navigation";
+  import { developerMode } from "$lib/stores/developerMode";
   import type { NotificationLogEntry } from "$lib/types";
 
   interface Props {
@@ -82,7 +84,9 @@
     {/if}
   </div>
 
-  <Button variant="outline" size="sm" onclick={handleSeeLogs}>
-    {$t("inbox.activity.see_logs")}
-  </Button>
+  {#if $developerMode}
+    <Button variant="outline" size="sm" onclick={handleSeeLogs} data-testid="activity-row-see-logs">
+      {$t("inbox.activity.see_logs")}
+    </Button>
+  {/if}
 </div>

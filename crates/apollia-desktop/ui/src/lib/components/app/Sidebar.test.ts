@@ -1,41 +1,96 @@
 import { describe, test, expect, vi } from "vitest";
+import { render as renderToString } from "svelte/server";
+import { locale, waitLocale } from "svelte-i18n";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async () => null) }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => {}) }));
 
-import { visiblePrimaryNav } from "./Sidebar.svelte";
+// The layout and theme stores read the browser storage at import; node has none.
+vi.hoisted(() => {
+  const map = new Map<string, string>();
+  globalThis.localStorage = {
+    getItem: (k: string) => map.get(k) ?? null,
+    setItem: (k: string, v: string) => void map.set(k, v),
+    removeItem: (k: string) => void map.delete(k),
+    clear: () => map.clear(),
+    key: () => null,
+    length: 0,
+  } as Storage;
+});
 
-// DOM rendering is exercised by the gestural E2E layer (vitest runs in `node`).
-// These tests lock which primary entries the sidebar shows for each value of
-// the developer mode.
+import "$lib/i18n";
+import Sidebar, { visibleDeveloperNav, visiblePrimaryNav } from "./Sidebar.svelte";
+import { developerMode } from "$lib/stores/developerMode";
+import { DEVELOPER_ROUTES } from "$lib/navigation/developerRoutes";
+
+// The entry lists are locked through the module helpers, and the placement of
+// the developer group through Svelte's server renderer, the only renderer the
+// node environment of this suite offers.
 
 function routes(developerMode: boolean): string[] {
   return visiblePrimaryNav(developerMode).map((entry) => entry.route);
 }
 
+function developerRoutes(developerMode: boolean): string[] {
+  return visibleDeveloperNav(developerMode).map((entry) => entry.route);
+}
+
+async function renderSidebar(on: boolean): Promise<string> {
+  locale.set("en");
+  await waitLocale("en");
+  developerMode.set(on);
+  return renderToString(Sidebar).body;
+}
+
 describe("Sidebar - primary entries and the developer mode", () => {
-  test("with the developer mode off, the AI screen is listed and Transcriptions is not", () => {
+  test("with the developer mode off, the AI screen is listed and no technical screen is", () => {
     // GIVEN the developer mode off
     const developerMode = false;
 
-    // WHEN the sidebar computes its primary entries
-    const shown = routes(developerMode);
+    // WHEN the sidebar computes its entries
+    const shown = [...routes(developerMode), ...developerRoutes(developerMode)];
 
-    // THEN the AI screen is there for every user, and Transcriptions is hidden
+    // THEN the AI screen is there for every user, Transcriptions and
+    // Observability are not
     expect(shown).toContain("llm");
     expect(shown).not.toContain("transcriptions");
+    expect(shown).not.toContain("observability");
   });
 
-  test("with the developer mode on, both the AI screen and Transcriptions are listed", () => {
-    // GIVEN the developer mode on
+  test("Observability and Transcriptions never sit among the primary entries", () => {
+    // GIVEN the developer mode on, where every primary entry is shown
     const developerMode = true;
 
     // WHEN the sidebar computes its primary entries
     const shown = routes(developerMode);
 
-    // THEN Transcriptions joins the AI screen, right after it
+    // THEN the two technical screens are not part of them
     expect(shown).toContain("llm");
-    expect(shown.indexOf("transcriptions")).toBe(shown.indexOf("llm") + 1);
+    expect(shown).not.toContain("observability");
+    expect(shown).not.toContain("transcriptions");
+  });
+
+  test("with the developer mode on, the developer group carries Transcriptions then Observability", () => {
+    // GIVEN the developer mode on
+    const developerMode = true;
+
+    // WHEN the sidebar computes its developer group
+    const group = developerRoutes(developerMode);
+
+    // THEN it holds the two technical screens, in that order, and exactly the
+    // routes the router keeps out of reach with the mode off
+    expect(group).toEqual(["transcriptions", "observability"]);
+    expect(group).toEqual([...DEVELOPER_ROUTES]);
+  });
+
+  test("the developer group holds no developer server entry", () => {
+    // GIVEN the developer mode on
+    // WHEN the developer group is computed
+    const group = developerRoutes(true);
+
+    // THEN the Developer screen is not one of its entries: it belongs to the
+    // primary rank
+    expect(group).not.toContain("developer");
   });
 
   test("the developer mode only adds entries, it never removes one", () => {
@@ -47,5 +102,37 @@ describe("Sidebar - primary entries and the developer mode", () => {
 
     // THEN every entry of the default sidebar is still there
     expect(off.every((route) => on.includes(route))).toBe(true);
+  });
+});
+
+describe("Sidebar - the rendered developer group", () => {
+  test("with the developer mode off, the group and its two entries are absent", async () => {
+    // GIVEN the developer mode off
+    // WHEN the sidebar is rendered
+    const html = await renderSidebar(false);
+
+    // THEN neither the group nor its entries are in the markup
+    expect(html).toContain('data-testid="nav-settings"');
+    expect(html).not.toContain('data-testid="sidebar-developer-group"');
+    expect(html).not.toContain('data-testid="nav-observability"');
+    expect(html).not.toContain('data-testid="nav-transcriptions"');
+  });
+
+  test("with the developer mode on, the group follows the secondary entries", async () => {
+    // GIVEN the developer mode on
+    // WHEN the sidebar is rendered
+    const html = await renderSidebar(true);
+
+    // THEN the group comes after Connections and Settings, and holds
+    // Transcriptions then Observability
+    const settings = html.indexOf('data-testid="nav-settings"');
+    const group = html.indexOf('data-testid="sidebar-developer-group"');
+    const transcriptions = html.indexOf('data-testid="nav-transcriptions"');
+    const observability = html.indexOf('data-testid="nav-observability"');
+    expect(settings).toBeGreaterThan(-1);
+    expect(group).toBeGreaterThan(settings);
+    expect(transcriptions).toBeGreaterThan(group);
+    expect(observability).toBeGreaterThan(transcriptions);
+    expect(html).toContain('aria-label="Developer mode"');
   });
 });

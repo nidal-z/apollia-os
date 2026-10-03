@@ -1,5 +1,5 @@
 {
-  "name": "stt-det (settings STT + transcriptions, operator + builder; seeded config + transcripts assert populated, mic + file-picker + delete drive to boundary only)",
+  "name": "stt-det (settings STT + transcriptions, developer mode off (settings, route unreachable) then on (transcriptions); seeded config + transcripts assert populated, mic + file-picker + delete drive to boundary only)",
   "stopOnError": false,
   "notes": [
     "The STT page saves through SettingsSubPage (route='stt', onSave): one shared footer (settings-subpage-footer / settings-subpage-save) and a toast (settings-save-toast-success). The page-local sticky bar and inline saved status are gone.",
@@ -11,9 +11,11 @@
     "transcribe-file-error-detail-toggle: handleTranscribeFile (TranscribeFileDialog.svelte:19-28) sets an inline error and RETURNS BEFORE the native picker when $sttStatus exists and model_loaded is false, the state stt-model-not-loaded asserts (Transcriptions.svelte:155). humanize keeps the Error message as detail, so the Disclosure renders and its header composes -toggle (Disclosure.svelte:75). Because stopOnError is false, a `plugin:dialog|open resolve null once` stub is armed right before the click as a safety net (a cancelled picker instead of a hung boot if the guard ever fails) and cleared right after so it cannot swallow a later section's picker. Keep this block out of any recipe that loads a real whisper model.",
     "chat-mic-button is played in chat-det.json, not here: dictation.toggle() (useComposerDictation.svelte.ts:59-77) calls start_tour_recording and stop_tour_recording with no getUserMedia in front, so both IPCs are answered by the harness and the cpal capture is never opened.",
     "The load-model picker is answered with the seed's whisper placeholder (ggml-base.bin), never with an LLM GGUF: measured on d1-stt, picking Phi-3-mini-Q4.gguf reached the saved configuration, the engine started on it, and the app stopped answering after the overlay was created.",
-    "stt-test-start and stt-test-stop are played on the settings SttTestCard through the harness: start_tour_recording resolves null (Result<(), String> in commands/stt.rs:976-990, so the real command would open a cpal capture, flow.rs:182-233, and needs an engine the placeholder ggml-base.bin cannot load), which flips recording and swaps the button's testid to stt-test-stop (SttTestCard.svelte:190); stop_tour_recording is rejected with a string, which the catch of toggle (SttTestCard.svelte:128-131) turns into an error toast and a return to stt-test-start, the only scripted end of course since stt-transcribed and stt-dictation-failed are Tauri events no stub can emit (stt-test-result and stt-test-failure stay unreachable). toggle awaits ensureMicPermission first (SttTestCard.svelte:121), a WebView getUserMedia that never throws and whose result is ignored; App.svelte:85-91 already primes it at boot because the seed enables STT, and wry 0.55.1 grants the WebView side (wry_web_view_ui_delegate.rs:126-136), so the click adds no prompt the boot did not already raise."
+    "stt-test-start and stt-test-stop are played on the settings SttTestCard through the harness: start_tour_recording resolves null (Result<(), String> in commands/stt.rs:976-990, so the real command would open a cpal capture, flow.rs:182-233, and needs an engine the placeholder ggml-base.bin cannot load), which flips recording and swaps the button's testid to stt-test-stop (SttTestCard.svelte:190); stop_tour_recording is rejected with a string, which the catch of toggle (SttTestCard.svelte:128-131) turns into an error toast and a return to stt-test-start, the only scripted end of course since stt-transcribed and stt-dictation-failed are Tauri events no stub can emit (stt-test-result and stt-test-failure stay unreachable). toggle awaits ensureMicPermission first (SttTestCard.svelte:121), a WebView getUserMedia that never throws and whose result is ignored; App.svelte:85-91 already primes it at boot because the seed enables STT, and wry 0.55.1 grants the WebView side (wry_web_view_ui_delegate.rs:126-136), so the click adds no prompt the boot did not already raise.",
+    "Transcriptions is a developer screen: with the developer mode off the router sends the route to the default one (Main.svelte reachableRoute), so the book asserts dashboard-page there and turns developer-mode-on before every visit; the STT settings stay reachable in both modes."
   ],
   "dynamicTestids": [
+    "nav-transcriptions",
     "settings-nav-developer",
     "settings-nav-stt"
   ],
@@ -471,6 +473,55 @@
     },
     {
       "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "transcriptions-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-transcriptions",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12d-mode-off-transcriptions-unreachable (the router lands on the default route)"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "transcriptions"
+    },
+    {
+      "kind": "waitFor",
       "testid": "transcriptions-page",
       "timeoutMs": 15000
     },
@@ -504,7 +555,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "13-transcriptions-operator"
+      "label": "13-transcriptions-developer"
     },
     {
       "kind": "waitFor",
@@ -671,32 +722,6 @@
     {
       "kind": "waitFor",
       "testid": "settings-page",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-on"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
       "timeoutMs": 15000
     },
     {
@@ -766,12 +791,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "transcriptions-page",
+      "testid": "dashboard-page",
       "timeoutMs": 15000
     },
     {
+      "kind": "waitGone",
+      "testid": "transcriptions-page",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "screenshot",
-      "label": "21-back-operator"
+      "label": "21-back-mode-off-redirected"
     }
   ]
 }

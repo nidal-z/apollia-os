@@ -2,13 +2,15 @@
   /**
    * "Activity" tab: runtime events (failures, degradations, LLM down) with a
    * filter chip row. Loading shows a skeleton, failure a humanized error box
-   * (never a swallowed empty list), and the empty state points to Observability.
+   * (never a swallowed empty list), and the empty state points to Observability
+   * when the developer mode is on, the only mode that reaches it.
    */
   import { t } from "svelte-i18n";
   import { Activity as ActivityIcon } from "lucide-svelte";
   import { FilterChipBar, EmptyState, SkeletonList } from "$lib/components/operator";
   import { Button } from "$lib/components/ui/button";
   import { navigateTo } from "$lib/stores/navigation";
+  import { developerMode } from "$lib/stores/developerMode";
   import ActivityRow from "./ActivityRow.svelte";
   import InboxErrorBox from "./InboxErrorBox.svelte";
   import type { ActivityFilter } from "./inboxModel";
@@ -39,6 +41,19 @@
   });
 </script>
 
+{#snippet observabilityCta()}
+  <Button
+    variant="ghost"
+    size="sm"
+    type="button"
+    class="text-primary underline-offset-2 hover:underline"
+    onclick={() => navigateTo("observability")}
+    data-testid="inbox-activity-empty-cta"
+  >
+    {$t("inbox.activity.empty_cta")}
+  </Button>
+{/snippet}
+
 <FilterChipBar
   chips={[
     { key: "all", label: $t("inbox.activity.filter.all") },
@@ -60,20 +75,13 @@
     </div>
   {:else if filtered.length === 0}
     <div class="py-10">
-      <EmptyState title={$t("inbox.activity.empty")} desc={$t("inbox.activity.empty_desc")} tone="success">
+      <EmptyState
+        title={$t("inbox.activity.empty")}
+        desc={$t("inbox.activity.empty_desc")}
+        tone="success"
+        action={$developerMode ? observabilityCta : undefined}
+      >
         {#snippet icon()}<ActivityIcon size={22} />{/snippet}
-        {#snippet action()}
-          <Button
-            variant="ghost"
-            size="sm"
-            type="button"
-            class="text-primary underline-offset-2 hover:underline"
-            onclick={() => navigateTo("observability")}
-            data-testid="inbox-activity-empty-cta"
-          >
-            {$t("inbox.activity.empty_cta")}
-          </Button>
-        {/snippet}
       </EmptyState>
     </div>
   {:else}
