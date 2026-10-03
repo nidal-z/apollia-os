@@ -123,6 +123,55 @@ pub(in crate::supervisor) fn load_trigger_definitions(
     Ok(defs)
 }
 
+/// The agent executor an agent without code runs on outside a conversation,
+/// when the runtime has both the executor and the task store.
+pub(in crate::supervisor) fn agent_launcher<B: ExecutionBackend + Clone>(
+    router: &TaskRouterHandle<B>,
+    chat: Option<&crate::chat::ChatSessionManagerHandle>,
+    repository: Option<&Arc<TaskRepository>>,
+    event_bus: &EventBusSender,
+    observability: &apollia_core::ObservabilityConfig,
+) -> Option<crate::agents::task::AgentTaskLauncher<B>> {
+    match (chat, repository) {
+        (Some(chat), Some(repo)) => Some(crate::agents::task::AgentTaskLauncher {
+            router: router.clone(),
+            chat: chat.clone(),
+            repository: Some(repo.clone()),
+            event_bus: event_bus.clone(),
+            observability: observability.clone(),
+        }),
+        _ => None,
+    }
+}
+
+/// Starts the trigger engine on `definitions`, starting their targets
+/// through `targets` and recording each fire in the history under the data
+/// directory, then announces how many are active.
+pub(in crate::supervisor) async fn start_trigger_engine<B>(
+    definitions: Vec<apollia_triggers::TriggerDefinition>,
+    targets: crate::trigger_targets::TriggerTargets<B>,
+    event_bus: &EventBusSender,
+    config: &SupervisorConfig,
+) -> TriggerEngineHandle
+where
+    B: ExecutionBackend + Clone + Send + Sync + 'static,
+{
+    let enabled_count = definitions.iter().filter(|t| t.enabled).count();
+    let engine = TriggerEngineHandle::spawn(
+        definitions,
+        targets,
+        event_bus.clone(),
+        super::persistence::open_trigger_persistence(&config.data_dir),
+        config.obs_config.clone(),
+    )
+    .await;
+    tracing::info!(active = enabled_count, "trigger.engine.started");
+    let _ = event_bus.send(RuntimeEvent::TriggersReloaded {
+        count: enabled_count,
+    });
+    engine
+}
+
 /// One-shot migration of MCP servers from `mcp.toml` into `mcp.db` when the
 /// database is empty. No-op when the DB already has servers or the TOML is
 /// absent/empty. Errors are logged, never fatal.

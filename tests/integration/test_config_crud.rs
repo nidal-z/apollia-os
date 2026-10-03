@@ -639,6 +639,8 @@ async fn test_boot_with_prepopulated_db() {
         let row = TriggerDefinitionRow {
             id: "pre-existing-trigger".into(),
             agent: Some("hello-agent".into()),
+            workflow: None,
+            workflow_inputs: None,
             enabled: true,
             on_busy: OnBusy::Queue,
             source_type: "interval".into(),

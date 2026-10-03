@@ -11,11 +11,18 @@
    * When the runtime holds no definition for an agent, the sheet falls back
    * on what the agent's code declares (description, examples, tools), so an
    * agent installed before definitions existed still reads.
+   *
+   * While the adjustment session the pane hands over is active, the mission,
+   * the model, the accesses and the sources become editable on the same page;
+   * a section whose value is the user's rather than the package's is marked.
    */
   import { t } from "svelte-i18n";
   import { llmBackends } from "$lib/stores/llm";
   import { describeTool, toolKindTag } from "$lib/ipc/tools";
   import { listTasks } from "$lib/ipc/tasks";
+  import { listTools } from "$lib/ipc/tools";
+  import { listMcpExposable } from "$lib/ipc/mcpServer";
+  import { listModelPresets } from "$lib/ipc/agentAdjust";
   import {
     getAgentDefinition,
     getAgentModelFallback,
@@ -33,6 +40,20 @@
   import SheetActivity from "./SheetActivity.svelte";
   import SheetMemory from "./SheetMemory.svelte";
   import SheetTechnical from "./SheetTechnical.svelte";
+  import AdjustMission from "./AdjustMission.svelte";
+  import AdjustModel from "./AdjustModel.svelte";
+  import AdjustAccess from "./AdjustAccess.svelte";
+  import AdjustSources from "./AdjustSources.svelte";
+  import type { AgentAdjust } from "./useAgentAdjust.svelte";
+  import {
+    grantCandidates,
+    isOverridden,
+    listedAccesses,
+    modelOptions,
+    type GrantCandidate,
+    type MarkedField,
+    type PresetOffer,
+  } from "./agentAdjust";
   import {
     accessView,
     changeViews,
@@ -54,9 +75,11 @@
     /** Memory namespace of the agent, `null` when it keeps none of its own. */
     memoryNamespace: string | null;
     onOpenLogs: (agentId: string) => void;
+    /** The adjustment session of the pane, `null` when the sheet is read only. */
+    adjust?: AgentAdjust | null;
   }
 
-  let { definitionId, agent, memoryNamespace, onOpenLogs }: Props = $props();
+  let { definitionId, agent, memoryNamespace, onOpenLogs, adjust = null }: Props = $props();
 
   const RECENT_RUNS = 10;
 
@@ -74,6 +97,7 @@
   const runsGuard = createIdentityGuard(() => runtimeId);
 
   $effect(() => {
+    void adjust?.revision;
     void loadDefinition(definitionId, agent);
   });
 
@@ -155,6 +179,60 @@
   const sources = $derived(sourceViews(resolved?.sources ?? []));
   const changeRows = $derived(changeViews(changes));
 
+  // ── Adjustment ──────────────────────────────────────────────────────
+  const adjusting = $derived(adjust !== null && adjust.active && adjust.draft !== null);
+  let presets = $state<PresetOffer[]>([]);
+  let extraAccesses = $state<AccessView[]>([]);
+
+  $effect(() => {
+    if (!adjusting) return;
+    let live = true;
+    void listModelPresets()
+      .then((list) => {
+        if (live) presets = list;
+      })
+      .catch(() => {
+        if (live) presets = [];
+      });
+    return () => {
+      live = false;
+    };
+  });
+
+  $effect(() => {
+    const draftAccess = adjust?.draft?.access ?? [];
+    const known = new Set([...accesses, ...extraAccesses].map((a) => a.id));
+    const missing = draftAccess.filter((id) => !known.has(id));
+    if (missing.length === 0) return;
+    let live = true;
+    void Promise.all(missing.map((id) => describeAccess(id))).then((views) => {
+      if (live) extraAccesses = [...extraAccesses, ...views];
+    });
+    return () => {
+      live = false;
+    };
+  });
+
+  const adjustGroups = $derived.by(() => {
+    if (!adjust?.draft || !adjust.base) return [];
+    const byId = new Map([...accesses, ...extraAccesses].map((a) => [a.id, a]));
+    const ids = listedAccesses(adjust.base.access, adjust.draft.access);
+    return groupAccesses(ids.map((id) => byId.get(id) ?? accessView(id, null)));
+  });
+
+  function marked(field: MarkedField): boolean {
+    if (adjusting && adjust) return isOverridden(adjust.base, field) || adjust.changed.has(field);
+    return isOverridden(resolved, field);
+  }
+
+  async function loadCandidates(): Promise<GrantCandidate[]> {
+    const [tools, targets] = await Promise.all([
+      listTools().catch(() => []),
+      listMcpExposable().catch(() => []),
+    ]);
+    return grantCandidates(tools, targets, adjust?.draft?.access ?? [], definitionId);
+  }
+
   function accessLabel(accessId: string): string {
     const known = accesses.find((a) => a.id === accessId);
     return known ? (known.permits ?? known.label) : readableName(accessId);
@@ -162,10 +240,23 @@
 </script>
 
 <div class="max-w-3xl space-y-6" data-testid="agent-sheet" data-agent={definitionId} aria-label={$t("agent_sheet.label")}>
-  <SheetMission view={mission} />
-  <SheetModel view={model} fallback={notice} />
-  <SheetAccess {groups} loading={accessLoading} />
-  <SheetSources {sources} />
+  {#if adjusting && adjust?.draft && adjust.base}
+    <AdjustMission draft={adjust.draft} modified={marked("mission") || marked("examples")} />
+    <AdjustModel draft={adjust.draft} options={modelOptions($llmBackends)} {presets} modified={marked("model")} />
+    <AdjustAccess
+      draft={adjust.draft}
+      groups={adjustGroups}
+      inForce={adjust.base.access}
+      modified={marked("access")}
+      {loadCandidates}
+    />
+    <AdjustSources draft={adjust.draft} inForce={adjust.base.sources} modified={marked("sources")} />
+  {:else}
+    <SheetMission view={mission} modified={marked("mission") || marked("examples")} />
+    <SheetModel view={model} fallback={notice} modified={marked("model")} />
+    <SheetAccess {groups} loading={accessLoading} modified={marked("access")} />
+    <SheetSources {sources} modified={marked("sources")} />
+  {/if}
   <SheetActivity
     {runs}
     {runsLoading}

@@ -21,6 +21,7 @@
   import { developerMode } from "$lib/stores/developerMode";
   import { openLogsDir } from "$lib/ipc/app";
   import { addToast } from "$lib/components/ui/toast";
+  import ModelsBlock from "../../components/settings/general/ModelsBlock.svelte";
   import {
     UPDATE_CHANNELS,
     hydrateUpdateChannel,
@@ -201,6 +202,8 @@
       {/snippet}
     </SettingsFieldRow>
   </SettingsSection>
+  <!-- Models: folder and Hugging Face token -->
+  <ModelsBlock />
 
   <!-- Application -->
   <SettingsSection

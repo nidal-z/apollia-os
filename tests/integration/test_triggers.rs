@@ -16,8 +16,8 @@ use std::time::Duration;
 
 use apollia_core::{AIPInput, EventBusSender, ObservabilityConfig, RuntimeEvent, TaskId};
 use apollia_triggers::{
-    FileEventKind, InputTemplate, OnBusyPolicy, TaskSubmitter, TriggerDefinition,
-    TriggerEngineHandle, TriggerSourceConfig,
+    FileEventKind, OnBusyPolicy, TaskSubmitter, TriggerDefinition, TriggerEngineHandle,
+    TriggerSourceConfig,
 };
 use tempfile::TempDir;
 
@@ -88,13 +88,12 @@ fn make_bus() -> EventBusSender {
 fn interval_def(id: &str, every: &str, on_busy: OnBusyPolicy) -> TriggerDefinition {
     TriggerDefinition {
         id: id.into(),
-        agent: "test-agent".into(),
+        target: apollia_triggers::TriggerTarget::agent("test-agent", "tick at {{fired_at}}"),
         enabled: true,
         on_busy,
         source: TriggerSourceConfig::Interval {
             every: every.into(),
         },
-        input_template: InputTemplate("tick at {{fired_at}}".into()),
     }
 }
 
@@ -142,7 +141,7 @@ async fn test_ac2_file_watch_create_submits_task() {
     let bus_tx = make_bus();
     let def = TriggerDefinition {
         id: "watch-test".into(),
-        agent: "test-agent".into(),
+        target: apollia_triggers::TriggerTarget::agent("test-agent", "file: {{filename}}"),
         enabled: true,
         on_busy: OnBusyPolicy::Queue { max_depth: 16 },
         source: TriggerSourceConfig::FileWatch {
@@ -152,7 +151,6 @@ async fn test_ac2_file_watch_create_submits_task() {
             follow_symlinks: false,
             exclude_patterns: vec![],
         },
-        input_template: InputTemplate("file: {{filename}}".into()),
     };
     let _handle = TriggerEngineHandle::spawn(
         vec![def],

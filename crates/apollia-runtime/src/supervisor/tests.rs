@@ -777,6 +777,8 @@ async fn test_trigger_engine_loads_from_sqlite() {
     repo.insert(&TriggerDefinitionRow {
         id: "test-trigger".into(),
         agent: Some("test-agent".into()),
+        workflow: None,
+        workflow_inputs: None,
         enabled: true,
         on_busy: apollia_triggers::OnBusy::Queue,
         source_type: "cron".into(),

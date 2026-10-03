@@ -11,15 +11,18 @@
 
   interface Props {
     sources: SourceView[];
+    /** Whether the value shown is the user's rather than the package's. */
+    modified?: boolean;
   }
 
-  let { sources }: Props = $props();
+  let { sources, modified = false }: Props = $props();
 </script>
 
 <SheetSection
   title={$t("agent_sheet.sources_title")}
   legend={$t("agent_sheet.sources_legend")}
   testid="agent-sheet-sources"
+  {modified}
 >
   {#if sources.length === 0}
     <p class="m-0 text-body-xs italic text-muted-foreground" data-testid="agent-sheet-sources-empty">

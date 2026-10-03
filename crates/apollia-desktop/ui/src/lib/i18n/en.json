@@ -816,30 +816,6 @@
     "tools_word": "tools",
     "loading_assistants": "Loading assistants…",
     "detail_empty_title": "No assistant selected",
-    "chat_config": {
-      "saved_toast": "Configuration saved",
-      "kind_native": "Native",
-      "personality_title": "Personality",
-      "personality_hint": "The tone, style, and instructions the assistant follows in every conversation.",
-      "personality_empty_hint": "Leave empty to keep the standard behavior.",
-      "tools_title": "Allowed tools",
-      "tools_selected_count": "{count, plural, one {# selected} other {# selected}}",
-      "tools_hint": "Check the tools Apollia Chat may use without asking for confirmation on each call.",
-      "tools_select_all": "Select all",
-      "tools_select_none": "Clear all",
-      "tools_filter_placeholder": "Filter by name or description",
-      "tools_loading": "Loading tools…",
-      "tools_empty": "No tools available in this runtime.",
-      "tools_no_match": "No tool matches « {toolFilter} ».",
-      "model_title": "Model",
-      "model_hint": "Choose which model Apollia Chat should use.",
-      "model_default": "Default model",
-      "model_default_with_backend": "Default model ({name} - {model})",
-      "model_default_suffix": "(default)",
-      "model_empty": "No model configured. Add one in Settings › Models.",
-      "revert": "Discard changes",
-      "personality_placeholder": "e.g. You are Apollia, a concise, pragmatic local assistant. You answer in the user's language, ask a question when something is ambiguous, and favor short answers."
-    },
     "updating": "Updating...",
     "update_hint": "Replace this agent's Python file, keep its settings, and restart it if it is running",
     "update_success": "{name} updated to v{version}. The new version will load the next time it starts.",
@@ -850,7 +826,8 @@
     "update_restart_stop_failed": "The new file is installed, but {name} could not be stopped: it is still running the previous version.",
     "update_restart_stop_failed_action": "Stop the agent, then start it again to load the new version.",
     "update_restart_start_failed": "{name} was stopped to load the new version and did not start again: it is running nothing right now.",
-    "update_restart_start_failed_action": "Start the agent again from its row. The cause below says what the runtime refused."
+    "update_restart_start_failed_action": "Start the agent again from its row. The cause below says what the runtime refused.",
+    "automate": "Automate"
   },
   "tasks": {
     "subtitle": "Track requests sent to your assistants and their results",
@@ -1200,7 +1177,7 @@
     "title": "Automations",
     "delete": "Delete",
     "col_automation": "Automation",
-    "col_assistant": "Assistant",
+    "col_assistant": "Target",
     "col_next_run": "Next run",
     "col_status": "Status",
     "col_last_run": "Last run",
@@ -1424,7 +1401,15 @@
       "fri": "Fri",
       "sat": "Sat",
       "sun": "Sun"
-    }
+    },
+    "workflow_label": "Workflow",
+    "prefilled_hint": "Prefilled from the sheet: the target is set.",
+    "field_workflow_inputs": "Workflow inputs",
+    "workflow_no_inputs": "This workflow takes no input.",
+    "field_workflow_input_required": "This input is required.",
+    "field_message": "Message to the agent",
+    "field_message_hint": "May include the time of the run, the file or the content received.",
+    "automate_title": "Automate \"{name}\""
   },
   "memory": {
     "empty_title": "No memory data",
@@ -2662,10 +2647,7 @@
         "delete_title": "Delete model?",
         "delete_message": "Permanently delete ''{name}'' from disk? This cannot be undone.",
         "deleted_toast": "Model ''{name}'' deleted",
-        "help": "Files present in your local models directory.",
-        "dest_dir_default": "New downloads go to ~/.apollia/models",
-        "dest_dir_custom": "New downloads go to {path}",
-        "dest_dir_change": "Change…"
+        "help": "Files present in your local models directory."
       },
       "hardware": {
         "label": "Your hardware",
@@ -2687,12 +2669,10 @@
         "failed_toast": "Download failed. Free up space or check your connection, then retry."
       },
       "token": {
-        "label": "HuggingFace token (gated models)",
-        "description": "This model requires accepting its license on HuggingFace. Generate a token at",
-        "done": "Done",
         "title_button": "Configure HuggingFace token",
         "set": "Token set",
-        "btn": "Token"
+        "btn": "Token",
+        "needed": "This model is gated: save a Hugging Face token in Settings > General, then start the download again."
       },
       "search": {
         "placeholder": "Search GGUF models (e.g. qwen3, llama3, mistral)…",
@@ -3174,7 +3154,23 @@
       "report_hint": "Opens the reporting page in your browser. Your diagnostics stay on this machine unless you attach them.",
       "behaviours_title": "Behaviour",
       "downloads_open_label": "Open the downloads panel when a download starts",
-      "downloads_open_hint": "The panel opens under the downloads icon of the top bar."
+      "downloads_open_hint": "The panel opens under the downloads icon of the top bar.",
+      "models_title": "Models",
+      "models_dir_label": "Models folder",
+      "models_dir_hint": "Where models are downloaded and looked up. Changing the folder does not move the models already downloaded.",
+      "models_dir_change": "Change",
+      "models_dir_unknown": "Unknown folder",
+      "models_dir_changed_toast": "Models folder changed. The models already downloaded stay in the previous folder.",
+      "hf_token_label": "Hugging Face token",
+      "hf_token_hint": "Needed to download a gated model. Kept in the secret store of this computer.",
+      "hf_token_link": "Create a token on the Hugging Face tokens page",
+      "hf_token_show": "Show",
+      "hf_token_hide": "Hide",
+      "hf_token_save": "Save",
+      "hf_token_clear": "Clear",
+      "hf_token_unsaved": "Token typed, not saved yet",
+      "hf_token_saved_toast": "Hugging Face token saved.",
+      "hf_token_cleared_toast": "Hugging Face token cleared."
     },
     "chat": {
       "subtitle": "How conversations behave, and the keyboard shortcuts.",
@@ -4344,7 +4340,6 @@
     "label": "Agent sheet",
     "apollia_meta": "Agent built into Apollia: it follows the version of the application, with no export and no uninstall.",
     "adjust": "Adjust",
-    "adjust_close": "Close adjustment",
     "mission_title": "Mission and examples",
     "mission_legend": "What the agent does, and requests it answers.",
     "mission_empty": "No mission written for this agent.",
@@ -4418,6 +4413,7 @@
     "field_sources": "the sources",
     "field_autonomy": "the autonomy",
     "field_profile": "the profile",
+    "field_model": "the model",
     "memory_title": "Memory",
     "memory_legend": "What the agent retained. You can read it, search it and erase it.",
     "memory_none": "This agent keeps no memory of its own.",
@@ -4440,5 +4436,41 @@
     "technical_origin": "Origin",
     "technical_autonomy": "Autonomy",
     "technical_overridden": "Overridden fields"
+  },
+  "agent_adjust": {
+    "modified": "Modified",
+    "pending": "{count, plural, =0 {Adjusting} one {Adjusting · 1 change} other {Adjusting · # changes}}",
+    "reset": "Back to defaults",
+    "reset_title": "Back to defaults?",
+    "reset_message": "Every override saved for this agent is erased, its chosen model too, and the changes in progress are dropped. The agent takes back the settings of its package; the change is noted in the Journal. To drop only the changes in progress, choose Cancel.",
+    "reset_done": "The agent took back the settings of its package",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Settings of the agent saved",
+    "save_failed": "The settings of the agent could not be saved",
+    "mission_label": "Mission",
+    "mission_placeholder": "What the agent does, in a few sentences",
+    "example_label": "Example {n}",
+    "example_add": "Add an example",
+    "example_remove": "Remove this example",
+    "model_legend": "The model chosen for this agent, and its preset",
+    "model_label": "Model",
+    "model_default": "Default model of this computer",
+    "model_option_local": "{name} · on this computer",
+    "model_option_server": "{name} · on a server",
+    "preset_label": "Preset",
+    "preset_default": "Default preset of the model",
+    "access_legend": "Grant or revoke, family by family; each change is noted in the Journal",
+    "sources_legend": "Check what the agent consults; the profile is read only when checked",
+    "grant_open": "Grant a tool, an agent or a workflow",
+    "grant_title": "Grant a tool, an agent or a workflow",
+    "grant_legend": "Each access is filed in its family and follows its approval rule. An agent or a workflow granted takes on part of the work.",
+    "grant_search": "Search a tool, an agent or a workflow",
+    "grant_empty": "Nothing to grant here",
+    "grant_already": "Already granted",
+    "grant_confirm": "{count, plural, =0 {Grant} one {Grant 1 more access} other {Grant # more accesses}}",
+    "grant_group_tools": "Tools",
+    "grant_group_agents": "Agents",
+    "grant_group_workflows": "Workflows"
   }
 }
