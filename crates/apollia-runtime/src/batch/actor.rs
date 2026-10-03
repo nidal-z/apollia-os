@@ -343,9 +343,15 @@ impl<R: ItemRunner> BatchActor<R> {
                     access: access.clone(),
                 });
         }
+        // An item that waits is recorded with the access it reached for, in
+        // the one form the list of decisions reads back.
+        let output = match &end.awaiting {
+            Some(access) if end.status == ItemStatus::Awaiting => super::awaiting_output(access),
+            _ => end.output.clone(),
+        };
         let counted = self
             .repository
-            .finish_batch_item(batch_id, rank, end.status.as_str(), &end.output)
+            .finish_batch_item(batch_id, rank, end.status.as_str(), &output)
             .await;
         match counted {
             Ok(batch) if batch.failed > u64::from(batch.max_failures) => {

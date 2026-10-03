@@ -3396,6 +3396,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pending-decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/pending-decisions`: every decision waiting for the user. */
+        get: operations["list_pending_decisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pending-decisions/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/pending-decisions/decide`: answer one waiting decision.
+         * @description The answer goes through the call that answers the item where it was born,
+         *     so the conversation, the task or the batch item goes on as if it had been
+         *     answered there. After `always` on a batch item, every waiting item of the
+         *     same agent the consent covers runs again.
+         */
+        post: operations["decide_pending"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/permissions/proposals": {
         parameters: {
             query?: never;
@@ -6220,6 +6260,36 @@ export interface components {
             /** @description Per-day/backend cost entries. */
             entries: components["schemas"]["DailyCostEntry"][];
         };
+        /** @description Body of `POST /api/v1/pending-decisions/decide`. */
+        DecideRequest: {
+            /** @description One of the answers the item takes. */
+            answer: components["schemas"]["PendingAnswer"];
+            /** @description The answers to a question, one per question, matched by its `id`. */
+            answers?: Record<string, never>[] | null;
+            /** @description The `id` of the item, as listed. */
+            id: string;
+            /** @description Why, for a refusal; handed to the agent. */
+            reason?: string | null;
+            /**
+             * @description The answer to the typed question of a paused task: a proposition id,
+             *     free text when it allows it, or a value.
+             */
+            value?: Record<string, never> | null;
+        };
+        /** @description What a decision did. */
+        DecideResponse: {
+            /** @description The answer applied. */
+            answer: components["schemas"]["PendingAnswer"];
+            /** @description The item answered. */
+            id: string;
+            /** @description What happened, to show the user. */
+            message: string;
+            /**
+             * Format: int64
+             * @description How many waiting runs, conversations or items went on.
+             */
+            resumed: number;
+        };
         /** @description The default model of the machine. */
         DefaultModelResponse: {
             /** @description Name of the backend that holds the default, the name the router routes by. */
@@ -7525,6 +7595,11 @@ export interface components {
             known_agents?: string[];
         };
         /**
+         * @description An answer a decision takes.
+         * @enum {string}
+         */
+        PendingAnswer: "once" | "always" | "refuse" | "answer";
+        /**
          * @description One pending HITL approval entry.
          *
          *     Carries the same pause as a `GET /api/v1/tasks?status=input_required` item,
@@ -7543,6 +7618,76 @@ export interface components {
             skill_id?: string | null;
             suspended_at: string;
             task_id: string;
+        };
+        /** @description One decision waiting for the user. */
+        PendingDecision: {
+            /** @description The tool or the access asked for, for a consent and a batch item. */
+            access?: string | null;
+            /** @description The agent that waits, when known. */
+            agentId?: string | null;
+            /** @description A free answer is taken besides the proposed choices. */
+            allowOther: boolean;
+            /** @description The answers it takes. */
+            answers: components["schemas"]["PendingAnswer"][];
+            /** @description When it was asked, RFC 3339, when known. */
+            askedAt?: string | null;
+            /**
+             * @description Its action family (`read_personal`, `write_or_delete`, `send_external`,
+             *     `execute_code`, `unclassified`), when known.
+             */
+            family?: string | null;
+            /** @description Identifier to answer it by, stable while it waits. */
+            id: string;
+            /** @description Where it comes from. */
+            kind: components["schemas"]["PendingKind"];
+            /** @description Where it was born. */
+            origin: components["schemas"]["PendingOrigin"];
+            /**
+             * @description The questions of a question, each with its proposed choices, or the
+             *     typed payload of a paused task.
+             */
+            questions?: Record<string, never> | null;
+            /** @description What is asked, in a sentence. */
+            summary: string;
+        };
+        /** @description The decisions waiting for the user. */
+        PendingDecisionList: {
+            items: components["schemas"]["PendingDecision"][];
+        };
+        /** @description Error body of these routes. */
+        PendingErrorBody: {
+            /**
+             * @description A stable code: `UNKNOWN_ITEM`, `ANSWER_NOT_OFFERED`, `INVALID_ANSWER`,
+             *     `UNAVAILABLE`, or the code of the call the decision went through.
+             */
+            code: string;
+            /** @description What went wrong. */
+            error: string;
+        };
+        /**
+         * @description Where a decision waiting for the user comes from.
+         * @enum {string}
+         */
+        PendingKind: "consent" | "task_pause" | "batch_item" | "question";
+        /** @description Where the decision is to be found where it was born. */
+        PendingOrigin: {
+            /** @description The batch of an item. */
+            batchId?: string | null;
+            /** @description The message whose turn asked. */
+            messageId?: string | null;
+            /**
+             * Format: int64
+             * @description Position of the item in its source, from 0.
+             */
+            rank?: number | null;
+            /** @description The `ask_user` request of a question. */
+            requestId?: string | null;
+            /** @description The conversation, for a consent or a question asked in one. */
+            sessionId?: string | null;
+            /** @description The paused task. */
+            taskId?: string | null;
+            /** @description The tool call a consent is about. */
+            toolCallId?: string | null;
         };
         /** @description Snapshot of a pending `ask_user` request, safe to send across the IPC boundary. */
         PendingUserInputView: {
@@ -17165,6 +17310,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
+    list_pending_decisions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The decisions waiting for the user, empty when none */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingDecisionList"];
+                };
+            };
+        };
+    };
+    decide_pending: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideRequest"];
+            };
+        };
+        responses: {
+            /** @description The decision was applied */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecideResponse"];
+                };
+            };
+            /** @description No such item waits */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingErrorBody"];
+                };
+            };
+            /** @description The item can no longer take this answer */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingErrorBody"];
+                };
+            };
+            /** @description The item does not take this answer, or the answer is malformed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingErrorBody"];
+                };
+            };
+            /** @description The subsystem the item belongs to is not running */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingErrorBody"];
                 };
             };
         };

@@ -403,3 +403,17 @@ fn test_item_message_lists_the_fields() {
     // THEN
     assert_eq!(message, "client: Durand\nrequest: Refund order 12");
 }
+
+#[test]
+fn test_the_access_an_item_waits_for_is_read_back_from_its_output() {
+    // GIVEN the output an item that waits for a connector tool is recorded with
+    let output = awaiting_output("conn:google:ada@example.com/send_email");
+
+    // WHEN the access is read back from it, and from outputs it did not write
+    let read = awaited_access(&output);
+
+    // THEN the access comes back whole, and nothing comes from anything else
+    assert_eq!(read, Some("conn:google:ada@example.com/send_email"));
+    assert_eq!(awaited_access("sent"), None);
+    assert_eq!(awaited_access(&awaiting_output("")), None);
+}

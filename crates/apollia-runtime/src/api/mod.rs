@@ -38,6 +38,7 @@ pub mod routes_oauth_clients;
 pub mod routes_observability;
 pub mod routes_onboarding;
 pub mod routes_packages;
+pub mod routes_pending;
 pub mod routes_permissions;
 pub mod routes_plan_cache;
 pub mod routes_profile;

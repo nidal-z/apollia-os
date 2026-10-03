@@ -12,8 +12,8 @@ use apollia_core::RunId;
 mod approvals;
 
 pub use approvals::{
-    AlwaysAcceptScope, ApprovalTimeoutParams, FsHitlDecision, PendingChatApprovals,
-    PendingFilesystemApprovals,
+    AlwaysAcceptScope, ApprovalTimeoutParams, ChatApprovalAsked, FsHitlDecision,
+    PendingChatApprovals, PendingFilesystemApprovals,
 };
 
 /// Alias for a chat session identifier (UUID v4 string).

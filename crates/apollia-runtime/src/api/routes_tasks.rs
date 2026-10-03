@@ -545,6 +545,17 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(body): Json<ResumeRequest>,
 ) -> Result<Json<ResumeResponse>, (StatusCode, Json<ResumeErrorBody>)> {
+    resume_paused_task(&state, task_id, body).await.map(Json)
+}
+
+/// Answer the pause of `task_id` and let its run go on: the one call behind
+/// `POST /api/v1/tasks/{id}/resume` and behind a decision taken from the list
+/// of decisions waiting for the user.
+pub(crate) async fn resume_paused_task<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    task_id: String,
+    body: ResumeRequest,
+) -> Result<ResumeResponse, (StatusCode, Json<ResumeErrorBody>)> {
     // Check that the TaskRepository is available.
     let repo = match state.task_repository.as_ref() {
         Some(r) => r,
@@ -662,11 +673,11 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
         }
     }
 
-    Ok(Json(ResumeResponse {
+    Ok(ResumeResponse {
         task_id,
         approved: body.approved,
         status: "working".into(),
-    }))
+    })
 }
 
 // Plan gate decision, POST /api/v1/tasks/{id}/plan-decision

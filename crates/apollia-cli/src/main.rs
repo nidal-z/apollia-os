@@ -324,6 +324,13 @@ enum Commands {
     /// Automated code or plan review via the apollia-review agent.
     Review(commands::review::ReviewArgs),
 
+    /// The decisions waiting for you (pending).
+    Approvals {
+        /// Approvals subcommand.
+        #[command(subcommand)]
+        command: commands::approvals::ApprovalsCommand,
+    },
+
     /// Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry, export).
     Batch {
         /// Batch subcommand.
@@ -732,6 +739,9 @@ fn main() {
             }
             Commands::Policy { command } => commands::policy::run(&command, json),
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
+            Commands::Approvals { command } => {
+                commands::approvals::run(&command, cli.socket, json).await
+            }
             Commands::Batch { command } => commands::batch::run(&command, cli.socket, json).await,
             Commands::Workflow { command } => {
                 commands::workflow::run(&command, cli.socket, json).await

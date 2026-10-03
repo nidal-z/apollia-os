@@ -9831,6 +9831,99 @@
         }
       }
     },
+    "/api/v1/pending-decisions": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/pending-decisions`: every decision waiting for the user.",
+        "operationId": "list_pending_decisions",
+        "responses": {
+          "200": {
+            "description": "The decisions waiting for the user, empty when none",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingDecisionList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pending-decisions/decide": {
+      "post": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`POST /api/v1/pending-decisions/decide`: answer one waiting decision.",
+        "description": "The answer goes through the call that answers the item where it was born,\nso the conversation, the task or the batch item goes on as if it had been\nanswered there. After `always` on a batch item, every waiting item of the\nsame agent the consent covers runs again.",
+        "operationId": "decide_pending",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The decision was applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecideResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such item waits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The item can no longer take this answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The item does not take this answer, or the answer is malformed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The subsystem the item belongs to is not running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/permissions/proposals": {
       "get": {
         "tags": [
@@ -17464,6 +17557,78 @@
           }
         }
       },
+      "DecideRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/pending-decisions/decide`.",
+        "required": [
+          "id",
+          "answer"
+        ],
+        "properties": {
+          "answer": {
+            "$ref": "#/components/schemas/PendingAnswer",
+            "description": "One of the answers the item takes."
+          },
+          "answers": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object"
+            },
+            "description": "The answers to a question, one per question, matched by its `id`."
+          },
+          "id": {
+            "type": "string",
+            "description": "The `id` of the item, as listed."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why, for a refusal; handed to the agent."
+          },
+          "value": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The answer to the typed question of a paused task: a proposition id,\nfree text when it allows it, or a value."
+          }
+        }
+      },
+      "DecideResponse": {
+        "type": "object",
+        "description": "What a decision did.",
+        "required": [
+          "id",
+          "answer",
+          "resumed",
+          "message"
+        ],
+        "properties": {
+          "answer": {
+            "$ref": "#/components/schemas/PendingAnswer",
+            "description": "The answer applied."
+          },
+          "id": {
+            "type": "string",
+            "description": "The item answered."
+          },
+          "message": {
+            "type": "string",
+            "description": "What happened, to show the user."
+          },
+          "resumed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many waiting runs, conversations or items went on.",
+            "minimum": 0
+          }
+        }
+      },
       "DefaultModelResponse": {
         "type": "object",
         "description": "The default model of the machine.",
@@ -20578,6 +20743,16 @@
           }
         }
       },
+      "PendingAnswer": {
+        "type": "string",
+        "description": "An answer a decision takes.",
+        "enum": [
+          "once",
+          "always",
+          "refuse",
+          "answer"
+        ]
+      },
       "PendingApprovalResponse": {
         "type": "object",
         "description": "One pending HITL approval entry.\n\nCarries the same pause as a `GET /api/v1/tasks?status=input_required` item,\ntyped payload included, so a card can be drawn from either list.",
@@ -20619,6 +20794,182 @@
           },
           "task_id": {
             "type": "string"
+          }
+        }
+      },
+      "PendingDecision": {
+        "type": "object",
+        "description": "One decision waiting for the user.",
+        "required": [
+          "id",
+          "kind",
+          "summary",
+          "answers",
+          "allowOther",
+          "origin"
+        ],
+        "properties": {
+          "access": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The tool or the access asked for, for a consent and a batch item."
+          },
+          "agentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent that waits, when known."
+          },
+          "allowOther": {
+            "type": "boolean",
+            "description": "A free answer is taken besides the proposed choices."
+          },
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingAnswer"
+            },
+            "description": "The answers it takes."
+          },
+          "askedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When it was asked, RFC 3339, when known."
+          },
+          "family": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its action family (`read_personal`, `write_or_delete`, `send_external`,\n`execute_code`, `unclassified`), when known."
+          },
+          "id": {
+            "type": "string",
+            "description": "Identifier to answer it by, stable while it waits."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PendingKind",
+            "description": "Where it comes from."
+          },
+          "origin": {
+            "$ref": "#/components/schemas/PendingOrigin",
+            "description": "Where it was born."
+          },
+          "questions": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The questions of a question, each with its proposed choices, or the\ntyped payload of a paused task."
+          },
+          "summary": {
+            "type": "string",
+            "description": "What is asked, in a sentence."
+          }
+        }
+      },
+      "PendingDecisionList": {
+        "type": "object",
+        "description": "The decisions waiting for the user.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingDecision"
+            }
+          }
+        }
+      },
+      "PendingErrorBody": {
+        "type": "object",
+        "description": "Error body of these routes.",
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "A stable code: `UNKNOWN_ITEM`, `ANSWER_NOT_OFFERED`, `INVALID_ANSWER`,\n`UNAVAILABLE`, or the code of the call the decision went through."
+          },
+          "error": {
+            "type": "string",
+            "description": "What went wrong."
+          }
+        }
+      },
+      "PendingKind": {
+        "type": "string",
+        "description": "Where a decision waiting for the user comes from.",
+        "enum": [
+          "consent",
+          "task_pause",
+          "batch_item",
+          "question"
+        ]
+      },
+      "PendingOrigin": {
+        "type": "object",
+        "description": "Where the decision is to be found where it was born.",
+        "properties": {
+          "batchId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The batch of an item."
+          },
+          "messageId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The message whose turn asked."
+          },
+          "rank": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Position of the item in its source, from 0.",
+            "minimum": 0
+          },
+          "requestId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The `ask_user` request of a question."
+          },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The conversation, for a consent or a question asked in one."
+          },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The paused task."
+          },
+          "toolCallId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The tool call a consent is about."
           }
         }
       },

@@ -232,6 +232,15 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
             "/api/v1/approvals/resolved",
             get(list_resolved_approvals::<B>),
         )
+        // Every decision waiting for the user, answered from one place
+        .route(
+            "/api/v1/pending-decisions",
+            get(crate::api::routes_pending::list_pending_decisions::<B>),
+        )
+        .route(
+            "/api/v1/pending-decisions/decide",
+            post(crate::api::routes_pending::decide_pending::<B>),
+        )
         // Trigger routes (reload + status + CRUD)
         .route(
             "/api/v1/triggers",

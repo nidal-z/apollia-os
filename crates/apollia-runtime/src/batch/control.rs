@@ -1,4 +1,5 @@
-//! Pause, resume, stop and retry of a batch, as the batch actor applies them.
+//! Pause, resume, stop and retry of a batch, and the refusal of an item that
+//! waits, as the batch actor applies them.
 
 use tracing::Level;
 
@@ -6,10 +7,12 @@ use apollia_tools::BatchRow;
 
 use super::access::resolve_grants;
 use super::actor::BatchActor;
-use super::{BatchControl, BatchError, BatchRetry, ItemRunner};
+use super::{BatchControl, BatchError, BatchRetry, ItemRunner, ItemStatus};
 
 /// Output of an item canceled because its batch was stopped before it ran.
 const STOPPED_BEFORE_RUN: &str = "The batch was stopped before this item ran";
+/// Output of a waiting item the user refused.
+const REFUSED_BY_THE_USER: &str = "Refused by the user";
 
 fn refuse(row: &BatchRow, verb: &str) -> BatchError {
     BatchError::State(format!(
@@ -36,6 +39,9 @@ impl<R: ItemRunner> BatchActor<R> {
             BatchControl::Resume => self.resume_paused(&row).await?,
             BatchControl::Stop => self.stop(&row).await?,
             BatchControl::Retry(retry) => self.retry(&row, retry).await?,
+            BatchControl::Refuse { rank, reason } => {
+                self.refuse_item(&row, rank, reason.as_deref()).await?
+            }
         }
         if verb != "pause" {
             self.advance(batch_id).await;
@@ -109,6 +115,37 @@ impl<R: ItemRunner> BatchActor<R> {
                 tokio::spawn(async move { runner.cancel(&task_id).await });
             }
         }
+        Ok(())
+    }
+
+    async fn refuse_item(
+        &mut self,
+        row: &BatchRow,
+        rank: u64,
+        reason: Option<&str>,
+    ) -> Result<(), BatchError> {
+        let waits = self
+            .repository
+            .batch_items(&row.batch_id)
+            .await?
+            .iter()
+            .any(|item| item.rank == rank && item.status == ItemStatus::Awaiting.as_str());
+        if !waits {
+            return Err(BatchError::State(format!(
+                "item {rank} of batch '{}' does not wait for a decision",
+                row.batch_id
+            )));
+        }
+        let output = match reason {
+            Some(reason) if !reason.trim().is_empty() => {
+                format!("{REFUSED_BY_THE_USER}: {}", reason.trim())
+            }
+            _ => REFUSED_BY_THE_USER.to_string(),
+        };
+        self.repository
+            .finish_batch_item(&row.batch_id, rank, ItemStatus::Failed.as_str(), &output)
+            .await?;
+        tracing::event!(Level::INFO, batch_id = %row.batch_id, rank, "batch.item.refused");
         Ok(())
     }
 

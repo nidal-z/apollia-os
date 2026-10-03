@@ -111,6 +111,10 @@ from .credential_entry_view import CredentialEntryView
 from .credential_test_view import CredentialTestView
 from .daily_cost_entry import DailyCostEntry
 from .daily_costs_response import DailyCostsResponse
+from .decide_request import DecideRequest
+from .decide_request_answers_type_0_item import DecideRequestAnswersType0Item
+from .decide_request_value_type_0 import DecideRequestValueType0
+from .decide_response import DecideResponse
 from .default_model_response import DefaultModelResponse
 from .delegate_request import DelegateRequest
 from .delegate_request_input import DelegateRequestInput
@@ -276,9 +280,16 @@ from .package_preview import PackagePreview
 from .package_preview_request import PackagePreviewRequest
 from .parse_automation_request import ParseAutomationRequest
 from .parse_automation_response_200 import ParseAutomationResponse200
+from .pending_answer import PendingAnswer
 from .pending_approval_response import PendingApprovalResponse
 from .pending_approval_response_context_type_0 import PendingApprovalResponseContextType0
 from .pending_approval_response_payload_type_0 import PendingApprovalResponsePayloadType0
+from .pending_decision import PendingDecision
+from .pending_decision_list import PendingDecisionList
+from .pending_decision_questions_type_0 import PendingDecisionQuestionsType0
+from .pending_error_body import PendingErrorBody
+from .pending_kind import PendingKind
+from .pending_origin import PendingOrigin
 from .pending_user_input_view import PendingUserInputView
 from .permission_rule_dto import PermissionRuleDto
 from .ping_request import PingRequest
@@ -575,6 +586,10 @@ __all__ = (
     "CredentialTestView",
     "DailyCostEntry",
     "DailyCostsResponse",
+    "DecideRequest",
+    "DecideRequestAnswersType0Item",
+    "DecideRequestValueType0",
+    "DecideResponse",
     "DefaultModelResponse",
     "DelegateRequest",
     "DelegateRequestInput",
@@ -740,9 +755,16 @@ __all__ = (
     "PackagePreviewRequest",
     "ParseAutomationRequest",
     "ParseAutomationResponse200",
+    "PendingAnswer",
     "PendingApprovalResponse",
     "PendingApprovalResponseContextType0",
     "PendingApprovalResponsePayloadType0",
+    "PendingDecision",
+    "PendingDecisionList",
+    "PendingDecisionQuestionsType0",
+    "PendingErrorBody",
+    "PendingKind",
+    "PendingOrigin",
     "PendingUserInputView",
     "PermissionRuleDto",
     "PingRequest",
