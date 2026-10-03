@@ -28,10 +28,6 @@ pub(super) fn db_path(data_dir: &Path) -> PathBuf {
     data_dir.join(GOVERNANCE_DB_FILENAME)
 }
 
-pub(super) fn keyfile_path(data_dir: &Path) -> PathBuf {
-    data_dir.join(".keyfile")
-}
-
 pub(super) fn open_registry(data_dir: &Path, json: bool) -> Result<NativeToolRegistry, i32> {
     if !data_dir.exists() {
         if let Err(e) = std::fs::create_dir_all(data_dir) {
@@ -54,7 +50,7 @@ pub(super) fn open_credential_store(data_dir: &Path) -> Option<ToolCredentialSto
     if !db_path(data_dir).exists() {
         return None;
     }
-    ToolCredentialStore::new(&db_path(data_dir), &keyfile_path(data_dir)).ok()
+    ToolCredentialStore::open(&db_path(data_dir)).ok()
 }
 
 pub(super) fn is_known_tool(name: &str) -> bool {

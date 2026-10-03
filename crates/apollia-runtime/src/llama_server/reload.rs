@@ -53,7 +53,9 @@ impl LlamaServerSupervisor {
     /// what makes a second resident model worth having: the hand-off between two
     /// agents on two models costs a lookup rather than a reload. Otherwise a
     /// process is started, evicting the least recently used one first when the
-    /// residency ceiling is reached.
+    /// residency ceiling is reached. A model the user loaded by hand is served
+    /// by that process whatever `n_ctx` asks, under the settings it was loaded
+    /// with (see `explicit`).
     ///
     /// The URL is carried by the lease rather than read back through a separate
     /// accessor: with several instances alive, "the current one" is not a
@@ -86,6 +88,11 @@ impl LlamaServerSupervisor {
         let load = self.default_load(backend).await;
         let n_ctx = self.window_for(&load, n_ctx);
         let _guard = self.respawn_lock.lock().await;
+        // A model the user loaded by hand serves every request for it, under
+        // the settings it was loaded with, whatever window the request asks.
+        if let Some(lease) = self.touch_explicit_instance(&model_path).await {
+            return Ok(lease);
+        }
         if let Some(lease) = self.touch_live_instance(&model_path, n_ctx, &load).await {
             return Ok(lease);
         }
@@ -93,7 +100,7 @@ impl LlamaServerSupervisor {
         self.admit(&config, consent).await?;
         let stale = self.stop_stale_instances(&model_path, &load).await;
         self.evict_until_below_ceiling().await;
-        let lease = self.spawn_configured(config, load).await?;
+        let lease = self.spawn_configured(config, load, false).await?;
         if stale {
             tracing::event!(
                 tracing::Level::INFO,
