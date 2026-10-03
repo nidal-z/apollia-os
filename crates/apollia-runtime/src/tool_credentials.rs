@@ -25,6 +25,7 @@ const BRAVE_TEST_TIMEOUT: Duration = Duration::from_secs(10);
 /// What went wrong with a credential operation. The messages are the ones the
 /// desktop showed when it ran the runtime itself.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum CredentialError {
     /// A tool or key name is blank.
     #[error("tool_name and key_name must not be empty")]
