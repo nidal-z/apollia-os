@@ -353,6 +353,20 @@ mal se dégrade lui-même, pas le runtime.
 Les serveurs qui exigent OAuth passent par un flux dédié, avec son propre
 plafond de réponse, plus petit.
 
+Node.js n'est pas embarqué dans Apollia, ce qui tient le principe 2 (zéro
+dépendance externe) : rien n'est à installer sur le poste au préalable. Une
+version LTS épinglée de Node.js est publiée dans le manifeste d'empreintes
+signé du canal des moteurs, signé au format minisign avec la clé de
+distribution dédiée d'Apollia (voir [Inférence locale](#local-inference)), et
+elle se télécharge au premier serveur lancé par `node` ou `npx` qui en a
+besoin : la signature du manifeste est vérifiée avant toute requête d'archive,
+puis l'empreinte de l'archive, puis l'archive est extraite dans le magasin des
+moteurs. Un tel serveur tourne alors sur ce Node.js par son chemin absolu,
+jamais par le `PATH` ; tant qu'aucun n'est installé, son lancement échoue sur
+une erreur typée « Node.js requis ». Un poste sans réseau importe Node.js depuis
+un disque, par la même vérification. Les paquets npm des serveurs s'installent
+depuis un verrou qui porte une empreinte d'intégrité par paquet.
+
 ## Connecteurs {#connectors}
 
 Les connecteurs Google et Microsoft s'authentifient en OAuth2 avec PKCE. Aucun

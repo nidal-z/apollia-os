@@ -328,6 +328,9 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # fake server was asked, which is how "no archive before the signature
     # holds" is observed. The server holds a port-0 bind for the whole test.
     "crates/apollia-runtime/src/engine_store/tests.rs": 1,
+    # Same helper and same reason for Node.js, published in the same signed
+    # manifest: the fake server counts the archive requests.
+    "crates/apollia-runtime/src/engine_store/node/tests.rs": 1,
     "crates/apollia-runtime/src/hooks/executor.rs": 7,
     # The process is the subject: unloading a resident model has to stop its
     # child, and `kill -0` on the pid is the one observable left once the
