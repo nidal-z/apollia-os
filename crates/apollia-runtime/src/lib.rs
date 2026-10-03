@@ -36,6 +36,7 @@ pub mod llm_timings;
 pub mod mailbox;
 pub mod memory_maintenance;
 pub mod memory_view;
+pub mod oauth_clients;
 pub mod observability;
 pub mod on_demand;
 pub mod package_tools;

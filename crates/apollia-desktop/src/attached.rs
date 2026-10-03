@@ -185,6 +185,15 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "oauth_reset_drive_folder",
     "oauth_set_drive_folder",
     "oauth_start_flow",
+    // The OAuth clients of the connectors, over `/api/v1/oauth/clients`. The
+    // import reads the file the operator picked in this window and sends its
+    // text, so the daemon never needs a path of this machine.
+    "oauth_import_client_json",
+    "oauth_list_client_ids",
+    "oauth_set_api_key",
+    "oauth_set_client_id",
+    "oauth_set_client_secret",
+    "oauth_test_client",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no

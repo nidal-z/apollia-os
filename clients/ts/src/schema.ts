@@ -2406,6 +2406,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/oauth/clients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/oauth/clients`: the OAuth client of every provider and where
+         *     each value came from, never a secret.
+         */
+        get: operations["list_oauth_clients"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/oauth/clients/{provider}/api-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /api/v1/oauth/clients/{provider}/api-key`: writes the public API key
+         *     Google Picker uses, empty to clear it.
+         */
+        put: operations["set_oauth_api_key"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/oauth/clients/{provider}/client-id": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /api/v1/oauth/clients/{provider}/client-id`: writes the client id
+         *     override, empty to clear it.
+         */
+        put: operations["set_oauth_client_id"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/oauth/clients/{provider}/client-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /api/v1/oauth/clients/{provider}/client-secret`: writes the client
+         *     secret override, empty to clear it. The secret is never answered back.
+         */
+        put: operations["set_oauth_client_secret"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/oauth/clients/{provider}/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/oauth/clients/{provider}/import`: writes the client id and
+         *     secret of a Google console export.
+         */
+        post: operations["import_oauth_client"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/oauth/clients/{provider}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/oauth/clients/{provider}/test`: checks the client without a
+         *     consent: present, well-formed, and its authorization server reachable.
+         */
+        post: operations["test_oauth_client"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/packages/install": {
         parameters: {
             query?: never;
@@ -5149,6 +5269,14 @@ export interface components {
             /** @description `replace` empties the namespace first; any other value merges. */
             mode: string;
         };
+        /** @description Request body of `POST /api/v1/oauth/clients/{provider}/import`. */
+        ImportOauthClientBody: {
+            /**
+             * @description The text of the JSON file the provider's console exported, read by the
+             *     window that picked it.
+             */
+            client_json: string;
+        };
         /** @description Request body for `POST /api/v1/agents/:name/messages`. */
         InjectMessageBody: {
             /**
@@ -5588,6 +5716,69 @@ export interface components {
         ModelsListResponse: {
             /** @description Available model files in `~/.apollia/models/`. */
             models: components["schemas"]["ModelInfo"][];
+        };
+        /**
+         * @description One provider's OAuth client, as the settings draw it.
+         *
+         *     Reports the **effective** client id of the resolution chain
+         *     (`env var → override file → compiled default`), where it came from, and
+         *     whether a client secret and an API key resolve. Never carries a secret or
+         *     a key, only their presence.
+         */
+        OauthClientIdStatus: {
+            /** @description Source for the resolved API key. Same semantics as `source`. */
+            api_key_source: string;
+            /** @description Same source semantics as `source` but for the secret. */
+            client_secret_source: string;
+            /** @description Effective client id used at runtime. Empty string when no source is configured. */
+            effective_client_id: string;
+            /**
+             * @description True when an API key resolves through any source. Google Picker needs
+             *     one; Microsoft entries leave this false.
+             */
+            has_api_key: boolean;
+            /** @description True when a client secret resolves through any source. */
+            has_client_secret: boolean;
+            /** @description Override stored in `oauth-clients.toml`, if any. */
+            override_client_id?: string | null;
+            /** @description Provider id (`"google"` / `"microsoft"`). */
+            provider: string;
+            /** @description True when this provider needs an API key (Google, for Picker only). */
+            requires_api_key: boolean;
+            /**
+             * @description True when this provider needs a client secret (Google), false for a
+             *     public client (Microsoft).
+             */
+            requires_client_secret: boolean;
+            /** @description Source that produced the effective value: `"env"`, `"file"`, `"builtin"`, or `"none"`. */
+            source: string;
+        };
+        /**
+         * @description The verdict of a non-interactive check of a provider's OAuth client.
+         *
+         *     A full validation (that the authorization server accepts the client) needs
+         *     an interactive consent and a token exchange, which cannot run headless.
+         *     This is the strongest safe check: credentials present, well-formed, and the
+         *     provider's authorization server reachable.
+         */
+        OauthClientTestResult: {
+            /** @description Human-readable summary: what passed, or the first failing check. */
+            detail: string;
+            /** @description True when every check passed. */
+            ok: boolean;
+        };
+        /**
+         * @description Request body of the `PUT` routes: the new value, empty to clear the
+         *     override.
+         */
+        OauthClientValueBody: {
+            /** @description The value, trimmed before it is written. Empty clears the override. */
+            value: string;
+        };
+        /** @description Answer of a write: the provider whose entry changed. */
+        OauthClientWritten: {
+            /** @description Provider id (`"google"` / `"microsoft"`). */
+            provider: string;
         };
         /** @description Response for enable/disable. */
         OkResponse: {
@@ -12789,6 +12980,247 @@ export interface operations {
             };
             /** @description Failed to build channels */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_oauth_clients: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One row per provider */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OauthClientIdStatus"][];
+                };
+            };
+        };
+    };
+    set_oauth_api_key: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Provider id: google or microsoft */
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OauthClientValueBody"];
+            };
+        };
+        responses: {
+            /** @description The override is written */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OauthClientWritten"];
+                };
+            };
+            /** @description Unknown provider */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The file could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_oauth_client_id: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Provider id: google or microsoft */
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OauthClientValueBody"];
+            };
+        };
+        responses: {
+            /** @description The override is written */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OauthClientWritten"];
+                };
+            };
+            /** @description Unknown provider */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The file could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_oauth_client_secret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Provider id: google or microsoft */
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OauthClientValueBody"];
+            };
+        };
+        responses: {
+            /** @description The override is written */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OauthClientWritten"];
+                };
+            };
+            /** @description Unknown provider */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The file could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    import_oauth_client: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Provider id: google */
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportOauthClientBody"];
+            };
+        };
+        responses: {
+            /** @description Both halves are written */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OauthClientWritten"];
+                };
+            };
+            /** @description Unknown provider */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Not a Google client export */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The file could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    test_oauth_client: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Provider id: google or microsoft */
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The verdict, passed or the first failing check */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OauthClientTestResult"];
+                };
+            };
+            /** @description Unknown provider */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

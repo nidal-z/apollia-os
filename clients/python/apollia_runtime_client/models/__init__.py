@@ -138,6 +138,7 @@ from .imap_account_response import ImapAccountResponse
 from .imap_error_body import ImapErrorBody
 from .import_memory_body import ImportMemoryBody
 from .import_memory_body_content import ImportMemoryBodyContent
+from .import_oauth_client_body import ImportOauthClientBody
 from .inject_message_body import InjectMessageBody
 from .inject_message_body_payload import InjectMessageBodyPayload
 from .inject_message_response import InjectMessageResponse
@@ -182,6 +183,10 @@ from .model_cards_response_publishers import ModelCardsResponsePublishers
 from .model_info import ModelInfo
 from .model_source_dto import ModelSourceDto
 from .models_list_response import ModelsListResponse
+from .oauth_client_id_status import OauthClientIdStatus
+from .oauth_client_test_result import OauthClientTestResult
+from .oauth_client_value_body import OauthClientValueBody
+from .oauth_client_written import OauthClientWritten
 from .ok_response import OkResponse
 from .package_error_body import PackageErrorBody
 from .package_install_request import PackageInstallRequest
@@ -493,6 +498,7 @@ __all__ = (
     "ImapErrorBody",
     "ImportMemoryBody",
     "ImportMemoryBodyContent",
+    "ImportOauthClientBody",
     "InjectedMemoryEntryView",
     "InjectMessageBody",
     "InjectMessageBodyPayload",
@@ -537,6 +543,10 @@ __all__ = (
     "ModelInfo",
     "ModelsListResponse",
     "ModelSourceDto",
+    "OauthClientIdStatus",
+    "OauthClientTestResult",
+    "OauthClientValueBody",
+    "OauthClientWritten",
     "OkResponse",
     "PackageErrorBody",
     "PackageInstallRequest",
