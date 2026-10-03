@@ -284,6 +284,7 @@ from .tool_stat_entry import ToolStatEntry
 from .trace_response import TraceResponse
 from .trace_response_events_item import TraceResponseEventsItem
 from .transcribe_audio_body import TranscribeAudioBody
+from .transcribe_audio_body_source import TranscribeAudioBodySource
 from .transcriptions_list_response import TranscriptionsListResponse
 from .transcriptions_list_response_transcriptions_item import (
     TranscriptionsListResponseTranscriptionsItem,
@@ -605,6 +606,7 @@ __all__ = (
     "TraceResponse",
     "TraceResponseEventsItem",
     "TranscribeAudioBody",
+    "TranscribeAudioBodySource",
     "TranscriptionsListResponse",
     "TranscriptionsListResponseTranscriptionsItem",
     "TriggerDefinitionResponse",

@@ -2861,9 +2861,12 @@ export interface paths {
          * @description Accepts `multipart/form-data` with:
          *     - `audio` (required): WAV audio file
          *     - `language` (optional): language hint (ISO 639-1 code)
+         *     - `source` (optional): what the audio is, `api` (default), `file` or
+         *       `hotkey`, the tag the history shows; the desktop attached to this runtime
+         *       sends a file it read or a dictation it captured
          *
          *     Returns `200 OK` with the persisted transcript row (`TranscriptRow`).
-         *     Returns `400 Bad Request` on missing or invalid audio.
+         *     Returns `400 Bad Request` on missing or invalid audio, or an unknown source.
          *     Returns `503 Service Unavailable` when the engine is absent.
          */
         post: operations["transcribe_audio"];
@@ -13034,7 +13037,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        /** @description Multipart form with an `audio` WAV field (required) and an optional `language` hint */
+        /** @description Multipart form with an `audio` WAV field (required), an optional `language` hint and an optional `source` tag */
         requestBody: {
             content: {
                 "multipart/form-data": {
@@ -13045,6 +13048,11 @@ export interface operations {
                     audio: string;
                     /** @description Language hint, an ISO 639-1 code */
                     language?: string;
+                    /**
+                     * @description What the audio is, the tag the history shows: api (default), file or hotkey
+                     * @enum {string}
+                     */
+                    source?: "api" | "file" | "hotkey";
                 };
             };
         };

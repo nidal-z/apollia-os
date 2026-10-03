@@ -101,6 +101,15 @@ impl utoipa::PartialSchema for TranscribeForm {
                     .schema_type(Type::String)
                     .description(Some("Language hint, an ISO 639-1 code")),
             )
+            .property(
+                "source",
+                ObjectBuilder::new()
+                    .schema_type(Type::String)
+                    .enum_values(Some(["api", "file", "hotkey"]))
+                    .description(Some(
+                        "What the audio is, the tag the history shows: api (default), file or hotkey",
+                    )),
+            )
             .into()
     }
 }

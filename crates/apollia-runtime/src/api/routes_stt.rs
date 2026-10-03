@@ -214,15 +214,18 @@ pub async fn stt_status<B: ExecutionBackend + Clone + From<DynBackend>>(
 /// Accepts `multipart/form-data` with:
 /// - `audio` (required): WAV audio file
 /// - `language` (optional): language hint (ISO 639-1 code)
+/// - `source` (optional): what the audio is, `api` (default), `file` or
+///   `hotkey`, the tag the history shows; the desktop attached to this runtime
+///   sends a file it read or a dictation it captured
 ///
 /// Returns `200 OK` with the persisted transcript row (`TranscriptRow`).
-/// Returns `400 Bad Request` on missing or invalid audio.
+/// Returns `400 Bad Request` on missing or invalid audio, or an unknown source.
 /// Returns `503 Service Unavailable` when the engine is absent.
 #[utoipa::path(
     post,
     path = "/api/v1/stt/transcribe",
     tag = "stt",
-    request_body(content = inline(crate::api::openapi::TranscribeForm), content_type = "multipart/form-data", description = "Multipart form with an `audio` WAV field (required) and an optional `language` hint"),
+    request_body(content = inline(crate::api::openapi::TranscribeForm), content_type = "multipart/form-data", description = "Multipart form with an `audio` WAV field (required), an optional `language` hint and an optional `source` tag"),
     responses(
         (status = 200, description = "Persisted transcription row"),
         (status = 400, description = "Missing or invalid audio", body = crate::api::openapi::ApiErrorBody),
@@ -248,7 +251,9 @@ pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
         .ok_or_else(stt_unavailable)?;
 
     let mut audio_data: Option<Vec<u8>> = None;
+    let mut file_name: Option<String> = None;
     let mut language: Option<String> = None;
+    let mut source_tag: Option<String> = None;
 
     while let Some(field) = multipart.next_field().await.map_err(|e| {
         (
@@ -261,6 +266,7 @@ pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
         let field_name = field.name().unwrap_or_default().to_owned();
         match field_name.as_str() {
             "audio" => {
+                file_name = field.file_name().map(str::to_owned);
                 let bytes = field.bytes().await.map_err(|e| {
                     (
                         StatusCode::BAD_REQUEST,
@@ -284,9 +290,22 @@ pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
                     language = Some(text);
                 }
             }
+            "source" => {
+                source_tag = Some(field.text().await.map_err(|e| {
+                    (
+                        StatusCode::BAD_REQUEST,
+                        Json(SttErrorResponse {
+                            error: format!("failed to read source field: {e}"),
+                        }),
+                    )
+                })?);
+            }
             _ => {}
         }
     }
+
+    let source = transcript_source(source_tag.as_deref(), file_name)
+        .map_err(|error| (StatusCode::BAD_REQUEST, Json(SttErrorResponse { error })))?;
 
     let raw_audio = audio_data.ok_or_else(|| {
         (
@@ -318,18 +337,24 @@ pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
     // The `language` field is honoured for this request only; when the caller
     // omits it, the persisted configuration hint applies. It used to be parsed
     // and then dropped, so a caller could set it and see no effect at all.
-    let transcript = engine
-        .transcribe_with_language(audio, 16000, TranscriptSource::Api, language)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "stt.transcription.failed");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(SttErrorResponse {
-                    error: format!("transcription failed: {e}"),
-                }),
-            )
-        })?;
+    let tag = source.as_str().to_owned();
+    let transcribed = match language {
+        Some(code) => {
+            engine
+                .transcribe_with_language(audio, 16000, source, Some(code))
+                .await
+        }
+        None => engine.transcribe(audio, 16000, source).await,
+    };
+    let transcript = transcribed.map_err(|e| {
+        tracing::error!(error = %e, "stt.transcription.failed");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(SttErrorResponse {
+                error: format!("transcription failed: {e}"),
+            }),
+        )
+    })?;
 
     let row = repo
         .lock()
@@ -341,7 +366,7 @@ pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
                 }),
             )
         })?
-        .insert("api", &transcript, None)
+        .insert(&tag, &transcript, None)
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -380,6 +405,23 @@ pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
         })?;
 
     Ok((StatusCode::OK, Json(transcript_row)))
+}
+
+/// The source a transcription request names, `api` when it names none.
+///
+/// A `file` carries the name the upload gave its audio part.
+fn transcript_source(
+    tag: Option<&str>,
+    file_name: Option<String>,
+) -> Result<TranscriptSource, String> {
+    match tag.unwrap_or("api") {
+        "api" | "" => Ok(TranscriptSource::Api),
+        "file" => Ok(TranscriptSource::File(file_name.unwrap_or_default())),
+        "hotkey" => Ok(TranscriptSource::Hotkey),
+        other => Err(format!(
+            "unknown source '{other}': expected api, file or hotkey"
+        )),
+    }
 }
 
 /// `GET /api/v1/stt/transcriptions`, list transcription history.
@@ -1042,5 +1084,136 @@ mod tests {
         let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert!(json["models"].is_array());
+    }
+
+    /// A backend that answers every audio with the same sentence.
+    struct EchoBackend;
+
+    impl apollia_stt::SttBackend for EchoBackend {
+        fn name(&self) -> &str {
+            "echo"
+        }
+
+        fn transcribe(
+            &self,
+            _audio: &[f32],
+            _sample_rate: u32,
+            _language_hint: Option<&str>,
+        ) -> Result<apollia_stt::TranscriptResult, apollia_stt::SttError> {
+            Ok(apollia_stt::TranscriptResult {
+                full_text: "bonjour".to_owned(),
+                segments: Vec::new(),
+                language: Some("fr".to_owned()),
+                audio_duration_ms: 1000,
+                processing_time_ms: 1,
+            })
+        }
+    }
+
+    /// A router whose engine and history are live, the engine echoing.
+    fn router_with_engine() -> Router {
+        let mut state = base_state();
+        let dir =
+            std::env::temp_dir().join(format!("apollia_stt_engine_test_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let engine_repo = apollia_stt::SttRepository::open(&dir.join("stt.db")).expect("repo");
+        let route_repo = apollia_stt::SttRepository::open(&dir.join("stt.db")).expect("repo");
+        let engine = crate::stt::SttEngineHandle::start(
+            Box::new(EchoBackend),
+            engine_repo,
+            SttConfigRow::default(),
+            state.event_sender.clone(),
+        );
+        state.stt_engine = crate::api::server::shared_stt_engine_from(Some(engine));
+        state.stt_repository = crate::api::server::shared_stt_repository_from(Some(Arc::new(
+            std::sync::Mutex::new(route_repo),
+        )));
+        Router::new()
+            .route(
+                "/api/v1/stt/transcribe",
+                post(transcribe_audio::<MockBackend>),
+            )
+            .with_state(state)
+    }
+
+    /// A multipart body carrying one second of silence and the given source.
+    fn upload(source: &str) -> Request<Body> {
+        let mut wav = std::io::Cursor::new(Vec::new());
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 16_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::new(&mut wav, spec).expect("writer");
+        for _ in 0..16_000 {
+            writer.write_sample(0i16).expect("sample");
+        }
+        writer.finalize().expect("finalize");
+        let mut body = Vec::new();
+        body.extend_from_slice(
+            b"--b\r\nContent-Disposition: form-data; name=\"audio\"; filename=\"memo.wav\"\r\n\
+              Content-Type: audio/wav\r\n\r\n",
+        );
+        body.extend_from_slice(wav.get_ref());
+        body.extend_from_slice(
+            format!(
+                "\r\n--b\r\nContent-Disposition: form-data; name=\"source\"\r\n\r\n{source}\r\n--b--\r\n"
+            )
+            .as_bytes(),
+        );
+        Request::builder()
+            .method("POST")
+            .uri("/api/v1/stt/transcribe")
+            .header("content-type", "multipart/form-data; boundary=b")
+            .body(Body::from(body))
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn an_uploaded_file_is_kept_in_the_history_as_a_file() {
+        // GIVEN a live engine, and a WAV the desktop read from a file
+        let router = router_with_engine();
+
+        // WHEN it is uploaded with the source the desktop names
+        let resp = router.oneshot(upload("file")).await.unwrap();
+
+        // THEN the transcription is answered and kept under that source, the
+        // tag the history shows, as the embedded command keeps it
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        let row: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(row["source"], "file");
+        assert_eq!(row["full_text"], "bonjour");
+    }
+
+    #[tokio::test]
+    async fn an_unknown_source_is_refused() {
+        // GIVEN a live engine
+        let router = router_with_engine();
+
+        // WHEN an upload names a source the history does not know
+        let resp = router.oneshot(upload("radio")).await.unwrap();
+
+        // THEN it is refused before any transcription, with the reason
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json["error"]
+            .as_str()
+            .unwrap()
+            .contains("unknown source 'radio'"));
+    }
+
+    #[test]
+    fn a_request_naming_no_source_is_an_api_one() {
+        // GIVEN a request with no source field
+        // WHEN its source is read
+        let source = transcript_source(None, None).unwrap();
+
+        // THEN it keeps the tag every caller had before the field existed
+        assert_eq!(source.as_str(), "api");
     }
 }

@@ -8143,10 +8143,10 @@
           "stt"
         ],
         "summary": "`POST /api/v1/stt/transcribe`, transcribe an uploaded audio file.",
-        "description": "Accepts `multipart/form-data` with:\n- `audio` (required): WAV audio file\n- `language` (optional): language hint (ISO 639-1 code)\n\nReturns `200 OK` with the persisted transcript row (`TranscriptRow`).\nReturns `400 Bad Request` on missing or invalid audio.\nReturns `503 Service Unavailable` when the engine is absent.",
+        "description": "Accepts `multipart/form-data` with:\n- `audio` (required): WAV audio file\n- `language` (optional): language hint (ISO 639-1 code)\n- `source` (optional): what the audio is, `api` (default), `file` or\n  `hotkey`, the tag the history shows; the desktop attached to this runtime\n  sends a file it read or a dictation it captured\n\nReturns `200 OK` with the persisted transcript row (`TranscriptRow`).\nReturns `400 Bad Request` on missing or invalid audio, or an unknown source.\nReturns `503 Service Unavailable` when the engine is absent.",
         "operationId": "transcribe_audio",
         "requestBody": {
-          "description": "Multipart form with an `audio` WAV field (required) and an optional `language` hint",
+          "description": "Multipart form with an `audio` WAV field (required), an optional `language` hint and an optional `source` tag",
           "content": {
             "multipart/form-data": {
               "schema": {
@@ -8163,6 +8163,15 @@
                   "language": {
                     "type": "string",
                     "description": "Language hint, an ISO 639-1 code"
+                  },
+                  "source": {
+                    "type": "string",
+                    "description": "What the audio is, the tag the history shows: api (default), file or hotkey",
+                    "enum": [
+                      "api",
+                      "file",
+                      "hotkey"
+                    ]
                   }
                 }
               }
