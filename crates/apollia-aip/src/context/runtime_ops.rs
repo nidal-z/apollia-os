@@ -256,12 +256,28 @@ impl RuntimeContext {
         self.stt = pyo3::Python::with_gil(|py| pyo3::Py::new(py, stt).ok());
         self
     }
-    /// Attaches a user profile interface to this context.
+    /// Attaches a user profile interface to this context, when the agent's
+    /// profile source is checked.
     ///
-    /// Called after [`new_with_llm`](RuntimeContext::new_with_llm) when a
-    /// `MemoryManager` targeting `__user__` is available. If not called,
-    /// `ctx.profile` is `None`.
-    pub fn with_profile(mut self, profile: crate::profile::ProfileInterface) -> Self {
+    /// The source resolves from the package default of the agent's `sources`,
+    /// then the user's override ([`crate::profile::ProfileInterface::source_checked`]);
+    /// unchecked, or never called, `ctx.profile` is `None`. The interface
+    /// reports each read on the bus of this context, tied to the task bound by
+    /// [`with_task_id`](RuntimeContext::with_task_id).
+    pub fn with_profile(mut self, mut profile: crate::profile::ProfileInterface) -> Self {
+        if !profile.source_checked() {
+            tracing::event!(
+                tracing::Level::DEBUG,
+                agent = %self.agent_name,
+                "profile.source.unchecked"
+            );
+            self.profile = None;
+            return self;
+        }
+        profile.report_reads_on(self.event_bus.clone());
+        if let Some(task_id) = &self.task_id {
+            profile.report_reads_for_task(task_id.clone());
+        }
         self.profile = pyo3::Python::with_gil(|py| pyo3::Py::new(py, profile).ok());
         self
     }
@@ -314,6 +330,16 @@ impl RuntimeContext {
     /// emitting `LlmCallStarted`.
     pub fn with_task_id(mut self, task_id: impl Into<String>) -> Self {
         let task_id_str = task_id.into();
+        if let Some(profile) = &self.profile {
+            pyo3::Python::with_gil(|py| match profile.try_borrow_mut(py) {
+                Ok(mut profile) => profile.report_reads_for_task(task_id_str.clone()),
+                Err(e) => tracing::event!(
+                    tracing::Level::WARN,
+                    error = %e,
+                    "profile.trace.task_unbound"
+                ),
+            });
+        }
         // Propagate to the LlmProxy for observability.
         if let Some(llm) = self.llm.take() {
             self.llm = Some(llm.with_task_context(task_id_str.clone(), self.agent_id.to_string()));

@@ -97,6 +97,6 @@ Dans **Paramètres → Zone de danger**, le bouton **Effacer les mémoires** sup
 
 - **Les champs restent vides après saisie** : un agent était peut-être en train d'écrire. Réessayez après quelques secondes.
 - **Le bouton « Réinitialiser le profil » ne relance pas l'onboarding** : utilisez **Réinitialiser l'onboarding** dans Paramètres → Zone de danger. Il n'y a pas d'entrée Onboarding dans la barre latérale.
-- **Un agent ignore votre profil** : tous les agents Python ont accès au profil par défaut. Si l'agent en question est tiers, ouvrez son code (ou contactez son auteur) pour vérifier qu'il lit `ctx.profile`.
+- **Un agent ignore votre profil** : un agent ne lit votre profil que si la source **profil** est cochée pour lui. Son paquet peut la cocher par défaut ; c'est vous qui décidez avec `apollia-os agent set <agent> sources profile` (citez toutes les sources à garder, la liste remplace celle du paquet), et `apollia-os agent show <agent>` vous dit où elle en est. Chaque lecture est inscrite dans la trace de l'exécution, avec l'agent, le profil et l'heure. Une fois la source cochée, si l'agent est tiers, ouvrez son code (ou contactez son auteur) pour vérifier qu'il lit `ctx.profile`.
 
 > **Référence technique :** [Référence Apollia](/reference) - schéma canonique des champs, source unique de vérité du profil global, contrat SDK Python `ctx.profile.*`.

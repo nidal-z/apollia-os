@@ -145,7 +145,7 @@ pub enum SettingError {
 
 /// The defaults of every named setting, as one JSON tree keyed by section name.
 ///
-/// The whole `[desktop]` section, then the inference settings an organisation
+/// The whole `[desktop]` and `[mcp]` sections, then the inference settings an organisation
 /// may fix: the model registry (`models.registry_url`,
 /// `models.registry_mirror_url`, `models.registry_enabled`), the import rule
 /// (`models.import.require_verified`) and the load guardrail
@@ -158,9 +158,6 @@ fn defaults() -> serde_json::Map<String, Value> {
     if let Ok(desktop) = serde_json::to_value(DesktopConfig::default()) {
         sections.insert("desktop".to_owned(), desktop);
     }
-    if let Ok(mcp) = serde_json::to_value(McpConfig::default()) {
-        sections.insert("mcp".to_owned(), mcp);
-    }
     if let Ok(Value::Object(mut models)) = serde_json::to_value(ModelsConfig::default()) {
         models.insert(
             "import".to_owned(),
@@ -172,6 +169,9 @@ fn defaults() -> serde_json::Map<String, Value> {
         "llm".to_owned(),
         serde_json::json!({ "guardrails": { "level": "balanced", "ceiling_gb": 0.0 } }),
     );
+    if let Ok(mcp) = serde_json::to_value(McpConfig::default()) {
+        sections.insert("mcp".to_owned(), mcp);
+    }
     if let Ok(server) = serde_json::to_value(ServerConfig::default()) {
         sections.insert("server".to_owned(), server);
     }

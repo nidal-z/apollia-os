@@ -98,10 +98,10 @@ impl Supervisor {
             .config
             .data_dir
             .join(apollia_core::paths::DataFile::System.file_name());
-        // `apollia.toml`, whose `[llm.guardrails]` both engines read at every
-        // launch: the file the runtime was started with, else the one in its
-        // data directory.
-        let guardrails_file = self.config.config_path.clone().unwrap_or_else(|| {
+        // `apollia.toml`: the file the runtime was started with, else the one
+        // in its data directory. Both engines read its `[llm.guardrails]` at
+        // every launch, and the compatible server keeps its switch there.
+        let config_file = self.config.config_path.clone().unwrap_or_else(|| {
             self.config
                 .data_dir
                 .join(apollia_core::paths::CONFIG_FILE_NAME)
@@ -110,7 +110,7 @@ impl Supervisor {
             crate::llama_server::LlamaServerConfig::default(),
             Some(system_db_path.clone()),
             Some(event_sender.clone()),
-            Some(guardrails_file.clone()),
+            Some(config_file.clone()),
             org_policy.imposed_settings(),
         )
         .ok();
@@ -120,7 +120,7 @@ impl Supervisor {
         // The MLX engine, on a Mac with Apple Silicon whose build carries it.
         // An MLX model elsewhere is refused with its reason by the router.
         let mlx_engine = crate::mlx_engine::MlxEngineSupervisor::for_this_machine(
-            Some(guardrails_file),
+            Some(config_file.clone()),
             org_policy.imposed_settings(),
         );
         if let Some(engine) = &mlx_engine {
@@ -546,14 +546,9 @@ impl Supervisor {
             )))
             .await;
         }
-        // The compatible server reads and writes its switch in the file the
-        // runtime was started with, or in the data directory's apollia.toml,
-        // the file the desktop reads, when it was started without one.
         let compat_server = crate::compat_server::CompatServerHandle::spawn(
-            self.config
-                .config_path
-                .clone()
-                .unwrap_or_else(|| self.config.data_dir.join("apollia.toml")),
+            config_file,
+            system_db_path.clone(),
             &event_sender,
         );
         let shared_llm_router = crate::api::server::shared_llm_router_from(llm_router.clone());

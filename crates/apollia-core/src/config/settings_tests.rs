@@ -302,43 +302,6 @@ fn test_a_policy_may_not_impose_an_unknown_key_nor_a_wrong_type() {
     assert!(matches!(mistyped, Err(SettingError::InvalidValue { key, .. }) if key == KEY));
 }
 
-// ── The MCP bridge switch ────────────────────────────────────────────────
-
-#[test]
-fn test_the_mcp_bridge_switch_is_a_named_setting_off_by_default() {
-    // GIVEN a file without an [mcp] section
-    let (_dir, path) = config_with("[desktop]\ndeveloper_mode = true\n");
-
-    // WHEN the bridge switch is resolved
-    let resolved = resolve_setting(&path, "mcp.server_enabled", &PolicySettings::none()).unwrap();
-
-    // THEN it is known, off, and comes from the default
-    assert_eq!(resolved.value, json!(false));
-    assert_eq!(resolved.source, SettingSource::Default);
-}
-
-#[test]
-fn test_the_mcp_bridge_switch_written_on_resolves_on_from_the_user() {
-    // GIVEN an empty file
-    let (_dir, path) = config_with("");
-
-    // WHEN the bridge switch is written on, then resolved
-    write_setting(
-        &path,
-        "mcp.server_enabled",
-        json!(true),
-        &PolicySettings::none(),
-    )
-    .unwrap();
-    let resolved = resolve_setting(&path, "mcp.server_enabled", &PolicySettings::none()).unwrap();
-
-    // THEN the file carries it under [mcp], and it resolves on from the user
-    let written = std::fs::read_to_string(&path).unwrap();
-    assert!(written.contains("[mcp]"), "{written}");
-    assert_eq!(resolved.value, json!(true));
-    assert_eq!(resolved.source, SettingSource::User);
-}
-
 // ── Inference settings an organisation may fix ───────────────────────────
 
 #[test]
@@ -404,4 +367,88 @@ fn test_the_inference_settings_resolve_to_their_defaults_without_a_file() {
     assert_eq!(verified.value, json!(false));
     assert_eq!(level.value, json!("balanced"));
     assert_eq!(level.source, SettingSource::Default);
+}
+
+// ── The MCP bridge switch ────────────────────────────────────────────────
+
+#[test]
+fn test_the_mcp_bridge_switch_is_a_named_setting_off_by_default() {
+    // GIVEN a file without an [mcp] section
+    let (_dir, path) = config_with("[desktop]\ndeveloper_mode = true\n");
+
+    // WHEN the bridge switch is resolved
+    let resolved = resolve_setting(&path, "mcp.server_enabled", &PolicySettings::none()).unwrap();
+
+    // THEN it is known, off, and comes from the default
+    assert_eq!(resolved.value, json!(false));
+    assert_eq!(resolved.source, SettingSource::Default);
+}
+
+#[test]
+fn test_the_mcp_bridge_switch_written_on_resolves_on_from_the_user() {
+    // GIVEN an empty file
+    let (_dir, path) = config_with("");
+
+    // WHEN the bridge switch is written on, then resolved
+    write_setting(
+        &path,
+        "mcp.server_enabled",
+        json!(true),
+        &PolicySettings::none(),
+    )
+    .unwrap();
+    let resolved = resolve_setting(&path, "mcp.server_enabled", &PolicySettings::none()).unwrap();
+
+    // THEN the file carries it under [mcp], and it resolves on from the user
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(written.contains("[mcp]"), "{written}");
+    assert_eq!(resolved.value, json!(true));
+    assert_eq!(resolved.source, SettingSource::User);
+}
+
+#[test]
+fn test_the_update_channel_resolves_to_stable_by_default() {
+    // GIVEN a file that does not name the update channel
+    let (_dir, path) = config_with("[desktop]\ndeveloper_mode = true\n");
+
+    // WHEN the update channel is resolved
+    let resolved =
+        resolve_setting(&path, "desktop.update_channel", &PolicySettings::none()).unwrap();
+
+    // THEN it is stable, from the default
+    assert_eq!(resolved.value, json!("stable"));
+    assert_eq!(resolved.source, SettingSource::Default);
+}
+
+#[test]
+fn test_writing_an_unknown_update_channel_is_refused_and_leaves_the_file() {
+    // GIVEN a file that does not name the update channel
+    let original = "[desktop]\ndeveloper_mode = true\n";
+    let (_dir, path) = config_with(original);
+
+    // WHEN a channel that does not exist is written, then the preview channel
+    let refused = write_setting(
+        &path,
+        "desktop.update_channel",
+        json!("nightly"),
+        &PolicySettings::none(),
+    );
+    let unchanged = std::fs::read_to_string(&path).unwrap();
+    write_setting(
+        &path,
+        "desktop.update_channel",
+        json!("preview"),
+        &PolicySettings::none(),
+    )
+    .unwrap();
+
+    // THEN the unknown channel is refused with the file untouched, and the
+    // preview channel is written under [desktop]
+    assert!(matches!(refused, Err(SettingError::InvalidValue { .. })));
+    assert_eq!(unchanged, original);
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        written.contains("update_channel = \"preview\""),
+        "{written}"
+    );
 }
