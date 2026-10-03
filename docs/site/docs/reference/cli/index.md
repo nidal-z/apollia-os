@@ -20,6 +20,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os agent show`↴](#apollia-os-agent-show)
 * [`apollia-os agent set`↴](#apollia-os-agent-set)
 * [`apollia-os agent reset`↴](#apollia-os-agent-reset)
+* [`apollia-os agent export`↴](#apollia-os-agent-export)
 * [`apollia-os agent status`↴](#apollia-os-agent-status)
 * [`apollia-os agent messages`↴](#apollia-os-agent-messages)
 * [`apollia-os agent install`↴](#apollia-os-agent-install)
@@ -457,6 +458,7 @@ Agent management (list, start, stop, show, install, uninstall, enable, disable, 
 * `show` - Display detailed information about an agent, with its definition as resolved (package defaults, then your overrides)
 * `set` - Override one field of an agent's definition; a package update keeps it
 * `reset` - Go back to the package defaults: remove every override of an agent, or the override of one field. Recorded in the audit journal
+* `export` - Export an agent created in the interface as a `.apo` package
 * `status` - Show a compact runtime-status snapshot for `<agent_id>`
 * `messages` - List in-memory A2A messages for `<agent_id>` (oldest-first within window)
 * `install` - Install an agent permanently from a local path or a Git URL
@@ -551,6 +553,26 @@ Go back to the package defaults: remove every override of an agent, or the overr
 
 * `--field <FIELD>` - Remove only the override of this field
 * `--confirm` - Skip the interactive confirmation prompt
+
+
+
+## `apollia-os agent export`
+
+Export an agent created in the interface as a `.apo` package.
+
+Its current values become the defaults of the package. No secret, no memory and no history is exported; the account of a connection stays here and becomes a required connection; an access to another package, agent or workflow is left out and listed. The publisher is the `author.name` setting, or `--publisher`. Needs the runtime.
+
+**Usage:** `apollia-os agent export [OPTIONS] <AGENT_ID>`
+
+###### **Arguments:**
+
+* `<AGENT_ID>` - Agent identifier
+
+###### **Options:**
+
+* `--sign` - Sign the package with the author key, generated in the secret store on the first signature
+* `--publisher <NAME>` - Publisher name for this export only
+* `-o`, `--output <FILE>` - File to write. Default: `<id>-<version>.apo` in the current folder
 
 
 

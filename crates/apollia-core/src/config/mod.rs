@@ -39,6 +39,7 @@
 
 mod a2a;
 mod api;
+mod author;
 mod autonomy;
 mod chat;
 mod desktop;
@@ -71,6 +72,7 @@ mod tests;
 
 pub use a2a::A2AConfig;
 pub use api::ApiConfig;
+pub use author::{AuthorConfig, AUTHOR_NAME_KEY};
 pub use autonomy::{
     AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, AutonomyLevelParseError, GatePolicy,
 };

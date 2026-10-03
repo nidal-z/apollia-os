@@ -23,6 +23,7 @@ use crate::exit_codes;
 
 mod definition;
 mod display;
+mod export;
 mod install;
 mod lifecycle;
 mod package;
@@ -40,6 +41,7 @@ pub(in crate::commands::agent) use display::{
     format_status_snapshot, handle_error, local_agent_detail, print_audit_event_row,
     print_trust_banner, run_info_local_fallback,
 };
+pub(in crate::commands::agent) use export::{run_export, ExportChoices};
 pub(in crate::commands::agent) use install::run_install;
 pub(in crate::commands::agent) use lifecycle::{
     run_info, run_list, run_logs, run_messages, run_start, run_status, run_stop,
@@ -109,6 +111,27 @@ pub enum AgentCommand {
         /// Skip the interactive confirmation prompt.
         #[arg(long)]
         confirm: bool,
+    },
+    /// Export an agent created in the interface as a `.apo` package.
+    ///
+    /// Its current values become the defaults of the package. No secret, no
+    /// memory and no history is exported; the account of a connection stays
+    /// here and becomes a required connection; an access to another package,
+    /// agent or workflow is left out and listed. The publisher is the
+    /// `author.name` setting, or `--publisher`. Needs the runtime.
+    Export {
+        /// Agent identifier.
+        agent_id: String,
+        /// Sign the package with the author key, generated in the secret
+        /// store on the first signature.
+        #[arg(long)]
+        sign: bool,
+        /// Publisher name for this export only.
+        #[arg(long, value_name = "NAME")]
+        publisher: Option<String>,
+        /// File to write. Default: `<id>-<version>.apo` in the current folder.
+        #[arg(long, short = 'o', value_name = "FILE")]
+        output: Option<PathBuf>,
     },
     /// Show a compact runtime-status snapshot for `<agent_id>`.
     ///
@@ -256,6 +279,19 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
             field,
             confirm,
         } => run_reset(&client, agent_id, field.as_deref(), *confirm, json).await,
+        AgentCommand::Export {
+            agent_id,
+            sign,
+            publisher,
+            output,
+        } => {
+            let choices = ExportChoices {
+                sign: *sign,
+                publisher: publisher.as_deref(),
+                output: output.as_deref(),
+            };
+            run_export(&client, agent_id, choices, json).await
+        }
         AgentCommand::Status { agent_id } => run_status(&client, agent_id, json).await,
         AgentCommand::Messages { agent_id, limit } => {
             run_messages(&client, agent_id, *limit, json).await

@@ -27,7 +27,8 @@ use serde::Serialize;
 use serde_json::Value;
 
 use super::{
-    DesktopConfig, EnginesConfig, McpConfig, ModelsConfig, ServerConfig, ENGINE_LOG_LEVELS,
+    AuthorConfig, DesktopConfig, EnginesConfig, McpConfig, ModelsConfig, ServerConfig,
+    ENGINE_LOG_LEVELS,
 };
 
 /// Wire names of the load guardrail levels, the values `llm.guardrails.level`
@@ -182,6 +183,9 @@ fn defaults() -> serde_json::Map<String, Value> {
     }
     if let Ok(engines) = serde_json::to_value(EnginesConfig::default()) {
         sections.insert("engines".to_owned(), engines);
+    }
+    if let Ok(author) = serde_json::to_value(AuthorConfig::default()) {
+        sections.insert("author".to_owned(), author);
     }
     sections
 }

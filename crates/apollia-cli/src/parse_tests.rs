@@ -114,6 +114,58 @@ fn test_cli_parses_agent_reset() {
 }
 
 #[test]
+fn test_cli_parses_agent_export() {
+    // GIVEN "apollia-os agent export veille --sign --publisher Ada -o out.apo"
+    // WHEN the top-level parser reads it
+    let cli = parse(&[
+        "apollia-os",
+        "agent",
+        "export",
+        "veille",
+        "--sign",
+        "--publisher",
+        "Ada",
+        "-o",
+        "out.apo",
+    ]);
+    // THEN the agent, the signature, the publisher and the file are carried
+    let Commands::Agent {
+        command:
+            AgentCommand::Export {
+                agent_id,
+                sign,
+                publisher,
+                output,
+            },
+    } = cli.command
+    else {
+        panic!("expected agent export");
+    };
+    assert_eq!(agent_id, "veille");
+    assert!(sign);
+    assert_eq!(publisher.as_deref(), Some("Ada"));
+    assert_eq!(output, Some(std::path::PathBuf::from("out.apo")));
+}
+
+#[test]
+fn test_cli_parses_agent_export_unsigned_by_default() {
+    // GIVEN "apollia-os agent export veille"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "agent", "export", "veille"]);
+    // THEN nothing is signed and the setting names the publisher
+    let Commands::Agent {
+        command: AgentCommand::Export {
+            sign, publisher, ..
+        },
+    } = cli.command
+    else {
+        panic!("expected agent export");
+    };
+    assert!(!sign);
+    assert_eq!(publisher, None);
+}
+
+#[test]
 fn test_cli_parses_agent_list_definitions() {
     // GIVEN "apollia-os agent list --definitions"
     // WHEN the top-level parser reads it

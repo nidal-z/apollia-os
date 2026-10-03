@@ -7,6 +7,7 @@
 //! task).
 
 pub mod agent_adjust;
+pub mod agent_export;
 pub mod agent_packages;
 pub mod agent_sheet;
 pub mod agents;
@@ -187,6 +188,65 @@ pub(crate) async fn http_patch_json(
 /// Used for CRUD delete operations (triggers, pipelines, notifications).
 pub(crate) async fn http_delete_json(port: u16, path: &str) -> Result<serde_json::Value, String> {
     http_request_json(port, "DELETE", path, None).await
+}
+
+/// Sends a POST request with a JSON body to the internal REST API, for an
+/// answer that is a file: the value of its `report_header`, and its bytes.
+pub(crate) async fn http_post_for_file(
+    port: u16,
+    path: &str,
+    body: &serde_json::Value,
+    report_header: &str,
+) -> Result<(Option<String>, Vec<u8>), String> {
+    let stream = TcpStream::connect(format!("127.0.0.1:{port}"))
+        .await
+        .map_err(|e| format!("failed to connect to runtime API: {e}"))?;
+    let io = TokioIo::new(stream);
+    let (mut sender, conn) = http1::handshake(io)
+        .await
+        .map_err(|e| format!("HTTP handshake failed: {e}"))?;
+    tokio::spawn(async move {
+        let _ = conn.await;
+    });
+
+    let body_bytes =
+        serde_json::to_vec(body).map_err(|e| format!("failed to serialize body: {e}"))?;
+    let mut builder = hyper::Request::builder()
+        .method("POST")
+        .uri(path)
+        .header("host", "localhost")
+        .header("content-type", "application/json");
+    if let Some(auth) = bridge_auth_header() {
+        builder = builder.header("authorization", auth);
+    }
+    let req = builder
+        .body(Full::new(Bytes::from(body_bytes)))
+        .map_err(|e| format!("failed to build request: {e}"))?;
+    let resp = sender
+        .send_request(req)
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
+
+    let status = resp.status();
+    let report = resp
+        .headers()
+        .get(report_header)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
+    let resp_bytes = resp
+        .into_body()
+        .collect()
+        .await
+        .map_err(|e| format!("failed to read response body: {e}"))?
+        .to_bytes();
+    if !status.is_success() {
+        let body_str = String::from_utf8_lossy(&resp_bytes);
+        return Err(serde_json::from_str::<serde_json::Value>(&body_str)
+            .ok()
+            .and_then(|j| j.get("error").and_then(|e| e.as_str()).map(String::from))
+            .unwrap_or_else(|| format!("API error ({}): {}", status.as_u16(), body_str)));
+    }
+    Ok((report, resp_bytes.to_vec()))
 }
 
 /// Internal function shared by `http_post_json`, `http_put_json` and

@@ -4499,5 +4499,31 @@
     "connection_from_custom": "Custom connection",
     "connection_from_package": "Connection brought by a package",
     "connection_provenance_official": "{provenance}, official"
+  },
+  "agent_export": {
+    "action": "Export",
+    "title": "Export “{name}” as a package",
+    "legend": "The package carries the mission, the examples, the recommended model, the accesses asked for and the expected sources. Your current settings become its defaults.",
+    "never_title": "Never in the package",
+    "never_secrets": "Your credentials and those of your connections",
+    "never_memory": "The agent's memory",
+    "never_history": "The history of its runs",
+    "sign": "Sign the package",
+    "sign_hint": "On the first signature, an author key is created and kept in this computer's vault. Whoever installs the package sees your name and the key fingerprint.",
+    "file_name": "File name",
+    "file_hint": "You choose where to save it at the next step.",
+    "file_filter": "Apollia package",
+    "publisher": "Publisher name",
+    "publisher_placeholder": "Your name or your team's",
+    "publisher_hint": "Kept for your next exports.",
+    "publisher_required": "Enter a publisher name.",
+    "confirm": "Export",
+    "exporting": "Exporting…",
+    "done": "Package exported",
+    "written": "Package saved: {path}",
+    "signed_by": "Signed by {publisher}, key fingerprint: {fingerprint}",
+    "unsigned": "Unsigned, publisher: {publisher}",
+    "required": "Requires the connections: {list}",
+    "removed": "Left out of the package (another package, agent or workflow): {list}"
   }
 }
