@@ -109,6 +109,7 @@ from .create_server_request import CreateServerRequest
 from .create_server_token_request import CreateServerTokenRequest
 from .create_session_request import CreateSessionRequest
 from .create_trigger_request import CreateTriggerRequest
+from .create_trigger_request_workflow_inputs_type_0 import CreateTriggerRequestWorkflowInputsType0
 from .created_server_token_view import CreatedServerTokenView
 from .credential_entry_view import CredentialEntryView
 from .credential_test_view import CredentialTestView
@@ -428,6 +429,9 @@ from .transcriptions_list_response_transcriptions_item import (
 )
 from .trigger_definition_response import TriggerDefinitionResponse
 from .trigger_definition_response_source_config import TriggerDefinitionResponseSourceConfig
+from .trigger_definition_response_workflow_inputs_type_0 import (
+    TriggerDefinitionResponseWorkflowInputsType0,
+)
 from .trigger_onboarding_body import TriggerOnboardingBody
 from .trigger_preview import TriggerPreview
 from .trigger_result import TriggerResult
@@ -450,6 +454,7 @@ from .update_preset_request_request import UpdatePresetRequestRequest
 from .update_session_body import UpdateSessionBody
 from .update_stt_config_body import UpdateSttConfigBody
 from .update_trigger_request import UpdateTriggerRequest
+from .update_trigger_request_workflow_inputs_type_0 import UpdateTriggerRequestWorkflowInputsType0
 from .user_profile_view import UserProfileView
 from .variant_update import VariantUpdate
 from .verify_chain_report import VerifyChainReport
@@ -578,6 +583,7 @@ __all__ = (
     "CreateServerTokenRequest",
     "CreateSessionRequest",
     "CreateTriggerRequest",
+    "CreateTriggerRequestWorkflowInputsType0",
     "CredentialEntryView",
     "CredentialTestView",
     "DailyCostEntry",
@@ -890,6 +896,7 @@ __all__ = (
     "TranscriptionsListResponseTranscriptionsItem",
     "TriggerDefinitionResponse",
     "TriggerDefinitionResponseSourceConfig",
+    "TriggerDefinitionResponseWorkflowInputsType0",
     "TriggerOnboardingBody",
     "TriggerPreview",
     "TriggerResult",
@@ -912,6 +919,7 @@ __all__ = (
     "UpdateSessionBody",
     "UpdateSttConfigBody",
     "UpdateTriggerRequest",
+    "UpdateTriggerRequestWorkflowInputsType0",
     "UserProfileView",
     "VariantUpdate",
     "VerifyChainReport",

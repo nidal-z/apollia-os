@@ -24,13 +24,15 @@
    */
   import { t } from "svelte-i18n";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
-  import { MessageSquare, RefreshCw, Sparkles, Trash2 } from "lucide-svelte";
+  import { MessageSquare, RefreshCw, Repeat, Sparkles, Trash2 } from "lucide-svelte";
   import { reportError } from "$lib/errors/reportError";
   import { DetailHeader, StatusDot } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { developerMode } from "$lib/stores/developerMode";
+  import { addToast } from "$lib/components/ui/toast/store";
+  import CreateTriggerDialog from "../triggers/CreateTriggerDialog.svelte";
   import type { AgentActions } from "./useAgentActions.svelte";
   import type { AgentListItem } from "$lib/types";
   import {
@@ -69,6 +71,8 @@
   );
 
   let deleteMemory = $state(false);
+  /** The "Automate" dialog, prefilled with this agent as its target. */
+  let automating = $state(false);
   let updating = $state(false);
   /**
    * File picked for the replacement, held while the operator decides.
@@ -244,6 +248,15 @@
         </Button>
       {/if}
       <Button
+        variant="outline"
+        size="sm"
+        onclick={() => (automating = true)}
+        data-testid="agent-automate-btn"
+      >
+        {#snippet icon()}<Repeat size={12} />{/snippet}
+        {$t("agents.automate")}
+      </Button>
+      <Button
         variant="primary-solid"
         size="sm"
         onclick={() => onStartChat(agent.name)}
@@ -280,3 +293,13 @@
     {/if}
   {/snippet}
 </DetailHeader>
+
+<CreateTriggerDialog
+  open={automating}
+  target={{ kind: "agent", name: agent.name }}
+  onclose={() => (automating = false)}
+  oncreated={(id) => {
+    automating = false;
+    addToast($t("triggers.created_toast", { values: { id } }), "success");
+  }}
+/>

@@ -827,7 +827,8 @@
     "update_restart_stop_failed": "The new file is installed, but {name} could not be stopped: it is still running the previous version.",
     "update_restart_stop_failed_action": "Stop the agent, then start it again to load the new version.",
     "update_restart_start_failed": "{name} was stopped to load the new version and did not start again: it is running nothing right now.",
-    "update_restart_start_failed_action": "Start the agent again from its row. The cause below says what the runtime refused."
+    "update_restart_start_failed_action": "Start the agent again from its row. The cause below says what the runtime refused.",
+    "automate": "Automate"
   },
   "tasks": {
     "subtitle": "Track requests sent to your assistants and their results",
@@ -1177,7 +1178,7 @@
     "title": "Automations",
     "delete": "Delete",
     "col_automation": "Automation",
-    "col_assistant": "Assistant",
+    "col_assistant": "Target",
     "col_next_run": "Next run",
     "col_status": "Status",
     "col_last_run": "Last run",
@@ -1401,7 +1402,15 @@
       "fri": "Fri",
       "sat": "Sat",
       "sun": "Sun"
-    }
+    },
+    "workflow_label": "Workflow",
+    "prefilled_hint": "Prefilled from the sheet: the target is set.",
+    "field_workflow_inputs": "Workflow inputs",
+    "workflow_no_inputs": "This workflow takes no input.",
+    "field_workflow_input_required": "This input is required.",
+    "field_message": "Message to the agent",
+    "field_message_hint": "May include the time of the run, the file or the content received.",
+    "automate_title": "Automate \"{name}\""
   },
   "memory": {
     "empty_title": "No memory data",

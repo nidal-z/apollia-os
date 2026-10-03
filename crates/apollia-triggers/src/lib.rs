@@ -29,8 +29,8 @@ pub mod validation;
 
 pub use config::FileWatchConfig;
 pub use definition_repository::{
-    OnBusy, TriggerDefinitionError as DefinitionRepositoryError, TriggerDefinitionRepository,
-    TriggerDefinitionRow,
+    OnBusy, TargetColumns, TriggerDefinitionError as DefinitionRepositoryError,
+    TriggerDefinitionRepository, TriggerDefinitionRow,
 };
 pub use engine::{TaskSubmitter, TriggerEngineError, TriggerEngineHandle, TriggerStatus};
 pub use persistence::{
@@ -38,7 +38,8 @@ pub use persistence::{
 };
 pub use toml_config::{parse_triggers_from_toml_str, TriggerTomlError};
 pub use types::{
-    parse_interval, FileEventKind, InputTemplate, OnBusyPolicy, TriggerDefinition,
+    parse_interval, render_inputs, FileEventKind, InputTemplate, OnBusyPolicy, TriggerDefinition,
     TriggerDefinitionError, TriggerEvent, TriggerId, TriggerPayload, TriggerSourceConfig,
+    TriggerTarget,
 };
 pub use validation::{validate_trigger, validate_trigger_source};
