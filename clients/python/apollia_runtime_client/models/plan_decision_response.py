@@ -14,7 +14,7 @@ class PlanDecisionResponse:
     """Response body for `POST /api/v1/tasks/{id}/plan-decision`.
 
     Attributes:
-        decision (str): Decision applied (`"approved"` or `"rejected"`).
+        decision (str): Decision applied (`"approved"`, `"rejected"` or `"edited"`).
         run_id (str): Run identifier whose gate was resolved.
     """
 
