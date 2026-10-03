@@ -90,6 +90,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_chat::user_inputs::{
         answer_user_input, list_pending_user_inputs, reject_user_input,
     };
+    use crate::api::routes_chat::{approval_history, turns};
     use crate::api::routes_chat::{
         authorize_tool as chat_authorize_tool, close_session, create_session,
         fork_session as chat_fork_session, get_session as chat_get_session,
@@ -99,6 +100,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     };
     use crate::api::routes_connections::connections_router;
     use crate::api::routes_connectors::connectors_router;
+    use crate::api::routes_drive_folders::drive_folders_router;
     use crate::api::routes_engines::engines_router;
     use crate::api::routes_hooks::list_hooks;
     use crate::api::routes_imap::imap_router;
@@ -106,6 +108,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_mcp::mcp_router;
     use crate::api::routes_mcp_registry::mcp_registry_router;
     use crate::api::routes_mcp_secrets::mcp_secrets_router;
+    use crate::api::routes_memory::memory_router;
     use crate::api::routes_memory_maintenance::memory_maintenance_router;
     use crate::api::routes_messages::{inject_agent_message, list_agent_messages, stream_mailbox};
     use crate::api::routes_model_hub::model_hub_routes;
@@ -114,6 +117,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_notifications::{
         create_channel, delete_channel, get_events, list_channels, set_events, update_channel,
     };
+    use crate::api::routes_permissions::permissions_router;
     use crate::api::routes_plan_cache::{clear_plan_cache, get_plan_cache_stats};
     use crate::api::routes_profile::profile_router;
     use crate::api::routes_resilience::resilience_router;
@@ -128,6 +132,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         cancel_task, get_task, list_tasks, resume_task, submit_plan_decision, submit_task,
     };
     use crate::api::routes_timeline::get_task_timeline;
+    use crate::api::routes_tool_governance::tool_governance_router;
     use crate::api::routes_tools::{describe_tool, list_tools};
     use crate::api::routes_trace::get_task_trace;
     use crate::api::routes_triggers::{
@@ -263,12 +268,24 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         // /recent must be registered before /:id to avoid the path param capturing "recent"
         .route("/api/v1/sessions/recent", get(list_recent_sessions::<B>))
         .route(
+            "/api/v1/sessions/approval-history",
+            get(approval_history::list_approval_history::<B>),
+        )
+        .route(
             "/api/v1/sessions/:id",
             get(chat_get_session::<B>)
                 .patch(update_session::<B>)
                 .delete(close_session::<B>),
         )
         .route("/api/v1/sessions/:id/messages", post(send_message::<B>))
+        .route(
+            "/api/v1/sessions/:id/messages/:message_id/regenerate",
+            post(turns::regenerate_response::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/messages/:message_id/resend",
+            post(turns::resend_message::<B>),
+        )
         .route(
             "/api/v1/sessions/:id/authorize",
             post(chat_authorize_tool::<B>),
@@ -326,7 +343,11 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(profile_router::<B>())
         .merge(memory_maintenance_router::<B>())
         .merge(conversations_router::<B>())
+        .merge(memory_router::<B>())
+        .merge(permissions_router::<B>())
+        .merge(tool_governance_router::<B>())
         .merge(connectors_router::<B>())
+        .merge(drive_folders_router::<B>())
         .merge(imap_router::<B>())
         .merge(crate::api::routes_batches::batch_routes::<B>())
         .merge(crate::api::routes_workflows::workflow_routes::<B>())

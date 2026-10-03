@@ -5,9 +5,12 @@
 //! resolution chain each value came from.
 
 use apollia_auth::ConnectorProvider;
+use apollia_runtime::drive_folders::{self, DriveFolderError};
 use serde::Serialize;
+use tauri::State;
 
 use super::{auth_manager, provider_from_id, IntegrationsError};
+use crate::attached::RuntimeLink;
 
 // ─── OAuth client_id overrides (~/.apollia/oauth-clients.toml) ──────────────
 
@@ -318,42 +321,32 @@ pub async fn oauth_set_client_id(
 
 // ─── Drive folder preferences (~/.apollia/drive-prefs.toml) ─────────────────
 
-/// One row of `oauth_list_drive_folders`. Lists the user-configured Drive
-/// root path per Google account, plus the effective fallback so the UI can
-/// distinguish "explicit override" from "default Apollia folder".
-#[derive(Debug, Clone, Serialize)]
-pub struct DriveFolderStatus {
-    /// Account id (typically the user's Google email).
-    pub account_id: String,
-    /// Explicit user-set path, when present (`None` means falling back to default).
-    pub folder_path: Option<String>,
-    /// Effective folder path used at runtime (override or default).
-    pub effective_folder_path: String,
+/// One row of `oauth_list_drive_folders`: the Drive folder of one Google
+/// account, as `apollia_runtime::drive_folders` reads it for both modes.
+pub use apollia_runtime::drive_folders::DriveFolderStatus;
+
+fn drive_error(error: DriveFolderError) -> IntegrationsError {
+    match error {
+        DriveFolderError::Accounts(message) => IntegrationsError::Auth(message),
+        other => IntegrationsError::Internal(other.to_string()),
+    }
 }
 
 /// List the per-account Drive folder configuration for every connected
 /// Google account. Used by the Settings → Integrations Google card so the
 /// user can review/edit each account's folder.
 #[tauri::command]
-pub async fn oauth_list_drive_folders() -> Result<Vec<DriveFolderStatus>, IntegrationsError> {
-    let manager = auth_manager().await?;
-    let accounts = manager
-        .list_accounts(ConnectorProvider::Google)
-        .await
-        .map_err(|e| IntegrationsError::Auth(e.to_string()))?;
-    let mut out = Vec::with_capacity(accounts.len());
-    for account in accounts {
-        let override_path =
-            apollia_auth::drive_prefs::lookup_folder_path("google", account.as_str());
-        let effective =
-            apollia_auth::drive_prefs::effective_folder_path("google", account.as_str());
-        out.push(DriveFolderStatus {
-            account_id: account.0,
-            folder_path: override_path,
-            effective_folder_path: effective,
-        });
+pub async fn oauth_list_drive_folders(
+    link: State<'_, RuntimeLink>,
+) -> Result<Vec<DriveFolderStatus>, IntegrationsError> {
+    if let RuntimeLink::Attached(remote) = link.inner() {
+        return super::attached::drive_folders(remote).await;
     }
-    Ok(out)
+    let manager = auth_manager().await?;
+    let prefs = drive_folders::prefs_path().map_err(drive_error)?;
+    drive_folders::list(&manager, &prefs)
+        .await
+        .map_err(drive_error)
 }
 
 /// Persist the Drive folder path for one Google account.
@@ -369,12 +362,17 @@ pub async fn oauth_list_drive_folders() -> Result<Vec<DriveFolderStatus>, Integr
 /// collapsed) before being written.
 #[tauri::command]
 pub async fn oauth_set_drive_folder(
+    link: State<'_, RuntimeLink>,
     account_id: String,
     folder_path: String,
 ) -> Result<(), IntegrationsError> {
-    apollia_auth::drive_prefs::set_folder_path("google", account_id.trim(), folder_path.trim())
-        .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
-    Ok(())
+    if let RuntimeLink::Attached(remote) = link.inner() {
+        return super::attached::set_drive_folder(remote, &account_id, &folder_path).await;
+    }
+    let prefs = drive_folders::prefs_path().map_err(drive_error)?;
+    drive_folders::set(&prefs, &account_id, &folder_path)
+        .map(drop)
+        .map_err(drive_error)
 }
 
 /// Clear the Drive folder override for one Google account, restoring the
@@ -382,10 +380,17 @@ pub async fn oauth_set_drive_folder(
 /// [`oauth_set_drive_folder`] called with an empty string; that means
 /// "use Drive root". Picked folders (Google Picker) are preserved.
 #[tauri::command]
-pub async fn oauth_reset_drive_folder(account_id: String) -> Result<(), IntegrationsError> {
-    apollia_auth::drive_prefs::reset_folder_path("google", account_id.trim())
-        .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
-    Ok(())
+pub async fn oauth_reset_drive_folder(
+    link: State<'_, RuntimeLink>,
+    account_id: String,
+) -> Result<(), IntegrationsError> {
+    if let RuntimeLink::Attached(remote) = link.inner() {
+        return super::attached::reset_drive_folder(remote, &account_id).await;
+    }
+    let prefs = drive_folders::prefs_path().map_err(drive_error)?;
+    drive_folders::reset(&prefs, &account_id)
+        .map(drop)
+        .map_err(drive_error)
 }
 
 /// Persist the public Google API key used by Google Picker. Stored

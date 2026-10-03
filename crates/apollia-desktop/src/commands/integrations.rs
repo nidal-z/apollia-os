@@ -34,11 +34,19 @@
 //! An account is submitted to the runtime's connection admission before its
 //! code is exchanged, and connecting or disconnecting one is journaled, the
 //! same as through the runtime's HTTP consent routes.
+//!
+//! ## Attached mode
+//!
+//! Attached to the daemon `apollia-os start`, the consent, the accounts and
+//! the Drive folders are the daemon's: the commands reach its routes through
+//! [`attached`], and the window keeps only its loopback listener and the
+//! browser it opens.
 
 //! The credential surface lives in its own module: `credentials` holds the
 //! client ids, secrets, API keys and Drive folders, and the checks that refuse
 //! a half-resolved credential.
 
+mod attached;
 pub mod credentials;
 
 use credentials::ensure_credentials;
@@ -49,7 +57,6 @@ use apollia_auth::{
     AccountId, AuthManager, ConnectorProvider, ConsentError, OAuth2PkceFlow, ProviderConfig,
     StoredToken,
 };
-use apollia_runtime::embedded::RuntimeHandle;
 use apollia_runtime::governance::{
     AdmissionDecision, AdmissionRequest, ConnectionEvent, ConnectionGovernance,
 };
@@ -57,6 +64,8 @@ use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 use tokio::sync::OnceCell;
+
+use crate::attached::RuntimeLink;
 
 /// Who the connection journal names for an account changed from the desktop.
 const DESKTOP_ACTOR: &str = "desktop";
@@ -156,6 +165,12 @@ pub enum IntegrationsError {
     /// Catch-all internal failure.
     #[error("internal: {0}")]
     Internal(String),
+    /// The daemon the desktop is attached to refused or did not answer. The
+    /// text is the one the interface shows, the daemon's own words when it
+    /// gave some, so it crosses the bridge as a plain string.
+    #[error("{0}")]
+    #[serde(untagged)]
+    Service(String),
 }
 
 // ─── DTOs ───────────────────────────────────────────────────────────────────
@@ -173,7 +188,7 @@ pub struct OauthStartFlow {
 }
 
 /// Result of `oauth_complete_flow`: minimal account info to confirm success.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OauthCompletedAccount {
     /// Provider id (`google` / `microsoft`).
     pub provider: String,
@@ -184,7 +199,7 @@ pub struct OauthCompletedAccount {
 }
 
 /// Account metadata returned by `oauth_get_status`.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OauthAccountInfo {
     /// Provider id.
     pub provider: String,
@@ -247,9 +262,13 @@ fn ensure_cloud_allowed(profile: SovereigntyProfile) -> Result<(), IntegrationsE
 /// When the loopback can't fire (browser blocked the redirect, headless
 /// environment, user closed the tab before granting), the frontend keeps a
 /// manual paste fallback so the user can recover the code from the URL bar.
+///
+/// Attached to the daemon, the consent is started there, for the same
+/// loopback redirect, and completed there by [`oauth_complete_flow`].
 #[tauri::command]
 pub async fn oauth_start_flow(
     app: tauri::AppHandle,
+    link: State<'_, RuntimeLink>,
     provider: String,
     scopes: Vec<String>,
     sovereignty: SovereigntyProfile,
@@ -257,16 +276,33 @@ pub async fn oauth_start_flow(
     use tauri::Emitter;
 
     ensure_cloud_allowed(sovereignty)?;
-    let provider_id = provider_from_id(&provider)?;
-    ensure_credentials(provider_id)?;
-    let provider_config = build_provider_with_scopes(provider_id, &scopes)?;
-
     let (listener, port) = apollia_auth::callback::bind_ephemeral_port()
         .await
         .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
     let flow = OAuth2PkceFlow::new(port);
-    let auth_url = apollia_auth::build_auth_url(&provider_config, &flow);
-    let state = flow.state.clone();
+    let (auth_url, state) = match link.inner() {
+        RuntimeLink::Embedded(_) => {
+            let provider_id = provider_from_id(&provider)?;
+            ensure_credentials(provider_id)?;
+            let provider_config = build_provider_with_scopes(provider_id, &scopes)?;
+            let auth_url = apollia_auth::build_auth_url(&provider_config, &flow);
+            let state = flow.state.clone();
+            pending_flows().insert(
+                state.clone(),
+                FlowEntry {
+                    provider: provider_id,
+                    flow,
+                    provider_config,
+                },
+            );
+            (auth_url, state)
+        }
+        RuntimeLink::Attached(remote) => {
+            let started =
+                attached::start_consent(remote, &provider, &scopes, &flow.redirect_uri).await?;
+            (started.auth_url, started.state)
+        }
+    };
 
     // Open the system browser via the Tauri opener plugin; `window.open`
     // from the renderer is unreliable in Tauri 2 webviews (browser sandboxing
@@ -282,15 +318,6 @@ pub async fn oauth_start_flow(
             );
         }
     }
-
-    pending_flows().insert(
-        state.clone(),
-        FlowEntry {
-            provider: provider_id,
-            flow,
-            provider_config,
-        },
-    );
 
     // Spawn the loopback callback waiter; emit a Tauri event as soon as the
     // browser hits 127.0.0.1:port/callback. Frontend auto-finalises by
@@ -326,12 +353,19 @@ pub async fn oauth_start_flow(
 ///
 /// The account is submitted to the connection admission before the code is
 /// exchanged, and the connection is journaled once its token is stored.
+/// Attached, the daemon that started the consent does all of it.
 #[tauri::command]
 pub async fn oauth_complete_flow(
-    runtime: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     state: String,
     code: String,
 ) -> Result<OauthCompletedAccount, IntegrationsError> {
+    let runtime = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => {
+            return attached::complete_consent(remote, &state, &code).await
+        }
+    };
     let governance = &runtime.connection_governance;
     let (provider, flow, provider_config) = {
         let entry = pending_flows()
@@ -402,10 +436,16 @@ async fn store_and_record(
 /// required. The disconnection is journaled.
 #[tauri::command]
 pub async fn oauth_disconnect(
-    runtime: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     provider: String,
     account_id: String,
 ) -> Result<(), IntegrationsError> {
+    let runtime = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => {
+            return attached::disconnect(remote, &provider, &account_id).await
+        }
+    };
     let provider_id = provider_from_id(&provider)?;
     let manager = auth_manager().await?;
     revoke_and_record(
@@ -449,7 +489,12 @@ async fn revoke_and_record(
 
 /// List connected accounts across all providers.
 #[tauri::command]
-pub async fn oauth_get_status() -> Result<Vec<OauthAccountInfo>, IntegrationsError> {
+pub async fn oauth_get_status(
+    link: State<'_, RuntimeLink>,
+) -> Result<Vec<OauthAccountInfo>, IntegrationsError> {
+    if let RuntimeLink::Attached(remote) = link.inner() {
+        return attached::accounts(remote).await;
+    }
     let manager = auth_manager().await?;
     let mut out = Vec::new();
     for provider in [ConnectorProvider::Google, ConnectorProvider::Microsoft] {
@@ -762,6 +807,18 @@ mod tests {
         let json = serde_json::to_value(&err).expect("serialize");
         // THEN it carries a kind tag the front end can branch on
         assert_eq!(json["kind"], "unknown_provider");
+    }
+
+    #[test]
+    fn test_a_refusal_of_the_daemon_crosses_the_bridge_as_its_own_words() {
+        // GIVEN the daemon's refusal, as the attached arm carries it
+        let err = IntegrationsError::Service("refused by the connection policy".into());
+
+        // WHEN it crosses the IPC boundary
+        let json = serde_json::to_value(&err).expect("serialize");
+
+        // THEN the interface receives the daemon's text alone, no kind before it
+        assert_eq!(json, serde_json::json!("refused by the connection policy"));
     }
 
     #[test]

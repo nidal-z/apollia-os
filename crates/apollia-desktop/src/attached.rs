@@ -50,6 +50,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_chats_by_project",
     "rename_chat_session",
     "update_chat_session",
+    // The chat: a turn played again, a decision on a tool call, the history
+    // of those decisions, and the skills of the worker agents.
+    "authorize_chat_tool",
+    "edit_and_resend_chat_message",
+    "list_a2a_skills",
+    "list_chat_approval_history",
+    "regenerate_chat_response",
     // Agents: the registry and the install.
     "agent_status_snapshot",
     "install_agent",
@@ -131,6 +138,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_profile",
     "reset_user_profile",
     "set_profile_entry",
+    // Memory, read side: the namespaces, their entries, the search, the
+    // entries recalled during a turn, the statistics of a conversation.
+    "get_conversation_stats",
+    "get_injected_memory_entries",
+    "list_memory_entries",
+    "list_memory_namespaces",
+    "search_memory",
     // Models: the download of a whole variant from the Hub.
     "start_variant_download",
     // Models: the signed cards of the catalogue, read when it opens.
@@ -149,6 +163,34 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "delete_transcription",
     "list_transcriptions",
     "transcribe_file",
+    // Permissions: the rules the onboarding agent proposed, a rule written
+    // from an approval card, and the answer to a request to touch a file.
+    "add_permission_prefix_rule",
+    "apply_proposed_permission_rule",
+    "dismiss_proposed_permission_rule",
+    "list_proposed_permission_rules",
+    "respond_hitl_filesystem",
+    // Tool governance: the tools, their configuration, the permission rules
+    // and the audit, over `/api/v1/governance`.
+    "governance_get_tool_config",
+    "governance_list_audit",
+    "governance_list_permission_rules",
+    "governance_list_tools",
+    "governance_revoke_all_rules",
+    "governance_revoke_permission_rule",
+    "governance_set_tool_config",
+    "governance_set_tool_enabled",
+    // Accounts of the native connectors and their Drive folder, under
+    // `/api/v1/connectors/`. The window keeps the loopback listener and the
+    // browser of the consent; the daemon starts it, completes it and stores
+    // the token.
+    "oauth_complete_flow",
+    "oauth_disconnect",
+    "oauth_get_status",
+    "oauth_list_drive_folders",
+    "oauth_reset_drive_folder",
+    "oauth_set_drive_folder",
+    "oauth_start_flow",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no
