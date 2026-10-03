@@ -10423,6 +10423,129 @@
         }
       }
     },
+    "/api/v1/server": {
+      "get": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`GET /api/v1/server`: whether the compatible server listens, its port, and\nwhy its last start failed.",
+        "operationId": "server_status",
+        "responses": {
+          "200": {
+            "description": "State of the compatible server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompatServerStatus"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/server/start": {
+      "post": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`POST /api/v1/server/start`: opens the compatible server on its configured\nport and writes `[server] enabled = true`.",
+        "operationId": "start_server",
+        "responses": {
+          "200": {
+            "description": "The compatible server listens",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompatServerStatus"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another program holds the port",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The listener or the setting failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/server/stop": {
+      "post": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`POST /api/v1/server/stop`: closes the compatible server and writes\n`[server] enabled = false`. The native API keeps answering.",
+        "operationId": "stop_server",
+        "responses": {
+          "200": {
+            "description": "The compatible server is stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompatServerStatus"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The setting could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions": {
       "get": {
         "tags": [
@@ -16720,6 +16843,33 @@
           "session_id": {
             "type": "string",
             "description": "Identifier of the guide session just opened."
+          }
+        }
+      },
+      "CompatServerStatus": {
+        "type": "object",
+        "description": "What the compatible server is doing.",
+        "required": [
+          "running",
+          "port"
+        ],
+        "properties": {
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the last start failed, cleared by the next successful start."
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The port it listens on, or the configured port when it is stopped.",
+            "minimum": 0
+          },
+          "running": {
+            "type": "boolean",
+            "description": "Whether the listener is open."
           }
         }
       },
@@ -24537,6 +24687,10 @@
     {
       "name": "lifecycle",
       "description": "Resets and erasures of the installation"
+    },
+    {
+      "name": "server",
+      "description": "Starting and stopping the compatible server, the second listener"
     },
     {
       "name": "connectors",

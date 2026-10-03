@@ -570,4 +570,23 @@ plan_mode_default = true
         // THEN
         assert!(config.desktop.developer_mode);
     }
+
+    // GIVEN an apollia.toml turning the compatible server on
+    // WHEN it is parsed
+    // THEN the typed server section carries it, and an unknown key is refused
+    #[test]
+    fn test_server_section_parses_and_refuses_an_unknown_key() {
+        // GIVEN
+        let file = write_toml("[server]\nenabled = true\nport = 8123\n");
+        let typo = write_toml("[server]\nenabeld = true\n");
+
+        // WHEN
+        let config = parse_apollia_toml(file.path()).expect("parse should succeed");
+        let refused = parse_apollia_toml(typo.path());
+
+        // THEN
+        assert!(config.server.enabled);
+        assert_eq!(config.server.port, 8123);
+        assert!(refused.is_err());
+    }
 }

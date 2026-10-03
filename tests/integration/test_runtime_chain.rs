@@ -114,6 +114,7 @@ fn build_app_state() -> AppState<MockBackend> {
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     }
 }
 

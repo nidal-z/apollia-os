@@ -192,6 +192,9 @@ pub const KEYS: &[ConfigKey] = &[
     key("observability.retention_days", Integer, Some("90"), Reloadable, "Days the run history is kept."),
     // [ui]
     key("ui.link_preview_enabled", Boolean, Some("false"), Reloadable, "Fetch the preview of a link shown in a conversation."),
+    // [server]
+    key("server.enabled", Boolean, Some("false"), Reloadable, "Turn on the compatible server, a second listener on the loopback interface."),
+    key("server.port", Integer, Some("7772"), Reloadable, "TCP port of the compatible server; never the native API port."),
     // Withdrawn sections.
     withdrawn("memory", "nothing reads it; remove the section"),
     withdrawn("budget", "nothing reads it; remove the section"),

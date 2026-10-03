@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     ApiConfig, ChatConfig, DesktopConfig, FilesystemConfig, HitlConfig, HooksConfig, LlmConfig,
-    McpConfig, ModelsConfig, RuntimeConfig, ToolsConfig, WorkflowsConfig,
+    McpConfig, ModelsConfig, RuntimeConfig, ServerConfig, ToolsConfig, WorkflowsConfig,
 };
 use crate::ObservabilityConfig;
 
@@ -64,6 +64,9 @@ pub struct ApolliaConfig {
     /// `[ui]`: the opt-in link preview of the desktop application.
     #[serde(default)]
     pub ui: UiConfig,
+    /// `[server]`: the compatible server, its switch and its port.
+    #[serde(default)]
+    pub server: ServerConfig,
 }
 
 /// The `[ui]` section, read by the desktop link preview.
