@@ -8,7 +8,6 @@ use std::sync::Arc;
 use apollia_aip::bridge::AIPBridge;
 use apollia_core::{PendingApprovals, ToolsConfig};
 use apollia_llm::LlmRouter;
-use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::engine::ORIAEngine;
 use apollia_runtime::a2a::A2AInvoker;
 use apollia_runtime::coordinator::DynBackend;
@@ -19,10 +18,10 @@ use apollia_runtime::router::TaskRouterHandle;
 use apollia_tools::tools::ask_user::PendingUserInputs;
 use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 
+use super::default_memory_dir;
 use super::factory::direct_path_budget;
 use super::runner::{llm_router_snapshot, BridgeRunner};
 use super::venv_site_packages_for_agent_name;
-use super::{build_user_context_from_repo, default_memory_dir};
 
 /// Production [`ChatAgentRunner`] for the desktop app.
 ///
@@ -53,8 +52,6 @@ pub struct ProductionChatAgentRunner {
     pub task_router: Arc<std::sync::OnceLock<TaskRouterHandle<DynBackend>>>,
     /// Inter-agent mailbox handle, exposed as `ctx.mailbox`.
     pub mailbox_handle: Arc<std::sync::OnceLock<AgentMailboxHandle>>,
-    /// Global user memory repository, used to build `ctx.user_context`.
-    pub user_memory: Arc<std::sync::OnceLock<Arc<std::sync::Mutex<UserMemoryRepository>>>>,
     /// Operator tools configuration (`[tools]` apollia.toml).
     pub tools_config: Arc<std::sync::OnceLock<ToolsConfig>>,
     /// Filesystem roots an agent may reach (`[filesystem] trusted_paths`, `~`
@@ -154,12 +151,6 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             }
         };
 
-        // Build user_context from the global user memory store (chat mode only).
-        let user_context = self.user_memory.get().and_then(|repo_mutex| {
-            let repo = repo_mutex.lock().ok()?;
-            build_user_context_from_repo(&repo)
-        });
-
         // 4. Build RuntimeContext and call the agent. The Direct-path budget is
         // shared into the runner's ctx and the engine supervisor.
         let direct_budget = Arc::new(direct_path_budget(&agent_step_budget));
@@ -178,7 +169,6 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             mcp_handle: self.mcp_handle.get().cloned(),
             a2a_invoker,
             mailbox,
-            user_context,
             tools_config,
             trusted_paths: self.trusted_paths.get().cloned().unwrap_or_default(),
             datasources_declared,

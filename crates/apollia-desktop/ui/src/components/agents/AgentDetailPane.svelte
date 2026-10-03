@@ -2,9 +2,10 @@
   /**
    * AgentDetailPane - the right-hand detail pane router.
    *
-   * Given the current selection, renders the matching detail: the pinned
-   * Apollia Chat config, a package detail, an agent header + tabs, or the
-   * loading / empty states. Keeps the route shell free of the branch logic.
+   * Given the current selection, renders the matching detail: the sheet of
+   * the built-in Apollia agent, a package detail, the header and sheet of an
+   * agent, or the loading / empty states. Keeps the route shell free of the
+   * branch logic.
    */
   import { t } from "svelte-i18n";
   import { Bot, Plus } from "lucide-svelte";
@@ -13,15 +14,14 @@
   import ApolliaChatDetail from "./ApolliaChatDetail.svelte";
   import PackageDetail from "./PackageDetail.svelte";
   import AgentDetailHeader from "./AgentDetailHeader.svelte";
-  import AgentDetailTabs from "./AgentDetailTabs.svelte";
+  import AgentSheet from "./sheet/AgentSheet.svelte";
+  import { createAgentAdjust } from "./sheet/useAgentAdjust.svelte";
   import type { AgentActions } from "./useAgentActions.svelte";
   import type {
     AgentListItem,
     AgentPackageDetailView,
     AgentPackageListItem,
   } from "$lib/types";
-
-  type AgentTab = "overview" | "tools" | "memory" | "activity" | "settings";
 
   interface Props {
     selected: AgentListItem | null;
@@ -30,11 +30,8 @@
     pkgDetail: AgentPackageDetailView | null;
     connecting: boolean;
     agentActions: AgentActions;
-    agentDetailTab: AgentTab;
     onStartChat: (name: string) => void;
     onOpenLogs: (agentId: string) => void;
-    onNavigateMemory: () => void;
-    onNavigateTasks: (taskId: string) => void;
     onSelectAgent: (name: string) => void;
     onInstallAgent: () => void;
     confirmingUninstall: boolean;
@@ -50,11 +47,8 @@
     pkgDetail,
     connecting,
     agentActions,
-    agentDetailTab = $bindable(),
     onStartChat,
     onOpenLogs,
-    onNavigateMemory,
-    onNavigateTasks,
     onSelectAgent,
     onInstallAgent,
     confirmingUninstall,
@@ -62,10 +56,13 @@
     onDisarmUninstall,
     onUninstallPackage,
   }: Props = $props();
+
+  // The adjustment of the selected agent; a change of selection ends it.
+  const adjust = createAgentAdjust(() => selected?.name ?? "");
 </script>
 
 {#if apolliaChatSelected}
-  <ApolliaChatDetail />
+  <ApolliaChatDetail {onOpenLogs} />
 {:else if selectedPackage}
   <PackageDetail
     pkg={selectedPackage}
@@ -81,14 +78,19 @@
     {onArmUninstall}
     {onDisarmUninstall}
     {onStartChat}
+    {adjust}
   />
-  <AgentDetailTabs
-    agent={selected}
-    bind:tab={agentDetailTab}
-    {onOpenLogs}
-    {onNavigateMemory}
-    {onNavigateTasks}
-  />
+  <div class="px-8 pb-8 pt-5" data-testid="agent-detail-content">
+    {#key selected.name}
+      <AgentSheet
+        definitionId={selected.name}
+        agent={selected}
+        memoryNamespace={selected.memory_namespace}
+        {onOpenLogs}
+        {adjust}
+      />
+    {/key}
+  </div>
 {:else if connecting}
   <div class="flex flex-1 items-center justify-center px-8">
     <div class="text-body-xs text-muted-foreground">

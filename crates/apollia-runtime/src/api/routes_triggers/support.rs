@@ -23,8 +23,11 @@ pub(super) fn row_to_response(row: TriggerDefinitionRow) -> TriggerDefinitionRes
         OnBusy::Drop => "drop".to_string(),
     };
     TriggerDefinitionResponse {
+        target_kind: row.target_kind().to_string(),
         id: row.id,
         agent: row.agent,
+        workflow: row.workflow,
+        workflow_inputs: row.workflow_inputs,
         enabled: row.enabled,
         on_busy,
         source_type: row.source_type,

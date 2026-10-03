@@ -1,6 +1,7 @@
 //! Tauri IPC commands that reset or end a session: the onboarding flag, the
-//! stored memories, the log files, the factory reset, and the two application
-//! lifecycle commands the webview calls instead of closing its own window.
+//! stored memories, the log files and their folder, the factory reset, and the
+//! two application lifecycle commands the webview calls instead of closing its
+//! own window.
 //!
 //! Embedded, the five resets call [`apollia_runtime::app_lifecycle`] on the
 //! data directory of this machine. Attached, they reach the same functions
@@ -116,6 +117,28 @@ pub async fn clear_logs(link: State<'_, RuntimeLink>) -> Result<(), String> {
             .map_err(|e| e.to_string()),
         RuntimeLink::Attached(remote) => Ok(clear_logs_on(remote).await?),
     }
+}
+
+/// Opens the folder of this application's log files in the file manager of
+/// this machine, creating it when it does not exist yet.
+///
+/// The folder is the window's own (`~/.apollia/logs`, where
+/// [`crate::file_log`] writes), in both modes.
+#[tauri::command]
+pub async fn open_logs_dir() -> Result<(), String> {
+    let dir = crate::file_log::logs_dir_under(&apollia_home());
+    tokio::fs::create_dir_all(&dir)
+        .await
+        .map_err(|e| format!("failed to create {}: {e}", dir.display()))?;
+    open::that(&dir).map_err(|e| {
+        tracing::event!(
+            tracing::Level::WARN,
+            path = %dir.display(),
+            error = %e,
+            "desktop.logs_dir.open_failed"
+        );
+        format!("failed to open {}: {e}", dir.display())
+    })
 }
 
 /// Factory reset: removes **all** of the runtime's data directory, the

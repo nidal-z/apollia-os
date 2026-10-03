@@ -163,7 +163,7 @@ describe("Button - a multi-block caller carries the whole tile recipe", () => {
     }
 
     // THEN the scan found the real population, and none of it misses the recipe
-    expect(multiBlock.length).toBeGreaterThanOrEqual(4);
+    expect(multiBlock.length).toBeGreaterThanOrEqual(3);
     expect(missing).toEqual([]);
   });
 

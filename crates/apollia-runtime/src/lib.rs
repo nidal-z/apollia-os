@@ -70,6 +70,7 @@ pub mod supervisor;
 pub mod timeout_watcher;
 pub mod tool_credentials;
 pub mod tool_governance;
+pub mod trigger_targets;
 pub mod workflows;
 
 #[cfg(test)]
