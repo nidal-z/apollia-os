@@ -22,12 +22,12 @@
 //!   that Rust reads, each a named setting resolved with its source by
 //!   [`resolve_setting`] and written by [`write_setting`], which refuses a key
 //!   the organization policy locks.
-//! - [`LlmConfig`]: `[llm]`, the backends declared in the file, routing and
-//!   the runner; `apollia-llm` re-exports its shapes.
-//! - [`UiConfig`]: `[ui]`, the desktop link preview.
 //! - [`ServerConfig`]: `[server]`, the compatible server, a second listener
 //!   of the runtime on its own port, switched off by default; its two keys
 //!   are named settings too.
+//! - [`LlmConfig`]: `[llm]`, the backends declared in the file, routing and
+//!   the runner; `apollia-llm` re-exports its shapes.
+//! - [`UiConfig`]: `[ui]`, the desktop link preview.
 //!
 //! The other types in this module are runtime parameters, not `apollia.toml`
 //! sections. No loader deserializes an `[a2a]` or an `[oria]` table, both are
@@ -92,7 +92,7 @@ pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
 pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig, LlmRunnerConfig};
 pub use llm_section::{
     infer_api_provider_from_url, LlmApiBackendEntry, LlmBackendEntry, LlmBackendKind, LlmConfig,
-    LlmObservabilityConfig, PricingTier,
+    LlmGuardrailsConfig, LlmObservabilityConfig, PricingTier,
 };
 pub use mcp::{McpConfig, McpToolLoading};
 pub use models::{

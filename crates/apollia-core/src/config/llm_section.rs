@@ -57,6 +57,39 @@ pub struct LlmConfig {
     /// Speech-to-text sidecar runner configuration (`[llm.runner]` section).
     #[serde(default)]
     pub runner: LlmRunnerConfig,
+    /// Load guardrails of a local model (`[llm.guardrails]` section).
+    #[serde(default)]
+    pub guardrails: LlmGuardrailsConfig,
+}
+
+/// The `[llm.guardrails]` section: how strictly a local model launch is held
+/// to the machine's memory.
+///
+/// Its keys are strict like every other; its values are not judged here. The
+/// runtime reads the section again at every launch and holds an unknown level
+/// to `balanced`, so a typo in a value never turns the guardrail off.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LlmGuardrailsConfig {
+    /// The level: `disabled`, `lenient`, `balanced`, `strict` or `ceiling`.
+    #[serde(default = "default_guardrail_level")]
+    pub level: String,
+    /// Largest estimate, in gigabytes, the `ceiling` level launches.
+    #[serde(default)]
+    pub ceiling_gb: Option<f64>,
+}
+
+impl Default for LlmGuardrailsConfig {
+    fn default() -> Self {
+        Self {
+            level: default_guardrail_level(),
+            ceiling_gb: None,
+        }
+    }
+}
+
+fn default_guardrail_level() -> String {
+    "balanced".to_owned()
 }
 
 impl LlmConfig {
@@ -76,6 +109,7 @@ impl LlmConfig {
             pricing_overrides: HashMap::new(),
             cost_alert_threshold_usd: None,
             runner: LlmRunnerConfig::default(),
+            guardrails: LlmGuardrailsConfig::default(),
         }
     }
 

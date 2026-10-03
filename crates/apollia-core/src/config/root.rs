@@ -58,15 +58,15 @@ pub struct ApolliaConfig {
     /// `[desktop]`: the settings of the desktop application that Rust reads.
     #[serde(default)]
     pub desktop: DesktopConfig,
+    /// `[server]`: the compatible server, its switch and its port.
+    #[serde(default)]
+    pub server: ServerConfig,
     /// `[observability]`: truncation and capture of persisted run data.
     #[serde(default)]
     pub observability: ObservabilityConfig,
     /// `[ui]`: the opt-in link preview of the desktop application.
     #[serde(default)]
     pub ui: UiConfig,
-    /// `[server]`: the compatible server, its switch and its port.
-    #[serde(default)]
-    pub server: ServerConfig,
 }
 
 /// The `[ui]` section, read by the desktop link preview.

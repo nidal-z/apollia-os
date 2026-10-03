@@ -34,7 +34,7 @@ pub enum McpToolLoading {
 /// `tool_search` result cap, and whether Apollia may serve its exposed agents
 /// and workflows to an MCP client. Every field has a sane default via
 /// [`Default`].
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct McpConfig {
     /// Validity duration of MCP HITL approvals, in hours.

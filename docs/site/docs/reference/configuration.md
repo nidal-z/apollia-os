@@ -123,6 +123,7 @@ LLM backends and routing.
 | `pricing_overrides` | `HashMap<String, PricingTier>` | empty | Operator pricing overrides (`[llm.pricing_overrides]` section), not applied by a running daemon: only `LlmRouter::from_config` passes them to a client, and the daemon instead builds its backends from `system.db` through `instantiate_cloud_backend`, which hands over an empty table. |
 | `cost_alert_threshold_usd` | `Option<f64>` | `None` | Cost threshold in USD above which `RuntimeEvent::TokenBudgetUpdated` is emitted with `threshold_exceeded = true`. `None` disables the alert. |
 | `runner` | `LlmRunnerConfig` | type default | Speech-to-text sidecar runner configuration (`[llm.runner]` section). |
+| `guardrails` | `LlmGuardrailsConfig` | type default | Load guardrails of a local model (`[llm.guardrails]` section). |
 
 ### `[runtime]`
 

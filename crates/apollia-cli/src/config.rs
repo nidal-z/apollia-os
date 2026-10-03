@@ -587,6 +587,15 @@ plan_mode_default = true
         // THEN
         assert!(config.server.enabled);
         assert_eq!(config.server.port, 8123);
-        assert!(refused.is_err());
+        let diagnostics = match refused.err() {
+            Some(ConfigError::Invalid(diagnostics)) => diagnostics,
+            _ => Vec::new(),
+        };
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.path == "server.enabeld" && d.line == 2),
+            "{diagnostics:?}"
+        );
     }
 }

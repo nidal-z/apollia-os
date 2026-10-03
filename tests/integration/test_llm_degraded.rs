@@ -225,6 +225,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         pricing_overrides: HashMap::new(),
         cost_alert_threshold_usd: None,
         runner: apollia_core::config::LlmRunnerConfig::default(),
+        guardrails: Default::default(),
     };
 
     // WHEN LlmRouter::from_config() fails (the backend is absent)
