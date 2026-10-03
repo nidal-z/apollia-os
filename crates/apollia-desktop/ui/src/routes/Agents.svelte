@@ -4,7 +4,7 @@
    *
    * Owns selection + effects and composes the decomposed pieces: the sidebar
    * (AgentListPanel), the detail panes (ApolliaChatDetail / PackageDetail /
-   * AgentDetailHeader + AgentDetailTabs), and the install dialog / logs sheet.
+   * AgentDetailHeader + AgentSheet), and the install dialog / logs sheet.
    * All rendering lives in `components/agents/*`; all IPC goes through
    * `$lib/ipc/agents`.
    */
@@ -40,8 +40,6 @@
     InstallPackageResponse,
   } from "$lib/types";
 
-  type AgentTab = "overview" | "tools" | "memory" | "activity" | "settings";
-
   // The update failure lives on the controller (`actions.updateError`) rather
   // than in a local state like `installError`: the button that triggers it sits
   // in the detail header, two components down, while the banner belongs here,
@@ -53,7 +51,6 @@
   let selectedName = $state<string | null>(null);
   let selectedPackageName = $state<string | null>(null);
   let apolliaChatSelected = $state(false);
-  let agentDetailTab = $state<AgentTab>("overview");
   let pkgDetail = $state<AgentPackageDetailView | null>(null);
 
   let installingAgent = $state(false);
@@ -131,12 +128,6 @@
       selectedName = filteredAssistants[0].name;
     }
     if (filteredAssistants.length === 0) selectedName = null;
-  });
-
-  // Reset the agent detail tab when the agent selection changes.
-  $effect(() => {
-    void selectedName;
-    agentDetailTab = "overview";
   });
 
   // Clear a package selection if it gets uninstalled.
@@ -237,7 +228,6 @@
   }
   function openSettings(agent: AgentListItem): void {
     selectAgent(agent.name);
-    agentDetailTab = "settings";
   }
   async function handlePkgInstalled(_result: InstallPackageResponse): Promise<void> {
     await refreshPackages();
@@ -322,11 +312,8 @@
         {pkgDetail}
         connecting={$connectionStatus === "connecting"}
         agentActions={actions}
-        bind:agentDetailTab
         onStartChat={startChatWithAgent}
         onOpenLogs={openLogs}
-        onNavigateMemory={() => navigateTo("memory")}
-        onNavigateTasks={() => navigateTo("tasks")}
         onSelectAgent={selectAgent}
         onInstallAgent={pickAndInstallAgent}
         confirmingUninstall={selected !== null && uninstallConfirmName === selected.name}

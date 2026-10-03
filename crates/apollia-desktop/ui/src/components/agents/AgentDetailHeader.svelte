@@ -30,6 +30,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Checkbox } from "$lib/components/ui/checkbox";
+  import { developerMode } from "$lib/stores/developerMode";
   import type { AgentActions } from "./useAgentActions.svelte";
   import type { AgentListItem } from "$lib/types";
   import {
@@ -271,10 +272,10 @@
     {#if agentClassLabel(agent)}
       <Badge size="sm" variant="info">{agentClassLabel(agent)}</Badge>
     {/if}
-    {#if agent.execution_mode}
+    {#if $developerMode && agent.execution_mode}
       <Badge size="sm" variant="neutral">{agent.execution_mode}</Badge>
     {/if}
-    {#if agent.supports_a2a}
+    {#if $developerMode && agent.supports_a2a}
       <Badge size="sm" variant="info">A2A</Badge>
     {/if}
   {/snippet}
