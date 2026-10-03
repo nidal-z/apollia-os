@@ -4852,6 +4852,29 @@
       }
     },
     "/api/v1/llm/installed-models": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/installed-models`",
+        "description": "The installed models, from the model index, each marked when an LLM\nbackend or the dictation engine references it.",
+        "operationId": "list_installed_models",
+        "responses": {
+          "200": {
+            "description": "The installed models, sorted by name"
+          },
+          "500": {
+            "description": "The model index can be neither read nor built",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "tags": [
           "model_hub"
@@ -5358,6 +5381,82 @@
           },
           "503": {
             "description": "HuggingFace unreachable, so there is no catalogue to rank",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/recommendations": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/recommendations?limit=...&n_ctx=...&fits_only=...`",
+        "description": "The recommendation as the desktop shows it: the ranked list, or the\nunreachable Hub and the empty ranking kept apart from it as a `status`,\neach with the hardware and the editorial selection. Unlike\n`GET /api/v1/llm/recommend`, an unreachable Hub is a `200` carrying the\nselection, since the selection needs no network.",
+        "operationId": "get_recommendations",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of ranked models, at most 10",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "n_ctx",
+            "in": "query",
+            "description": "Context window the cache is sized against",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "fits_only",
+            "in": "query",
+            "description": "Keep, in the editorial selection, only the sizes that fit this machine",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "hf_token",
+            "in": "query",
+            "description": "HuggingFace token for gated models",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The outcome: status ok, unreachable or empty, with the hardware and the editorial selection"
+          },
+          "400": {
+            "description": "A malformed query parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The hardware probe or the shipped model table failed",
             "content": {
               "application/json": {
                 "schema": {
@@ -6022,6 +6121,158 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LlmStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/local-ai/dictation": {
+      "post": {
+        "tags": [
+          "local_ai"
+        ],
+        "summary": "`POST /api/v1/local-ai/dictation`: makes a Whisper file the dictation model\nand marks the onboarding progress as dictation-ready.",
+        "operationId": "setup_dictation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupDictationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The dictation model stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DictationConfigured"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The onboarding store did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/local-ai/llm": {
+      "post": {
+        "tags": [
+          "local_ai"
+        ],
+        "summary": "`POST /api/v1/local-ai/llm`: copies a GGUF file into the models folder and\nmakes it the `local` backend.",
+        "description": "The copy runs in its own task, so a client that stops waiting does not\nleave half a model in the folder.",
+        "operationId": "setup_local_llm",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupLlmBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Where the model is stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupLlmResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No such file, or not a GGUF file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/local-ai/models/gguf": {
+      "get": {
+        "tags": [
+          "local_ai"
+        ],
+        "summary": "`GET /api/v1/local-ai/models/gguf`: the GGUF models already on disk,\nlargest first, each graded for this machine.",
+        "operationId": "scan_gguf_models",
+        "responses": {
+          "200": {
+            "description": "The GGUF files found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GgufModelInfo"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/local-ai/models/whisper": {
+      "get": {
+        "tags": [
+          "local_ai"
+        ],
+        "summary": "`GET /api/v1/local-ai/models/whisper`: the Whisper models already on disk,\neach graded for this machine.",
+        "operationId": "scan_whisper_models",
+        "responses": {
+          "200": {
+            "description": "The Whisper files found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WhisperModelInfo"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/local-ai/system": {
+      "get": {
+        "tags": [
+          "local_ai"
+        ],
+        "summary": "`GET /api/v1/local-ai/system`: memory, system and accelerator of the\nmachine the daemon runs on.",
+        "operationId": "get_local_ai_system",
+        "responses": {
+          "200": {
+            "description": "What this machine can run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemInfo"
                 }
               }
             }
@@ -16045,6 +16296,26 @@
           }
         }
       },
+      "DictationConfigured": {
+        "type": "object",
+        "description": "What the dictation setup did.",
+        "required": [
+          "model_path"
+        ],
+        "properties": {
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The transcription language stored, `None` when none is set."
+          },
+          "model_path": {
+            "type": "string",
+            "description": "The Whisper model file dictation now reads."
+          }
+        }
+      },
       "DictationModelsResponse": {
         "type": "object",
         "description": "The dictation category of the registry, and the entry for this machine.",
@@ -16576,6 +16847,41 @@
           "title": {
             "type": "string",
             "description": "The title stored on the session."
+          }
+        }
+      },
+      "GgufModelInfo": {
+        "type": "object",
+        "description": "GGUF model file detected on the local filesystem.",
+        "required": [
+          "path",
+          "filename",
+          "size_bytes",
+          "size_human",
+          "recommended"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "Filename of the model."
+          },
+          "path": {
+            "type": "string",
+            "description": "Absolute path to the model file."
+          },
+          "recommended": {
+            "type": "boolean",
+            "description": "Whether the memory estimator says this model fits this machine."
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "File size in bytes.",
+            "minimum": 0
+          },
+          "size_human": {
+            "type": "string",
+            "description": "Human-readable file size (e.g. `\"4.2 GB\"`)."
           }
         }
       },
@@ -20076,6 +20382,66 @@
           }
         }
       },
+      "SetupDictationBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/local-ai/dictation`.",
+        "required": [
+          "modelPath"
+        ],
+        "properties": {
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The language of the interface, stored only when none is set yet."
+          },
+          "modelPath": {
+            "type": "string",
+            "description": "Absolute path of the Whisper model file chosen."
+          }
+        }
+      },
+      "SetupLlmBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/local-ai/llm`.",
+        "required": [
+          "ggufPath"
+        ],
+        "properties": {
+          "contextWindow": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The context window chosen, in tokens; absent keeps the stored one.",
+            "minimum": 0
+          },
+          "ggufPath": {
+            "type": "string",
+            "description": "Absolute path of the GGUF file chosen."
+          }
+        }
+      },
+      "SetupLlmResult": {
+        "type": "object",
+        "description": "What the local language model setup did.",
+        "required": [
+          "model_path",
+          "quantization"
+        ],
+        "properties": {
+          "model_path": {
+            "type": "string",
+            "description": "Absolute path where the model is stored."
+          },
+          "quantization": {
+            "type": "string",
+            "description": "Inferred quantization from the filename (e.g. `\"q8_0\"`, `\"q4_k_m\"`)."
+          }
+        }
+      },
       "ShutdownResponse": {
         "type": "object",
         "description": "Response body for the shutdown endpoint.",
@@ -20474,6 +20840,49 @@
               "null"
             ],
             "description": "Skill to run, for an agent that declares several. Omitted, the agent's\nown dispatch picks the handler as before."
+          }
+        }
+      },
+      "SystemInfo": {
+        "type": "object",
+        "description": "System information used to compute model recommendations in the AI setup step.",
+        "required": [
+          "total_ram_gb",
+          "available_ram_gb",
+          "os",
+          "arch",
+          "gpu_available"
+        ],
+        "properties": {
+          "arch": {
+            "type": "string",
+            "description": "CPU architecture identifier (e.g. `\"aarch64\"`, `\"x86_64\"`)."
+          },
+          "available_ram_gb": {
+            "type": "number",
+            "format": "double",
+            "description": "Available RAM in gigabytes."
+          },
+          "gpu_available": {
+            "type": "boolean",
+            "description": "Whether a GPU is available (basic heuristic)."
+          },
+          "gpu_vram_gb": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "The accelerator's dedicated memory in gigabytes, when the engine's\ndevice list names one. `None` on a processor-only machine and on\nplatforms where the heuristic above answers without a device list."
+          },
+          "os": {
+            "type": "string",
+            "description": "Operating system identifier (e.g. `\"macos\"`, `\"linux\"`)."
+          },
+          "total_ram_gb": {
+            "type": "number",
+            "format": "double",
+            "description": "Total RAM in gigabytes."
           }
         }
       },
@@ -21911,6 +22320,41 @@
           }
         }
       },
+      "WhisperModelInfo": {
+        "type": "object",
+        "description": "Whisper GGML model file detected on the local filesystem.",
+        "required": [
+          "path",
+          "filename",
+          "size_bytes",
+          "model_size",
+          "recommended"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "Filename of the model."
+          },
+          "model_size": {
+            "type": "string",
+            "description": "Size variant parsed from the filename (`tiny`, `base`, `small`, `medium`, `large`)."
+          },
+          "path": {
+            "type": "string",
+            "description": "Absolute path to the model file."
+          },
+          "recommended": {
+            "type": "boolean",
+            "description": "Whether the dictation verdict says this file fits this machine."
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "File size in bytes.",
+            "minimum": 0
+          }
+        }
+      },
       "WorkflowErrorResponse": {
         "type": "object",
         "description": "Error body of the workflow routes.",
@@ -22232,6 +22676,10 @@
       "description": "The user profile"
     },
     {
+      "name": "local_ai",
+      "description": "Installation of the local AI: the machine, the models on disk, the models chosen"
+    },
+    {
       "name": "onboarding",
       "description": "The onboarding: its phases, its profile and its conversation"
     },
@@ -22244,16 +22692,16 @@
       "description": "The memory of the agents, read and upkept per namespace"
     },
     {
+      "name": "lifecycle",
+      "description": "Resets and erasures of the installation"
+    },
+    {
       "name": "connectors",
       "description": "Native connector accounts and their consent"
     },
     {
       "name": "webhooks",
       "description": "Inbound webhooks"
-    },
-    {
-      "name": "lifecycle",
-      "description": "Resets and erasures of the installation"
     }
   ]
 }

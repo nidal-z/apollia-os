@@ -26,6 +26,11 @@ const TRANSCRIBE_TIMEOUT: Duration = Duration::from_secs(600);
 /// Boundary of the multipart body a transcription is uploaded in.
 const UPLOAD_BOUNDARY: &str = "apollia-desktop-audio-5d1c";
 
+/// How long a request the runtime answers by asking HuggingFace may take: a
+/// search asks several organisations, a recommendation reads the header of
+/// each finalist.
+const HUB_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
+
 /// How long the liveness request may take before the runtime counts as gone.
 const HEALTH_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -137,6 +142,28 @@ impl AttachedClient {
         self.send_json(self.http.get(self.url(path))).await
     }
 
+    /// `GET path` with `query`, for a route that asks HuggingFace before it
+    /// answers, under the longer deadline such a route needs.
+    pub(crate) async fn get_from_hub<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &[(&str, String)],
+    ) -> Result<T, AttachedError> {
+        let builder = self.http.get(self.url(path)).query(query);
+        self.send_json_within(builder, HUB_REQUEST_TIMEOUT).await
+    }
+
+    /// `GET path`, its JSON answer read as `T`, for a read that may outlast
+    /// the usual deadline, such as a scan of the disk.
+    pub(crate) async fn get_within<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        deadline: Duration,
+    ) -> Result<T, AttachedError> {
+        self.send_json_within(self.http.get(self.url(path)), deadline)
+            .await
+    }
+
     /// `POST path` with a JSON body, its JSON answer read as `T`.
     pub(crate) async fn post<T: DeserializeOwned>(
         &self,
@@ -144,6 +171,18 @@ impl AttachedClient {
         body: &impl serde::Serialize,
     ) -> Result<T, AttachedError> {
         self.send_json(self.http.post(self.url(path)).json(body))
+            .await
+    }
+
+    /// `POST path` with a JSON body, its JSON answer read as `T`, for a write
+    /// that may outlast the usual deadline, such as a model copied on disk.
+    pub(crate) async fn post_within<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &impl serde::Serialize,
+        deadline: Duration,
+    ) -> Result<T, AttachedError> {
+        self.send_json_within(self.http.post(self.url(path)).json(body), deadline)
             .await
     }
 
@@ -249,7 +288,8 @@ impl AttachedClient {
         self.send_json_within(builder, REQUEST_TIMEOUT).await
     }
 
-    /// [`Self::send_json`] with its own deadline.
+    /// Sends an authenticated request that may take up to `deadline`, and
+    /// reads its JSON answer.
     async fn send_json_within<T: DeserializeOwned>(
         &self,
         builder: reqwest::RequestBuilder,
