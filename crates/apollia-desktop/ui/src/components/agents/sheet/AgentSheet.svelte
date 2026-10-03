@@ -22,6 +22,8 @@
   import { listTasks } from "$lib/ipc/tasks";
   import { listTools } from "$lib/ipc/tools";
   import { listMcpExposable } from "$lib/ipc/mcpServer";
+  import { listConnections } from "$lib/ipc/connections";
+  import { sortConnections } from "$lib/connections/connectionList";
   import { listModelPresets } from "$lib/ipc/agentAdjust";
   import {
     getAgentDefinition,
@@ -32,7 +34,7 @@
     type ResolvedAgent,
   } from "$lib/ipc/agentSheet";
   import { createIdentityGuard } from "$lib/utils/identityGuard";
-  import type { AgentListItem, TaskSummary } from "$lib/types";
+  import type { AgentListItem, Connection, TaskSummary } from "$lib/types";
   import SheetMission from "./SheetMission.svelte";
   import SheetModel from "./SheetModel.svelte";
   import SheetAccess from "./SheetAccess.svelte";
@@ -54,6 +56,7 @@
     type MarkedField,
     type PresetOffer,
   } from "./agentAdjust";
+  import { connectionToolFamily, remoteAccesses, type ConnectionOffer } from "./connectionGrant";
   import {
     accessView,
     changeViews,
@@ -88,6 +91,7 @@
   let changes = $state<AgentChangeEntry[]>([]);
   let accesses = $state<AccessView[]>([]);
   let accessLoading = $state(true);
+  let connections = $state<Connection[]>([]);
   let runs = $state<TaskSummary[]>([]);
   let runsLoading = $state(false);
   let runsError = $state<string | null>(null);
@@ -108,15 +112,17 @@
   async function loadDefinition(id: string, declared: AgentListItem | null): Promise<void> {
     const ticket = guard.begin();
     accessLoading = true;
-    const [definition, lastFallback, history] = await Promise.all([
+    const [definition, lastFallback, history, connected] = await Promise.all([
       getAgentDefinition(id).catch(() => null),
       getAgentModelFallback(id).catch(() => null),
       listAgentChanges(id).catch(() => [] as AgentChangeEntry[]),
+      listConnections().catch(() => [] as Connection[]),
     ]);
     if (!ticket.current) return;
     resolved = definition;
     fallback = lastFallback;
     changes = history;
+    connections = connected;
     const ids = definition
       ? definition.access
       : [...(declared?.tools_required ?? []), ...(declared?.tools_optional ?? [])];
@@ -127,8 +133,10 @@
   }
 
   async function describeAccess(id: string): Promise<AccessView> {
-    if (id.startsWith("agent:") || id.startsWith("workflow:") || id.startsWith("mcp:")) {
-      return accessView(id, null);
+    if (id.startsWith("agent:") || id.startsWith("workflow:")) return accessView(id, null);
+    if (id.startsWith("mcp:")) {
+      const family = connectionToolFamily(id, connections);
+      return accessView(id, family ? { description: "", family, family_source: "server", kind: "mcp" } : null);
     }
     const descriptor = await describeTool(id).catch(() => null);
     const read: AccessDescriptor | null = descriptor
@@ -233,6 +241,22 @@
     return grantCandidates(tools, targets, adjust?.draft?.access ?? [], definitionId);
   }
 
+  async function loadConnectionOffer(): Promise<ConnectionOffer> {
+    const [listed, tools] = await Promise.all([
+      listConnections().catch(() => [] as Connection[]),
+      listTools().catch(() => []),
+    ]);
+    connections = listed;
+    return {
+      connections: sortConnections(listed.filter((c) => c.tools.length > 0)),
+      descriptions: new Map(tools.map((tool) => [tool.name, tool.description])),
+    };
+  }
+
+  const remote = $derived(
+    remoteAccesses([...accesses, ...extraAccesses].map((a) => a.id), connections),
+  );
+
   function accessLabel(accessId: string): string {
     const known = accesses.find((a) => a.id === accessId);
     return known ? (known.permits ?? known.label) : readableName(accessId);
@@ -249,12 +273,15 @@
       inForce={adjust.base.access}
       modified={marked("access")}
       {loadCandidates}
+      agentName={resolved?.name ?? agent?.name ?? definitionId}
+      {loadConnectionOffer}
+      {remote}
     />
     <AdjustSources draft={adjust.draft} inForce={adjust.base.sources} modified={marked("sources")} />
   {:else}
     <SheetMission view={mission} modified={marked("mission") || marked("examples")} />
     <SheetModel view={model} fallback={notice} modified={marked("model")} />
-    <SheetAccess {groups} loading={accessLoading} modified={marked("access")} />
+    <SheetAccess {groups} loading={accessLoading} modified={marked("access")} {remote} />
     <SheetSources {sources} modified={marked("sources")} />
   {/if}
   <SheetActivity

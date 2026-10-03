@@ -4426,7 +4426,8 @@
     "technical_install_path": "Emplacement",
     "technical_origin": "Origine",
     "technical_autonomy": "Autonomie",
-    "technical_overridden": "Champs surchargés"
+    "technical_overridden": "Champs surchargés",
+    "remote": "Distant"
   },
   "agent_adjust": {
     "modified": "Modifié",
@@ -4462,6 +4463,20 @@
     "grant_confirm": "{count, plural, =0 {Accorder} one {Accorder 1 accès de plus} other {Accorder # accès de plus}}",
     "grant_group_tools": "Outils",
     "grant_group_agents": "Agents",
-    "grant_group_workflows": "Workflows"
+    "grant_group_workflows": "Workflows",
+    "connection_open": "Accorder une connexion",
+    "connection_choose_title": "Accorder une connexion",
+    "connection_choose_legend": "Choisissez la connexion dont l'agent pourra utiliser les outils.",
+    "connection_none": "Aucune connexion n'apporte encore d'outil. Ajoutez-en une dans Connexions.",
+    "connection_title": "Accorder une connexion à « {agent} »",
+    "connection_legend": "Les outils de lecture d'une connexion de confiance sont cochés d'office. Le reste se coche ici, et chacun suit la règle de sa famille.",
+    "connection_none_in_family": "Aucun outil de cette famille dans la connexion.",
+    "connection_back": "Autre connexion",
+    "connection_confirm": "{count, plural, =0 {Accorder} one {Accorder 1 outil} other {Accorder # outils}}",
+    "connection_from_selection": "Connexion de la sélection d'Apollia",
+    "connection_from_registry": "Connexion du registre public",
+    "connection_from_custom": "Connexion personnalisée",
+    "connection_from_package": "Connexion apportée par un paquet",
+    "connection_provenance_official": "{provenance}, officielle"
   }
 }

@@ -2,8 +2,10 @@
   /**
    * AdjustAccess - the accesses of the agent, editable family by family: each
    * access a switch, and a dialog to grant a tool (native, of a connection or
-   * of a package), another agent or a workflow. A switch turned off during the
-   * session leaves the access listed, so it can be granted back before saving.
+   * of a package), another agent or a workflow, and one to grant the tools of
+   * a connection family by family. A switch turned off during the session
+   * leaves the access listed, so it can be granted back before saving. An
+   * access that comes from a remote connection carries the "Remote" badge.
    */
   import { t } from "svelte-i18n";
   import { Plus } from "lucide-svelte";
@@ -13,6 +15,8 @@
   import { DeveloperOnly } from "$lib/components/shared";
   import SheetSection from "./SheetSection.svelte";
   import GrantDialog from "./GrantDialog.svelte";
+  import ConnectionGrantDialog from "./ConnectionGrantDialog.svelte";
+  import type { ConnectionOffer } from "./connectionGrant";
   import {
     ACCESS_GROUP_LABEL,
     ACCESS_GROUP_RULE,
@@ -30,11 +34,19 @@
     modified: boolean;
     /** What the grant dialog offers, read when it opens. */
     loadCandidates: () => Promise<GrantCandidate[]>;
+    /** Name of the agent, for the connection dialog. */
+    agentName: string;
+    /** What the connection dialog offers, read when it opens. */
+    loadConnectionOffer: () => Promise<ConnectionOffer>;
+    /** The accesses that come from a remote connection. */
+    remote: Set<string>;
   }
 
-  let { draft, groups, inForce, modified, loadCandidates }: Props = $props();
+  let { draft, groups, inForce, modified, loadCandidates, agentName, loadConnectionOffer, remote }: Props =
+    $props();
 
   let granting = $state(false);
+  let grantingConnection = $state(false);
 
   function onSwitch(id: string, on: boolean): void {
     draft.access = on ? grant(draft.access, id) : revoke(draft.access, id);
@@ -45,6 +57,7 @@
     for (const id of ids) next = grant(next, id);
     draft.access = next;
     granting = false;
+    grantingConnection = false;
   }
 </script>
 
@@ -55,6 +68,15 @@
   {modified}
 >
   {#snippet action()}
+    <Button
+      variant="outline"
+      size="sm"
+      onclick={() => (grantingConnection = true)}
+      data-testid="agent-adjust-grant-connection"
+    >
+      {#snippet icon()}<Plus size={12} />{/snippet}
+      {$t("agent_adjust.connection_open")}
+    </Button>
     <Button variant="outline" size="sm" onclick={() => (granting = true)} data-testid="agent-adjust-grant">
       {#snippet icon()}<Plus size={12} />{/snippet}
       {$t("agent_adjust.grant_open")}
@@ -87,6 +109,9 @@
                     </div>
                   </DeveloperOnly>
                 </div>
+                {#if remote.has(access.id)}
+                  <Badge size="sm" variant="info" data-testid="agent-sheet-access-remote">{$t("agent_sheet.remote")}</Badge>
+                {/if}
                 {#if on !== inForce.includes(access.id)}
                   <Badge size="sm" variant="warning">{$t("agent_adjust.modified")}</Badge>
                 {/if}
@@ -111,5 +136,14 @@
   granted={draft.access}
   {loadCandidates}
   onclose={() => (granting = false)}
+  onconfirm={onGrant}
+/>
+
+<ConnectionGrantDialog
+  open={grantingConnection}
+  {agentName}
+  granted={draft.access}
+  loadOffer={loadConnectionOffer}
+  onclose={() => (grantingConnection = false)}
   onconfirm={onGrant}
 />

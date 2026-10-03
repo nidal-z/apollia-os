@@ -6,8 +6,10 @@ import { test, expect, type Page } from "@playwright/test";
  * Boots the UI bundle with the Tauri bridge stubbed, as
  * `tests/agents/agent-sheet.spec.ts` does, and adjusts the built-in Apollia
  * agent: its mission changed, another agent granted, the profile unchecked,
- * saved; then sent back to its defaults after the confirmation. The stub keeps
- * the agent in force as the runtime would, and records the writes it receives.
+ * saved; then sent back to its defaults after the confirmation. A connection
+ * of the selection is granted too: its reading tools come checked, the others
+ * not, and the remote connection is marked on the sheet. The stub keeps the
+ * agent in force as the runtime would, and records the writes it receives.
  */
 
 type InvokeStub = (cmd: string, args: unknown) => unknown;
@@ -57,6 +59,19 @@ async function installTauriStub(page: Page): Promise<void> {
         { kind: "workflow", item_id: "billing/close-month", name: "Close month", description: "Closes the month", exposed: false },
       ],
       list_model_presets: () => [],
+      list_connections: () => [
+        {
+          id: "mcp:outlook", kind: "mcp", label: "Outlook", account: "support@example.com",
+          provenance: "selection", remote: true, official: true, state: "connected",
+          tools: [
+            { id: "mcp:outlook/read_mail", family: "read", familySource: "selection", prechecked: true },
+            { id: "mcp:outlook/search_mail", family: "read", familySource: "selection", prechecked: true },
+            { id: "mcp:outlook/move_mail", family: "write_or_delete", familySource: "selection", prechecked: false },
+            { id: "mcp:outlook/send_mail", family: "send_external", familySource: "selection", prechecked: false },
+            { id: "mcp:outlook/export_box", family: "unclassified", familySource: "none", prechecked: false },
+          ],
+        },
+      ],
       set_agent_override: (args) => {
         const { field, value } = args as { field: string; value: unknown };
         writes.push({ cmd: "set_agent_override", args });
@@ -153,6 +168,48 @@ test.describe("agent adjustment", () => {
     await expect(page.getByTestId("agent-sheet-mission-modified")).toHaveCount(0);
     expect((await writes(page)).at(-1)).toEqual({ cmd: "reset_agent_overrides", args: { name: "apollia:chat" } });
     await expect(page.getByTestId("agent-sheet-mission-empty")).toBeVisible();
+  });
+
+  test("granting a connection of the selection checks its reading tools only", async ({ page }) => {
+    // GIVEN the sheet of the Apollia agent in adjustment, and a remote Outlook connection of the selection
+    await openApollia(page);
+    await page.getByTestId("agent-adjust-open").click();
+
+    // WHEN the connection is chosen in the connection dialog
+    await page.getByTestId("agent-adjust-grant-connection").click();
+    const dialog = page.getByTestId("agent-adjust-connection-dialog");
+    await dialog.locator('[data-testid="agent-adjust-connection-choice"][data-connection="mcp:outlook"]').click();
+
+    // THEN its tools are listed by family, the reading ones checked and the others not
+    await expect(dialog.getByTestId("agent-adjust-connection-remote")).toBeVisible();
+    await expect(dialog.getByTestId("agent-adjust-connection-family")).toHaveCount(6);
+    const check = (id: string) =>
+      dialog
+        .locator(`[data-testid="agent-adjust-connection-tool"][data-access="${id}"]`)
+        .getByTestId("agent-adjust-connection-check");
+    await expect(check("mcp:outlook/read_mail")).toBeChecked();
+    await expect(check("mcp:outlook/search_mail")).toBeChecked();
+    await expect(check("mcp:outlook/move_mail")).not.toBeChecked();
+    await expect(check("mcp:outlook/send_mail")).not.toBeChecked();
+    await expect(check("mcp:outlook/export_box")).not.toBeChecked();
+
+    // WHEN the grant is confirmed and the sheet saved
+    await dialog.getByTestId("agent-adjust-connection-confirm").click();
+    await page.getByTestId("agent-adjust-save").click();
+
+    // THEN the access holds the two reading tools, and each carries the remote badge on the sheet
+    await expect(page.getByTestId("agent-adjust-save")).toHaveCount(0);
+    expect(await writes(page)).toEqual([
+      {
+        cmd: "set_agent_override",
+        args: {
+          name: "apollia:chat",
+          field: "access",
+          value: ["file_read", "mcp:outlook/read_mail", "mcp:outlook/search_mail"],
+        },
+      },
+    ]);
+    await expect(page.getByTestId("agent-sheet-access-remote")).toHaveCount(2);
   });
 
   test("cancel drops the changes of the session and writes nothing", async ({ page }) => {
