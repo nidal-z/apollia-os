@@ -15,6 +15,7 @@ pub mod routes_audit;
 pub mod routes_batches;
 pub mod routes_chat;
 pub mod routes_chat_assists;
+pub mod routes_companion;
 pub mod routes_connections;
 pub mod routes_connectors;
 pub mod routes_drive_folders;

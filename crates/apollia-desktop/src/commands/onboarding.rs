@@ -31,38 +31,10 @@ pub(crate) mod remote;
 
 /// The phase machine types, which the runtime defines and serves.
 pub mod state {
-    pub use apollia_runtime::onboarding::state::{OnboardingError, OnboardingState};
-}
-
-/// The persistence of the onboarding state, which the runtime holds, and the
-/// repository of the runtime running in this process.
-mod memory {
-    use std::sync::Arc;
-
-    use apollia_memory::user_memory::UserMemoryRepository;
-    use apollia_runtime::embedded::RuntimeHandle;
-    pub(super) use apollia_runtime::onboarding::memory::{
-        load_state_from_memory, persist_state, read_bool, write_bool,
-    };
-
-    use super::state::OnboardingError;
-
-    /// Acquires the `UserMemoryRepository` from the runtime handle.
-    pub(super) fn get_repo(
-        state: &RuntimeHandle,
-    ) -> Result<Arc<std::sync::Mutex<UserMemoryRepository>>, OnboardingError> {
-        state
-            .user_memory
-            .as_ref()
-            .cloned()
-            .ok_or(OnboardingError::RepositoryNotInitialized)
-    }
+    pub use apollia_runtime::onboarding::state::OnboardingState;
 }
 
 use state::OnboardingState;
-
-/// Name of the agent that powers the in-app companion panel.
-const GUIDE_AGENT_NAME: &str = "apollia-guide";
 
 /// The onboarding of the runtime running in this process.
 fn embedded(state: &RuntimeHandle) -> Onboarding<'_> {
