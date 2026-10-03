@@ -360,6 +360,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/artifacts`: stores a new artifact, or returns the one its
+         *     source message already has.
+         */
+        post: operations["save_artifact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/artifacts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/v1/artifacts/{id}`: removes an artifact; one already gone
+         *     answers the same.
+         */
+        delete: operations["delete_artifact"];
+        options?: never;
+        head?: never;
+        /** `PATCH /api/v1/artifacts/{id}`: replaces the title and/or the content. */
+        patch: operations["update_artifact"];
+        trace?: never;
+    };
     "/api/v1/assists/automation": {
         parameters: {
             query?: never;
@@ -1031,6 +1072,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/factory-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/factory-reset`: removes the daemon's whole data directory. */
+        post: operations["factory_reset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/governance/audit": {
         parameters: {
             query?: never;
@@ -1370,6 +1428,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/cost-alert-threshold": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/llm/cost-alert-threshold`.
+         * @description Reads the threshold of the router the runtime serves now, the one a reload
+         *     swapped in. A runtime without a router has no threshold, which is an answer
+         *     and not an error, as the desktop has always read it.
+         */
+        get: operations["get_cost_alert_threshold"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/costs": {
         parameters: {
             query?: never;
@@ -1485,6 +1565,23 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/installed-models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** `DELETE /api/v1/llm/installed-models?path=...` */
+        delete: operations["delete_installed_model"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1839,6 +1936,23 @@ export interface paths {
         get: operations["get_llm_status"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/logs/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/logs/clear`: removes the daemon's logs directory. */
+        post: operations["clear_logs"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2358,6 +2472,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/memory/wipe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/memory/wipe`: removes every memory database of the daemon. */
+        post: operations["clear_all_memories"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications/channels": {
         parameters: {
             query?: never;
@@ -2597,6 +2728,194 @@ export interface paths {
          *     consent: present, well-formed, and its authorization server reachable.
          */
         post: operations["test_oauth_client"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/onboarding`: the full state, `welcome` on first launch. */
+        get: operations["get_onboarding_state"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/onboarding/complete`: writes the flag that says the
+         *     onboarding is complete.
+         */
+        post: operations["mark_onboarded"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/onboarding/dismiss`: marks the onboarding as skipped. */
+        post: operations["dismiss_onboarding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/onboarding/finalize`: records the completion of the
+         *     conversation without a model turn.
+         */
+        post: operations["finalize_onboarding_chat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/finalized": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/onboarding/finalized`: whether the onboarding agent recorded
+         *     its completion.
+         */
+        get: operations["check_onboarding_finalized"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/phase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/onboarding/phase`: moves to the next phase. */
+        post: operations["advance_onboarding_phase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** `PUT /api/v1/onboarding/profile`: records the profile chosen. */
+        put: operations["set_onboarding_profile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/onboarding/reset`: removes the flag, the onboarding markers,
+         *     the visible profile and the onboarding agent's memory.
+         */
+        post: operations["reset_onboarding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/onboarding/resume`: resumes the enrichment of the profile,
+         *     keeping what the agent already learnt.
+         */
+        post: operations["resume_onboarding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/onboarding/sessions`: opens a conversation with the
+         *     onboarding agent, for the whole onboarding or one topic.
+         */
+        post: operations["trigger_onboarding"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3028,6 +3347,26 @@ export interface paths {
         head?: never;
         /** Handler for `PATCH /api/v1/sessions/{id}`, change the configuration. */
         patch: operations["update_session"];
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/sessions/{id}/artifacts`: the artifacts of a session, most
+         *     recent first.
+         */
+        get: operations["list_artifacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/sessions/{id}/authorize": {
@@ -3493,6 +3832,9 @@ export interface paths {
          *     singleton row in `system.db` via an upsert.
          *
          *     Returns `200 OK` with the updated configuration.
+         *     Returns `400 Bad Request` for a language hint outside
+         *     [`STT_LANGUAGES`](crate::stt::STT_LANGUAGES), with the message the desktop
+         *     shows in both modes; nothing is persisted.
          *     Returns `503 Service Unavailable` when the config repository is unavailable.
          */
         put: operations["update_stt_config"];
@@ -3511,9 +3853,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * `GET /api/v1/stt/models`, list available `.bin` model files.
-         * @description Scans `~/.apollia/models/` for `.bin` files and returns their name,
-         *     path, and size. Returns an empty list if the directory does not exist.
+         * `GET /api/v1/stt/models`, list available model files.
+         * @description Scans `~/.apollia/models/` for the extensions in
+         *     [`MODEL_EXTENSIONS`](crate::stt::MODEL_EXTENSIONS) and returns their name,
+         *     path, and size, the list the desktop shows in both modes. Returns an empty
+         *     list if the directory does not exist.
          */
         get: operations["list_models"];
         put?: never;
@@ -3885,6 +4229,68 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tool-credential-tests/{tool_name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/tool-credential-tests/{tool_name}`: validates the tool's
+         *     credential with a live call. A missing or rejected key is an answer with
+         *     `ok: false`, not an error.
+         */
+        post: operations["test_tool_credential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tool-credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/tool-credentials`: the stored credentials, values left out. */
+        get: operations["list_tool_credentials"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tool-credentials/{tool_name}/{key_name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /api/v1/tool-credentials/{tool_name}/{key_name}`: stores or replaces
+         *     one credential, encrypted.
+         */
+        put: operations["set_tool_credential"];
+        post?: never;
+        /**
+         * `DELETE /api/v1/tool-credentials/{tool_name}/{key_name}`: removes one
+         *     credential. Removing one that is not there is not an error.
+         */
+        delete: operations["delete_tool_credential"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4358,6 +4764,11 @@ export interface components {
              */
             rule_id: number;
         };
+        /** @description Request body for `POST /api/v1/onboarding/phase`. */
+        AdvancePhaseBody: {
+            /** @description The phase to move to, in its snake_case name (`profile_choice`...). */
+            phase: string;
+        };
         /** @description Response body for agent list. */
         AgentListResponse: {
             /** @description All registered agents. */
@@ -4476,6 +4887,29 @@ export interface components {
              * @description Id of the rule stored in `governance.db`.
              */
             rule_id: number;
+        };
+        /** @description One artifact, as the chat draws it. */
+        Artifact: {
+            /** @description Full textual content. */
+            content: string;
+            /** @description ISO 8601 creation timestamp. */
+            created_at: string;
+            /** @description UUID v4 identifier. */
+            id: string;
+            /** @description Kind bucket: `"code"`, `"file"`, `"spec"`, `"bash_output"`, `"other"`. */
+            kind: string;
+            /** @description Detected or declared language (e.g. `"rust"`, `"markdown"`). */
+            language?: string | null;
+            /** @description Owning chat session identifier. */
+            session_id: string;
+            /** @description Source message identifier (absent for a manual creation). */
+            source_message_id?: string | null;
+            /** @description Source tool name (e.g. `"file_write"`, `"bash_executor"`). */
+            source_tool?: string | null;
+            /** @description Human-readable title (path, heading, short description). */
+            title: string;
+            /** @description ISO 8601 last-update timestamp. */
+            updated_at: string;
         };
         /** @description Entry in the immutable audit log of permission decisions. */
         AuditEntryDto: {
@@ -4997,6 +5431,15 @@ export interface components {
             /** @description Whether the user profile was injected into the system prompt. */
             user_memory_injected: boolean;
         };
+        /** @description Response body for `GET /api/v1/llm/cost-alert-threshold`. */
+        CostAlertThresholdResponse: {
+            /**
+             * Format: double
+             * @description The cost alert threshold of the live router in USD, `null` when none is
+             *     set or no router is configured.
+             */
+            threshold_usd?: number | null;
+        };
         /** @description A single backend/model cost summary row. */
         CostSummaryRow: {
             /** @description Backend name. */
@@ -5133,6 +5576,32 @@ export interface components {
             /** @description Trigger source configuration. */
             source: components["schemas"]["TriggerSourceInput"];
         };
+        /**
+         * @description A credential as listed: its owner, its key name and its dates, never its
+         *     value.
+         */
+        CredentialEntryView: {
+            /** @description Creation date, RFC 3339. */
+            created_at: string;
+            /** @description Logical key name (e.g. `brave.api_key`). */
+            key_name: string;
+            /** @description Date of the last actual use, if any. */
+            last_used_at?: string | null;
+            /** @description Name of the owning tool. */
+            tool_name: string;
+        };
+        /** @description Result of a live credential validation. */
+        CredentialTestView: {
+            /** @description Diagnostic message when `ok` is `false`. */
+            error?: string | null;
+            /**
+             * Format: int64
+             * @description Measured round-trip latency in milliseconds.
+             */
+            latency_ms?: number | null;
+            /** @description `true` if the call succeeded. */
+            ok: boolean;
+        };
         /** @description A single day+backend cost entry for the daily chart. */
         DailyCostEntry: {
             /** @description Backend name. */
@@ -5199,6 +5668,21 @@ export interface components {
             /** @description Name of the deleted server. */
             deleted: string;
         };
+        /** @description Answer of `DELETE /api/v1/artifacts/{id}`. */
+        DeletedArtifact: {
+            /** @description The identifier removed. */
+            deleted: string;
+        };
+        /** @description Answer of `DELETE /api/v1/tool-credentials/{tool_name}/{key_name}`. */
+        DeletedCredential: {
+            /** @description Whether a value was there to remove. */
+            removed: boolean;
+        };
+        /** @description Answer of `DELETE /api/v1/llm/installed-models`. */
+        DeletedInstalledModel: {
+            /** @description The path removed, as it was asked for. */
+            deleted: string;
+        };
         /** @description Answer of `DELETE /api/v1/profile/entries/{key}`. */
         DeletedProfileEntry: {
             /** @description The key removed. */
@@ -5218,6 +5702,11 @@ export interface components {
             reason?: Record<string, never> | null;
             /** @description Identifier of the entry recommended for this machine. */
             recommended?: string | null;
+        };
+        /** @description Answer of `POST /api/v1/logs/clear` and `POST /api/v1/factory-reset`. */
+        DirectoryRemoved: {
+            /** @description Whether the directory existed and was removed. */
+            removed: boolean;
         };
         /** @description Answer of `DELETE /api/v1/permissions/proposals/{index}`. */
         DismissedProposal: {
@@ -5877,6 +6366,11 @@ export interface components {
              */
             score: number;
         };
+        /** @description Answer of `POST /api/v1/memory/wipe`. */
+        MemoryWiped: {
+            /** @description How many memory databases were removed. */
+            removed_databases: number;
+        };
         /**
          * @description A single message in a multi-turn conversation request.
          *
@@ -6004,6 +6498,86 @@ export interface components {
         OkResponse: {
             /** @description Confirmation flag. */
             ok: boolean;
+        };
+        /** @description Answer of `POST /api/v1/onboarding/dismiss`. */
+        OnboardingDismissed: {
+            /** @description Always `true`: the onboarding is marked as skipped. */
+            dismissed: boolean;
+        };
+        /**
+         * @description Answer of `GET /api/v1/onboarding/finalized` and
+         *     `POST /api/v1/onboarding/finalize`.
+         */
+        OnboardingFinalized: {
+            /** @description Whether the onboarding agent recorded its completion. */
+            finalized: boolean;
+        };
+        /** @description Answer of `POST /api/v1/onboarding/complete`. */
+        OnboardingMarked: {
+            /** @description Always `true`: the flag is written. */
+            onboarded: boolean;
+        };
+        /**
+         * @description The seven ordered phases of the onboarding flow.
+         * @enum {string}
+         */
+        OnboardingPhase: "welcome" | "profile_choice" | "ai_setup" | "acquaintance" | "guided_tour" | "graduation" | "done";
+        /** @description Request body for `PUT /api/v1/onboarding/profile`. */
+        OnboardingProfileBody: {
+            /** @description `operator` or `builder`. */
+            profile: string;
+        };
+        /** @description Answer of `POST /api/v1/onboarding/reset`. */
+        OnboardingReset: {
+            /** @description How many profile entries were removed. */
+            removed_profile_entries: number;
+        };
+        /** @description Full onboarding state maintained server-side and persisted in UserMemory. */
+        OnboardingState: {
+            /** @description Session ID of the active Companion chat, if any. */
+            companion_session_id?: string | null;
+            /** @description `true` when the phase has reached `Done`. */
+            completed: boolean;
+            /** @description ISO 8601 timestamp when the phase reached `Done`. */
+            completed_at?: string | null;
+            /** @description `true` when at least one LLM backend has been configured. */
+            llm_configured: boolean;
+            /** @description `true` when the mandatory name/role fields have been collected. */
+            mandatory_complete: boolean;
+            /** @description Current phase of the onboarding flow. */
+            phase: components["schemas"]["OnboardingPhase"];
+            /** @description Chosen user profile (`"operator"` or `"builder"`); set during ProfileChoice. */
+            profile?: string | null;
+            /** @description `true` if the user explicitly skipped the onboarding. */
+            skipped: boolean;
+            /** @description ISO 8601 timestamp of the first phase transition (Welcome → ProfileChoice). */
+            started_at?: string | null;
+            /** @description Accumulated stats for the graduation screen. */
+            stats: components["schemas"]["OnboardingStats"];
+            /** @description `true` when the STT engine has been configured and tested. */
+            stt_configured: boolean;
+            /** @description Topics covered so far. */
+            topics_covered: string[];
+            /** @description `true` when the user has enabled voice commands. */
+            voice_enabled: boolean;
+        };
+        /** @description Cumulative statistics accumulated over the full onboarding flow. */
+        OnboardingStats: {
+            /**
+             * Format: int32
+             * @description Number of discrete actions completed by the user.
+             */
+            actions_completed: number;
+            /**
+             * Format: int32
+             * @description Number of questions asked to the AI Companion.
+             */
+            companion_questions: number;
+            /**
+             * Format: int64
+             * @description Total time spent in the onboarding flow, in seconds.
+             */
+            total_time_sec: number;
         };
         /**
          * @description Error body of the package routes: the message, and a stable code a client
@@ -6535,6 +7109,23 @@ export interface components {
             /** @description The text to put back in the composer. */
             rewrittenText: string;
         };
+        /** @description A new artifact, as the chat captures it. */
+        SaveArtifactRequest: {
+            /** @description Full artifact content. */
+            content: string;
+            /** @description Classification bucket. */
+            kind: string;
+            /** @description Detected or declared language. */
+            language?: string | null;
+            /** @description Owning session. */
+            session_id: string;
+            /** @description Source message identifier, set when detected from a tool call. */
+            source_message_id?: string | null;
+            /** @description Source tool (if emitted by a tool call). */
+            source_tool?: string | null;
+            /** @description Human-readable title. */
+            title: string;
+        };
         /** @description Request body for `POST /api/v1/sessions/:id/messages`. */
         SendMessageRequest: {
             /** @description Text content of the user message. */
@@ -6702,6 +7293,11 @@ export interface components {
         /** @description Request body for `PATCH /api/v1/mcp/servers/:name/approval`. */
         SetApprovalBody: {
             requires_approval: boolean;
+        };
+        /** @description Request body of `PUT /api/v1/tool-credentials/{tool_name}/{key_name}`. */
+        SetCredentialBody: {
+            /** @description Cleartext value, encrypted before it is written. */
+            value: string;
         };
         /** @description Body of `PUT /api/v1/llm/default-model`. */
         SetDefaultModelRequest: {
@@ -6889,6 +7485,13 @@ export interface components {
              *     `complete`. Valid ten minutes, once.
              */
             state: string;
+        };
+        /** @description Answer of `PUT /api/v1/tool-credentials/{tool_name}/{key_name}`. */
+        StoredCredential: {
+            /** @description Key name stored. */
+            key_name: string;
+            /** @description Owning tool. */
+            tool_name: string;
         };
         /** @description Response body for `POST /api/v1/stt/reload`. */
         SttReloadResponse: {
@@ -7287,6 +7890,13 @@ export interface components {
             /** @description Last-modified timestamp (ISO 8601). */
             updated_at: string;
         };
+        /** @description Request body for `POST /api/v1/onboarding/sessions`. */
+        TriggerOnboardingBody: {
+            /** @description The profile the agent adapts its questions to, when one was chosen. */
+            profile?: string | null;
+            /** @description One topic to run again; absent for a full onboarding. */
+            topic?: string | null;
+        };
         /** @description A trigger the package proposes. Installing does not arm it. */
         TriggerPreview: {
             /** @description Identifier. */
@@ -7295,6 +7905,15 @@ export interface components {
             source: string;
             /** @description Agent or workflow it starts. */
             target: string;
+        };
+        /** @description Result of triggering an onboarding session. */
+        TriggerResult: {
+            /** @description `"full"` or `"partial"`. */
+            mode: string;
+            /** @description Chat session identifier. */
+            session_id: string;
+            /** @description Target topic when mode is `"partial"`. */
+            topic?: string | null;
         };
         /** @description Trigger source description used in create/update requests. */
         TriggerSourceInput: Record<string, never> & {
@@ -7335,6 +7954,13 @@ export interface components {
              *     context windows.
              */
             stopped: number;
+        };
+        /** @description The fields of an artifact a change may replace; an absent one is kept. */
+        UpdateArtifactRequest: {
+            /** @description New content. */
+            content?: string | null;
+            /** @description New title. */
+            title?: string | null;
         };
         /**
          * @description Request body for `PUT /api/v1/notifications/channels/:id`.
@@ -8372,6 +8998,116 @@ export interface operations {
                 };
             };
             /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    save_artifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveArtifactRequest"];
+            };
+        };
+        responses: {
+            /** @description The artifact as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Artifact"];
+                };
+            };
+            /** @description The artifacts store could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_artifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Artifact identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The artifact is gone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedArtifact"];
+                };
+            };
+            /** @description The artifacts store could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    update_artifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Artifact identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateArtifactRequest"];
+            };
+        };
+        responses: {
+            /** @description The artifact as changed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Artifact"];
+                };
+            };
+            /** @description No artifact has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The artifacts store could not be written */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -9932,6 +10668,35 @@ export interface operations {
             };
         };
     };
+    factory_reset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether the data directory was removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryRemoved"];
+                };
+            };
+            /** @description The directory cannot be removed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     list_governance_audit: {
         parameters: {
             query?: {
@@ -10927,6 +11692,26 @@ export interface operations {
             };
         };
     };
+    get_cost_alert_threshold: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The cost alert threshold of the live router */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostAlertThresholdResponse"];
+                };
+            };
+        };
+    };
     get_llm_costs: {
         parameters: {
             query?: {
@@ -11178,6 +11963,65 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HardwareResponse"];
+                };
+            };
+        };
+    };
+    delete_installed_model: {
+        parameters: {
+            query: {
+                /** @description Absolute path of the installed model file */
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file and its index entry are gone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedInstalledModel"];
+                };
+            };
+            /** @description The path resolves outside the models directory */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No such file, or no models directory */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description An LLM backend or the dictation engine uses the file */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The file could not be removed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };
@@ -12030,6 +12874,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LlmStatusResponse"];
+                };
+            };
+        };
+    };
+    clear_logs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether a logs directory was removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryRemoved"];
+                };
+            };
+            /** @description The directory cannot be removed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };
@@ -13049,6 +13922,35 @@ export interface operations {
             };
         };
     };
+    clear_all_memories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many databases were removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryWiped"];
+                };
+            };
+            /** @description The memory directory cannot be listed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     list_channels: {
         parameters: {
             query?: never;
@@ -13618,6 +14520,353 @@ export interface operations {
             };
             /** @description Unknown provider */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_onboarding_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The onboarding state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingState"];
+                };
+            };
+            /** @description The user memory did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    mark_onboarded: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The flag is written */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingMarked"];
+                };
+            };
+            /** @description The flag cannot be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    dismiss_onboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The onboarding is skipped */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingDismissed"];
+                };
+            };
+            /** @description The user memory did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    finalize_onboarding_chat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The completion is recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingFinalized"];
+                };
+            };
+            /** @description The agent's memory cannot be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    check_onboarding_finalized: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether the completion is recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingFinalized"];
+                };
+            };
+        };
+    };
+    advance_onboarding_phase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdvancePhaseBody"];
+            };
+        };
+        responses: {
+            /** @description The state after the move */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingState"];
+                };
+            };
+            /** @description Unknown phase */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The phase is out of sequence */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The user memory did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_onboarding_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingProfileBody"];
+            };
+        };
+        responses: {
+            /** @description The state with its profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingState"];
+                };
+            };
+            /** @description Neither operator nor builder */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The user memory did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    reset_onboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many profile entries were removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingReset"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    resume_onboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The conversation opened */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriggerResult"];
+                };
+            };
+            /** @description The onboarding agent is not installed */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The chat did not start */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    trigger_onboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TriggerOnboardingBody"];
+            };
+        };
+        responses: {
+            /** @description The conversation opened */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriggerResult"];
+                };
+            };
+            /** @description Unknown topic or profile */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The onboarding agent is not installed */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The chat did not start */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14680,6 +15929,38 @@ export interface operations {
             };
             /** @description Chat subsystem unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_artifacts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chat session identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The artifacts of the session */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Artifact"][];
+                };
+            };
+            /** @description The artifacts store could not be read */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -15771,6 +17052,15 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Unsupported language hint */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
             /** @description Database error */
             500: {
                 headers: {
@@ -16523,6 +17813,160 @@ export interface operations {
                 };
             };
             /** @description Database or query error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    test_tool_credential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Tool whose credential is tested */
+                tool_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The outcome of the live call */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialTestView"];
+                };
+            };
+            /** @description The tool has no live test */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The credential store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_tool_credentials: {
+        parameters: {
+            query?: {
+                /** @description Only the credentials of this tool. */
+                tool_name?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The credentials, without their values */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialEntryView"][];
+                };
+            };
+            /** @description The credential store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_tool_credential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Owning tool */
+                tool_name: string;
+                /** @description Key name, e.g. brave.api_key */
+                key_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetCredentialBody"];
+            };
+        };
+        responses: {
+            /** @description The credential is stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredCredential"];
+                };
+            };
+            /** @description Blank name or empty value */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The credential store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_tool_credential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Owning tool */
+                tool_name: string;
+                /** @description Key name */
+                key_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether a value was removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedCredential"];
+                };
+            };
+            /** @description The credential store failed */
             500: {
                 headers: {
                     [name: string]: unknown;

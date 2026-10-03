@@ -79,8 +79,17 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # clients of the connectors were served by the daemon, then at 103 once the plan
 # mode had its routes, then at 96 once the MCP secrets and registry had their
 # routes and the MCP sign-in was named a window command, then at 92 once the
-# assists around the chat (rewrite, next steps, automation, coaching) were.
-EMBEDDED_ONLY_CEILING = 92
+# credentials of the native tools had their routes, then at 88 once the
+# downloads, the import and the removal of a model served the daemon, then at 83
+# once the LLM engines were listed, tested and reloaded, and the cost alert
+# threshold read, through the daemon, then at 78 once the settings, the status
+# and the models of the dictation were served by the daemon, then at 70 once the
+# onboarding had its routes, then at 65 once the onboarding, the memory, the logs
+# and the whole data directory could be reset or erased through the daemon,
+# then at 61 once the artifacts of a conversation were served by the daemon,
+# then at 57 once the assists around the chat (rewrite, next steps,
+# automation, coaching) were.
+EMBEDDED_ONLY_CEILING = 57
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

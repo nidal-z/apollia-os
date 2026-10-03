@@ -13,6 +13,7 @@ from .access_preview import AccessPreview
 from .add_permission_rule_body import AddPermissionRuleBody
 from .added_access import AddedAccess
 from .added_permission_rule import AddedPermissionRule
+from .advance_phase_body import AdvancePhaseBody
 from .agent_list_response import AgentListResponse
 from .agent_message_dto import AgentMessageDto
 from .agent_message_dto_payload import AgentMessageDtoPayload
@@ -28,6 +29,7 @@ from .answer_user_input_request import AnswerUserInputRequest
 from .answer_user_input_request_answers_item import AnswerUserInputRequestAnswersItem
 from .api_error_body import ApiErrorBody
 from .applied_proposal import AppliedProposal
+from .artifact import Artifact
 from .audit_entry_dto import AuditEntryDto
 from .audit_event_response import AuditEventResponse
 from .audit_journal_page_response import AuditJournalPageResponse
@@ -77,6 +79,7 @@ from .connection_state import ConnectionState
 from .connection_tool import ConnectionTool
 from .connector_account_response import ConnectorAccountResponse
 from .conversation_stats_view import ConversationStatsView
+from .cost_alert_threshold_response import CostAlertThresholdResponse
 from .cost_summary_row import CostSummaryRow
 from .costs_response import CostsResponse
 from .counted_language_model import CountedLanguageModel
@@ -90,6 +93,8 @@ from .create_preset_request_request import CreatePresetRequestRequest
 from .create_server_request import CreateServerRequest
 from .create_session_request import CreateSessionRequest
 from .create_trigger_request import CreateTriggerRequest
+from .credential_entry_view import CredentialEntryView
+from .credential_test_view import CredentialTestView
 from .daily_cost_entry import DailyCostEntry
 from .daily_costs_response import DailyCostsResponse
 from .default_model_response import DefaultModelResponse
@@ -99,10 +104,14 @@ from .delete_backend_response import DeleteBackendResponse
 from .delete_preset_response import DeletePresetResponse
 from .delete_response import DeleteResponse
 from .delete_server_response import DeleteServerResponse
+from .deleted_artifact import DeletedArtifact
+from .deleted_credential import DeletedCredential
+from .deleted_installed_model import DeletedInstalledModel
 from .deleted_profile_entry import DeletedProfileEntry
 from .dictation_models_response import DictationModelsResponse
 from .dictation_models_response_models_item import DictationModelsResponseModelsItem
 from .dictation_models_response_reason_type_0 import DictationModelsResponseReasonType0
+from .directory_removed import DirectoryRemoved
 from .dismissed_proposal import DismissedProposal
 from .drive_folder_status import DriveFolderStatus
 from .embedding_models_response import EmbeddingModelsResponse
@@ -182,6 +191,7 @@ from .memory_entry_view import MemoryEntryView
 from .memory_imported import MemoryImported
 from .memory_removed import MemoryRemoved
 from .memory_search_result_view import MemorySearchResultView
+from .memory_wiped import MemoryWiped
 from .message_dto import MessageDto
 from .model_cards_response import ModelCardsResponse
 from .model_cards_response_cards_item import ModelCardsResponseCardsItem
@@ -196,6 +206,14 @@ from .oauth_client_test_result import OauthClientTestResult
 from .oauth_client_value_body import OauthClientValueBody
 from .oauth_client_written import OauthClientWritten
 from .ok_response import OkResponse
+from .onboarding_dismissed import OnboardingDismissed
+from .onboarding_finalized import OnboardingFinalized
+from .onboarding_marked import OnboardingMarked
+from .onboarding_phase import OnboardingPhase
+from .onboarding_profile_body import OnboardingProfileBody
+from .onboarding_reset import OnboardingReset
+from .onboarding_state import OnboardingState
+from .onboarding_stats import OnboardingStats
 from .package_error_body import PackageErrorBody
 from .package_install_request import PackageInstallRequest
 from .package_notice_type_0 import PackageNoticeType0
@@ -261,6 +279,7 @@ from .revoked_rules import RevokedRules
 from .rewrite_fallback_reason import RewriteFallbackReason
 from .rewrite_prompt_body import RewritePromptBody
 from .rewrite_reply import RewriteReply
+from .save_artifact_request import SaveArtifactRequest
 from .send_message_request import SendMessageRequest
 from .send_message_response import SendMessageResponse
 from .server_model import ServerModel
@@ -272,6 +291,7 @@ from .session_metrics import SessionMetrics
 from .session_workspace import SessionWorkspace
 from .set_agent_model_request import SetAgentModelRequest
 from .set_approval_body import SetApprovalBody
+from .set_credential_body import SetCredentialBody
 from .set_default_model_request import SetDefaultModelRequest
 from .set_default_response import SetDefaultResponse
 from .set_drive_folder_body import SetDriveFolderBody
@@ -294,6 +314,7 @@ from .sse_task_event import SseTaskEvent
 from .start_agent_request import StartAgentRequest
 from .start_consent_body import StartConsentBody
 from .start_consent_response import StartConsentResponse
+from .stored_credential import StoredCredential
 from .stt_reload_response import SttReloadResponse
 from .stt_status_response import SttStatusResponse
 from .submit_task_request import SubmitTaskRequest
@@ -347,12 +368,15 @@ from .transcriptions_list_response_transcriptions_item import (
 )
 from .trigger_definition_response import TriggerDefinitionResponse
 from .trigger_definition_response_source_config import TriggerDefinitionResponseSourceConfig
+from .trigger_onboarding_body import TriggerOnboardingBody
 from .trigger_preview import TriggerPreview
+from .trigger_result import TriggerResult
 from .trigger_source_input import TriggerSourceInput
 from .trust_key_request import TrustKeyRequest
 from .trusted_key_view import TrustedKeyView
 from .unload_model_request import UnloadModelRequest
 from .unload_model_response import UnloadModelResponse
+from .update_artifact_request import UpdateArtifactRequest
 from .update_channel_request import UpdateChannelRequest
 from .update_channel_request_config_type_0 import UpdateChannelRequestConfigType0
 from .update_diff import UpdateDiff
@@ -393,6 +417,7 @@ __all__ = (
     "AddedAccess",
     "AddedPermissionRule",
     "AddPermissionRuleBody",
+    "AdvancePhaseBody",
     "AgentListResponse",
     "AgentMessageDto",
     "AgentMessageDtoPayload",
@@ -408,6 +433,7 @@ __all__ = (
     "AnswerUserInputRequestAnswersItem",
     "ApiErrorBody",
     "AppliedProposal",
+    "Artifact",
     "AuditEntryDto",
     "AuditEventResponse",
     "AuditJournalPageResponse",
@@ -457,6 +483,7 @@ __all__ = (
     "ConnectionTool",
     "ConnectorAccountResponse",
     "ConversationStatsView",
+    "CostAlertThresholdResponse",
     "CostsResponse",
     "CostSummaryRow",
     "CountedLanguageModel",
@@ -470,12 +497,17 @@ __all__ = (
     "CreateServerRequest",
     "CreateSessionRequest",
     "CreateTriggerRequest",
+    "CredentialEntryView",
+    "CredentialTestView",
     "DailyCostEntry",
     "DailyCostsResponse",
     "DefaultModelResponse",
     "DelegateRequest",
     "DelegateRequestInput",
     "DeleteBackendResponse",
+    "DeletedArtifact",
+    "DeletedCredential",
+    "DeletedInstalledModel",
     "DeletedProfileEntry",
     "DeletePresetResponse",
     "DeleteResponse",
@@ -483,6 +515,7 @@ __all__ = (
     "DictationModelsResponse",
     "DictationModelsResponseModelsItem",
     "DictationModelsResponseReasonType0",
+    "DirectoryRemoved",
     "DismissedProposal",
     "DriveFolderStatus",
     "EmbeddingModelsResponse",
@@ -562,6 +595,7 @@ __all__ = (
     "MemoryImported",
     "MemoryRemoved",
     "MemorySearchResultView",
+    "MemoryWiped",
     "MessageDto",
     "ModelCardsResponse",
     "ModelCardsResponseCardsItem",
@@ -576,6 +610,14 @@ __all__ = (
     "OauthClientValueBody",
     "OauthClientWritten",
     "OkResponse",
+    "OnboardingDismissed",
+    "OnboardingFinalized",
+    "OnboardingMarked",
+    "OnboardingPhase",
+    "OnboardingProfileBody",
+    "OnboardingReset",
+    "OnboardingState",
+    "OnboardingStats",
     "PackageErrorBody",
     "PackageInstallRequest",
     "PackageNoticeType0",
@@ -637,6 +679,7 @@ __all__ = (
     "RewriteFallbackReason",
     "RewritePromptBody",
     "RewriteReply",
+    "SaveArtifactRequest",
     "SendMessageRequest",
     "SendMessageResponse",
     "ServerModel",
@@ -648,6 +691,7 @@ __all__ = (
     "SessionWorkspace",
     "SetAgentModelRequest",
     "SetApprovalBody",
+    "SetCredentialBody",
     "SetDefaultModelRequest",
     "SetDefaultResponse",
     "SetDriveFolderBody",
@@ -670,6 +714,7 @@ __all__ = (
     "StartAgentRequest",
     "StartConsentBody",
     "StartConsentResponse",
+    "StoredCredential",
     "SttReloadResponse",
     "SttStatusResponse",
     "SubmitTaskRequest",
@@ -721,12 +766,15 @@ __all__ = (
     "TranscriptionsListResponseTranscriptionsItem",
     "TriggerDefinitionResponse",
     "TriggerDefinitionResponseSourceConfig",
+    "TriggerOnboardingBody",
     "TriggerPreview",
+    "TriggerResult",
     "TriggerSourceInput",
     "TrustedKeyView",
     "TrustKeyRequest",
     "UnloadModelRequest",
     "UnloadModelResponse",
+    "UpdateArtifactRequest",
     "UpdateChannelRequest",
     "UpdateChannelRequestConfigType0",
     "UpdateDiff",
