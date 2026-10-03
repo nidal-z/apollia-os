@@ -11,8 +11,8 @@ use std::process::{Command, Output};
 
 use tracing::Level;
 
-use crate::commands::service::definition::{Manager, LAUNCHD_LABEL, SYSTEMD_UNIT, TASK_NAME};
-use crate::commands::service::ServiceError;
+use crate::service::definition::{Manager, LAUNCHD_LABEL, SYSTEMD_UNIT, TASK_NAME};
+use crate::service::ServiceError;
 
 /// What the service manager reports for this definition.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -158,13 +158,17 @@ fn launchd_service_target() -> Option<String> {
 
 /// Run a command for its answer; `None` when it could not be spawned.
 fn run_quiet(program: &str, args: &[&str]) -> Option<Output> {
-    Command::new(program).args(args).output().ok()
+    let mut command = Command::new(program);
+    apollia_core::subprocess_window::hide_console(&mut command);
+    command.args(args).output().ok()
 }
 
 /// Run a command that must succeed; its stderr becomes the error detail.
 fn run_checked(program: &str, args: &[&str]) -> Result<(), ServiceError> {
     let command = format!("{program} {}", args.join(" "));
-    let out = Command::new(program)
+    let mut child = Command::new(program);
+    apollia_core::subprocess_window::hide_console(&mut child);
+    let out = child
         .args(args)
         .output()
         .map_err(|e| ServiceError::Manager {

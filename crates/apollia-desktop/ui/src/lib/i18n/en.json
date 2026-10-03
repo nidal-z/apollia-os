@@ -3115,6 +3115,18 @@
         "level_debug": "Debug (default)",
         "write_failed": "The engine log level could not be saved."
       },
+      "service": {
+        "title": "Service without interface",
+        "switch_label": "Keep Apollia running without the application",
+        "switch_hint": "Keep the agents, the batches and the automations running without leaving the application open.",
+        "help": "Apollia runs as a service of your session: it starts when you log in and keeps working once the window is closed. Turning it on or off relaunches the application.",
+        "help_label": "About this setting",
+        "running": "Running",
+        "stopped": "Installed, not running",
+        "unsupported": "This system has no service manager Apollia can use.",
+        "no_cli": "The command line bundled with the application was not found.",
+        "write_failed": "The service could not be changed: {error}"
+      },
       "mcp": {
         "title": "Apollia as an MCP server",
         "switch_label": "Expose Apollia as an MCP server",

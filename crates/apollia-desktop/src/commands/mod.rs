@@ -13,6 +13,7 @@ pub mod agents;
 pub mod artifacts;
 #[cfg(debug_assertions)]
 pub mod automation;
+pub mod background_service;
 pub mod chat;
 pub mod chat_permissions;
 pub mod cli;

@@ -3115,6 +3115,18 @@
         "level_debug": "Débogage (défaut)",
         "write_failed": "Le niveau de journal du moteur n'a pas pu être enregistré."
       },
+      "service": {
+        "title": "Service sans interface",
+        "switch_label": "Garder Apollia actif sans l'application",
+        "switch_hint": "Garder les agents, les lots et les automatisations actifs sans laisser l'application ouverte.",
+        "help": "Apollia tourne comme un service de votre session : il démarre à l'ouverture de session et continue une fois la fenêtre fermée. L'allumer ou l'éteindre relance l'application.",
+        "help_label": "À propos de ce réglage",
+        "running": "En marche",
+        "stopped": "Installé, à l'arrêt",
+        "unsupported": "Ce système n'a pas de gestionnaire de services qu'Apollia sache utiliser.",
+        "no_cli": "La ligne de commande fournie avec l'application est introuvable.",
+        "write_failed": "Le service n'a pas pu être modifié : {error}"
+      },
       "mcp": {
         "title": "Apollia comme serveur MCP",
         "switch_label": "Exposer Apollia comme serveur MCP",
