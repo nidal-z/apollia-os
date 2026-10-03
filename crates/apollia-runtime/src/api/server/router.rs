@@ -86,6 +86,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         get_audit_anchor, get_audit_stats, list_audit, list_audit_journal, post_replay_run,
         show_audit_run, verify_audit_journal, verify_audit_run,
     };
+    use crate::api::routes_chat::conversations::{conversations_router, update_session};
     use crate::api::routes_chat::user_inputs::{
         answer_user_input, list_pending_user_inputs, reject_user_input,
     };
@@ -98,12 +99,14 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     };
     use crate::api::routes_connections::connections_router;
     use crate::api::routes_connectors::connectors_router;
+    use crate::api::routes_engines::engines_router;
     use crate::api::routes_hooks::list_hooks;
     use crate::api::routes_imap::imap_router;
     use crate::api::routes_llm::llm_routes;
     use crate::api::routes_mcp::mcp_router;
     use crate::api::routes_mcp_registry::mcp_registry_router;
     use crate::api::routes_mcp_secrets::mcp_secrets_router;
+    use crate::api::routes_memory_maintenance::memory_maintenance_router;
     use crate::api::routes_messages::{inject_agent_message, list_agent_messages, stream_mailbox};
     use crate::api::routes_model_hub::model_hub_routes;
     use crate::api::routes_notifications::logs::notification_logs;
@@ -251,6 +254,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(llm_routes::<B>())
         .merge(crate::api::routes_agent_definitions::agent_definition_routes::<B>())
         .merge(model_hub_routes::<B>())
+        .merge(engines_router::<B>())
         .merge(resilience_router::<B>())
         // Chat session routes
         .route(
@@ -261,7 +265,9 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route("/api/v1/sessions/recent", get(list_recent_sessions::<B>))
         .route(
             "/api/v1/sessions/:id",
-            get(chat_get_session::<B>).delete(close_session::<B>),
+            get(chat_get_session::<B>)
+                .patch(update_session::<B>)
+                .delete(close_session::<B>),
         )
         .route("/api/v1/sessions/:id/messages", post(send_message::<B>))
         .route(
@@ -270,6 +276,14 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         )
         .route("/api/v1/sessions/:id/stream", get(stream_session::<B>))
         .route("/api/v1/sessions/:id/pause", post(pause_session::<B>))
+        .route(
+            "/api/v1/sessions/:id/metrics",
+            get(crate::api::routes_chat::session_reads::get_session_metrics::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/workspace",
+            get(crate::api::routes_chat::session_reads::get_session_workspace::<B>),
+        )
         .route("/api/v1/sessions/:id/todo", get(chat_get_session_todo::<B>))
         .route(
             "/api/v1/sessions/:id/resume",
@@ -312,6 +326,8 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(connections_router::<B>())
         .merge(profile_router::<B>())
         .merge(tool_credentials_router::<B>())
+        .merge(memory_maintenance_router::<B>())
+        .merge(conversations_router::<B>())
         .merge(connectors_router::<B>())
         .merge(imap_router::<B>())
         .merge(crate::api::routes_batches::batch_routes::<B>())

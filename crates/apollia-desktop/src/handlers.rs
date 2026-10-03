@@ -82,7 +82,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::memory::list_memory_namespaces,
         commands::memory::list_memory_entries,
         commands::memory::search_memory,
-        commands::memory::delete_memory_entry,
+        commands::memory::maintenance::delete_memory_entry,
         commands::memory::get_injected_memory_entries,
         commands::notifications::list_notification_channels,
         commands::notifications::test_notification_channel,
@@ -140,7 +140,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::chat::chat_session_metrics,
         commands::chat::delete_chat_session,
         commands::chat::rename_chat_session,
-        commands::chat::title::generate_chat_session_name,
+        commands::chat::naming::generate_chat_session_name,
         commands::chat::update_chat_session,
         commands::chat::send_chat_message,
         commands::chat::regenerate_chat_response,
@@ -231,10 +231,10 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         // Tasks
         commands::tasks::cancel_task,
         // Memory
-        commands::memory::clear_memory,
-        commands::memory::purge_memory,
-        commands::memory::memory_export_namespace,
-        commands::memory::memory_import_namespace,
+        commands::memory::maintenance::clear_memory,
+        commands::memory::maintenance::purge_memory,
+        commands::memory::maintenance::memory_export_namespace,
+        commands::memory::maintenance::memory_import_namespace,
         // Observability
         commands::observability::audit::get_audit_stats,
         // Updates

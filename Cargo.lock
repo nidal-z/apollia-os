@@ -648,6 +648,7 @@ dependencies = [
  "apollia-oria",
  "apollia-permissions",
  "apollia-prompts",
+ "apollia-signing",
  "apollia-stt",
  "apollia-tools",
  "apollia-triggers",
@@ -682,6 +683,7 @@ dependencies = [
  "utoipa",
  "uuid",
  "wmi",
+ "zip",
 ]
 
 [[package]]

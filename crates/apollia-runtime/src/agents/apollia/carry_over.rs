@@ -8,10 +8,10 @@
 //! - the system prompt, with the built-in prompt of Apollia's tier after it,
 //!   becomes the mission override, so the instructions the chat followed are
 //!   kept along with the user's; no prompt, no override;
-//! - the tools, added to the accesses Apollia's definition grants, become the
-//!   access override; no tool, no override. What they let run without a
-//!   question was already turned into standing consents by the access
-//!   upgrade, and stays so;
+//! - the tools, added to the accesses Apollia is granted by default (the
+//!   reading family active at that start), become the access override; no
+//!   tool, no override. What they let run without a question was already
+//!   turned into standing consents by the access upgrade, and stays so;
 //! - the backend becomes the model assigned to Apollia in `system.db`, unless
 //!   one is assigned already.
 //!
@@ -66,6 +66,8 @@ pub enum CarryOver {
 
 /// Carries the legacy settings of the chat over to the Apollia agent, the
 /// overrides journaled through `governance`, then drops the legacy table.
+/// `reading` is the reading family active now, the access Apollia holds by
+/// default, which the legacy tools are added to.
 ///
 /// # Errors
 ///
@@ -74,6 +76,7 @@ pub enum CarryOver {
 pub fn carry_over_chat_config(
     data_dir: &Path,
     governance: &dyn GovernanceContract,
+    reading: &[String],
 ) -> Result<CarryOver, CarryOverError> {
     let governance_db = DataFile::Governance.path(data_dir);
     let legacy = match apollia_permissions::read_legacy_chat_config(&governance_db)? {
@@ -87,7 +90,7 @@ pub fn carry_over_chat_config(
         governance,
         actor: ACCESS_UPGRADE_ACTOR,
     };
-    let overrides = write_overrides(&writer, &legacy)?;
+    let overrides = write_overrides(&writer, &legacy, reading)?;
     let model_assigned = legacy
         .llm_backend
         .as_deref()
@@ -103,6 +106,7 @@ pub fn carry_over_chat_config(
 fn write_overrides(
     writer: &OverrideWriter<'_>,
     legacy: &LegacyChatConfig,
+    reading: &[String],
 ) -> Result<Vec<OverrideField>, CarryOverError> {
     let apollia = writer
         .repo
@@ -125,7 +129,11 @@ fn write_overrides(
         written.push(OverrideField::Mission);
     }
     if legacy.allowed_tools.iter().any(|t| !t.trim().is_empty()) {
-        let mut access = apollia.access.clone();
+        let mut access = if apollia_tools::reads_by_default(&apollia) {
+            reading.to_vec()
+        } else {
+            apollia.access.clone()
+        };
         for tool in &legacy.allowed_tools {
             let tool = tool.trim();
             if !tool.is_empty() && !access.iter().any(|a| a == tool) {
@@ -181,9 +189,11 @@ fn assign_model(path: &Path, backend: &str) -> bool {
 
 /// Startup step: carries the settings over, journaled, or defers it while the
 /// journal is unavailable, so no override is written without its record.
+/// `reading` is the reading family active at this start.
 pub(crate) fn run_at_startup(
     data_dir: &Path,
     journal: Option<&crate::audit_journal::AuditJournalHandle>,
+    reading: &[String],
 ) {
     let Some(journal) = journal else {
         tracing::event!(
@@ -194,7 +204,7 @@ pub(crate) fn run_at_startup(
         return;
     };
     let governance = crate::governance::NoPolicyGovernance::new(journal.clone());
-    match carry_over_chat_config(data_dir, &governance) {
+    match carry_over_chat_config(data_dir, &governance, reading) {
         Ok(outcome) => tracing::event!(
             tracing::Level::INFO,
             outcome = ?outcome,

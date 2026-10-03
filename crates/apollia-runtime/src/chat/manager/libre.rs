@@ -355,6 +355,8 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         preferred_backend,
     } = params;
 
+    let available_tools = available_tools.tools(&tool_registry).await;
+
     // In deferred mode, snapshot the aggregated tool index once. The synthetic
     // `tool_search` tool is built from it twice: as a dispatcher executor (so a
     // discovered tool can be invoked) and as an LLM spec (so the agent sees it

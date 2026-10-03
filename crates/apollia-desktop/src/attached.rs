@@ -36,11 +36,20 @@ const RELAY_BUS_CAPACITY: usize = 1024;
 /// manager it holds. `list_model_cards` needs none either: it reads the model
 /// registry, the data directory and its `apollia.toml`, never the runtime.
 pub(crate) const ROUTED_COMMANDS: &[&str] = &[
+    "chat_session_metrics",
     "create_chat_session",
     "get_chat_session",
     "list_chat_sessions",
     "pause_chat_session",
     "send_chat_message",
+    // The conversations as the list manages them: configure, rename, name,
+    // erase, link to a project, list by project.
+    "delete_chat_session",
+    "generate_chat_session_name",
+    "link_chat_to_project",
+    "list_chats_by_project",
+    "rename_chat_session",
+    "update_chat_session",
     // Agents: the registry and the install.
     "agent_status_snapshot",
     "install_agent",
@@ -131,6 +140,14 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "start_variant_download",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
+    // Memory upkeep, over `/api/v1/memory/namespaces/{namespace}/...`. The
+    // export and import files stay on the machine of the window; the daemon,
+    // which owns the memory, sends and receives their content.
+    "clear_memory",
+    "delete_memory_entry",
+    "memory_export_namespace",
+    "memory_import_namespace",
+    "purge_memory",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no
@@ -177,6 +194,14 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "open_config_in_editor",
         "opens the configuration file in the editor of this machine",
+    ),
+    (
+        "export_conversation",
+        "writes the conversation to the file chosen in this window's save dialog",
+    ),
+    (
+        "reveal_session_path",
+        "shows a file in the file manager of this machine, the session folder read from the runtime",
     ),
     (
         "automation_script",

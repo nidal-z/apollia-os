@@ -230,6 +230,8 @@ section "batches"
 check_json_field "batch list --json holds no batch" "len(d['batches'])" 0 "${Q[@]}" batch list --json
 check_exit    "batch run unknown source type → 1" 1  "${Q[@]}" batch run apollia-chat --source-type spreadsheet --source /data/requests.xlsx
 check_exit    "batch status unknown → 1"          1  "${Q[@]}" batch status 00000000-0000-0000-0000-000000000000
+check_exit    "batch stop unknown → 1"            1  "${Q[@]}" batch stop 00000000-0000-0000-0000-000000000000
+check_exit    "batch retry unknown → 1"           1  "${Q[@]}" batch retry 00000000-0000-0000-0000-000000000000
 
 # ── workflows ───────────────────────────────────────────────────────────────
 # The workflow engine runs in the daemon. The seed installs no package with a

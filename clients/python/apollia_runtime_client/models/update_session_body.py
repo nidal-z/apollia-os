@@ -1,0 +1,126 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any, TypeVar, cast
+
+from attrs import define as _attrs_define
+from attrs import field as _attrs_field
+
+from ..types import UNSET, Unset
+
+T = TypeVar("T", bound="UpdateSessionBody")
+
+
+@_attrs_define
+class UpdateSessionBody:
+    """Request body for `PATCH /api/v1/sessions/{id}`. An absent field keeps its
+    value.
+
+        Attributes:
+            llm_backend (None | str | Unset): Inference server of the session.
+            system_prompt (None | str | Unset): New system prompt.
+            tools (list[str] | None | Unset): New list of tools available in the session.
+    """
+
+    llm_backend: None | str | Unset = UNSET
+    system_prompt: None | str | Unset = UNSET
+    tools: list[str] | None | Unset = UNSET
+    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        llm_backend: None | str | Unset
+        if isinstance(self.llm_backend, Unset):
+            llm_backend = UNSET
+        else:
+            llm_backend = self.llm_backend
+
+        system_prompt: None | str | Unset
+        if isinstance(self.system_prompt, Unset):
+            system_prompt = UNSET
+        else:
+            system_prompt = self.system_prompt
+
+        tools: list[str] | None | Unset
+        if isinstance(self.tools, Unset):
+            tools = UNSET
+        elif isinstance(self.tools, list):
+            tools = self.tools
+
+        else:
+            tools = self.tools
+
+        field_dict: dict[str, Any] = {}
+        field_dict.update(self.additional_properties)
+        field_dict.update({})
+        if llm_backend is not UNSET:
+            field_dict["llm_backend"] = llm_backend
+        if system_prompt is not UNSET:
+            field_dict["system_prompt"] = system_prompt
+        if tools is not UNSET:
+            field_dict["tools"] = tools
+
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        d = dict(src_dict)
+
+        def _parse_llm_backend(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        llm_backend = _parse_llm_backend(d.pop("llm_backend", UNSET))
+
+        def _parse_system_prompt(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        system_prompt = _parse_system_prompt(d.pop("system_prompt", UNSET))
+
+        def _parse_tools(data: object) -> list[str] | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, list):
+                    raise TypeError()
+                tools_type_0 = cast(list[str], data)
+
+                return tools_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(list[str] | None | Unset, data)
+
+        tools = _parse_tools(d.pop("tools", UNSET))
+
+        update_session_body = cls(
+            llm_backend=llm_backend,
+            system_prompt=system_prompt,
+            tools=tools,
+        )
+
+        update_session_body.additional_properties = d
+        return update_session_body
+
+    @property
+    def additional_keys(self) -> list[str]:
+        return list(self.additional_properties.keys())
+
+    def __getitem__(self, key: str) -> Any:
+        return self.additional_properties[key]
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self.additional_properties[key] = value
+
+    def __delitem__(self, key: str) -> None:
+        del self.additional_properties[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.additional_properties

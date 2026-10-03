@@ -33,6 +33,8 @@ from .audit_journal_response_entries_item import AuditJournalResponseEntriesItem
 from .audit_list_response import AuditListResponse
 from .audit_stats_response import AuditStatsResponse
 from .authorize_tool_request import AuthorizeToolRequest
+from .batch_access import BatchAccess
+from .batch_accesses_view import BatchAccessesView
 from .batch_detail_view import BatchDetailView
 from .batch_error_response import BatchErrorResponse
 from .batch_item_view import BatchItemView
@@ -40,6 +42,7 @@ from .batch_item_view_input import BatchItemViewInput
 from .batch_item_view_sources_type_0 import BatchItemViewSourcesType0
 from .batch_launch import BatchLaunch
 from .batch_list_view import BatchListView
+from .batch_retry import BatchRetry
 from .batch_view import BatchView
 from .batch_view_source import BatchViewSource
 from .broken_link import BrokenLink
@@ -54,6 +57,7 @@ from .chat_response import ChatResponse
 from .chat_response_value_type_0 import ChatResponseValueType0
 from .clear_agent_model_response import ClearAgentModelResponse
 from .clear_cache_response import ClearCacheResponse
+from .clear_memory_body import ClearMemoryBody
 from .complete_consent_body import CompleteConsentBody
 from .complete_request import CompleteRequest
 from .complete_request_schema_type_0 import CompleteRequestSchemaType0
@@ -95,9 +99,23 @@ from .dictation_models_response_reason_type_0 import DictationModelsResponseReas
 from .embedding_models_response import EmbeddingModelsResponse
 from .embedding_models_response_models_item import EmbeddingModelsResponseModelsItem
 from .embedding_models_response_reason_type_0 import EmbeddingModelsResponseReasonType0
+from .engine_channel import EngineChannel
+from .engine_check_response import EngineCheckResponse
+from .engine_entry import EngineEntry
+from .engine_import_request import EngineImportRequest
+from .engine_install_request import EngineInstallRequest
+from .engine_installed_response import EngineInstalledResponse
+from .engine_name import EngineName
+from .engine_settings_body import EngineSettingsBody
+from .engine_source import EngineSource
+from .engine_variant import EngineVariant
+from .engines_response import EnginesResponse
 from .events_response import EventsResponse
+from .export_memory_namespace_response_200 import ExportMemoryNamespaceResponse200
 from .fire_response import FireResponse
 from .fork_session_request import ForkSessionRequest
+from .generate_title_body import GenerateTitleBody
+from .generated_title import GeneratedTitle
 from .get_model_card_response_200 import GetModelCardResponse200
 from .hardware_response import HardwareResponse
 from .hardware_response_accelerator import HardwareResponseAccelerator
@@ -105,6 +123,8 @@ from .health_response import HealthResponse
 from .imap_account_body import ImapAccountBody
 from .imap_account_response import ImapAccountResponse
 from .imap_error_body import ImapErrorBody
+from .import_memory_body import ImportMemoryBody
+from .import_memory_body_content import ImportMemoryBodyContent
 from .inject_message_body import InjectMessageBody
 from .inject_message_body_payload import InjectMessageBodyPayload
 from .inject_message_response import InjectMessageResponse
@@ -126,6 +146,7 @@ from .item_preview import ItemPreview
 from .journal_anchor import JournalAnchor
 from .journal_break import JournalBreak
 from .journal_break_reason import JournalBreakReason
+from .link_project_body import LinkProjectBody
 from .llm_backend_response import LlmBackendResponse
 from .llm_backend_response_config_json import LlmBackendResponseConfigJson
 from .llm_backends_list_response import LlmBackendsListResponse
@@ -135,6 +156,9 @@ from .loaded_model_dto import LoadedModelDto
 from .loaded_models_response import LoadedModelsResponse
 from .logs_response import LogsResponse
 from .logs_response_entries_item import LogsResponseEntriesItem
+from .memory_entry_deleted import MemoryEntryDeleted
+from .memory_imported import MemoryImported
+from .memory_removed import MemoryRemoved
 from .message_dto import MessageDto
 from .model_cards_response import ModelCardsResponse
 from .model_cards_response_cards_item import ModelCardsResponseCardsItem
@@ -170,12 +194,14 @@ from .preset_response_request import PresetResponseRequest
 from .presets_list_response import PresetsListResponse
 from .profile_entry_view import ProfileEntryView
 from .profile_reset import ProfileReset
+from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
 from .readme_response import ReadmeResponse
 from .reject_user_input_request import RejectUserInputRequest
 from .reload_response import ReloadResponse
 from .reload_router_response import ReloadRouterResponse
 from .reload_router_response_backends_item import ReloadRouterResponseBackendsItem
+from .rename_session_body import RenameSessionBody
 from .required_connection_preview import RequiredConnectionPreview
 from .reset_response import ResetResponse
 from .resilience_status_response import ResilienceStatusResponse
@@ -195,6 +221,8 @@ from .server_models_response import ServerModelsResponse
 from .server_probe_error_response import ServerProbeErrorResponse
 from .server_response import ServerResponse
 from .servers_list_response import ServersListResponse
+from .session_metrics import SessionMetrics
+from .session_workspace import SessionWorkspace
 from .set_agent_model_request import SetAgentModelRequest
 from .set_approval_body import SetApprovalBody
 from .set_credential_body import SetCredentialBody
@@ -257,6 +285,7 @@ from .todo_read_response_items_item import TodoReadResponseItemsItem
 from .token_usage_response import TokenUsageResponse
 from .tool_list_response import ToolListResponse
 from .tool_list_response_tools_item import ToolListResponseToolsItem
+from .tool_stat_entry import ToolStatEntry
 from .trace_response import TraceResponse
 from .trace_response_events_item import TraceResponseEventsItem
 from .transcribe_audio_body import TranscribeAudioBody
@@ -280,9 +309,11 @@ from .update_llm_backend_request_config_json import UpdateLlmBackendRequestConfi
 from .update_preset_request import UpdatePresetRequest
 from .update_preset_request_load import UpdatePresetRequestLoad
 from .update_preset_request_request import UpdatePresetRequestRequest
+from .update_session_body import UpdateSessionBody
 from .update_stt_config_body import UpdateSttConfigBody
 from .update_trigger_request import UpdateTriggerRequest
 from .user_profile_view import UserProfileView
+from .variant_update import VariantUpdate
 from .verify_chain_report import VerifyChainReport
 from .verify_journal_report import VerifyJournalReport
 from .workflow_error_response import WorkflowErrorResponse
@@ -330,6 +361,8 @@ __all__ = (
     "AuditListResponse",
     "AuditStatsResponse",
     "AuthorizeToolRequest",
+    "BatchAccess",
+    "BatchAccessesView",
     "BatchDetailView",
     "BatchErrorResponse",
     "BatchItemView",
@@ -337,6 +370,7 @@ __all__ = (
     "BatchItemViewSourcesType0",
     "BatchLaunch",
     "BatchListView",
+    "BatchRetry",
     "BatchView",
     "BatchViewSource",
     "BrokenLink",
@@ -351,6 +385,7 @@ __all__ = (
     "ChatResponseValueType0",
     "ClearAgentModelResponse",
     "ClearCacheResponse",
+    "ClearMemoryBody",
     "CompleteConsentBody",
     "CompleteRequest",
     "CompleteRequestSchemaType0",
@@ -392,9 +427,23 @@ __all__ = (
     "EmbeddingModelsResponse",
     "EmbeddingModelsResponseModelsItem",
     "EmbeddingModelsResponseReasonType0",
+    "EngineChannel",
+    "EngineCheckResponse",
+    "EngineEntry",
+    "EngineImportRequest",
+    "EngineInstalledResponse",
+    "EngineInstallRequest",
+    "EngineName",
+    "EngineSettingsBody",
+    "EngineSource",
+    "EnginesResponse",
+    "EngineVariant",
     "EventsResponse",
+    "ExportMemoryNamespaceResponse200",
     "FireResponse",
     "ForkSessionRequest",
+    "GeneratedTitle",
+    "GenerateTitleBody",
     "GetModelCardResponse200",
     "HardwareResponse",
     "HardwareResponseAccelerator",
@@ -402,6 +451,8 @@ __all__ = (
     "ImapAccountBody",
     "ImapAccountResponse",
     "ImapErrorBody",
+    "ImportMemoryBody",
+    "ImportMemoryBodyContent",
     "InjectMessageBody",
     "InjectMessageBodyPayload",
     "InjectMessageResponse",
@@ -423,6 +474,7 @@ __all__ = (
     "JournalAnchor",
     "JournalBreak",
     "JournalBreakReason",
+    "LinkProjectBody",
     "LlmBackendResponse",
     "LlmBackendResponseConfigJson",
     "LlmBackendsListResponse",
@@ -432,6 +484,9 @@ __all__ = (
     "LoadedModelsResponse",
     "LogsResponse",
     "LogsResponseEntriesItem",
+    "MemoryEntryDeleted",
+    "MemoryImported",
+    "MemoryRemoved",
     "MessageDto",
     "ModelCardsResponse",
     "ModelCardsResponseCardsItem",
@@ -467,12 +522,14 @@ __all__ = (
     "PresetsListResponse",
     "ProfileEntryView",
     "ProfileReset",
+    "PurgeMemoryBody",
     "PutMcpSecretBody",
     "ReadmeResponse",
     "RejectUserInputRequest",
     "ReloadResponse",
     "ReloadRouterResponse",
     "ReloadRouterResponseBackendsItem",
+    "RenameSessionBody",
     "RequiredConnectionPreview",
     "ResetResponse",
     "ResilienceStatusResponse",
@@ -490,6 +547,8 @@ __all__ = (
     "ServerProbeErrorResponse",
     "ServerResponse",
     "ServersListResponse",
+    "SessionMetrics",
+    "SessionWorkspace",
     "SetAgentModelRequest",
     "SetApprovalBody",
     "SetCredentialBody",
@@ -552,6 +611,7 @@ __all__ = (
     "TokenUsageResponse",
     "ToolListResponse",
     "ToolListResponseToolsItem",
+    "ToolStatEntry",
     "TraceResponse",
     "TraceResponseEventsItem",
     "TranscribeAudioBody",
@@ -573,9 +633,11 @@ __all__ = (
     "UpdatePresetRequest",
     "UpdatePresetRequestLoad",
     "UpdatePresetRequestRequest",
+    "UpdateSessionBody",
     "UpdateSttConfigBody",
     "UpdateTriggerRequest",
     "UserProfileView",
+    "VariantUpdate",
     "VerifyChainReport",
     "VerifyJournalReport",
     "WorkflowErrorResponse",

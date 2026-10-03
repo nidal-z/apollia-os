@@ -9,6 +9,8 @@
 //! - `POST   /api/v1/sessions/:id/authorize`  , resolve approval
 //! - `GET    /api/v1/sessions/:id/stream`     , SSE stream
 //! - `POST   /api/v1/sessions/:id/pause`      , pause the turn in flight
+//! - `GET    /api/v1/sessions/:id/metrics`    , the metrics panel
+//! - `GET    /api/v1/sessions/:id/workspace`  , the working directory
 
 use std::convert::Infallible;
 
@@ -28,7 +30,9 @@ use crate::api::server::AppState;
 use crate::chat::types::{ChatMode, SessionStatus, ToolDecision};
 use crate::coordinator::ExecutionBackend;
 
+pub mod conversations;
 pub mod pause;
+pub mod session_reads;
 mod sse;
 pub mod user_inputs;
 
@@ -734,7 +738,7 @@ mod tests {
     use tower::ServiceExt;
 
     #[derive(Clone)]
-    struct MockBackend;
+    pub(super) struct MockBackend;
 
     impl From<DynBackend> for MockBackend {
         fn from(_: DynBackend) -> Self {
@@ -805,6 +809,11 @@ mod tests {
     }
 
     fn test_router_with_chat(dir: &tempfile::TempDir) -> axum::Router {
+        APIServer::build_router_for_test(chat_state(dir))
+    }
+
+    /// The state of a runtime whose chat subsystem is up, with no model.
+    pub(super) fn chat_state(dir: &tempfile::TempDir) -> AppState<MockBackend> {
         let (event_tx, _) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_tx.clone());
         let router_handle: TaskRouterHandle<MockBackend> =
@@ -834,7 +843,7 @@ mod tests {
         )
         .expect("spawn chat manager");
 
-        let state: AppState<MockBackend> = AppState {
+        AppState {
             router_handle,
             registry_handle,
             event_sender: event_tx,
@@ -877,9 +886,7 @@ mod tests {
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
-        };
-
-        APIServer::build_router_for_test(state)
+        }
     }
 
     #[tokio::test]

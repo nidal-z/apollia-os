@@ -64,9 +64,13 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # the seam (models, MCP servers, connections, notifications, triggers, tools),
 # then at 168 once the commands of the window were named as such, then at 164
 # once the profile had its routes, then at 162 once the settings of the chat
-# became those of the Apollia agent, then at 156 once the credentials of the
-# native tools had their routes.
-EMBEDDED_ONLY_CEILING = 156
+# became those of the Apollia agent, then at 155 once the memory could be
+# cleared, purged, exported and imported through the daemon, then at 149 once
+# the conversations of the chat could be configured, renamed, named, erased and
+# linked to a project, then at 146 once the metrics of a conversation were read
+# from the daemon and its export and reveal named as window commands, then at
+# 142 once the credentials of the native tools had their routes.
+EMBEDDED_ONLY_CEILING = 142
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

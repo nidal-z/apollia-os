@@ -315,3 +315,40 @@ async fn test_chat_settings_are_the_overrides_of_apollia() {
     assert_eq!(before["name"], "Apollia");
     assert_eq!(ChatConfigView::from_resolved(&after), desired);
 }
+
+// GIVEN a runtime whose registry holds file_read (reading) and file_write,
+//       Apollia without an access override, and a package agent that
+//       declares file_read
+// WHEN both cards are read
+// THEN Apollia shows the reading family, not as the user's choice, and the
+//      package agent shows what its package declares
+#[tokio::test]
+async fn test_the_card_shows_the_default_access() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let (mut state, _) = state(&dir, false).await;
+    let registry = apollia_tools::ToolRegistryHandle::start();
+    for descriptor in [
+        apollia_tools::tools::file_read::FileRead::descriptor(),
+        apollia_tools::tools::file_write::FileWrite::descriptor(),
+    ] {
+        registry.register(descriptor).await.unwrap();
+    }
+    state.tool_registry_handle = Some(registry.clone());
+
+    // WHEN
+    let (_, apollia) = call(
+        state.clone(),
+        "GET",
+        "/api/v1/agent-definitions/apollia:chat",
+        None,
+    )
+    .await;
+    let (_, invoices) = call(state, "GET", "/api/v1/agent-definitions/invoices", None).await;
+
+    // THEN
+    assert_eq!(apollia["access"], json!(["file_read"]));
+    assert_eq!(apollia["overridden"], json!([]));
+    assert_eq!(invoices["access"], json!(["file_read"]));
+    registry.shutdown().await;
+}
