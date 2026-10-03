@@ -1191,6 +1191,147 @@
         }
       }
     },
+    "/api/v1/assists/automation": {
+      "post": {
+        "tags": [
+          "assists"
+        ],
+        "summary": "`POST /api/v1/assists/automation`: parses an automation described in\nwords into a schedule, an agent and a payload, with its ambiguities.",
+        "operationId": "parse_automation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParseAutomationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The parsed automation, ambiguities included",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The body is not an automation description"
+          }
+        }
+      }
+    },
+    "/api/v1/assists/coaching": {
+      "post": {
+        "tags": [
+          "assists"
+        ],
+        "summary": "`POST /api/v1/assists/coaching`: examples to try a connector just added.",
+        "operationId": "coach_connector",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoachingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "One to three example cards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CoachingExample"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The body names no server"
+          }
+        }
+      }
+    },
+    "/api/v1/assists/next-steps": {
+      "post": {
+        "tags": [
+          "assists"
+        ],
+        "summary": "`POST /api/v1/assists/next-steps`: up to three next steps cards, drawn by\nthe daemon's default model or by the heuristic.",
+        "operationId": "generate_next_steps",
+        "requestBody": {
+          "description": "`context`, `mode` and the `facts` the window computed, each optional",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The cards, and whether a model wrote them",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NextStepsReply"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The body is not a next steps request"
+          }
+        }
+      }
+    },
+    "/api/v1/assists/rewrite": {
+      "post": {
+        "tags": [
+          "assists"
+        ],
+        "summary": "`POST /api/v1/assists/rewrite`: rewrites a terse prompt with the daemon's\ndefault model, or returns it unchanged with the reason.",
+        "operationId": "rewrite_prompt",
+        "requestBody": {
+          "description": "`originalText`, and the optional `workContext` of the user profile",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The rewritten text, or the original one and why",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RewriteReply"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The body is not a rewrite request"
+          }
+        }
+      }
+    },
     "/api/v1/audit": {
       "get": {
         "tags": [
@@ -14844,6 +14985,49 @@
           }
         }
       },
+      "CoachingExample": {
+        "type": "object",
+        "description": "One coaching example shown as a clickable card in the wizard's last step.",
+        "required": [
+          "title",
+          "description",
+          "prompt"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "One-line description shown under the title."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Pre-filled chat message sent when the user clicks \"Try\"."
+          },
+          "title": {
+            "type": "string",
+            "description": "Short actionable title (e.g. \"Summarise my latest Notion page\")."
+          }
+        }
+      },
+      "CoachingRequest": {
+        "type": "object",
+        "description": "The connector just added.",
+        "required": [
+          "serverName"
+        ],
+        "properties": {
+          "serverName": {
+            "type": "string",
+            "description": "The server name, matched against well-known connectors."
+          },
+          "serverTitle": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The title shown to the operator, the name when absent."
+          }
+        }
+      },
       "CompleteConsentBody": {
         "type": "object",
         "description": "Body of `POST /api/v1/connectors/oauth/complete`.",
@@ -17506,6 +17690,27 @@
           }
         }
       },
+      "NextStepsReply": {
+        "type": "object",
+        "description": "Up to three next steps cards, and whether a model wrote them.",
+        "required": [
+          "steps",
+          "fromLlm"
+        ],
+        "properties": {
+          "fromLlm": {
+            "type": "boolean",
+            "description": "`false` when the heuristic wrote them."
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "The cards, in display order."
+          }
+        }
+      },
       "OauthClientIdStatus": {
         "type": "object",
         "description": "One provider's OAuth client, as the settings draw it.\n\nReports the **effective** client id of the resolution chain\n(`env var → override file → compiled default`), where it came from, and\nwhether a client secret and an API key resolve. Never carries a secret or\na key, only their presence.",
@@ -18079,6 +18284,26 @@
           "path": {
             "type": "string",
             "description": "Path of the `.apo` file on this machine."
+          }
+        }
+      },
+      "ParseAutomationRequest": {
+        "type": "object",
+        "description": "An automation described in words, and the agents the window knows.",
+        "required": [
+          "input"
+        ],
+        "properties": {
+          "input": {
+            "type": "string",
+            "description": "Free-form text entered by the operator."
+          },
+          "known_agents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Identifiers or names of the agents known on the window side."
           }
         }
       },
@@ -19016,6 +19241,40 @@
             "format": "int32",
             "description": "How many rules were removed.",
             "minimum": 0
+          }
+        }
+      },
+      "RewriteFallbackReason": {
+        "type": "string",
+        "description": "Why no rewrite happened, as the composer receives it.\n\nMirrors [`RewriteFallback`] and adds the one situation this layer owns:\nno router is mounted at all, which the crate below cannot observe.",
+        "enum": [
+          "noRouter",
+          "noBackend",
+          "callFailed",
+          "emptyAnswer"
+        ]
+      },
+      "RewriteReply": {
+        "type": "object",
+        "description": "The rewritten prompt, or the original one with the reason it came back.",
+        "required": [
+          "rewrittenText"
+        ],
+        "properties": {
+          "fallback": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RewriteFallbackReason",
+                "description": "`None` when the model rewrote the text, the cause otherwise."
+              }
+            ]
+          },
+          "rewrittenText": {
+            "type": "string",
+            "description": "The text to put back in the composer."
           }
         }
       },
@@ -21589,6 +21848,10 @@
     {
       "name": "chat",
       "description": "Conversational chat sessions"
+    },
+    {
+      "name": "assists",
+      "description": "Assists around the chat: prompt rewrite, next steps, automations in words, connector examples"
     },
     {
       "name": "agents",

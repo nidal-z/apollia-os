@@ -263,6 +263,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_global_timeline",
     "get_tool_audit_trail",
     "list_mailbox_messages",
+    // The assists around the chat, over `/api/v1/assists`: the rewrite of a
+    // prompt, the next steps cards, an automation described in words, and
+    // the examples offered for a connector just added.
+    "meta_generate_capabilities_coaching",
+    "meta_generate_next_steps",
+    "meta_parse_automation",
+    "meta_rewrite_input",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no

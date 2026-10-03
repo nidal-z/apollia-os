@@ -19,6 +19,7 @@ pub mod audit_journal;
 pub mod backend_keys;
 pub mod batch;
 pub mod chat;
+pub mod chat_assists;
 pub mod commands;
 pub mod composition;
 pub mod connections;
