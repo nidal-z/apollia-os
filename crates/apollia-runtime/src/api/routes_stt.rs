@@ -491,10 +491,12 @@ pub async fn delete_transcription<B: ExecutionBackend + Clone + From<DynBackend>
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// `GET /api/v1/stt/models`, list available `.bin` model files.
+/// `GET /api/v1/stt/models`, list available model files.
 ///
-/// Scans `~/.apollia/models/` for `.bin` files and returns their name,
-/// path, and size. Returns an empty list if the directory does not exist.
+/// Scans `~/.apollia/models/` for the extensions in
+/// [`MODEL_EXTENSIONS`](crate::stt::MODEL_EXTENSIONS) and returns their name,
+/// path, and size, the list the desktop shows in both modes. Returns an empty
+/// list if the directory does not exist.
 #[utoipa::path(
     get,
     path = "/api/v1/stt/models",
@@ -530,7 +532,7 @@ pub async fn list_models<B: ExecutionBackend + Clone + From<DynBackend>>(
                 Err(_) => continue,
             };
             let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) == Some("bin") {
+            if crate::stt::is_model_file(&path) {
                 let name = path
                     .file_name()
                     .map(|n| n.to_string_lossy().into_owned())
@@ -606,6 +608,9 @@ pub async fn get_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
 /// singleton row in `system.db` via an upsert.
 ///
 /// Returns `200 OK` with the updated configuration.
+/// Returns `400 Bad Request` for a language hint outside
+/// [`STT_LANGUAGES`](crate::stt::STT_LANGUAGES), with the message the desktop
+/// shows in both modes; nothing is persisted.
 /// Returns `503 Service Unavailable` when the config repository is unavailable.
 #[utoipa::path(
     put,
@@ -614,6 +619,7 @@ pub async fn get_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
     request_body(content = Object, content_type = "application/json", description = "Updated STT configuration (SttConfigRow); fields with defaults may be omitted"),
     responses(
         (status = 200, description = "Updated STT configuration"),
+        (status = 400, description = "Unsupported language hint", body = crate::api::openapi::ApiErrorBody),
         (status = 500, description = "Database error", body = crate::api::openapi::ApiErrorBody),
         (status = 503, description = "STT config repository unavailable", body = crate::api::openapi::ApiErrorBody),
     )
@@ -622,6 +628,15 @@ pub async fn update_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
     Json(new_config): Json<SttConfigRow>,
 ) -> RouteResult<SttConfigRow> {
+    crate::stt::validate_language(new_config.language.as_deref()).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(SttErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+
     let repo = state.stt_config_repo.as_ref().ok_or_else(|| {
         (
             StatusCode::SERVICE_UNAVAILABLE,
@@ -1042,5 +1057,199 @@ mod tests {
         let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert!(json["models"].is_array());
+    }
+
+    /// A router serving the settings routes over a configuration repository
+    /// in a fresh directory, or over none.
+    fn settings_router(with_repo: bool) -> Router {
+        let mut state = base_state();
+        if with_repo {
+            let dir =
+                std::env::temp_dir().join(format!("apollia_stt_api_test_{}", uuid::Uuid::new_v4()));
+            std::fs::create_dir_all(&dir).expect("create temp dir");
+            let repo = SttConfigRepository::open(&dir.join("system.db")).expect("open config repo");
+            state.stt_config_repo = Some(Arc::new(std::sync::Mutex::new(repo)));
+            state.data_dir = dir;
+        }
+        Router::new()
+            .route(
+                "/api/v1/stt/config",
+                get(get_stt_config::<MockBackend>).put(update_stt_config::<MockBackend>),
+            )
+            .route("/api/v1/stt/reload", post(reload_stt_engine::<MockBackend>))
+            .with_state(state)
+    }
+
+    async fn json_of(resp: axum::response::Response) -> serde_json::Value {
+        let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
+        serde_json::from_slice(&body).unwrap()
+    }
+
+    fn put_config(body: serde_json::Value) -> Request<Body> {
+        Request::builder()
+            .method("PUT")
+            .uri("/api/v1/stt/config")
+            .header("content-type", "application/json")
+            .body(Body::from(body.to_string()))
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn config_is_read_with_its_defaults_on_first_boot() {
+        // GIVEN a configuration repository that holds no row yet
+        let router = settings_router(true);
+
+        // WHEN GET /api/v1/stt/config
+        let resp = router
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/stt/config")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // THEN 200 with the defaults, every field the desktop reads present
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = json_of(resp).await;
+        assert_eq!(json["enabled"], false);
+        for field in ["model_path", "hotkey", "clipboard_mode", "trigger_mode"] {
+            assert!(json[field].is_string(), "{field} missing: {json}");
+        }
+    }
+
+    #[tokio::test]
+    async fn config_without_repository_is_refused_with_503() {
+        // GIVEN no configuration repository
+        let router = settings_router(false);
+
+        // WHEN GET /api/v1/stt/config
+        let resp = router
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/stt/config")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // THEN 503 naming the missing repository
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let json = json_of(resp).await;
+        assert!(json["error"].as_str().unwrap().contains("not available"));
+    }
+
+    #[tokio::test]
+    async fn an_updated_configuration_is_persisted_and_returned() {
+        // GIVEN a configuration repository
+        let router = settings_router(true);
+
+        // WHEN PUT /api/v1/stt/config with another model and a listed language
+        let resp = router
+            .clone()
+            .oneshot(put_config(serde_json::json!({
+                "enabled": false,
+                "model_path": "/models/ggml-small.gguf",
+                "language": "de",
+                "input_device": "USB mic"
+            })))
+            .await
+            .unwrap();
+
+        // THEN 200 with the new values, and a later read returns them
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(json_of(resp).await["model_path"], "/models/ggml-small.gguf");
+        let read = router
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/stt/config")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let json = json_of(read).await;
+        assert_eq!(json["language"], "de");
+        assert_eq!(json["input_device"], "USB mic");
+    }
+
+    #[tokio::test]
+    async fn an_unlisted_language_is_refused_with_400_and_not_persisted() {
+        // GIVEN a configuration repository
+        let router = settings_router(true);
+
+        // WHEN PUT /api/v1/stt/config with a free-text language
+        let resp = router
+            .clone()
+            .oneshot(put_config(serde_json::json!({
+                "model_path": "/models/ggml-small.bin",
+                "language": "francais"
+            })))
+            .await
+            .unwrap();
+
+        // THEN 400 with the message the embedded desktop shows, and the
+        // persisted configuration is untouched
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let error = json_of(resp).await["error"].as_str().unwrap().to_owned();
+        assert!(
+            error.starts_with("unsupported dictation language 'francais'"),
+            "{error}"
+        );
+        let read = router
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/stt/config")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(json_of(read).await["model_path"], "/models/ggml-small.bin");
+    }
+
+    #[tokio::test]
+    async fn a_reload_with_dictation_disabled_answers_not_loaded() {
+        // GIVEN a configuration repository whose default row disables dictation
+        let router = settings_router(true);
+
+        // WHEN POST /api/v1/stt/reload
+        let resp = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/stt/reload")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // THEN 200, no engine loaded
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(json_of(resp).await["loaded"], false);
+    }
+
+    #[tokio::test]
+    async fn a_reload_without_repository_is_refused_with_503() {
+        // GIVEN no configuration repository
+        let router = settings_router(false);
+
+        // WHEN POST /api/v1/stt/reload
+        let resp = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/stt/reload")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // THEN 503
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 }
