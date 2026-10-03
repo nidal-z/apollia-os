@@ -116,6 +116,12 @@ pub enum UserMemoryError {
     /// The provided key is empty or starts with the internal prefix.
     #[error("invalid key: {0}")]
     InvalidKey(String),
+    /// The default profile cannot be deleted; another one has to be made the
+    /// default first.
+    #[error(
+        "'{0}' is the default profile and cannot be deleted: make another profile the default first"
+    )]
+    DefaultProfile(String),
 }
 
 // ---------------------------------------------------------------------------
@@ -138,16 +144,33 @@ impl UserMemoryRepository {
     }
 
     // -- Profiles --
-    //
-    // TEST-ONLY: `list_profiles`, `create_profile` and `set_default_profile`
-    // are the storage of named profiles; the CLI, desktop and SDK surfaces
-    // still address the default profile alone through the key-value view
-    // below, and call these once they address a profile by its identifier.
 
     /// Returns the default profile.
     pub fn default_profile(&self) -> Result<Profile, UserMemoryError> {
         profiles::default_profile(self.store.conn())?
             .ok_or_else(|| UserMemoryError::NotFound("default profile".to_owned()))
+    }
+
+    /// Reads one profile by identifier, `None` when no profile has it.
+    pub fn profile(&self, id: &str) -> Result<Option<Profile>, UserMemoryError> {
+        profiles::get(self.store.conn(), id)
+    }
+
+    /// The profile `designated` names, or the default profile when nothing is
+    /// designated or the designated identifier names no profile any more: a
+    /// designation left behind by a deleted profile reads as no designation.
+    pub fn profile_or_default(&self, designated: Option<&str>) -> Result<Profile, UserMemoryError> {
+        if let Some(id) = designated.filter(|id| !id.trim().is_empty()) {
+            if let Some(profile) = self.profile(id)? {
+                return Ok(profile);
+            }
+            tracing::event!(
+                tracing::Level::DEBUG,
+                profile_id = %id,
+                "user_memory.profile.designation_orphaned"
+            );
+        }
+        self.default_profile()
     }
 
     /// Lists every profile, the default first.
@@ -156,20 +179,61 @@ impl UserMemoryRepository {
     }
 
     /// Creates a profile with empty fields, not the default, and returns it.
-    // TEST-ONLY: see the note at the head of this block.
     pub fn create_profile(&self, name: &str) -> Result<Profile, UserMemoryError> {
-        if name.trim().is_empty() {
+        let name = Self::profile_name(name)?;
+        profiles::insert(self.store.conn(), name, false)
+    }
+
+    /// Renames the profile `id`.
+    pub fn rename_profile(&self, id: &str, name: &str) -> Result<(), UserMemoryError> {
+        let name = Self::profile_name(name)?;
+        profiles::rename(self.store.conn(), id, name)
+    }
+
+    /// Makes `id` the default profile; the previous default stops being one.
+    pub fn set_default_profile(&self, id: &str) -> Result<(), UserMemoryError> {
+        profiles::set_default(self.store.conn(), id)
+    }
+
+    /// Writes one field of the profile `id`; `None` or an empty value empties
+    /// it. A key outside the schema is refused with
+    /// [`UserMemoryError::InvalidKey`].
+    pub fn set_profile_field(
+        &self,
+        id: &str,
+        key: &str,
+        value: Option<&str>,
+    ) -> Result<(), UserMemoryError> {
+        if !is_canonical(key) {
+            return Err(UserMemoryError::InvalidKey(key.to_owned()));
+        }
+        let value = value.filter(|v| !v.is_empty());
+        profiles::set_field(self.store.conn(), id, key, value)
+    }
+
+    /// Deletes the profile `id`. The default profile is refused with
+    /// [`UserMemoryError::DefaultProfile`]; a designation that named the
+    /// deleted profile then reads as the default ([`Self::profile_or_default`]).
+    pub fn delete_profile(&self, id: &str) -> Result<(), UserMemoryError> {
+        profiles::delete(self.store.conn(), id)
+    }
+
+    /// The filled fields of `profile` in schema order, as entries.
+    fn profile_entries(profile: &Profile) -> Vec<ProfileEntry> {
+        PROFILE_SCHEMA
+            .iter()
+            .filter_map(|f| Self::field_entry(profile, f.key))
+            .collect()
+    }
+
+    fn profile_name(name: &str) -> Result<&str, UserMemoryError> {
+        let name = name.trim();
+        if name.is_empty() {
             return Err(UserMemoryError::InvalidKey(
                 "(empty profile name)".to_owned(),
             ));
         }
-        profiles::insert(self.store.conn(), name, false)
-    }
-
-    /// Makes `id` the default profile; the previous default stops being one.
-    // TEST-ONLY: see the note at the head of this block.
-    pub fn set_default_profile(&self, id: &str) -> Result<(), UserMemoryError> {
-        profiles::set_default(self.store.conn(), id)
+        Ok(name)
     }
 
     // -- Key-value view of the default profile --
@@ -194,9 +258,21 @@ impl UserMemoryRepository {
         value: &str,
         written_by: WrittenBy,
     ) -> Result<(), UserMemoryError> {
+        let profile = self.default_profile()?;
+        self.set_in(&profile, key, value, written_by)
+    }
+
+    /// Upserts an entry for the profile `profile`: a schema key writes its
+    /// field, any other key a free-form entry, shared by every profile.
+    pub fn set_in(
+        &self,
+        profile: &Profile,
+        key: &str,
+        value: &str,
+        written_by: WrittenBy,
+    ) -> Result<(), UserMemoryError> {
         Self::validate_external_key(key)?;
         if is_canonical(key) {
-            let profile = self.default_profile()?;
             return profiles::set_field(self.store.conn(), &profile.id, key, Some(value));
         }
         self.write_raw(key, value, written_by)
@@ -204,9 +280,19 @@ impl UserMemoryRepository {
 
     /// Reads a single entry by key.  Returns `Ok(None)` when missing.
     pub fn get(&self, key: &str) -> Result<Option<ProfileEntry>, UserMemoryError> {
+        let profile = self.default_profile()?;
+        self.get_in(&profile, key)
+    }
+
+    /// Reads a single entry of `profile` by key: a schema key reads its
+    /// field, any other key the free-form entry.
+    pub fn get_in(
+        &self,
+        profile: &Profile,
+        key: &str,
+    ) -> Result<Option<ProfileEntry>, UserMemoryError> {
         if is_canonical(key) {
-            let profile = self.default_profile()?;
-            return Ok(Self::field_entry(&profile, key));
+            return Ok(Self::field_entry(profile, key));
         }
         let sem = SemanticMemory::new(&self.store);
         let entry = sem
@@ -219,10 +305,13 @@ impl UserMemoryRepository {
     /// profile in schema order, then the free-form entries alphabetically.
     pub fn list_all(&self) -> Result<Vec<ProfileEntry>, UserMemoryError> {
         let profile = self.default_profile()?;
-        let mut ordered: Vec<ProfileEntry> = PROFILE_SCHEMA
-            .iter()
-            .filter_map(|f| Self::field_entry(&profile, f.key))
-            .collect();
+        self.list_all_in(&profile)
+    }
+
+    /// Lists the filled fields of `profile` in schema order, then the
+    /// free-form entries alphabetically.
+    pub fn list_all_in(&self, profile: &Profile) -> Result<Vec<ProfileEntry>, UserMemoryError> {
+        let mut ordered = Self::profile_entries(profile);
         let mut extras = self.visible_extras()?;
         extras.sort_by(|a, b| a.key.cmp(&b.key));
         ordered.extend(extras);
