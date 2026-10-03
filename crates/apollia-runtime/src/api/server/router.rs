@@ -98,6 +98,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     };
     use crate::api::routes_connections::connections_router;
     use crate::api::routes_connectors::connectors_router;
+    use crate::api::routes_engines::engines_router;
     use crate::api::routes_hooks::list_hooks;
     use crate::api::routes_imap::imap_router;
     use crate::api::routes_llm::llm_routes;
@@ -250,6 +251,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(llm_routes::<B>())
         .merge(crate::api::routes_agent_definitions::agent_definition_routes::<B>())
         .merge(model_hub_routes::<B>())
+        .merge(engines_router::<B>())
         .merge(resilience_router::<B>())
         // Chat session routes
         .route(

@@ -1,0 +1,172 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
+use std::path::{Path, PathBuf};
+
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
+use serde_json::{json, Value};
+use tower::ServiceExt;
+
+use super::*;
+use crate::api::routes_llm::{test_app_state_no_llm, MockBackend};
+use crate::engine_store::{import_from_dir, MANIFEST_FILE, SIGNATURE_FILE};
+
+async fn call(
+    data_dir: &Path,
+    method: &str,
+    uri: &str,
+    body: Option<Value>,
+) -> (StatusCode, Value) {
+    let mut state = test_app_state_no_llm();
+    state.data_dir = data_dir.to_path_buf();
+    let app = engines_router::<MockBackend>().with_state(state);
+    let req = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header("content-type", "application/json")
+        .body(match body {
+            Some(b) => Body::from(serde_json::to_vec(&b).unwrap()),
+            None => Body::empty(),
+        })
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    let status = resp.status();
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+fn fixture(name: &str) -> Vec<u8> {
+    std::fs::read(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/engine_store")
+            .join(name),
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+async fn test_settings_default_to_stable_and_persist_through_the_route() {
+    // GIVEN an empty data directory
+    let dir = tempfile::tempdir().unwrap();
+
+    // WHEN the settings are read, changed, then read again
+    let (s1, first) = call(dir.path(), "GET", "/api/v1/engines/settings", None).await;
+    let (s2, _) = call(
+        dir.path(),
+        "PUT",
+        "/api/v1/engines/settings",
+        Some(json!({"channel": "preview", "base_url": "https://mirror.example.org"})),
+    )
+    .await;
+    let (_, again) = call(dir.path(), "GET", "/api/v1/engines/settings", None).await;
+
+    // THEN stable is the default, and the change persisted
+    assert_eq!((s1, s2), (StatusCode::OK, StatusCode::OK));
+    assert_eq!(first["channel"], "stable");
+    assert_eq!(again["channel"], "preview");
+    assert_eq!(again["base_url"], "https://mirror.example.org");
+}
+
+#[tokio::test]
+async fn test_settings_refuse_a_non_http_mirror() {
+    // GIVEN a mirror with another scheme
+    let dir = tempfile::tempdir().unwrap();
+
+    // WHEN it is saved
+    let (status, body) = call(
+        dir.path(),
+        "PUT",
+        "/api/v1/engines/settings",
+        Some(json!({"channel": "stable", "base_url": "ftp://mirror"})),
+    )
+    .await;
+
+    // THEN it is refused with a readable error
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(body["error"].as_str().unwrap().contains("ftp://mirror"));
+}
+
+#[tokio::test]
+async fn test_list_names_installed_engines_with_their_source() {
+    // GIVEN a CUDA engine imported into the store
+    let dir = tempfile::tempdir().unwrap();
+    let usb = tempfile::tempdir().unwrap();
+    for (to, from) in [
+        (MANIFEST_FILE, "stable-5.json"),
+        (SIGNATURE_FILE, "stable-5.json.minisig"),
+        ("llama-b6000-cuda.zip", "llama-b6000-cuda.zip"),
+    ] {
+        std::fs::write(usb.path().join(to), fixture(from)).unwrap();
+    }
+    let store = EngineStore {
+        root: engine_store::store_root(dir.path()),
+        trusted_key: String::from_utf8(fixture("test-dist.key.pub")).unwrap(),
+        platform: "linux-x64".to_owned(),
+    };
+    import_from_dir(&store, usb.path()).unwrap();
+
+    // WHEN the engines are listed
+    let view = engines_view(dir.path(), Vec::new(), true).unwrap();
+    let (status, body) = call(dir.path(), "GET", "/api/v1/engines", None).await;
+
+    // THEN the engine is there with its tag, variant, path and source, the
+    //      channel is stated, and CUDA is not proposed since it is installed
+    assert_eq!(status, StatusCode::OK);
+    let engine = &body["engines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["source"] == "imported")
+        .unwrap()
+        .clone();
+    assert_eq!(engine["engine"], "llama-server");
+    assert_eq!(engine["tag"], "b6000");
+    assert_eq!(engine["variant"], "cuda");
+    assert!(engine["path"].as_str().unwrap().ends_with("cuda"));
+    assert_eq!(body["channel"], "stable");
+    assert!(!view.cuda_proposable);
+}
+
+#[test]
+fn test_cuda_is_proposable_only_with_a_card_and_without_the_engine() {
+    // GIVEN an empty store
+    let dir = tempfile::tempdir().unwrap();
+
+    // WHEN the view is built with and without an NVIDIA card
+    let with_card = engines_view(dir.path(), Vec::new(), true).unwrap();
+    let without = engines_view(dir.path(), Vec::new(), false).unwrap();
+
+    // THEN CUDA is proposed only with the card
+    assert!(with_card.cuda_proposable);
+    assert!(!without.cuda_proposable);
+    assert!(with_card.updates.is_empty());
+}
+
+#[tokio::test]
+async fn test_import_without_signature_is_refused_by_the_route() {
+    // GIVEN a directory with a manifest and no signature
+    let dir = tempfile::tempdir().unwrap();
+    let usb = tempfile::tempdir().unwrap();
+    std::fs::write(usb.path().join(MANIFEST_FILE), fixture("stable-5.json")).unwrap();
+
+    // WHEN it is imported through the route
+    let (status, body) = call(
+        dir.path(),
+        "POST",
+        "/api/v1/engines/import",
+        Some(json!({"path": usb.path().display().to_string()})),
+    )
+    .await;
+
+    // THEN it is refused: no key in this build, or no signature on the disk
+    assert!(
+        status == StatusCode::SERVICE_UNAVAILABLE || status == StatusCode::UNPROCESSABLE_ENTITY,
+        "{status} {body}"
+    );
+    assert!(body["error"].as_str().is_some());
+}
