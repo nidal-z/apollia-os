@@ -39,5 +39,5 @@ name = "close-month"
 module = "invoice_tools/flows.py"
 description = "Extract every invoice of a folder and file the totals."
 action = "write_or_delete"
-inputs = { type = "object", properties = { folder = { type = "string", description = "folder holding the month's invoices" }, notify = { type = "boolean" } }, additionalProperties = false, required = ["folder"] }
+inputs = { type = "object", properties = { folder = { type = "string", description = "folder holding the month's invoices" }, notify = { type = "boolean" }, closing_day = { type = "string", format = "date" }, note = { type = "string", format = "long-text", description = "a note filed with the totals" }, ledger = { type = "string", format = "file-path" } }, additionalProperties = false, required = ["folder"], x-order = ["folder", "notify", "closing_day", "note", "ledger"] }
 steps = ["extract", "file"]

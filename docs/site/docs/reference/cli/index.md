@@ -215,6 +215,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os batch retry`↴](#apollia-os-batch-retry)
 * [`apollia-os batch export`↴](#apollia-os-batch-export)
 * [`apollia-os workflow`↴](#apollia-os-workflow)
+* [`apollia-os workflow show`↴](#apollia-os-workflow-show)
 * [`apollia-os workflow run`↴](#apollia-os-workflow-run)
 * [`apollia-os workflow status`↴](#apollia-os-workflow-status)
 * [`apollia-os workflow logs`↴](#apollia-os-workflow-logs)
@@ -332,7 +333,7 @@ Apollia OS CLI binary (apollia-os)
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
 * `batch` - Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry, export)
-* `workflow` - Run the workflows of installed packages (run, status, logs, cancel)
+* `workflow` - Run the workflows of installed packages (show, run, status, logs, cancel)
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
 * `plan` - Plan domain management (cache: stats, clear, evict)
 * `service` - Run the runtime as a service of your session (install, uninstall, status)
@@ -3487,16 +3488,29 @@ Export the result of a batch to a file: one row per item, its input columns, its
 
 ## `apollia-os workflow`
 
-Run the workflows of installed packages (run, status, logs, cancel)
+Run the workflows of installed packages (show, run, status, logs, cancel)
 
 **Usage:** `apollia-os workflow <COMMAND>`
 
 ###### **Subcommands:**
 
+* `show` - Show a workflow: what it does, its steps, and each input with its type
 * `run` - Run a workflow, in the runtime
 * `status` - Show a run: its status, its result and each of its steps
 * `logs` - The runs of a workflow, newest first
 * `cancel` - Stop a run: its step in progress is interrupted, the next ones never start
+
+
+
+## `apollia-os workflow show`
+
+Show a workflow: what it does, its steps, and each input with its type
+
+**Usage:** `apollia-os workflow show <WORKFLOW>`
+
+###### **Arguments:**
+
+* `<WORKFLOW>` - The workflow, `<package>/<workflow>`
 
 
 
@@ -3512,7 +3526,7 @@ Run a workflow, in the runtime
 
 ###### **Options:**
 
-* `--input <KEY=VALUE>` - An input, as `key=value`; repeatable. A value is read as the type the workflow declares for it
+* `--input <KEY=VALUE>` - An input, as `key=value`; repeatable. A value is read as the type the workflow declares for it: a date as `YYYY-MM-DD`, a file as its absolute path
 * `--wait` - Follow the run to its end; exit 3 when it fails or is stopped
 
 

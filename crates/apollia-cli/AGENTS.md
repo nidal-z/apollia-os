@@ -81,10 +81,14 @@ running batch, stop an ended one) is refused with exit 1. `export --format
 xlsx|csv|json` writes the result of a batch to `batch-<id>.<format>`, or to
 `--output`, `-` being standard output.
 
-**`workflow`** (`run`, `status`, `logs`, `cancel`) runs a workflow of an
-installed package, named `<package>/<workflow>`, in the runtime. `run` takes
-each input as `--input key=value`, sent as text and read by the runtime as the
-type the workflow declares; a refused input is exit 1 with the field named.
+**`workflow`** (`show`, `run`, `status`, `logs`, `cancel`) runs a workflow of
+an installed package, named `<package>/<workflow>`, in the runtime. `show`
+lists its steps and each input with its type (text, long text, file, date,
+number, yes or no, choice, list). `run` takes each input as
+`--input key=value`, sent as text and read by the runtime as the type the
+workflow declares, a date as `YYYY-MM-DD` and a file as its absolute path; a
+refused input is exit 1 with the field named and the runtime's refusal code
+in brackets (`[malformed_date]`, `[missing_file]`).
 `run` returns once the run is recorded, or follows it to its end with `--wait`
 (exit 3 when it fails or is stopped). `status` reads each step of a run, `logs`
 the history of a workflow, and `cancel` stops a run behind `--confirm`.
