@@ -360,6 +360,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/artifacts`: stores a new artifact, or returns the one its
+         *     source message already has.
+         */
+        post: operations["save_artifact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/artifacts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/v1/artifacts/{id}`: removes an artifact; one already gone
+         *     answers the same.
+         */
+        delete: operations["delete_artifact"];
+        options?: never;
+        head?: never;
+        /** `PATCH /api/v1/artifacts/{id}`: replaces the title and/or the content. */
+        patch: operations["update_artifact"];
+        trace?: never;
+    };
     "/api/v1/audit": {
         parameters: {
             query?: never;
@@ -2953,6 +2994,26 @@ export interface paths {
         patch: operations["update_session"];
         trace?: never;
     };
+    "/api/v1/sessions/{id}/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/sessions/{id}/artifacts`: the artifacts of a session, most
+         *     recent first.
+         */
+        get: operations["list_artifacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{id}/authorize": {
         parameters: {
             query?: never;
@@ -4400,6 +4461,29 @@ export interface components {
              */
             rule_id: number;
         };
+        /** @description One artifact, as the chat draws it. */
+        Artifact: {
+            /** @description Full textual content. */
+            content: string;
+            /** @description ISO 8601 creation timestamp. */
+            created_at: string;
+            /** @description UUID v4 identifier. */
+            id: string;
+            /** @description Kind bucket: `"code"`, `"file"`, `"spec"`, `"bash_output"`, `"other"`. */
+            kind: string;
+            /** @description Detected or declared language (e.g. `"rust"`, `"markdown"`). */
+            language?: string | null;
+            /** @description Owning chat session identifier. */
+            session_id: string;
+            /** @description Source message identifier (absent for a manual creation). */
+            source_message_id?: string | null;
+            /** @description Source tool name (e.g. `"file_write"`, `"bash_executor"`). */
+            source_tool?: string | null;
+            /** @description Human-readable title (path, heading, short description). */
+            title: string;
+            /** @description ISO 8601 last-update timestamp. */
+            updated_at: string;
+        };
         /** @description Entry in the immutable audit log of permission decisions. */
         AuditEntryDto: {
             /** @description Name of the agent behind the invocation, if provided. */
@@ -5104,6 +5188,11 @@ export interface components {
         /** @description Body of `DELETE /api/v1/llm/servers/{name}`. */
         DeleteServerResponse: {
             /** @description Name of the deleted server. */
+            deleted: string;
+        };
+        /** @description Answer of `DELETE /api/v1/artifacts/{id}`. */
+        DeletedArtifact: {
+            /** @description The identifier removed. */
             deleted: string;
         };
         /** @description Answer of `DELETE /api/v1/profile/entries/{key}`. */
@@ -6414,6 +6503,23 @@ export interface components {
              */
             removed: number;
         };
+        /** @description A new artifact, as the chat captures it. */
+        SaveArtifactRequest: {
+            /** @description Full artifact content. */
+            content: string;
+            /** @description Classification bucket. */
+            kind: string;
+            /** @description Detected or declared language. */
+            language?: string | null;
+            /** @description Owning session. */
+            session_id: string;
+            /** @description Source message identifier, set when detected from a tool call. */
+            source_message_id?: string | null;
+            /** @description Source tool (if emitted by a tool call). */
+            source_tool?: string | null;
+            /** @description Human-readable title. */
+            title: string;
+        };
         /** @description Request body for `POST /api/v1/sessions/:id/messages`. */
         SendMessageRequest: {
             /** @description Text content of the user message. */
@@ -7214,6 +7320,13 @@ export interface components {
              *     context windows.
              */
             stopped: number;
+        };
+        /** @description The fields of an artifact a change may replace; an absent one is kept. */
+        UpdateArtifactRequest: {
+            /** @description New content. */
+            content?: string | null;
+            /** @description New title. */
+            title?: string | null;
         };
         /**
          * @description Request body for `PUT /api/v1/notifications/channels/:id`.
@@ -8251,6 +8364,116 @@ export interface operations {
                 };
             };
             /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    save_artifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveArtifactRequest"];
+            };
+        };
+        responses: {
+            /** @description The artifact as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Artifact"];
+                };
+            };
+            /** @description The artifacts store could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_artifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Artifact identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The artifact is gone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedArtifact"];
+                };
+            };
+            /** @description The artifacts store could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    update_artifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Artifact identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateArtifactRequest"];
+            };
+        };
+        responses: {
+            /** @description The artifact as changed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Artifact"];
+                };
+            };
+            /** @description No artifact has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The artifacts store could not be written */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -14433,6 +14656,38 @@ export interface operations {
             };
             /** @description Chat subsystem unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_artifacts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chat session identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The artifacts of the session */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Artifact"][];
+                };
+            };
+            /** @description The artifacts store could not be read */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -208,6 +208,12 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "delete_mcp_secret",
     "fetch_mcp_registry",
     "store_mcp_secret",
+    // The artifacts of a conversation, over `/api/v1/artifacts` and
+    // `/api/v1/sessions/{id}/artifacts`, in the daemon's `artifacts.db`.
+    "delete_artifact",
+    "list_artifacts",
+    "save_artifact",
+    "update_artifact",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no

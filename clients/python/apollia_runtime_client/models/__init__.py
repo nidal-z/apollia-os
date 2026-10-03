@@ -28,6 +28,7 @@ from .answer_user_input_request import AnswerUserInputRequest
 from .answer_user_input_request_answers_item import AnswerUserInputRequestAnswersItem
 from .api_error_body import ApiErrorBody
 from .applied_proposal import AppliedProposal
+from .artifact import Artifact
 from .audit_entry_dto import AuditEntryDto
 from .audit_event_response import AuditEventResponse
 from .audit_journal_page_response import AuditJournalPageResponse
@@ -97,6 +98,7 @@ from .delete_backend_response import DeleteBackendResponse
 from .delete_preset_response import DeletePresetResponse
 from .delete_response import DeleteResponse
 from .delete_server_response import DeleteServerResponse
+from .deleted_artifact import DeletedArtifact
 from .deleted_profile_entry import DeletedProfileEntry
 from .dictation_models_response import DictationModelsResponse
 from .dictation_models_response_models_item import DictationModelsResponseModelsItem
@@ -251,6 +253,7 @@ from .resume_response import ResumeResponse
 from .revoke_all_body import RevokeAllBody
 from .revoked_rule import RevokedRule
 from .revoked_rules import RevokedRules
+from .save_artifact_request import SaveArtifactRequest
 from .send_message_request import SendMessageRequest
 from .send_message_response import SendMessageResponse
 from .server_model import ServerModel
@@ -343,6 +346,7 @@ from .trust_key_request import TrustKeyRequest
 from .trusted_key_view import TrustedKeyView
 from .unload_model_request import UnloadModelRequest
 from .unload_model_response import UnloadModelResponse
+from .update_artifact_request import UpdateArtifactRequest
 from .update_channel_request import UpdateChannelRequest
 from .update_channel_request_config_type_0 import UpdateChannelRequestConfigType0
 from .update_diff import UpdateDiff
@@ -398,6 +402,7 @@ __all__ = (
     "AnswerUserInputRequestAnswersItem",
     "ApiErrorBody",
     "AppliedProposal",
+    "Artifact",
     "AuditEntryDto",
     "AuditEventResponse",
     "AuditJournalPageResponse",
@@ -464,6 +469,7 @@ __all__ = (
     "DelegateRequest",
     "DelegateRequestInput",
     "DeleteBackendResponse",
+    "DeletedArtifact",
     "DeletedProfileEntry",
     "DeletePresetResponse",
     "DeleteResponse",
@@ -617,6 +623,7 @@ __all__ = (
     "RevokeAllBody",
     "RevokedRule",
     "RevokedRules",
+    "SaveArtifactRequest",
     "SendMessageRequest",
     "SendMessageResponse",
     "ServerModel",
@@ -707,6 +714,7 @@ __all__ = (
     "TrustKeyRequest",
     "UnloadModelRequest",
     "UnloadModelResponse",
+    "UpdateArtifactRequest",
     "UpdateChannelRequest",
     "UpdateChannelRequestConfigType0",
     "UpdateDiff",
