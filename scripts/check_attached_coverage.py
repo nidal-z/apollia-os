@@ -86,8 +86,10 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # and the models of the dictation were served by the daemon, then at 70 once the
 # onboarding had its routes, then at 65 once the onboarding, the memory, the logs
 # and the whole data directory could be reset or erased through the daemon,
-# then at 61 once the artifacts of a conversation were served by the daemon.
-EMBEDDED_ONLY_CEILING = 61
+# then at 61 once the artifacts of a conversation were served by the daemon,
+# then at 58 once the timeline, the tool audit and the mailbox of the
+# Observability view were.
+EMBEDDED_ONLY_CEILING = 58
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

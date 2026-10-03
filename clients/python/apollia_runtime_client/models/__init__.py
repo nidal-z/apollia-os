@@ -141,6 +141,8 @@ from .fs_hitl_decision_body_type_3_decision import FsHitlDecisionBodyType3Decisi
 from .generate_title_body import GenerateTitleBody
 from .generated_title import GeneratedTitle
 from .get_model_card_response_200 import GetModelCardResponse200
+from .global_timeline_event import GlobalTimelineEvent
+from .global_timeline_event_detail import GlobalTimelineEventDetail
 from .hardware_response import HardwareResponse
 from .hardware_response_accelerator import HardwareResponseAccelerator
 from .health_response import HealthResponse
@@ -183,6 +185,7 @@ from .loaded_model_dto import LoadedModelDto
 from .loaded_models_response import LoadedModelsResponse
 from .logs_response import LogsResponse
 from .logs_response_entries_item import LogsResponseEntriesItem
+from .mailbox_message_row import MailboxMessageRow
 from .memory_entry_deleted import MemoryEntryDeleted
 from .memory_entry_view import MemoryEntryView
 from .memory_imported import MemoryImported
@@ -535,6 +538,8 @@ __all__ = (
     "GeneratedTitle",
     "GenerateTitleBody",
     "GetModelCardResponse200",
+    "GlobalTimelineEvent",
+    "GlobalTimelineEventDetail",
     "HardwareResponse",
     "HardwareResponseAccelerator",
     "HealthResponse",
@@ -577,6 +582,7 @@ __all__ = (
     "LoadedModelsResponse",
     "LogsResponse",
     "LogsResponseEntriesItem",
+    "MailboxMessageRow",
     "MemoryEntryDeleted",
     "MemoryEntryView",
     "MemoryImported",

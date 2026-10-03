@@ -1882,6 +1882,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mailbox/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/mailbox/messages`: the most recent inter-agent messages. */
+        get: operations["list_mailbox_messages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mailbox/stream": {
         parameters: {
             query?: never;
@@ -2651,6 +2668,23 @@ export interface paths {
          *     consent: present, well-formed, and its authorization server reachable.
          */
         post: operations["test_oauth_client"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/observability/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/observability/timeline`: the global timeline of a window. */
+        get: operations["get_global_timeline"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5793,6 +5827,17 @@ export interface components {
             /** @description The title stored on the session. */
             title: string;
         };
+        /** @description Global timeline event for display. */
+        GlobalTimelineEvent: {
+            /** @description Expandable JSON details. */
+            detail: Record<string, never>;
+            /** @description Event type: task, tool, llm, trigger, hitl, memory, error. */
+            event_type: string;
+            /** @description Event summary. */
+            summary: string;
+            /** @description ISO 8601 timestamp. */
+            timestamp: string;
+        };
         HardwareResponse: {
             accelerator: Record<string, never>;
             /** Format: double */
@@ -6213,6 +6258,21 @@ export interface components {
         LogsResponse: {
             /** @description History entries. */
             entries: Record<string, never>[];
+        };
+        /** @description One inter-agent mailbox message, projected for the observability view. */
+        MailboxMessageRow: {
+            /** @description Sending agent name (or `host:<id>` for a host injection). */
+            from_agent: string;
+            /** @description Stable message identifier (primary key). */
+            message_id: string;
+            /** @description Raw JSON payload as stored, rendered verbatim in the UI. */
+            payload: string;
+            /** @description Send timestamp (RFC 3339). */
+            sent_at: string;
+            /** @description Delivery state: `pending` or `in_flight`. */
+            state: string;
+            /** @description Receiving agent name. */
+            to_agent: string;
         };
         /** @description Answer of `DELETE /api/v1/memory/namespaces/{namespace}/entries/{entry_id}`. */
         MemoryEntryDeleted: {
@@ -12660,6 +12720,47 @@ export interface operations {
             };
         };
     };
+    list_mailbox_messages: {
+        parameters: {
+            query?: {
+                /** @description Maximum rows (default 100, capped at 1000; 0 is refused) */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Mailbox rows, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailboxMessageRow"][];
+                };
+            };
+            /** @description A limit of 0 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The store could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     stream_mailbox: {
         parameters: {
             query?: never;
@@ -14273,6 +14374,47 @@ export interface operations {
             };
             /** @description Unknown provider */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_global_timeline: {
+        parameters: {
+            query: {
+                /** @description Trailing window in minutes, from 1 to 10080 */
+                window_minutes: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Events of the window, most recent first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlobalTimelineEvent"][];
+                };
+            };
+            /** @description Window missing or out of range */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The scan failed */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -5774,6 +5774,63 @@
         }
       }
     },
+    "/api/v1/mailbox/messages": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "`GET /api/v1/mailbox/messages`: the most recent inter-agent messages.",
+        "operationId": "list_mailbox_messages",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum rows (default 100, capped at 1000; 0 is refused)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mailbox rows, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MailboxMessageRow"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A limit of 0",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The store could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/mailbox/stream": {
       "get": {
         "tags": [
@@ -7747,6 +7804,63 @@
           },
           "400": {
             "description": "Unknown provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/observability/timeline": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "`GET /api/v1/observability/timeline`: the global timeline of a window.",
+        "operationId": "get_global_timeline",
+        "parameters": [
+          {
+            "name": "window_minutes",
+            "in": "query",
+            "description": "Trailing window in minutes, from 1 to 10080",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Events of the window, most recent first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GlobalTimelineEvent"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Window missing or out of range",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The scan failed",
             "content": {
               "application/json": {
                 "schema": {
@@ -16117,6 +16231,34 @@
           }
         }
       },
+      "GlobalTimelineEvent": {
+        "type": "object",
+        "description": "Global timeline event for display.",
+        "required": [
+          "event_type",
+          "timestamp",
+          "summary",
+          "detail"
+        ],
+        "properties": {
+          "detail": {
+            "type": "object",
+            "description": "Expandable JSON details."
+          },
+          "event_type": {
+            "type": "string",
+            "description": "Event type: task, tool, llm, trigger, hitl, memory, error."
+          },
+          "summary": {
+            "type": "string",
+            "description": "Event summary."
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "ISO 8601 timestamp."
+          }
+        }
+      },
       "HardwareResponse": {
         "type": "object",
         "required": [
@@ -17070,6 +17212,44 @@
               "type": "object"
             },
             "description": "History entries."
+          }
+        }
+      },
+      "MailboxMessageRow": {
+        "type": "object",
+        "description": "One inter-agent mailbox message, projected for the observability view.",
+        "required": [
+          "message_id",
+          "from_agent",
+          "to_agent",
+          "payload",
+          "sent_at",
+          "state"
+        ],
+        "properties": {
+          "from_agent": {
+            "type": "string",
+            "description": "Sending agent name (or `host:<id>` for a host injection)."
+          },
+          "message_id": {
+            "type": "string",
+            "description": "Stable message identifier (primary key)."
+          },
+          "payload": {
+            "type": "string",
+            "description": "Raw JSON payload as stored, rendered verbatim in the UI."
+          },
+          "sent_at": {
+            "type": "string",
+            "description": "Send timestamp (RFC 3339)."
+          },
+          "state": {
+            "type": "string",
+            "description": "Delivery state: `pending` or `in_flight`."
+          },
+          "to_agent": {
+            "type": "string",
+            "description": "Receiving agent name."
           }
         }
       },
