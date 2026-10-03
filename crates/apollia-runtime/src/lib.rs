@@ -13,6 +13,7 @@ pub mod a2a;
 pub mod agents;
 pub mod analyzers;
 pub mod api;
+pub mod app_lifecycle;
 pub mod audit_journal;
 pub mod backend_keys;
 pub mod batch;

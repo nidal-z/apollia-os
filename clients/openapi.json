@@ -2790,6 +2790,37 @@
         }
       }
     },
+    "/api/v1/factory-reset": {
+      "post": {
+        "tags": [
+          "lifecycle"
+        ],
+        "summary": "`POST /api/v1/factory-reset`: removes the daemon's whole data directory.",
+        "operationId": "factory_reset",
+        "responses": {
+          "200": {
+            "description": "Whether the data directory was removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectoryRemoved"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The directory cannot be removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/governance/audit": {
       "get": {
         "tags": [
@@ -5721,6 +5752,37 @@
         }
       }
     },
+    "/api/v1/logs/clear": {
+      "post": {
+        "tags": [
+          "lifecycle"
+        ],
+        "summary": "`POST /api/v1/logs/clear`: removes the daemon's logs directory.",
+        "operationId": "clear_logs",
+        "responses": {
+          "200": {
+            "description": "Whether a logs directory was removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectoryRemoved"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The directory cannot be removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/mailbox/stream": {
       "get": {
         "tags": [
@@ -6958,6 +7020,37 @@
         }
       }
     },
+    "/api/v1/memory/wipe": {
+      "post": {
+        "tags": [
+          "lifecycle"
+        ],
+        "summary": "`POST /api/v1/memory/wipe`: removes every memory database of the daemon.",
+        "operationId": "clear_all_memories",
+        "responses": {
+          "200": {
+            "description": "How many databases were removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryWiped"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The memory directory cannot be listed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notifications/channels": {
       "get": {
         "tags": [
@@ -7705,6 +7798,37 @@
         }
       }
     },
+    "/api/v1/onboarding/complete": {
+      "post": {
+        "tags": [
+          "lifecycle"
+        ],
+        "summary": "`POST /api/v1/onboarding/complete`: writes the flag that says the\nonboarding is complete.",
+        "operationId": "mark_onboarded",
+        "responses": {
+          "200": {
+            "description": "The flag is written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingMarked"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The flag cannot be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/onboarding/dismiss": {
       "post": {
         "tags": [
@@ -7889,6 +8013,37 @@
           },
           "503": {
             "description": "The user memory did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/reset": {
+      "post": {
+        "tags": [
+          "lifecycle"
+        ],
+        "summary": "`POST /api/v1/onboarding/reset`: removes the flag, the onboarding markers,\nthe visible profile and the onboarding agent's memory.",
+        "operationId": "reset_onboarding",
+        "responses": {
+          "200": {
+            "description": "How many profile entries were removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingReset"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The profile store did not open",
             "content": {
               "application/json": {
                 "schema": {
@@ -15391,6 +15546,19 @@
           }
         }
       },
+      "DirectoryRemoved": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/logs/clear` and `POST /api/v1/factory-reset`.",
+        "required": [
+          "removed"
+        ],
+        "properties": {
+          "removed": {
+            "type": "boolean",
+            "description": "Whether the directory existed and was removed."
+          }
+        }
+      },
       "DismissedProposal": {
         "type": "object",
         "description": "Answer of `DELETE /api/v1/permissions/proposals/{index}`.",
@@ -16979,6 +17147,20 @@
           }
         }
       },
+      "MemoryWiped": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/memory/wipe`.",
+        "required": [
+          "removed_databases"
+        ],
+        "properties": {
+          "removed_databases": {
+            "type": "integer",
+            "description": "How many memory databases were removed.",
+            "minimum": 0
+          }
+        }
+      },
       "MessageDto": {
         "type": "object",
         "description": "A single message in a multi-turn conversation request.\n\n`role` accepts `\"system\"`, `\"user\"`, `\"assistant\"`, or `\"tool\"`.",
@@ -17229,6 +17411,19 @@
           }
         }
       },
+      "OnboardingMarked": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/onboarding/complete`.",
+        "required": [
+          "onboarded"
+        ],
+        "properties": {
+          "onboarded": {
+            "type": "boolean",
+            "description": "Always `true`: the flag is written."
+          }
+        }
+      },
       "OnboardingPhase": {
         "type": "string",
         "description": "The seven ordered phases of the onboarding flow.",
@@ -17252,6 +17447,20 @@
           "profile": {
             "type": "string",
             "description": "`operator` or `builder`."
+          }
+        }
+      },
+      "OnboardingReset": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/onboarding/reset`.",
+        "required": [
+          "removed_profile_entries"
+        ],
+        "properties": {
+          "removed_profile_entries": {
+            "type": "integer",
+            "description": "How many profile entries were removed.",
+            "minimum": 0
           }
         }
       },
@@ -21295,6 +21504,10 @@
     {
       "name": "onboarding",
       "description": "The onboarding: its phases, its profile and its conversation"
+    },
+    {
+      "name": "lifecycle",
+      "description": "Resets and erasures of the installation"
     }
   ]
 }
