@@ -1807,6 +1807,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/local-ai/dictation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/local-ai/dictation`: makes a Whisper file the dictation model
+         *     and marks the onboarding progress as dictation-ready.
+         */
+        post: operations["setup_dictation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/local-ai/llm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/local-ai/llm`: copies a GGUF file into the models folder and
+         *     makes it the `local` backend.
+         * @description The copy runs in its own task, so a client that stops waiting does not
+         *     leave half a model in the folder.
+         */
+        post: operations["setup_local_llm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/local-ai/models/gguf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/local-ai/models/gguf`: the GGUF models already on disk,
+         *     largest first, each graded for this machine.
+         */
+        get: operations["scan_gguf_models"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/local-ai/models/whisper": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/local-ai/models/whisper`: the Whisper models already on disk,
+         *     each graded for this machine.
+         */
+        get: operations["scan_whisper_models"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/local-ai/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/local-ai/system`: memory, system and accelerator of the
+         *     machine the daemon runs on.
+         */
+        get: operations["get_local_ai_system"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mailbox/stream": {
         parameters: {
             query?: never;
@@ -5262,6 +5364,13 @@ export interface components {
             /** @description The key removed. */
             deleted: string;
         };
+        /** @description What the dictation setup did. */
+        DictationConfigured: {
+            /** @description The transcription language stored, `None` when none is set. */
+            language?: string | null;
+            /** @description The Whisper model file dictation now reads. */
+            model_path: string;
+        };
         /** @description The dictation category of the registry, and the entry for this machine. */
         DictationModelsResponse: {
             /** @description The machine the recommendation was made for. */
@@ -5454,6 +5563,22 @@ export interface components {
         GeneratedTitle: {
             /** @description The title stored on the session. */
             title: string;
+        };
+        /** @description GGUF model file detected on the local filesystem. */
+        GgufModelInfo: {
+            /** @description Filename of the model. */
+            filename: string;
+            /** @description Absolute path to the model file. */
+            path: string;
+            /** @description Whether the memory estimator says this model fits this machine. */
+            recommended: boolean;
+            /**
+             * Format: int64
+             * @description File size in bytes.
+             */
+            size_bytes: number;
+            /** @description Human-readable file size (e.g. `"4.2 GB"`). */
+            size_human: string;
         };
         HardwareResponse: {
             accelerator: Record<string, never>;
@@ -6784,6 +6909,30 @@ export interface components {
             /** @description Plain-text value. */
             value: string;
         };
+        /** @description Request body for `POST /api/v1/local-ai/dictation`. */
+        SetupDictationBody: {
+            /** @description The language of the interface, stored only when none is set yet. */
+            language?: string | null;
+            /** @description Absolute path of the Whisper model file chosen. */
+            modelPath: string;
+        };
+        /** @description Request body for `POST /api/v1/local-ai/llm`. */
+        SetupLlmBody: {
+            /**
+             * Format: int32
+             * @description The context window chosen, in tokens; absent keeps the stored one.
+             */
+            contextWindow?: number | null;
+            /** @description Absolute path of the GGUF file chosen. */
+            ggufPath: string;
+        };
+        /** @description What the local language model setup did. */
+        SetupLlmResult: {
+            /** @description Absolute path where the model is stored. */
+            model_path: string;
+            /** @description Inferred quantization from the filename (e.g. `"q8_0"`, `"q4_k_m"`). */
+            quantization: string;
+        };
         /** @description Response body for the shutdown endpoint. */
         ShutdownResponse: {
             status: string;
@@ -6978,6 +7127,32 @@ export interface components {
              *     own dispatch picks the handler as before.
              */
             skill_id?: string | null;
+        };
+        /** @description System information used to compute model recommendations in the AI setup step. */
+        SystemInfo: {
+            /** @description CPU architecture identifier (e.g. `"aarch64"`, `"x86_64"`). */
+            arch: string;
+            /**
+             * Format: double
+             * @description Available RAM in gigabytes.
+             */
+            available_ram_gb: number;
+            /** @description Whether a GPU is available (basic heuristic). */
+            gpu_available: boolean;
+            /**
+             * Format: double
+             * @description The accelerator's dedicated memory in gigabytes, when the engine's
+             *     device list names one. `None` on a processor-only machine and on
+             *     platforms where the heuristic above answers without a device list.
+             */
+            gpu_vram_gb?: number | null;
+            /** @description Operating system identifier (e.g. `"macos"`, `"linux"`). */
+            os: string;
+            /**
+             * Format: double
+             * @description Total RAM in gigabytes.
+             */
+            total_ram_gb: number;
         };
         /** @description One entry in the task list. */
         TaskListItem: {
@@ -7532,6 +7707,22 @@ export interface components {
              * @description Number of distinct runs covered by the global chain.
              */
             runs_checked: number;
+        };
+        /** @description Whisper GGML model file detected on the local filesystem. */
+        WhisperModelInfo: {
+            /** @description Filename of the model. */
+            filename: string;
+            /** @description Size variant parsed from the filename (`tiny`, `base`, `small`, `medium`, `large`). */
+            model_size: string;
+            /** @description Absolute path to the model file. */
+            path: string;
+            /** @description Whether the dictation verdict says this file fits this machine. */
+            recommended: boolean;
+            /**
+             * Format: int64
+             * @description File size in bytes.
+             */
+            size_bytes: number;
         };
         /** @description Error body of the workflow routes. */
         WorkflowErrorResponse: {
@@ -12025,6 +12216,132 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LlmStatusResponse"];
+                };
+            };
+        };
+    };
+    setup_dictation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetupDictationBody"];
+            };
+        };
+        responses: {
+            /** @description The dictation model stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DictationConfigured"];
+                };
+            };
+            /** @description The onboarding store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    setup_local_llm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetupLlmBody"];
+            };
+        };
+        responses: {
+            /** @description Where the model is stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupLlmResult"];
+                };
+            };
+            /** @description No such file, or not a GGUF file */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    scan_gguf_models: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The GGUF files found */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GgufModelInfo"][];
+                };
+            };
+        };
+    };
+    scan_whisper_models: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Whisper files found */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhisperModelInfo"][];
+                };
+            };
+        };
+    };
+    get_local_ai_system: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What this machine can run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemInfo"];
                 };
             };
         };

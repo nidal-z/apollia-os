@@ -129,6 +129,17 @@ impl AttachedClient {
         self.send_json(self.http.get(self.url(path))).await
     }
 
+    /// `GET path`, its JSON answer read as `T`, for a read that may outlast
+    /// the usual deadline, such as a scan of the disk.
+    pub(crate) async fn get_within<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        deadline: Duration,
+    ) -> Result<T, AttachedError> {
+        self.send_json_within(self.http.get(self.url(path)), deadline)
+            .await
+    }
+
     /// `POST path` with a JSON body, its JSON answer read as `T`.
     pub(crate) async fn post<T: DeserializeOwned>(
         &self,
@@ -136,6 +147,18 @@ impl AttachedClient {
         body: &impl serde::Serialize,
     ) -> Result<T, AttachedError> {
         self.send_json(self.http.post(self.url(path)).json(body))
+            .await
+    }
+
+    /// `POST path` with a JSON body, its JSON answer read as `T`, for a write
+    /// that may outlast the usual deadline, such as a model copied on disk.
+    pub(crate) async fn post_within<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &impl serde::Serialize,
+        deadline: Duration,
+    ) -> Result<T, AttachedError> {
+        self.send_json_within(self.http.post(self.url(path)).json(body), deadline)
             .await
     }
 
@@ -202,9 +225,19 @@ impl AttachedClient {
         &self,
         builder: reqwest::RequestBuilder,
     ) -> Result<T, AttachedError> {
+        self.send_json_within(builder, REQUEST_TIMEOUT).await
+    }
+
+    /// Sends an authenticated request with its own deadline and reads its
+    /// JSON answer.
+    async fn send_json_within<T: DeserializeOwned>(
+        &self,
+        builder: reqwest::RequestBuilder,
+        deadline: Duration,
+    ) -> Result<T, AttachedError> {
         let response = builder
             .bearer_auth(&self.token)
-            .timeout(REQUEST_TIMEOUT)
+            .timeout(deadline)
             .send()
             .await
             .map_err(AttachedError::Unreachable)?;
