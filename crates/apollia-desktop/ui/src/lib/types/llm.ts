@@ -19,6 +19,8 @@ export interface LlmBackendConfig {
 export interface LoadedModel {
   /** The engine serving the model, chosen by its format. */
   engine: "llama-server" | "vllm-mlx";
+  /** What the model serves; the embeddings instance sits outside `maxLoaded`. */
+  kind: "chat" | "embeddings";
   /** Display name, the model file name without its extension. */
   model: string;
   /** Path the model was loaded from; the key an unload takes. */

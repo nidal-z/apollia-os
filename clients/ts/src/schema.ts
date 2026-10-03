@@ -1697,6 +1697,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/embeddings/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/embeddings/default` */
+        get: operations["get_embedding_default"];
+        /** `PUT /api/v1/llm/embeddings/default` */
+        put: operations["set_embedding_default"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/hardware": {
         parameters: {
             query?: never;
@@ -6231,6 +6249,18 @@ export interface components {
              */
             folder_path?: string | null;
         };
+        /** @description The default embeddings model, and whether this machine has its file. */
+        EmbeddingDefaultResponse: {
+            /** @description Whether the file of that entry is in the model index. */
+            installed: boolean;
+            /**
+             * @description Identifier of the registry entry; absent when none is chosen, and
+             *     search then uses keywords alone.
+             */
+            model?: string | null;
+            /** @description Path of that file, when installed. */
+            path?: string | null;
+        };
         /** @description The embeddings category of the registry, and the entry for this machine. */
         EmbeddingModelsResponse: {
             /** @description The machine the recommendation was made for. */
@@ -6837,6 +6867,11 @@ export interface components {
              *     GGUF, `vllm-mlx` for MLX.
              */
             engine: components["schemas"]["EngineName"];
+            /**
+             * @description What the model serves: `chat`, or `embeddings` for the instance that
+             *     serves search by meaning, which does not count against `maxLoaded`.
+             */
+            kind: components["schemas"]["ModelKind"];
             /** @description When a request last used the model, RFC 3339. */
             lastUsedAt: string;
             /** @description When the model finished loading, RFC 3339. */
@@ -7006,6 +7041,11 @@ export interface components {
              */
             size_bytes: number;
         };
+        /**
+         * @description What a resident model serves.
+         * @enum {string}
+         */
+        ModelKind: "chat" | "embeddings";
         /**
          * @description Where a model runs.
          * @enum {string}
@@ -7946,6 +7986,11 @@ export interface components {
              *     means the root of My Drive.
              */
             folder_path: string;
+        };
+        /** @description Body of `PUT /api/v1/llm/embeddings/default`. */
+        SetEmbeddingDefaultBody: {
+            /** @description Identifier of an embeddings entry of the registry. */
+            model: string;
         };
         /** @description Request body for `PUT /api/v1/notifications/events`. */
         SetEventsRequest: {
@@ -13149,6 +13194,77 @@ export interface operations {
                 };
             };
             /** @description The shipped registry table is invalid */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_embedding_default: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The default embeddings model, absent when none is chosen */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmbeddingDefaultResponse"];
+                };
+            };
+            /** @description system.db could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_embedding_default: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetEmbeddingDefaultBody"];
+            };
+        };
+        responses: {
+            /** @description The default embeddings model, as now set */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmbeddingDefaultResponse"];
+                };
+            };
+            /** @description Not an embeddings model of the registry */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description system.db could not be written */
             500: {
                 headers: {
                     [name: string]: unknown;
