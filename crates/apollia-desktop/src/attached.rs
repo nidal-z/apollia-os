@@ -112,6 +112,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "uninstall_agent_package",
     // Connections.
     "list_connections",
+    // Apollia as an MCP server, over `/api/v1/mcp/exposed`.
+    "list_mcp_exposable",
+    "set_mcp_exposed",
     // Notifications and the activity feed.
     "create_notification_channel",
     "delete_notification_channel",
