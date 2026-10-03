@@ -28,14 +28,26 @@
 //! and kept by [`ServerTokensHandle`] as a SHA-256 in `system.db`; the
 //! internal token of the desktop never opens this server.
 //!
-//! [`CompatServerHandle`] is the actor that owns the listener. The routes it
-//! serves are assembled by [`compat_router`]; every path that router mounts is
-//! listed on the public page of compatible endpoints, which
+//! The models it serves are the local models the user loaded, relayed to the
+//! engine that runs them (`llama-server` or `vllm-mlx`) with their `model`
+//! field set to what that engine expects; see [`LocalModels`]. A model of a
+//! remote backend is never relayed.
+//!
+//! Every request it answers, and every line the local `llama-server` prints,
+//! enters a bounded ring of recent lines that the native API streams (see
+//! [`ServerLogsHandle`]); clearing it never touches the audit journal.
+//!
+//! [`CompatServerHandle`] is the actor that owns the listener. Every path its
+//! router mounts is listed on the public page of compatible endpoints, which
 //! `scripts/check_compat_routes.py` holds.
 
 mod actor;
 mod auth;
+mod errors;
+mod logs;
+mod models;
 mod origin;
+mod relay;
 mod router;
 mod tokens;
 
@@ -44,13 +56,21 @@ mod auth_tests;
 #[cfg(test)]
 mod lan_tests;
 #[cfg(test)]
+mod logs_tests;
+#[cfg(test)]
+mod relay_tests;
+#[cfg(test)]
 pub(crate) mod tests;
 
 pub use actor::{CompatServerHandle, CompatServerStatus};
+pub use logs::{
+    ServerLogLevel, ServerLogLine, ServerLogSource, ServerLogSubscription, ServerLogsError,
+    ServerLogsHandle, DEFAULT_CAPACITY as SERVER_LOGS_CAPACITY,
+};
+pub use models::LocalModels;
 pub use origin::{
     admit_agent_call, admits_agent_call, reachable_address, CallOrigin, AGENT_TOKEN_REQUIRED,
 };
-pub use router::compat_router;
 pub use tokens::{CreatedServerToken, ServerTokensError, ServerTokensHandle, SERVER_TOKEN_PREFIX};
 
 use apollia_core::config::SettingError;
@@ -81,6 +101,9 @@ pub enum CompatServerError {
         #[from]
         source: SettingError,
     },
+    /// The client that reaches the local engines could not be built.
+    #[error("failed to build the client of the local engines")]
+    Client(#[source] reqwest::Error),
     /// The tokens of the server could not be counted.
     #[error(transparent)]
     Tokens(#[from] ServerTokensError),

@@ -1,9 +1,10 @@
-//! The commands that change an agent's state: install, uninstall, update, and
+//! The commands that change an agent's state: install, update, and
 //! the restart an update owes the operator when it cycled a running agent.
 //!
 //! There is no start, stop, enable or disable here: an installed agent is
 //! always available, loaded by its first task and released once idle. The
-//! install makes it available at once.
+//! install makes it available at once. The uninstall goes through the
+//! runtime, with the packages (`agent_packages::uninstall`).
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -168,57 +169,6 @@ pub async fn install_agent(
         version: agent.version,
         install_path: agent.install_path.to_string_lossy().to_string(),
     })
-}
-
-/// Uninstalls an installed agent.
-///
-/// 1. Removes the entry from `agents.db` and the install directory.
-/// 2. Removes the agent from the runtime registry (avoids a ghost in `list_agents`).
-/// 3. Emits a `RuntimeEvent::AgentUninstalled` on the EventBus.
-#[tauri::command]
-pub async fn uninstall_agent(
-    name: String,
-    runtime: State<'_, RuntimeHandle>,
-    repo: State<'_, Arc<std::sync::Mutex<AgentRepository>>>,
-    event_bus: State<'_, EventBusSender>,
-) -> Result<(), String> {
-    let repo_clone = Arc::clone(&repo);
-    let name_clone = name.clone();
-
-    // Verify agent exists, then delete in one blocking call.
-    let existing = tokio::task::spawn_blocking({
-        let repo = Arc::clone(&repo_clone);
-        let name = name_clone.clone();
-        move || {
-            let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
-            let agent = repo
-                .get(&name)
-                .map_err(|e| format!("database error: {e}"))?
-                .ok_or_else(|| format!("agent '{name}' not found in installed agents"))?;
-            repo.delete(&name)
-                .map_err(|e| format!("failed to delete from database: {e}"))?;
-            Ok::<_, String>(agent)
-        }
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))??;
-
-    // Remove install directory (best-effort).
-    if let Some(parent) = existing.install_path.parent() {
-        let _ = std::fs::remove_dir_all(parent);
-    }
-
-    // Remove from in-memory registry so list_agents no longer returns it, and
-    // drop its coordinator for good: a stopped agent would otherwise be loaded
-    // again by the next task that names it.
-    if let Ok(Some(agent_id)) = runtime.registry_handle.find_by_name(&name).await {
-        let _ = runtime.router_handle.forget_coordinator(&agent_id).await;
-        let _ = runtime.registry_handle.unregister(agent_id.as_str()).await;
-    }
-
-    let _ = event_bus.send(apollia_core::events::RuntimeEvent::AgentUninstalled { name });
-
-    Ok(())
 }
 
 /// Updates an installed agent with a new Python file.

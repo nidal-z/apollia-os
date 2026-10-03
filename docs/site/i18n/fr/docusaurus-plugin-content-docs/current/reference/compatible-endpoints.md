@@ -10,7 +10,7 @@ Le runtime peut ouvrir un second écouteur, le **serveur compatible**, pour les
 autres applications de la machine. Elles l'appellent comme elles appelleraient
 OpenAI ou Anthropic : les chemins commencent par `/v1/`, les corps suivent ces
 API et leurs noms de champs (`snake_case`), et une erreur revient dans
-l'enveloppe d'OpenAI.
+l'enveloppe de l'API que le client a appelée.
 
 Le serveur compatible n'est pas l'API native. L'API native, documentée dans la
 [référence de l'API HTTP](/reference/api/apollia-os-runtime-api), reste sur le
@@ -106,11 +106,27 @@ machine (l'interface de boucle locale) ou du réseau local (toute autre adresse)
 La décision et sa lecture au regard du principe du local d'abord sont écrites
 dans les [décisions d'architecture](/architecture/decisions#local-server).
 
+## Journaux du serveur
+
+Le runtime garde en mémoire les lignes les plus récentes du serveur, 2000 au
+plus, la plus ancienne retirée d'abord : une par requête à laquelle il a
+répondu (heure, niveau, méthode, chemin, modèle, statut, durée) et chaque ligne
+qu'écrit le `llama-server` local. Une requête refusée (4xx) est au niveau
+`warn`, une requête en échec (5xx) au niveau `error`.
+
+| Route | Effet |
+|---|---|
+| `GET /api/v1/server/logs?level=warn` | Un flux d'événements : une trame `log` par ligne, celles gardées d'abord, puis chaque nouvelle. `level` est le niveau le plus bas envoyé, `debug` (par défaut), `info`, `warn` ou `error` |
+| `DELETE /api/v1/server/logs` | Vide les lignes gardées et répond combien il y en avait. Le journal d'audit n'est pas touché |
+
+Ces lignes sont une vue pour qui développe contre le serveur, pas un
+enregistrement : elles sont perdues à l'arrêt du runtime.
+
 ## Erreurs
 
-Toute erreur suit l'enveloppe d'OpenAI, sauf un `401` sur le point d'accès
-d'Anthropic (`/v1/messages`), qui suit celle d'Anthropic
-(`{"type": "error", "error": {"type": "authentication_error", "message"}}`) :
+Chaque point d'accès répond ses erreurs au format de sa propre API. Les points
+d'accès d'OpenAI, et tout chemin que le serveur ne sert pas, suivent
+l'enveloppe d'OpenAI :
 
 ```json
 {
@@ -122,15 +138,65 @@ d'Anthropic (`/v1/messages`), qui suit celle d'Anthropic
 }
 ```
 
-Un chemin que le serveur ne sert pas répond `404` avec ce corps.
+Les points d'accès d'Anthropic (`/v1/messages` et `/v1/messages/count_tokens`)
+suivent celle d'Anthropic : `{"type": "error", "error": {"type", "message"}}`.
+
+| Statut | `code` OpenAI | `type` Anthropic | Quand |
+|---|---|---|---|
+| `400` | `invalid_request` | `invalid_request_error` | Le corps n'est pas un objet JSON, ou ne nomme aucun `model` |
+| `401` | `invalid_api_key` | `authentication_error` | `require_auth` est allumé et aucun jeton en service n'a été présenté |
+| `404` | `model_not_loaded` | `not_found_error` | Le modèle nommé dans `model` n'est pas chargé |
+| `404` | `endpoint_not_served` | `not_found_error` | Le moteur qui fait tourner le modèle ne sert pas ce point d'accès |
+| `404` | `unknown_url` | | Aucun point d'accès ne vit à ce chemin |
+| `502` | `engine_unavailable` | `api_error` | Le moteur qui fait tourner le modèle n'a pas répondu |
+
+## Les modèles servis
+
+Le serveur compatible sert les modèles locaux chargés dans Apollia, et eux
+seuls. Une requête en nomme un dans son champ `model`, par l'identifiant que
+liste `GET /v1/models`, qui est son identifiant dans le registre des modèles
+d'Apollia. Le serveur transmet la requête au moteur qui fait tourner le
+modèle, `llama-server` pour un modèle GGUF, `vllm-mlx` pour un modèle MLX, avec
+`model` remplacé par ce que ce moteur attend, et rend la réponse du moteur
+telle quelle : un corps JSON, ou un flux d'événements relayé morceau par
+morceau quand la requête demandait `"stream": true`.
+
+- Un modèle qui n'est pas chargé répond `404 model_not_loaded`. Chargez-le
+  d'abord dans Apollia.
+- Un modèle d'un fournisseur distant n'est jamais relayé : le serveur
+  compatible n'est pas une passerelle vers un nuage.
+- Rien n'est traduit d'un format dans un autre. Un point d'accès que le moteur
+  du modèle ne sert pas répond `404 endpoint_not_served` plutôt qu'une
+  approximation. Le modèle de recherche par le sens sert `/v1/embeddings` et
+  rien d'autre ; un modèle de conversation sert tous les autres points d'accès
+  ci-dessous, sauf que `vllm-mlx` ne compte pas les jetons.
+
+Un modèle reste chargé tant qu'une requête qui lui est adressée tourne, flux
+compris : le décharger attend la fin de la réponse.
 
 ## Points d'accès
 
-La table liste chaque chemin que sert le serveur compatible. Elle est vide
-aujourd'hui : l'écouteur est en place et ne sert encore aucun point d'accès, si
-bien que tout chemin répond le `404` ci-dessus.
+La table liste chaque chemin que sert le serveur compatible.
 
 <!-- compat-endpoints -->
 
 | Méthode | Chemin | Format |
 |---|---|---|
+| `GET` | `/v1/models` | OpenAI. Les modèles chargés, en liste : `id` (identifiant du registre), `object`, `created`, `owned_by`, et `type`, `llm` ou `embeddings` |
+| `POST` | `/v1/chat/completions` | OpenAI. Relayé au moteur du modèle |
+| `POST` | `/v1/responses` | OpenAI. Relayé au moteur du modèle |
+| `POST` | `/v1/embeddings` | OpenAI. Relayé au modèle de recherche par le sens |
+| `POST` | `/v1/messages` | Anthropic. Relayé au moteur du modèle |
+| `POST` | `/v1/messages/count_tokens` | Anthropic. Relayé au moteur du modèle (`llama-server` seulement) |
+
+Mesuré sur `llama-server` à la version qu'épingle Apollia (`b10092`) : les
+quatre points d'accès de conversation répondent `200` sur un modèle de
+conversation, et `/v1/embeddings` ne répond que sur l'instance lancée pour la
+recherche par le sens.
+
+### Pas la boîte aux lettres des agents
+
+`/v1/messages` est ici l'API Messages d'Anthropic : un tour de conversation
+avec un modèle. Elle n'a rien à voir avec `/api/v1/agents/{name}/messages` de
+l'API native, la boîte aux lettres par laquelle les agents s'envoient des
+messages. Les deux partagent un mot et rien d'autre.

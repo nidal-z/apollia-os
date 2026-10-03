@@ -68,7 +68,7 @@ pub struct WhisperModelInfo {
 /// Scans standard filesystem locations for `.gguf` model files.
 ///
 /// Locations scanned:
-/// 1. `<data_dir>/models/` (flat)
+/// 1. the models folder in force (`[models] dir`, else `<data_dir>/models/`), flat
 /// 2. `<home>/Downloads/` (flat)
 /// 3. `<home>/.cache/lm-studio/models/` (recursive, up to 4 levels deep)
 ///
@@ -77,7 +77,10 @@ pub struct WhisperModelInfo {
 /// Blocking: reads the disk and probes each header.
 pub fn scan_gguf_models(home: &Path, data_dir: &Path) -> Vec<GgufModelInfo> {
     let hardware = apollia_llm::hardware::detect();
-    let flat_dirs = [data_dir.join("models"), home.join("Downloads")];
+    let flat_dirs = [
+        apollia_core::config::models_dir(data_dir),
+        home.join("Downloads"),
+    ];
     let lm_studio_root = home.join(".cache").join("lm-studio").join("models");
 
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -116,8 +119,9 @@ pub fn scan_gguf_models(home: &Path, data_dir: &Path) -> Vec<GgufModelInfo> {
 /// are returned. An empty list is not an error. Blocking: reads the disk.
 pub fn scan_whisper_models(home: &Path, data_dir: &Path) -> Vec<WhisperModelInfo> {
     let hardware = apollia_llm::hardware::detect();
+    // Dictation models stay in the default folder whatever `[models] dir` says.
     let scan_dirs = [
-        data_dir.join("models"),
+        apollia_core::config::default_models_dir(data_dir),
         home.join("Downloads"),
         home.join(".cache").join("whisper"),
     ];

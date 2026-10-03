@@ -1,7 +1,7 @@
 //! Driving the compatible server from the native API: `GET /api/v1/server`,
 //! `POST /api/v1/server/start`, `POST /api/v1/server/stop` and
-//! `POST /api/v1/server/restart`, and its tokens
-//! under `/api/v1/server/tokens` (see [`tokens`]).
+//! `POST /api/v1/server/restart`, its tokens under `/api/v1/server/tokens`
+//! (see [`tokens`]), and its logs under `/api/v1/server/logs` (see [`logs`]).
 //!
 //! The compatible server is a second listener with its own port (see
 //! [`crate::compat_server`]); these routes are the only part of it the native
@@ -34,6 +34,10 @@ pub fn server_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route(
             "/api/v1/server/tokens/:token",
             delete(tokens::revoke_server_token::<B>),
+        )
+        .route(
+            "/api/v1/server/logs",
+            get(logs::stream_server_logs::<B>).delete(logs::clear_server_logs::<B>),
         )
 }
 
@@ -121,6 +125,7 @@ pub(crate) async fn stop_server<B: ExecutionBackend + Clone>(
     Ok(Json(status))
 }
 
+pub(crate) mod logs;
 pub(crate) mod tokens;
 
 /// `POST /api/v1/server/restart`: closes and reopens the compatible server so
@@ -145,5 +150,7 @@ pub(crate) async fn restart_server<B: ExecutionBackend + Clone>(
     Ok(Json(status))
 }
 
+#[cfg(test)]
+mod logs_tests;
 #[cfg(test)]
 mod tests;

@@ -13,7 +13,6 @@
     "user-menu-quit is played last with quit_app answered by a stub: the real command exits the process before the report is written, so the gesture is exercised up to the IPC call and the window is asserted still alive afterwards."
   ],
   "dynamicTestids": [
-    "agent-detail-title",
     "command-item-companion.toggle",
     "command-item-session.seed-session-2",
     "mcp-detail-tab-settings",

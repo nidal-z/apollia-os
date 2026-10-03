@@ -9,8 +9,8 @@ description: "The compatible server: a second listener of the runtime, on its ow
 The runtime can open a second listener, the **compatible server**, for the
 other applications of the machine. They call it the way they would call OpenAI
 or Anthropic: the paths start with `/v1/`, the bodies follow those APIs and
-their field names (`snake_case`), and an error comes back in the OpenAI
-envelope.
+their field names (`snake_case`), and an error comes back in the envelope of
+the API the client called.
 
 The compatible server is not the native API. The native API, documented in the
 [HTTP API reference](/reference/api/apollia-os-runtime-api), stays on port 7771
@@ -104,11 +104,25 @@ machine (the loopback interface) or from the local network (any other address).
 The decision and its reading against the local-first principle are written in the
 [architecture decisions](/architecture/decisions#local-server).
 
+## Logs
+
+The runtime keeps the most recent lines of the server in memory, 2000 at most,
+the oldest dropped first: one per request it answered (time, level, method,
+path, model, status, duration) and each line the local `llama-server` prints.
+A refused request (4xx) is at the `warn` level, a failed one (5xx) at `error`.
+
+| Route | Effect |
+|---|---|
+| `GET /api/v1/server/logs?level=warn` | An event stream: one `log` frame per line, those held first, then each new one. `level` is the lowest level sent, `debug` (the default), `info`, `warn` or `error` |
+| `DELETE /api/v1/server/logs` | Empties the lines held and answers how many there were. The audit journal is not touched |
+
+These lines are a view for whoever develops against the server, not a record:
+they are lost when the runtime stops.
+
 ## Errors
 
-Every error follows the OpenAI envelope, except a `401` on the Anthropic
-endpoint (`/v1/messages`), which follows Anthropic's
-(`{"type": "error", "error": {"type": "authentication_error", "message"}}`):
+Each endpoint answers its errors in the format of its own API. The OpenAI
+endpoints, and any path the server does not serve, use the OpenAI envelope:
 
 ```json
 {
@@ -120,15 +134,64 @@ endpoint (`/v1/messages`), which follows Anthropic's
 }
 ```
 
-A path the server does not serve answers `404` with that body.
+The Anthropic endpoints (`/v1/messages` and `/v1/messages/count_tokens`) use
+Anthropic's: `{"type": "error", "error": {"type", "message"}}`.
+
+| Status | OpenAI `code` | Anthropic `type` | When |
+|---|---|---|---|
+| `400` | `invalid_request` | `invalid_request_error` | The body is not a JSON object, or names no `model` |
+| `401` | `invalid_api_key` | `authentication_error` | `require_auth` is on and no token in use was presented |
+| `404` | `model_not_loaded` | `not_found_error` | The model named in `model` is not loaded |
+| `404` | `endpoint_not_served` | `not_found_error` | The engine running the model does not serve this endpoint |
+| `404` | `unknown_url` | | No endpoint lives at this path |
+| `502` | `engine_unavailable` | `api_error` | The engine running the model did not answer |
+
+## The models it serves
+
+The compatible server serves the local models loaded in Apollia, and only
+them. A request names one in its `model` field, by the identifier
+`GET /v1/models` lists, which is its identifier in Apollia's model registry.
+The server passes the request to the engine that runs the model,
+`llama-server` for a GGUF model, `vllm-mlx` for an MLX one, with `model` set to
+what that engine expects, and passes the engine's answer back as it came: a
+JSON body, or an event stream relayed chunk by chunk when the request asked for
+`"stream": true`.
+
+- A model that is not loaded answers `404 model_not_loaded`. Load it in Apollia
+  first.
+- A model of a remote provider is never relayed: the compatible server is not a
+  gateway to a cloud.
+- Nothing is translated from one format into another. An endpoint the engine of
+  the model does not serve answers `404 endpoint_not_served` rather than an
+  approximation. The search-by-meaning model serves `/v1/embeddings` and
+  nothing else; a chat model serves every other endpoint below, except that
+  `vllm-mlx` does not count tokens.
+
+A model stays loaded for as long as a request to it runs, streams included:
+unloading it waits until the answer ends.
 
 ## Endpoints
 
-The table lists every path the compatible server serves. It is empty today:
-the listener is in place and serves no endpoint yet, so every path answers the
-`404` above.
+The table lists every path the compatible server serves.
 
 <!-- compat-endpoints -->
 
 | Method | Path | Format |
 |---|---|---|
+| `GET` | `/v1/models` | OpenAI. The loaded models, as a list: `id` (registry identifier), `object`, `created`, `owned_by`, and `type`, `llm` or `embeddings` |
+| `POST` | `/v1/chat/completions` | OpenAI. Relayed to the model's engine |
+| `POST` | `/v1/responses` | OpenAI. Relayed to the model's engine |
+| `POST` | `/v1/embeddings` | OpenAI. Relayed to the search-by-meaning model |
+| `POST` | `/v1/messages` | Anthropic. Relayed to the model's engine |
+| `POST` | `/v1/messages/count_tokens` | Anthropic. Relayed to the model's engine (`llama-server` only) |
+
+Measured on `llama-server` at the release Apollia pins (`b10092`): the four
+chat endpoints answer `200` on a chat model, and `/v1/embeddings` answers only
+on the instance launched for search by meaning.
+
+### Not the agent mailbox
+
+`/v1/messages` here is Anthropic's Messages API: a conversation turn with a
+model. It has nothing to do with `/api/v1/agents/{name}/messages` of the native
+API, which is the mailbox through which agents send each other messages. The
+two share a word and nothing else.
