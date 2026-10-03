@@ -451,6 +451,8 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
 
         // ── System-level ─────────────────────────────────────────────────
         RuntimeEvent::AllReady | RuntimeEvent::ShutdownRequested => "system",
+        // The refused `apollia.toml`; its banner reads the diagnostics.
+        RuntimeEvent::ConfigInvalid { .. } => "system",
 
         // ── Triggers (extended) ───────────────────────────────────────────
         RuntimeEvent::TriggerQueueFull { .. } => "trigger-fired",
@@ -805,6 +807,10 @@ mod tests {
                 trigger_id: "t".into(),
             },
             RuntimeEvent::TriggersReloaded { count: 0 },
+            RuntimeEvent::ConfigInvalid {
+                path: "apollia.toml".into(),
+                diagnostics: Vec::new(),
+            },
             RuntimeEvent::PlanGenerated {
                 task_id: "t".into(),
                 agent_name: "a".into(),

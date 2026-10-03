@@ -1,6 +1,7 @@
 <script lang="ts">
   /**
-   * NativeAccountsTab - connected accounts list for a native connector.
+   * NativeAccountsTab - connected accounts list for a native connector, each
+   * Google account with the Drive folder its agents work in.
    */
   import { t } from "svelte-i18n";
   import { Plus, Settings2 } from "lucide-svelte";
@@ -10,6 +11,9 @@
   import { Button } from "$lib/components/ui/button";
   import type { NativeConnectorCard } from "../shared/types";
   import type { OauthAccountInfo } from "$lib/ipc/connections";
+  import type { DriveFolderStatus } from "$lib/ipc/oauthClients";
+  import { driveFolderFor, listDriveFolders } from "$lib/connections/oauthClient";
+  import AccountDriveFolder from "./AccountDriveFolder.svelte";
 
   interface Props {
     connector: NativeConnectorCard;
@@ -33,6 +37,25 @@
     onconfigure,
     ondisconnect,
   }: Props = $props();
+
+  // The Drive folder of each Google account, read again whenever the account
+  // list changes.
+  let driveFolders = $state<DriveFolderStatus[]>([]);
+  const showsDriveFolders = $derived(connector.id === "google" && accounts.length > 0);
+
+  async function refreshDriveFolders(): Promise<void> {
+    try {
+      driveFolders = await listDriveFolders();
+    } catch {
+      driveFolders = [];
+    }
+  }
+
+  const accountKey = $derived(accounts.map((a) => a.account_id).join("\n"));
+
+  $effect(() => {
+    if (showsDriveFolders && accountKey) void refreshDriveFolders();
+  });
 </script>
 
 {#if error}
@@ -82,10 +105,9 @@
   <Card class="max-w-2xl overflow-hidden">
     {#each accounts as account, i (account.account_id)}
       <div
-        class="flex items-center gap-3 px-4 py-3 {i === accounts.length - 1
-          ? ''
-          : 'border-b border-border/40'}"
+        class="px-4 py-3 {i === accounts.length - 1 ? '' : 'border-b border-border/40'}"
       >
+      <div class="flex items-center gap-3">
         <div class="min-w-0 flex-1">
           <div class="truncate text-body-sm font-medium text-foreground">{account.account_id}</div>
           <div class="mt-0.5 text-caption text-muted-foreground">
@@ -102,6 +124,14 @@
         >
           {$t("connections.disconnect")}
         </Button>
+      </div>
+      {#if showsDriveFolders}
+        <AccountDriveFolder
+          accountId={account.account_id}
+          folder={driveFolderFor(driveFolders, account.account_id)}
+          onchanged={() => void refreshDriveFolders()}
+        />
+      {/if}
       </div>
     {/each}
   </Card>

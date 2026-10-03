@@ -51,6 +51,25 @@ SCFG="$SCRATCH/apollia.toml"
 check        "config validate (absent file ok)"         "$BIN" config validate --file "$SCFG"
 check        "config set llm.default local"             "$BIN" config set llm.default local --file "$SCFG"
 check_grep   "config get llm.default = local" "local"   "$BIN" config get llm.default --file "$SCFG"
+# One schema, strict at every level: a typo inside a known section is refused
+# and nothing is written; an invalid file is named at its line, by
+# `config validate` and by a daemon that refuses to start on it.
+cp "$SCFG" "$SCRATCH/apollia.toml.before"
+check_exit   "config set api.typo refused → 1"  1      "$BIN" config set api.typo 1 --file "$SCFG"
+if cmp -s "$SCFG" "$SCRATCH/apollia.toml.before"; then
+    _pass "config set api.typo left the file unchanged"
+else
+    _fail "config set api.typo left the file unchanged" "the file changed"
+fi
+BADCFG="$SCRATCH/invalid.toml"
+printf '[api]\nbind = "127.0.0.1"\ntypo = 1\n' > "$BADCFG"
+check_exit   "config validate (unknown key) → 1"  1    "$BIN" config validate --file "$BADCFG"
+bad_out=$("$BIN" --socket "$SCRATCH/invalid.sock" start --port 47917 --config "$BADCFG" 2>&1 >/dev/null); bad_rc=$?
+if [[ $bad_rc -eq 1 ]] && /usr/bin/grep -qF "invalid.toml:3:1: api.typo" <<<"$bad_out"; then
+    _pass "start refuses an invalid config, fault at its line on stderr"
+else
+    _fail "start refuses an invalid config, fault at its line on stderr" "rc=$bad_rc | out: ${bad_out:0:300}"
+fi
 check_exit   "config edit refuses non-TTY"  1           "$BIN" config edit --file "$SCFG"
 check_exit   "config reset (no --confirm)"  1           "$BIN" config reset
 # reset dry-run/confirm on a disposable home dir (config reset wipes ~/.apollia).

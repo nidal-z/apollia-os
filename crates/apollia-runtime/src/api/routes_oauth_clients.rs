@@ -93,7 +93,14 @@ fn write<B: ExecutionBackend + Clone>(
     field: OauthClientField,
     value: &str,
 ) -> Result<Json<OauthClientWritten>, ApiError> {
-    set_field(&file_in(&state.data_dir), &provider, field, value).map_err(refusal)?;
+    set_field(
+        &file_in(&state.data_dir),
+        &provider,
+        field,
+        value,
+        &state.secret_store,
+    )
+    .map_err(refusal)?;
     Ok(Json(OauthClientWritten { provider }))
 }
 
@@ -110,7 +117,10 @@ fn write<B: ExecutionBackend + Clone>(
 pub(crate) async fn list_oauth_clients<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Json<Vec<OauthClientIdStatus>> {
-    Json(list_client_ids(&file_in(&state.data_dir)))
+    Json(list_client_ids(
+        &file_in(&state.data_dir),
+        &state.secret_store,
+    ))
 }
 
 /// `PUT /api/v1/oauth/clients/{provider}/client-id`: writes the client id
@@ -200,7 +210,7 @@ pub(crate) async fn test_oauth_client<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(provider): Path<String>,
 ) -> Result<Json<OauthClientTestResult>, ApiError> {
-    test_client(&file_in(&state.data_dir), &provider)
+    test_client(&file_in(&state.data_dir), &provider, &state.secret_store)
         .await
         .map(Json)
         .map_err(refusal)
@@ -226,7 +236,13 @@ pub(crate) async fn import_oauth_client<B: ExecutionBackend + Clone>(
     Path(provider): Path<String>,
     Json(body): Json<ImportOauthClientBody>,
 ) -> Result<Json<OauthClientWritten>, ApiError> {
-    import_client_json(&file_in(&state.data_dir), &provider, &body.client_json).map_err(refusal)?;
+    import_client_json(
+        &file_in(&state.data_dir),
+        &provider,
+        &body.client_json,
+        &state.secret_store,
+    )
+    .map_err(refusal)?;
     Ok(Json(OauthClientWritten { provider }))
 }
 
