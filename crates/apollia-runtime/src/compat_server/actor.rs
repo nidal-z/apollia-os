@@ -14,6 +14,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
+use super::logs::ServerLogsHandle;
 use super::models::LocalModels;
 use super::relay::RelayState;
 use super::router::{compat_router, serve};
@@ -56,6 +57,7 @@ enum Command {
 pub struct CompatServerHandle {
     tx: mpsc::Sender<Command>,
     tokens: ServerTokensHandle,
+    logs: ServerLogsHandle,
 }
 
 impl CompatServerHandle {
@@ -70,6 +72,9 @@ impl CompatServerHandle {
     /// stops, closing the listener and leaving the setting as it is, when the
     /// bus carries [`RuntimeEvent::ShutdownRequested`] or every handle is
     /// dropped.
+    ///
+    /// The logs of the server start with it and outlive a stop of the
+    /// listener; the lines of the local `llama-server` processes go there too.
     pub fn spawn(
         settings_path: PathBuf,
         system_db: PathBuf,
@@ -79,20 +84,28 @@ impl CompatServerHandle {
         let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
         let events = apollia_core::events::subscribe_resilient(bus, "compat_server");
         let tokens = ServerTokensHandle::spawn(system_db);
+        let logs = ServerLogsHandle::spawn(bus);
+        models.send_engine_lines_to(&logs);
         let actor = CompatServerActor {
             settings_path,
             models,
             tokens: tokens.clone(),
+            logs: logs.clone(),
             running: None,
             last_error: None,
         };
         tokio::spawn(actor.run(rx, events));
-        Self { tx, tokens }
+        Self { tx, tokens, logs }
     }
 
     /// The tokens of the server: create, list, revoke.
     pub fn tokens(&self) -> &ServerTokensHandle {
         &self.tokens
+    }
+
+    /// The logs of the server: follow, clear.
+    pub fn logs(&self) -> &ServerLogsHandle {
+        &self.logs
     }
 
     /// Fills the count of tokens in use, which the token actor holds.
@@ -170,6 +183,7 @@ struct CompatServerActor {
     settings_path: PathBuf,
     models: LocalModels,
     tokens: ServerTokensHandle,
+    logs: ServerLogsHandle,
     running: Option<Running>,
     last_error: Option<String>,
 }
@@ -289,7 +303,7 @@ impl CompatServerActor {
         let cancel = CancellationToken::new();
         let task = tokio::spawn(serve(
             listener,
-            compat_router(tokens, relay),
+            compat_router(tokens, relay, self.logs.clone()),
             cancel.clone(),
         ));
         self.running = Some(Running { port, cancel, task });

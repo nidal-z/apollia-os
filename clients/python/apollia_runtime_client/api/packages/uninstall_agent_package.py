@@ -38,6 +38,11 @@ def _parse_response(
 
         return response_400
 
+    if response.status_code == 403:
+        response_403 = ApiErrorBody.from_dict(response.json())
+
+        return response_403
+
     if response.status_code == 404:
         response_404 = ApiErrorBody.from_dict(response.json())
 
@@ -47,6 +52,11 @@ def _parse_response(
         response_500 = ApiErrorBody.from_dict(response.json())
 
         return response_500
+
+    if response.status_code == 503:
+        response_503 = ApiErrorBody.from_dict(response.json())
+
+        return response_503
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -70,8 +80,11 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[AgentPackageUninstalled | ApiErrorBody]:
-    """`DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package,
-    its agents, their virtualenvs and its folder, best effort at each step.
+    """`DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package
+    on the path the command line and `POST /api/v1/packages/{name}/uninstall`
+    take: its agents with their overrides, model and triggers, its
+    environments and its folder, recorded in the audit journal. The memory
+    and the history of its agents are kept.
 
     Args:
         name (str):
@@ -100,8 +113,11 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> AgentPackageUninstalled | ApiErrorBody | None:
-    """`DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package,
-    its agents, their virtualenvs and its folder, best effort at each step.
+    """`DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package
+    on the path the command line and `POST /api/v1/packages/{name}/uninstall`
+    take: its agents with their overrides, model and triggers, its
+    environments and its folder, recorded in the audit journal. The memory
+    and the history of its agents are kept.
 
     Args:
         name (str):
@@ -125,8 +141,11 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[AgentPackageUninstalled | ApiErrorBody]:
-    """`DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package,
-    its agents, their virtualenvs and its folder, best effort at each step.
+    """`DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package
+    on the path the command line and `POST /api/v1/packages/{name}/uninstall`
+    take: its agents with their overrides, model and triggers, its
+    environments and its folder, recorded in the audit journal. The memory
+    and the history of its agents are kept.
 
     Args:
         name (str):
@@ -153,8 +172,11 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> AgentPackageUninstalled | ApiErrorBody | None:
-    """`DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package,
-    its agents, their virtualenvs and its folder, best effort at each step.
+    """`DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package
+    on the path the command line and `POST /api/v1/packages/{name}/uninstall`
+    take: its agents with their overrides, model and triggers, its
+    environments and its folder, recorded in the audit journal. The memory
+    and the history of its agents are kept.
 
     Args:
         name (str):

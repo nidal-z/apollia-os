@@ -218,8 +218,8 @@ pub async fn governance_list_credentials(
 
 /// Stores (or updates) a credential for a tool.
 ///
-/// The cleartext value is encrypted with AES-256-GCM on the Rust side and is
-/// never returned to the frontend.
+/// The value goes to the secret store on the Rust side and is never returned
+/// to the frontend.
 ///
 /// # Errors
 ///

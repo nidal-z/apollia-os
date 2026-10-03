@@ -1,20 +1,23 @@
 /**
- * Typed Tauri command wrappers for the Settings > Integrations surface.
+ * Typed Tauri command wrappers for the OAuth client of the Google and
+ * Microsoft connections (client_id, client_secret, Picker API key, Drive
+ * folders), edited on the page of each connection and, until that section is
+ * retired, in the settings.
  *
- * This surface manages the OAuth *client credentials* (client_id,
- * client_secret, Picker API key) of the Google and Microsoft connectors, which
- * is distinct from the Connections surface that lists connected accounts.
- *
- * Every `invoke()` used by the Integrations route and its sub-components goes
- * through this module. Wrapper exports are camelCase; the underlying Rust
+ * Every `invoke()` used by those surfaces goes through this module. The client
+ * id is kept in `oauth-clients.toml`; the secret and the API key in the secret
+ * store. Wrapper exports are camelCase; the underlying Rust
  * command names are snake_case. Secrets are write-only: they are sent to Rust
  * once and never echoed back, so no getter for a secret value exists here.
  * Error handling stays at the call site.
  */
 import { invoke } from "@tauri-apps/api/core";
 
-/** Resolution source of a resolved credential value. */
-export type OauthSource = "env" | "file" | "builtin" | "none";
+/**
+ * Resolution source of a resolved credential value. A client id resolves from
+ * `file`; a client secret or an API key from `store`, the secret store.
+ */
+export type OauthSource = "env" | "file" | "store" | "builtin" | "none";
 
 /**
  * Snapshot of the active OAuth client_id per connector provider plus the
@@ -79,7 +82,7 @@ export function oauthSetClientId(
   return invoke("oauth_set_client_id", { provider, clientId });
 }
 
-/** Persist (or clear, when empty) the client_secret for a provider. */
+/** Persist (or clear, when empty) the client_secret, in the secret store. */
 export function oauthSetClientSecret(
   provider: string,
   clientSecret: string,
@@ -92,14 +95,14 @@ export function oauthSetClientSecret(
  *
  * Google only: the Cloud console hands out a downloadable credentials file, so
  * reading it directly spares the operator from picking `client_id` and
- * `client_secret` out of it by hand. Writes both into
- * `~/.apollia/oauth-clients.toml`.
+ * `client_secret` out of it by hand. Writes the id into
+ * `~/.apollia/oauth-clients.toml` and the secret into the secret store.
  */
 export function oauthImportClientJson(provider: string, path: string): Promise<void> {
   return invoke("oauth_import_client_json", { provider, path });
 }
 
-/** Persist (or clear, when empty) the Picker API key for a provider. */
+/** Persist (or clear, when empty) the Picker API key, in the secret store. */
 export function oauthSetApiKey(
   provider: string,
   apiKey: string,

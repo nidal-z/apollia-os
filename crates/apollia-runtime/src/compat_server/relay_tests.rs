@@ -17,6 +17,7 @@ use serde_json::{json, Value};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
+use super::logs::ServerLogsHandle;
 use super::models::LocalModels;
 use super::relay::{Endpoint, RelayState};
 use super::router::compat_router;
@@ -111,7 +112,11 @@ async fn relay_with(tokens: Option<ServerTokensHandle>) -> Relay {
     );
     Relay {
         _registry: registry,
-        router: compat_router(tokens, RelayState::new(models).unwrap()),
+        router: compat_router(
+            tokens,
+            RelayState::new(models).unwrap(),
+            ServerLogsHandle::spawn(&crate::eventbus::EventBus::new().0),
+        ),
         supervisor,
         received,
     }

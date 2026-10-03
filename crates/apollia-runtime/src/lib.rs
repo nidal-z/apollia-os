@@ -62,6 +62,7 @@ pub mod registry;
 pub mod replay;
 pub mod router;
 pub mod runner_supervisor;
+pub mod service;
 pub mod session_metrics;
 pub mod session_replay;
 pub mod shutdown;

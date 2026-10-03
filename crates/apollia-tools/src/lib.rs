@@ -53,6 +53,7 @@ pub mod registry;
 pub mod resolver;
 pub mod sandbox_path;
 pub mod task_repository;
+pub mod tool_credentials;
 pub mod tool_registry;
 pub mod tools;
 pub mod trusted_keys;
@@ -100,12 +101,16 @@ pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};
 pub use sandbox_path::{SandboxPathError, SandboxRoot, SandboxSpec};
 pub use task_repository::{
-    AgentRunEnd, AgentRunStart, ApprovalInfo, BatchItemRow, BatchRow, NewBatch, NewWorkflowRun,
-    PauseRecord, PausedTaskRow, PersistedTaskSummary, ResolvedApprovalRow, TaskDetail,
-    TaskRepoError, TaskRepository, WorkflowRunRow, WorkflowStepEnd, WorkflowStepRow,
+    AgentRunEnd, AgentRunStart, ApprovalInfo, BatchItemRow, BatchRow, HistoryRemoved, NewBatch,
+    NewWorkflowRun, PauseRecord, PausedTaskRow, PersistedTaskSummary, ResolvedApprovalRow,
+    TaskDetail, TaskRepoError, TaskRepository, WorkflowRunRow, WorkflowStepEnd, WorkflowStepRow,
+};
+pub use tool_credentials::{
+    credential_account, list_credential_index, CredentialEntry, ToolCredentialStore,
+    TOOL_CREDENTIALS_SERVICE,
 };
 pub use tool_registry::{
-    load_governance_snapshot, CredentialEntry, GovernanceSnapshot, ToolCredentialStore,
+    load_governance_snapshot, load_governance_snapshot_with, GovernanceSnapshot,
     ToolGovernanceError, ToolRegistry as NativeToolRegistry, ToolStatus,
     AGENT_CREDENTIALS_NAMESPACE, NATIVE_TOOL_NAMES,
 };

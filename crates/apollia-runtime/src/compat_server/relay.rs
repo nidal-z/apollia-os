@@ -21,6 +21,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use super::errors::{error_response, ErrorKind, Family};
+use super::logs::RequestedModel;
 use super::models::{HeldModel, LocalModels, ServedModel};
 use crate::engine_store::Engine;
 use crate::llama_server::ModelKind;
@@ -141,7 +142,7 @@ pub(crate) async fn list_models(State(state): State<Arc<RelayState>>) -> Respons
 /// Relays `body` to the engine serving the model it names, on `endpoint`.
 pub(crate) async fn relay(state: &RelayState, endpoint: Endpoint, body: Bytes) -> Response {
     let family = endpoint.family();
-    let mut request: Value = match serde_json::from_slice(&body) {
+    let request: Value = match serde_json::from_slice(&body) {
         Ok(Value::Object(object)) => Value::Object(object),
         _ => {
             return error_response(
@@ -163,7 +164,20 @@ pub(crate) async fn relay(state: &RelayState, endpoint: Endpoint, body: Bytes) -
                 .to_owned(),
         );
     };
-    let Some(held) = state.models.hold(&id).await else {
+    let mut response = relay_model(state, endpoint, request, &id).await;
+    response.extensions_mut().insert(RequestedModel(id));
+    response
+}
+
+/// Relays `request`, which names the model `id`, to the engine serving it.
+async fn relay_model(
+    state: &RelayState,
+    endpoint: Endpoint,
+    mut request: Value,
+    id: &str,
+) -> Response {
+    let family = endpoint.family();
+    let Some(held) = state.models.hold(id).await else {
         return error_response(
             family,
             ErrorKind::ModelNotLoaded,

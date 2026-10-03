@@ -25,6 +25,10 @@
 //! field set to what that engine expects; see [`LocalModels`]. A model of a
 //! remote backend is never relayed.
 //!
+//! Every request it answers, and every line the local `llama-server` prints,
+//! enters a bounded ring of recent lines that the native API streams (see
+//! [`ServerLogsHandle`]); clearing it never touches the audit journal.
+//!
 //! [`CompatServerHandle`] is the actor that owns the listener. Every path its
 //! router mounts is listed on the public page of compatible endpoints, which
 //! `scripts/check_compat_routes.py` holds.
@@ -32,6 +36,7 @@
 mod actor;
 mod auth;
 mod errors;
+mod logs;
 mod models;
 mod relay;
 mod router;
@@ -40,11 +45,17 @@ mod tokens;
 #[cfg(test)]
 mod auth_tests;
 #[cfg(test)]
+mod logs_tests;
+#[cfg(test)]
 mod relay_tests;
 #[cfg(test)]
 pub(crate) mod tests;
 
 pub use actor::{CompatServerHandle, CompatServerStatus};
+pub use logs::{
+    ServerLogLevel, ServerLogLine, ServerLogSource, ServerLogSubscription, ServerLogsError,
+    ServerLogsHandle, DEFAULT_CAPACITY as SERVER_LOGS_CAPACITY,
+};
 pub use models::LocalModels;
 pub use tokens::{CreatedServerToken, ServerTokensError, ServerTokensHandle, SERVER_TOKEN_PREFIX};
 

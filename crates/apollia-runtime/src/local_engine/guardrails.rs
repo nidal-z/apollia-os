@@ -302,6 +302,16 @@ pub fn decide(policy: &GuardrailPolicy, estimate: &LoadEstimate) -> GuardrailVer
     }
 }
 
+/// The limit `policy` holds `estimate` to, in gigabytes: the ceiling of the
+/// `ceiling` level when it is usable, else what the machine can hold.
+#[must_use]
+pub fn budget_gb(policy: &GuardrailPolicy, estimate: &LoadEstimate) -> f64 {
+    match (policy.level, policy.usable_ceiling()) {
+        (GuardrailLevel::Ceiling, Some(ceiling)) => ceiling,
+        _ => estimate.capacity_gb,
+    }
+}
+
 /// A launch the guardrail refused.
 #[derive(Debug, Clone, PartialEq, Error)]
 #[error(
@@ -408,10 +418,7 @@ pub fn enforce(
         );
         return Ok(());
     };
-    let budget_gb = match (policy.level, policy.usable_ceiling()) {
-        (GuardrailLevel::Ceiling, Some(ceiling)) => ceiling,
-        _ => estimate.capacity_gb,
-    };
+    let budget_gb = budget_gb(policy, estimate);
     match decide(policy, estimate) {
         GuardrailVerdict::Allowed => Ok(()),
         GuardrailVerdict::Warned => {
