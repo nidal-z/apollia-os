@@ -12,7 +12,7 @@
   import { Button } from "$lib/components/ui/button";
   import { EntityCard } from "$lib/components/operator";
   import { ContextMenu, type ActionMenuItem } from "$lib/components/ui/context-menu";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { formatRelativeTime, formatDuration } from "$lib/utils";
   import type { TranscriptRow } from "$lib/types";
   import TranscriptWaveform from "./TranscriptWaveform.svelte";
@@ -171,7 +171,7 @@
           </button>
         {/if}
 
-        {#if $uiMode === "builder"}
+        {#if $developerMode}
           <TranscriptMetadata {transcript} />
         {/if}
       {/snippet}

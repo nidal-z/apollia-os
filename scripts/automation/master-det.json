@@ -423,7 +423,7 @@
       "timeoutMs": 8000
     },
     {
-      "kind": "waitGone",
+      "kind": "waitFor",
       "testid": "nav-llm",
       "timeoutMs": 4000
     },
@@ -433,13 +433,8 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "waitGone",
-      "testid": "sidebar-builder-separator",
-      "timeoutMs": 4000
-    },
-    {
       "kind": "screenshot",
-      "label": "03-operator-no-builder-cluster"
+      "label": "03-default-llm-without-transcriptions"
     },
     {
       "kind": "expect",
@@ -689,11 +684,6 @@
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-builder-separator",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
       "testid": "nav-llm",
       "timeoutMs": 4000
     },
@@ -704,7 +694,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "12-sidebar-builder-cluster"
+      "label": "12-sidebar-developer-entries"
     },
     {
       "kind": "click",
@@ -800,7 +790,7 @@
     },
     {
       "kind": "waitGone",
-      "testid": "sidebar-builder-separator",
+      "testid": "nav-transcriptions",
       "timeoutMs": 4000
     },
     {

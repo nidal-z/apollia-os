@@ -14,7 +14,7 @@
   import { Avatar } from "$lib/components/ui/avatar";
   import { addToast } from "$lib/components/ui/toast/store";
   import { refreshTriggers } from "$lib/stores/sse";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { ActionMenu, type ActionMenuItem } from "$lib/components/ui/action-menu";
   import { ContextMenu } from "$lib/components/ui/context-menu";
   import { estimateNextRun, formatNextRun, humanizeSchedule } from "$lib/automations/humanize";
@@ -33,7 +33,7 @@
 
   let firing = $state(false);
   let toggling = $state(false);
-  const isBuilder = $derived($uiMode === "builder");
+  const isBuilder = $derived($developerMode);
 
   type Status = "active" | "paused" | "error";
   const status = $derived<Status>(

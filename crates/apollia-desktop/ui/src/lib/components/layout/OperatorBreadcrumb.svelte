@@ -18,7 +18,7 @@
   import { currentRoute, navigateTo } from "$lib/stores/navigation";
   import { homeRouteFor } from "$lib/navigation/routeMeta";
   import { buildBreadcrumbSegments } from "$lib/navigation/breadcrumbSegments";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { settingsSubRoute } from "$lib/stores/settings";
   import { runtimeHealth } from "$lib/stores/runtimeHealth";
   import { readyLlmBackends } from "$lib/stores/llm";
@@ -45,7 +45,7 @@
   );
 
   function goHome() {
-    navigateTo(homeRouteFor($uiMode));
+    navigateTo(homeRouteFor($developerMode ? "builder" : "operator"));
   }
 </script>
 
