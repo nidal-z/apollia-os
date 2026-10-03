@@ -82,6 +82,7 @@ from .coaching_example import CoachingExample
 from .coaching_request import CoachingRequest
 from .companion_enabled import CompanionEnabled
 from .companion_session import CompanionSession
+from .compat_server_status import CompatServerStatus
 from .complete_consent_body import CompleteConsentBody
 from .complete_request import CompleteRequest
 from .complete_request_schema_type_0 import CompleteRequestSchemaType0
@@ -528,6 +529,7 @@ __all__ = (
     "CoachingRequest",
     "CompanionEnabled",
     "CompanionSession",
+    "CompatServerStatus",
     "CompleteConsentBody",
     "CompleteRequest",
     "CompleteRequestSchemaType0",

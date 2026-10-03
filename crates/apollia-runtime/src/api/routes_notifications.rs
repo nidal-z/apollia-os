@@ -723,6 +723,7 @@ mod tests {
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         }
     }
 
