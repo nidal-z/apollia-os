@@ -28,6 +28,7 @@ from .answer_user_input_request import AnswerUserInputRequest
 from .answer_user_input_request_answers_item import AnswerUserInputRequestAnswersItem
 from .api_error_body import ApiErrorBody
 from .applied_proposal import AppliedProposal
+from .audit_entry_dto import AuditEntryDto
 from .audit_event_response import AuditEventResponse
 from .audit_journal_page_response import AuditJournalPageResponse
 from .audit_journal_page_response_entries_item import AuditJournalPageResponseEntriesItem
@@ -197,6 +198,7 @@ from .pending_approval_response import PendingApprovalResponse
 from .pending_approval_response_context_type_0 import PendingApprovalResponseContextType0
 from .pending_approval_response_payload_type_0 import PendingApprovalResponsePayloadType0
 from .pending_user_input_view import PendingUserInputView
+from .permission_rule_dto import PermissionRuleDto
 from .ping_request import PingRequest
 from .ping_response import PingResponse
 from .plan_cache_stats_response import PlanCacheStatsResponse
@@ -231,6 +233,9 @@ from .resolved_filesystem_approval import ResolvedFilesystemApproval
 from .resume_error_body import ResumeErrorBody
 from .resume_request import ResumeRequest
 from .resume_response import ResumeResponse
+from .revoke_all_body import RevokeAllBody
+from .revoked_rule import RevokedRule
+from .revoked_rules import RevokedRules
 from .send_message_request import SendMessageRequest
 from .send_message_response import SendMessageResponse
 from .server_model import ServerModel
@@ -298,9 +303,14 @@ from .timeline_response import TimelineResponse
 from .todo_read_response import TodoReadResponse
 from .todo_read_response_items_item import TodoReadResponseItemsItem
 from .token_usage_response import TokenUsageResponse
+from .tool_config_body import ToolConfigBody
+from .tool_config_body_config_type_0 import ToolConfigBodyConfigType0
+from .tool_enabled_body import ToolEnabledBody
 from .tool_list_response import ToolListResponse
 from .tool_list_response_tools_item import ToolListResponseToolsItem
 from .tool_stat_entry import ToolStatEntry
+from .tool_status_dto import ToolStatusDto
+from .tool_status_dto_config_type_0 import ToolStatusDtoConfigType0
 from .trace_response import TraceResponse
 from .trace_response_events_item import TraceResponseEventsItem
 from .transcribe_audio_body import TranscribeAudioBody
@@ -371,6 +381,7 @@ __all__ = (
     "AnswerUserInputRequestAnswersItem",
     "ApiErrorBody",
     "AppliedProposal",
+    "AuditEntryDto",
     "AuditEventResponse",
     "AuditJournalPageResponse",
     "AuditJournalPageResponseEntriesItem",
@@ -540,6 +551,7 @@ __all__ = (
     "PendingApprovalResponseContextType0",
     "PendingApprovalResponsePayloadType0",
     "PendingUserInputView",
+    "PermissionRuleDto",
     "PingRequest",
     "PingResponse",
     "PlanCacheStatsResponse",
@@ -572,6 +584,9 @@ __all__ = (
     "ResumeErrorBody",
     "ResumeRequest",
     "ResumeResponse",
+    "RevokeAllBody",
+    "RevokedRule",
+    "RevokedRules",
     "SendMessageRequest",
     "SendMessageResponse",
     "ServerModel",
@@ -639,9 +654,14 @@ __all__ = (
     "TodoReadResponse",
     "TodoReadResponseItemsItem",
     "TokenUsageResponse",
+    "ToolConfigBody",
+    "ToolConfigBodyConfigType0",
+    "ToolEnabledBody",
     "ToolListResponse",
     "ToolListResponseToolsItem",
     "ToolStatEntry",
+    "ToolStatusDto",
+    "ToolStatusDtoConfigType0",
     "TraceResponse",
     "TraceResponseEventsItem",
     "TranscribeAudioBody",

@@ -72,8 +72,10 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # 141 once the memory was read through its routes, then at 136 once the chat
 # could play a turn again, decide on a tool call and read those decisions, then
 # at 131 once the proposed permission rules and the answers to a request to
-# touch a file had their routes.
-EMBEDDED_ONLY_CEILING = 131
+# touch a file had their routes, then at 123 once the tools, their
+# configuration, the permission rules and the audit of the tool governance had
+# their routes.
+EMBEDDED_ONLY_CEILING = 123
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

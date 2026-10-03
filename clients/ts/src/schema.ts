@@ -910,6 +910,135 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/governance/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/governance/audit`: the permission decisions, most recent first. */
+        get: operations["list_governance_audit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/governance/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/governance/rules`: the `agent` and `global` permission rules. */
+        get: operations["list_governance_rules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/governance/rules/revoke-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/governance/rules/revoke-all`: revokes every rule of one
+         *     scope, `global` when none is named.
+         */
+        post: operations["revoke_all_governance_rules"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/governance/rules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** `DELETE /api/v1/governance/rules/{id}`: revokes one rule. */
+        delete: operations["revoke_governance_rule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/governance/tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/governance/tools`: every native tool with its flag,
+         *     configuration, credential names and active backend.
+         */
+        get: operations["list_governance_tools"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/governance/tools/{name}/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/governance/tools/{name}/config`: the configuration of one tool. */
+        get: operations["get_governance_tool_config"];
+        /**
+         * `PUT /api/v1/governance/tools/{name}/config`: stores the configuration of
+         *     one tool.
+         */
+        put: operations["set_governance_tool_config"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/governance/tools/{name}/enabled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** `PUT /api/v1/governance/tools/{name}/enabled`: enables or disables one tool. */
+        put: operations["set_governance_tool_enabled"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -4005,6 +4134,31 @@ export interface components {
              */
             rule_id: number;
         };
+        /** @description Entry in the immutable audit log of permission decisions. */
+        AuditEntryDto: {
+            /** @description Name of the agent behind the invocation, if provided. */
+            agent?: string | null;
+            /** @description Decision date in ISO 8601 format. */
+            decided_at: string;
+            /** @description Serialized decision (e.g. `"AutoAllowedSafeList"`). */
+            decision: string;
+            /** @description First argument extracted from the invocation, when available. */
+            first_arg?: string | null;
+            /**
+             * Format: int64
+             * @description Auto-incremented identifier.
+             */
+            id: number;
+            /**
+             * Format: int64
+             * @description Identifier of the rule that triggered the decision, when applicable.
+             */
+            rule_id?: number | null;
+            /** @description Scope of the rule that decided, when relevant. */
+            scope?: string | null;
+            /** @description Name of the invoked tool. */
+            tool_name: string;
+        };
         /** @description A single audit event as returned by the API. */
         AuditEventResponse: {
             agent_id: string;
@@ -5504,6 +5658,30 @@ export interface components {
             /** @description Chat session that owns this request. */
             session_id: string;
         };
+        /** @description One permission rule, as the permissions page draws it. */
+        PermissionRuleDto: {
+            /** @description Applied action (`"allow"` or `"deny"`). */
+            action: string;
+            /** @description Agent identifier, for `agent` rules. */
+            agent_id?: string | null;
+            /** @description Optional argument prefix. */
+            arg_prefix?: string | null;
+            /** @description ISO 8601 creation date. */
+            created_at: string;
+            /** @description Author of the rule (`None` means a human operator). */
+            created_by?: string | null;
+            /** @description ISO 8601 expiration date, if any. */
+            expires_at?: string | null;
+            /**
+             * Format: int64
+             * @description Identifier of the persisted rule.
+             */
+            id: number;
+            /** @description Rule scope (`"agent"`, `"global"`). */
+            scope: string;
+            /** @description Name of the targeted tool. */
+            tool_name: string;
+        };
         /** @description Request body for `POST /api/v1/llm/ping`. */
         PingRequest: {
             /** @description Backend name to ping; uses the router default if `null` or omitted. */
@@ -5822,6 +6000,27 @@ export interface components {
             status: string;
             /** @description Identifier of the resumed task. */
             task_id: string;
+        };
+        /** @description Request body for `POST /api/v1/governance/rules/revoke-all`. */
+        RevokeAllBody: {
+            /** @description Scope to clear, `"agent"` or `"global"`; `global` when absent. */
+            scope?: string | null;
+        };
+        /** @description Answer of `DELETE /api/v1/governance/rules/{id}`. */
+        RevokedRule: {
+            /**
+             * Format: int64
+             * @description The identifier of the rule removed.
+             */
+            revoked: number;
+        };
+        /** @description Answer of `POST /api/v1/governance/rules/revoke-all`. */
+        RevokedRules: {
+            /**
+             * Format: int32
+             * @description How many rules were removed.
+             */
+            removed: number;
         };
         /** @description Request body for `POST /api/v1/sessions/:id/messages`. */
         SendMessageRequest: {
@@ -6470,6 +6669,16 @@ export interface components {
              */
             prompt_tokens: number;
         };
+        /** @description Request and answer body of `/api/v1/governance/tools/{name}/config`. */
+        ToolConfigBody: {
+            /** @description Tool-specific JSON configuration, `null` when none is stored. */
+            config?: Record<string, never> | null;
+        };
+        /** @description Request body for `PUT /api/v1/governance/tools/{name}/enabled`. */
+        ToolEnabledBody: {
+            /** @description `true` to enable the tool, `false` to disable it. */
+            enabled: boolean;
+        };
         /** @description Response body for `GET /api/v1/tools`. */
         ToolListResponse: {
             /** @description All descriptors currently registered in the tool catalogue. */
@@ -6494,6 +6703,25 @@ export interface components {
             refused: number;
             /** @description Tool name (scoped, e.g. `"bash"` or `"native:read_file"`). */
             tool_name: string;
+        };
+        /** @description State of a native tool as displayed by the tools page. */
+        ToolStatusDto: {
+            /**
+             * @description Backend actually used by the tool when applicable
+             *     (e.g. `"duckduckgo"` or `"brave"` for `web_search`).
+             */
+            active_backend?: string | null;
+            /** @description Tool-specific JSON configuration, or `null`. */
+            config?: Record<string, never> | null;
+            /**
+             * @description Names of the credentials configured for this tool (values are never
+             *     returned).
+             */
+            credential_keys: string[];
+            /** @description `true` when the tool is active. */
+            enabled: boolean;
+            /** @description Canonical tool name (e.g. `bash_executor`). */
+            name: string;
         };
         /** @description JSON response. */
         TraceResponse: {
@@ -8933,6 +9161,400 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": unknown;
+                };
+            };
+        };
+    };
+    list_governance_audit: {
+        parameters: {
+            query?: {
+                /** @description Tool name to filter on. */
+                tool_name?: string;
+                /** @description Page size, 100 when absent. */
+                limit?: number;
+                /** @description Entries to skip. */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The audit entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEntryDto"][];
+                };
+            };
+            /** @description The governance database refused the read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The runtime has no data directory */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_governance_rules: {
+        parameters: {
+            query?: {
+                /** @description Scope to filter on: `"agent"` or `"global"`. */
+                scope?: string;
+                /** @description Tool name to filter on. */
+                tool_name?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The matching rules */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionRuleDto"][];
+                };
+            };
+            /** @description Unknown scope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The governance database refused the read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The runtime has no data directory */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    revoke_all_governance_rules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokeAllBody"];
+            };
+        };
+        responses: {
+            /** @description How many rules were removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokedRules"];
+                };
+            };
+            /** @description Unknown scope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The governance database refused the deletion */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The runtime has no data directory */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    revoke_governance_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Rule identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rule is gone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokedRule"];
+                };
+            };
+            /** @description No rule has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The governance database refused the deletion */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The runtime has no data directory */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_governance_tools: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The native tools */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolStatusDto"][];
+                };
+            };
+            /** @description The governance database refused the read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The runtime has no data directory */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_governance_tool_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Tool name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The configuration, null when none is stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolConfigBody"];
+                };
+            };
+            /** @description Empty tool name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The governance database refused the read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The runtime has no data directory */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_governance_tool_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Tool name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ToolConfigBody"];
+            };
+        };
+        responses: {
+            /** @description The configuration as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolConfigBody"];
+                };
+            };
+            /** @description Empty tool name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The governance database refused the write */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The runtime has no data directory */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_governance_tool_enabled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Tool name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ToolEnabledBody"];
+            };
+        };
+        responses: {
+            /** @description The flag as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolEnabledBody"];
+                };
+            };
+            /** @description Empty tool name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The governance database refused the write */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The runtime has no data directory */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };

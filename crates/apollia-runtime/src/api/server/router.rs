@@ -131,6 +131,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         cancel_task, get_task, list_tasks, resume_task, submit_plan_decision, submit_task,
     };
     use crate::api::routes_timeline::get_task_timeline;
+    use crate::api::routes_tool_governance::tool_governance_router;
     use crate::api::routes_tools::{describe_tool, list_tools};
     use crate::api::routes_trace::get_task_trace;
     use crate::api::routes_triggers::{
@@ -343,6 +344,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(conversations_router::<B>())
         .merge(memory_router::<B>())
         .merge(permissions_router::<B>())
+        .merge(tool_governance_router::<B>())
         .merge(connectors_router::<B>())
         .merge(imap_router::<B>())
         .merge(crate::api::routes_batches::batch_routes::<B>())
