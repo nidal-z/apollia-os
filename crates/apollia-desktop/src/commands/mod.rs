@@ -259,5 +259,9 @@ async fn http_request_json(
         return Err(error_msg);
     }
 
+    // A route that answers `204 No Content` has nothing to parse.
+    if resp_bytes.is_empty() {
+        return Ok(serde_json::Value::Null);
+    }
     serde_json::from_str(&body_str).map_err(|e| format!("invalid JSON response: {e}"))
 }

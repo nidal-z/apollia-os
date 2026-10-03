@@ -19,6 +19,9 @@ pub struct ChatSessionManagerHandle {
     /// resolves. Read by the route tests to stand in for a tool call.
     #[cfg(test)]
     pub(in crate::chat::manager) pending_fs_approvals: PendingFilesystemApprovals,
+    /// Plan-mode state a new session starts in, the `[chat] plan_mode_default`
+    /// key of `apollia.toml` this manager was spawned with.
+    pub(in crate::chat::manager) plan_mode_default: bool,
 }
 
 impl ChatSessionManagerHandle {
@@ -46,6 +49,12 @@ impl ChatSessionManagerHandle {
     #[cfg(test)]
     pub(crate) fn pending_fs_approvals(&self) -> PendingFilesystemApprovals {
         self.pending_fs_approvals.clone()
+    }
+
+    /// The plan-mode state a new session starts in, read from the
+    /// `[chat] plan_mode_default` key of `apollia.toml` at boot.
+    pub fn plan_mode_default(&self) -> bool {
+        self.plan_mode_default
     }
 }
 
@@ -212,6 +221,7 @@ impl ChatSessionManagerHandle {
             hook_executor: hook_executor_for_handle,
             #[cfg(test)]
             pending_fs_approvals: test_pending_fs,
+            plan_mode_default,
         })
     }
 

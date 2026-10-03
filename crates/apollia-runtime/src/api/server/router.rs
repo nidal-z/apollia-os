@@ -95,8 +95,8 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         authorize_tool as chat_authorize_tool, close_session, create_session,
         fork_session as chat_fork_session, get_session as chat_get_session,
         get_session_todo as chat_get_session_todo, list_recent_sessions, list_session_children,
-        list_sessions, pause::pause_session, resume_session as chat_resume_session, send_message,
-        stream_session,
+        list_sessions, pause::pause_session, plan, resume_session as chat_resume_session,
+        send_message, stream_session,
     };
     use crate::api::routes_connections::connections_router;
     use crate::api::routes_connectors::connectors_router;
@@ -300,6 +300,27 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route(
             "/api/v1/sessions/:id/workspace",
             get(crate::api::routes_chat::session_reads::get_session_workspace::<B>),
+        )
+        .route(
+            "/api/v1/sessions/plan-mode-default",
+            get(plan::get_plan_mode_default::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/plan-mode",
+            axum::routing::put(plan::set_plan_mode::<B>),
+        )
+        .route("/api/v1/sessions/:id/plan", get(plan::get_session_plan::<B>))
+        .route(
+            "/api/v1/sessions/:id/plan/mutations",
+            get(plan::list_plan_mutations::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/plan/approve",
+            post(plan::approve_plan::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/plan/reject",
+            post(plan::reject_plan::<B>),
         )
         .route("/api/v1/sessions/:id/todo", get(chat_get_session_todo::<B>))
         .route(

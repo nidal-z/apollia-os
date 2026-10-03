@@ -87,14 +87,16 @@ impl std::fmt::Debug for PutMcpSecretBody {
 }
 
 /// Whether `key` can stand in a `${APOLLIA_SECRET:KEY}` placeholder: an
-/// environment variable name, `[A-Za-z_][A-Za-z0-9_]*`. The colon that
-/// separates server from key in the store is therefore never part of a key.
+/// environment variable name, or the name of the HTTP header a remote server
+/// reads it from (the desktop wizard names a header secret after its header,
+/// `X-Api-Key`), so `[A-Za-z_][A-Za-z0-9_-]*`. The colon that separates
+/// server from key in the store is therefore never part of a key.
 fn is_valid_secret_key(key: &str) -> bool {
     let mut chars = key.chars();
     chars
         .next()
         .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
-        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
 /// Validate the path pair and build the store key, `"{name}:{key}"`.
@@ -108,7 +110,7 @@ fn store_key(name: &str, key: &str) -> Result<String, ApiError> {
     if key.len() > MAX_KEY_LEN || !is_valid_secret_key(key) {
         return Err(api_err(
             StatusCode::BAD_REQUEST,
-            "secret key must be an environment variable name, [A-Za-z_][A-Za-z0-9_]*",
+            "secret key must be an environment variable or header name, [A-Za-z_][A-Za-z0-9_-]*",
         ));
     }
     Ok(format!("{name}:{key}"))
@@ -364,8 +366,9 @@ mod tests {
             ("", "KEY"),
             ("notion", ""),
             ("notion", "1KEY"),
-            ("notion", "KEY-WITH-DASH"),
+            ("notion", "-KEY"),
             ("notion", "A:B"),
+            ("notion", "KEY}"),
         ];
 
         // WHEN each is turned into a store key
@@ -382,6 +385,12 @@ mod tests {
         assert_eq!(
             store_key("my-server_2", "_API_KEY").unwrap(),
             "my-server_2:_API_KEY"
+        );
+        // AND a header name, which the wizard files a header secret under, is
+        // accepted as the desktop always accepted it
+        assert_eq!(
+            store_key("remote", "X-Api-Key").unwrap(),
+            "remote:X-Api-Key"
         );
     }
 
