@@ -3,15 +3,15 @@
   //
   // The card color derives exclusively from `stepStatusToken(status)`; the
   // current step (in_progress) carries a highlight ring and a subtle pulse.
-  // Density follows the UI mode via `nodeFields($uiMode)`: Operator stays
-  // compact (title, status and the provenance chip), Builder exposes the
+  // Density follows the developer mode via `nodeFields()`: the default stays
+  // compact (title, status and the provenance chip), the developer mode exposes the
   // description, dependencies, tool/model hints, rationale and change reason.
   // A step dropped by a replan renders as a faded tombstone. The card is
   // keyboard-activable (Enter/Space) to open the trace drawer.
   import { Handle, Position, type NodeProps } from "@xyflow/svelte";
   import { t } from "svelte-i18n";
   import { toStepStatus } from "$lib/ipc/plan";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { stepStatusToken } from "./stepStatusToken";
   import { originToChip, hasReason } from "./provenanceChip";
   import { nodeFields } from "./planNodeDensity";
@@ -29,8 +29,8 @@
   const tokens = $derived(stepStatusToken(status));
   const isCurrent = $derived(status === "in_progress");
 
-  // Single source of density truth: the node never tests `$uiMode` inline.
-  const fields = $derived(nodeFields($uiMode));
+  // Single source of density truth: the node never tests the developer mode inline.
+  const fields = $derived(nodeFields($developerMode ? "builder" : "operator"));
 
   // Provenance chip is always rendered (even an initial step shows its origin).
   // The reason section is gated on a non-blank `provenance.reason` AND the

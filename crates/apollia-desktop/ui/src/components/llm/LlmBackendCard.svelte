@@ -14,7 +14,7 @@
   import { t } from "svelte-i18n";
   import { Brain, Cloud, AlertTriangle, Star, Pencil, Trash2, Plug } from "lucide-svelte";
   import type { LlmBackendConfig } from "$lib/types";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { humanize } from "$lib/errors/humanize";
   import { pingLlmBackend } from "$lib/ipc/llm";
   import {
@@ -44,7 +44,7 @@
   let pingError = $state<string | null>(null);
   let feedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const isBuilder = $derived($uiMode === "builder");
+  const isBuilder = $derived($developerMode);
   const isLocal = $derived(backend.provider === "llama-cpp");
   const status = $derived(backendStatus(backend));
   const inError = $derived(status === "error");

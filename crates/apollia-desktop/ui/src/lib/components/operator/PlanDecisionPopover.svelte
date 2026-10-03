@@ -8,7 +8,7 @@
   // so there is never an empty trigger or an empty popover. Built on the
   // canonical `Popover` primitive (bits-ui under the hood); no invoke here.
   import { t } from "svelte-i18n";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { Popover } from "$lib/components/ui/popover";
   import { toGhostNodes } from "./decisionGhostNodes";
   import type { DecisionPoint } from "$lib/types";
@@ -19,7 +19,7 @@
   };
   let { point }: Props = $props();
 
-  const ghosts = $derived($uiMode === "builder" ? toGhostNodes(point) : []);
+  const ghosts = $derived($developerMode ? toGhostNodes(point) : []);
   const showPopover = $derived(ghosts.length > 0);
   const chosen = $derived(point?.chosen ?? "");
 </script>

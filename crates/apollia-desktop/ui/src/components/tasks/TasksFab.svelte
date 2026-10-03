@@ -8,7 +8,7 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { Plus } from "lucide-svelte";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
 
   interface Props {
     onclick: () => void;
@@ -17,7 +17,7 @@
   let { onclick }: Props = $props();
 </script>
 
-{#if $uiMode === "operator"}
+{#if !$developerMode}
   <button
     class="fixed bottom-6 right-6 z-drawer flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 md:hidden"
     onclick={onclick}

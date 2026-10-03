@@ -34,9 +34,9 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { TabBar } from "$lib/components/ui/tabs";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { PageHeader } from "$lib/components/operator";
-  import { BuilderOnly } from "$lib/components/shared";
+  import { DeveloperOnly } from "$lib/components/shared";
   import { RouteTransition } from "$lib/components/ui/route-transition";
   import TimelinePanel from "../components/observability/TimelinePanel.svelte";
   import LlmCostChart from "../components/observability/LlmCostChart.svelte";
@@ -94,7 +94,7 @@
       { key: "audit-trail", label: $t("observability.tab_audit_trail") },
       { key: "mailbox", label: $t("observability.tab_mailbox") },
     ];
-    if ($uiMode === "builder") {
+    if ($developerMode) {
       base.push(
         { key: "delegation", label: $t("observability.tab_delegation") },
         { key: "plan-cache", label: $t("observability.tab_plan_cache") },
@@ -121,7 +121,7 @@
   });
 
   $effect(() => {
-    if ($uiMode !== "builder" && BUILDER_TABS.has(activeTab)) {
+    if (!$developerMode && BUILDER_TABS.has(activeTab)) {
       activeTab = "timeline";
       timelineLoaded = true;
     }
@@ -178,9 +178,9 @@
           {/if}
         {:else if activeTab === "hooks"}
           {#if hooksLoaded}
-            <BuilderOnly>
+            <DeveloperOnly>
               <ActiveHooksPanel />
-            </BuilderOnly>
+            </DeveloperOnly>
           {/if}
         {/if}
       </RouteTransition>
