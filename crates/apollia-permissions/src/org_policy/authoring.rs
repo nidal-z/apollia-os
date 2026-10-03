@@ -161,8 +161,9 @@ allowed_servers = []
 require_model_hash = false
 
 [settings]
-# Settings fixed by the organisation, by key.
-# "chat.max_steps" = 20
+# Settings fixed by the organisation, by dotted key. Each key names a setting
+# of apollia.toml and each value has its type; any other key refuses the policy.
+# "desktop.developer_mode" = false
 
 [packages]
 # Refuse an agent package that carries no valid signature.

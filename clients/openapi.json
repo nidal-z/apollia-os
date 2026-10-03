@@ -9237,7 +9237,7 @@
             }
           },
           "403": {
-            "description": "A signed package is required",
+            "description": "A signed package is required, or the organisation policy does not trust its publisher",
             "content": {
               "application/json": {
                 "schema": {
@@ -9365,7 +9365,7 @@
         "tags": [
           "packages"
         ],
-        "summary": "`GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts.",
+        "summary": "`GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts,\nand those the organisation policy trusts, of origin `policy`.",
         "operationId": "list_trusted_keys",
         "responses": {
           "200": {
@@ -9464,6 +9464,16 @@
         "responses": {
           "200": {
             "description": "The key is removed"
+          },
+          "403": {
+            "description": "The organisation policy trusts the key; only the policy removes it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
           },
           "404": {
             "description": "No such key",
@@ -18110,6 +18120,26 @@
           },
           {
             "type": "object",
+            "description": "Governance requires a signed package, the organisation policy names the\npublishers it trusts, and the key that signed this one is not among\nthem.",
+            "required": [
+              "fingerprint",
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "publisher_not_trusted"
+                ]
+              },
+              "fingerprint": {
+                "type": "string",
+                "description": "Fingerprint of the signing key."
+              }
+            }
+          },
+          {
+            "type": "object",
             "description": "The incoming version is older than the installed one.",
             "required": [
               "installed",
@@ -19460,7 +19490,7 @@
         "properties": {
           "code": {
             "type": "string",
-            "description": "Stable code: `archive`, `invalid_signature`, `signature_required`,\n`downgrade`, `agent_taken`, `deps_confirmation_required`,\n`changes_confirmation_required`, `mcp_unavailable`, `mcp_server`,\n`environment`, `invalid_key`, `not_found`, `journal_unavailable`,\n`internal`."
+            "description": "Stable code: `archive`, `invalid_signature`, `signature_required`,\n`publisher_not_trusted`, `downgrade`, `agent_taken`,\n`deps_confirmation_required`, `changes_confirmation_required`,\n`mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,\n`policy_key`, `not_found`, `journal_unavailable`, `internal`."
           },
           "error": {
             "type": "string",
@@ -22694,7 +22724,7 @@
           },
           "publicKey": {
             "type": "string",
-            "description": "The public key, 64 hexadecimal characters."
+            "description": "The public key, 64 hexadecimal characters; empty for a key the\norganisation policy names by its fingerprint only."
           }
         }
       },

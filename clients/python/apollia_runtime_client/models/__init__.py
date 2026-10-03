@@ -186,6 +186,8 @@ from .install_refusal_type_2 import InstallRefusalType2
 from .install_refusal_type_2_code import InstallRefusalType2Code
 from .install_refusal_type_3 import InstallRefusalType3
 from .install_refusal_type_3_code import InstallRefusalType3Code
+from .install_refusal_type_4 import InstallRefusalType4
+from .install_refusal_type_4_code import InstallRefusalType4Code
 from .install_report import InstallReport
 from .installed_agent_view import InstalledAgentView
 from .invoke_request import InvokeRequest
@@ -627,6 +629,8 @@ __all__ = (
     "InstallRefusalType2Code",
     "InstallRefusalType3",
     "InstallRefusalType3Code",
+    "InstallRefusalType4",
+    "InstallRefusalType4Code",
     "InstallReport",
     "InvokeRequest",
     "InvokeRequestInput",
