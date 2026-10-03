@@ -16,6 +16,7 @@
   import { createSSEConnection } from "$lib/stores/sse";
   import { initTheme } from "$lib/stores/theme";
   import { hydratePlanModeDefault } from "$lib/stores/planModeSetting";
+  import { hydrateDeveloperMode } from "$lib/stores/developerMode";
   import { navigateTo } from "$lib/stores/navigation";
   import { onboardingModalOpen } from "$lib/stores/onboarding";
   import type { OnboardingState } from "$lib/types";
@@ -69,6 +70,7 @@
   onMount(() => {
     initTheme();
     void hydratePlanModeDefault();
+    void hydrateDeveloperMode();
     const cleanup = createSSEConnection();
     // Phase-0 shortcut dispatcher: the single window keydown listener that
     // routes chords to handlers surfaces register via `registerShortcutHandler`.
