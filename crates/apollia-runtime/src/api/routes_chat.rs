@@ -30,6 +30,7 @@ use crate::api::server::AppState;
 use crate::chat::types::{ChatMode, SessionStatus, ToolDecision};
 use crate::coordinator::ExecutionBackend;
 
+pub mod conversations;
 pub mod pause;
 pub mod plan;
 mod sse;
@@ -737,7 +738,7 @@ mod tests {
     use tower::ServiceExt;
 
     #[derive(Clone)]
-    struct MockBackend;
+    pub(super) struct MockBackend;
 
     impl From<DynBackend> for MockBackend {
         fn from(_: DynBackend) -> Self {
@@ -817,6 +818,20 @@ mod tests {
         dir: &tempfile::TempDir,
         plan_mode_default: bool,
     ) -> axum::Router {
+        APIServer::build_router_for_test(chat_state_plan_default(dir, plan_mode_default))
+    }
+
+    /// The state of a runtime whose chat subsystem is up, with no model.
+    pub(super) fn chat_state(dir: &tempfile::TempDir) -> AppState<MockBackend> {
+        chat_state_plan_default(dir, false)
+    }
+
+    /// The state of a runtime whose chat subsystem is up, with no model, its
+    /// sessions starting in plan mode when `plan_mode_default` is set.
+    fn chat_state_plan_default(
+        dir: &tempfile::TempDir,
+        plan_mode_default: bool,
+    ) -> AppState<MockBackend> {
         let (event_tx, _) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_tx.clone());
         let router_handle: TaskRouterHandle<MockBackend> =
@@ -846,7 +861,7 @@ mod tests {
         )
         .expect("spawn chat manager");
 
-        let state: AppState<MockBackend> = AppState {
+        AppState {
             router_handle,
             registry_handle,
             event_sender: event_tx,
@@ -889,9 +904,7 @@ mod tests {
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
-        };
-
-        APIServer::build_router_for_test(state)
+        }
     }
 
     #[tokio::test]

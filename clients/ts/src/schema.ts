@@ -539,6 +539,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/batches/accesses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/batches/accesses`: the sensitive accesses of an agent, those
+         *     a launch may grant for the duration of a batch.
+         * @description Reading is never listed: it runs without asking. An access that is not
+         *     `grantable` (executing code, or an access nobody classified) is listed
+         *     too: an item that reaches for it waits for a decision.
+         */
+        get: operations["batch_accesses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/batches/{id}": {
         parameters: {
             query?: never;
@@ -550,6 +573,84 @@ export interface paths {
         get: operations["get_batch"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/batches/{id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/batches/{id}/pause`: no further item starts; those running
+         *     end on their own. A paused batch stays paused across a restart.
+         */
+        post: operations["pause_batch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/batches/{id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/batches/{id}/resume`: a paused batch starts its items again. */
+        post: operations["resume_batch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/batches/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/batches/{id}/retry`: the failed items, and those waiting for
+         *     an access, run again from their input as read at launch. `grants` adds
+         *     accesses granted for the rest of the batch.
+         */
+        post: operations["retry_batch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/batches/{id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/batches/{id}/stop`: the running items are cancelled, the
+         *     pending ones are canceled without running, and the batch ends `stopped`.
+         */
+        post: operations["stop_batch"];
         delete?: never;
         options?: never;
         head?: never;
@@ -681,6 +782,86 @@ export interface paths {
          *     to send the user to. No browser opens.
          */
         post: operations["start_connector_consent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_engines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engines/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["check_engines"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engines/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["import_engines"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engines/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["install_engine"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engines/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_engine_settings"];
+        put: operations["set_engine_settings"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1730,6 +1911,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/memory/namespaces/{namespace}/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/memory/namespaces/{namespace}/clear`: removes every entry of
+         *     one kind, or of all kinds.
+         */
+        post: operations["clear_memory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/memory/namespaces/{namespace}/entries/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/v1/memory/namespaces/{namespace}/entries/{entry_id}`: removes
+         *     one entry, whatever its kind.
+         */
+        delete: operations["delete_memory_entry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/memory/namespaces/{namespace}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/memory/namespaces/{namespace}/export`: every entry of the
+         *     namespace, in the export format.
+         */
+        get: operations["export_memory_namespace"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/memory/namespaces/{namespace}/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/memory/namespaces/{namespace}/import`: writes an export into
+         *     the namespace.
+         */
+        post: operations["import_memory_namespace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/memory/namespaces/{namespace}/purge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/memory/namespaces/{namespace}/purge`: removes the entries
+         *     older than a number of days.
+         */
+        post: operations["purge_memory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications/channels": {
         parameters: {
             query?: never;
@@ -2043,6 +2324,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/projects/{id}/sessions`, the sessions of a
+         *     project.
+         */
+        get: operations["list_project_sessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/resilience/reset/{tool}": {
         parameters: {
             query?: never;
@@ -2164,7 +2465,8 @@ export interface paths {
         delete: operations["close_session"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** Handler for `PATCH /api/v1/sessions/{id}`, change the configuration. */
+        patch: operations["update_session"];
         trace?: never;
     };
     "/api/v1/sessions/{id}/authorize": {
@@ -2198,6 +2500,26 @@ export interface paths {
         get: operations["list_session_children"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/erase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/sessions/{id}/erase`, delete the session and
+         *     every message it holds.
+         */
+        post: operations["erase_session"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2345,6 +2667,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{id}/project": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Handler for `PUT /api/v1/sessions/{id}/project`, link the session to a
+         *     project or, with `null`, unlink it.
+         */
+        put: operations["link_session_project"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{id}/resume": {
         parameters: {
             query?: never;
@@ -2381,6 +2723,43 @@ export interface paths {
         get: operations["stream_session"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/title": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Handler for `PUT /api/v1/sessions/{id}/title`, rename. */
+        put: operations["rename_chat_session"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/title/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/sessions/{id}/title/generate`, name the session
+         *     from its first message with the configured model.
+         */
+        post: operations["generate_session_title"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3493,6 +3872,28 @@ export interface components {
             /** @description Name of the tool. */
             tool_name: string;
         };
+        /** @description One sensitive access of the agent a batch runs. */
+        BatchAccess: {
+            /** @description The access, as the agent names it: a tool, or `mcp:<server>`. */
+            accessId: string;
+            /**
+             * @description Its action family: `read_personal`, `write_or_delete`, `send_external`,
+             *     `execute_code` or `unclassified`.
+             */
+            family: string;
+            /**
+             * @description Whether it can be granted for a batch. Executing code asks at every
+             *     call, and an unclassified access has no family to grant.
+             */
+            grantable: boolean;
+            /** @description What it lets the agent do. */
+            permits: string;
+        };
+        /** @description The sensitive accesses of an agent. */
+        BatchAccessesView: {
+            accesses: components["schemas"]["BatchAccess"][];
+            agent: string;
+        };
         /** @description A batch with its items. */
         BatchDetailView: {
             batch: components["schemas"]["BatchView"];
@@ -3515,7 +3916,10 @@ export interface components {
              */
             rank: number;
             sources?: Record<string, never> | null;
-            /** @description `pending`, `running`, `completed`, `failed` or `canceled`. */
+            /**
+             * @description `pending`, `running`, `completed`, `failed`, `canceled`, or `awaiting`
+             *     a decision on an access nobody granted.
+             */
             status: string;
             /** @description The task that ran it. */
             taskId?: string | null;
@@ -3529,7 +3933,10 @@ export interface components {
              * @description How many items run at once, 1 to 16; 1 when absent.
              */
             concurrency?: number | null;
-            /** @description The accesses granted for the duration of the batch. */
+            /**
+             * @description The sensitive accesses granted for the duration of the batch, by
+             *     their id as `GET /api/v1/batches/accesses` lists them.
+             */
             grants?: string[];
             /**
              * Format: int32
@@ -3543,9 +3950,22 @@ export interface components {
         BatchListView: {
             batches: components["schemas"]["BatchView"][];
         };
+        /** @description What the failed items of a batch are run again with. */
+        BatchRetry: {
+            /**
+             * @description Accesses granted for the rest of the batch, on top of those granted
+             *     at launch: an item that waited for one of them runs again with it.
+             */
+            grants?: string[];
+        };
         /** @description A batch: what it was launched with, its state and its counters. */
         BatchView: {
             agent: string;
+            /**
+             * Format: int64
+             * @description Items waiting for an access to be granted.
+             */
+            awaiting: number;
             batchId: string;
             /** Format: int64 */
             canceled: number;
@@ -3565,7 +3985,7 @@ export interface components {
             maxFailures: number;
             /** @description The source descriptor, `{kind, location, options}`. */
             source: Record<string, never>;
-            /** @description `running`, `completed` or `interrupted`. */
+            /** @description `running`, `paused`, `completed`, `interrupted` or `stopped`. */
             state: string;
             /** Format: int64 */
             total: number;
@@ -3708,6 +4128,14 @@ export interface components {
              * @description Number of entries removed.
              */
             cleared_count: number;
+        };
+        /** @description Request body for `POST /api/v1/memory/namespaces/{namespace}/clear`. */
+        ClearMemoryBody: {
+            /**
+             * @description `episodic`, `semantic`, `procedural`; absent or any other value
+             *     reaches every kind.
+             */
+            memoryType?: string | null;
         };
         /** @description Body of `POST /api/v1/connectors/oauth/complete`. */
         CompleteConsentBody: {
@@ -4047,6 +4475,93 @@ export interface components {
             /** @description Identifier of the entry recommended for this machine. */
             recommended?: string | null;
         };
+        /**
+         * @description An update channel.
+         * @enum {string}
+         */
+        EngineChannel: "stable" | "preview";
+        /** @description Body of `POST /api/v1/engines/check`. */
+        EngineCheckResponse: {
+            /** @description The channel checked. */
+            channel: components["schemas"]["EngineChannel"];
+            /**
+             * Format: int64
+             * @description Sequence of the manifest just verified.
+             */
+            manifest_sequence: number;
+            /** @description Per variant, whether an update exists. */
+            updates: components["schemas"]["VariantUpdate"][];
+        };
+        /** @description One engine on this machine. */
+        EngineEntry: {
+            /** @description Engine. */
+            engine: components["schemas"]["EngineName"];
+            /** @description Where it lives. */
+            path: string;
+            /** @description Embedded, downloaded or imported. */
+            source: components["schemas"]["EngineSource"];
+            /** @description Upstream tag; unknown for an embedded engine. */
+            tag?: string | null;
+            variant?: null | components["schemas"]["EngineVariant"];
+        };
+        /** @description Body of `POST /api/v1/engines/import`. */
+        EngineImportRequest: {
+            /** @description Directory holding `engines.json`, `engines.json.minisig` and archives. */
+            path: string;
+        };
+        /** @description Body of `POST /api/v1/engines/install`. */
+        EngineInstallRequest: {
+            /** @description Engine to install. */
+            engine: components["schemas"]["EngineName"];
+            /** @description Variant to install; its newest build on the channel is taken. */
+            variant: components["schemas"]["EngineVariant"];
+        };
+        /** @description Engines installed by a request. */
+        EngineInstalledResponse: {
+            /** @description What was installed. */
+            installed: components["schemas"]["EngineEntry"][];
+        };
+        /**
+         * @description An inference engine the store can hold.
+         * @enum {string}
+         */
+        EngineName: "llama-server" | "vllm-mlx";
+        /** @description Body of the settings routes. */
+        EngineSettingsBody: {
+            /** @description Base address manifests and archives are fetched from. */
+            base_url: string;
+            /** @description The followed channel. */
+            channel: components["schemas"]["EngineChannel"];
+        };
+        /**
+         * @description How an engine reached this machine.
+         * @enum {string}
+         */
+        EngineSource: "embedded" | "downloaded" | "imported";
+        /**
+         * @description A build of an engine for one kind of hardware.
+         * @enum {string}
+         */
+        EngineVariant: "cuda" | "vulkan" | "cpu" | "metal";
+        /** @description Body of `GET /api/v1/engines`. */
+        EnginesResponse: {
+            /** @description The followed channel. */
+            channel: components["schemas"]["EngineChannel"];
+            /** @description True when an NVIDIA card is detected and no CUDA engine is installed. */
+            cuda_proposable: boolean;
+            /** @description Engines embedded in the bundle, then installed ones. */
+            engines: components["schemas"]["EngineEntry"][];
+            /**
+             * Format: int64
+             * @description Sequence of the last verified manifest of that channel, if any.
+             */
+            manifest_sequence?: number | null;
+            /**
+             * @description Per variant offered by that manifest for this platform, whether a newer
+             *     build than the installed one exists. Empty until a manifest verified.
+             */
+            updates: components["schemas"]["VariantUpdate"][];
+        };
         /** @description Response for `GET /api/v1/notifications/events`. */
         EventsResponse: {
             /** @description List of global events. */
@@ -4061,6 +4576,16 @@ export interface components {
         ForkSessionRequest: {
             /** @description Number of messages to copy from the parent (None = all). */
             up_to_index?: number | null;
+        };
+        /** @description Request body for `POST /api/v1/sessions/{id}/title/generate`. */
+        GenerateTitleBody: {
+            /** @description The first user message the title is drawn from. */
+            first_message: string;
+        };
+        /** @description Answer of `POST /api/v1/sessions/{id}/title/generate`. */
+        GeneratedTitle: {
+            /** @description The title stored on the session. */
+            title: string;
         };
         HardwareResponse: {
             accelerator: Record<string, never>;
@@ -4139,6 +4664,13 @@ export interface components {
             code: string;
             /** @description What went wrong, for a person. */
             error: string;
+        };
+        /** @description Request body for `POST /api/v1/memory/namespaces/{namespace}/import`. */
+        ImportMemoryBody: {
+            /** @description The export, as `GET .../export` answers it. */
+            content: Record<string, never>;
+            /** @description `replace` empties the namespace first; any other value merges. */
+            mode: string;
         };
         /** @description Request body for `POST /api/v1/agents/:name/messages`. */
         InjectMessageBody: {
@@ -4355,6 +4887,11 @@ export interface components {
          * @enum {string}
          */
         JournalBreakReason: "global_seq_gap" | "global_prev_hash_mismatch" | "global_hash_mismatch" | "global_signature_invalid" | "unknown_signing_key" | "per_run_broken";
+        /** @description Request body for `PUT /api/v1/sessions/{id}/project`. */
+        LinkProjectBody: {
+            /** @description The project to link, `null` to unlink. */
+            project_id?: string | null;
+        };
         /** @description Response body for a single backend. */
         LlmBackendResponse: {
             /** @description Provider-specific configuration. */
@@ -4446,6 +4983,24 @@ export interface components {
         LogsResponse: {
             /** @description History entries. */
             entries: Record<string, never>[];
+        };
+        /** @description Answer of `DELETE /api/v1/memory/namespaces/{namespace}/entries/{entry_id}`. */
+        MemoryEntryDeleted: {
+            /** @description Whether an entry had this identifier. */
+            deleted: boolean;
+        };
+        /** @description Answer of `POST /api/v1/memory/namespaces/{namespace}/import`. */
+        MemoryImported: {
+            /** @description How many entries went in. */
+            imported: number;
+        };
+        /** @description Answer of the clear and purge routes. */
+        MemoryRemoved: {
+            /**
+             * Format: int64
+             * @description How many entries were removed.
+             */
+            removed: number;
         };
         /**
          * @description A single message in a multi-turn conversation request.
@@ -4753,6 +5308,19 @@ export interface components {
             /** @description How many entries were removed. */
             removed: number;
         };
+        /** @description Request body for `POST /api/v1/memory/namespaces/{namespace}/purge`. */
+        PurgeMemoryBody: {
+            /**
+             * @description `episodic`, `semantic`, `procedural`; absent or any other value
+             *     reaches every kind.
+             */
+            memoryType?: string | null;
+            /**
+             * Format: int32
+             * @description Entries older than this many days are removed.
+             */
+            olderThanDays: number;
+        };
         /** @description Body of `PUT /api/v1/mcp/servers/:name/secrets/:key`. */
         PutMcpSecretBody: {
             /** @description The secret. Stored, never answered back. */
@@ -4808,6 +5376,11 @@ export interface components {
              *     tell the two runtimes apart.
              */
             reaches_running_agents: boolean;
+        };
+        /** @description Request body for `PUT /api/v1/sessions/{id}/title`. */
+        RenameSessionBody: {
+            /** @description The title, trimmed and capped at 100 characters. */
+            title: string;
         };
         /** @description A connection the package requires. */
         RequiredConnectionPreview: {
@@ -5653,6 +6226,18 @@ export interface components {
             /** @description Request settings. Unknown fields, a system prompt among them, are refused. */
             request?: Record<string, never>;
         };
+        /**
+         * @description Request body for `PATCH /api/v1/sessions/{id}`. An absent field keeps its
+         *     value.
+         */
+        UpdateSessionBody: {
+            /** @description Inference server of the session. */
+            llm_backend?: string | null;
+            /** @description New system prompt. */
+            system_prompt?: string | null;
+            /** @description New list of tools available in the session. */
+            tools?: string[] | null;
+        };
         /** @description Request body for `PUT /api/v1/triggers/:id`, trigger update. */
         UpdateTriggerRequest: {
             /** @description Target agent. */
@@ -5676,6 +6261,19 @@ export interface components {
             last_updated_at?: string | null;
             /** @description Entries whose key is a field of the schema. */
             schema_entries: components["schemas"]["ProfileEntryView"][];
+        };
+        /** @description Whether a newer build of one engine variant exists on the channel. */
+        VariantUpdate: {
+            /** @description Engine. */
+            engine: components["schemas"]["EngineName"];
+            /** @description Newest tag installed here, if any. */
+            installed_tag?: string | null;
+            /** @description Newest tag the verified manifest offers. */
+            latest_tag: string;
+            /** @description True when a tag is installed and the manifest offers a newer one. */
+            update_available: boolean;
+            /** @description Variant. */
+            variant: components["schemas"]["EngineVariant"];
         };
         /** @description Outcome of verifying a run's chain. */
         VerifyChainReport: {
@@ -6977,6 +7575,47 @@ export interface operations {
             };
         };
     };
+    batch_accesses: {
+        parameters: {
+            query: {
+                /** @description The agent a batch would run. */
+                agent: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The sensitive accesses of the agent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchAccessesView"];
+                };
+            };
+            /** @description An agent that cannot run a batch */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
     get_batch: {
         parameters: {
             query?: never;
@@ -7000,6 +7639,219 @@ export interface operations {
             };
             /** @description No such batch */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
+    pause_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The batch, paused */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchView"];
+                };
+            };
+            /** @description No such batch */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description The batch is not running */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
+    resume_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The batch, running */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchView"];
+                };
+            };
+            /** @description No such batch */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description The batch is not paused */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
+    retry_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchRetry"];
+            };
+        };
+        responses: {
+            /** @description The batch, running again */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchView"];
+                };
+            };
+            /** @description A grant the agent cannot take */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description No such batch */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description No failed or waiting item */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
+    stop_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The batch, stopped */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchView"];
+                };
+            };
+            /** @description No such batch */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description The batch has already ended */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7339,6 +8191,255 @@ export interface operations {
             };
             /** @description The provider's OAuth client is not configured */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_engines: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Engines, channel and updates */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnginesResponse"];
+                };
+            };
+            /** @description Store files unreadable */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    check_engines: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Manifest verified, updates per variant */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineCheckResponse"];
+                };
+            };
+            /** @description Signature, channel, rollback or format refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The mirror could not be reached */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description This build carries no distribution key */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    import_engines: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EngineImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Engines verified and installed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineInstalledResponse"];
+                };
+            };
+            /** @description No archive of this platform in the directory */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Missing or invalid signature, digest or archive refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description This build carries no distribution key */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    install_engine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EngineInstallRequest"];
+            };
+        };
+        responses: {
+            /** @description Engine verified and installed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineInstalledResponse"];
+                };
+            };
+            /** @description No such package for this platform */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Signature, digest, rollback or archive refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The mirror could not be reached */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description This build carries no distribution key */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_engine_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Engine store settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineSettingsBody"];
+                };
+            };
+            /** @description Settings file unreadable */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_engine_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EngineSettingsBody"];
+            };
+        };
+        responses: {
+            /** @description Settings saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineSettingsBody"];
+                };
+            };
+            /** @description Base address is not http or https */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9771,6 +10872,189 @@ export interface operations {
             };
         };
     };
+    clear_memory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Memory namespace */
+                namespace: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClearMemoryBody"];
+            };
+        };
+        responses: {
+            /** @description How many entries were removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryRemoved"];
+                };
+            };
+            /** @description Invalid namespace */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_memory_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Memory namespace */
+                namespace: string;
+                /** @description Entry identifier */
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether an entry had this identifier */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryEntryDeleted"];
+                };
+            };
+            /** @description Invalid namespace */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No file holds the namespace */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    export_memory_namespace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Memory namespace */
+                namespace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The export, format version 1 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Invalid namespace */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    import_memory_namespace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Memory namespace */
+                namespace: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportMemoryBody"];
+            };
+        };
+        responses: {
+            /** @description How many entries went in */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryImported"];
+                };
+            };
+            /** @description Invalid namespace or unknown format version */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    purge_memory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Memory namespace */
+                namespace: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurgeMemoryBody"];
+            };
+        };
+        responses: {
+            /** @description How many entries were removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryRemoved"];
+                };
+            };
+            /** @description Invalid namespace */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     list_channels: {
         parameters: {
             query?: never;
@@ -10576,6 +11860,36 @@ export interface operations {
             };
         };
     };
+    list_project_sessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     reset_breaker: {
         parameters: {
             query?: never;
@@ -10892,6 +12206,49 @@ export interface operations {
             };
         };
     };
+    update_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSessionBody"];
+            };
+        };
+        responses: {
+            /** @description Session updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     authorize_tool: {
         parameters: {
             query?: never;
@@ -10962,6 +12319,45 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    erase_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session erased */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
             };
             /** @description Chat subsystem unavailable */
             503: {
@@ -11341,6 +12737,49 @@ export interface operations {
             };
         };
     };
+    link_session_project: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkProjectBody"];
+            };
+        };
+        responses: {
+            /** @description Link stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session or project not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     resume_session: {
         parameters: {
             query?: never;
@@ -11411,6 +12850,121 @@ export interface operations {
                 };
             };
             /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    rename_chat_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameSessionBody"];
+            };
+        };
+        responses: {
+            /** @description Session renamed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Blank title */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    generate_session_title: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateTitleBody"];
+            };
+        };
+        responses: {
+            /** @description The title stored on the session */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeneratedTitle"];
+                };
+            };
+            /** @description Blank message */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The model failed or answered no title */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem or inference server unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;

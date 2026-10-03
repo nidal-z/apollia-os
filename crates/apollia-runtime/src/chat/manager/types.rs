@@ -116,7 +116,9 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// Runtime ceiling the tier's budget is capped by.
     pub(in crate::chat::manager) runtime_budget: StepBudgetConfig,
     pub(in crate::chat::manager) history: Vec<ChatMessage>,
-    pub(in crate::chat::manager) available_tools: Vec<String>,
+    /// The access of the agent: a list, or the reading family read when the
+    /// exchange starts.
+    pub(in crate::chat::manager) available_tools: apollia_tools::AgentAccess,
     pub(in crate::chat::manager) authorized_tools: std::collections::HashSet<String>,
     pub(in crate::chat::manager) system_prompt: String,
     pub(in crate::chat::manager) inject_project_context: bool,

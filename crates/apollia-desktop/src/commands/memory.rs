@@ -3,6 +3,7 @@
 //! Accesses the SQLite files `~/.apollia/memory/<namespace>.db` directly via the
 //! `apollia-memory` APIs (MemoryStore, EpisodicMemory, SemanticMemory,
 //! ProceduralMemory, MemorySearch). Admin view: no namespace access control.
+//! The commands that change the memory live in [`maintenance`].
 
 use std::path::PathBuf;
 
@@ -13,6 +14,8 @@ use apollia_memory::search::{MemorySearch, SearchQuery, SearchSource};
 use apollia_memory::semantic::SemanticMemory;
 use apollia_memory::store::MemoryStore;
 use serde::Serialize;
+
+pub mod maintenance;
 
 /// Unified memory entry for display in the UI.
 #[derive(Debug, Serialize)]
@@ -194,194 +197,6 @@ pub async fn search_memory(
             created_at: r.created_at,
         })
         .collect())
-}
-
-/// Clears all memory entries of a namespace by type.
-///
-/// `memory_type` can be `"episodic"`, `"semantic"`, `"procedural"`, or `"all"` (default).
-/// Returns the total number of removed entries.
-#[tauri::command]
-pub async fn clear_memory(namespace: String, memory_type: Option<String>) -> Result<u64, String> {
-    let base = memory_base_dir()?;
-    let db_path = base.join(format!("{namespace}.db"));
-
-    if !db_path.exists() {
-        return Ok(0);
-    }
-
-    let store = MemoryStore::open(&db_path).map_err(|e| format!("failed to open store: {e}"))?;
-    let kind = memory_type.as_deref().unwrap_or("all");
-    let mut total: u64 = 0;
-
-    match kind {
-        "episodic" => {
-            total += store
-                .clear_episodic(&namespace)
-                .map_err(|e| format!("clear_episodic failed: {e}"))?;
-        }
-        "semantic" => {
-            total += store
-                .clear_semantic(&namespace)
-                .map_err(|e| format!("clear_semantic failed: {e}"))?;
-        }
-        "procedural" => {
-            total += store
-                .clear_procedural(&namespace)
-                .map_err(|e| format!("clear_procedural failed: {e}"))?;
-        }
-        // "all" or any unrecognized scope: clear everything.
-        _ => {
-            total += store
-                .clear_episodic(&namespace)
-                .map_err(|e| format!("clear_episodic failed: {e}"))?;
-            total += store
-                .clear_semantic(&namespace)
-                .map_err(|e| format!("clear_semantic failed: {e}"))?;
-            total += store
-                .clear_procedural(&namespace)
-                .map_err(|e| format!("clear_procedural failed: {e}"))?;
-        }
-    }
-
-    Ok(total)
-}
-
-/// Purges memory entries older than N days.
-///
-/// `memory_type` can be `"episodic"`, `"semantic"`, `"procedural"`, or `"all"` (default).
-/// Returns the total number of purged entries.
-#[tauri::command]
-pub async fn purge_memory(
-    namespace: String,
-    older_than_days: u32,
-    memory_type: Option<String>,
-) -> Result<u64, String> {
-    let base = memory_base_dir()?;
-    let db_path = base.join(format!("{namespace}.db"));
-
-    if !db_path.exists() {
-        return Ok(0);
-    }
-
-    let store = MemoryStore::open(&db_path).map_err(|e| format!("failed to open store: {e}"))?;
-    let kind = memory_type.as_deref().unwrap_or("all");
-    let mut total: u64 = 0;
-
-    match kind {
-        "episodic" => {
-            let ep = EpisodicMemory::new(&store);
-            total += ep
-                .purge_older_than(&namespace, older_than_days)
-                .map_err(|e| format!("purge_episodic failed: {e}"))?;
-        }
-        "semantic" => {
-            let sem = SemanticMemory::new(&store);
-            total += sem
-                .purge_older_than(&namespace, older_than_days)
-                .map_err(|e| format!("purge_semantic failed: {e}"))?;
-        }
-        "procedural" => {
-            let proc = ProceduralMemory::new(&store);
-            total += proc
-                .purge_older_than(&namespace, older_than_days)
-                .map_err(|e| format!("purge_procedural failed: {e}"))?;
-        }
-        // "all" or any unrecognized scope: purge everything.
-        _ => {
-            let ep = EpisodicMemory::new(&store);
-            total += ep
-                .purge_older_than(&namespace, older_than_days)
-                .map_err(|e| format!("purge_episodic failed: {e}"))?;
-            let sem = SemanticMemory::new(&store);
-            total += sem
-                .purge_older_than(&namespace, older_than_days)
-                .map_err(|e| format!("purge_semantic failed: {e}"))?;
-            let proc = ProceduralMemory::new(&store);
-            total += proc
-                .purge_older_than(&namespace, older_than_days)
-                .map_err(|e| format!("purge_procedural failed: {e}"))?;
-        }
-    }
-
-    Ok(total)
-}
-
-/// Deletes a memory entry by its UUID.
-///
-/// Searches all tables (episodic, semantic, procedural) and deletes the
-/// matching entry along with its FTS5 index.
-#[tauri::command]
-pub async fn delete_memory_entry(namespace: String, entry_id: String) -> Result<bool, String> {
-    let base = memory_base_dir()?;
-    let db_path = base.join(format!("{namespace}.db"));
-
-    if !db_path.exists() {
-        return Err(format!("namespace '{namespace}' not found"));
-    }
-
-    let store = MemoryStore::open(&db_path).map_err(|e| format!("failed to open store: {e}"))?;
-
-    store
-        .delete_entry_by_id(&entry_id)
-        .map_err(|e| format!("failed to delete entry: {e}"))
-}
-
-/// Exports a namespace's memory to a JSON file.
-///
-/// `output_path`: absolute path of the output file.
-/// Returns a confirmation message with the export statistics.
-#[tauri::command]
-pub async fn memory_export_namespace(
-    namespace: String,
-    output_path: String,
-) -> Result<String, String> {
-    let base = memory_base_dir()?;
-
-    let out = std::path::PathBuf::from(&output_path);
-    let export = apollia_memory::export::export_namespace(&base, &namespace)
-        .map_err(|e| format!("export failed: {e}"))?;
-
-    let json_str =
-        serde_json::to_string_pretty(&export).map_err(|e| format!("serialize failed: {e}"))?;
-    std::fs::write(&out, &json_str).map_err(|e| format!("write failed: {e}"))?;
-
-    Ok(format!(
-        "Exported {} episodic, {} semantic, {} procedural entries to {}",
-        export.episodic.len(),
-        export.semantic.len(),
-        export.procedural.len(),
-        out.display(),
-    ))
-}
-
-/// Imports memory from a JSON file into a namespace.
-///
-/// `mode` can be `"replace"` or `"merge"` (default: `"merge"`).
-/// Returns the number of imported entries.
-#[tauri::command]
-pub async fn memory_import_namespace(
-    namespace: String,
-    input_path: String,
-    mode: String,
-) -> Result<String, String> {
-    let base = memory_base_dir()?;
-
-    let content = std::fs::read_to_string(&input_path).map_err(|e| format!("read failed: {e}"))?;
-    let export: apollia_memory::export::MemoryExport =
-        serde_json::from_str(&content).map_err(|e| format!("parse failed: {e}"))?;
-
-    let import_mode = if mode == "replace" {
-        apollia_memory::export::ImportMode::Replace
-    } else {
-        apollia_memory::export::ImportMode::Merge
-    };
-
-    let count = apollia_memory::export::import_namespace(&base, &namespace, &export, import_mode)
-        .map_err(|e| format!("import failed: {e}"))?;
-
-    Ok(format!(
-        "{count} entries imported into namespace '{namespace}' (mode: {mode})"
-    ))
 }
 
 /// Returns the memory entries the agent injected into a specific turn.

@@ -89,9 +89,28 @@ struct Fixture {
     _dir: tempfile::TempDir,
 }
 
-/// A runtime holding one stored agent without code, `ledger-clerk`, whose
-/// model is `Scripted`.
+/// A runtime holding one stored agent without code, `ledger-clerk`, granted
+/// `file_read` by its definition, whose model is `Scripted`.
 async fn fixture(tool_first: bool) -> Fixture {
+    fixture_with(
+        tool_first,
+        Some(json!(["file_read"])),
+        ToolRegistryHandle::start(),
+    )
+    .await
+}
+
+/// The same runtime, the definition listing `access` (none when `None`) and
+/// the chat built on `registry`.
+async fn fixture_with(
+    tool_first: bool,
+    access: Option<Value>,
+    registry: ToolRegistryHandle,
+) -> Fixture {
+    let mut defaults = serde_json::Map::new();
+    if let Some(access) = access {
+        defaults.insert("access".into(), access);
+    }
     let dir = tempfile::tempdir().unwrap();
     let agents =
         AgentRepository::open(&apollia_core::paths::DataFile::Agents.path(dir.path())).unwrap();
@@ -105,7 +124,7 @@ async fn fixture(tool_first: bool) -> Fixture {
                 "id": AGENT,
                 "name": "Ledger clerk",
                 "mission": "Reconcile the ledger.",
-                "defaults": {"access": ["file_read"]}
+                "defaults": Value::Object(defaults)
             }),
             enabled: true,
             installed_at: "2026-10-01T00:00:00Z".into(),
@@ -127,7 +146,7 @@ async fn fixture(tool_first: bool) -> Fixture {
     let chat = ChatSessionManagerHandle::spawn(
         &dir.path().join("chat.db"),
         Some(Arc::new(LlmRouter::with_backends(backends, "scripted"))),
-        ToolRegistryHandle::start(),
+        registry,
         Arc::new(StubAgentLoader),
         None,
         state.event_sender.clone(),
@@ -331,6 +350,34 @@ async fn test_off_chat_approval_joins_the_chat_queue() {
     })
     .await;
     assert!(success);
+}
+
+// GIVEN a stored agent without code whose access nobody chose, file_read
+//       active as a tool of the reading family, and a model that calls it
+// WHEN a task is submitted
+// THEN file_read is granted by default: the call reaches its approval rather
+//      than being refused
+#[tokio::test]
+async fn test_an_agent_without_code_reads_by_default_on_a_task() {
+    // GIVEN
+    let registry = ToolRegistryHandle::start();
+    registry
+        .register(apollia_tools::tools::file_read::FileRead::descriptor())
+        .await
+        .unwrap();
+    let mut fx = fixture_with(true, None, registry).await;
+
+    // WHEN
+    let task_id = submit(&fx).await;
+    let first = next_event(&mut fx.events, |e| match e {
+        RuntimeEvent::ChatApprovalRequired { tool_name, .. } => Some(Some(tool_name)),
+        RuntimeEvent::TaskCompleted { task_id: t, .. } if t == task_id.as_str() => Some(None),
+        _ => None,
+    })
+    .await;
+
+    // THEN
+    assert_eq!(first.as_deref(), Some("file_read"));
 }
 
 // GIVEN a task whose run waits on a tool approval

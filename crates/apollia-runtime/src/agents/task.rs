@@ -7,6 +7,11 @@
 //! like any other task; and its end is published on the bus, as
 //! [`RuntimeEvent::TaskCompleted`] on success or failure and
 //! [`RuntimeEvent::TaskCanceled`] once a cancellation has stopped it.
+//!
+//! A run nobody watches, such as an item of a batch, is launched unattended:
+//! the accesses already granted run without asking, and the first tool that
+//! would ask stops the run instead of waiting for a human. Its outcome is
+//! then `awaiting`, naming that tool, and the task is recorded canceled.
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -14,6 +19,7 @@ use std::time::Instant;
 use apollia_core::{AIPInput, AIPPart, AgentId, ObservabilityConfig, RunId, RuntimeEvent, TaskId};
 use apollia_tools::{AgentRunEnd, AgentRunStart, ResolvedAgent, TaskRepository};
 use tokio::sync::oneshot;
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 use crate::chat::{
@@ -193,7 +199,37 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
                 message,
                 Watch {
                     watcher: Some(tx),
+                    ..Watch::default()
+                },
+            )
+            .await?;
+        Ok((task_id, rx))
+    }
+
+    /// Run `agent` on `message` with nobody to answer an approval: the tools
+    /// in `authorized` run without asking, and the first other tool that asks
+    /// stops the run, whose outcome is then `awaiting` with that tool.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::launch`].
+    pub async fn launch_unattended(
+        &self,
+        agent: &ResolvedAgent,
+        input: &serde_json::Value,
+        message: String,
+        authorized: Vec<String>,
+    ) -> Result<(TaskId, oneshot::Receiver<AgentRunOutcome>), AgentTaskError> {
+        let (tx, rx) = oneshot::channel();
+        let task_id = self
+            .start(
+                agent,
+                input,
+                message,
+                Watch {
+                    watcher: Some(tx),
                     nesting: None,
+                    unattended: Some(authorized),
                 },
             )
             .await?;
@@ -223,6 +259,7 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
                 Watch {
                     watcher: Some(tx),
                     nesting: Some(nesting),
+                    unattended: None,
                 },
             )
             .await?;
@@ -236,7 +273,11 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
         message: String,
         watch: Watch,
     ) -> Result<TaskId, AgentTaskError> {
-        let Watch { watcher, nesting } = watch;
+        let Watch {
+            watcher,
+            nesting,
+            unattended,
+        } = watch;
         if !agent.enabled {
             return Err(AgentTaskError::Disabled(agent.id.clone()));
         }
@@ -278,6 +319,13 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
             task_id: task_id.clone(),
         });
 
+        let (authorized_tools, asked) = match unattended {
+            Some(authorized) => {
+                let asked = stop_on_first_approval(&self.event_bus, &task_id, cancel.clone());
+                (authorized, Some(asked))
+            }
+            None => (Vec::new(), None),
+        };
         let finish = RunFinish {
             router: self.router.clone(),
             repository: self.repository.clone(),
@@ -288,6 +336,7 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
             cancel: cancel.clone(),
             started: Instant::now(),
             watcher,
+            asked,
         };
         let (done_tx, done_rx) = oneshot::channel();
         let started = self
@@ -296,7 +345,9 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
                 task_id: task_id.to_string(),
                 run_id,
                 spec: AgentRunSpec::from_resolved(agent),
+                access: apollia_tools::AgentAccess::of(agent),
                 message,
+                authorized_tools,
                 cancel,
                 done: done_tx,
                 budget,
@@ -319,11 +370,14 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
     }
 }
 
-/// Who hears the end of a run, and what it inherits from its caller.
+/// Who hears the end of a run, what it inherits from its caller, and, for a
+/// run nobody watches, the tools it may use without asking.
 #[derive(Default)]
 struct Watch {
     watcher: Option<oneshot::Sender<AgentRunOutcome>>,
     nesting: Option<Nesting>,
+    /// For a run nobody watches, the tools it may use without asking.
+    unattended: Option<Vec<String>>,
 }
 
 /// What a run started by a running caller inherits from it.
@@ -348,15 +402,58 @@ struct RunFinish<B: ExecutionBackend> {
     cancel: CancellationToken,
     started: Instant,
     watcher: Option<oneshot::Sender<AgentRunOutcome>>,
+    /// For an unattended run: the watch on its approvals, and where it reports
+    /// the tool that asked.
+    asked: Option<(JoinHandle<()>, oneshot::Receiver<String>)>,
+}
+
+/// Watches the approvals of the unattended run `task_id`: the first one stops
+/// the run through `cancel`, and its tool is reported on the receiver. The
+/// run being cancelled, its pending approval is refused and it ends at its
+/// next checkpoint.
+fn stop_on_first_approval(
+    bus: &EventBusSender,
+    task_id: &TaskId,
+    cancel: CancellationToken,
+) -> (JoinHandle<()>, oneshot::Receiver<String>) {
+    let mut events = apollia_core::subscribe_resilient(bus, "agent.task.unattended");
+    let (tx, rx) = oneshot::channel();
+    let task_id = task_id.to_string();
+    let watch = tokio::spawn(async move {
+        while let Some(event) = events.recv().await {
+            if let RuntimeEvent::ChatApprovalRequired {
+                session_id,
+                tool_name,
+                ..
+            } = event
+            {
+                if session_id == task_id {
+                    tracing::event!(
+                        tracing::Level::INFO,
+                        task_id = %task_id,
+                        tool = %tool_name,
+                        "agent.task.unattended.stopped"
+                    );
+                    let _ = tx.send(tool_name);
+                    cancel.cancel();
+                    return;
+                }
+            }
+        }
+    });
+    (watch, rx)
 }
 
 /// How a run ended, as recorded.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AgentRunOutcome {
-    /// `completed`, `failed` or `canceled`.
+    /// `completed`, `failed`, `canceled`, or `awaiting` for an unattended
+    /// run stopped by a tool that asked.
     pub status: &'static str,
     /// The answer, or the failure.
     pub output: String,
+    /// The tool that stopped an unattended run.
+    pub awaiting: Option<String>,
 }
 
 impl<B: ExecutionBackend> RunFinish<B> {
@@ -364,8 +461,22 @@ impl<B: ExecutionBackend> RunFinish<B> {
     ///
     /// A cancelled run is published by the router, once it learns the run has
     /// stopped; a completed or failed one is published here.
-    async fn settle(self, outcome: Result<ChatAgentResponse, ChatError>) {
+    async fn settle(mut self, outcome: Result<ChatAgentResponse, ChatError>) {
+        let awaiting = match self.asked.take() {
+            Some((watch, mut asked)) => {
+                watch.abort();
+                asked.try_recv().ok()
+            }
+            None => None,
+        };
         let (status, output) = match &outcome {
+            _ if awaiting.is_some() => (
+                "awaiting",
+                format!(
+                    "Waiting for a decision: the agent asked to use '{}', which is not granted",
+                    awaiting.as_deref().unwrap_or_default()
+                ),
+            ),
             Ok(response) if response.paused || self.cancel.is_cancelled() => {
                 ("canceled", response.content.clone())
             }
@@ -378,7 +489,11 @@ impl<B: ExecutionBackend> RunFinish<B> {
                 .record_agent_run_end(
                     AgentRunEnd {
                         task_id: self.task_id.as_str(),
-                        status,
+                        status: if status == "awaiting" {
+                            "canceled"
+                        } else {
+                            status
+                        },
                         output: &output,
                         duration_ms,
                     },
@@ -394,7 +509,11 @@ impl<B: ExecutionBackend> RunFinish<B> {
                 );
             }
         }
-        if status != "canceled" {
+        if status == "awaiting" {
+            let _ = self.event_bus.send(RuntimeEvent::TaskCanceled {
+                task_id: self.task_id.clone(),
+            });
+        } else if status != "canceled" {
             let _ = self.event_bus.send(RuntimeEvent::TaskCompleted {
                 agent_id: self.agent_id.clone(),
                 task_id: self.task_id.clone(),
@@ -411,7 +530,11 @@ impl<B: ExecutionBackend> RunFinish<B> {
         );
         let _ = self.router.run_ended(&self.task_id).await;
         if let Some(watcher) = self.watcher {
-            let _ = watcher.send(AgentRunOutcome { status, output });
+            let _ = watcher.send(AgentRunOutcome {
+                status,
+                output,
+                awaiting,
+            });
         }
     }
 }

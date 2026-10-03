@@ -41,6 +41,14 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_chat_sessions",
     "pause_chat_session",
     "send_chat_message",
+    // The conversations as the list manages them: configure, rename, name,
+    // erase, link to a project, list by project.
+    "delete_chat_session",
+    "generate_chat_session_name",
+    "link_chat_to_project",
+    "list_chats_by_project",
+    "rename_chat_session",
+    "update_chat_session",
     // Agents: the registry and the install.
     "agent_status_snapshot",
     "install_agent",
@@ -135,6 +143,14 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "reject_plan",
     "set_plan_mode",
     "submit_plan_decision",
+    // Memory upkeep, over `/api/v1/memory/namespaces/{namespace}/...`. The
+    // export and import files stay on the machine of the window; the daemon,
+    // which owns the memory, sends and receives their content.
+    "clear_memory",
+    "delete_memory_entry",
+    "memory_export_namespace",
+    "memory_import_namespace",
+    "purge_memory",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no

@@ -13,9 +13,11 @@ use tauri::State;
 
 use crate::attached::{segment, RuntimeLink};
 
-/// Automatic session naming lives in `title`, the on-disk export in `export`.
+/// Automatic session naming lives in `naming`, the on-disk export in `export`,
+/// the daemon routes of the conversations in `conversations`.
+pub(crate) mod conversations;
 pub mod export;
-pub mod title;
+pub mod naming;
 
 /// Request payload for creating a new chat session.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -209,10 +211,16 @@ pub async fn chat_session_metrics(
 /// Updates session configuration (instructions, tools, LLM provider).
 #[tauri::command]
 pub async fn update_chat_session(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     session_id: String,
     update: UpdateSessionRequest,
 ) -> Result<(), String> {
+    let state = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => {
+            return conversations::update(remote, &session_id, &update).await;
+        }
+    };
     let manager = state
         .chat_manager
         .as_ref()
@@ -232,9 +240,13 @@ pub async fn update_chat_session(
 /// Deletes a chat session and all its messages.
 #[tauri::command]
 pub async fn delete_chat_session(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     session_id: String,
 ) -> Result<(), String> {
+    let state = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => return conversations::erase(remote, &session_id).await,
+    };
     let manager = state
         .chat_manager
         .as_ref()
@@ -249,23 +261,22 @@ pub async fn delete_chat_session(
 /// Renames a chat session (sets a user-defined title).
 #[tauri::command]
 pub async fn rename_chat_session(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     session_id: String,
     title: String,
 ) -> Result<(), String> {
+    let state = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => {
+            return conversations::rename(remote, &session_id, &title).await;
+        }
+    };
     let manager = state
         .chat_manager
         .as_ref()
         .ok_or_else(|| "chat subsystem not available".to_string())?;
 
-    let trimmed = title.trim();
-    if trimmed.is_empty() {
-        return Err("title must not be empty".to_string());
-    }
-    let cleaned: String = trimmed.chars().take(100).collect();
-
-    manager
-        .rename_session(session_id, cleaned)
+    apollia_runtime::chat::title::rename_session(manager, session_id, &title)
         .await
         .map_err(|e| e.to_string())
 }
@@ -533,10 +544,16 @@ pub struct ResolvedChatApproval {
 /// Pass `project_id = null` to unlink.
 #[tauri::command]
 pub async fn link_chat_to_project(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     session_id: String,
     project_id: Option<String>,
 ) -> Result<(), String> {
+    let state = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => {
+            return conversations::link_project(remote, &session_id, project_id.as_deref()).await;
+        }
+    };
     let manager = state
         .chat_manager
         .as_ref()
@@ -551,9 +568,16 @@ pub async fn link_chat_to_project(
 /// Lists chat sessions belonging to a specific project.
 #[tauri::command]
 pub async fn list_chats_by_project(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     project_id: String,
 ) -> Result<Vec<ChatSessionSummary>, String> {
+    let state = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => {
+            let sessions = conversations::project_sessions(remote, &project_id).await?;
+            return Ok(sessions.iter().map(session_info_to_summary).collect());
+        }
+    };
     let manager = match state.chat_manager.as_ref() {
         Some(m) => m,
         None => return Ok(Vec::new()),

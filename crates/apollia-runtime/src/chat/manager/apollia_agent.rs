@@ -6,13 +6,14 @@
 //! beside `governance.db`, whose path is the one this actor is given.
 //!
 //! Its access list is the tools the chat offers: the agent's granted
-//! accesses, nothing else. What runs without a question among them comes from
+//! accesses, nothing else; the reading family until the user chooses others
+//! on its card. What runs without a question among them comes from
 //! the standing consents and the allow rules.
 
 use std::path::Path;
 
 use apollia_core::paths::DataFile;
-use apollia_tools::{AgentRepository, APOLLIA_AGENT_ID};
+use apollia_tools::{AgentAccess, AgentRepository, APOLLIA_AGENT_ID};
 
 use super::ChatLibreOverrides;
 
@@ -59,19 +60,20 @@ pub(in crate::chat::manager) fn apply_apollia_agent(
     }
 }
 
-/// The tools the Apollia agent is granted, read beside `governance_db`.
+/// The access of the Apollia agent, read beside `governance_db`.
 ///
 /// `None` only for a mount without a data directory, which has no agent
 /// store: its sessions run on the tools they were created with. Without
-/// `agents.db` the agent is its built-in definition, which grants nothing; an
-/// unreadable store grants nothing either.
+/// `agents.db`, or without an access chosen on its card, Apollia is an agent
+/// created without code and reads by default: the reading family active on
+/// the machine. An unreadable store grants nothing.
 pub(in crate::chat::manager) fn apollia_access(
     governance_db: Option<&Path>,
-) -> Option<Vec<String>> {
+) -> Option<AgentAccess> {
     let data_dir = governance_db?.parent()?;
     let agents_db = DataFile::Agents.path(data_dir);
     if !agents_db.exists() {
-        return Some(declared_access(&apollia_tools::apollia_definition()));
+        return Some(AgentAccess::ReadingFamily);
     }
     let resolved = AgentRepository::open(&agents_db).and_then(|repo| {
         repo.resolved(
@@ -81,8 +83,8 @@ pub(in crate::chat::manager) fn apollia_access(
         )
     });
     match resolved {
-        Ok(Some(apollia)) => Some(apollia.access),
-        Ok(None) => Some(declared_access(&apollia_tools::apollia_definition())),
+        Ok(Some(apollia)) => Some(AgentAccess::of(&apollia)),
+        Ok(None) => Some(AgentAccess::ReadingFamily),
         Err(error) => {
             tracing::event!(
                 tracing::Level::WARN,
@@ -90,23 +92,9 @@ pub(in crate::chat::manager) fn apollia_access(
                 detail = "the chat is granted no tool",
                 "chat.apollia.access.unreadable"
             );
-            Some(Vec::new())
+            Some(AgentAccess::Listed(Vec::new()))
         }
     }
-}
-
-/// The access a definition declares.
-fn declared_access(definition: &serde_json::Value) -> Vec<String> {
-    definition
-        .pointer("/defaults/access")
-        .and_then(serde_json::Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|v| v.as_str().map(str::to_owned))
-                .collect()
-        })
-        .unwrap_or_default()
 }
 
 /// The model assigned to Apollia in the `system.db` at `path`, if any.
@@ -190,24 +178,37 @@ mod tests {
 
         assert_eq!(
             access,
-            Some(vec![
+            Some(AgentAccess::Listed(vec![
                 "web_search".to_string(),
                 "mcp:notion/search".to_string()
-            ])
+            ]))
         );
+    }
+
+    // GIVEN a fresh install: agents.db holds Apollia, no override
+    // WHEN the chat reads its access
+    // THEN Apollia reads by default, as any agent created without code
+    #[test]
+    fn a_fresh_apollia_reads_by_default() {
+        let dir = tempfile::tempdir().unwrap();
+        AgentRepository::open(&DataFile::Agents.path(dir.path())).unwrap();
+
+        let access = apollia_access(Some(&DataFile::Governance.path(dir.path())));
+
+        assert_eq!(access, Some(AgentAccess::ReadingFamily));
     }
 
     // GIVEN a data directory without agents.db, then a mount without one
     // WHEN the chat reads the access of Apollia
-    // THEN its built-in definition grants nothing, and a mount without a
+    // THEN its built-in definition reads by default, and a mount without a
     // data directory keeps the tools of the session
     #[test]
-    fn without_a_store_apollia_is_granted_nothing() {
+    fn without_a_store_apollia_reads_by_default() {
         let dir = tempfile::tempdir().unwrap();
 
         let access = apollia_access(Some(&DataFile::Governance.path(dir.path())));
 
-        assert_eq!(access, Some(Vec::new()));
+        assert_eq!(access, Some(AgentAccess::ReadingFamily));
         assert!(!DataFile::Agents.path(dir.path()).exists());
         assert_eq!(apollia_access(None), None);
     }

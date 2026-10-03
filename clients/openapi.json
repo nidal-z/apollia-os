@@ -1517,6 +1517,59 @@
         }
       }
     },
+    "/api/v1/batches/accesses": {
+      "get": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`GET /api/v1/batches/accesses`: the sensitive accesses of an agent, those\na launch may grant for the duration of a batch.",
+        "description": "Reading is never listed: it runs without asking. An access that is not\n`grantable` (executing code, or an access nobody classified) is listed\ntoo: an item that reaches for it waits for a decision.",
+        "operationId": "batch_accesses",
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "query",
+            "description": "The agent a batch would run.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The sensitive accesses of the agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchAccessesView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An agent that cannot run a batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/batches/{id}": {
       "get": {
         "tags": [
@@ -1548,6 +1601,274 @@
           },
           "404": {
             "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{id}/pause": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`POST /api/v1/batches/{id}/pause`: no further item starts; those running\nend on their own. A paused batch stays paused across a restart.",
+        "operationId": "pause_batch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Batch id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch, paused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The batch is not running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{id}/resume": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`POST /api/v1/batches/{id}/resume`: a paused batch starts its items again.",
+        "operationId": "resume_batch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Batch id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch, running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The batch is not paused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{id}/retry": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`POST /api/v1/batches/{id}/retry`: the failed items, and those waiting for\nan access, run again from their input as read at launch. `grants` adds\naccesses granted for the rest of the batch.",
+        "operationId": "retry_batch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Batch id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchRetry"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The batch, running again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A grant the agent cannot take",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No failed or waiting item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{id}/stop": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`POST /api/v1/batches/{id}/stop`: the running items are cancelled, the\npending ones are canceled without running, and the batch ends `stopped`.",
+        "operationId": "stop_batch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Batch id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch, stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The batch has already ended",
             "content": {
               "application/json": {
                 "schema": {
@@ -1954,6 +2275,284 @@
           },
           "503": {
             "description": "The provider's OAuth client is not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/engines": {
+      "get": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "list_engines",
+        "responses": {
+          "200": {
+            "description": "Engines, channel and updates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnginesResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Store files unreadable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/engines/check": {
+      "post": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "check_engines",
+        "responses": {
+          "200": {
+            "description": "Manifest verified, updates per variant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineCheckResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Signature, channel, rollback or format refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The mirror could not be reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "This build carries no distribution key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/engines/import": {
+      "post": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "import_engines",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EngineImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Engines verified and installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineInstalledResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No archive of this platform in the directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Missing or invalid signature, digest or archive refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "This build carries no distribution key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/engines/install": {
+      "post": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "install_engine",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EngineInstallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Engine verified and installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineInstalledResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such package for this platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Signature, digest, rollback or archive refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The mirror could not be reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "This build carries no distribution key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/engines/settings": {
+      "get": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "get_engine_settings",
+        "responses": {
+          "200": {
+            "description": "Engine store settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineSettingsBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Settings file unreadable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "set_engine_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EngineSettingsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Settings saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineSettingsBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Base address is not http or https",
             "content": {
               "application/json": {
                 "schema": {
@@ -4935,6 +5534,265 @@
         }
       }
     },
+    "/api/v1/memory/namespaces/{namespace}/clear": {
+      "post": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "`POST /api/v1/memory/namespaces/{namespace}/clear`: removes every entry of\none kind, or of all kinds.",
+        "operationId": "clear_memory",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "description": "Memory namespace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClearMemoryBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "How many entries were removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryRemoved"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid namespace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memory/namespaces/{namespace}/entries/{entry_id}": {
+      "delete": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "`DELETE /api/v1/memory/namespaces/{namespace}/entries/{entry_id}`: removes\none entry, whatever its kind.",
+        "operationId": "delete_memory_entry",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "description": "Memory namespace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "description": "Entry identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether an entry had this identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryEntryDeleted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid namespace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No file holds the namespace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memory/namespaces/{namespace}/export": {
+      "get": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "`GET /api/v1/memory/namespaces/{namespace}/export`: every entry of the\nnamespace, in the export format.",
+        "operationId": "export_memory_namespace",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "description": "Memory namespace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The export, format version 1",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid namespace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memory/namespaces/{namespace}/import": {
+      "post": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "`POST /api/v1/memory/namespaces/{namespace}/import`: writes an export into\nthe namespace.",
+        "operationId": "import_memory_namespace",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "description": "Memory namespace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportMemoryBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "How many entries went in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryImported"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid namespace or unknown format version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memory/namespaces/{namespace}/purge": {
+      "post": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "`POST /api/v1/memory/namespaces/{namespace}/purge`: removes the entries\nolder than a number of days.",
+        "operationId": "purge_memory",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "description": "Memory namespace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurgeMemoryBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "How many entries were removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryRemoved"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid namespace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notifications/channels": {
       "get": {
         "tags": [
@@ -5876,6 +6734,41 @@
         }
       }
     },
+    "/api/v1/projects/{id}/sessions": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/projects/{id}/sessions`, the sessions of a\nproject.",
+        "operationId": "list_project_sessions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session list"
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/resilience/reset/{tool}": {
       "post": {
         "tags": [
@@ -6235,6 +7128,59 @@
             }
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PATCH /api/v1/sessions/{id}`, change the configuration.",
+        "operationId": "update_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session updated"
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/sessions/{id}/authorize": {
@@ -6324,6 +7270,51 @@
         "responses": {
           "200": {
             "description": "Child session list"
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/erase": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/{id}/erase`, delete the session and\nevery message it holds.",
+        "operationId": "erase_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session erased"
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
           },
           "503": {
             "description": "Chat subsystem unavailable",
@@ -6814,6 +7805,61 @@
         }
       }
     },
+    "/api/v1/sessions/{id}/project": {
+      "put": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PUT /api/v1/sessions/{id}/project`, link the session to a\nproject or, with `null`, unlink it.",
+        "operationId": "link_session_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkProjectBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Link stored"
+          },
+          "404": {
+            "description": "Session or project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{id}/resume": {
       "post": {
         "tags": [
@@ -6902,6 +7948,153 @@
           },
           "503": {
             "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/title": {
+      "put": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PUT /api/v1/sessions/{id}/title`, rename.",
+        "operationId": "rename_chat_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameSessionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session renamed"
+          },
+          "400": {
+            "description": "Blank title",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/title/generate": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/{id}/title/generate`, name the session\nfrom its first message with the configured model.",
+        "operationId": "generate_session_title",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateTitleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The title stored on the session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratedTitle"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Blank message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The model failed or answered no title",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem or inference server unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -9917,6 +11110,53 @@
           }
         }
       },
+      "BatchAccess": {
+        "type": "object",
+        "description": "One sensitive access of the agent a batch runs.",
+        "required": [
+          "accessId",
+          "permits",
+          "family",
+          "grantable"
+        ],
+        "properties": {
+          "accessId": {
+            "type": "string",
+            "description": "The access, as the agent names it: a tool, or `mcp:<server>`."
+          },
+          "family": {
+            "type": "string",
+            "description": "Its action family: `read_personal`, `write_or_delete`, `send_external`,\n`execute_code` or `unclassified`."
+          },
+          "grantable": {
+            "type": "boolean",
+            "description": "Whether it can be granted for a batch. Executing code asks at every\ncall, and an unclassified access has no family to grant."
+          },
+          "permits": {
+            "type": "string",
+            "description": "What it lets the agent do."
+          }
+        }
+      },
+      "BatchAccessesView": {
+        "type": "object",
+        "description": "The sensitive accesses of an agent.",
+        "required": [
+          "agent",
+          "accesses"
+        ],
+        "properties": {
+          "accesses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchAccess"
+            }
+          },
+          "agent": {
+            "type": "string"
+          }
+        }
+      },
       "BatchDetailView": {
         "type": "object",
         "description": "A batch with its items.",
@@ -9986,7 +11226,7 @@
           },
           "status": {
             "type": "string",
-            "description": "`pending`, `running`, `completed`, `failed` or `canceled`."
+            "description": "`pending`, `running`, `completed`, `failed`, `canceled`, or `awaiting`\na decision on an access nobody granted."
           },
           "taskId": {
             "type": [
@@ -10023,7 +11263,7 @@
             "items": {
               "type": "string"
             },
-            "description": "The accesses granted for the duration of the batch."
+            "description": "The sensitive accesses granted for the duration of the batch, by\ntheir id as `GET /api/v1/batches/accesses` lists them."
           },
           "maxFailures": {
             "type": [
@@ -10055,6 +11295,19 @@
           }
         }
       },
+      "BatchRetry": {
+        "type": "object",
+        "description": "What the failed items of a batch are run again with.",
+        "properties": {
+          "grants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Accesses granted for the rest of the batch, on top of those granted\nat launch: an item that waited for one of them runs again with it."
+          }
+        }
+      },
       "BatchView": {
         "type": "object",
         "description": "A batch: what it was launched with, its state and its counters.",
@@ -10070,12 +11323,19 @@
           "completed",
           "failed",
           "canceled",
+          "awaiting",
           "createdAt",
           "updatedAt"
         ],
         "properties": {
           "agent": {
             "type": "string"
+          },
+          "awaiting": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Items waiting for an access to be granted.",
+            "minimum": 0
           },
           "batchId": {
             "type": "string"
@@ -10127,7 +11387,7 @@
           },
           "state": {
             "type": "string",
-            "description": "`running`, `completed` or `interrupted`."
+            "description": "`running`, `paused`, `completed`, `interrupted` or `stopped`."
           },
           "total": {
             "type": "integer",
@@ -10415,6 +11675,19 @@
             "format": "int32",
             "description": "Number of entries removed.",
             "minimum": 0
+          }
+        }
+      },
+      "ClearMemoryBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/memory/namespaces/{namespace}/clear`.",
+        "properties": {
+          "memoryType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`episodic`, `semantic`, `procedural`; absent or any other value\nreaches every kind."
           }
         }
       },
@@ -11224,6 +12497,218 @@
           }
         }
       },
+      "EngineChannel": {
+        "type": "string",
+        "description": "An update channel.",
+        "enum": [
+          "stable",
+          "preview"
+        ]
+      },
+      "EngineCheckResponse": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/engines/check`.",
+        "required": [
+          "channel",
+          "manifest_sequence",
+          "updates"
+        ],
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/EngineChannel",
+            "description": "The channel checked."
+          },
+          "manifest_sequence": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Sequence of the manifest just verified.",
+            "minimum": 0
+          },
+          "updates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VariantUpdate"
+            },
+            "description": "Per variant, whether an update exists."
+          }
+        }
+      },
+      "EngineEntry": {
+        "type": "object",
+        "description": "One engine on this machine.",
+        "required": [
+          "engine",
+          "path",
+          "source"
+        ],
+        "properties": {
+          "engine": {
+            "$ref": "#/components/schemas/EngineName",
+            "description": "Engine."
+          },
+          "path": {
+            "type": "string",
+            "description": "Where it lives."
+          },
+          "source": {
+            "$ref": "#/components/schemas/EngineSource",
+            "description": "Embedded, downloaded or imported."
+          },
+          "tag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Upstream tag; unknown for an embedded engine."
+          },
+          "variant": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EngineVariant",
+                "description": "Variant; unknown for an embedded engine whose build is not stated."
+              }
+            ]
+          }
+        }
+      },
+      "EngineImportRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/engines/import`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Directory holding `engines.json`, `engines.json.minisig` and archives."
+          }
+        }
+      },
+      "EngineInstallRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/engines/install`.",
+        "required": [
+          "engine",
+          "variant"
+        ],
+        "properties": {
+          "engine": {
+            "$ref": "#/components/schemas/EngineName",
+            "description": "Engine to install."
+          },
+          "variant": {
+            "$ref": "#/components/schemas/EngineVariant",
+            "description": "Variant to install; its newest build on the channel is taken."
+          }
+        }
+      },
+      "EngineInstalledResponse": {
+        "type": "object",
+        "description": "Engines installed by a request.",
+        "required": [
+          "installed"
+        ],
+        "properties": {
+          "installed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EngineEntry"
+            },
+            "description": "What was installed."
+          }
+        }
+      },
+      "EngineName": {
+        "type": "string",
+        "description": "An inference engine the store can hold.",
+        "enum": [
+          "llama-server",
+          "vllm-mlx"
+        ]
+      },
+      "EngineSettingsBody": {
+        "type": "object",
+        "description": "Body of the settings routes.",
+        "required": [
+          "channel",
+          "base_url"
+        ],
+        "properties": {
+          "base_url": {
+            "type": "string",
+            "description": "Base address manifests and archives are fetched from."
+          },
+          "channel": {
+            "$ref": "#/components/schemas/EngineChannel",
+            "description": "The followed channel."
+          }
+        }
+      },
+      "EngineSource": {
+        "type": "string",
+        "description": "How an engine reached this machine.",
+        "enum": [
+          "embedded",
+          "downloaded",
+          "imported"
+        ]
+      },
+      "EngineVariant": {
+        "type": "string",
+        "description": "A build of an engine for one kind of hardware.",
+        "enum": [
+          "cuda",
+          "vulkan",
+          "cpu",
+          "metal"
+        ]
+      },
+      "EnginesResponse": {
+        "type": "object",
+        "description": "Body of `GET /api/v1/engines`.",
+        "required": [
+          "engines",
+          "channel",
+          "updates",
+          "cuda_proposable"
+        ],
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/EngineChannel",
+            "description": "The followed channel."
+          },
+          "cuda_proposable": {
+            "type": "boolean",
+            "description": "True when an NVIDIA card is detected and no CUDA engine is installed."
+          },
+          "engines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EngineEntry"
+            },
+            "description": "Engines embedded in the bundle, then installed ones."
+          },
+          "manifest_sequence": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Sequence of the last verified manifest of that channel, if any.",
+            "minimum": 0
+          },
+          "updates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VariantUpdate"
+            },
+            "description": "Per variant offered by that manifest for this platform, whether a newer\nbuild than the installed one exists. Empty until a manifest verified."
+          }
+        }
+      },
       "EventsResponse": {
         "type": "object",
         "description": "Response for `GET /api/v1/notifications/events`.",
@@ -11264,6 +12749,32 @@
             ],
             "description": "Number of messages to copy from the parent (None = all).",
             "minimum": 0
+          }
+        }
+      },
+      "GenerateTitleBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/sessions/{id}/title/generate`.",
+        "required": [
+          "first_message"
+        ],
+        "properties": {
+          "first_message": {
+            "type": "string",
+            "description": "The first user message the title is drawn from."
+          }
+        }
+      },
+      "GeneratedTitle": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/sessions/{id}/title/generate`.",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The title stored on the session."
           }
         }
       },
@@ -11422,6 +12933,24 @@
           "error": {
             "type": "string",
             "description": "What went wrong, for a person."
+          }
+        }
+      },
+      "ImportMemoryBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/memory/namespaces/{namespace}/import`.",
+        "required": [
+          "mode",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "object",
+            "description": "The export, as `GET .../export` answers it."
+          },
+          "mode": {
+            "type": "string",
+            "description": "`replace` empties the namespace first; any other value merges."
           }
         }
       },
@@ -11948,6 +13477,19 @@
           "per_run_broken"
         ]
       },
+      "LinkProjectBody": {
+        "type": "object",
+        "description": "Request body for `PUT /api/v1/sessions/{id}/project`.",
+        "properties": {
+          "project_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The project to link, `null` to unlink."
+          }
+        }
+      },
       "LlmBackendResponse": {
         "type": "object",
         "description": "Response body for a single backend.",
@@ -12142,6 +13684,48 @@
               "type": "object"
             },
             "description": "History entries."
+          }
+        }
+      },
+      "MemoryEntryDeleted": {
+        "type": "object",
+        "description": "Answer of `DELETE /api/v1/memory/namespaces/{namespace}/entries/{entry_id}`.",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether an entry had this identifier."
+          }
+        }
+      },
+      "MemoryImported": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/memory/namespaces/{namespace}/import`.",
+        "required": [
+          "imported"
+        ],
+        "properties": {
+          "imported": {
+            "type": "integer",
+            "description": "How many entries went in.",
+            "minimum": 0
+          }
+        }
+      },
+      "MemoryRemoved": {
+        "type": "object",
+        "description": "Answer of the clear and purge routes.",
+        "required": [
+          "removed"
+        ],
+        "properties": {
+          "removed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many entries were removed.",
+            "minimum": 0
           }
         }
       },
@@ -12891,6 +14475,28 @@
           }
         }
       },
+      "PurgeMemoryBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/memory/namespaces/{namespace}/purge`.",
+        "required": [
+          "olderThanDays"
+        ],
+        "properties": {
+          "memoryType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`episodic`, `semantic`, `procedural`; absent or any other value\nreaches every kind."
+          },
+          "olderThanDays": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Entries older than this many days are removed.",
+            "minimum": 0
+          }
+        }
+      },
       "PutMcpSecretBody": {
         "type": "object",
         "description": "Body of `PUT /api/v1/mcp/servers/:name/secrets/:key`.",
@@ -13002,6 +14608,19 @@
           "reaches_running_agents": {
             "type": "boolean",
             "description": "Whether the rebuilt router reaches agents that are already running.\n\n`true`: the router this one replaces is superseded by it, and an agent\nstarted before the reload reads the router in force at each call\n(`LlmRouter::latest`), so it picks the reload up without a restart.\nKept in the response so a client that warned about the opposite can\ntell the two runtimes apart."
+          }
+        }
+      },
+      "RenameSessionBody": {
+        "type": "object",
+        "description": "Request body for `PUT /api/v1/sessions/{id}/title`.",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The title, trimmed and capped at 100 characters."
           }
         }
       },
@@ -14973,6 +16592,36 @@
           }
         }
       },
+      "UpdateSessionBody": {
+        "type": "object",
+        "description": "Request body for `PATCH /api/v1/sessions/{id}`. An absent field keeps its\nvalue.",
+        "properties": {
+          "llm_backend": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Inference server of the session."
+          },
+          "system_prompt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New system prompt."
+          },
+          "tools": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "New list of tools available in the session."
+          }
+        }
+      },
       "UpdateTriggerRequest": {
         "type": "object",
         "description": "Request body for `PUT /api/v1/triggers/:id`, trigger update.",
@@ -15050,6 +16699,41 @@
               "$ref": "#/components/schemas/ProfileEntryView"
             },
             "description": "Entries whose key is a field of the schema."
+          }
+        }
+      },
+      "VariantUpdate": {
+        "type": "object",
+        "description": "Whether a newer build of one engine variant exists on the channel.",
+        "required": [
+          "engine",
+          "variant",
+          "latest_tag",
+          "update_available"
+        ],
+        "properties": {
+          "engine": {
+            "$ref": "#/components/schemas/EngineName",
+            "description": "Engine."
+          },
+          "installed_tag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Newest tag installed here, if any."
+          },
+          "latest_tag": {
+            "type": "string",
+            "description": "Newest tag the verified manifest offers."
+          },
+          "update_available": {
+            "type": "boolean",
+            "description": "True when a tag is installed and the manifest offers a newer one."
+          },
+          "variant": {
+            "$ref": "#/components/schemas/EngineVariant",
+            "description": "Variant."
           }
         }
       },
@@ -15429,6 +17113,10 @@
       "description": "Hardware profiling and model registry"
     },
     {
+      "name": "engines",
+      "description": "Inference engines: channel, verified download and import"
+    },
+    {
       "name": "resilience",
       "description": "Circuit breakers"
     },
@@ -15445,16 +17133,16 @@
       "description": "The user profile"
     },
     {
+      "name": "memory",
+      "description": "Upkeep of the agents' memory, per namespace"
+    },
+    {
       "name": "connectors",
       "description": "Native connector accounts and their consent"
     },
     {
       "name": "webhooks",
       "description": "Inbound webhooks"
-    },
-    {
-      "name": "packages",
-      "description": "Package preview, installation, and trusted publisher keys"
     }
   ]
 }
