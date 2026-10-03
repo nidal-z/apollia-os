@@ -1175,6 +1175,80 @@ fn test_build_llm_messages() {
     assert_eq!(messages[4].role, apollia_llm::types::Role::User);
 }
 
+#[tokio::test]
+async fn test_every_streamed_call_of_a_turn_is_published_with_the_turn() {
+    // GIVEN a model that streams one tool call then text, and an agent running
+    // the turn whose answer is "answer-1"
+    let model = Arc::new(MockReActModel {
+        calls: vec![LlmToolCall {
+            id: "c1".into(),
+            name: "bash".into(),
+            arguments: serde_json::json!({}),
+        }],
+        final_tokens: split_tokens("Done"),
+        iteration: AtomicU32::new(0),
+    });
+    let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
+    let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+        llm_router: make_router(model),
+        tool_registry: ToolRegistryHandle::start(),
+        tool_invoker: Arc::new(MockToolInvoker::new("output")),
+        event_bus: event_tx,
+        user_memory: None,
+        todo: None,
+        plan: None,
+    })
+    .with_turn_id(Some("answer-1".into()));
+    let authorized: HashSet<String> = HashSet::from(["bash".to_string()]);
+
+    // WHEN the turn runs to its answer
+    let response = agent
+        .execute(
+            "s1",
+            "m1",
+            &RunId::new(),
+            "Go",
+            &[],
+            "prompt",
+            &["bash".to_string()],
+            &authorized,
+            &PendingChatApprovals::new(),
+            &make_budget(10),
+            None,
+            DEFAULT_CONTEXT_WINDOW_SIZE,
+            None,
+            None,
+            None,
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .expect("should succeed");
+
+    // THEN each of its two calls is published with the session and the turn,
+    // and the response carries their two measures, the last one a stop
+    let mut turns = Vec::new();
+    while let Ok(evt) = event_rx.try_recv() {
+        if let RuntimeEvent::LlmCallCompleted {
+            session_id,
+            turn_id,
+            finish_reason,
+            ..
+        } = evt
+        {
+            turns.push((session_id, turn_id, finish_reason));
+        }
+    }
+    assert_eq!(turns.len(), 2, "{turns:?}");
+    for (session_id, turn_id, _) in &turns {
+        assert_eq!(session_id.as_deref(), Some("s1"));
+        assert_eq!(turn_id.as_deref(), Some("answer-1"));
+    }
+    assert_eq!(response.llm_calls.len(), 2);
+    assert_eq!(response.llm_calls[0].end, apollia_llm::CallEnd::ToolCalls);
+    assert_eq!(response.llm_calls[1].end, apollia_llm::CallEnd::Stop);
+}
+
 /// Events emitted in correct order (including ChatToken).
 #[tokio::test]
 async fn test_events_emitted_in_order() {
@@ -2196,6 +2270,7 @@ async fn run_turn(
         all_tool_calls: vec![],
         newly_authorized: vec![],
         authorized: calls.iter().map(|c| c.name.clone()).collect(),
+        llm_calls: Vec::new(),
     };
     let valid_tool_names: HashSet<String> = calls.iter().map(|c| c.name.clone()).collect();
     let budget = make_budget(100);
@@ -2345,6 +2420,7 @@ async fn run_turn_full(
         all_tool_calls: vec![],
         newly_authorized: vec![],
         authorized: calls.iter().map(|c| c.name.clone()).collect(),
+        llm_calls: Vec::new(),
     };
     let valid_tool_names: HashSet<String> = calls.iter().map(|c| c.name.clone()).collect();
     let approvals = PendingChatApprovals::new();
@@ -2390,6 +2466,7 @@ async fn test_unknown_tool_name_refused_with_suggestion() {
         all_tool_calls: vec![],
         newly_authorized: vec![],
         authorized: HashSet::new(),
+        llm_calls: Vec::new(),
     };
     let budget = make_budget(10);
     let approvals = PendingChatApprovals::new();
@@ -3892,6 +3969,7 @@ async fn test_consume_stream_cancel_folds_late_usage() {
                 message_id: "msg-1",
                 cancel: &cancel,
                 dispatched_at: std::time::Instant::now(),
+                meter: &mut apollia_llm::CallMeter::new(std::time::Instant::now()),
             },
             &mut accumulated,
             &mut usage,
@@ -4145,6 +4223,7 @@ async fn test_handle_plan_tool_propose_persists_and_records() {
         all_tool_calls: Vec::new(),
         newly_authorized: Vec::new(),
         authorized: HashSet::new(),
+        llm_calls: Vec::new(),
     };
     let c = plan_call(
         PLAN_PROPOSE_TOOL_NAME,
@@ -4178,6 +4257,7 @@ async fn test_handle_plan_tool_modify_without_reason_is_failure() {
         all_tool_calls: Vec::new(),
         newly_authorized: Vec::new(),
         authorized: HashSet::new(),
+        llm_calls: Vec::new(),
     };
     let c = plan_call(
         PLAN_MODIFY_STEP_TOOL_NAME,

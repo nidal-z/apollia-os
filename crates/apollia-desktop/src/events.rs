@@ -778,6 +778,11 @@ mod tests {
                 latency_ms: 0,
                 cost_usd: None,
                 run_id: None,
+                session_id: None,
+                turn_id: None,
+                ttft_ms: None,
+                finish_reason: None,
+                generation_ms: None,
             },
             RuntimeEvent::TriggerFired {
                 trigger_id: "t".into(),

@@ -27,8 +27,8 @@
 use std::path::{Path, PathBuf};
 
 use apollia_core::{
-    ApiConfig, ChatConfig, FilesystemConfig, HitlConfig, HooksConfig, McpConfig, ModelsConfig,
-    RuntimeConfig, ToolsConfig,
+    ApiConfig, ChatConfig, DesktopConfig, FilesystemConfig, HitlConfig, HooksConfig, McpConfig,
+    ModelsConfig, RuntimeConfig, ToolsConfig,
 };
 use apollia_llm::{BackendKind, LlmConfig};
 
@@ -123,6 +123,12 @@ pub struct ApolliaCConfig {
     ///
     /// `None` when absent; the [`apollia_core::WorkflowsConfig`] defaults apply.
     pub workflows: Option<apollia_core::WorkflowsConfig>,
+
+    /// Section `[desktop]`: the settings of the desktop application that Rust
+    /// reads, developer mode first. An unknown key inside it is refused.
+    ///
+    /// `None` when absent; the [`DesktopConfig`] defaults apply.
+    pub desktop: Option<DesktopConfig>,
 }
 
 /// Names of the TOML sections that are now deprecated.
@@ -194,6 +200,7 @@ pub const KNOWN_SECTIONS: &[&str] = &[
     "filesystem",
     "models",
     "workflows",
+    "desktop",
 ];
 
 /// Returns `true` when `section` is a recognized top-level `apollia.toml` section.
@@ -746,6 +753,38 @@ plan_mode_default = true
         assert!(config.chat.is_none());
     }
 
+    // GIVEN an apollia.toml without a [desktop] section
+    // WHEN it is parsed
+    // THEN it loads, and the desktop section reads as its defaults
+    #[test]
+    fn test_desktop_section_absent_loads_the_defaults() {
+        // GIVEN
+        let file = write_toml("[chat]\nplan_mode_default = true\n");
+
+        // WHEN
+        let config = parse_apollia_toml(file.path()).expect("parse should succeed");
+
+        // THEN
+        assert!(config.desktop.is_none());
+        assert!(!config.desktop.unwrap_or_default().developer_mode);
+    }
+
+    // GIVEN an apollia.toml turning developer mode on
+    // WHEN it is parsed
+    // THEN the typed desktop section carries it
+    #[test]
+    fn test_desktop_section_developer_mode_parses() {
+        // GIVEN
+        let file = write_toml("[desktop]\ndeveloper_mode = true\n");
+
+        // WHEN
+        let config = parse_apollia_toml(file.path()).expect("parse should succeed");
+
+        // THEN
+        assert!(config.desktop.expect("desktop present").developer_mode);
+        assert!(is_known_top_level_section("desktop"));
+    }
+
     // GIVEN the ApolliaCConfig struct
     // WHEN verifying its structure
     // THEN it carries exactly the sections a loader actually consults
@@ -764,6 +803,7 @@ plan_mode_default = true
             filesystem: None,
             models: None,
             workflows: None,
+            desktop: None,
         };
 
         // THEN every field is optional and absent
@@ -778,12 +818,13 @@ plan_mode_default = true
         assert!(config.filesystem.is_none());
         assert!(config.models.is_none());
         assert!(config.workflows.is_none());
+        assert!(config.desktop.is_none());
 
         // AND the typed struct agrees with the key-path guard, so a section can
         // never again be settable without a field to land in.
         assert_eq!(
             KNOWN_SECTIONS.len(),
-            11,
+            12,
             "adding a section here means adding a field above, and a reader below"
         );
     }

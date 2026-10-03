@@ -100,9 +100,7 @@ fn refusal(error: OnboardingError) -> ApiError {
         OnboardingError::RepositoryNotInitialized | OnboardingError::ChatNotAvailable => {
             StatusCode::SERVICE_UNAVAILABLE
         }
-        OnboardingError::AgentNotInstalled | OnboardingError::GuideAgentNotInstalled => {
-            StatusCode::NOT_FOUND
-        }
+        OnboardingError::AgentNotInstalled => StatusCode::NOT_FOUND,
         OnboardingError::InvalidTopic(_)
         | OnboardingError::InvalidProfile(_)
         | OnboardingError::UnknownPhase(_) => StatusCode::BAD_REQUEST,

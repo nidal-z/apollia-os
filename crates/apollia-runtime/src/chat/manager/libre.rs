@@ -353,6 +353,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         cancel,
         pending_injection,
         preferred_backend,
+        turn_id,
     } = params;
 
     let available_tools = available_tools.tools(&tool_registry).await;
@@ -497,6 +498,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             approval_timeout: Some(crate::chat::builtin_agent::CHAT_APPROVAL_TIMEOUT),
             shared_budget: None,
             composition: composer.map(|composer| Composition { composer, depth: 1 }),
+            turn_id,
         },
         &runtime_budget,
         cancel,

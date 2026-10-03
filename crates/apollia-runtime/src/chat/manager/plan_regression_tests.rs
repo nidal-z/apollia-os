@@ -23,6 +23,7 @@ fn response_with_final_phase(phase: Option<PlanPhase>) -> ChatAgentResponse {
         paused: false,
         context_window_tokens: None,
         context_tokens_used: 0,
+        llm_calls: Vec::new(),
     }
 }
 

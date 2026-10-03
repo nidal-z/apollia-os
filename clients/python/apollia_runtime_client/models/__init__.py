@@ -80,6 +80,8 @@ from .clear_cache_response import ClearCacheResponse
 from .clear_memory_body import ClearMemoryBody
 from .coaching_example import CoachingExample
 from .coaching_request import CoachingRequest
+from .companion_enabled import CompanionEnabled
+from .companion_session import CompanionSession
 from .complete_consent_body import CompleteConsentBody
 from .complete_request import CompleteRequest
 from .complete_request_schema_type_0 import CompleteRequestSchemaType0
@@ -96,6 +98,7 @@ from .costs_response import CostsResponse
 from .counted_language_model import CountedLanguageModel
 from .create_channel_request import CreateChannelRequest
 from .create_channel_request_config import CreateChannelRequestConfig
+from .create_companion_session_body import CreateCompanionSessionBody
 from .create_llm_backend_request import CreateLlmBackendRequest
 from .create_llm_backend_request_config_json import CreateLlmBackendRequestConfigJson
 from .create_preset_request import CreatePresetRequest
@@ -407,6 +410,8 @@ from .trigger_result import TriggerResult
 from .trigger_source_input import TriggerSourceInput
 from .trust_key_request import TrustKeyRequest
 from .trusted_key_view import TrustedKeyView
+from .turn_llm_call import TurnLlmCall
+from .turn_llm_calls_response import TurnLlmCallsResponse
 from .unload_model_request import UnloadModelRequest
 from .unload_model_response import UnloadModelResponse
 from .update_artifact_request import UpdateArtifactRequest
@@ -518,6 +523,8 @@ __all__ = (
     "ClearMemoryBody",
     "CoachingExample",
     "CoachingRequest",
+    "CompanionEnabled",
+    "CompanionSession",
     "CompleteConsentBody",
     "CompleteRequest",
     "CompleteRequestSchemaType0",
@@ -534,6 +541,7 @@ __all__ = (
     "CountedLanguageModel",
     "CreateChannelRequest",
     "CreateChannelRequestConfig",
+    "CreateCompanionSessionBody",
     "CreateLlmBackendRequest",
     "CreateLlmBackendRequestConfigJson",
     "CreatePresetRequest",
@@ -839,6 +847,8 @@ __all__ = (
     "TriggerSourceInput",
     "TrustedKeyView",
     "TrustKeyRequest",
+    "TurnLlmCall",
+    "TurnLlmCallsResponse",
     "UnloadModelRequest",
     "UnloadModelResponse",
     "UpdateArtifactRequest",
