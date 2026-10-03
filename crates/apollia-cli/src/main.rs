@@ -13,6 +13,7 @@ pub mod client;
 pub mod commands;
 pub mod community;
 pub mod config;
+pub mod config_location;
 pub mod exit_codes;
 pub mod output;
 
@@ -97,6 +98,9 @@ enum Commands {
         /// TCP port to listen on (default: 7771).
         #[arg(long, value_name = "PORT")]
         port: Option<u16>,
+        /// Configuration file to load instead of `~/.apollia/apollia.toml`.
+        #[arg(long, value_name = "PATH")]
+        config: Option<PathBuf>,
     },
 
     /// Stop a running runtime.
@@ -325,11 +329,7 @@ enum Commands {
     Review(commands::review::ReviewArgs),
 
     /// The decisions waiting for you (pending).
-    Approvals {
-        /// Approvals subcommand.
-        #[command(subcommand)]
-        command: commands::approvals::ApprovalsCommand,
-    },
+    Approvals(commands::approvals::ApprovalsArgs),
 
     /// Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry, export).
     Batch {
@@ -543,8 +543,13 @@ fn init_tracing(cli: &Cli) {
 }
 
 /// Run the daemon, mapping its result to an exit code.
-async fn run_start(socket: Option<PathBuf>, port: Option<u16>, json: bool) -> i32 {
-    match commands::start::run(socket, port).await {
+async fn run_start(
+    socket: Option<PathBuf>,
+    port: Option<u16>,
+    config: Option<PathBuf>,
+    json: bool,
+) -> i32 {
+    match commands::start::run(socket, port, config).await {
         Ok(interrupted) => {
             if interrupted {
                 exit_codes::INTERRUPTED
@@ -675,7 +680,7 @@ fn main() {
     let no_color = cli.no_color;
     let exit_code = rt.block_on(async {
         match cli.command {
-            Commands::Start { port } => run_start(cli.socket, port, json).await,
+            Commands::Start { port, config } => run_start(cli.socket, port, config, json).await,
             Commands::Stop => commands::stop::run(cli.socket, json).await,
             Commands::Status => commands::status::run(cli.socket, json).await,
             Commands::Run {
@@ -739,9 +744,7 @@ fn main() {
             }
             Commands::Policy { command } => commands::policy::run(&command, json),
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
-            Commands::Approvals { command } => {
-                commands::approvals::run(&command, cli.socket, json).await
-            }
+            Commands::Approvals(args) => commands::approvals::run(&args, cli.socket, json).await,
             Commands::Batch { command } => commands::batch::run(&command, cli.socket, json).await,
             Commands::Workflow { command } => {
                 commands::workflow::run(&command, cli.socket, json).await
@@ -818,7 +821,13 @@ mod tests {
         // WHEN parse
         let cli = parse(&["apollia-os", "start"]);
         // THEN Commands::Start
-        assert!(matches!(cli.command, Commands::Start { port: None }));
+        assert!(matches!(
+            cli.command,
+            Commands::Start {
+                port: None,
+                config: None
+            }
+        ));
     }
 
     #[test]
@@ -827,7 +836,32 @@ mod tests {
         let cli = parse(&["apollia-os", "start", "--port", "8080"]);
         // WHEN clap parses the argument line
         // THEN Commands::Start with port
-        assert!(matches!(cli.command, Commands::Start { port: Some(8080) }));
+        assert!(matches!(
+            cli.command,
+            Commands::Start {
+                port: Some(8080),
+                config: None
+            }
+        ));
+    }
+
+    #[test]
+    fn test_cli_parses_start_with_config() {
+        // GIVEN "apollia-os start --config /etc/apollia/custom.toml"
+        let cli = parse(&[
+            "apollia-os",
+            "start",
+            "--config",
+            "/etc/apollia/custom.toml",
+        ]);
+        // WHEN clap parses the argument line
+        // THEN Commands::Start carries the explicit configuration path
+        match cli.command {
+            Commands::Start { config, .. } => {
+                assert_eq!(config, Some(PathBuf::from("/etc/apollia/custom.toml")));
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
     }
 
     #[test]

@@ -24,8 +24,9 @@ pub async fn list_model_cards(lang: Option<String>) -> Result<CatalogueView, Str
     let data_dir = data_dir();
     let location = apollia_permissions::policy_location();
     let policy = apollia_permissions::load_policy(&location.dir, location.owner);
-    let source = RegistrySource::from_config_file(&data_dir.join("apollia.toml"))
-        .under_policy(&policy.imposed_settings());
+    let source =
+        RegistrySource::from_config_file(&data_dir.join(apollia_core::paths::CONFIG_FILE_NAME))
+            .under_policy(&policy.imposed_settings());
     open_catalogue(
         &source,
         &default_cache_dir(&data_dir),

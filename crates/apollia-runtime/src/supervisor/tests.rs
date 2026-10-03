@@ -601,6 +601,7 @@ async fn test_app_state_clone_with_llm_router_none() {
         secret_store: crate::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     };
 
     // WHEN the AppState is cloned
@@ -1842,4 +1843,64 @@ async fn shutdown_handles_dyn(
     handles.tool_registry_handle.shutdown().await;
     handles.registry_handle.shutdown();
     let _ = std::fs::remove_file(socket_path);
+}
+
+/// Boots a supervisor whose data directory holds an `apollia.toml` with
+/// `server_section`, and returns its handles and the compatible server's port.
+async fn boot_with_server_section(
+    enabled: bool,
+) -> (
+    SupervisorHandles<MockBackend>,
+    tempfile::TempDir,
+    PathBuf,
+    u16,
+) {
+    let compat_port = crate::compat_server::tests::free_port();
+    let socket_path = temp_socket_path();
+    // The native API serves its socket only: the test reads the second listener.
+    let (mut config, tmp_dir) = test_config(0, socket_path.clone());
+    config.api_config.tcp_port = None;
+    std::fs::write(
+        tmp_dir.path().join("apollia.toml"),
+        format!("[server]\nenabled = {enabled}\nport = {compat_port}\n"),
+    )
+    .unwrap();
+    let handles = Supervisor::new(config)
+        .start(
+            MockBackend,
+            Arc::new(crate::api::routes_agents::StubAgentLoader),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    (handles, tmp_dir, socket_path, compat_port)
+}
+
+#[tokio::test]
+async fn test_a_runtime_whose_compatible_server_is_off_opens_no_second_listener() {
+    // GIVEN an apollia.toml with [server] enabled = false
+    // WHEN the runtime starts
+    let (handles, _tmp, socket_path, compat_port) = boot_with_server_section(false).await;
+
+    // THEN nothing listens on the compatible server's port
+    assert!(!crate::compat_server::tests::listens(compat_port).await);
+    let _ = handles.event_sender.send(RuntimeEvent::ShutdownRequested);
+    shutdown_handles(handles, &socket_path).await;
+}
+
+#[tokio::test]
+async fn test_a_runtime_whose_compatible_server_is_on_opens_it_at_start() {
+    // GIVEN an apollia.toml with [server] enabled = true
+    // WHEN the runtime starts
+    let (handles, _tmp, socket_path, compat_port) = boot_with_server_section(true).await;
+
+    // THEN the compatible server listens on its own port, beside the native API
+    let listening = poll_until_async(std::time::Duration::from_secs(5), || {
+        crate::compat_server::tests::listens(compat_port)
+    })
+    .await;
+    assert!(listening, "the compatible server did not open at start");
+    let _ = handles.event_sender.send(RuntimeEvent::ShutdownRequested);
+    shutdown_handles(handles, &socket_path).await;
 }

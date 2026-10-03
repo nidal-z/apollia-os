@@ -1784,8 +1784,8 @@ fn test_cli_parses_approvals_pending() {
     let cli = parse(&["apollia-os", "approvals", "pending", "--json"]);
     // THEN the pending verb of the approvals noun is selected, in JSON
     assert!(cli.json);
-    let Commands::Approvals { command } = cli.command else {
+    let Commands::Approvals(args) = cli.command else {
         panic!("expected approvals");
     };
-    assert!(matches!(command, ApprovalsCommand::Pending));
+    assert!(matches!(args.command, ApprovalsCommand::Pending));
 }

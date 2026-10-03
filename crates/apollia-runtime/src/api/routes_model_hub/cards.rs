@@ -107,7 +107,10 @@ pub(crate) fn configured_source(
     data_dir: &Path,
     imposed: &apollia_core::config::PolicySettings,
 ) -> RegistrySource {
-    let path = config_path.map_or_else(|| data_dir.join("apollia.toml"), Path::to_path_buf);
+    let path = config_path.map_or_else(
+        || data_dir.join(apollia_core::paths::CONFIG_FILE_NAME),
+        Path::to_path_buf,
+    );
     RegistrySource::from_config_file(&path).under_policy(imposed)
 }
 

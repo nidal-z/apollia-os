@@ -131,7 +131,6 @@ seed_sqlite() {
 REPO_ROOT="$(cd "$HERE/../../.." >/dev/null 2>&1 && pwd)"
 SEED_HOME="${1:-$PWD/.apollia-seed-home}"
 DATA="$SEED_HOME/.apollia"
-CFG="$SEED_HOME/.config/apollia"
 
 PROJECT_ROOT="$(seed_native_path "${APOLLIA_SEED_PROJECT_ROOT:-$REPO_ROOT}")"
 # Native form, because these two are the only paths this script writes INTO a
@@ -213,7 +212,7 @@ rm -rf "$SEED_HOME"
 # alias names the operator's own home, where it already exists; on the automated
 # path the home is a throwaway one, and a trigger watching a directory nobody
 # creates is a fixture naming something that is not there.
-mkdir -p "$DATA" "$CFG" "$DATA/agents" "$DATA/memory" "$DATA/models" "$DATA/venvs" \
+mkdir -p "$DATA" "$DATA/agents" "$DATA/memory" "$DATA/models" "$DATA/venvs" \
          "$SEED_HOME/Downloads"
 
 # 1) Databases: schema then fragment (fragment is INSERTs only).
@@ -362,15 +361,15 @@ if [ -f "$DATA/agents.db" ]; then
     "UPDATE installed_packages SET root_path = '$DATA_ALIAS/agents/packages/' || name WHERE 1;" 2>/dev/null || true
 fi
 
-# 4) Config: place apollia.toml in both the standard and XDG locations. An
-#    overlay may replace it wholesale (it carries the same placeholders).
+# 4) Config: place apollia.toml at ~/.apollia/apollia.toml, the only location
+#    any surface reads. An overlay may replace it wholesale (it carries the
+#    same placeholders).
 CONFIG_SRC="$HERE/files/apollia.toml"
 if [ -n "$OVERLAY" ] && [ -f "$OVERLAY/files/apollia.toml" ]; then
   CONFIG_SRC="$OVERLAY/files/apollia.toml"
 fi
 if [ -f "$CONFIG_SRC" ]; then
   expand_seed_paths < "$CONFIG_SRC" > "$DATA/apollia.toml"
-  cp "$DATA/apollia.toml" "$CFG/apollia.toml"
 fi
 
 echo "==> done. Launch with: HOME=$SEED_HOME (toolchain env preserved)"

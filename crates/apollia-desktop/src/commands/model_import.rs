@@ -103,7 +103,7 @@ pub(crate) struct RuleInForce {
 /// in `<data_dir>/apollia.toml`. A missing file or key leaves the default:
 /// unverified imports are accepted.
 pub(crate) fn import_rule(data_dir: &Path, imposed: &PolicySettings) -> RuleInForce {
-    let path = data_dir.join("apollia.toml");
+    let path = data_dir.join(apollia_core::paths::CONFIG_FILE_NAME);
     match apollia_core::config::resolve_setting(&path, REQUIRE_VERIFIED_KEY, imposed) {
         Ok(resolved) => RuleInForce {
             rule: ModelImportRule {

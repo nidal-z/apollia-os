@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use serde_json::Value;
 
-use super::{DesktopConfig, McpConfig, ModelsConfig};
+use super::{DesktopConfig, McpConfig, ModelsConfig, ServerConfig};
 
 /// Wire names of the load guardrail levels, the values `llm.guardrails.level`
 /// accepts. The runtime holds its level enum to this list in a test.
@@ -172,6 +172,9 @@ fn defaults() -> serde_json::Map<String, Value> {
         "llm".to_owned(),
         serde_json::json!({ "guardrails": { "level": "balanced", "ceiling_gb": 0.0 } }),
     );
+    if let Ok(server) = serde_json::to_value(ServerConfig::default()) {
+        sections.insert("server".to_owned(), server);
+    }
     sections
 }
 
@@ -435,10 +438,12 @@ pub fn write_setting(
             })?;
     set_in_document(&mut document, key, to_toml(key, &value)?)?;
     let written = document.to_string();
-    DesktopConfig::from_toml_str(&written).map_err(|e| SettingError::InvalidValue {
+    let invalid = |e: toml::de::Error| SettingError::InvalidValue {
         key: key.to_owned(),
         reason: e.message().to_owned(),
-    })?;
+    };
+    DesktopConfig::from_toml_str(&written).map_err(invalid)?;
+    ServerConfig::from_toml_str(&written).map_err(invalid)?;
     write_atomically(path, &written)?;
     tracing::event!(tracing::Level::INFO, key = %key, "config.setting.written");
     Ok(ResolvedSetting {

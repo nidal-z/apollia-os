@@ -101,11 +101,11 @@ impl Supervisor {
         // `apollia.toml`, whose `[llm.guardrails]` both engines read at every
         // launch: the file the runtime was started with, else the one in its
         // data directory.
-        let guardrails_file = self
-            .config
-            .config_path
-            .clone()
-            .unwrap_or_else(|| self.config.data_dir.join("apollia.toml"));
+        let guardrails_file = self.config.config_path.clone().unwrap_or_else(|| {
+            self.config
+                .data_dir
+                .join(apollia_core::paths::CONFIG_FILE_NAME)
+        });
         let llama_server_supervisor = crate::llama_server::LlamaServerSupervisor::new(
             crate::llama_server::LlamaServerConfig::default(),
             Some(system_db_path.clone()),
@@ -221,22 +221,14 @@ impl Supervisor {
         // Phase 8c: the governance actor, owner of what every tool call is
         // decided from; then the one-shot access upgrade of governance.db,
         // journaled through it.
-        let governance =
-            crate::governance::GovernanceHandle::spawn(crate::governance::GovernanceSources {
-                governance_db: Some(
-                    self.config
-                        .data_dir
-                        .join(apollia_core::paths::DataFile::Governance.file_name()),
-                ),
-                config_path: Some(
-                    self.config
-                        .config_path
-                        .clone()
-                        .unwrap_or_else(|| self.config.data_dir.join("apollia.toml")),
-                ),
-                policy: Arc::clone(&org_policy),
-                journal: audit_journal_handle.clone(),
-            });
+        let governance = crate::governance::GovernanceHandle::spawn(
+            crate::governance::GovernanceSources::at_boot(
+                &self.config.data_dir,
+                self.config.config_path.as_deref(),
+                Arc::clone(&org_policy),
+                audit_journal_handle.clone(),
+            ),
+        );
         crate::governance::access_upgrade::run_at_startup(&self.config.data_dir, &governance);
 
         // Phase 8d: the settings the chat kept before it was the Apollia
@@ -554,6 +546,16 @@ impl Supervisor {
             )))
             .await;
         }
+        // The compatible server reads and writes its switch in the file the
+        // runtime was started with, or in the data directory's apollia.toml,
+        // the file the desktop reads, when it was started without one.
+        let compat_server = crate::compat_server::CompatServerHandle::spawn(
+            self.config
+                .config_path
+                .clone()
+                .unwrap_or_else(|| self.config.data_dir.join("apollia.toml")),
+            &event_sender,
+        );
         let shared_llm_router = crate::api::server::shared_llm_router_from(llm_router.clone());
         let state = AppState {
             router_handle: router_handle.clone(),
@@ -601,6 +603,7 @@ impl Supervisor {
             secret_store: crate::inference_servers::default_store_opener(),
             batches,
             workflows: workflows.clone(),
+            compat_server: Some(compat_server),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 

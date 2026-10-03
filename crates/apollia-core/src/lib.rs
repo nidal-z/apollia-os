@@ -64,8 +64,8 @@ pub use config::{
     ConfigError, DesktopConfig, DuckDuckGoBackendConfig, FilesystemConfig, FilesystemRiskConfig,
     GatePolicy, HitlConfig, HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig,
     HybridRoutingConfig, JournalConfig, LlmRoutingConfig, LlmRunnerConfig, McpConfig,
-    McpToolLoading, ModelsConfig, ORIAConfig, RegistryConfig, RuntimeConfig, ToolsConfig,
-    TriggersConfig, WebReadConfig, WebSearchBackend, WebSearchConfig, WorkflowsConfig,
+    McpToolLoading, ModelsConfig, ORIAConfig, RegistryConfig, RuntimeConfig, ServerConfig,
+    ToolsConfig, TriggersConfig, WebReadConfig, WebSearchBackend, WebSearchConfig, WorkflowsConfig,
 };
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
 pub use decision_point::{ConsideredAlternative, DecisionKind, DecisionPoint};

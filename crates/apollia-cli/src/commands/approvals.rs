@@ -13,6 +13,14 @@ use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 use crate::note;
 
+/// Arguments for `apollia-os approvals`.
+#[derive(Debug, clap::Args)]
+pub struct ApprovalsArgs {
+    /// Approvals subcommand.
+    #[command(subcommand)]
+    pub command: ApprovalsCommand,
+}
+
 /// Approvals subcommands: `apollia-os approvals <verb>`.
 #[derive(Debug, Subcommand)]
 pub enum ApprovalsCommand {
@@ -22,9 +30,9 @@ pub enum ApprovalsCommand {
 }
 
 /// Execute an `approvals` subcommand. Returns the process exit code.
-pub async fn run(cmd: &ApprovalsCommand, socket: Option<PathBuf>, json: bool) -> i32 {
+pub async fn run(args: &ApprovalsArgs, socket: Option<PathBuf>, json: bool) -> i32 {
     let client = RuntimeClient::new(socket.unwrap_or_else(default_socket_path));
-    match cmd {
+    match args.command {
         ApprovalsCommand::Pending => run_pending(&client, json).await,
     }
 }
