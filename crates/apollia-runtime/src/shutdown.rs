@@ -640,6 +640,7 @@ mod tests {
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -819,6 +820,7 @@ mod tests {
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -947,6 +949,7 @@ mod tests {
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1070,6 +1073,7 @@ mod tests {
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -1285,6 +1289,7 @@ mod tests {
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

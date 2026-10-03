@@ -511,6 +511,16 @@ impl Supervisor {
             )))
             .await;
         }
+        // The compatible server reads and writes its switch in the file the
+        // runtime was started with, or in the data directory's apollia.toml,
+        // the file the desktop reads, when it was started without one.
+        let compat_server = crate::compat_server::CompatServerHandle::spawn(
+            self.config
+                .config_path
+                .clone()
+                .unwrap_or_else(|| self.config.data_dir.join("apollia.toml")),
+            &event_sender,
+        );
         let shared_llm_router = crate::api::server::shared_llm_router_from(llm_router.clone());
         let state = AppState {
             router_handle: router_handle.clone(),
@@ -553,6 +563,7 @@ impl Supervisor {
             secret_store: crate::inference_servers::default_store_opener(),
             batches,
             workflows: workflows.clone(),
+            compat_server: Some(compat_server),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 

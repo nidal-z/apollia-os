@@ -28,7 +28,7 @@ use std::path::{Path, PathBuf};
 
 use apollia_core::{
     ApiConfig, ChatConfig, DesktopConfig, FilesystemConfig, HitlConfig, HooksConfig, McpConfig,
-    ModelsConfig, RuntimeConfig, ToolsConfig,
+    ModelsConfig, RuntimeConfig, ServerConfig, ToolsConfig,
 };
 use apollia_llm::{BackendKind, LlmConfig};
 
@@ -129,6 +129,13 @@ pub struct ApolliaCConfig {
     ///
     /// `None` when absent; the [`DesktopConfig`] defaults apply.
     pub desktop: Option<DesktopConfig>,
+
+    /// Section `[server]`: the compatible server, its switch and its port. The
+    /// runtime reads it at start and writes `enabled` when the server is
+    /// started or stopped. An unknown key inside it is refused.
+    ///
+    /// `None` when absent; the [`ServerConfig`] defaults apply (off, 7772).
+    pub server: Option<ServerConfig>,
 }
 
 /// Names of the TOML sections that are now deprecated.
@@ -201,6 +208,7 @@ pub const KNOWN_SECTIONS: &[&str] = &[
     "models",
     "workflows",
     "desktop",
+    "server",
 ];
 
 /// Returns `true` when `section` is a recognized top-level `apollia.toml` section.
@@ -785,6 +793,27 @@ plan_mode_default = true
         assert!(is_known_top_level_section("desktop"));
     }
 
+    // GIVEN an apollia.toml turning the compatible server on
+    // WHEN it is parsed
+    // THEN the typed server section carries it, and an unknown key is refused
+    #[test]
+    fn test_server_section_parses_and_refuses_an_unknown_key() {
+        // GIVEN
+        let file = write_toml("[server]\nenabled = true\nport = 8123\n");
+        let typo = write_toml("[server]\nenabeld = true\n");
+
+        // WHEN
+        let config = parse_apollia_toml(file.path()).expect("parse should succeed");
+        let refused = parse_apollia_toml(typo.path());
+
+        // THEN
+        let server = config.server.expect("server present");
+        assert!(server.enabled);
+        assert_eq!(server.port, 8123);
+        assert!(is_known_top_level_section("server"));
+        assert!(refused.is_err());
+    }
+
     // GIVEN the ApolliaCConfig struct
     // WHEN verifying its structure
     // THEN it carries exactly the sections a loader actually consults
@@ -804,6 +833,7 @@ plan_mode_default = true
             models: None,
             workflows: None,
             desktop: None,
+            server: None,
         };
 
         // THEN every field is optional and absent
@@ -819,12 +849,13 @@ plan_mode_default = true
         assert!(config.models.is_none());
         assert!(config.workflows.is_none());
         assert!(config.desktop.is_none());
+        assert!(config.server.is_none());
 
         // AND the typed struct agrees with the key-path guard, so a section can
         // never again be settable without a field to land in.
         assert_eq!(
             KNOWN_SECTIONS.len(),
-            12,
+            13,
             "adding a section here means adding a field above, and a reader below"
         );
     }
