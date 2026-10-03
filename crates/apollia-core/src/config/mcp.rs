@@ -32,7 +32,8 @@ pub enum McpToolLoading {
 /// Controls the MCP-layer behaviors exposed by the runtime: the TTL of the HITL
 /// approvals persisted in SQLite, the tool loading strategy, and the
 /// `tool_search` result cap. Every field has a sane default via [`Default`].
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct McpConfig {
     /// Validity duration of MCP HITL approvals, in hours.
     ///

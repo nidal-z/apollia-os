@@ -35,9 +35,14 @@ séparément sous `~/.apollia/`.
 
 ## Sections
 
-Dix sections sont lues. Une section en dehors de cette liste est ignorée, et
-`apollia-os config set` la rejette plutôt que d'accepter une valeur que rien ne
-consultera jamais.
+Le fichier est lu strictement, par la même validation partout. Une clé
+qu'aucune section ne déclare, ou une valeur du mauvais type, est une faute
+nommée à sa ligne : `apollia-os config validate` liste chaque faute,
+`apollia-os config set` refuse de l'écrire, et `apollia-os start` refuse de
+démarrer, avec le code de sortie 1. L'application de bureau démarre alors sur
+les valeurs par défaut, journalise chaque faute et inscrit le refus au journal
+d'audit, au lieu d'écarter le fichier en silence. Une section retirée (voir plus bas) reste acceptée, avec un
+avertissement `config.key.retired`.
 
 | Section | Objet |
 |---|---|

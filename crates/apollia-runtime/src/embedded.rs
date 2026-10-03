@@ -327,6 +327,14 @@ pub struct EmbeddedConfig {
     /// Maps to the `[workflows]` section in `apollia.toml`.
     /// Populated by [`EmbeddedConfig::apply_toml`].
     pub workflows_config: apollia_core::WorkflowsConfig,
+
+    /// Faults of an `apollia.toml` that [`EmbeddedConfig::apply_toml`] refused.
+    ///
+    /// Empty when the file was valid or absent. When not, every other field
+    /// kept its default, and the runtime publishes
+    /// [`RuntimeEvent::ConfigInvalid`](apollia_core::RuntimeEvent::ConfigInvalid)
+    /// once it is up, so the refusal is never silent.
+    pub config_diagnostics: Vec<apollia_core::config::ConfigDiagnostic>,
 }
 
 impl Default for EmbeddedConfig {
@@ -355,74 +363,74 @@ impl Default for EmbeddedConfig {
             chat_config: apollia_core::ChatConfig::default(),
             filesystem_config: apollia_core::FilesystemConfig::default(),
             workflows_config: apollia_core::WorkflowsConfig::default(),
+            config_diagnostics: Vec::new(),
         }
     }
 }
 
 impl EmbeddedConfig {
-    /// Applies every parsable section of `apollia.toml` to this config.
+    /// Applies `apollia.toml` to this config, through the validation every
+    /// surface shares ([`apollia_core::config::validate`]).
     ///
-    /// Parses `[llm]`, `[runtime]`, `[hitl]`, `[a2a]`, and `[api]` in a single pass.
-    /// Parse errors are silently ignored: the runtime starts with default
-    /// values when a section is absent or invalid.
+    /// A valid file sets every section; withdrawn keys only warn. A refused
+    /// file changes nothing: the runtime starts on its defaults, each fault is
+    /// logged at its line, and the faults are kept in
+    /// [`config_diagnostics`](EmbeddedConfig::config_diagnostics) for the
+    /// `ConfigInvalid` event the runtime publishes once it is up. The desktop
+    /// must open even on a broken file, since it is where the file gets fixed.
     pub fn apply_toml(mut self, content: &str) -> Self {
-        #[derive(serde::Deserialize)]
-        struct TomlSections {
-            llm: Option<apollia_llm::LlmConfig>,
-            runtime: Option<RuntimeConfig>,
-            hitl: Option<HitlConfig>,
-            api: Option<apollia_core::ApiConfig>,
-            tools: Option<apollia_core::ToolsConfig>,
-            mcp: Option<apollia_core::McpConfig>,
-            hooks: Option<apollia_core::HooksConfig>,
-            chat: Option<apollia_core::ChatConfig>,
-            filesystem: Option<apollia_core::FilesystemConfig>,
-            observability: Option<ObservabilityConfig>,
-            workflows: Option<apollia_core::WorkflowsConfig>,
+        let file = match apollia_core::config::validate(content) {
+            Ok(file) => file,
+            Err(diagnostics) => {
+                for d in &diagnostics {
+                    tracing::warn!(
+                        line = d.line,
+                        column = d.column,
+                        key = %d.path,
+                        detail = %d.message,
+                        "config.invalid"
+                    );
+                }
+                self.config_diagnostics = diagnostics;
+                return self;
+            }
+        };
+        self.llm_config = file.llm;
+        // Propagate startup_timeout_secs from [runtime] so large local models
+        // (70B+) don't hit the default limit.
+        self.startup_timeout_secs = file.runtime.startup_timeout_secs;
+        self.runtime_config = file.runtime;
+        self.hitl_config = file.hitl;
+        // The socket moves only when the file moves it: a caller that chose
+        // its own socket keeps it under a file that does not say otherwise.
+        if file.api.unix_socket != apollia_core::ApiConfig::default().unix_socket {
+            self.socket_path = file.api.unix_socket;
         }
-        apollia_core::config::warn_retired_keys(content);
-        if let Ok(s) = toml::from_str::<TomlSections>(content) {
-            self.llm_config = s.llm;
-            if let Some(rc) = s.runtime {
-                // Propagate startup_timeout_secs from [runtime] to EmbeddedConfig
-                // so large local models (70B+) don't hit the hardcoded default limit.
-                self.startup_timeout_secs = rc.startup_timeout_secs;
-                self.runtime_config = rc;
-            }
-            if let Some(hc) = s.hitl {
-                self.hitl_config = hc;
-            }
-            if let Some(api) = s.api {
-                // Update socket_path from [api].unix_socket when explicitly configured.
-                self.socket_path = api.unix_socket;
-            }
-            if let Some(tc) = s.tools {
-                self.tools_config = tc;
-            }
-            if let Some(mc) = s.mcp {
-                self.mcp_config = mc;
-            }
-            if let Some(hooks) = s.hooks {
-                self.hooks_config = hooks;
-            }
-            if let Some(chat) = s.chat {
-                self.chat_config = chat;
-            }
-            if let Some(fs) = s.filesystem {
-                self.filesystem_config = fs;
-            }
-            if let Some(obs) = s.observability {
-                self.obs_config = obs;
-            }
-            if let Some(workflows) = s.workflows {
-                self.workflows_config = workflows;
-            }
-        }
+        self.tools_config = file.tools;
+        self.mcp_config = file.mcp;
+        self.hooks_config = file.hooks;
+        self.chat_config = file.chat;
+        self.filesystem_config = file.filesystem;
+        self.obs_config = file.observability;
+        self.workflows_config = file.workflows;
 
-        // triggers and notifications are now loaded from SQLite by the Supervisor.
-        // TOML sections for these are ignored.
+        // triggers and notifications are loaded from SQLite by the Supervisor;
+        // their former TOML sections are withdrawn keys.
 
         self
+    }
+
+    /// The `ConfigInvalid` event to publish once the runtime is up, when
+    /// [`apply_toml`](EmbeddedConfig::apply_toml) refused the file.
+    fn config_invalid_event(&self) -> Option<apollia_core::RuntimeEvent> {
+        (!self.config_diagnostics.is_empty()).then(|| apollia_core::RuntimeEvent::ConfigInvalid {
+            path: self
+                .config_path
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default(),
+            diagnostics: self.config_diagnostics.clone(),
+        })
     }
 }
 
@@ -520,6 +528,7 @@ pub fn init_embedded(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedEr
 /// Internal: starts the Supervisor and waits for `AllReady`.
 async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedError> {
     let tcp_port = config.tcp_port;
+    let config_invalid = config.config_invalid_event();
 
     let tools_config = config.tools_config.clone();
     let mcp_loading = apollia_mcp::session::LoadingMode::from(config.mcp_config.tool_loading);
@@ -570,6 +579,11 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
             config.chat_agent_runner,
         )
         .await?;
+
+    // Never in silence: the file was refused and the defaults are in force.
+    if let Some(event) = config_invalid {
+        let _ = handles.event_sender.send(event);
+    }
 
     Ok(RuntimeHandle {
         event_sender: handles.event_sender,
@@ -656,6 +670,56 @@ mod tests {
             apollia_core::paths::socket_path_under(apollia_core::paths::home_dir_or_temp())
         );
         assert_eq!(config.startup_timeout_secs, DEFAULT_STARTUP_TIMEOUT_SECS);
+    }
+
+    #[test]
+    fn a_refused_file_leaves_every_default_and_keeps_its_faults() {
+        // GIVEN a file whose [runtime] is valid but whose [api] has a typo
+        let content = "[runtime]\neventbus_capacity = 128\n\n[api]\ntypo = 1\n";
+
+        // WHEN the embedded config applies it
+        let config = EmbeddedConfig::default().apply_toml(content);
+
+        // THEN nothing of the file is applied, not even its valid section, and
+        // the fault is kept at its line for the ConfigInvalid event
+        assert_eq!(
+            config.runtime_config.eventbus_capacity,
+            RuntimeConfig::default().eventbus_capacity
+        );
+        assert_eq!(config.config_diagnostics.len(), 1);
+        assert_eq!(config.config_diagnostics[0].path, "api.typo");
+        assert_eq!(config.config_diagnostics[0].line, 5);
+    }
+
+    #[test]
+    fn a_refused_file_is_announced_on_the_bus_never_in_silence() {
+        // GIVEN the embedded config of a refused file at a known path
+        let mut config = EmbeddedConfig::default().apply_toml("[hitl]\nscan_interval_secs = 1\n");
+        config.config_path = Some(PathBuf::from("/home/u/.apollia/apollia.toml"));
+
+        // WHEN the event the runtime publishes once up is built
+        let event = config.config_invalid_event();
+
+        // THEN it is ConfigInvalid, with the path and the diagnostics
+        let Some(apollia_core::RuntimeEvent::ConfigInvalid { path, diagnostics }) = event else {
+            panic!("a refused file must produce ConfigInvalid, got {event:?}");
+        };
+        assert_eq!(path, "/home/u/.apollia/apollia.toml");
+        assert_eq!(diagnostics[0].path, "hitl.scan_interval_secs");
+    }
+
+    #[test]
+    fn a_valid_file_is_applied_and_announces_nothing() {
+        // GIVEN a valid file setting [runtime] and [observability]
+        let content = "[runtime]\neventbus_capacity = 128\n\n[observability]\nretention_days = 7\n";
+
+        // WHEN the embedded config applies it
+        let config = EmbeddedConfig::default().apply_toml(content);
+
+        // THEN both sections are applied and no event is due
+        assert_eq!(config.runtime_config.eventbus_capacity, 128);
+        assert_eq!(config.obs_config.retention_days, 7);
+        assert!(config.config_invalid_event().is_none());
     }
 
     #[test]
