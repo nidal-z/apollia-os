@@ -16197,6 +16197,7 @@
         "type": "object",
         "description": "One resident model.",
         "required": [
+          "engine",
           "model",
           "modelPath",
           "port",
@@ -16211,6 +16212,10 @@
             "type": "integer",
             "description": "Requests being answered right now. An unload is refused above zero.",
             "minimum": 0
+          },
+          "engine": {
+            "$ref": "#/components/schemas/EngineName",
+            "description": "The engine serving the model, chosen by its format: `llama-server` for\nGGUF, `vllm-mlx` for MLX."
           },
           "lastUsedAt": {
             "type": "string",
@@ -18205,7 +18210,7 @@
         "properties": {
           "model_id": {
             "type": "string",
-            "description": "`local`: the name of a local engine backend. `server`: `<server>/<model>`\nof a declared server, or the name of a server backend."
+            "description": "`local`: the name of a local engine backend, or the identifier of a\nlanguage model of the model index, which gets its backend row.\n`server`: `<server>/<model>` of a declared server, or the name of a\nserver backend."
           },
           "model_source": {
             "$ref": "#/components/schemas/ModelSourceDto",

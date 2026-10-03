@@ -673,7 +673,7 @@ impl LlamaServerSupervisor {
 /// A brief window exists between release and `llama-server` binding the port; on
 /// loopback with an ephemeral port the collision risk is negligible, and a
 /// failed bind surfaces as a startup exit that the supervisor respawns.
-fn pick_free_port() -> Result<u16, LlamaServerError> {
+pub(crate) fn pick_free_port() -> Result<u16, LlamaServerError> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let port = listener.local_addr()?.port();
     Ok(port)

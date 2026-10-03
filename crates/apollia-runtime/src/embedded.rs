@@ -144,6 +144,8 @@ pub struct RuntimeHandle {
     /// Managed embedded `llama-server` (local LLM engine). Exposed so the desktop
     /// reload command can rebuild the router with local backends wired through it.
     pub llama_server_supervisor: Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
+    /// The `vllm-mlx` processes serving MLX models, when this machine runs them.
+    pub mlx_engine: Option<Arc<crate::mlx_engine::MlxEngineSupervisor>>,
 
     /// The organisation policy verdict, read once by the supervisor at boot.
     pub org_policy: Arc<apollia_permissions::PolicyVerdict>,
@@ -190,6 +192,7 @@ impl RuntimeHandle {
         stop_supervisors(
             self.runner_supervisor.as_deref(),
             self.llama_server_supervisor.as_deref(),
+            self.mlx_engine.as_deref(),
         )
         .await;
     }
@@ -204,12 +207,16 @@ impl RuntimeHandle {
 pub(crate) async fn stop_supervisors(
     runner: Option<&crate::runner_supervisor::RunnerSupervisor>,
     llama_server: Option<&crate::llama_server::LlamaServerSupervisor>,
+    mlx_engine: Option<&crate::mlx_engine::MlxEngineSupervisor>,
 ) {
     if let Some(runner) = runner {
         runner.shutdown_in_place().await;
     }
     if let Some(llama_server) = llama_server {
         llama_server.shutdown_in_place().await;
+    }
+    if let Some(mlx_engine) = mlx_engine {
+        mlx_engine.shutdown_in_place().await;
     }
 }
 
@@ -600,6 +607,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         api_port: tcp_port.unwrap_or(0),
         runner_supervisor: handles.runner_supervisor,
         llama_server_supervisor: handles.llama_server_supervisor,
+        mlx_engine: handles.mlx_engine,
         org_policy: handles.org_policy,
         plan_mode_default,
         chat_default_workspace,
@@ -699,7 +707,7 @@ mod tests {
         let llama_server = crate::llama_server::LlamaServerSupervisor::for_tests();
 
         // WHEN the host tears its children down on exit
-        stop_supervisors(Some(&runner), Some(&llama_server)).await;
+        stop_supervisors(Some(&runner), Some(&llama_server), None).await;
 
         // THEN neither survives. The engine half is the regression this guards:
         // the exit hook stopped the runner only, and `llama-server` stayed
@@ -720,7 +728,7 @@ mod tests {
         // build with no local engine)
         // WHEN the host tears its children down, on a task of its own so the
         // panic this guards against is a value rather than an aborted test
-        let torn_down = tokio::spawn(async { stop_supervisors(None, None).await }).await;
+        let torn_down = tokio::spawn(async { stop_supervisors(None, None, None).await }).await;
         // THEN it is a no-op rather than a panic on exit
         assert!(
             torn_down.is_ok(),
