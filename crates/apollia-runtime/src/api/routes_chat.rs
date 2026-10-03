@@ -9,6 +9,9 @@
 //! - `POST   /api/v1/sessions/:id/authorize`  , resolve approval
 //! - `GET    /api/v1/sessions/:id/stream`     , SSE stream
 //! - `POST   /api/v1/sessions/:id/pause`      , pause the turn in flight
+//! - `POST   /api/v1/sessions/:id/messages/:message_id/regenerate`, run a turn again
+//! - `POST   /api/v1/sessions/:id/messages/:message_id/resend`, edit and resend
+//! - `GET    /api/v1/sessions/approval-history`, decisions on chat tool calls
 
 use std::convert::Infallible;
 
@@ -28,8 +31,10 @@ use crate::api::server::AppState;
 use crate::chat::types::{ChatMode, SessionStatus, ToolDecision};
 use crate::coordinator::ExecutionBackend;
 
+pub mod approval_history;
 pub mod pause;
 mod sse;
+pub mod turns;
 pub mod user_inputs;
 
 use sse::chat_event_to_sse;

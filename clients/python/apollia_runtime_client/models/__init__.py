@@ -48,6 +48,7 @@ from .brought_server_preview import BroughtServerPreview
 from .channel_delete_response import ChannelDeleteResponse
 from .channel_response import ChannelResponse
 from .channel_response_config import ChannelResponseConfig
+from .chat_approval_history_entry import ChatApprovalHistoryEntry
 from .chat_request import ChatRequest
 from .chat_request_schema_type_0 import ChatRequestSchemaType0
 from .chat_response import ChatResponse
@@ -174,6 +175,7 @@ from .reload_response import ReloadResponse
 from .reload_router_response import ReloadRouterResponse
 from .reload_router_response_backends_item import ReloadRouterResponseBackendsItem
 from .required_connection_preview import RequiredConnectionPreview
+from .resend_message_request import ResendMessageRequest
 from .reset_response import ResetResponse
 from .resilience_status_response import ResilienceStatusResponse
 from .resilience_status_response_circuit_breakers_item import (
@@ -340,6 +342,7 @@ __all__ = (
     "ChannelDeleteResponse",
     "ChannelResponse",
     "ChannelResponseConfig",
+    "ChatApprovalHistoryEntry",
     "ChatRequest",
     "ChatRequestSchemaType0",
     "ChatResponse",
@@ -466,6 +469,7 @@ __all__ = (
     "ReloadRouterResponse",
     "ReloadRouterResponseBackendsItem",
     "RequiredConnectionPreview",
+    "ResendMessageRequest",
     "ResetResponse",
     "ResilienceStatusResponse",
     "ResilienceStatusResponseCircuitBreakersItem",
