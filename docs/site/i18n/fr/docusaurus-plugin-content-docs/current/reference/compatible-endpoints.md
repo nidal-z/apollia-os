@@ -21,17 +21,41 @@ l'arrêter ne touche jamais au runtime ni au bureau.
 
 ## Éteint par défaut
 
-Le serveur n'écoute qu'une fois que quelqu'un l'allume. Deux clés
+Le serveur n'écoute qu'une fois que quelqu'un l'allume. Trois clés
 d'`apollia.toml` portent son état :
 
 ```toml
 [server]
 enabled = false   # le serveur compatible écoute-t-il
 port = 7772       # son port TCP, sur 127.0.0.1 ; jamais le 7771 de l'API native
+cors = false      # une page web d'une autre origine peut-elle l'appeler
 ```
 
 Il écoute sur l'interface de boucle locale, `127.0.0.1`, si bien que seules les
 applications de cette machine l'atteignent.
+
+## Appels depuis une page web (CORS)
+
+Un navigateur ne laisse une page appeler un serveur d'une autre origine que si
+ce serveur l'autorise, et il le demande d'abord : avant une requête qui porte
+un jeton ou un corps JSON, il envoie un pré-vol `OPTIONS`. Avec
+`cors = false`, la valeur par défaut, le serveur compatible n'envoie aucun
+en-tête d'origine croisée, et le navigateur refuse l'appel. Avec
+`cors = true`, une page de n'importe quelle origine peut l'appeler :
+
+- un pré-vol reçoit `204 No Content` avec
+  `Access-Control-Allow-Origin: *`,
+  `Access-Control-Allow-Methods: GET, POST, OPTIONS` et
+  `Access-Control-Allow-Headers: authorization, content-type, x-api-key, anthropic-version`,
+  les en-têtes qu'envoient les SDK d'OpenAI et d'Anthropic ;
+- toute autre réponse, erreur comprise, porte
+  `Access-Control-Allow-Origin: *`.
+
+Le pré-vol n'exige aucun jeton, puisqu'un navigateur n'en envoie jamais sur
+lui ; la requête qui suit est vérifiée comme toute autre. Le réglage est lu au
+démarrage du serveur : après l'avoir changé, arrêtez puis redémarrez le
+serveur. L'API native, sur le port 7771, ne porte jamais ces en-têtes, quel que
+soit le réglage.
 
 ## Le démarrer et l'arrêter
 

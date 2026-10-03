@@ -11,6 +11,8 @@ use serde::Serialize;
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 
+use super::cors::with_cors;
+
 /// The error envelope of the OpenAI API, which the compatible server answers
 /// with whatever the client called.
 #[derive(Debug, Serialize)]
@@ -31,8 +33,11 @@ pub(crate) struct OpenAiError {
 }
 
 /// Builds the router of the compatible server.
-pub fn compat_router() -> Router {
-    Router::new().fallback(unknown_endpoint)
+///
+/// `cors` is the `[server] cors` setting: when on, the cross-origin layer is
+/// applied last, so it wraps every other layer of this router.
+pub fn compat_router(cors: bool) -> Router {
+    with_cors(Router::new().fallback(unknown_endpoint), cors)
 }
 
 /// Answers a path no route serves, in the OpenAI error format.

@@ -13,7 +13,9 @@
 //! the `[server] enabled` and `[server] port` settings of `apollia.toml`,
 //! resolved through [`apollia_core::config::resolve_setting`]; starting and
 //! stopping it writes `enabled`, so a runtime that restarts opens the listener
-//! again if it was open.
+//! again if it was open. The `[server] cors` setting, off by default, lets a web
+//! page of another origin call the server (see the `cors` module); it is read
+//! each time the listener opens.
 //!
 //! [`CompatServerHandle`] is the actor that owns the listener. The routes it
 //! serves are assembled by [`compat_router`]; every path that router mounts is
@@ -21,6 +23,7 @@
 //! `scripts/check_compat_routes.py` holds.
 
 mod actor;
+mod cors;
 mod router;
 
 #[cfg(test)]

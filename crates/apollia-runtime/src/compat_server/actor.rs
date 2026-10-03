@@ -24,6 +24,7 @@ const COMMAND_CAPACITY: usize = 64;
 
 const ENABLED_KEY: &str = "server.enabled";
 const PORT_KEY: &str = "server.port";
+const CORS_KEY: &str = "server.cors";
 
 /// What the compatible server is doing.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, utoipa::ToSchema)]
@@ -196,6 +197,13 @@ impl CompatServerActor {
             .unwrap_or(DEFAULT_COMPAT_SERVER_PORT))
     }
 
+    /// Whether the listener about to open answers cross-origin requests. Read
+    /// at each opening, so a change takes effect at the next start.
+    fn configured_cors(&self) -> Result<bool, CompatServerError> {
+        let resolved = resolve_setting(&self.settings_path, CORS_KEY, &PolicySettings::none())?;
+        Ok(resolved.value == Value::Bool(true))
+    }
+
     fn status(&self) -> CompatServerStatus {
         let port = match &self.running {
             Some(running) => running.port,
@@ -233,6 +241,7 @@ impl CompatServerActor {
     /// accept loop.
     async fn open(&mut self) -> Result<(), CompatServerError> {
         let port = self.configured_port()?;
+        let cors = self.configured_cors()?;
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, port))
             .await
             .map_err(|source| match source.kind() {
@@ -240,10 +249,15 @@ impl CompatServerActor {
                 _ => CompatServerError::Bind { port, source },
             })?;
         let cancel = CancellationToken::new();
-        let task = tokio::spawn(serve(listener, compat_router(), cancel.clone()));
+        let task = tokio::spawn(serve(listener, compat_router(cors), cancel.clone()));
         self.running = Some(Running { port, cancel, task });
         self.last_error = None;
-        tracing::event!(tracing::Level::INFO, port = port, "compat_server.listening");
+        tracing::event!(
+            tracing::Level::INFO,
+            port = port,
+            cors = cors,
+            "compat_server.listening"
+        );
         Ok(())
     }
 

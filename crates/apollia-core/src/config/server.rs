@@ -18,9 +18,9 @@ fn default_port() -> u16 {
 ///
 /// A second listener of the runtime, separate from the native API: it serves
 /// the endpoints that follow the OpenAI and Anthropic formats, on its own port,
-/// and is switched off until someone turns it on. Both fields are named
-/// settings, resolved through [`resolve_setting`](super::resolve_setting) under
-/// `server.enabled` and `server.port`; starting and stopping the server writes
+/// and is switched off until someone turns it on. Every field is a named
+/// setting, resolved through [`resolve_setting`](super::resolve_setting) under
+/// `server.enabled`, `server.port` and `server.cors`; starting and stopping the server writes
 /// `server.enabled`, so its state survives a restart of the runtime.
 ///
 /// Unknown keys are refused, so a typo fails instead of writing a value nothing
@@ -34,6 +34,11 @@ pub struct ServerConfig {
     /// TCP port of the compatible server, on the loopback interface.
     #[serde(default = "default_port")]
     pub port: u16,
+    /// Whether a web page of another origin may call the server: when on,
+    /// the server answers browser preflights and marks every answer with the
+    /// allowed origin. Off by default, and read each time the server starts.
+    #[serde(default)]
+    pub cors: bool,
 }
 
 impl Default for ServerConfig {
@@ -41,6 +46,7 @@ impl Default for ServerConfig {
         Self {
             enabled: false,
             port: DEFAULT_COMPAT_SERVER_PORT,
+            cors: false,
         }
     }
 }
@@ -77,7 +83,22 @@ mod tests {
         // WHEN the server section is read
         let server = ServerConfig::from_toml_str(content).unwrap();
 
-        // THEN the server is off, on port 7772
+        // THEN the server is off, on port 7772, without cross-origin answers
+        assert!(!server.enabled);
+        assert_eq!(server.port, 7772);
+        assert!(!server.cors);
+    }
+
+    #[test]
+    fn test_server_config_reads_cors() {
+        // GIVEN a [server] section turning cross-origin answers on
+        let content = "[server]\ncors = true\n";
+
+        // WHEN it is read
+        let server = ServerConfig::from_toml_str(content).unwrap();
+
+        // THEN cors is on and the other keys keep their defaults
+        assert!(server.cors);
         assert!(!server.enabled);
         assert_eq!(server.port, 7772);
     }
