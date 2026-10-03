@@ -7104,6 +7104,330 @@
         }
       }
     },
+    "/api/v1/oauth/clients": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`GET /api/v1/oauth/clients`: the OAuth client of every provider and where\neach value came from, never a secret.",
+        "operationId": "list_oauth_clients",
+        "responses": {
+          "200": {
+            "description": "One row per provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OauthClientIdStatus"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/oauth/clients/{provider}/api-key": {
+      "put": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`PUT /api/v1/oauth/clients/{provider}/api-key`: writes the public API key\nGoogle Picker uses, empty to clear it.",
+        "operationId": "set_oauth_api_key",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "Provider id: google or microsoft",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OauthClientValueBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The override is written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OauthClientWritten"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/oauth/clients/{provider}/client-id": {
+      "put": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`PUT /api/v1/oauth/clients/{provider}/client-id`: writes the client id\noverride, empty to clear it.",
+        "operationId": "set_oauth_client_id",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "Provider id: google or microsoft",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OauthClientValueBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The override is written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OauthClientWritten"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/oauth/clients/{provider}/client-secret": {
+      "put": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`PUT /api/v1/oauth/clients/{provider}/client-secret`: writes the client\nsecret override, empty to clear it. The secret is never answered back.",
+        "operationId": "set_oauth_client_secret",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "Provider id: google or microsoft",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OauthClientValueBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The override is written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OauthClientWritten"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/oauth/clients/{provider}/import": {
+      "post": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`POST /api/v1/oauth/clients/{provider}/import`: writes the client id and\nsecret of a Google console export.",
+        "operationId": "import_oauth_client",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "Provider id: google",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportOauthClientBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Both halves are written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OauthClientWritten"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not a Google client export",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/oauth/clients/{provider}/test": {
+      "post": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`POST /api/v1/oauth/clients/{provider}/test`: checks the client without a\nconsent: present, well-formed, and its authorization server reachable.",
+        "operationId": "test_oauth_client",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "Provider id: google or microsoft",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The verdict, passed or the first failing check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OauthClientTestResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/packages/install": {
       "post": {
         "tags": [
@@ -14430,6 +14754,19 @@
           }
         }
       },
+      "ImportOauthClientBody": {
+        "type": "object",
+        "description": "Request body of `POST /api/v1/oauth/clients/{provider}/import`.",
+        "required": [
+          "client_json"
+        ],
+        "properties": {
+          "client_json": {
+            "type": "string",
+            "description": "The text of the JSON file the provider's console exported, read by the\nwindow that picked it."
+          }
+        }
+      },
       "InjectMessageBody": {
         "type": "object",
         "description": "Request body for `POST /api/v1/agents/:name/messages`.",
@@ -15433,6 +15770,110 @@
               "$ref": "#/components/schemas/ModelInfo"
             },
             "description": "Available model files in `~/.apollia/models/`."
+          }
+        }
+      },
+      "OauthClientIdStatus": {
+        "type": "object",
+        "description": "One provider's OAuth client, as the settings draw it.\n\nReports the **effective** client id of the resolution chain\n(`env var → override file → compiled default`), where it came from, and\nwhether a client secret and an API key resolve. Never carries a secret or\na key, only their presence.",
+        "required": [
+          "provider",
+          "effective_client_id",
+          "source",
+          "has_client_secret",
+          "client_secret_source",
+          "requires_client_secret",
+          "has_api_key",
+          "api_key_source",
+          "requires_api_key"
+        ],
+        "properties": {
+          "api_key_source": {
+            "type": "string",
+            "description": "Source for the resolved API key. Same semantics as `source`."
+          },
+          "client_secret_source": {
+            "type": "string",
+            "description": "Same source semantics as `source` but for the secret."
+          },
+          "effective_client_id": {
+            "type": "string",
+            "description": "Effective client id used at runtime. Empty string when no source is configured."
+          },
+          "has_api_key": {
+            "type": "boolean",
+            "description": "True when an API key resolves through any source. Google Picker needs\none; Microsoft entries leave this false."
+          },
+          "has_client_secret": {
+            "type": "boolean",
+            "description": "True when a client secret resolves through any source."
+          },
+          "override_client_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Override stored in `oauth-clients.toml`, if any."
+          },
+          "provider": {
+            "type": "string",
+            "description": "Provider id (`\"google\"` / `\"microsoft\"`)."
+          },
+          "requires_api_key": {
+            "type": "boolean",
+            "description": "True when this provider needs an API key (Google, for Picker only)."
+          },
+          "requires_client_secret": {
+            "type": "boolean",
+            "description": "True when this provider needs a client secret (Google), false for a\npublic client (Microsoft)."
+          },
+          "source": {
+            "type": "string",
+            "description": "Source that produced the effective value: `\"env\"`, `\"file\"`, `\"builtin\"`, or `\"none\"`."
+          }
+        }
+      },
+      "OauthClientTestResult": {
+        "type": "object",
+        "description": "The verdict of a non-interactive check of a provider's OAuth client.\n\nA full validation (that the authorization server accepts the client) needs\nan interactive consent and a token exchange, which cannot run headless.\nThis is the strongest safe check: credentials present, well-formed, and the\nprovider's authorization server reachable.",
+        "required": [
+          "ok",
+          "detail"
+        ],
+        "properties": {
+          "detail": {
+            "type": "string",
+            "description": "Human-readable summary: what passed, or the first failing check."
+          },
+          "ok": {
+            "type": "boolean",
+            "description": "True when every check passed."
+          }
+        }
+      },
+      "OauthClientValueBody": {
+        "type": "object",
+        "description": "Request body of the `PUT` routes: the new value, empty to clear the\noverride.",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "type": "string",
+            "description": "The value, trimmed before it is written. Empty clears the override."
+          }
+        }
+      },
+      "OauthClientWritten": {
+        "type": "object",
+        "description": "Answer of a write: the provider whose entry changed.",
+        "required": [
+          "provider"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "Provider id (`\"google\"` / `\"microsoft\"`)."
           }
         }
       },

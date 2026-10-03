@@ -62,6 +62,10 @@ export function formatTauriError(e: unknown, translate: ErrorTranslate): string 
     const label = translate("connections.error_invalid_client_file");
     return reason ? `${label} ${reason}` : label;
   }
+  if (err.kind === "service" && err.detail) {
+    // The daemon this window is attached to already wrote the sentence.
+    return err.detail;
+  }
   if (err.kind && err.detail) return `${err.kind}: ${err.detail}`;
   if (err.message) return err.message;
   if (err.kind) return err.kind;
