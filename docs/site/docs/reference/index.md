@@ -32,3 +32,6 @@ from it. Edit the source, never the page.
   reaches a model, and what is written but not applied.
 - **[Evaluation suite schema](/reference/eval-suites)** the TOML an
   `apollia-os eval run` suite accepts, field by field and assertion by assertion.
+- **[Compatible endpoints](/reference/compatible-endpoints)** the second
+  listener other applications call in the OpenAI and Anthropic formats, its
+  port, its switch, and the paths it serves.

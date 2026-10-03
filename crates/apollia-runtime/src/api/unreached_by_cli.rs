@@ -366,6 +366,7 @@ fn base_state(data_dir: &std::path::Path) -> AppState<MockBackend> {
         secret_store: crate::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     }
 }
 

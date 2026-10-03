@@ -173,6 +173,7 @@ async fn harness(admission: Arc<dyn ConnectionAdmission>) -> Harness {
         secret_store: crate::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     };
     Harness {
         dir,
