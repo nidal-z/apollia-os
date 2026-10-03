@@ -1,11 +1,20 @@
-//! Request bodies whose schema is written by hand.
-//!
-//! Each handler here reads its body off a stream or as raw bytes, so no Rust
-//! type carries the shape and `utoipa` cannot derive one.
+//! Request and error bodies whose schema no handler type carries, written by
+//! hand so the generated clients can still call the operations that use them.
 
+use serde::Serialize;
 use utoipa::openapi::schema::{KnownFormat, ObjectBuilder, Schema, SchemaFormat, Type};
 use utoipa::openapi::RefOr;
 use utoipa::ToSchema;
+
+/// Canonical error body for every non-2xx response in the spec.
+///
+/// Matches the wire shape of the per-module `ErrorResponse { error }` used
+/// across the route handlers.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ApiErrorBody {
+    /// Human-readable error description.
+    pub error: String,
+}
 
 /// Request body of `POST /api/v1/stt/transcribe`: a multipart form.
 ///

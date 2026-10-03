@@ -78,6 +78,7 @@ from .chat_response_value_type_0 import ChatResponseValueType0
 from .clear_agent_model_response import ClearAgentModelResponse
 from .clear_cache_response import ClearCacheResponse
 from .clear_memory_body import ClearMemoryBody
+from .cleared_server_logs import ClearedServerLogs
 from .coaching_example import CoachingExample
 from .coaching_request import CoachingRequest
 from .companion_enabled import CompanionEnabled
@@ -150,9 +151,11 @@ from .engine_source import EngineSource
 from .engine_variant import EngineVariant
 from .engines_response import EnginesResponse
 from .events_response import EventsResponse
+from .export_agent_request import ExportAgentRequest
 from .export_format import ExportFormat
 from .export_memory_namespace_response_200 import ExportMemoryNamespaceResponse200
 from .fire_response import FireResponse
+from .fit_dto import FitDto
 from .fork_session_request import ForkSessionRequest
 from .fs_hitl_decision_body_type_0 import FsHitlDecisionBodyType0
 from .fs_hitl_decision_body_type_0_decision import FsHitlDecisionBodyType0Decision
@@ -169,8 +172,10 @@ from .get_model_card_response_200 import GetModelCardResponse200
 from .gguf_model_info import GgufModelInfo
 from .global_timeline_event import GlobalTimelineEvent
 from .global_timeline_event_detail import GlobalTimelineEventDetail
+from .guardrail_check_dto import GuardrailCheckDto
 from .guardrail_level import GuardrailLevel
 from .guardrail_refused_body import GuardrailRefusedBody
+from .guardrail_verdict_dto import GuardrailVerdictDto
 from .hardware_response import HardwareResponse
 from .hardware_response_accelerator import HardwareResponseAccelerator
 from .health_response import HealthResponse
@@ -208,6 +213,8 @@ from .item_preview import ItemPreview
 from .journal_anchor import JournalAnchor
 from .journal_break import JournalBreak
 from .journal_break_reason import JournalBreakReason
+from .last_loaded_model_response import LastLoadedModelResponse
+from .last_loaded_model_response_load import LastLoadedModelResponseLoad
 from .link_project_body import LinkProjectBody
 from .list_plan_mutations_response_200_item import ListPlanMutationsResponse200Item
 from .llm_backend_response import LlmBackendResponse
@@ -215,6 +222,10 @@ from .llm_backend_response_config_json import LlmBackendResponseConfigJson
 from .llm_backends_list_response import LlmBackendsListResponse
 from .llm_status_response import LlmStatusResponse
 from .llm_status_response_backends_item import LlmStatusResponseBackendsItem
+from .load_estimate_response import LoadEstimateResponse
+from .load_model_request import LoadModelRequest
+from .load_model_request_advanced import LoadModelRequestAdvanced
+from .load_model_response import LoadModelResponse
 from .loaded_model_dto import LoadedModelDto
 from .loaded_models_response import LoadedModelsResponse
 from .logs_response import LogsResponse
@@ -233,6 +244,7 @@ from .mcp_exposed_item_state import McpExposedItemState
 from .mcp_exposure import McpExposure
 from .memory_entry_deleted import MemoryEntryDeleted
 from .memory_entry_view import MemoryEntryView
+from .memory_estimate_dto import MemoryEstimateDto
 from .memory_imported import MemoryImported
 from .memory_removed import MemoryRemoved
 from .memory_search_result_view import MemorySearchResultView
@@ -310,6 +322,7 @@ from .readme_response import ReadmeResponse
 from .reasoning_profile_dto import ReasoningProfileDto
 from .reject_plan_request import RejectPlanRequest
 from .reject_user_input_request import RejectUserInputRequest
+from .reload_last_request import ReloadLastRequest
 from .reload_response import ReloadResponse
 from .reload_router_response import ReloadRouterResponse
 from .reload_router_response_backends_item import ReloadRouterResponseBackendsItem
@@ -337,6 +350,9 @@ from .rewrite_reply import RewriteReply
 from .save_artifact_request import SaveArtifactRequest
 from .send_message_request import SendMessageRequest
 from .send_message_response import SendMessageResponse
+from .server_log_level import ServerLogLevel
+from .server_log_line import ServerLogLine
+from .server_log_source import ServerLogSource
 from .server_model import ServerModel
 from .server_models_response import ServerModelsResponse
 from .server_probe_error_response import ServerProbeErrorResponse
@@ -444,6 +460,8 @@ from .trust_key_request import TrustKeyRequest
 from .trusted_key_view import TrustedKeyView
 from .turn_llm_call import TurnLlmCall
 from .turn_llm_calls_response import TurnLlmCallsResponse
+from .uninstall_report import UninstallReport
+from .uninstall_request import UninstallRequest
 from .unload_model_request import UnloadModelRequest
 from .unload_model_response import UnloadModelResponse
 from .update_artifact_request import UpdateArtifactRequest
@@ -554,6 +572,7 @@ __all__ = (
     "ChatResponseValueType0",
     "ClearAgentModelResponse",
     "ClearCacheResponse",
+    "ClearedServerLogs",
     "ClearMemoryBody",
     "CoachingExample",
     "CoachingRequest",
@@ -627,9 +646,11 @@ __all__ = (
     "EnginesResponse",
     "EngineVariant",
     "EventsResponse",
+    "ExportAgentRequest",
     "ExportFormat",
     "ExportMemoryNamespaceResponse200",
     "FireResponse",
+    "FitDto",
     "ForkSessionRequest",
     "FsHitlDecisionBodyType0",
     "FsHitlDecisionBodyType0Decision",
@@ -646,8 +667,10 @@ __all__ = (
     "GgufModelInfo",
     "GlobalTimelineEvent",
     "GlobalTimelineEventDetail",
+    "GuardrailCheckDto",
     "GuardrailLevel",
     "GuardrailRefusedBody",
+    "GuardrailVerdictDto",
     "HardwareResponse",
     "HardwareResponseAccelerator",
     "HealthResponse",
@@ -685,6 +708,8 @@ __all__ = (
     "JournalAnchor",
     "JournalBreak",
     "JournalBreakReason",
+    "LastLoadedModelResponse",
+    "LastLoadedModelResponseLoad",
     "LinkProjectBody",
     "ListPlanMutationsResponse200Item",
     "LlmBackendResponse",
@@ -694,6 +719,10 @@ __all__ = (
     "LlmStatusResponseBackendsItem",
     "LoadedModelDto",
     "LoadedModelsResponse",
+    "LoadEstimateResponse",
+    "LoadModelRequest",
+    "LoadModelRequestAdvanced",
+    "LoadModelResponse",
     "LogsResponse",
     "LogsResponseEntriesItem",
     "MailboxMessageRow",
@@ -710,6 +739,7 @@ __all__ = (
     "McpExposure",
     "MemoryEntryDeleted",
     "MemoryEntryView",
+    "MemoryEstimateDto",
     "MemoryImported",
     "MemoryRemoved",
     "MemorySearchResultView",
@@ -785,6 +815,7 @@ __all__ = (
     "ReasoningProfileDto",
     "RejectPlanRequest",
     "RejectUserInputRequest",
+    "ReloadLastRequest",
     "ReloadResponse",
     "ReloadRouterResponse",
     "ReloadRouterResponseBackendsItem",
@@ -810,6 +841,9 @@ __all__ = (
     "SaveArtifactRequest",
     "SendMessageRequest",
     "SendMessageResponse",
+    "ServerLogLevel",
+    "ServerLogLine",
+    "ServerLogSource",
     "ServerModel",
     "ServerModelsResponse",
     "ServerProbeErrorResponse",
@@ -913,6 +947,8 @@ __all__ = (
     "TrustKeyRequest",
     "TurnLlmCall",
     "TurnLlmCallsResponse",
+    "UninstallReport",
+    "UninstallRequest",
     "UnloadModelRequest",
     "UnloadModelResponse",
     "UpdateArtifactRequest",

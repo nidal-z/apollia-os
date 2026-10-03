@@ -35,6 +35,7 @@
   import CreateTriggerDialog from "../triggers/CreateTriggerDialog.svelte";
   import type { AgentActions } from "./useAgentActions.svelte";
   import AdjustActions from "./sheet/AdjustActions.svelte";
+  import ExportAgent from "./sheet/ExportAgent.svelte";
   import type { AgentAdjust } from "./sheet/useAgentAdjust.svelte";
   import type { AgentListItem } from "$lib/types";
   import {
@@ -254,6 +255,7 @@
           {$t("agents.uninstall")}
         </Button>
       {/if}
+      <ExportAgent name={agent.name} disabled={busy || updating} />
       <AdjustActions {adjust} />
       <Button
         variant="outline"

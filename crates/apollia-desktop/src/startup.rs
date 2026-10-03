@@ -15,6 +15,7 @@
 //! runtime, so a refusal leaves nothing behind.
 
 mod refusal;
+pub(crate) mod service;
 
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};

@@ -27,7 +27,7 @@ use crate::exit_codes;
 use crate::output::emit_error;
 
 /// Label of the author key in the secret store when `--key` is not given.
-pub const DEFAULT_KEY_LABEL: &str = "default";
+pub const DEFAULT_KEY_LABEL: &str = apollia_signing::AUTHOR_KEY_LABEL;
 
 /// Package subcommands: `apollia-os package <verb>`.
 #[derive(Debug, Subcommand)]

@@ -22,6 +22,8 @@
   import SettingsFieldRow from "../../components/settings/SettingsFieldRow.svelte";
   import ConfigurationReadOnly from "../../components/settings/ConfigurationReadOnly.svelte";
   import McpServerSection from "../../components/settings/developer/McpServerSection.svelte";
+  import BackgroundServiceSection from "../../components/settings/developer/BackgroundServiceSection.svelte";
+  import { backgroundServiceVisible } from "../../components/settings/developer/backgroundService";
   import { mcpSectionVisible } from "../../components/settings/developer/mcpServer";
   import {
     ENGINE_LOG_LEVELS,
@@ -117,6 +119,10 @@
       {/snippet}
     </SettingsFieldRow>
   </SettingsSection>
+
+  {#if backgroundServiceVisible($developerMode)}
+    <BackgroundServiceSection />
+  {/if}
 
   {#if $developerMode}
     <SettingsSection

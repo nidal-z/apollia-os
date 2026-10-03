@@ -19,7 +19,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::agents::agent_status_snapshot,
         commands::agents::messages::list_agent_messages,
         commands::agents::lifecycle::install_agent,
-        commands::agents::lifecycle::uninstall_agent,
+        commands::agent_packages::uninstall::uninstall_agent,
         commands::agents::lifecycle::update_agent,
         commands::tasks::list_tasks,
         commands::tasks::submit_task,
@@ -138,6 +138,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::agent_adjust::set_agent_model,
         commands::agent_adjust::clear_agent_model,
         commands::agent_adjust::list_model_presets,
+        commands::agent_export::export_agent,
         commands::tool_governance::governance_list_tools,
         commands::tool_governance::governance_set_tool_enabled,
         commands::tool_governance::governance_get_tool_config,
@@ -275,6 +276,9 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::cli::get_cli_status,
         commands::cli::install_cli,
         commands::cli::uninstall_cli,
+        // Keep Apollia running without the application
+        commands::background_service::get_background_service,
+        commands::background_service::set_background_service,
         // Automation harness (dev-only, absent from release builds)
         #[cfg(debug_assertions)]
         commands::automation::automation_script,

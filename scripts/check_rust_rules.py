@@ -138,7 +138,7 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-desktop/src/backend/factory.rs": 2,
     "crates/apollia-desktop/src/backend/runner.rs": 1,
     "crates/apollia-desktop/src/commands/agents.rs": 1,
-    "crates/apollia-desktop/src/commands/agents/lifecycle.rs": 2,
+    "crates/apollia-desktop/src/commands/agents/lifecycle.rs": 1,
     "crates/apollia-desktop/src/commands/llm.rs": 1,
     "crates/apollia-desktop/src/commands/model_hub.rs": 1,
     "crates/apollia-desktop/src/commands/stt.rs": 2,
@@ -180,6 +180,10 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-runtime/src/session_metrics.rs": 1,
     "crates/apollia-runtime/src/session_replay.rs": 1,
     "crates/apollia-runtime/src/stt/builder.rs": 1,
+    "crates/apollia-runtime/src/supervisor/boot.rs": 2,
+    "crates/apollia-runtime/src/supervisor/boot/data.rs": 4,
+    "crates/apollia-runtime/src/supervisor/boot/inference.rs": 3,
+    "crates/apollia-runtime/src/supervisor/boot/servers.rs": 1,
     "crates/apollia-runtime/src/supervisor/bootstrap.rs": 2,
     "crates/apollia-runtime/src/supervisor/lifecycle.rs": 4,
     "crates/apollia-runtime/src/supervisor/mod.rs": 3,
@@ -343,6 +347,12 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # refuses after a stop" are only observable on a real port. One helper,
     # borrowed by the route and supervisor tests of the same server.
     "crates/apollia-runtime/src/compat_server/tests.rs": 1,
+    # One helper, the transport is the subject: the relay forwards each
+    # request to the engine that holds the model, over HTTP, and the tests
+    # read what that engine received (the path, the `model` replaced, the
+    # body passed through). The fake engine holds a port-0 bind for the whole
+    # test, never a port released.
+    "crates/apollia-runtime/src/compat_server/relay_tests.rs": 1,
     "crates/apollia-runtime/src/hooks/executor.rs": 7,
     # The process is the subject: unloading a resident model has to stop its
     # child, and `kill -0` on the pid is the one observable left once the

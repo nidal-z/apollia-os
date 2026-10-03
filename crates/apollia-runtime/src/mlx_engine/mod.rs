@@ -213,7 +213,7 @@ impl MlxEngineSupervisor {
 
     /// The window a model is served with: the request's, else the default,
     /// capped at what the folder declares it was trained for.
-    fn window(model_path: &str, requested: Option<u32>) -> u32 {
+    pub(crate) fn window(model_path: &str, requested: Option<u32>) -> u32 {
         let wanted = requested.filter(|n| *n > 0).unwrap_or(DEFAULT_N_CTX);
         match trained_context(Path::new(model_path)) {
             Some(trained) => u32::try_from(trained).map_or(wanted, |t| wanted.min(t.max(1))),
@@ -513,6 +513,12 @@ impl MlxEngineSupervisor {
                 owed = still_owed;
             }
         });
+    }
+
+    /// A lease on the live process already serving `model_path`, marked as
+    /// just used; `None` when none does. Never launches anything.
+    pub async fn lease_resident(&self, model_path: &str) -> Option<ModelLease> {
+        self.touch_live_instance(model_path).await
     }
 
     /// Every model with a live process, most recently used first.

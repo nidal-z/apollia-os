@@ -175,7 +175,13 @@ fn is_lower_hex(value: &str, len: usize) -> bool {
             .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
-fn validate_publisher(name: &str) -> Result<(), SigningError> {
+/// Checks that `name` can be written as the publisher line of the format:
+/// 1 to 128 characters, no control character, no surrounding whitespace.
+///
+/// # Errors
+///
+/// Returns [`SigningError::InvalidPublisher`] with the reason.
+pub fn validate_publisher(name: &str) -> Result<(), SigningError> {
     if name.is_empty() {
         return Err(SigningError::InvalidPublisher {
             reason: "empty name",

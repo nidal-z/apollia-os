@@ -1,4 +1,5 @@
-//! The credentials of the native tools, kept encrypted in `governance.db`.
+//! The credentials of the native tools: values in the secret store, their
+//! index in `governance.db`.
 //!
 //! The desktop running the runtime in its own process and the daemon serving
 //! `/api/v1/tool-credentials` both call these functions, so a credential
@@ -13,8 +14,7 @@ use apollia_core::paths::DataFile;
 use apollia_tools::{GovernanceDb, GovernanceError, ToolCredentialStore, ToolGovernanceError};
 use serde::{Deserialize, Serialize};
 
-/// Name of the master key file beside `governance.db`.
-const KEYFILE_NAME: &str = ".keyfile";
+use crate::inference_servers::SecretStoreOpener;
 
 /// The tool whose credential has a live test, and the key it reads.
 const TESTED_TOOL: &str = "web_search";
@@ -39,7 +39,10 @@ pub enum CredentialError {
     /// `governance.db` did not open.
     #[error("failed to open governance database: {0}")]
     Database(#[source] GovernanceError),
-    /// The encrypted store failed.
+    /// The secret store holding the values could not be opened.
+    #[error("secret store unavailable: {0}")]
+    Secrets(String),
+    /// The credential store failed.
     #[error("credential store error: {0}")]
     Store(#[from] ToolGovernanceError),
     /// The blocking task holding the store did not finish.
@@ -72,12 +75,17 @@ pub struct CredentialTestView {
     pub error: Option<String>,
 }
 
-/// Opens the store under `data_dir`, migrating `governance.db` first if needed.
-fn open_store(data_dir: &Path) -> Result<ToolCredentialStore, CredentialError> {
+/// Opens the store under `data_dir` over the secret store `secrets` opens,
+/// migrating `governance.db` first if needed.
+fn open_store(
+    data_dir: &Path,
+    secrets: &SecretStoreOpener,
+) -> Result<ToolCredentialStore, CredentialError> {
     GovernanceDb::open(data_dir).map_err(CredentialError::Database)?;
+    let secrets = secrets().map_err(CredentialError::Secrets)?;
     Ok(ToolCredentialStore::new(
         &DataFile::Governance.path(data_dir),
-        &data_dir.join(KEYFILE_NAME),
+        secrets,
     )?)
 }
 
@@ -94,10 +102,11 @@ fn rfc3339(secs: i64) -> String {
 /// [`CredentialError`] when the store does not open or read.
 pub async fn list_credentials(
     data_dir: PathBuf,
+    secrets: SecretStoreOpener,
     tool_name: Option<String>,
 ) -> Result<Vec<CredentialEntryView>, CredentialError> {
     tokio::task::spawn_blocking(move || {
-        let entries = open_store(&data_dir)?.list(tool_name.as_deref())?;
+        let entries = open_store(&data_dir, &secrets)?.list(tool_name.as_deref())?;
         Ok(entries
             .into_iter()
             .map(|e| CredentialEntryView {
@@ -111,7 +120,8 @@ pub async fn list_credentials(
     .await?
 }
 
-/// Stores or replaces the value of `(tool_name, key_name)`, encrypted.
+/// Stores or replaces the value of `(tool_name, key_name)` in the secret
+/// store.
 ///
 /// # Errors
 ///
@@ -119,6 +129,7 @@ pub async fn list_credentials(
 /// anything is written; [`CredentialError`] when the store fails.
 pub async fn set_credential(
     data_dir: PathBuf,
+    secrets: SecretStoreOpener,
     tool_name: String,
     key_name: String,
     value: String,
@@ -130,7 +141,7 @@ pub async fn set_credential(
         return Err(CredentialError::EmptyValue);
     }
     tokio::task::spawn_blocking(move || {
-        open_store(&data_dir)?.set(&tool_name, &key_name, &value)?;
+        open_store(&data_dir, &secrets)?.set(&tool_name, &key_name, &value)?;
         tracing::event!(
             tracing::Level::INFO,
             tool = %tool_name,
@@ -149,11 +160,12 @@ pub async fn set_credential(
 /// [`CredentialError`] when the store fails.
 pub async fn delete_credential(
     data_dir: PathBuf,
+    secrets: SecretStoreOpener,
     tool_name: String,
     key_name: String,
 ) -> Result<bool, CredentialError> {
     tokio::task::spawn_blocking(move || {
-        let removed = open_store(&data_dir)?.delete(&tool_name, &key_name)?;
+        let removed = open_store(&data_dir, &secrets)?.delete(&tool_name, &key_name)?;
         tracing::event!(
             tracing::Level::INFO,
             tool = %tool_name,
@@ -176,14 +188,16 @@ pub async fn delete_credential(
 /// the store fails.
 pub async fn test_credential(
     data_dir: PathBuf,
+    secrets: SecretStoreOpener,
     tool_name: String,
 ) -> Result<CredentialTestView, CredentialError> {
     if tool_name != TESTED_TOOL {
         return Err(CredentialError::NoTest(tool_name));
     }
     let dir = data_dir.clone();
+    let opener = secrets.clone();
     let key = tokio::task::spawn_blocking(move || {
-        Ok::<_, CredentialError>(open_store(&dir)?.get(TESTED_TOOL, TESTED_KEY)?)
+        Ok::<_, CredentialError>(open_store(&dir, &opener)?.get(TESTED_TOOL, TESTED_KEY)?)
     })
     .await??;
     let Some(key) = key else {
@@ -198,7 +212,7 @@ pub async fn test_credential(
     if outcome.ok {
         let touched = tokio::task::spawn_blocking(move || {
             Ok::<_, CredentialError>(
-                open_store(&data_dir)?.touch_last_used(TESTED_TOOL, TESTED_KEY)?,
+                open_store(&data_dir, &secrets)?.touch_last_used(TESTED_TOOL, TESTED_KEY)?,
             )
         })
         .await?;

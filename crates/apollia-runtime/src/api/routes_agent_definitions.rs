@@ -6,6 +6,7 @@
 //! - `PUT    /api/v1/agent-definitions/{name}/overrides/{field}`, set an override
 //! - `DELETE /api/v1/agent-definitions/{name}/overrides/{field}`, remove an override
 //! - `DELETE /api/v1/agent-definitions/{name}/overrides`        , back to defaults
+//! - `POST   /api/v1/agent-definitions/{name}/export`           , the agent as a `.apo` package
 //!
 //! A resolved agent is its package definition, then the user's overrides
 //! field by field, with the model assigned to it in `system.db`. Every write
@@ -459,7 +460,15 @@ pub fn agent_definition_routes<B: ExecutionBackend + Clone>() -> Router<AppState
             "/api/v1/agent-definitions/:name/overrides/:field",
             put(set_agent_override::<B>).delete(remove_agent_override::<B>),
         )
+        .route(
+            "/api/v1/agent-definitions/:name/export",
+            axum::routing::post(export::export_agent_definition::<B>),
+        )
 }
+
+pub mod export;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_export;

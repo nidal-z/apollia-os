@@ -35,7 +35,7 @@
       <p class="m-0 text-caption text-muted-foreground">{legend}</p>
     </div>
     {#if action}
-      <div class="shrink-0">{@render action()}</div>
+      <div class="flex shrink-0 flex-wrap justify-end gap-2">{@render action()}</div>
     {/if}
   </div>
   <Card class="p-3.5">
