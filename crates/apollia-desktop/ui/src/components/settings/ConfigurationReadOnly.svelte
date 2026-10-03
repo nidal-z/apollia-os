@@ -1,12 +1,3 @@
-<script lang="ts" context="module">
-  export const meta = {
-    title: "settings.nav.configuration",
-    icon: "sliders",
-    group: "settings.nav.cluster_system",
-    cluster: "system",
-  } as const;
-</script>
-
 <script lang="ts">
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
@@ -15,9 +6,8 @@
   import { ErrorBanner } from "$lib/components/operator";
   import { humanize } from "$lib/errors/humanize";
   import { reportError } from "$lib/errors/reportError";
-  import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
-  import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
-  import ConfigFileCard from "../../components/settings/ConfigFileCard.svelte";
+  import SettingSectionSkeleton from "./SettingSectionSkeleton.svelte";
+  import ConfigFileCard from "./ConfigFileCard.svelte";
   import { configStore, settingsLoaders } from "$lib/stores/settings";
   import { openConfigInEditor } from "$lib/ipc/app";
 
@@ -53,7 +43,7 @@
 {#if $configStore.loading && !$configStore.loaded}
   <SettingSectionSkeleton />
 {:else}
-  <SettingsSubPage route="configuration" data-testid="configuration-subpage">
+  <div class="flex flex-col gap-4" data-testid="configuration-subpage">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <p class="max-w-prose text-body-sm text-muted-foreground">
         {$t("settings.readonly_banner", { values: { file: "apollia.toml" } })}
@@ -111,5 +101,5 @@
         </div>
       {/if}
     {/if}
-  </SettingsSubPage>
+  </div>
 {/if}

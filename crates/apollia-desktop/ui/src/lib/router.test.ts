@@ -14,35 +14,56 @@ describe("settings router", () => {
   });
 
   it("exposes the canonical sub-routes in order", () => {
+    // GIVEN the settings store
+    // WHEN its canonical sub-routes are read
+    // THEN they follow the navigation column: settings, system, then the leaving sections
     expect(SETTINGS_SUB_ROUTES).toEqual([
+      "general",
       "appearance",
       "profile",
+      "chat",
       "stt",
+      "model-defaults",
+      "developer",
+      "engines",
+      "hardware",
       "llm",
       "model-hub",
-      "configuration",
       "tools",
       "permissions",
       "integrations",
-      "system",
-      "shortcuts",
-      "observability",
-      "developer",
-      "help",
-      "about",
-      "danger",
     ]);
   });
 
-  it("defaults to 'appearance'", () => {
-    expect(DEFAULT_SETTINGS_SUB_ROUTE).toBe("appearance");
-    expect(get(settingsSubRoute)).toBe("appearance");
+  it("defaults to 'general'", () => {
+    // GIVEN a fresh store WHEN its default is read THEN it is General
+    expect(DEFAULT_SETTINGS_SUB_ROUTE).toBe("general");
+    expect(get(settingsSubRoute)).toBe("general");
   });
 
   it("parseSettingsPath resolves known sub-routes", () => {
     expect(parseSettingsPath("/settings/stt")).toBe("stt");
     expect(parseSettingsPath("settings/llm")).toBe("llm");
-    expect(parseSettingsPath("/settings/danger")).toBe("danger");
+    expect(parseSettingsPath("/settings/engines")).toBe("engines");
+  });
+
+  it.each([
+    ["about", "general"],
+    ["help", "general"],
+    ["danger", "general"],
+    ["shortcuts", "chat"],
+    ["configuration", "developer"],
+    ["system", "hardware"],
+  ])("a former section (%s) opens the section that now holds it (%s)", (former, home) => {
+    // GIVEN a caller that still names a section the grid no longer lists
+    settingsSubRoute.set("profile");
+
+    // WHEN it navigates there
+    const resolved = setSettingsSubRoute(former);
+
+    // THEN the store lands on the section that carries the moved content
+    expect(resolved).toBe(home);
+    expect(get(settingsSubRoute)).toBe(home);
   });
 
   it("parseSettingsPath returns null for bare /settings (triggers redirect)", () => {

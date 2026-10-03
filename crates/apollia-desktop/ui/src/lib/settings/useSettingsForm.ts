@@ -1,12 +1,12 @@
 import { onDestroy } from "svelte";
-import type { SettingsSubRoute } from "$lib/stores/settings";
+import type { SettingsFormRoute } from "$lib/stores/settings";
 import { setRouteState, getRouteState, clearRoute } from "$lib/stores/settingsDirty";
 
 export type AutoSaveMode = "debounced" | "explicit";
 
 export interface UseSettingsFormOptions<T> {
   /** Identifier of the owning sub-route (used for dirty/savingState tracking). */
-  route: SettingsSubRoute;
+  route: SettingsFormRoute;
   /** Initial snapshot - used as baseline for dirty detection. */
   initial: T;
   /** Persist handler. Must throw on failure. */
@@ -193,7 +193,7 @@ export { tick } from "svelte";
  * not share a live parent context at script evaluation time.
  */
 export type SettingsFormRegistrar = (
-  route: SettingsSubRoute,
+  route: SettingsFormRoute,
   handle: { save: () => Promise<boolean>; reset: () => void },
 ) => () => void;
 
@@ -209,7 +209,7 @@ declare global {
 }
 
 export function registerSettingsForm<T>(
-  route: SettingsSubRoute,
+  route: SettingsFormRoute,
   form: SettingsForm<T>,
 ): () => void {
   if (globalThis.window === undefined) return () => {};

@@ -235,7 +235,7 @@ export function buildPaletteActions(): PaletteAction[] {
       icon: RefreshCcw,
       kind: "settings",
       execute: () => {
-        navigateToSettings("danger");
+        navigateToSettings("appearance");
       },
     },
     {
