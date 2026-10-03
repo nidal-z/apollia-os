@@ -205,3 +205,30 @@ pub(crate) fn set_field(
     }
     Ok(())
 }
+
+/// Renames a profile.
+pub(crate) fn rename(conn: &Connection, id: &str, name: &str) -> Result<(), UserMemoryError> {
+    let changed = conn
+        .execute(
+            "UPDATE profiles SET name = ?1, updated_at = ?2 WHERE id = ?3",
+            rusqlite::params![name, now_utc(), id],
+        )
+        .map_err(storage)?;
+    if changed == 0 {
+        return Err(UserMemoryError::NotFound(id.to_owned()));
+    }
+    Ok(())
+}
+
+/// Deletes a profile that is not the default one.
+pub(crate) fn delete(conn: &Connection, id: &str) -> Result<(), UserMemoryError> {
+    let Some(profile) = get(conn, id)? else {
+        return Err(UserMemoryError::NotFound(id.to_owned()));
+    };
+    if profile.is_default {
+        return Err(UserMemoryError::DefaultProfile(profile.name));
+    }
+    conn.execute("DELETE FROM profiles WHERE id = ?1", rusqlite::params![id])
+        .map_err(storage)?;
+    Ok(())
+}

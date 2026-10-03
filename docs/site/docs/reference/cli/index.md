@@ -273,8 +273,13 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os config show`↴](#apollia-os-config-show)
 * [`apollia-os config reset`↴](#apollia-os-config-reset)
 * [`apollia-os profile`↴](#apollia-os-profile)
+* [`apollia-os profile list`↴](#apollia-os-profile-list)
 * [`apollia-os profile show`↴](#apollia-os-profile-show)
+* [`apollia-os profile create`↴](#apollia-os-profile-create)
+* [`apollia-os profile rename`↴](#apollia-os-profile-rename)
 * [`apollia-os profile set`↴](#apollia-os-profile-set)
+* [`apollia-os profile set-default`↴](#apollia-os-profile-set-default)
+* [`apollia-os profile delete`↴](#apollia-os-profile-delete)
 * [`apollia-os profile forget`↴](#apollia-os-profile-forget)
 * [`apollia-os profile reset`↴](#apollia-os-profile-reset)
 * [`apollia-os profile schema`↴](#apollia-os-profile-schema)
@@ -519,14 +524,14 @@ Display detailed information about an agent, with its definition as resolved (pa
 
 Override one field of an agent's definition; a package update keeps it.
 
-Fields: `name`, `mission` and `autonomy` take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). Recorded in the audit journal.
+Fields: `name`, `mission`, `autonomy` and `profile` (a profile identifier, see `profile list`) take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). Recorded in the audit journal.
 
 **Usage:** `apollia-os agent set <AGENT_ID> <FIELD> [VALUES]...`
 
 ###### **Arguments:**
 
 * `<AGENT_ID>` - Agent identifier
-* `<FIELD>` - Field to override: name, mission, examples, access, sources or autonomy
+* `<FIELD>` - Field to override: name, mission, examples, access, sources, autonomy or profile
 * `<VALUES>` - The value, or the items of a list
 
 
@@ -4311,8 +4316,13 @@ Operates on `~/.apollia/user_memory.db` directly; no runtime required.
 
 ###### **Subcommands:**
 
-* `show` - Display every key currently stored in the global user profile
-* `set` - Insert or replace the value of `KEY`
+* `list` - List the profiles: identifier, name, and which one is the default
+* `show` - Display a profile: its fields, then the free-form entries every profile shares. Without an identifier, the default profile
+* `create` - Create a profile with empty fields; it is not the default
+* `rename` - Rename a profile
+* `set` - Write one field of a profile: `name`, `role`, `function`, `tools`, `preferences` or `free_text`. Any other key is a free-form entry, shared by every profile
+* `set-default` - Make a profile the default; the previous default stops being one
+* `delete` - Delete a profile. The default profile cannot be deleted: make another one the default first
 * `forget` - Remove the entry stored at `KEY`
 * `reset` - Reset the entire profile (deletes every entry)
 * `schema` - Print the canonical schema (the known structured fields)
@@ -4321,11 +4331,11 @@ Operates on `~/.apollia/user_memory.db` directly; no runtime required.
 
 
 
-## `apollia-os profile show`
+## `apollia-os profile list`
 
-Display every key currently stored in the global user profile
+List the profiles: identifier, name, and which one is the default
 
-**Usage:** `apollia-os profile show [OPTIONS]`
+**Usage:** `apollia-os profile list [OPTIONS]`
 
 ###### **Options:**
 
@@ -4333,19 +4343,102 @@ Display every key currently stored in the global user profile
 
 
 
-## `apollia-os profile set`
+## `apollia-os profile show`
 
-Insert or replace the value of `KEY`
+Display a profile: its fields, then the free-form entries every profile shares. Without an identifier, the default profile
 
-**Usage:** `apollia-os profile set [OPTIONS] <KEY> <VALUE>`
+**Usage:** `apollia-os profile show [OPTIONS] [ID]`
 
 ###### **Arguments:**
 
-* `<KEY>` - Profile key (e.g. `name`, `email`, `preferences.tone`)
-* `<VALUE>` - Value to store
+* `<ID>` - Profile identifier, or `default` (the default when omitted)
 
 ###### **Options:**
 
+* `--db <PATH>` - Optional override for the user_memory.db path
+
+
+
+## `apollia-os profile create`
+
+Create a profile with empty fields; it is not the default
+
+**Usage:** `apollia-os profile create [OPTIONS] <NAME>`
+
+###### **Arguments:**
+
+* `<NAME>` - Display name of the profile (e.g. `Formateur`)
+
+###### **Options:**
+
+* `--db <PATH>`
+
+
+
+## `apollia-os profile rename`
+
+Rename a profile
+
+**Usage:** `apollia-os profile rename [OPTIONS] <ID> <NAME>`
+
+###### **Arguments:**
+
+* `<ID>` - Profile identifier, or `default`
+* `<NAME>` - New display name
+
+###### **Options:**
+
+* `--db <PATH>`
+
+
+
+## `apollia-os profile set`
+
+Write one field of a profile: `name`, `role`, `function`, `tools`, `preferences` or `free_text`. Any other key is a free-form entry, shared by every profile
+
+**Usage:** `apollia-os profile set [OPTIONS] <ID> <FIELD> <VALUE>`
+
+###### **Arguments:**
+
+* `<ID>` - Profile identifier, or `default`
+* `<FIELD>` - Field to write (e.g. `role`)
+* `<VALUE>` - Value to store; an empty value empties a field
+
+###### **Options:**
+
+* `--db <PATH>`
+
+
+
+## `apollia-os profile set-default`
+
+Make a profile the default; the previous default stops being one
+
+**Usage:** `apollia-os profile set-default [OPTIONS] <ID>`
+
+###### **Arguments:**
+
+* `<ID>` - Profile identifier
+
+###### **Options:**
+
+* `--db <PATH>`
+
+
+
+## `apollia-os profile delete`
+
+Delete a profile. The default profile cannot be deleted: make another one the default first
+
+**Usage:** `apollia-os profile delete [OPTIONS] <ID>`
+
+###### **Arguments:**
+
+* `<ID>` - Profile identifier
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 * `--db <PATH>`
 
 
