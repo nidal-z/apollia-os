@@ -40,6 +40,11 @@
       "friendly_message": "An unexpected error stopped this action from completing.",
       "suggested_action": "Retry the action. If it keeps failing, check the details below."
     },
+    "guardrail_refused": {
+      "title": "Model too heavy for this computer",
+      "message": "This model needs about {estimated} GB of memory, and the load guardrail allows {budget} GB.",
+      "suggested_action": "Pick a lighter model, or confirm the load to go ahead anyway."
+    },
     "show_details": "Technical details"
   },
   "next_steps": {
@@ -208,20 +213,7 @@
       "settings": "Settings"
     }
   },
-  "sidebar": {
-    "mode": {
-      "chip_aria": "Current mode: {mode}. Open mode switcher.",
-      "chip_tooltip": "Mode: {current} - click to switch to {other}",
-      "operator": {
-        "label": "Operator",
-        "description": "Simplified view: run and monitor assistants."
-      },
-      "builder": {
-        "label": "Builder",
-        "description": "Technical view: LLMs, triggers, memory, observability."
-      }
-    }
-  },
+  "sidebar": {},
   "topbar": {
     "search": {
       "placeholder": "Search…"
@@ -1204,6 +1196,7 @@
       "empty": "No model is loaded in memory.",
       "since": "Loaded at {time}",
       "in_use": "Answering",
+      "engine_mlx": "MLX",
       "unload": "Unload",
       "unloaded_toast": "{name} unloaded, its memory is free.",
       "in_use_error": "{name} is in use: a response is in progress. Try again once it finishes."
@@ -2058,7 +2051,8 @@
       "about": "About",
       "danger": "Danger Zone",
       "mobile_open": "Sections",
-      "mobile_title": "Settings sections"
+      "mobile_title": "Settings sections",
+      "developer": "Developer"
     },
     "help": {
       "subtitle": "Get started with Apollia and find your way around the essentials.",
@@ -2312,11 +2306,6 @@
     "theme_light": "Light",
     "theme_dark": "Dark",
     "theme_system": "System",
-    "mode_title": "Interface mode",
-    "mode_operator": "Operator",
-    "mode_builder": "Builder",
-    "mode_operator_desc": "Simplified view for daily use",
-    "mode_builder_desc": "Technical view with full details",
     "system_info": "System information",
     "system_version": "Version",
     "system_os": "Operating system",
@@ -3095,7 +3084,6 @@
     "language_label": "Interface language",
     "language_field_help": "Applied immediately, no restart required.",
     "theme_help": "Light, dark, or synced to your system.",
-    "mode_help": "Level of detail shown in chat and tool views.",
     "credential": {
       "configured": "Configured",
       "absent": "Absent",
@@ -3139,6 +3127,15 @@
       "none_for_tool": "No credential configured for this tool.",
       "created": "added {date}",
       "values_hidden": "Values stay encrypted on this machine and are never displayed."
+    },
+    "developer": {
+      "subtitle": "The developer mode and the advanced settings.",
+      "mode_title": "Developer mode",
+      "mode_label": "Developer mode",
+      "mode_hint": "Shows the technical views (Transcriptions, Observability, Memory) and the advanced settings below.",
+      "mode_off": "Off",
+      "mode_on": "On",
+      "write_failed": "The developer mode could not be saved."
     }
   },
   "onboarding": {
@@ -3418,8 +3415,6 @@
     "no_results": "No results",
     "search_placeholder": "Search…",
     "select_or_start": "Select a conversation on the left or start a new one.",
-    "journal_mode_operator": "Operator",
-    "journal_mode_builder": "Builder",
     "journal_empty": "Live agent activity.",
     "conversations_aria": "Conversations",
     "past_session": "Past session",
@@ -4237,7 +4232,7 @@
     "actions": {
       "createAgent": "Create agent",
       "createTrigger": "Create trigger",
-      "toggleMode": "Toggle Operator / Builder mode",
+      "toggleDeveloperMode": "Turn developer mode on / off",
       "toggleCompanion": "Toggle Companion"
     },
     "help": {

@@ -4853,6 +4853,16 @@
               }
             }
           },
+          "409": {
+            "description": "A local model the load guardrail refused; confirm the load to go ahead",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuardrailRefusedBody"
+                }
+              }
+            }
+          },
           "503": {
             "description": "No router configured or backend call failed",
             "content": {
@@ -4901,6 +4911,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A local model the load guardrail refused; confirm the load to go ahead",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuardrailRefusedBody"
                 }
               }
             }
@@ -5227,6 +5247,86 @@
           },
           "500": {
             "description": "The shipped registry table is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/embeddings/default": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/embeddings/default`",
+        "operationId": "get_embedding_default",
+        "responses": {
+          "200": {
+            "description": "The default embeddings model, absent when none is chosen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingDefaultResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "system.db could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`PUT /api/v1/llm/embeddings/default`",
+        "operationId": "set_embedding_default",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetEmbeddingDefaultBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The default embeddings model, as now set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingDefaultResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an embeddings model of the registry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "system.db could not be written",
             "content": {
               "application/json": {
                 "schema": {
@@ -11123,6 +11223,59 @@
           },
           "503": {
             "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/model-capabilities": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/model-capabilities`, what the\nmodel of a session can do.",
+        "description": "The model is the one the next message of the session would run on: the\nmodel of its declarative agent, else the backend the session prefers, else\nthe default model of the machine.",
+        "operationId": "get_session_model_capabilities",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The model of the session and what it can do",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionModelCapabilities"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem or backend repository unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -17511,6 +17664,33 @@
           }
         }
       },
+      "EmbeddingDefaultResponse": {
+        "type": "object",
+        "description": "The default embeddings model, and whether this machine has its file.",
+        "required": [
+          "installed"
+        ],
+        "properties": {
+          "installed": {
+            "type": "boolean",
+            "description": "Whether the file of that entry is in the model index."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the registry entry; absent when none is chosen, and\nsearch then uses keywords alone."
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Path of that file, when installed."
+          }
+        }
+      },
       "EmbeddingModelsResponse": {
         "type": "object",
         "description": "The embeddings category of the registry, and the entry for this machine.",
@@ -18007,6 +18187,57 @@
           "timestamp": {
             "type": "string",
             "description": "ISO 8601 timestamp."
+          }
+        }
+      },
+      "GuardrailLevel": {
+        "type": "string",
+        "description": "How strictly a launch is held to the machine's memory.",
+        "enum": [
+          "disabled",
+          "lenient",
+          "balanced",
+          "strict",
+          "ceiling"
+        ]
+      },
+      "GuardrailRefusedBody": {
+        "type": "object",
+        "description": "Body of an API answer to a launch the guardrail refused.\n\n`error` is the English sentence; `code` and the figures let an interface\nwrite its own, in its own language.",
+        "required": [
+          "error",
+          "code",
+          "model",
+          "level",
+          "estimatedGb",
+          "budgetGb"
+        ],
+        "properties": {
+          "budgetGb": {
+            "type": "number",
+            "format": "double",
+            "description": "The limit the level holds to, in gigabytes."
+          },
+          "code": {
+            "type": "string",
+            "description": "Always `guardrail_refused`."
+          },
+          "error": {
+            "type": "string",
+            "description": "Human-readable description, in English."
+          },
+          "estimatedGb": {
+            "type": "number",
+            "format": "double",
+            "description": "The estimated footprint, in gigabytes."
+          },
+          "level": {
+            "$ref": "#/components/schemas/GuardrailLevel",
+            "description": "The level that refused it."
+          },
+          "model": {
+            "type": "string",
+            "description": "The model whose launch was refused."
           }
         }
       },
@@ -18967,6 +19198,8 @@
         "type": "object",
         "description": "One resident model.",
         "required": [
+          "engine",
+          "kind",
           "model",
           "modelPath",
           "port",
@@ -18981,6 +19214,14 @@
             "type": "integer",
             "description": "Requests being answered right now. An unload is refused above zero.",
             "minimum": 0
+          },
+          "engine": {
+            "$ref": "#/components/schemas/EngineName",
+            "description": "The engine serving the model, chosen by its format: `llama-server` for\nGGUF, `vllm-mlx` for MLX."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ModelKind",
+            "description": "What the model serves: `chat`, or `embeddings` for the instance that\nserves search by meaning, which does not count against `maxLoaded`."
           },
           "lastUsedAt": {
             "type": "string",
@@ -19335,6 +19576,14 @@
             "minimum": 0
           }
         }
+      },
+      "ModelKind": {
+        "type": "string",
+        "description": "What a resident model serves.",
+        "enum": [
+          "chat",
+          "embeddings"
+        ]
       },
       "ModelSourceDto": {
         "type": "string",
@@ -20598,6 +20847,15 @@
           }
         }
       },
+      "ReasoningProfileDto": {
+        "type": "string",
+        "description": "The reasoning setting a model lets its caller fix.",
+        "enum": [
+          "none",
+          "toggle",
+          "levels"
+        ]
+      },
       "RejectPlanRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/sessions/:id/plan/reject`.",
@@ -21363,6 +21621,50 @@
           }
         }
       },
+      "SessionModelCapabilities": {
+        "type": "object",
+        "description": "Answer of `GET /api/v1/sessions/{id}/model-capabilities`.",
+        "required": [
+          "local",
+          "vision",
+          "image_formats"
+        ],
+        "properties": {
+          "image_formats": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The image formats its engine decodes, empty without vision."
+          },
+          "local": {
+            "type": "boolean",
+            "description": "Whether a local engine serves the model."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The backend or model the conversation runs on, the default model of\nthe machine when it names none; `null` when no model is configured."
+          },
+          "reasoning_profile": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReasoningProfileDto",
+                "description": "The reasoning setting the model offers; `null` when it is not known\n(a remote server, a model not indexed yet), in which case no setting is\noffered."
+              }
+            ]
+          },
+          "vision": {
+            "type": "boolean",
+            "description": "Whether the model reads images."
+          }
+        }
+      },
       "SessionWorkspace": {
         "type": "object",
         "description": "Answer of `GET /api/v1/sessions/{id}/workspace`.",
@@ -21437,7 +21739,7 @@
         "properties": {
           "model_id": {
             "type": "string",
-            "description": "`local`: the name of a local engine backend. `server`: `<server>/<model>`\nof a declared server, or the name of a server backend."
+            "description": "`local`: the name of a local engine backend, or the identifier of a\nlanguage model of the model index, which gets its backend row.\n`server`: `<server>/<model>` of a declared server, or the name of a\nserver backend."
           },
           "model_source": {
             "$ref": "#/components/schemas/ModelSourceDto",
@@ -21468,6 +21770,19 @@
           "folder_path": {
             "type": "string",
             "description": "Folder path under My Drive, `Documents/Apollia` for instance. Empty\nmeans the root of My Drive."
+          }
+        }
+      },
+      "SetEmbeddingDefaultBody": {
+        "type": "object",
+        "description": "Body of `PUT /api/v1/llm/embeddings/default`.",
+        "required": [
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Identifier of an embeddings entry of the registry."
           }
         }
       },
