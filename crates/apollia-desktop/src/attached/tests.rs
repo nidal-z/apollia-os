@@ -27,7 +27,7 @@ fn session(id: &str) -> SessionInfo {
 fn test_a_command_not_routed_is_refused_in_attached_mode_with_a_readable_error() {
     // GIVEN the application attached to a daemon, and a command whose body
     // reads state only the embedded runtime builds
-    let command = "list_memory_namespaces";
+    let command = "get_delegation_tree";
 
     // WHEN the gate is asked before the body runs
     let refusal = gate(LinkMode::Attached, command);
@@ -39,11 +39,11 @@ fn test_a_command_not_routed_is_refused_in_attached_mode_with_a_readable_error()
     let fr = error.for_display(UiLocale::Fr);
     let en = error.for_display(UiLocale::En);
     assert!(
-        fr.contains("list_memory_namespaces") && fr.contains("en service"),
+        fr.contains("get_delegation_tree") && fr.contains("en service"),
         "{fr}"
     );
     assert!(
-        en.contains("list_memory_namespaces") && en.contains("as a service"),
+        en.contains("get_delegation_tree") && en.contains("as a service"),
         "{en}"
     );
 }
@@ -86,7 +86,7 @@ fn test_every_routed_command_passes_the_gate_in_attached_mode() {
 fn test_the_embedded_mode_lets_every_command_through() {
     // GIVEN the runtime running in this process
     // WHEN a command not routed is gated
-    let verdict = gate(LinkMode::Embedded, "list_memory_namespaces");
+    let verdict = gate(LinkMode::Embedded, "get_delegation_tree");
 
     // THEN it runs as it always did
     assert!(verdict.is_ok());
@@ -512,6 +512,32 @@ fn test_a_window_command_runs_attached_and_carries_its_reason() {
     assert!(gate(LinkMode::Attached, "quit_app").is_ok());
 }
 
+// ── Permissions ──────────────────────────────────────────────────────────
+
+#[test]
+fn test_the_proposed_rules_and_the_file_answers_pass_the_gate_attached() {
+    // GIVEN the commands of the proposed rules and of the file requests
+    let commands = [
+        "list_proposed_permission_rules",
+        "apply_proposed_permission_rule",
+        "dismiss_proposed_permission_rule",
+        "add_permission_prefix_rule",
+        "respond_hitl_filesystem",
+    ];
+
+    // WHEN each is gated while attached
+    let refused: Vec<&str> = commands
+        .into_iter()
+        .filter(|command| gate(LinkMode::Attached, command).is_err())
+        .collect();
+
+    // THEN none is refused, and none is a window exception
+    assert!(refused.is_empty(), "refused: {refused:?}");
+    assert!(WINDOW_COMMANDS
+        .iter()
+        .all(|(name, _)| !commands.contains(name)));
+}
+
 // ── The profile ──────────────────────────────────────────────────────────
 
 #[tokio::test]
@@ -825,5 +851,170 @@ fn test_the_export_and_the_reveal_run_attached_as_window_commands() {
     for name in commands {
         assert!(WINDOW_COMMANDS.iter().any(|(window, _)| *window == name));
         assert!(!ROUTED_COMMANDS.contains(&name));
+    }
+}
+
+// ── MCP: secrets, registry, sign-in ──────────────────────────────────────
+
+#[tokio::test]
+async fn test_an_mcp_secret_is_put_and_removed_on_the_daemon_with_the_token() {
+    // GIVEN a daemon that stores and removes the secret of a server, only
+    // with the token of this installation, and answers both with no content
+    let server = MockServer::start().await;
+    let auth = format!("Bearer {TOKEN}");
+    Mock::given(method("PUT"))
+        .and(path("/api/v1/mcp/servers/notion/secrets/NOTION_API_KEY"))
+        .and(header("authorization", auth.as_str()))
+        .and(body_json(serde_json::json!({ "value": "secret-1" })))
+        .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path("/api/v1/mcp/servers/notion/secrets/NOTION_API_KEY"))
+        .and(header("authorization", auth.as_str()))
+        .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+
+    // WHEN the bodies of store_mcp_secret and delete_mcp_secret run attached
+    let stored =
+        crate::commands::mcp::put_mcp_secret(&link, "notion", "NOTION_API_KEY", "secret-1").await;
+    let removed = crate::commands::mcp::remove_mcp_secret(&link, "notion", "NOTION_API_KEY").await;
+
+    // THEN both reached the daemon and the empty answers read as success
+    assert_eq!(stored, Ok(()));
+    assert_eq!(removed, Ok(()));
+    assert!(gate(LinkMode::Attached, "store_mcp_secret").is_ok());
+    assert!(gate(LinkMode::Attached, "delete_mcp_secret").is_ok());
+}
+
+#[tokio::test]
+async fn test_an_mcp_secret_refused_by_the_daemon_shows_its_message() {
+    // GIVEN a daemon that refuses a server name it cannot store a secret for
+    let server = MockServer::start().await;
+    let refusal = "server name must be lowercase letters, digits, '_' or '-'";
+    Mock::given(method("PUT"))
+        .and(path("/api/v1/mcp/servers/Bad%20Name/secrets/KEY"))
+        .respond_with(
+            ResponseTemplate::new(400).set_body_json(serde_json::json!({ "error": refusal })),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+
+    // WHEN the body of store_mcp_secret runs attached with that name
+    let error = crate::commands::mcp::put_mcp_secret(&link, "Bad Name", "KEY", "v")
+        .await
+        .unwrap_err();
+
+    // THEN the name was encoded into one segment, and the interface reads
+    // the daemon's own words
+    assert_eq!(error, refusal);
+}
+
+#[tokio::test]
+async fn test_the_mcp_registry_is_read_from_the_daemon_with_the_search_and_the_token() {
+    // GIVEN a daemon whose registry route lists one server for a search
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/mcp/registry"))
+        .and(query_param("search", "base de notes"))
+        .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!([{
+                "server": {
+                    "name": "io.github.owner/notes", "title": "Notes",
+                    "description": "Read notes", "version": "1.0.0",
+                    "repository": null, "websiteUrl": null, "packages": null, "icons": null
+                },
+                "_meta": null
+            }])),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+
+    // WHEN the body of fetch_mcp_registry reads the registry attached
+    let servers =
+        crate::commands::mcp::discovery::fetch_registry_servers(&link, Some(" base de notes "))
+            .await
+            .unwrap();
+
+    // THEN the daemon's entry comes back in the registry's shape
+    assert_eq!(servers.len(), 1);
+    assert_eq!(servers[0].server.name, "io.github.owner/notes");
+    assert!(gate(LinkMode::Attached, "fetch_mcp_registry").is_ok());
+}
+
+#[tokio::test]
+async fn test_an_unreachable_registry_on_the_daemon_shows_its_message() {
+    // GIVEN a daemon whose registry is offline with no cache
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/mcp/registry"))
+        .respond_with(
+            ResponseTemplate::new(503)
+                .set_body_json(serde_json::json!({ "error": "registry offline" })),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+
+    // WHEN the registry is read attached, without a search
+    let error = crate::commands::mcp::discovery::fetch_registry_servers(&link, None)
+        .await
+        .unwrap_err();
+
+    // THEN the daemon's own words come back
+    assert_eq!(error, "registry offline");
+}
+
+#[tokio::test]
+async fn test_an_empty_answer_of_the_embedded_runtime_reads_as_null() {
+    // GIVEN a runtime listener answering a removal with no content
+    let server = MockServer::start().await;
+    Mock::given(method("DELETE"))
+        .and(path("/api/v1/mcp/servers/notion/secrets/KEY"))
+        .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let port = server.address().port();
+
+    // WHEN the embedded arm's helper sends the removal
+    let answer =
+        crate::commands::http_delete_json(port, "/api/v1/mcp/servers/notion/secrets/KEY").await;
+
+    // THEN the empty body is a success, not an unreadable answer
+    assert_eq!(answer, Ok(serde_json::Value::Null));
+}
+
+#[test]
+fn test_the_mcp_sign_in_commands_run_attached_as_window_commands() {
+    // GIVEN the commands the MCP wizard calls around the sign-in, which read
+    // no state of the runtime
+    let sign_in = [
+        "list_mcp_enrichments",
+        "mcp_oauth_discover",
+        "mcp_oauth_resolve_client_id",
+        "mcp_oauth_login",
+    ];
+
+    // WHEN each is gated while attached
+    // THEN none is refused, and each is a window command with its reason
+    for command in sign_in {
+        assert!(gate(LinkMode::Attached, command).is_ok(), "{command}");
+        assert!(
+            WINDOW_COMMANDS
+                .iter()
+                .any(|(name, reason)| *name == command && !reason.is_empty()),
+            "{command} is not a window command"
+        );
     }
 }

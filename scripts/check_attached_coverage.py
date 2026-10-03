@@ -69,9 +69,18 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # the conversations of the chat could be configured, renamed, named, erased and
 # linked to a project, then at 146 once the metrics of a conversation were read
 # from the daemon and its export and reveal named as window commands, then at
-# 142 once the companion read its preference and opened its guide session
-# through the daemon.
-EMBEDDED_ONLY_CEILING = 142
+# 141 once the memory was read through its routes, then at 136 once the chat
+# could play a turn again, decide on a tool call and read those decisions, then
+# at 131 once the proposed permission rules and the answers to a request to
+# touch a file had their routes, then at 123 once the tools, their
+# configuration, the permission rules and the audit of the tool governance had
+# their routes, then at 116 once the accounts of the native connectors and
+# their Drive folder were served by the daemon, then at 110 once the OAuth
+# clients of the connectors were served by the daemon, then at 103 once the plan
+# mode had its routes, then at 96 once the MCP secrets and registry had their
+# routes and the MCP sign-in was named a window command, then at 92 once the
+# companion read its preference and opened its guide session through the daemon.
+EMBEDDED_ONLY_CEILING = 92
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",
