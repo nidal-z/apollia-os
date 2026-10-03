@@ -45,6 +45,7 @@ use crate::timeout_watcher::{TimeoutWatcher, TimeoutWatcherConfig};
 mod boot;
 mod bootstrap;
 mod bundled;
+mod legacy_secrets;
 mod lifecycle;
 mod persistence;
 
