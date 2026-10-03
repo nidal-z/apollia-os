@@ -60,6 +60,9 @@ impl ChatSessionManager {
                     let result = self.handle_get_session(&session_id);
                     let _ = reply.send(result);
                 }
+                ChatCommand::SessionModel { session_id, reply } => {
+                    let _ = reply.send(self.handle_session_model(&session_id));
+                }
                 ChatCommand::ResolveSessionWorkspace { session_id, reply } => {
                     let result = self.handle_resolve_session_workspace(&session_id);
                     let _ = reply.send(result);

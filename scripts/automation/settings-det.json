@@ -1,16 +1,15 @@
 {
-  "name": "settings-det (settings shell + Appearance/Configuration/System/Danger/Update, operator + builder, unsaved-guard, fast-fail on data-dependent)",
+  "name": "settings-det (settings shell + General/Appearance/Chat/Developer/Engines/Hardware, capture policy tab, update panel, operator + builder, unsaved-guard, fast-fail on data-dependent)",
   "stopOnError": false,
   "notes": [
-    "Code-verified against routes/Settings.svelte + settings/{Appearance,Configuration,System,Danger,UpdateChecker}.svelte + components/settings/{ConfigFileCard,UnsavedChangesDialog,UnsavedChangesBadge,SettingsToggle}.svelte.",
-    "13 nav keys from the CLUSTERS table: appearance, profile, stt, llm, model-hub, configuration, tools, permissions, integrations, system, shortcuts, observability, danger. CLUSTERS are static -> nav is identical in both modes (no uiMode gate).",
+    "Code-verified against routes/Settings.svelte + lib/settings/settingsNav.ts + settings/{General,Appearance,ChatSettings,Developer,Engines,System}.svelte + components/settings/{ConfigurationReadOnly,DangerZone,ConfigFileCard,UnsavedChangesDialog,UnsavedChangesBadge,SettingsToggle}.svelte + components/settings/{about/AboutBlock,about/AboutBuildSection,help/HelpBlock}.svelte + components/observability/CapturePolicyPanel.svelte.",
+    "14 nav keys from SETTINGS_NAV, in two groups: Settings (general, appearance, profile, chat, stt, model-defaults, developer, then llm, model-hub, tools, permissions, integrations until they leave the settings) and System (engines, hardware). The column is identical in both modes. About, Help and the danger zone live in General; the shortcut catalogue and plan mode in Chat; the read-only configuration in Developer, mode on only; the former System page in Hardware; the build facts and the diagnostic copy in Engines; the capture and retention policy in the capture tab of the Observability screen, developer mode only, where the settings unsaved badge does not exist (the footer reset still restores the form).",
     "plan-mode-default-toggle and auto-install-python-deps-toggle ARE the <button role=switch> (Toggle.svelte spreads data-testid onto it), NOT <input> wrappers. They are clicked directly; setChecked would also work, click keeps the two-way boundary explicit.",
     "Configuration.svelte passes defaultExpanded={i === 0}, so the FIRST card (runtime) is already open on arrival: its copy button is asserted directly, and the expand interaction is exercised on the second card (oria) instead. Exact testids are used rather than the config-file-card- prefix, because an expanded card also renders config-file-card-copy/reveal/entries/raw-{section}, which the prefix would match ahead of the next card.",
     "stt-trigger and stt-language-select are native <select> (Select.svelte) with static options (toggle/push-to-talk; the STT_LANGUAGES codes). Both are exercised via selectOption in the STT save branch, then saved through the unsaved dialog. The language values (de discarded, es saved) stay distinct from the one stt-det.json picks later, so each script still produces a real change.",
-    "UpdateCheckPanel (rendered inside System.svelte, variant section) is an external-update boundary only when unstubbed: the first click on update-check-btn (28-update-checker-boundary) reaches the real GitHub endpoint of tauri.conf.json and lands on whatever the host's connectivity gives. Every other phase is reached by stubbing check_for_update (commands/updates.rs UpdateCheckResult: available, current_version, new_version, release_notes, channel_unavailable) after a remount (danger then system, so the panel starts idle whatever the boundary click left). The stub imitates a backend type and drifts silently if that struct changes.",
-    "Danger cards are screenshot-only; no reset btn or confirm dialog is triggered (real resets live in destructive.json).",
+    "UpdateCheckPanel (rendered once, inside General.svelte, variant bare) is an external-update boundary only when unstubbed: the first click on update-check-btn (28-update-checker-boundary) reaches the real GitHub endpoint of tauri.conf.json and lands on whatever the host's connectivity gives. Every other phase is reached by stubbing check_for_update (commands/updates.rs UpdateCheckResult: available, current_version, new_version, release_notes, channel_unavailable) after a remount (hardware then general, so the panel starts idle whatever the boundary click left). The stub imitates a backend type and drifts silently if that struct changes.",
+    "Danger cards are screenshot-only; no reset btn or confirm dialog is triggered (real resets live in destructive.json). The onboarding reset sits in Appearance now.",
     "settings-mobile-nav-toggle / -sheet render only when sidebarState === 'drawer', i.e. under 768 px (Settings.svelte:423 `{#if isMobile}`, isMobile = $sidebarState === 'drawer' at :86; layout.ts:28/119 MD_QUERY). The narrow block after screenshot 35 resizes to 700x800 (resizeWindow lifts the 900x600 minimum), clicks the toggle (mobileOpen = true, :432), closes the Sheet with Escape on the nav (the keydown bubbles to the panel's onkeydown -> onclose, Sheet.svelte:45-49,81; the sheet renders no close testid), and restores 1280x800 before the mode chip is touched: the block holds no picker and no window.confirm.",
-    "About + Help were the two CLUSTERS entries no script reached: the table holds 15 keys and this file covered 13. The block appended at the end runs in operator mode, which steps 202-206 restore.",
     "about-copy-data-dir is asserted, not about-data-dir-unknown. They are the two arms of one #if on SystemInfo.data_dir, the runner has no either/or step, and the seeded HOME always resolves, so the unknown arm is unreachable under this harness. It stays covered by the Rust test test_system_info_reports_the_resolved_data_directory.",
     "The three external help cards (docs, community, report) and about-link-github / about-link-report are asserted with expect/waitFor and never clicked: they hand off to the system browser, which the runner cannot come back from. help-link-shortcuts is the one card that navigates in-app, so it is the one that is clicked.",
     "observability-toggle-debug_log_prompt is the one sensitive flag (Observability.svelte:79-81): clicking it while off opens the ConfirmDialog observability-sensitive-confirm instead of flipping (requestToggle :157-165, the {#key} nonce snaps the Toggle back). The block after 13b plays both composed buttons (ConfirmDialog.svelte:42/50): cancel leaves cfg untouched (:175-179), confirm sets debug_log_prompt = true in memory (:169-173) and dirties the explicit-save form, which settings-subpage-reset restores (handleReset :152-155) so apollia.toml is never written and the nav guard stays quiet.",
@@ -29,29 +28,25 @@
     "danger-card-clear-logs",
     "danger-card-clear-memories",
     "danger-card-factory-reset",
-    "danger-card-reset-onboarding",
     "help-link-community",
     "help-link-docs",
     "help-link-report",
     "help-link-shortcuts",
-    "language-en",
-    "language-fr",
+    "observability-tab-capture",
     "observability-toggle-debug_log_prompt",
-    "settings-nav-about",
     "settings-nav-appearance",
-    "settings-nav-configuration",
-    "settings-nav-danger",
+    "settings-nav-chat",
     "settings-nav-developer",
-    "settings-nav-help",
+    "settings-nav-engines",
+    "settings-nav-general",
+    "settings-nav-hardware",
     "settings-nav-integrations",
     "settings-nav-llm",
+    "settings-nav-model-defaults",
     "settings-nav-model-hub",
-    "settings-nav-observability",
     "settings-nav-permissions",
     "settings-nav-profile",
-    "settings-nav-shortcuts",
     "settings-nav-stt",
-    "settings-nav-system",
     "settings-nav-tools",
     "theme-dark",
     "theme-light",
@@ -123,7 +118,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-appearance"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "waitFor",
@@ -136,7 +131,19 @@
     },
     {
       "kind": "screenshot",
-      "label": "02-nav-appearance"
+      "label": "02-nav-general"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-appearance"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "02b-nav-appearance"
     },
     {
       "kind": "click",
@@ -152,6 +159,18 @@
     },
     {
       "kind": "click",
+      "testid": "settings-nav-chat"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "03b-nav-chat"
+    },
+    {
+      "kind": "click",
       "testid": "settings-nav-stt"
     },
     {
@@ -161,6 +180,30 @@
     {
       "kind": "screenshot",
       "label": "04-nav-stt"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-model-defaults"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-nav-model-defaults"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "04c-nav-developer"
     },
     {
       "kind": "click",
@@ -185,18 +228,6 @@
     {
       "kind": "screenshot",
       "label": "06-nav-model-hub"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-configuration"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-nav-configuration"
     },
     {
       "kind": "click",
@@ -236,7 +267,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-system"
+      "testid": "settings-nav-engines"
     },
     {
       "kind": "sleep",
@@ -244,11 +275,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "11-nav-system"
+      "label": "11a-nav-engines"
     },
     {
       "kind": "click",
-      "testid": "settings-nav-shortcuts"
+      "testid": "settings-nav-hardware"
     },
     {
       "kind": "sleep",
@@ -256,19 +287,41 @@
     },
     {
       "kind": "screenshot",
-      "label": "12-nav-shortcuts"
+      "label": "11-nav-hardware"
     },
     {
       "kind": "click",
-      "testid": "settings-nav-observability"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
     },
     {
       "kind": "sleep",
-      "ms": 350
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "observability"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "observability-tab-capture"
     },
     {
       "kind": "screenshot",
-      "label": "13-nav-observability"
+      "label": "13-observability-capture-tab"
     },
     {
       "kind": "waitFor",
@@ -362,9 +415,8 @@
       "ms": 300
     },
     {
-      "kind": "waitFor",
-      "testid": "settings-unsaved-badge",
-      "timeoutMs": 5000
+      "kind": "sleep",
+      "ms": 300
     },
     {
       "kind": "screenshot",
@@ -380,27 +432,38 @@
       "ms": 300
     },
     {
-      "kind": "waitGone",
-      "testid": "settings-unsaved-badge",
-      "timeoutMs": 5000
+      "kind": "sleep",
+      "ms": 300
     },
     {
       "kind": "screenshot",
       "label": "13b5-sensitive-reset"
     },
     {
-      "kind": "click",
-      "testid": "observability-open-dashboard",
-      "timeoutMs": 4000
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "observability-page",
+      "testid": "settings-page",
       "timeoutMs": 15000
     },
     {
-      "kind": "screenshot",
-      "label": "13c-observability-open-dashboard"
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
     },
     {
       "kind": "goto",
@@ -418,7 +481,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "sleep",
@@ -426,7 +489,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "14-nav-danger"
+      "label": "14-general-danger-zone"
     },
     {
       "kind": "click",
@@ -439,7 +502,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "plan-mode-default-toggle",
+      "testid": "reset-onboarding-btn",
       "timeoutMs": 4000
     },
     {
@@ -480,7 +543,18 @@
     },
     {
       "kind": "click",
-      "testid": "language-fr"
+      "testid": "settings-nav-general"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "language-select",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "language-select",
+      "value": "fr",
+      "timeoutMs": 4000
     },
     {
       "kind": "sleep",
@@ -491,8 +565,10 @@
       "label": "18-language-fr"
     },
     {
-      "kind": "click",
-      "testid": "language-en"
+      "kind": "selectOption",
+      "testid": "language-select",
+      "value": "en",
+      "timeoutMs": 4000
     },
     {
       "kind": "sleep",
@@ -529,17 +605,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-appearance"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "theme-toggle",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "plan-mode-default-toggle",
-      "timeoutMs": 4000
+      "testid": "settings-nav-chat"
     },
     {
       "kind": "waitFor",
@@ -577,7 +643,20 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-configuration"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
     },
     {
       "kind": "waitFor",
@@ -631,7 +710,15 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-system"
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-hardware"
     },
     {
       "kind": "waitFor",
@@ -707,6 +794,10 @@
       "label": "27-agent-install-section"
     },
     {
+      "kind": "click",
+      "testid": "settings-nav-general"
+    },
+    {
       "kind": "waitFor",
       "testid": "update-checker",
       "timeoutMs": 4000
@@ -730,16 +821,16 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger"
+      "testid": "settings-nav-hardware"
     },
     {
       "kind": "waitFor",
-      "testid": "danger-section",
+      "testid": "system-info-section",
       "timeoutMs": 6000
     },
     {
       "kind": "click",
-      "testid": "settings-nav-system"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "waitFor",
@@ -888,16 +979,16 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger"
+      "testid": "settings-nav-hardware"
     },
     {
       "kind": "waitFor",
-      "testid": "danger-section",
+      "testid": "system-info-section",
       "timeoutMs": 6000
     },
     {
       "kind": "click",
-      "testid": "settings-nav-system"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "waitFor",
@@ -970,7 +1061,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "waitFor",
@@ -980,11 +1071,6 @@
     {
       "kind": "waitFor",
       "testid": "danger-warning-banner",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "danger-card-reset-onboarding",
       "timeoutMs": 4000
     },
     {
@@ -1036,7 +1122,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-system"
+      "testid": "settings-nav-hardware"
     },
     {
       "kind": "waitFor",
@@ -1116,7 +1202,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-system"
+      "testid": "settings-nav-hardware"
     },
     {
       "kind": "waitFor",
@@ -1239,6 +1325,18 @@
     },
     {
       "kind": "click",
+      "testid": "settings-nav-general"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "36b-builder-nav-general"
+    },
+    {
+      "kind": "click",
       "testid": "settings-nav-appearance"
     },
     {
@@ -1263,6 +1361,18 @@
     },
     {
       "kind": "click",
+      "testid": "settings-nav-chat"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "38b-builder-nav-chat"
+    },
+    {
+      "kind": "click",
       "testid": "settings-nav-stt"
     },
     {
@@ -1272,6 +1382,30 @@
     {
       "kind": "screenshot",
       "label": "39-builder-nav-stt"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-model-defaults"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "39b-builder-nav-model-defaults"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "screenshot",
+      "label": "42-builder-nav-developer-configuration"
     },
     {
       "kind": "click",
@@ -1296,18 +1430,6 @@
     {
       "kind": "screenshot",
       "label": "41-builder-nav-model-hub"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-configuration"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "42-builder-nav-configuration"
     },
     {
       "kind": "click",
@@ -1347,7 +1469,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-system"
+      "testid": "settings-nav-engines"
     },
     {
       "kind": "sleep",
@@ -1355,11 +1477,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "46-builder-nav-system"
+      "label": "46a-builder-nav-engines"
     },
     {
       "kind": "click",
-      "testid": "settings-nav-shortcuts"
+      "testid": "settings-nav-hardware"
     },
     {
       "kind": "sleep",
@@ -1367,11 +1489,20 @@
     },
     {
       "kind": "screenshot",
-      "label": "47-builder-nav-shortcuts"
+      "label": "46-builder-nav-hardware"
+    },
+    {
+      "kind": "goto",
+      "route": "observability"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 15000
     },
     {
       "kind": "click",
-      "testid": "settings-nav-observability"
+      "testid": "observability-tab-capture"
     },
     {
       "kind": "waitFor",
@@ -1380,20 +1511,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "48-builder-observability-settings"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-danger"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "danger-section",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "screenshot",
-      "label": "49-builder-nav-danger"
+      "label": "48-builder-observability-capture"
     },
     {
       "kind": "goto",
@@ -1432,7 +1550,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "waitFor",
@@ -1442,10 +1560,6 @@
     {
       "kind": "screenshot",
       "label": "50-back-operator"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-help"
     },
     {
       "kind": "waitFor",
@@ -1577,7 +1691,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-about"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "waitFor",
@@ -1586,24 +1700,16 @@
     },
     {
       "kind": "waitFor",
-      "testid": "about-hero",
+      "testid": "general-updates",
       "timeoutMs": 4000
     },
     {
       "kind": "expect",
-      "testid": "about-logo"
-    },
-    {
-      "kind": "expect",
-      "testid": "about-version"
-    },
-    {
-      "kind": "expect",
-      "testid": "about-os"
+      "testid": "general-version"
     },
     {
       "kind": "screenshot",
-      "label": "53-about-hero-logo"
+      "label": "53-general-version"
     },
     {
       "kind": "waitFor",
@@ -1649,6 +1755,15 @@
     {
       "kind": "expect",
       "testid": "about-link-github"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-engines"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-section",
+      "timeoutMs": 6000
     },
     {
       "kind": "click",
@@ -1710,6 +1825,15 @@
     },
     {
       "kind": "click",
+      "testid": "settings-nav-general"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "about-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
       "testid": "about-copy-contact",
       "timeoutMs": 4000
     },
@@ -1723,7 +1847,33 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-observability"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "observability"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "observability-tab-capture"
     },
     {
       "kind": "waitFor",
@@ -1757,6 +1907,32 @@
     {
       "kind": "clearStubs",
       "command": "open_config_in_editor"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
     }
   ]
 }

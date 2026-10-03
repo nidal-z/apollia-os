@@ -309,6 +309,10 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
             get(crate::api::routes_chat::session_reads::get_session_workspace::<B>),
         )
         .route(
+            "/api/v1/sessions/:id/model-capabilities",
+            get(crate::api::routes_chat::session_reads::get_session_model_capabilities::<B>),
+        )
+        .route(
             "/api/v1/sessions/plan-mode-default",
             get(plan::get_plan_mode_default::<B>),
         )
@@ -389,6 +393,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(imap_router::<B>())
         .merge(crate::api::routes_batches::batch_routes::<B>())
         .merge(crate::api::routes_workflows::workflow_routes::<B>())
+        .merge(crate::api::routes_mcp_bridge::mcp_bridge_routes::<B>())
         .merge(crate::api::routes_packages::package_routes::<B>())
         .merge(crate::api::routes_agent_packages::agent_package_routes::<B>())
         .with_state(state)

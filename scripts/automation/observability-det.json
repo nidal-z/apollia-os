@@ -1,11 +1,14 @@
 {
-  "name": "observability-det (observability surface, operator gated + builder full; only llm-costs populated, task timeline driven per task, journal-wide audit totals and the hook registry asserted)",
+  "name": "observability-det (observability surface, reached only with the developer mode on: mode off the route lands on the default one, mode on the full tab set; only llm-costs populated, task timeline driven per task, journal-wide audit totals and the hook registry asserted)",
   "stopOnError": false,
   "notes": [
-    "The plan cache tab reads the seeded plan_cache.db (tests/cli/seed/fragments/plan_cache.sql, one row, three hits): the four cards render, plan-cache-clear-btn opens the purge dialog, the cancel leaves the row, the confirm posts the clear and the empty state returns. No later section reads the plan cache. The purge is not idempotent on a replayed seed HOME: a second pass on the same build finds the cache empty and the button disabled."
+    "The plan cache tab reads the seeded plan_cache.db (tests/cli/seed/fragments/plan_cache.sql, one row, three hits): the four cards render, plan-cache-clear-btn opens the purge dialog, the cancel leaves the row, the confirm posts the clear and the empty state returns. No later section reads the plan cache. The purge is not idempotent on a replayed seed HOME: a second pass on the same build finds the cache empty and the button disabled.",
+    "Observability is a developer screen: with the developer mode off the router sends the route to the default one (Main.svelte reachableRoute), so the book asserts dashboard-page there and opens the screen only after developer-mode-on."
   ],
   "dynamicTestids": [
     "empty-state-plan-cache",
+    "nav-observability",
+    "nav-transcriptions",
     "observability-tab-audit-trail",
     "observability-tab-delegation",
     "observability-tab-hooks",
@@ -67,12 +70,76 @@
     },
     {
       "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "observability-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-observability",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-transcriptions",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-mode-off-observability-unreachable (the router lands on the default route)"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "observability"
+    },
+    {
+      "kind": "waitFor",
       "testid": "observability-page",
       "timeoutMs": 15000
     },
     {
+      "kind": "waitFor",
+      "testid": "sidebar-developer-group",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "nav-observability",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "screenshot",
-      "label": "01-observability-operator"
+      "label": "01b-observability-developer-mode"
     },
     {
       "kind": "expect",
@@ -92,7 +159,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "02-operator-tabs-gated-3"
+      "label": "02-developer-tabs-gated-3"
     },
     {
       "kind": "click",
@@ -120,7 +187,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "03-operator-timeline-controls"
+      "label": "03-developer-timeline-controls"
     },
     {
       "kind": "waitFor",
@@ -134,7 +201,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "04-operator-timeline-empty"
+      "label": "04-developer-timeline-empty"
     },
     {
       "kind": "waitFor",
@@ -171,7 +238,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "04b-operator-task-timeline"
+      "label": "04b-developer-task-timeline"
     },
     {
       "kind": "selectOption",
@@ -190,7 +257,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "04c-operator-task-timeline-other-task"
+      "label": "04c-developer-task-timeline-other-task"
     },
     {
       "kind": "click",
@@ -204,7 +271,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "04d-operator-timeline-back-to-window"
+      "label": "04d-developer-timeline-back-to-window"
     },
     {
       "kind": "click",
@@ -226,7 +293,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "05-operator-llm-costs"
+      "label": "05-developer-llm-costs"
     },
     {
       "kind": "waitFor",
@@ -245,7 +312,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "06-operator-llm-costs-data"
+      "label": "06-developer-llm-costs-data"
     },
     {
       "kind": "click",
@@ -262,7 +329,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "07-operator-audit-purpose"
+      "label": "07-developer-audit-purpose"
     },
     {
       "kind": "waitFor",
@@ -282,7 +349,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "08-operator-audit-trail-seeded"
+      "label": "08-developer-audit-trail-seeded"
     },
     {
       "kind": "selectOption",
@@ -303,7 +370,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "08a-operator-audit-filter-empty (tool+agent combination the seed leaves empty)"
+      "label": "08a-developer-audit-filter-empty (tool+agent combination the seed leaves empty)"
     },
     {
       "kind": "selectOption",
@@ -344,33 +411,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "08b-operator-audit-global-stats (journal-wide totals, not the loaded page)"
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-on"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
+      "label": "08b-developer-audit-global-stats (journal-wide totals, not the loaded page)"
     },
     {
       "kind": "goto",
@@ -744,12 +785,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "observability-page",
+      "testid": "dashboard-page",
       "timeoutMs": 15000
     },
     {
+      "kind": "waitGone",
+      "testid": "observability-page",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "screenshot",
-      "label": "18-back-operator"
+      "label": "18-back-mode-off-redirected"
     }
   ]
 }

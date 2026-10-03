@@ -26,7 +26,14 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use serde_json::Value;
 
-use super::DesktopConfig;
+use super::{DesktopConfig, McpConfig, ModelsConfig};
+
+/// Wire names of the load guardrail levels, the values `llm.guardrails.level`
+/// accepts. The runtime holds its level enum to this list in a test.
+pub const GUARDRAIL_LEVELS: &[&str] = &["disabled", "lenient", "balanced", "strict", "ceiling"];
+
+/// Settings whose value is one of a closed list, by dotted key.
+const CHOICES: &[(&str, &[&str])] = &[("llm.guardrails.level", GUARDRAIL_LEVELS)];
 
 /// Where the value of a resolved setting comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -136,8 +143,14 @@ pub enum SettingError {
     },
 }
 
-/// The defaults of every typed section whose fields are named settings, as one
-/// JSON tree keyed by section name.
+/// The defaults of every named setting, as one JSON tree keyed by section name.
+///
+/// The whole `[desktop]` section, then the inference settings an organisation
+/// may fix: the model registry (`models.registry_url`,
+/// `models.registry_mirror_url`, `models.registry_enabled`), the import rule
+/// (`models.import.require_verified`) and the load guardrail
+/// (`llm.guardrails.level`, `llm.guardrails.ceiling_gb`, where `0` sets no
+/// ceiling).
 fn defaults() -> serde_json::Map<String, Value> {
     let mut sections = serde_json::Map::new();
     // A struct of plain fields always serializes; a failure would only make
@@ -145,6 +158,20 @@ fn defaults() -> serde_json::Map<String, Value> {
     if let Ok(desktop) = serde_json::to_value(DesktopConfig::default()) {
         sections.insert("desktop".to_owned(), desktop);
     }
+    if let Ok(mcp) = serde_json::to_value(McpConfig::default()) {
+        sections.insert("mcp".to_owned(), mcp);
+    }
+    if let Ok(Value::Object(mut models)) = serde_json::to_value(ModelsConfig::default()) {
+        models.insert(
+            "import".to_owned(),
+            serde_json::json!({ "require_verified": false }),
+        );
+        sections.insert("models".to_owned(), Value::Object(models));
+    }
+    sections.insert(
+        "llm".to_owned(),
+        serde_json::json!({ "guardrails": { "level": "balanced", "ceiling_gb": 0.0 } }),
+    );
     sections
 }
 
@@ -160,7 +187,8 @@ fn default_of(key: &str) -> Option<Value> {
     (!node.is_object()).then(|| node.clone())
 }
 
-/// Checks that `value` has the JSON type of `default`.
+/// Checks that `value` has the JSON type of `default`, and is one of the
+/// allowed values when the setting has a closed list.
 fn check_type(key: &str, value: &Value, default: &Value) -> Result<(), SettingError> {
     let fits = match default {
         Value::Bool(_) => value.is_boolean(),
@@ -171,12 +199,21 @@ fn check_type(key: &str, value: &Value, default: &Value) -> Result<(), SettingEr
         Value::Null => true,
         Value::Object(_) => false,
     };
-    if fits {
+    if !fits {
+        return Err(SettingError::InvalidValue {
+            key: key.to_owned(),
+            reason: format!("expected a value like {default}, got {value}"),
+        });
+    }
+    let Some((_, allowed)) = CHOICES.iter().find(|(name, _)| *name == key) else {
+        return Ok(());
+    };
+    if value.as_str().is_some_and(|v| allowed.contains(&v)) {
         return Ok(());
     }
     Err(SettingError::InvalidValue {
         key: key.to_owned(),
-        reason: format!("expected a value like {default}, got {value}"),
+        reason: format!("expected one of {}, got {value}", allowed.join(", ")),
     })
 }
 

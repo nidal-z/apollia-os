@@ -9,8 +9,9 @@
 //!   text, read on demand and kept nowhere
 //!
 //! The registry address is the `[models]` section of `apollia.toml`, read when
-//! the catalogue opens, so a policy that replaces or cuts it takes effect on
-//! the next opening.
+//! the catalogue opens, with the registry settings the organisation policy
+//! fixes laid over it: a policy that replaces or cuts the registry wins over
+//! the file, and a catalogue it cut says so.
 
 use std::path::{Path, PathBuf};
 
@@ -99,10 +100,15 @@ fn error(status: StatusCode, message: impl Into<String>) -> RouteError {
 }
 
 /// The registry source `apollia.toml` configures: the file the runtime was
-/// started with, else the one in its data directory.
-pub(crate) fn configured_source(config_path: Option<&Path>, data_dir: &Path) -> RegistrySource {
+/// started with, else the one in its data directory, under the settings the
+/// organisation policy fixes.
+pub(crate) fn configured_source(
+    config_path: Option<&Path>,
+    data_dir: &Path,
+    imposed: &apollia_core::config::PolicySettings,
+) -> RegistrySource {
     let path = config_path.map_or_else(|| data_dir.join("apollia.toml"), Path::to_path_buf);
-    RegistrySource::from_config_file(&path)
+    RegistrySource::from_config_file(&path).under_policy(imposed)
 }
 
 /// The body of the cards route, for a source, a cache and a key.
@@ -145,7 +151,11 @@ pub async fn list_model_cards<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Query(params): Query<CardsQuery>,
 ) -> Result<Json<ModelCardsResponse>, RouteError> {
-    let source = configured_source(state.config_path.as_deref(), &state.data_dir);
+    let source = configured_source(
+        state.config_path.as_deref(),
+        &state.data_dir,
+        &state.inference_governance.imposed_settings(),
+    );
     let cache_dir = default_cache_dir(&state.data_dir);
     let lang = params.lang.unwrap_or_default();
     cards_body(&source, &cache_dir, compiled_public_key(), &lang)

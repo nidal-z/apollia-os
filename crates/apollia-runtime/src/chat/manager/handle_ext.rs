@@ -454,6 +454,28 @@ impl ChatSessionManagerHandle {
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
     }
 
+    /// The model `session_id` runs on, as its next message would route it:
+    /// the model assigned to its declarative agent, else the backend the
+    /// session prefers. `Ok(None)` leaves the runtime default in force.
+    ///
+    /// # Errors
+    ///
+    /// - [`ChatError::SessionNotFound`] when the session is unknown.
+    /// - [`ChatError::InternalError`] when the manager is gone.
+    pub async fn session_model(&self, session_id: SessionId) -> Result<Option<String>, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::SessionModel {
+                session_id,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor unavailable".into()))?;
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
     /// Fetch aggregated metrics for a session.
     ///
     /// Returns `None` when the session is unknown or no exchange has completed

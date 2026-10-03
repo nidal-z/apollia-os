@@ -23,6 +23,7 @@ mod session;
 mod slash;
 
 pub use hygiene::run_hygiene;
+mod capabilities;
 mod hygiene;
 
 use session::{run_list, run_new_session, run_resume};
@@ -73,6 +74,15 @@ pub enum ChatHygieneCommand {
         /// Override the chat database path.
         #[arg(long, value_name = "PATH")]
         db: Option<PathBuf>,
+    },
+
+    /// Show what the model of a chat session can do: the reasoning setting it
+    /// offers (none, on or off, or a level) and whether it reads images.
+    ///
+    /// Reaches the runtime; exits 2 when it is not running.
+    Capabilities {
+        /// Session id.
+        session_id: String,
     },
 
     /// Manage the Chat Libre configuration (system prompt, allowed tools, backend).

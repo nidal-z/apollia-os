@@ -340,11 +340,23 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # supervisor has taken and reaped the handle. One helper, two tests.
     "crates/apollia-runtime/src/llama_server/loaded.rs": 1,
     "crates/apollia-runtime/src/llama_server/mod.rs": 1,
+    # The process is the subject: the embeddings instance has to be launched
+    # beside a resident chat model without evicting it, which only a launched
+    # process can show. The site is the shebang of the fake engine, one helper
+    # shared by the supervisor and embedder tests.
+    "crates/apollia-runtime/src/llama_server/embeddings/tests.rs": 1,
     # The process is the subject: changing a load setting of a resident model
     # has to stop its child and launch another, which only a launched process
     # can show. The site is the shell script of the fake engine, one helper
     # shared by the reload tests.
     "crates/apollia-runtime/src/llama_server/reload/tests.rs": 1,
+    # The process and the clock are the subject: the MLX supervisor has to
+    # respawn an engine that dies, with backoff, and stop it for good on
+    # shutdown. Two `kill` spawns make the engine die, one sleep polls for the
+    # respawn, one sleep is the window in which no respawn may follow, and one
+    # `sleep 60` child is the stand-in process of `with_stand_in_models`, since
+    # `tokio::process::Child` has no constructor.
+    "crates/apollia-runtime/src/mlx_engine/tests.rs": 5,
     "crates/apollia-runtime/src/perf_trace.rs": 2,
     "crates/apollia-runtime/src/router.rs": 2,
     "crates/apollia-runtime/src/runner_supervisor/gpu_detection.rs": 1,

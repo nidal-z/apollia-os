@@ -171,11 +171,43 @@ pub struct CompletionRequest {
     /// Strings that end generation when produced. `None` or an empty list sends
     /// no stop field.
     pub stop: Option<Vec<String>>,
+    /// Reasoning on or off, for a model whose chat template reads
+    /// `enable_thinking`. `None` (default) sends nothing and leaves the
+    /// template's own default.
+    pub thinking: Option<bool>,
+    /// The level of reasoning, for a model whose chat template reads
+    /// `reasoning_effort`. `None` (default) sends nothing and leaves the
+    /// template's own default.
+    pub reasoning_effort: Option<ReasoningEffort>,
     /// The conversation turn the call is made for, when there is one.
     ///
     /// Read by the router to stamp the call it publishes; never sent to a
     /// backend. `None` outside a conversation.
     pub call_context: Option<crate::call_measure::CallContext>,
+}
+
+/// A level of reasoning, the values a `reasoning_effort` template reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReasoningEffort {
+    /// Short reasoning, a faster answer.
+    Low,
+    /// The middle level.
+    Medium,
+    /// Long reasoning, a more thorough answer.
+    High,
+}
+
+impl ReasoningEffort {
+    /// The value the template variable receives.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+        }
+    }
 }
 
 /// Unified inference response returned by all backends.
@@ -583,6 +615,27 @@ pub enum LlmError {
     /// The LLM call was cancelled by the session's `CancellationToken`.
     #[error("cancelled by caller")]
     Cancelled,
+
+    /// A local engine refused to load the model: its estimated footprint is
+    /// over what the load guardrail allows on this machine. Not retryable; a
+    /// load the user confirms goes past it.
+    #[error(
+        "backend '{backend}': loading {model} was refused by the {level} load guardrail: it \
+         needs an estimated {estimated_gb:.1} GB and this machine allows {budget_gb:.1} GB; \
+         confirm the load to go ahead"
+    )]
+    LoadRefused {
+        /// Backend name.
+        backend: String,
+        /// The model whose load was refused, as the engine was asked for it.
+        model: String,
+        /// Wire name of the guardrail level that refused it.
+        level: String,
+        /// The estimated footprint, in gigabytes.
+        estimated_gb: f64,
+        /// The limit the level holds to, in gigabytes.
+        budget_gb: f64,
+    },
 
     /// The `[llm.routing]` section is missing from `apollia.toml`.
     ///
@@ -1103,6 +1156,13 @@ mod tests {
             LlmError::ServiceUnavailable,
             LlmError::Unauthorized,
             LlmError::Cancelled,
+            LlmError::LoadRefused {
+                backend: "local".into(),
+                model: "big.gguf".into(),
+                level: "strict".into(),
+                estimated_gb: 18.3,
+                budget_gb: 12.0,
+            },
             LlmError::ConfigConflict {
                 backend: "local".into(),
                 reason: "mutuellement exclusifs".into(),

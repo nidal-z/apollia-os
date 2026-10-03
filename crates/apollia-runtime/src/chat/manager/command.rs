@@ -56,6 +56,14 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Option<SessionDetail>>,
     },
+    /// The model a session runs on, as the next message would route it.
+    SessionModel {
+        /// Target session.
+        session_id: SessionId,
+        /// Response channel: the backend or model name, `None` for the
+        /// runtime default.
+        reply: oneshot::Sender<Result<Option<String>, ChatError>>,
+    },
     /// Resolve the effective working directory for a session.
     ///
     /// Mirrors the sandbox-root resolution applied per message when the agent

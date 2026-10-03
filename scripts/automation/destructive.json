@@ -22,8 +22,9 @@
     "project-tab-settings",
     "provider-card-seed-provider-alpha-rules",
     "provider-delete-seed-provider-alpha-rules",
-    "settings-nav-danger",
+    "settings-nav-appearance",
     "settings-nav-developer",
+    "settings-nav-general",
     "settings-nav-llm",
     "settings-nav-model-hub",
     "settings-nav-permissions",
@@ -999,11 +1000,11 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger"
+      "testid": "settings-nav-appearance"
     },
     {
       "kind": "waitFor",
-      "testid": "danger-section",
+      "testid": "appearance-reset-onboarding",
       "timeoutMs": 15000
     },
     {
@@ -1060,7 +1061,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "waitFor",
@@ -1204,7 +1205,7 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger"
+      "testid": "settings-nav-general"
     },
     {
       "kind": "waitFor",

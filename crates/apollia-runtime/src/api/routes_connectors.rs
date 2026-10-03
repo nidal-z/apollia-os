@@ -500,6 +500,54 @@ mod tests {
         assert!(admit_account(&governance, ConnectorProvider::Google).is_ok());
     }
 
+    // The profile migration drops the sovereignty key of a former profile that
+    // forbade the cloud; no Google consent is refused afterwards.
+    #[test]
+    fn test_start_not_refused_after_the_profile_migration() {
+        use apollia_memory::semantic::{RememberInput, SemanticMemory};
+        use apollia_memory::store::MemoryStore;
+        use apollia_memory::user_memory::{UserMemoryRepository, USER_NAMESPACE};
+
+        // GIVEN a former profile that asked for local-only data, migrated by a first open
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("user_memory.db");
+        {
+            let store = MemoryStore::open(&path).unwrap();
+            SemanticMemory::new(&store)
+                .remember(RememberInput {
+                    namespace: USER_NAMESPACE,
+                    key: "constraints.sovereignty",
+                    value: &serde_json::json!("local-only"),
+                    confidence: 1.0,
+                    source: Some("onboarding"),
+                    expires_at: None,
+                })
+                .unwrap();
+        }
+        let repo = UserMemoryRepository::new(&path).unwrap();
+        assert!(repo
+            .list_all()
+            .unwrap()
+            .iter()
+            .all(|e| e.key != "constraints.sovereignty"));
+        let governance = ConnectionGovernance::new(
+            std::sync::Arc::new(crate::governance::PolicyAdmission::new(
+                std::sync::Arc::new(apollia_permissions::PolicyVerdict::Absent),
+            )),
+            None,
+        );
+        let body = start_body("google", &["mail.send"], "https://app.example.test/cb");
+
+        // WHEN a Google consent is started with no policy deposited
+        let outcome = start_consent(&governance, body);
+
+        // THEN nothing refuses it
+        if let Err((code, Json(err))) = outcome {
+            assert_ne!(code, StatusCode::FORBIDDEN, "{}", err.error);
+        }
+        assert!(admit_account(&governance, ConnectorProvider::Google).is_ok());
+    }
+
     #[tokio::test]
     async fn test_complete_refuses_a_state_it_never_issued() {
         // GIVEN a state no start issued

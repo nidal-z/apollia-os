@@ -241,3 +241,107 @@ fn test_a_policy_may_not_impose_an_unknown_key_nor_a_wrong_type() {
     assert!(matches!(section, Err(SettingError::UnknownKey { key }) if key == "desktop"));
     assert!(matches!(mistyped, Err(SettingError::InvalidValue { key, .. }) if key == KEY));
 }
+
+// ── The MCP bridge switch ────────────────────────────────────────────────
+
+#[test]
+fn test_the_mcp_bridge_switch_is_a_named_setting_off_by_default() {
+    // GIVEN a file without an [mcp] section
+    let (_dir, path) = config_with("[desktop]\ndeveloper_mode = true\n");
+
+    // WHEN the bridge switch is resolved
+    let resolved = resolve_setting(&path, "mcp.server_enabled", &PolicySettings::none()).unwrap();
+
+    // THEN it is known, off, and comes from the default
+    assert_eq!(resolved.value, json!(false));
+    assert_eq!(resolved.source, SettingSource::Default);
+}
+
+#[test]
+fn test_the_mcp_bridge_switch_written_on_resolves_on_from_the_user() {
+    // GIVEN an empty file
+    let (_dir, path) = config_with("");
+
+    // WHEN the bridge switch is written on, then resolved
+    write_setting(
+        &path,
+        "mcp.server_enabled",
+        json!(true),
+        &PolicySettings::none(),
+    )
+    .unwrap();
+    let resolved = resolve_setting(&path, "mcp.server_enabled", &PolicySettings::none()).unwrap();
+
+    // THEN the file carries it under [mcp], and it resolves on from the user
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(written.contains("[mcp]"), "{written}");
+    assert_eq!(resolved.value, json!(true));
+    assert_eq!(resolved.source, SettingSource::User);
+}
+
+// ── Inference settings an organisation may fix ───────────────────────────
+
+#[test]
+fn test_a_policy_may_fix_the_inference_settings_with_their_types() {
+    // GIVEN the registry, import and guardrail keys, each with a value of its
+    // type
+    let cases = [
+        (
+            "models.registry_url",
+            json!("https://models.intranet.example/index.json"),
+        ),
+        ("models.registry_mirror_url", json!("")),
+        ("models.registry_enabled", json!(false)),
+        ("models.import.require_verified", json!(true)),
+        ("llm.guardrails.level", json!("strict")),
+        ("llm.guardrails.ceiling_gb", json!(12.5)),
+    ];
+
+    // WHEN a policy imposing each is checked
+    let checked: Vec<_> = cases
+        .iter()
+        .map(|(key, value)| (*key, check_imposed_setting(key, value)))
+        .collect();
+
+    // THEN every one is accepted
+    for (key, outcome) in checked {
+        assert!(outcome.is_ok(), "{key}: {outcome:?}");
+    }
+}
+
+#[test]
+fn test_a_guardrail_level_outside_the_list_is_refused() {
+    // GIVEN a level the guardrail does not know, and a level given as a number
+    let unknown = json!("relaxed");
+    let mistyped = json!(3);
+
+    // WHEN a policy imposing each is checked
+    let unknown = check_imposed_setting("llm.guardrails.level", &unknown);
+    let mistyped = check_imposed_setting("llm.guardrails.level", &mistyped);
+
+    // THEN both are refused, the first naming the levels it accepts
+    assert!(
+        matches!(&unknown, Err(SettingError::InvalidValue { reason, .. }) if reason.contains("balanced")),
+        "{unknown:?}"
+    );
+    assert!(mistyped.is_err());
+}
+
+#[test]
+fn test_the_inference_settings_resolve_to_their_defaults_without_a_file() {
+    // GIVEN no apollia.toml and no policy
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("apollia.toml");
+    let none = PolicySettings::none();
+
+    // WHEN the registry switch, the import rule and the guardrail level resolve
+    let enabled = resolve_setting(&path, "models.registry_enabled", &none).unwrap();
+    let verified = resolve_setting(&path, "models.import.require_verified", &none).unwrap();
+    let level = resolve_setting(&path, "llm.guardrails.level", &none).unwrap();
+
+    // THEN each takes the default the section reads without the key
+    assert_eq!(enabled.value, json!(true));
+    assert_eq!(verified.value, json!(false));
+    assert_eq!(level.value, json!("balanced"));
+    assert_eq!(level.source, SettingSource::Default);
+}

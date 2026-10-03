@@ -81,6 +81,37 @@ impl ChatSessionManager {
             session.agent_name.as_deref()?,
         )
     }
+
+    /// The model `session_id` runs on, resolved as the dispatch of its next
+    /// message resolves it: the model of its declarative agent, else the
+    /// backend the session prefers, `None` for the runtime default. A session
+    /// no longer in memory is read from its stored row.
+    pub(in crate::chat::manager) fn handle_session_model(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<String>, ChatError> {
+        let (agent_session, agent_name, preferred) = match self.sessions.get(session_id) {
+            Some(session) => (
+                session.mode == ChatMode::Agent,
+                session.agent_name.clone(),
+                session.llm_backend.clone(),
+            ),
+            None => {
+                let row = self
+                    .repository
+                    .get_session(session_id)?
+                    .ok_or_else(|| ChatError::SessionNotFound(session_id.to_owned()))?;
+                (row.mode == "agent", row.agent_name, row.llm_backend)
+            }
+        };
+        let declarative = agent_session
+            .then(|| declarative_agent(self.governance_db_path.as_deref(), agent_name.as_deref()?))
+            .flatten();
+        Ok(match declarative {
+            Some(agent) => agent.model.map(|m| m.model_id),
+            None => preferred,
+        })
+    }
 }
 
 #[cfg(test)]

@@ -5,8 +5,8 @@
 //!   asked language
 //!
 //! The command never reads the runtime: it reads the registry, the data
-//! directory and its `apollia.toml`, which the daemon shares when the
-//! application is attached to one, so it serves both modes.
+//! directory, its `apollia.toml` and the organisation policy, which the daemon
+//! shares when the application is attached to one, so it serves both modes.
 
 use apollia_llm::model_cards::fetch::{open_catalogue, CatalogueView, RegistrySource};
 use apollia_llm::model_cards::{compiled_public_key, default_cache_dir};
@@ -22,7 +22,10 @@ pub(crate) fn data_dir() -> std::path::PathBuf {
 #[tauri::command]
 pub async fn list_model_cards(lang: Option<String>) -> Result<CatalogueView, String> {
     let data_dir = data_dir();
-    let source = RegistrySource::from_config_file(&data_dir.join("apollia.toml"));
+    let location = apollia_permissions::policy_location();
+    let policy = apollia_permissions::load_policy(&location.dir, location.owner);
+    let source = RegistrySource::from_config_file(&data_dir.join("apollia.toml"))
+        .under_policy(&policy.imposed_settings());
     open_catalogue(
         &source,
         &default_cache_dir(&data_dir),

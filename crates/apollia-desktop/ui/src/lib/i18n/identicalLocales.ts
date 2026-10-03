@@ -35,6 +35,7 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "dashboard.headline_greeting", // {greeting}.
   "hitl.fs.preview_mode_label", // {before} → {after}
   "inbox.activity.filter.llm", // LLM
+  "llm.loaded.engine_mlx", // MLX
   "notifications.field_headers_placeholder", // {"Authorization": "Bearer ..."}
   "notifications.field_url_placeholder", // https://hooks.example.com/notify
   "observability.timeline_window_30min", // 30 min
@@ -159,7 +160,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "memory.namespaces.cat_agent", // Agents
   "memory.namespaces.cat_agent_header", // Agents
   "memory.namespaces.title", // Namespaces
-  "nav.builder_cluster", // Inspection
   "nav.chat", // Chat
   "nav.notifications", // Notifications
   "nav.sidebar.chat", // Chat
@@ -203,14 +203,17 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.about.docs_title", // Documentation
   "settings.about.kv_stt", // Transcription
   "settings.about.kv_version", // Version
-  "settings.appearance.options_title", // Options
+  "settings.chat.conversations_title", // Conversations
   "settings.credential.absent", // Absent
+  "settings.general.application_title", // Application
+  "settings.general.interface_title", // Interface
   "settings.llm_backend.provider_local", // local
   "settings.llm_dialog.field_endpoint", // Endpoint
   "settings.model_hub.detail.param_max_tokens", // max tokens
   "settings.model_hub.detail.param_temperature", // temperature
   "settings.model_hub.filters.type_base", // Base
   "settings.model_hub.filters.type_instruct", // Instruct / Chat
+  "settings.nav.chat", // Chat
   "settings.nav.configuration", // Configuration
   "settings.nav.mobile_open", // Sections
   "settings.permissions.add.action_label", // Action

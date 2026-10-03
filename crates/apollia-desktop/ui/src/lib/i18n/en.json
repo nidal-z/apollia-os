@@ -40,6 +40,11 @@
       "friendly_message": "An unexpected error stopped this action from completing.",
       "suggested_action": "Retry the action. If it keeps failing, check the details below."
     },
+    "guardrail_refused": {
+      "title": "Model too heavy for this computer",
+      "message": "This model needs about {estimated} GB of memory, and the load guardrail allows {budget} GB.",
+      "suggested_action": "Pick a lighter model, or confirm the load to go ahead anyway."
+    },
     "show_details": "Technical details"
   },
   "next_steps": {
@@ -179,7 +184,6 @@
     "inbox": "Inbox",
     "llm": "LLM models",
     "automations": "Automations",
-    "builder_cluster": "Inspection",
     "memory": "Memory",
     "notifications": "Notifications",
     "observability": "Observability",
@@ -190,6 +194,7 @@
     "open_sidebar": "Open navigation",
     "close_sidebar": "Close navigation",
     "sidebar_label": "Main navigation",
+    "developer_group": "Developer mode",
     "projects": "Projects",
     "sidebar": {
       "dashboard": "Home",
@@ -1191,6 +1196,7 @@
       "empty": "No model is loaded in memory.",
       "since": "Loaded at {time}",
       "in_use": "Answering",
+      "engine_mlx": "MLX",
       "unload": "Unload",
       "unloaded_toast": "{name} unloaded, its memory is free.",
       "in_use_error": "{name} is in use: a response is in progress. Try again once it finishes."
@@ -1965,6 +1971,7 @@
     "audit_json_copied": "JSON copied to clipboard",
     "audit_copy_failed": "Copy failed",
     "tab_hooks": "Hooks",
+    "tab_capture": "Capture policy",
     "hooks_subtitle": "Lifecycle handlers registered when the runtime started. Read-only: the registry is built once from the configuration, with no dynamic registration and no hot reload.",
     "hooks_registry_empty": "No lifecycle hook declared.",
     "hooks_count": "{n} handlers",
@@ -2031,7 +2038,7 @@
       "cluster_danger": "Danger Zone",
       "appearance": "Appearance",
       "profile": "Profile",
-      "stt": "Speech-to-Text",
+      "stt": "Dictation",
       "llm": "LLM backends",
       "model_hub": "Model Hub",
       "configuration": "Configuration",
@@ -2046,10 +2053,15 @@
       "danger": "Danger Zone",
       "mobile_open": "Sections",
       "mobile_title": "Settings sections",
-      "developer": "Developer"
+      "developer": "Developer",
+      "cluster_settings": "Settings",
+      "general": "General",
+      "chat": "Chat",
+      "model_defaults": "Model defaults",
+      "engines": "Engines",
+      "hardware": "Hardware"
     },
     "help": {
-      "subtitle": "Get started with Apollia and find your way around the essentials.",
       "intro": "Apollia OS runs your AI agents locally, on your own machine, with your own models. The topics below cover the essentials to get up and running.",
       "getting_started": "Getting started",
       "topic_model_title": "Configure a model",
@@ -2099,15 +2111,11 @@
       "faq_a_shortcuts": "Open the Keyboard shortcuts page from the resources above for the full, offline list grouped by context."
     },
     "about": {
-      "subtitle": "Version, links and licensing for this installation.",
-      "tagline": "A sovereign runtime for autonomous AI agents, running locally without a cloud dependency.",
       "docs_title": "Documentation",
       "docs_desc": "Guides, references and the operator help center.",
       "github_title": "Source code",
       "github_desc": "Browse the repository on GitHub.",
       "report_title": "Report a problem",
-      "report_desc": "Open an issue. Paste the diagnostic report above.",
-      "data_title": "Where your data lives",
       "data_desc": "Everything Apollia keeps sits in one directory on this machine: conversations, memory, models, configuration and the audit journal. Back it up or delete it like any other folder.",
       "kv_data_dir": "Data directory",
       "data_dir_unknown": "Your home directory could not be resolved, so this path is unknown.",
@@ -2137,8 +2145,6 @@
       "kv_license": "SPDX identifier",
       "copy_diagnostics": "Copy diagnostic report",
       "copy_hint": "One click copies the raw value.",
-      "updates_title": "Updates",
-      "updates_desc": "Manual check only. No telemetry, no automatic background checks.",
       "links_title": "Resources",
       "credits_title": "Built on",
       "credits_desc": "The open-source components embedded in Apollia. Thanks to their authors.",
@@ -2185,9 +2191,6 @@
       "state_off": "Off",
       "unit_bytes": "bytes",
       "unit_days": "days",
-      "view_data_label": "View captured traces",
-      "view_data_desc": "Timeline, LLM costs and audit journal on the dedicated Observability page.",
-      "view_data_link": "Open Observability",
       "editable_note": "Edit the observability policy captured about agent execution. Everything stays local, nothing is uploaded.",
       "restart_note": "Changes apply after restarting the app. The runtime does not reload this policy live.",
       "kib_display": "{kib} KiB",
@@ -2196,7 +2199,6 @@
       "sensitive_confirm_enable": "Enable capture"
     },
     "shortcuts": {
-      "subtitle": "Keyboard shortcuts available across Apollia.",
       "search_placeholder": "Search shortcuts…",
       "search_aria": "Search keyboard shortcuts",
       "no_results": "No shortcut matches \"{query}\".",
@@ -2244,7 +2246,6 @@
       "count": "{count} shortcuts"
     },
     "danger": {
-      "subtitle": "Irreversible or disruptive operations. Proceed carefully.",
       "banner": "These actions are irreversible. Make sure you have what you need before continuing.",
       "last_resort": "Last resort",
       "continue": "Continue",
@@ -2293,7 +2294,6 @@
     "readonly_banner": "Read-only configuration. To modify, edit {file} and restart the runtime.",
     "see_details": "See details",
     "operational_redirect_banner": "Triggers and notifications are configured from their dedicated views in the sidebar.",
-    "language_title": "Language",
     "language_en": "English",
     "language_fr": "Français",
     "theme_title": "Theme",
@@ -2997,14 +2997,15 @@
     "save_hint": "to save",
     "save_shortcut_hint": "⌘S",
     "appearance": {
-      "subtitle": "Language, theme, and interface mode.",
-      "options_title": "Options",
+      "subtitle": "Theme and onboarding reminders.",
       "preview_message": "Hello Apollia",
-      "preview_active_now": "Active now"
+      "preview_active_now": "Active now",
+      "reminders_title": "Onboarding reminders",
+      "reminders_reset_label": "Reset onboarding reminders",
+      "reminders_reset_hint": "The welcome flow and the discovery tips show again. No data is deleted.",
+      "reminders_reset_button": "Reset"
     },
-    "configuration": {
-      "subtitle": "General system preferences."
-    },
+    "configuration": {},
     "integrations": {
       "subtitle": "OAuth client credentials for the Google and Microsoft connectors. Microsoft is ready to connect; Google needs a client you register yourself.",
       "required": "Required",
@@ -3074,9 +3075,7 @@
       "test_invalid": "Configuration issue.",
       "import_json": "Import JSON"
     },
-    "language_help": "Interface language and default response language.",
     "language_label": "Interface language",
-    "language_field_help": "Applied immediately, no restart required.",
     "theme_help": "Light, dark, or synced to your system.",
     "credential": {
       "configured": "Configured",
@@ -3130,6 +3129,30 @@
       "mode_off": "Off",
       "mode_on": "On",
       "write_failed": "The developer mode could not be saved."
+    },
+    "general": {
+      "subtitle": "Updates, language, application folder, help and danger zone.",
+      "updates_title": "App update",
+      "version_label": "Installed version",
+      "interface_title": "Interface",
+      "language_hint": "Also changes the application menus.",
+      "application_title": "Application",
+      "report_button": "Open in browser",
+      "help_title": "Help",
+      "about_title": "About",
+      "report_hint": "Opens the reporting page in your browser. Your diagnostics stay on this machine unless you attach them."
+    },
+    "chat": {
+      "subtitle": "How conversations behave, and the keyboard shortcuts.",
+      "conversations_title": "Conversations",
+      "shortcuts_title": "Keyboard shortcuts"
+    },
+    "model_defaults": {
+      "subtitle": "The values a model receives when nothing else sets them.",
+      "empty": "No default can be set here yet: each model keeps the values of the AI screen."
+    },
+    "engines": {
+      "subtitle": "The engines that run the models and dictation on this machine."
     }
   },
   "onboarding": {

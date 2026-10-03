@@ -98,7 +98,10 @@ fn test_v4_creates_the_tables_and_keeps_one_default() {
     let version: i64 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 4);
+    assert_eq!(
+        version,
+        i64::from(crate::system_db::SYSTEM_DB_SCHEMA_VERSION)
+    );
 }
 
 // GIVEN a model that already has a default preset, written straight to the base

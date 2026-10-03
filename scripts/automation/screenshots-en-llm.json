@@ -12,8 +12,7 @@
     "inbox-filter-approval",
     "inbox-filter-ask_user",
     "inbox-tab-pending",
-    "language-en",
-    "settings-nav-appearance",
+    "settings-nav-general",
     "settings-nav-llm"
   ],
   "steps": [
@@ -33,17 +32,19 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-appearance",
+      "testid": "settings-nav-general",
       "timeoutMs": 8000
     },
     {
       "kind": "waitFor",
-      "testid": "language-toggle",
+      "testid": "language-select",
       "timeoutMs": 5000
     },
     {
-      "kind": "click",
-      "testid": "language-en"
+      "kind": "selectOption",
+      "testid": "language-select",
+      "value": "en",
+      "timeoutMs": 4000
     },
     {
       "kind": "sleep",
