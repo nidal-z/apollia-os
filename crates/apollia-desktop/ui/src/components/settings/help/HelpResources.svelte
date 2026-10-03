@@ -56,7 +56,7 @@
       icon: Keyboard,
       titleKey: "settings.help.shortcuts_title",
       descKey: "settings.help.shortcuts_desc",
-      run: () => navigateToSettings("shortcuts"),
+      run: () => navigateToSettings("chat"),
     },
     {
       id: "community",
