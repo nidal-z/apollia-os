@@ -350,9 +350,9 @@ fn main() {
         let registry = runtime_handle.tool_registry_handle.clone();
         let chat = runtime_handle.chat_manager.clone();
         let workflows = runtime_handle.workflows.clone();
-        let journal = runtime_handle.audit_journal.clone();
+        let governance = runtime_handle.governance.clone();
         worker.spawn(async move {
-            bundled_packages::install_bundled_packages(&data_dir, journal).await;
+            bundled_packages::install_bundled_packages(&data_dir, governance).await;
             apollia_aip::package_tools::attach(
                 &data_dir,
                 &registry,

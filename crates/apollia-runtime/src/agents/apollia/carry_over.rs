@@ -192,19 +192,18 @@ fn assign_model(path: &Path, backend: &str) -> bool {
 /// `reading` is the reading family active at this start.
 pub(crate) fn run_at_startup(
     data_dir: &Path,
-    journal: Option<&crate::audit_journal::AuditJournalHandle>,
+    governance: &crate::governance::GovernanceHandle,
     reading: &[String],
 ) {
-    let Some(journal) = journal else {
+    if !governance.journaled() {
         tracing::event!(
             tracing::Level::WARN,
             detail = "audit journal unavailable, carry-over deferred to the next start",
             "agents.apollia.carry_over.deferred"
         );
         return;
-    };
-    let governance = crate::governance::NoPolicyGovernance::new(journal.clone());
-    match carry_over_chat_config(data_dir, &governance, reading) {
+    }
+    match carry_over_chat_config(data_dir, governance, reading) {
         Ok(outcome) => tracing::event!(
             tracing::Level::INFO,
             outcome = ?outcome,

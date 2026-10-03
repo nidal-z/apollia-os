@@ -319,6 +319,7 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
             task_id: task_id.clone(),
         });
 
+        let watched = unattended.is_none();
         let (authorized_tools, asked) = match unattended {
             Some(authorized) => {
                 let asked = stop_on_first_approval(&self.event_bus, &task_id, cancel.clone());
@@ -352,6 +353,7 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
                 done: done_tx,
                 budget,
                 depth,
+                unattended: !watched,
             })
             .await;
         if let Err(e) = started {

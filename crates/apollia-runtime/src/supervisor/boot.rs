@@ -111,6 +111,7 @@ impl Supervisor {
             Some(system_db_path.clone()),
             Some(event_sender.clone()),
             Some(guardrails_file.clone()),
+            org_policy.imposed_settings(),
         )
         .ok();
         if let Some(supervisor) = &llama_server_supervisor {
@@ -118,15 +119,22 @@ impl Supervisor {
         }
         // The MLX engine, on a Mac with Apple Silicon whose build carries it.
         // An MLX model elsewhere is refused with its reason by the router.
-        let mlx_engine =
-            crate::mlx_engine::MlxEngineSupervisor::for_this_machine(Some(guardrails_file));
+        let mlx_engine = crate::mlx_engine::MlxEngineSupervisor::for_this_machine(
+            Some(guardrails_file),
+            org_policy.imposed_settings(),
+        );
         if let Some(engine) = &mlx_engine {
             Arc::clone(engine).spawn_supervision();
         }
 
         // Phase 4 (pos 5): LlmRouter + LlmBackendRepository, loads backends from system.db
         let (llm_router, llm_backend_repo) = self
-            .start_llm_router(&system_db_path, &llama_server_supervisor, &mlx_engine)
+            .start_llm_router(
+                &system_db_path,
+                &llama_server_supervisor,
+                &mlx_engine,
+                &crate::governance::InferenceGovernance::new(Arc::clone(&org_policy)),
+            )
             .await;
 
         // Phase 4b: LlmCallRepository, an EventBus subscriber that persists LLM calls.
@@ -210,11 +218,26 @@ impl Supervisor {
             warn!(detail = "subscriber not started", "audit.journal.disabled");
         }
 
-        // Phase 8c: the one-shot access upgrade of governance.db, journaled.
-        crate::governance::access_upgrade::run_at_startup(
-            &self.config.data_dir,
-            audit_journal_handle.as_ref(),
-        );
+        // Phase 8c: the governance actor, owner of what every tool call is
+        // decided from; then the one-shot access upgrade of governance.db,
+        // journaled through it.
+        let governance =
+            crate::governance::GovernanceHandle::spawn(crate::governance::GovernanceSources {
+                governance_db: Some(
+                    self.config
+                        .data_dir
+                        .join(apollia_core::paths::DataFile::Governance.file_name()),
+                ),
+                config_path: Some(
+                    self.config
+                        .config_path
+                        .clone()
+                        .unwrap_or_else(|| self.config.data_dir.join("apollia.toml")),
+                ),
+                policy: Arc::clone(&org_policy),
+                journal: audit_journal_handle.clone(),
+            });
+        crate::governance::access_upgrade::run_at_startup(&self.config.data_dir, &governance);
 
         // Phase 8d: the settings the chat kept before it was the Apollia
         // agent, carried over once the access upgrade has read them.
@@ -225,9 +248,10 @@ impl Supervisor {
         .await;
         crate::agents::apollia::carry_over::run_at_startup(
             &self.config.data_dir,
-            audit_journal_handle.as_ref(),
+            &governance,
             &reading,
         );
+        governance.refresh().await;
 
         // Connections answer to governance: admitted by the organisation
         // policy read above before they are added, journaled when they change.
@@ -485,7 +509,7 @@ impl Supervisor {
                         observability: self.config.obs_config.clone(),
                     },
                     self.config.data_dir.clone(),
-                    audit_journal_handle.clone(),
+                    governance.clone(),
                 ),
                 event_sender.clone(),
             )),
@@ -519,6 +543,9 @@ impl Supervisor {
         });
         // An agent calls the agents and workflows it was granted through the
         // same executor and the same engine a workflow step uses.
+        if let Some(chat) = &chat_manager {
+            chat.set_governance(governance.clone()).await;
+        }
         if let (Some(chat), Some(agents), Some(engine)) = (&chat_manager, step_agents, &workflows) {
             chat.set_composer(Arc::new(crate::composition::RuntimeComposer::new(
                 agents,
@@ -546,6 +573,10 @@ impl Supervisor {
             audit_trail: audit_trail_handle.clone(),
             audit_journal: audit_journal_handle.clone(),
             connection_governance: connection_governance.clone(),
+            governance: Some(governance.clone()),
+            inference_governance: crate::governance::InferenceGovernance::new(Arc::clone(
+                &org_policy,
+            )),
             obs_config: self.config.obs_config.clone(),
             llm_call_repository: llm_call_repository.clone(),
             trigger_def_repo: Some(trigger_def_repo.clone()),
@@ -676,6 +707,7 @@ impl Supervisor {
             trigger_engine,
             audit_trail: audit_trail_handle,
             connection_governance,
+            governance,
             audit_journal: audit_journal_handle,
             task_repository: task_repository.clone(),
             pending_approvals: pending_approvals.clone(),
@@ -735,21 +767,14 @@ fn read_org_policy() -> apollia_permissions::PolicyVerdict {
     verdict
 }
 
-/// The item runner of the batch engine, asking the default governance which
-/// accesses are sensitive when the audit journal is open; without it, an
-/// access is sensitive when its tool declares it so, the same rule.
+/// The item runner of the batch engine, asking governance which accesses
+/// are sensitive.
 fn batch_runner<B: crate::coordinator::ExecutionBackend>(
     launcher: crate::agents::task::AgentTaskLauncher<B>,
     data_dir: std::path::PathBuf,
-    journal: Option<crate::audit_journal::AuditJournalHandle>,
+    governance: crate::governance::GovernanceHandle,
 ) -> crate::batch::AgentItemRunner<B> {
-    let runner = crate::batch::AgentItemRunner::new(launcher, data_dir);
-    match journal {
-        Some(journal) => runner.with_governance(Arc::new(
-            crate::governance::NoPolicyGovernance::new(journal),
-        )),
-        None => runner,
-    }
+    crate::batch::AgentItemRunner::new(launcher, data_dir).with_governance(Arc::new(governance))
 }
 
 /// The tools switched off at this start: the operator's `[tools] disabled`

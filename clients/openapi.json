@@ -6426,6 +6426,16 @@
               }
             }
           },
+          "403": {
+            "description": "The organisation policy refuses this server; nothing was saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Invalid name or address",
             "content": {
@@ -6473,6 +6483,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TestServerResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The organisation policy refuses this server; nothing was sent to it, `kind` is `policy`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerProbeErrorResponse"
                 }
               }
             }

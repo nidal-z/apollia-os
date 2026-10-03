@@ -28,6 +28,7 @@ endpoints. Most of the project's day-to-day Rust changes land here.
 | `TimeoutWatcher` | expiry of `input_required` tasks | no channel; a `tokio::time::interval` scan loop | n/a | `src/timeout_watcher.rs` |
 | `OnDemandBackend` | one per installed agent: builds its backend on the first task, drops it after `[runtime] agent_idle_unload_secs` without a call or when the agent is parked | mpsc | 64 | `src/on_demand.rs` |
 | `BatchActor` | progress of every running batch: starts items up to their concurrency, counts their ends, interrupts past the failure threshold, pauses, resumes, stops and retries a batch, records and withdraws its grants, publishes waiting items and the end of a batch, resumes running batches at start | two mpsc | 64 commands, 256 item ends | `src/batch/actor.rs` |
+| `GovernanceActor` | what every tool call is decided from: the organisation policy read at boot, the fine rules and standing consents of `governance.db`, the developer mode; publishes it as one state on a `watch` channel that a decision reads without waiting, writes an "always" answered at a prompt as a standing consent, rereads the files when another process changed them | mpsc | 64 | `src/governance/actor.rs` |
 | `WorkflowActor` | the workflow runs in progress and their cancellation tokens: launches a run after checking its inputs, stops one and answers once it ended, fails at start the runs a stopped process left running; each run reports its steps itself, to `hitl.db` and the bus | mpsc | 64 | `src/workflows/actor.rs` |
 
 Hosted from other crates, started by this one :

@@ -82,7 +82,7 @@ pub use retired::{retired_keys_in, warn_retired_keys, RetiredKey, RETIRED_KEYS};
 pub use runtime::RuntimeConfig;
 pub use settings::{
     check_imposed_setting, resolve_setting, resolve_setting_in, write_setting, PolicySettings,
-    ResolvedSetting, SettingError, SettingSource,
+    ResolvedSetting, SettingError, SettingSource, GUARDRAIL_LEVELS,
 };
 pub use tools::ToolsConfig;
 pub use triggers::TriggersConfig;

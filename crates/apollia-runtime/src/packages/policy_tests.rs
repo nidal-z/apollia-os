@@ -8,7 +8,7 @@ use apollia_tools::TrustedKeyOrigin;
 use super::tests::{archive, manifest, Env};
 use super::*;
 use crate::audit_journal::AuditJournalHandle;
-use crate::governance::PackagePolicyGovernance;
+use crate::governance::{GovernanceHandle, GovernanceState};
 
 const KEY: &[u8] = b"package-policy-tests-journal-0001";
 
@@ -25,7 +25,7 @@ fn packages_section(packages: &str) -> PackagesPolicy {
 /// trusted publishers of `packages`.
 struct PolicyEnv {
     env: Env,
-    governance: PackagePolicyGovernance,
+    governance: GovernanceHandle,
     keys: apollia_tools::TrustedKeyRepository,
 }
 
@@ -42,7 +42,13 @@ impl PolicyEnv {
             .unwrap()
             .with_policy_publishers(&packages.trusted_publishers);
         Self {
-            governance: PackagePolicyGovernance::new(journal, packages),
+            governance: GovernanceHandle::detached(
+                GovernanceState {
+                    require_signature: packages.require_signature,
+                    ..GovernanceState::default()
+                },
+                Some(journal),
+            ),
             keys,
             env,
         }
