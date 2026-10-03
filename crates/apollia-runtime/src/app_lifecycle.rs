@@ -9,9 +9,11 @@
 //! therefore erase the same files and refuse with the same words.
 
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use apollia_memory::user_memory::{UserMemoryError, UserMemoryRepository};
+use apollia_memory::user_memory::UserMemoryError;
+
+use crate::profile::ProfileStore;
 
 /// The internal markers the onboarding flow keeps under the `__` prefix of
 /// the user namespace. A reset removes each of them.
@@ -107,7 +109,7 @@ pub async fn mark_onboarded(data_dir: &Path) -> Result<(), LifecycleError> {
 /// [`LifecycleError::Profile`] when the repository refuses the purge.
 pub async fn reset_onboarding(
     data_dir: &Path,
-    user_memory: Option<&Arc<Mutex<UserMemoryRepository>>>,
+    user_memory: Option<ProfileStore<'_>>,
 ) -> Result<usize, LifecycleError> {
     let flag = onboarded_flag(data_dir);
     if flag.exists() {
@@ -117,7 +119,7 @@ pub async fn reset_onboarding(
     }
 
     let repo = user_memory
-        .cloned()
+        .map(|store| Arc::clone(store.0))
         .ok_or(LifecycleError::ProfileUnavailable)?;
     let removed = tokio::task::spawn_blocking(move || {
         let repo = repo.lock().map_err(|_| LifecycleError::Poisoned)?;

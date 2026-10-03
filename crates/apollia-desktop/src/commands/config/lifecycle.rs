@@ -13,6 +13,7 @@ use apollia_runtime::api::routes_app_lifecycle::{
     DirectoryRemoved, MemoryWiped, OnboardingMarked, OnboardingReset,
 };
 use apollia_runtime::app_lifecycle;
+use apollia_runtime::profile::ProfileStore;
 use tauri::State;
 
 use crate::attached::{AttachedClient, AttachedError, RuntimeLink};
@@ -74,9 +75,12 @@ pub async fn mark_onboarded(link: State<'_, RuntimeLink>) -> Result<(), String> 
 pub async fn reset_onboarding(link: State<'_, RuntimeLink>) -> Result<(), String> {
     match link.inner() {
         RuntimeLink::Embedded(state) => {
-            app_lifecycle::reset_onboarding(&apollia_home(), state.user_memory.as_ref())
-                .await
-                .map_err(|e| e.to_string())?;
+            app_lifecycle::reset_onboarding(
+                &apollia_home(),
+                state.user_memory.as_ref().map(ProfileStore),
+            )
+            .await
+            .map_err(|e| e.to_string())?;
             Ok(())
         }
         RuntimeLink::Attached(remote) => {

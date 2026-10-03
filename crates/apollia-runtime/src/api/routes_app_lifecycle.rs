@@ -18,6 +18,7 @@ use crate::api::openapi::ApiErrorBody;
 use crate::api::server::AppState;
 use crate::app_lifecycle::{self, LifecycleError};
 use crate::coordinator::ExecutionBackend;
+use crate::profile::ProfileStore;
 
 type ApiError = (StatusCode, Json<ApiErrorBody>);
 
@@ -106,10 +107,12 @@ pub(crate) async fn mark_onboarded<B: ExecutionBackend + Clone>(
 pub(crate) async fn reset_onboarding<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Result<Json<OnboardingReset>, ApiError> {
-    let removed_profile_entries =
-        app_lifecycle::reset_onboarding(&state.data_dir, state.user_memory.as_ref())
-            .await
-            .map_err(refusal)?;
+    let removed_profile_entries = app_lifecycle::reset_onboarding(
+        &state.data_dir,
+        state.user_memory.as_ref().map(ProfileStore),
+    )
+    .await
+    .map_err(refusal)?;
     Ok(Json(OnboardingReset {
         removed_profile_entries,
     }))
