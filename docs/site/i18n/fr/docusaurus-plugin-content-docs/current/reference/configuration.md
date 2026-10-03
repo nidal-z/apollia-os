@@ -387,7 +387,9 @@ ceiling_gb = 12.0    # lu par le niveau ceiling seulement
 
 La section est relue à chaque lancement : un changement vaut pour le prochain
 modèle chargé, sans redémarrage. Un modèle déjà chargé n'est pas arrêté. Un refus
-donne l'estimation et la limite. Une section illisible, un niveau inconnu ou un
+donne l'estimation et la limite : `POST /api/v1/llm/chat` et
+`POST /api/v1/llm/complete` y répondent par le statut 409, le code
+`guardrail_refused`, le niveau, `estimatedGb` et `budgetGb`. Une section illisible, un niveau inconnu ou un
 niveau `ceiling` sans `ceiling_gb` positif valent `balanced` : une faute de
 frappe ne coupe jamais le garde-fou. Un modèle dont l'empreinte ne peut pas être
 estimée est lancé.

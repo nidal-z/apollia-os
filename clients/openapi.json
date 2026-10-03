@@ -4445,6 +4445,16 @@
               }
             }
           },
+          "409": {
+            "description": "A local model the load guardrail refused; confirm the load to go ahead",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuardrailRefusedBody"
+                }
+              }
+            }
+          },
           "503": {
             "description": "No router configured or backend call failed",
             "content": {
@@ -4493,6 +4503,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A local model the load guardrail refused; confirm the load to go ahead",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuardrailRefusedBody"
                 }
               }
             }

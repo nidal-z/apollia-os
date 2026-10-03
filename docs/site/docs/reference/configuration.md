@@ -372,7 +372,9 @@ ceiling_gb = 12.0    # read by the ceiling level only
 
 The section is read at every launch, so a change applies to the next model
 loaded, without a restart. A model already loaded is not stopped. A refusal
-names the estimate and the limit. A section that cannot be read, an unknown
+names the estimate and the limit: `POST /api/v1/llm/chat` and
+`POST /api/v1/llm/complete` answer it with status 409, the code
+`guardrail_refused`, the level, `estimatedGb` and `budgetGb`. A section that cannot be read, an unknown
 level, or a `ceiling` level without a positive `ceiling_gb` holds to `balanced`:
 a typo never turns the guardrail off. A model whose footprint cannot be
 estimated is launched.

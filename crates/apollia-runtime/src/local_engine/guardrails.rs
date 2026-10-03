@@ -68,6 +68,20 @@ impl GuardrailLevel {
             Self::Ceiling => "ceiling",
         }
     }
+
+    /// The level a wire name designates, `None` for an unknown one.
+    #[must_use]
+    pub(crate) fn from_wire(name: &str) -> Option<Self> {
+        [
+            Self::Disabled,
+            Self::Lenient,
+            Self::Balanced,
+            Self::Strict,
+            Self::Ceiling,
+        ]
+        .into_iter()
+        .find(|level| level.as_str() == name)
+    }
 }
 
 impl std::fmt::Display for GuardrailLevel {
@@ -293,6 +307,31 @@ pub struct GuardrailRefusedBody {
     pub estimated_gb: f64,
     /// The limit the level holds to, in gigabytes.
     pub budget_gb: f64,
+}
+
+impl GuardrailRefusedBody {
+    /// The body of an LLM call a local engine refused to load, `None` for any
+    /// other failure.
+    #[must_use]
+    pub(crate) fn from_llm_error(error: &apollia_llm::LlmError) -> Option<Self> {
+        let apollia_llm::LlmError::LoadRefused {
+            model,
+            level,
+            estimated_gb,
+            budget_gb,
+            ..
+        } = error
+        else {
+            return None;
+        };
+        let refusal = GuardrailRefusal {
+            model: model.clone(),
+            level: GuardrailLevel::from_wire(level)?,
+            estimated_gb: *estimated_gb,
+            budget_gb: *budget_gb,
+        };
+        Some(Self::from(&refusal))
+    }
 }
 
 impl From<&GuardrailRefusal> for GuardrailRefusedBody {

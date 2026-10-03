@@ -11,6 +11,7 @@ use super::*;
 struct FakeEngine {
     engine: Engine,
     asked: StdMutex<Vec<String>>,
+    refusal: Option<GuardrailRefusal>,
 }
 
 impl FakeEngine {
@@ -18,6 +19,16 @@ impl FakeEngine {
         Arc::new(Self {
             engine,
             asked: StdMutex::new(Vec::new()),
+            refusal: None,
+        })
+    }
+
+    /// An engine whose load guardrail refuses every model with `refusal`.
+    fn refusing(engine: Engine, refusal: GuardrailRefusal) -> Arc<Self> {
+        Arc::new(Self {
+            engine,
+            asked: StdMutex::new(Vec::new()),
+            refusal: Some(refusal),
         })
     }
 
@@ -48,6 +59,9 @@ impl LocalEngine for FakeEngine {
     ) -> Result<ModelLease, LocalEngineError> {
         if let Ok(mut asked) = self.asked.lock() {
             asked.push(model_path);
+        }
+        if let Some(refusal) = &self.refusal {
+            return Err(LocalEngineError::GuardrailRefused(refusal.clone()));
         }
         Ok(ModelLease::new(
             "http://127.0.0.1:9/v1".to_owned(),
@@ -240,4 +254,42 @@ fn a_provider_other_than_the_local_one_is_left_to_the_router() {
 
     // THEN the factory declines, so the router builds it normally
     assert!(built.is_none());
+}
+
+#[tokio::test]
+async fn a_guardrail_refusal_reaches_the_caller_with_its_figures() {
+    // GIVEN an engine whose load guardrail refuses the model of a GGUF row
+    let refusal = GuardrailRefusal {
+        model: "/models/big.gguf".to_owned(),
+        level: guardrails::GuardrailLevel::Strict,
+        estimated_gb: 18.3,
+        budget_gb: 12.0,
+    };
+    let llama = FakeEngine::refusing(Engine::LlamaServer, refusal);
+    let row = local_row("big", "/models/big.gguf");
+    let backend =
+        route_local::<FakeEngine, FakeEngine>(&row, ModelFormat::Gguf, Some(&llama), None, true)
+            .expect("a GGUF backend");
+
+    // WHEN a call is made on it
+    let outcome = call(&backend).await;
+
+    // THEN the caller gets the typed refusal with the estimate and the budget,
+    // not an unreachable backend described by a sentence
+    match outcome {
+        Err(LlmError::LoadRefused {
+            backend,
+            model,
+            level,
+            estimated_gb,
+            budget_gb,
+        }) => {
+            assert_eq!(backend, "big");
+            assert_eq!(model, "/models/big.gguf");
+            assert_eq!(level, "strict");
+            assert!((estimated_gb - 18.3).abs() < f64::EPSILON);
+            assert!((budget_gb - 12.0).abs() < f64::EPSILON);
+        }
+        other => panic!("expected a typed load refusal, got {other:?}"),
+    }
 }
