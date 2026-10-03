@@ -170,3 +170,40 @@ async fn test_import_without_signature_is_refused_by_the_route() {
     );
     assert!(body["error"].as_str().is_some());
 }
+
+#[tokio::test]
+async fn test_node_state_route_reads_absent_then_ready() {
+    // GIVEN an empty store, then Node.js imported into it
+    let dir = tempfile::tempdir().unwrap();
+    let (s1, before) = call(dir.path(), "GET", "/api/v1/engines/nodejs", None).await;
+    let usb = tempfile::tempdir().unwrap();
+    for (to, from) in [
+        (MANIFEST_FILE, "nodejs-7.json"),
+        (SIGNATURE_FILE, "nodejs-7.json.minisig"),
+        ("node-v22.11.0-linux-x64.zip", "node-v22.11.0-linux-x64.zip"),
+    ] {
+        std::fs::write(usb.path().join(to), fixture(from)).unwrap();
+    }
+    let store = EngineStore {
+        root: engine_store::store_root(dir.path()),
+        trusted_key: String::from_utf8(fixture("node-dist.key.pub")).unwrap(),
+        platform: "linux-x64".to_owned(),
+    };
+    import_from_dir(&store, usb.path()).unwrap();
+
+    // WHEN the state is read through the route, then Node.js asked for
+    let (s2, after) = call(dir.path(), "GET", "/api/v1/engines/nodejs", None).await;
+    let (s3, ensured) = call(dir.path(), "POST", "/api/v1/engines/nodejs", None).await;
+
+    // THEN it is absent, then ready with its tag; asking again for a ready
+    //      Node.js answers ready, or 503 in a build without a distribution key
+    assert_eq!((s1, s2), (StatusCode::OK, StatusCode::OK));
+    assert_eq!(before, json!({"state": "absent"}));
+    assert_eq!(after["state"], "ready");
+    assert_eq!(after["tag"], "v22.11.0");
+    assert!(
+        (s3 == StatusCode::OK && ensured["state"] == "ready")
+            || s3 == StatusCode::SERVICE_UNAVAILABLE,
+        "{s3} {ensured}"
+    );
+}

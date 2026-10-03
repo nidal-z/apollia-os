@@ -1059,6 +1059,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/engines/nodejs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["node_runtime_state"];
+        put?: never;
+        post: operations["ensure_node_runtime"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/engines/settings": {
         parameters: {
             query?: never;
@@ -5855,7 +5871,7 @@ export interface components {
          * @description An inference engine the store can hold.
          * @enum {string}
          */
-        EngineName: "llama-server" | "vllm-mlx";
+        EngineName: "llama-server" | "vllm-mlx" | "nodejs";
         /** @description Body of the settings routes. */
         EngineSettingsBody: {
             /** @description Base address manifests and archives are fetched from. */
@@ -6523,6 +6539,37 @@ export interface components {
             fromLlm: boolean;
             /** @description The cards, in display order. */
             steps: Record<string, never>[];
+        };
+        /** @description Where Node.js stands on this machine. */
+        NodeRuntimeState: {
+            /** @enum {string} */
+            state: "absent";
+        } | {
+            /**
+             * Format: int64
+             * @description Bytes of the archive received so far.
+             */
+            received: number;
+            /** @enum {string} */
+            state: "downloading";
+            /**
+             * Format: int64
+             * @description Size of the archive the verified manifest states; 0 until the
+             *     manifest is verified.
+             */
+            total: number;
+        } | {
+            /** @description Directory it was extracted into. */
+            path: string;
+            /** @enum {string} */
+            state: "ready";
+            /** @description Release tag, `v22.11.0`. */
+            tag: string;
+        } | {
+            /** @description Why, readable as is. */
+            error: string;
+            /** @enum {string} */
+            state: "failed";
         };
         /**
          * @description One provider's OAuth client, as the settings draw it.
@@ -10716,6 +10763,64 @@ export interface operations {
             };
             /** @description The mirror could not be reached */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description This build carries no distribution key */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    node_runtime_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Where Node.js stands */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeRuntimeState"];
+                };
+            };
+        };
+    };
+    ensure_node_runtime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Node.js ready, or its download started or running; a failure is read from the state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeRuntimeState"];
+                };
+            };
+            /** @description Settings file unreadable */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
