@@ -2040,6 +2040,8 @@
     "unsaved_dialog_stay": "Rester",
     "save_toast_success": "Paramètres enregistrés",
     "save_toast_error": "Échec de l'enregistrement : {error}",
+    "policy_locked": "Imposé par la politique",
+    "policy_locked_hint": "Votre organisation fixe ce réglage. Il ne se modifie pas ici.",
     "nav": {
       "aria_label": "Sections des paramètres",
       "cluster_personalization": "Personnalisation",

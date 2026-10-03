@@ -199,6 +199,26 @@ pub enum RuntimeEvent {
         /// Run this call belongs to, when emitted within a correlated run.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         run_id: Option<RunId>,
+        /// Conversation the call was made in (`None` outside a conversation).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        session_id: Option<String>,
+        /// Turn of that conversation: the identifier of the assistant message
+        /// that answers it (`None` outside a conversation).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        turn_id: Option<String>,
+        /// Time to first token in milliseconds; `None` when not measured, as
+        /// for a call answered in one piece.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ttft_ms: Option<u64>,
+        /// Why the call ended: `stop`, `tool_calls`, `length`, `error` or
+        /// `cancelled`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        finish_reason: Option<String>,
+        /// Time spent generating in milliseconds: the engine's decode time
+        /// when it reports one, otherwise latency minus time to first token;
+        /// `None` when neither is known.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        generation_ms: Option<u64>,
     },
 
     /// A full LLM response captured for deterministic replay.

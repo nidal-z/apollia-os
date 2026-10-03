@@ -36,6 +36,7 @@ pub mod costs;
 pub mod loaded;
 pub mod presets;
 pub mod servers;
+pub mod turn_calls;
 
 use backends::{
     create_llm_backend, delete_llm_backend, get_llm_backend, list_llm_backends, reload_llm_router,
@@ -541,6 +542,7 @@ pub async fn llm_complete<B: ExecutionBackend + Clone>(
 /// - `POST   /api/v1/llm/backends/:name/set-default`   , mark as default
 /// - `GET    /api/v1/llm/loaded-models`                , list resident local models
 /// - `POST   /api/v1/llm/loaded-models/unload`         , unload one resident model
+/// - `GET    /api/v1/sessions/:id/turns/:turn_id/llm-calls`, the model calls of one turn
 pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
         .route("/api/v1/llm/status", get(get_llm_status::<B>))
@@ -568,6 +570,10 @@ pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             post(set_default_llm_backend::<B>),
         )
         .route("/api/v1/llm/reload", post(reload_llm_router::<B>))
+        .route(
+            "/api/v1/sessions/:id/turns/:turn_id/llm-calls",
+            get(turn_calls::get_turn_llm_calls::<B>),
+        )
         .merge(loaded::loaded_model_routes::<B>())
         .merge(servers::server_routes::<B>())
         .merge(presets::preset_routes::<B>())

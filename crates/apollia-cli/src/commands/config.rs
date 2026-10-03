@@ -874,6 +874,35 @@ mod tests {
     }
 
     #[test]
+    fn run_set_writes_desktop_developer_mode() {
+        // GIVEN a throwaway home holding an empty apollia.toml
+        let home = tempfile::tempdir().unwrap();
+        let path = home.path().join(".apollia").join("apollia.toml");
+        // WHEN developer mode is set through the command
+        let code = run_set("desktop.developer_mode", "true", Some(&path), true);
+        // THEN it succeeds and the key is in the file, under its section
+        assert_eq!(code, exit_codes::SUCCESS);
+        let written = std::fs::read_to_string(&path).unwrap();
+        assert!(written.contains("[desktop]"), "{written}");
+        assert!(written.contains("developer_mode = true"), "{written}");
+        let typed = crate::config::validate_apollia_toml_str(&written).unwrap();
+        assert!(typed.desktop.unwrap().developer_mode);
+    }
+
+    #[test]
+    fn run_set_rejects_an_unknown_desktop_key() {
+        // GIVEN an empty config file
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        std::fs::write(&path, "").unwrap();
+        // WHEN a key the [desktop] section does not declare is set
+        let code = run_set("desktop.inconnu", "true", Some(&path), true);
+        // THEN it fails and leaves the file unchanged
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "");
+    }
+
+    #[test]
     fn run_set_rejects_invalid_enum_value() {
         // GIVEN an empty config file
         let tmp = tempfile::NamedTempFile::new().unwrap();

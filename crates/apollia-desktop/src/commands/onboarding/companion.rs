@@ -1,14 +1,20 @@
-//! The in-app companion: the per-route help text it opens with, and the chat
-//! session it runs against the guide agent.
+//! The in-app companion: the per-route help text it opens with, whether it is
+//! on, and the chat session it runs against the guide agent.
+//!
+//! The help text is a table compiled into this window, so it is answered here
+//! in both modes. The preference and the session belong to the runtime:
+//! embedded, the commands call [`apollia_runtime::companion`] directly;
+//! attached, they reach the same functions through `/api/v1/companion/...` on
+//! the daemon.
 
-use apollia_runtime::chat::{ChatError, ChatMode};
-use apollia_runtime::embedded::RuntimeHandle;
-use serde::{Deserialize, Serialize};
+use apollia_runtime::api::routes_companion::{
+    CompanionEnabled, CompanionSession, CreateCompanionSessionBody,
+};
+use apollia_runtime::companion;
+use apollia_runtime::profile::ProfileStore;
 use tauri::State;
 
-use super::memory::{get_repo, load_state_from_memory, persist_state, read_bool, write_bool};
-use super::state::OnboardingError;
-use super::GUIDE_AGENT_NAME;
+use crate::attached::{AttachedClient, AttachedError, RuntimeLink};
 
 // ---------------------------------------------------------------------------
 // Companion - context table
@@ -46,13 +52,6 @@ pub fn get_companion_context_text(route: &str) -> &'static str {
         .unwrap_or(COMPANION_CONTEXT_FALLBACK)
 }
 
-/// Return payload for companion session creation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CompanionSessionResult {
-    /// Unique identifier of the newly created companion session.
-    pub session_id: String,
-}
-
 // ---------------------------------------------------------------------------
 // Companion - Tauri commands
 // ---------------------------------------------------------------------------
@@ -66,78 +65,68 @@ pub async fn get_companion_context(route: String) -> Result<String, String> {
     Ok(get_companion_context_text(&route).to_string())
 }
 
+/// Reads whether the companion is on, from the daemon.
+pub(crate) async fn enabled_on(remote: &AttachedClient) -> Result<bool, AttachedError> {
+    let answer: CompanionEnabled = remote.get("/api/v1/companion/enabled").await?;
+    Ok(answer.enabled)
+}
+
+/// Records on the daemon whether the companion is on.
+pub(crate) async fn set_enabled_on(
+    remote: &AttachedClient,
+    enabled: bool,
+) -> Result<(), AttachedError> {
+    let _: CompanionEnabled = remote
+        .put("/api/v1/companion/enabled", &CompanionEnabled { enabled })
+        .await?;
+    Ok(())
+}
+
+/// Opens a guide session on the daemon.
+pub(crate) async fn create_session_on(
+    remote: &AttachedClient,
+    context: Option<String>,
+) -> Result<CompanionSession, AttachedError> {
+    remote
+        .post(
+            "/api/v1/companion/sessions",
+            &CreateCompanionSessionBody { context },
+        )
+        .await
+}
+
 /// Creates a companion session backed by the apollia-guide agent.
 ///
 /// The session runs in Agent mode so the panel is driven by the single
-/// product coach (knowledge base and action buttons).
-/// The session is persisted normally through the chat subsystem. On success,
-/// the `session_id` is stored in the onboarding state so other commands can
-/// reference the active companion session.
+/// product coach (knowledge base and action buttons), and its identifier is
+/// recorded in the onboarding state. A guide that is not installed is
+/// reported as such, so the panel shows an install hint instead of an opaque
+/// failure.
 #[tauri::command]
 pub async fn create_companion_session(
     context: Option<String>,
-    state: State<'_, RuntimeHandle>,
-) -> Result<CompanionSessionResult, String> {
-    create_companion_session_inner(context, &state)
+    link: State<'_, RuntimeLink>,
+) -> Result<CompanionSession, String> {
+    let created = match link.inner() {
+        RuntimeLink::Embedded(state) => companion::create_session(
+            state.chat_manager.as_ref(),
+            state.user_memory.as_ref().map(ProfileStore),
+            context,
+        )
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "companion.session.create.failed");
-            e.to_string()
-        })
-}
-
-async fn create_companion_session_inner(
-    context: Option<String>,
-    state: &RuntimeHandle,
-) -> Result<CompanionSessionResult, OnboardingError> {
-    let manager = state
-        .chat_manager
-        .as_ref()
-        .ok_or(OnboardingError::ChatNotAvailable)?;
-
-    // Agent mode on the guide, a declarative agent installed as a package:
-    // its mission (the knowledge base and the action-block contract) is the
-    // prompt, so no caller prompt is supplied. The `context` route hint is
-    // retained on the IPC surface for a future page-aware enhancement but is
-    // not injected here. A guide that is not installed is reported as such,
-    // so the panel shows an install hint instead of an opaque failure.
-    let info = manager
-        .create_session(apollia_runtime::chat::manager::CreateSessionParams {
-            mode: ChatMode::Agent,
-            agent_name: Some(GUIDE_AGENT_NAME.to_string()),
-            system_prompt: None,
-            tools: Vec::new(),
-            project_id: None,
-        })
-        .await
-        .map_err(|e| match e {
-            ChatError::AgentNotFound(_) => OnboardingError::GuideAgentNotInstalled,
-            other => OnboardingError::SessionCreationFailed(other.to_string()),
-        })?;
-
-    let session_id = info.id.clone();
-
-    // Best-effort: persist the companion session id in the onboarding state.
-    if let Ok(repo) = get_repo(state) {
-        let sid = session_id.clone();
-        let _ = tokio::task::spawn_blocking(move || {
-            if let Ok(repo) = repo.lock() {
-                let mut ob_state = load_state_from_memory(&repo).unwrap_or_default();
-                ob_state.companion_session_id = Some(sid);
-                let _ = persist_state(&repo, &ob_state);
-            }
-        })
-        .await;
-    }
-
-    tracing::info!(
-        session_id = %session_id,
-        agent = %GUIDE_AGENT_NAME,
-        context = ?context,
-        "companion.session.created"
-    );
-
-    Ok(CompanionSessionResult { session_id })
+        .map(|session_id| CompanionSession { session_id })
+        .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => create_session_on(remote, context)
+            .await
+            .map_err(String::from),
+    };
+    created.inspect_err(|error| {
+        tracing::event!(
+            tracing::Level::ERROR,
+            error = %error,
+            "companion.session.create.failed"
+        );
+    })
 }
 
 /// Persists the companion-enabled preference to UserMemory internal state.
@@ -147,29 +136,34 @@ async fn create_companion_session_inner(
 #[tauri::command]
 pub async fn set_companion_enabled(
     enabled: bool,
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
 ) -> Result<(), String> {
-    let repo = get_repo(&state).map_err(|e| e.to_string())?;
-    tokio::task::spawn_blocking(move || {
-        let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
-        write_bool(&repo, "companion_enabled", enabled).map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))?
+    match link.inner() {
+        RuntimeLink::Embedded(state) => {
+            companion::write_enabled(state.user_memory.as_ref().map(ProfileStore), enabled)
+                .await
+                .map_err(|e| e.to_string())
+        }
+        RuntimeLink::Attached(remote) => Ok(set_enabled_on(remote, enabled).await?),
+    }
 }
 
 /// Reads the companion-enabled preference from UserMemory internal state.
 /// Defaults to `false` when the key has never been written.
 #[tauri::command]
-pub async fn get_companion_enabled(state: State<'_, RuntimeHandle>) -> Result<bool, String> {
-    let repo = get_repo(&state).map_err(|e| e.to_string())?;
-    tokio::task::spawn_blocking(move || {
-        let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
-        read_bool(&repo, "companion_enabled").map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))?
+pub async fn get_companion_enabled(link: State<'_, RuntimeLink>) -> Result<bool, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(state) => {
+            companion::read_enabled(state.user_memory.as_ref().map(ProfileStore))
+                .await
+                .map_err(|e| e.to_string())
+        }
+        RuntimeLink::Attached(remote) => Ok(enabled_on(remote).await?),
+    }
 }
+
+#[cfg(test)]
+mod attached_tests;
 
 #[cfg(test)]
 mod companion_tests {

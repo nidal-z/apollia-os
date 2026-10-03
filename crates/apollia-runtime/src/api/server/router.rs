@@ -101,6 +101,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         send_message, stream_session,
     };
     use crate::api::routes_chat_assists::chat_assists_router;
+    use crate::api::routes_companion::companion_router;
     use crate::api::routes_connections::connections_router;
     use crate::api::routes_connectors::connectors_router;
     use crate::api::routes_drive_folders::drive_folders_router;
@@ -369,6 +370,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         // Native connector consent routes
         .merge(connections_router::<B>())
         .merge(profile_router::<B>())
+        .merge(companion_router::<B>())
         .merge(local_ai_router::<B>())
         .merge(tool_credentials_router::<B>())
         .merge(onboarding_router::<B>())

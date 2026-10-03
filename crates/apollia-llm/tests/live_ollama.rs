@@ -50,7 +50,7 @@ async fn collect(
             StreamChunk::Text(t) => text.push_str(&t),
             StreamChunk::ToolCall(c) => calls.push(c),
             StreamChunk::Usage(u) => prompt_tokens = u.prompt_tokens,
-            StreamChunk::Timings(_) => {}
+            StreamChunk::Timings(_) | StreamChunk::Finish(_) => {}
         }
     }
     (text, calls, prompt_tokens)
