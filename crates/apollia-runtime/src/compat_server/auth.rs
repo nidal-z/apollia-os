@@ -43,7 +43,7 @@ fn is_anthropic_path(path: &str) -> bool {
 
 /// The token a request presents: the `Authorization: Bearer` value first,
 /// then `x-api-key`.
-fn presented_token(headers: &HeaderMap) -> Option<String> {
+pub(super) fn presented_token(headers: &HeaderMap) -> Option<String> {
     let bearer = headers
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
@@ -60,6 +60,12 @@ fn presented_token(headers: &HeaderMap) -> Option<String> {
 
 /// The 401 answer, in the format of the endpoint `path` names.
 fn unauthorized(path: &str) -> Response {
+    unauthorized_with(path, REFUSAL)
+}
+
+/// The 401 answer carrying `message`, in the format of the endpoint `path`
+/// names.
+pub(super) fn unauthorized_with(path: &str, message: &'static str) -> Response {
     if is_anthropic_path(path) {
         return (
             StatusCode::UNAUTHORIZED,
@@ -67,7 +73,7 @@ fn unauthorized(path: &str) -> Response {
                 kind: "error",
                 error: AnthropicError {
                     kind: "authentication_error",
-                    message: REFUSAL,
+                    message,
                 },
             }),
         )
@@ -77,7 +83,7 @@ fn unauthorized(path: &str) -> Response {
         StatusCode::UNAUTHORIZED,
         Json(OpenAiErrorBody {
             error: OpenAiError {
-                message: REFUSAL.to_owned(),
+                message: message.to_owned(),
                 kind: "invalid_request_error",
                 code: "invalid_api_key",
             },

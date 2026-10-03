@@ -439,14 +439,48 @@ The HTTP API listens on a Unix socket and on a TCP port; the daemon binds both o
 every start, and the port number is the only thing `--port` decides. The Unix
 socket is local-trust and relies on filesystem permissions. TCP requires a
 bearer token on every `/api/v1` path but one, and binding it to a non-loopback
-address without TLS is a startup error rather than a warning: an insecure remote
-bind is the one mistake that cannot be undone once traffic has flowed.
+address without a token is a startup error rather than a warning: an
+unauthenticated remote bind is the one mistake that cannot be undone once
+traffic has flowed. TLS is optional: with `[api] tls_cert` and `tls_key` set,
+the TCP listener serves HTTPS, and a certificate that cannot be loaded fails the
+start instead of falling back to cleartext.
 
 The exemption is `GET /api/v1/health`, which answers without a token and reveals
 the product marker and the runtime version, nothing else. A process that finds
 the port taken holds no token of this installation, and what it needs to know is
 whether an Apollia runtime is the holder and in which version. Every other
 `/api/v1` route keeps the token.
+
+### The compatible server and the local network {#local-server}
+
+The runtime has two listeners. The native API, port 7771 and the local socket,
+drives the runtime; the compatible server, port 7772 by default, serves the
+OpenAI and Anthropic formats to other applications. The native API stays on the
+machine: the embedded runtime of the desktop binds it to `127.0.0.1` whatever
+the file says, the daemon to the loopback `[api] bind` names by default (another
+address needs a token, as above), and no setting of the compatible server moves
+it. The compatible server is the only surface the user opens to the local
+network, by `[server] serve_on_lan`, which is off by default and turned on only
+by an explicit action of the user.
+
+The network and the tokens are independent switches for models. A device of the
+local network can call the models without a token when `[server] require_auth`
+is off, as other local inference servers allow; that choice belongs to the
+user. Agents and workflows are not models: they reach the user's connections,
+documents and mail, so a call to one from the local network is admitted only
+with a token of the server in use, whatever `require_auth` says. Each request
+carries its origin, the machine or the local network, read from the peer
+address when its connection is accepted. The organisation policy is where an
+organisation forbids the local network or imposes tokens, overriding the user's
+switches.
+
+Read against the local-first principle: nothing leaves the machine until the
+user opens the network, and what then answers without a token is inference on
+the prompt the caller sent itself. The user's data, which only agents and
+workflows reach, never answers the network without a token the user created and
+can revoke. The native API, which holds every other capability, is never
+reachable from the network through this switch. Traffic on the network is
+cleartext HTTP: the compatible server does not terminate TLS.
 
 ## Signatures {#signing-schemes}
 

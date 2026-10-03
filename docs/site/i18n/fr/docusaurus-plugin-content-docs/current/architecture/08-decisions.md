@@ -470,15 +470,51 @@ L'API HTTP écoute sur une socket Unix et sur un port TCP ; le daemon lie les de
 à chaque démarrage, et le numéro de port est la seule chose que `--port` décide.
 La socket Unix relève de la confiance locale et s'appuie sur les permissions du
 système de fichiers. Le TCP exige un jeton porteur sur tous les chemins
-`/api/v1` sauf un, et le lier à une adresse non locale sans TLS est une erreur de
-démarrage plutôt qu'un avertissement : un attachement distant non sécurisé est la
-seule erreur qu'on ne peut pas défaire une fois que le trafic est passé.
+`/api/v1` sauf un, et le lier à une adresse non locale sans jeton est une erreur
+de démarrage plutôt qu'un avertissement : un attachement distant non authentifié
+est la seule erreur qu'on ne peut pas défaire une fois que le trafic est passé.
+TLS est facultatif : avec `[api] tls_cert` et `tls_key` renseignés, l'écouteur
+TCP sert en HTTPS, et un certificat qui ne se charge pas fait échouer le
+démarrage au lieu de retomber en clair.
 
 L'exception est `GET /api/v1/health`, qui répond sans jeton et ne révèle que le
 marqueur de produit et la version du runtime, rien d'autre. Un processus qui
 trouve le port pris ne détient aucun jeton de cette installation, et ce qu'il doit
 savoir, c'est si le détenteur est un runtime Apollia et dans quelle version.
 Toutes les autres routes `/api/v1` gardent le jeton.
+
+### Le serveur compatible et le réseau local {#local-server}
+
+Le runtime a deux écouteurs. L'API native, port 7771 et socket locale, pilote le
+runtime ; le serveur compatible, port 7772 par défaut, sert les formats d'OpenAI
+et d'Anthropic aux autres applications. L'API native reste sur la machine : le
+runtime embarqué du bureau la lie à `127.0.0.1` quoi que dise le fichier, le
+daemon à la boucle locale que `[api] bind` nomme par défaut (une autre adresse
+exige un jeton, comme ci-dessus), et aucun réglage du serveur compatible ne la
+déplace. Le serveur compatible est la seule surface que l'utilisateur ouvre au
+réseau local, par `[server] serve_on_lan`, éteint par défaut et allumé
+seulement par un geste explicite de l'utilisateur.
+
+Pour les modèles, le réseau et les jetons sont deux interrupteurs indépendants.
+Un appareil du réseau local peut appeler les modèles sans jeton quand
+`[server] require_auth` est éteint, comme d'autres serveurs d'inférence locaux
+le permettent ; ce choix appartient à l'utilisateur. Les agents et les workflows
+ne sont pas des modèles : ils atteignent les connexions, les documents et le
+courrier de l'utilisateur, si bien qu'un appel venu du réseau local n'est admis
+qu'avec un jeton actif du serveur, quoi que dise `require_auth`. Chaque requête
+porte son origine, la machine ou le réseau local, lue dans l'adresse du pair à
+l'acceptation de sa connexion. La politique de l'organisation est l'endroit où
+une organisation interdit le réseau local ou impose les jetons, par-dessus les
+interrupteurs de l'utilisateur.
+
+Au regard du principe du local d'abord : rien ne sort de la machine tant que
+l'utilisateur n'ouvre pas le réseau, et ce qui répond alors sans jeton est une
+inférence sur le texte que l'appelant a lui-même envoyé. Les données de
+l'utilisateur, que seuls les agents et les workflows atteignent, ne répondent
+jamais au réseau sans un jeton que l'utilisateur a créé et peut révoquer. L'API
+native, qui porte toutes les autres capacités, n'est jamais joignable depuis le
+réseau par cet interrupteur. Le trafic sur le réseau est du HTTP en clair : le
+serveur compatible ne termine pas TLS.
 
 ## Signatures {#signing-schemes}
 

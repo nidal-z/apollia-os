@@ -6,8 +6,16 @@
 //! server is the surface other applications of the machine call as they would
 //! call OpenAI or Anthropic: its paths and bodies follow those formats
 //! (`/v1/...`, `snake_case`), and it answers on its own port, 7772 by default,
-//! on the loopback interface. Starting or stopping it never touches the native
-//! API, so the desktop keeps its runtime whatever happens here.
+//! on the loopback interface, or on every interface when `[server]
+//! serve_on_lan` opens it to the local network. Starting, stopping or
+//! restarting it never touches the native API, which stays on the loopback
+//! interface in every case, so the desktop keeps its runtime whatever happens
+//! here.
+//!
+//! Every request carries its [`CallOrigin`], the machine or the local network.
+//! Models answer the network with or without a token, as `require_auth` says;
+//! a call to an agent or a workflow from the network needs a token in any case
+//! ([`admits_agent_call`]).
 //!
 //! The server is off until someone turns it on. Its switch and its port are
 //! the `[server] enabled` and `[server] port` settings of `apollia.toml`,
@@ -27,15 +35,21 @@
 
 mod actor;
 mod auth;
+mod origin;
 mod router;
 mod tokens;
 
 #[cfg(test)]
 mod auth_tests;
 #[cfg(test)]
+mod lan_tests;
+#[cfg(test)]
 pub(crate) mod tests;
 
 pub use actor::{CompatServerHandle, CompatServerStatus};
+pub use origin::{
+    admit_agent_call, admits_agent_call, reachable_address, CallOrigin, AGENT_TOKEN_REQUIRED,
+};
 pub use router::compat_router;
 pub use tokens::{CreatedServerToken, ServerTokensError, ServerTokensHandle, SERVER_TOKEN_PREFIX};
 

@@ -21,28 +21,30 @@ touches the runtime or the desktop.
 
 ## Off by default
 
-The server listens only once someone turns it on. Three keys of `apollia.toml`
+The server listens only once someone turns it on. Four keys of `apollia.toml`
 hold its state:
 
 ```toml
 [server]
 enabled = false        # whether the compatible server listens
-port = 7772            # its TCP port, on 127.0.0.1; never the native API's 7771
+port = 7772            # its TCP port; never the native API's 7771
 require_auth = false   # whether every request must present a token
+serve_on_lan = false   # whether the other devices of the local network reach it
 ```
 
-It listens on the loopback interface, `127.0.0.1`, so only the applications of
-this machine reach it.
+By default it listens on the loopback interface, `127.0.0.1`, so only the
+applications of this machine reach it.
 
 ## Starting and stopping it
 
-Three routes of the native API drive it while the runtime runs:
+Four routes of the native API drive it while the runtime runs:
 
 | Route | Effect |
 |---|---|
-| `GET /api/v1/server` | Whether it listens, its port, why its last start failed, and how many tokens are in use |
+| `GET /api/v1/server` | Whether it listens, its port, whether it serves the local network, the address to copy, why its last start failed, and how many tokens are in use |
 | `POST /api/v1/server/start` | Opens it on the configured port and writes `enabled = true` |
 | `POST /api/v1/server/stop` | Closes it and writes `enabled = false`; the native API keeps answering |
+| `POST /api/v1/server/restart` | Closes and reopens it so it applies the `[server]` keys as they stand; only this listener is reopened, the native API keeps its connections. A stopped server stays stopped |
 
 Because starting and stopping write `enabled`, the state survives a restart: a
 runtime that starts with `enabled = true` opens the compatible server again. If
@@ -74,7 +76,33 @@ x-api-key: apo_...              # Anthropic clients
 
 A request without a token in use, or with a revoked one, answers `401` in the
 format of the endpoint it called. Each success stamps the token's last use. The
-setting is read when the server opens: stop and start it to apply a change.
+setting is read when the server opens: restart it to apply a change.
+
+## Local network
+
+With `serve_on_lan = true`, the compatible server listens on every interface,
+so the other devices of the local network call it at the machine's address.
+The `address` field of `GET /api/v1/server` gives the address to copy:
+`http://127.0.0.1:7772` when the server stays on the machine,
+`http://<the machine's IPv4 address on the network>:7772` when it serves the
+network. The key is read when the server opens: restart it to apply a change.
+
+The local network and the tokens are two separate switches:
+
+- **Models** answer the network with or without a token, as `require_auth`
+  says. Opening the network without tokens is allowed, as other local
+  inference servers allow it; anyone on the network can then use the models.
+- **Agents and workflows** never answer a call from the network without a token
+  in use, whatever `require_auth` says: they reach the user's connections and
+  documents. The refusal is a `401` that reads "A token is required to call an
+  agent or a workflow from the local network."
+- **The native API** stays on the machine in every case: port 7771 and the
+  local socket never listen on the network because of this key.
+
+Each request is classified, when its connection is accepted, as coming from the
+machine (the loopback interface) or from the local network (any other address).
+The decision and its reading against the local-first principle are written in the
+[architecture decisions](/architecture/decisions#local-server).
 
 ## Errors
 

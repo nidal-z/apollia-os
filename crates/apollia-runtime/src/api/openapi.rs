@@ -417,6 +417,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_server::server_status,
         crate::api::routes_server::start_server,
         crate::api::routes_server::stop_server,
+        crate::api::routes_server::restart_server,
         crate::api::routes_server::tokens::list_server_tokens,
         crate::api::routes_server::tokens::create_server_token,
         crate::api::routes_server::tokens::revoke_server_token,
