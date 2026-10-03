@@ -12,8 +12,10 @@ use apollia_memory::user_memory::{ProfileEntry, UserMemoryError, UserMemoryRepos
 use serde::{Deserialize, Serialize};
 
 mod resolve;
+mod source;
 
-pub use resolve::profile_for_agent;
+pub use resolve::{profile_for_agent, profile_for_execution};
+pub use source::{profile_source_checked, profile_source_checked_in};
 
 /// The profile repository as the runtime already shares it, borrowed for one
 /// operation. The lock is the one `user_memory.db` was opened behind at

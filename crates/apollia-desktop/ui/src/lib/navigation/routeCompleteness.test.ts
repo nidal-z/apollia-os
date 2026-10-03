@@ -31,7 +31,10 @@ function mainSvelteRenderBranches(): string[] {
   );
   // The branches compare the route the router shows, after the developer-mode
   // guard, to each member.
-  return [...source.matchAll(/shownRoute === "([\w-]+)"/g)].map((m) => m[1]);
+  const branches = [...source.matchAll(/shownRoute === "([\w-]+)"/g)].map((m) => m[1]);
+  // `settings` is rendered as a window above the screen, mounted once in Main.
+  if (source.includes("<SettingsWindow />")) branches.push("settings");
+  return branches;
 }
 
 describe("route registry completeness", () => {

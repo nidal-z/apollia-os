@@ -49,6 +49,16 @@ export function getRouteState(route: SettingsFormRoute): RouteDirtyState {
   return get(settingsDirtyStore)[route] ?? DEFAULT;
 }
 
+/**
+ * Whether a form holds typed changes that wait for an explicit save. Switches
+ * and lists apply on the fly; only these changes stop a section switch or the
+ * closing of the settings window to ask first.
+ */
+export function holdsExplicitChanges(route: SettingsFormRoute): boolean {
+  const state = getRouteState(route);
+  return state.dirty && state.autoSave === "explicit";
+}
+
 export function setScroll(route: SettingsFormRoute, y: number): void {
   settingsScrollStore.update((m) => ({ ...m, [route]: y }));
 }

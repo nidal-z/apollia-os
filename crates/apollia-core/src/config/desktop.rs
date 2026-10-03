@@ -24,6 +24,25 @@ pub struct DesktopConfig {
     /// logs, engines, debugging details. Off by default.
     #[serde(default)]
     pub developer_mode: bool,
+    /// The update channel the application asks for a new version. Stable by
+    /// default; the organization policy can impose it.
+    #[serde(default)]
+    pub update_channel: UpdateChannel,
+}
+
+/// The channel the desktop application reads its update manifest from.
+///
+/// Stable receives the published versions only. Preview receives the trial
+/// versions as well: it reads the preview manifest and the stable one, and
+/// keeps the newer of the two.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateChannel {
+    /// The published versions only.
+    #[default]
+    Stable,
+    /// The published versions and the trial versions.
+    Preview,
 }
 
 impl DesktopConfig {
@@ -86,6 +105,42 @@ mod tests {
         // THEN it is refused, naming the key
         let error = result.unwrap_err().to_string();
         assert!(error.contains("not_a_field"), "{error}");
+    }
+
+    #[test]
+    fn test_desktop_config_update_channel_is_stable_by_default() {
+        // GIVEN a [desktop] section that does not name the update channel
+        let content = "[desktop]\ndeveloper_mode = true\n";
+
+        // WHEN it is read
+        let desktop = DesktopConfig::from_toml_str(content).unwrap();
+
+        // THEN the channel is stable
+        assert_eq!(desktop.update_channel, UpdateChannel::Stable);
+    }
+
+    #[test]
+    fn test_desktop_config_reads_the_preview_channel() {
+        // GIVEN a [desktop] section choosing the preview channel
+        let content = "[desktop]\nupdate_channel = \"preview\"\n";
+
+        // WHEN it is read
+        let desktop = DesktopConfig::from_toml_str(content).unwrap();
+
+        // THEN the channel is the file's
+        assert_eq!(desktop.update_channel, UpdateChannel::Preview);
+    }
+
+    #[test]
+    fn test_desktop_config_refuses_an_unknown_channel() {
+        // GIVEN a [desktop] section naming a channel that does not exist
+        let content = "[desktop]\nupdate_channel = \"nightly\"\n";
+
+        // WHEN it is read
+        let result = DesktopConfig::from_toml_str(content);
+
+        // THEN it is refused
+        assert!(result.is_err());
     }
 
     #[test]

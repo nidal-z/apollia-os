@@ -38,6 +38,11 @@ def _parse_response(
 
         return response_200
 
+    if response.status_code == 403:
+        response_403 = ServerProbeErrorResponse.from_dict(response.json())
+
+        return response_403
+
     if response.status_code == 422:
         response_422 = ServerProbeErrorResponse.from_dict(response.json())
 
