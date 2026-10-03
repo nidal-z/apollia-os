@@ -6,6 +6,29 @@ use super::super::*;
 use tracing::Instrument;
 
 impl BuiltInChatAgent {
+    /// Open the stream of an escalated call on `backend`, measured and
+    /// published as the router publishes its own.
+    async fn stream_escalated(
+        backend: &Arc<dyn apollia_llm::CompletionModel>,
+        request: CompletionRequest,
+        bus: &EventBusSender,
+    ) -> Result<
+        std::pin::Pin<
+            Box<dyn futures::Stream<Item = Result<StreamChunk, apollia_llm::LlmError>> + Send>,
+        >,
+        apollia_llm::LlmError,
+    > {
+        let call = apollia_llm::ObservedCall {
+            backend: backend.backend_name().to_owned(),
+            model: backend.model_id().to_owned(),
+            context: request.call_context.clone(),
+            bus: Some(bus.clone()),
+            started: std::time::Instant::now(),
+        };
+        let stream = backend.stream(request).await?;
+        Ok(apollia_llm::observe_stream(stream, call))
+    }
+
     /// Run the ReAct loop to completion and return the terminal response.
     ///
     /// Drives the stream/tool-call cycle until the LLM produces a final text
@@ -63,6 +86,7 @@ impl BuiltInChatAgent {
             all_tool_calls: Vec::new(),
             newly_authorized: Vec::new(),
             authorized: authorized_tools.clone(),
+            llm_calls: Vec::new(),
         };
         let obs = ObservabilityConfig::default();
         // Each entry is (reasoning text, number of tool calls already made when
@@ -158,6 +182,13 @@ impl BuiltInChatAgent {
                 messages: llm_messages.clone(),
                 tools: specs.clone(),
                 temperature: self.turn_temperature(!specs.is_empty()),
+                call_context: self
+                    .turn_id
+                    .as_ref()
+                    .map(|turn_id| apollia_llm::CallContext {
+                        session_id: session_id.to_string(),
+                        turn_id: turn_id.clone(),
+                    }),
                 ..Default::default()
             };
 
@@ -263,7 +294,7 @@ impl BuiltInChatAgent {
                             },
                         ));
                     }
-                    r = backend.stream(request) => r,
+                    r = Self::stream_escalated(&backend, request, &self.event_bus) => r,
                 }
             } else {
                 tokio::select! {
@@ -286,7 +317,7 @@ impl BuiltInChatAgent {
                             },
                         ));
                     }
-                    r = self.llm_router.stream_with_observability(turn_backend.as_deref(), request, &obs) => r,
+                    r = self.llm_router.stream_with_observability(turn_backend.as_deref(), request, Some(&self.event_bus), &obs) => r,
                 }
             };
             let stream = stream_result.map_err(|e| ChatError::InternalError(e.to_string()))?;
@@ -294,6 +325,7 @@ impl BuiltInChatAgent {
             // Consume stream, emit ChatToken per token, accumulate text
             let mut accumulated_text = String::new();
             let mut chunk_usage = TokenUsage::default();
+            let mut meter = apollia_llm::CallMeter::new(dispatched_at);
             let stream_result = self
                 .consume_stream(
                     stream,
@@ -302,12 +334,18 @@ impl BuiltInChatAgent {
                         message_id,
                         cancel: &ids.cancel,
                         dispatched_at,
+                        meter: &mut meter,
                     },
                     &mut accumulated_text,
                     &mut chunk_usage,
                 )
                 .instrument(iteration_span.clone())
                 .await;
+            acc.llm_calls.push(if ids.cancel.is_cancelled() {
+                meter.cancelled()
+            } else {
+                meter.finished()
+            });
             // Fold this call's usage into the exchange total, and record its
             // prompt size as the current context occupancy.
             total_usage.merge(&chunk_usage);

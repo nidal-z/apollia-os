@@ -22,6 +22,7 @@ pub mod batch;
 pub mod chat;
 pub mod chat_assists;
 pub mod commands;
+pub mod companion;
 pub mod composition;
 pub mod connections;
 pub mod connectors_bridge;

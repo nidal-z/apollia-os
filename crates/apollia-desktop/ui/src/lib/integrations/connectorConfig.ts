@@ -83,6 +83,24 @@ export function resolveStdioLauncher(
   return { command: runtimeHint || "npx", prefixArgs: [] };
 }
 
+/**
+ * The package argument of a launcher. An npm package is always named at the
+ * exact version its entry gives (the curated pin, or the registry's version),
+ * so the desktop installs that version and never whatever is published at
+ * launch; one without a version is resolved once, when it is added, and
+ * recorded. Other launchers take the bare identifier.
+ */
+export function packageSpec(
+  command: string,
+  pkg: Pick<RegistryPackageView, "identifier" | "version">,
+): string {
+  const version = (pkg.version ?? "").trim();
+  if (command === "npx" && version.length > 0) {
+    return `${pkg.identifier}@${version}`;
+  }
+  return pkg.identifier;
+}
+
 /** Everything `buildConnectorConfig` reads, gathered by the wizard component. */
 export interface ConnectorConfigInputs {
   server: RegistryServerView;
@@ -184,7 +202,7 @@ export function buildConnectorConfig(
     return {
       name: safeName,
       command: launcher.command,
-      args: [...launcher.prefixArgs, pkg.identifier, ...extraArgs],
+      args: [...launcher.prefixArgs, packageSpec(launcher.command, pkg), ...extraArgs],
       env,
       transport: pkg.transport?.type ?? "stdio",
       requires_approval: approvalLevel === "ask",

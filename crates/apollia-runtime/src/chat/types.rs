@@ -283,6 +283,10 @@ pub struct ExchangeState {
     /// [`SessionId`] (conversation lifetime) and [`MessageId`] (single message).
     #[serde(default)]
     pub run_id: RunId,
+    /// Identifier the answer of this exchange is persisted under, chosen when
+    /// the exchange starts so every model call of the turn can name it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answer_id: Option<MessageId>,
 }
 
 /// A single message in a chat session.

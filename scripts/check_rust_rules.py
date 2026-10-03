@@ -143,7 +143,6 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-desktop/src/commands/agents/lifecycle.rs": 2,
     "crates/apollia-desktop/src/commands/llm.rs": 1,
     "crates/apollia-desktop/src/commands/model_hub.rs": 1,
-    "crates/apollia-desktop/src/commands/onboarding.rs": 1,
     "crates/apollia-desktop/src/commands/stt.rs": 2,
     "crates/apollia-desktop/src/main.rs": 5,
     "crates/apollia-desktop/src/stt/flow.rs": 3,
@@ -297,6 +296,12 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # installer reads and runs the entry point it installed; neither can be
     # observed without a process.
     "crates/apollia-desktop/src/mcp/python_server/tests.rs": 1,
+    # Two helpers, the transport is the subject: these tests prove that npm
+    # installs from an integrity lock, refuses an altered digest, and that the
+    # rewritten command starts offline. One helper packs the tarball the fake
+    # registry serves (its digest is npm's own), the other runs the entry point
+    # the installer wrote; neither can be observed without a process.
+    "crates/apollia-desktop/src/mcp/npm_server/tests.rs": 2,
     "crates/apollia-llm/src/meta_orchestrator.rs": 1,
     "crates/apollia-llm/src/repository.rs": 1,
     "crates/apollia-llm/src/retry.rs": 1,

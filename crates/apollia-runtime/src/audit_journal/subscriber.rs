@@ -624,6 +624,11 @@ mod tests {
             latency_ms: 1,
             cost_usd: None,
             run_id: None,
+            session_id: None,
+            turn_id: None,
+            ttft_ms: None,
+            finish_reason: None,
+            generation_ms: None,
         };
         // WHEN mapped
         // THEN it is skipped (no chain pollution from non-run events)

@@ -179,6 +179,11 @@ pub struct CompletionRequest {
     /// `reasoning_effort`. `None` (default) sends nothing and leaves the
     /// template's own default.
     pub reasoning_effort: Option<ReasoningEffort>,
+    /// The conversation turn the call is made for, when there is one.
+    ///
+    /// Read by the router to stamp the call it publishes; never sent to a
+    /// backend. `None` outside a conversation.
+    pub call_context: Option<crate::call_measure::CallContext>,
 }
 
 /// A level of reasoning, the values a `reasoning_effort` template reads.
@@ -475,6 +480,12 @@ pub enum StreamChunk {
     /// [`CompletionResponse::engine_timings`]: the schema belongs to the engine,
     /// not to this crate. Sites that do not measure anything ignore it.
     Timings(serde_json::Value),
+    /// Why the model stopped, from the chunk that carried it.
+    ///
+    /// Emitted at most once, by backends whose stream reports a finish reason
+    /// (the OpenAI-compatible ones). A stream without it ended on a tool call
+    /// if it yielded one, and on a natural stop otherwise.
+    Finish(FinishReason),
 }
 
 /// Summary information about a backend, returned by `LlmRouter::list()`.

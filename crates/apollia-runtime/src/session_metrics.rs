@@ -279,6 +279,11 @@ mod tests {
             latency_ms: 200,
             cost_usd: Some(0.001),
             run_id: None,
+            session_id: None,
+            turn_id: None,
+            ttft_ms: None,
+            finish_reason: None,
+            generation_ms: None,
         };
 
         // WHEN
@@ -406,6 +411,11 @@ mod tests {
             latency_ms: 10,
             cost_usd: None,
             run_id: None,
+            session_id: None,
+            turn_id: None,
+            ttft_ms: None,
+            finish_reason: None,
+            generation_ms: None,
         };
 
         // WHEN first call below the warning threshold
@@ -529,6 +539,11 @@ mod tests {
             latency_ms: 50,
             cost_usd: None,
             run_id: None,
+            session_id: None,
+            turn_id: None,
+            ttft_ms: None,
+            finish_reason: None,
+            generation_ms: None,
         })
         .unwrap();
 
@@ -579,6 +594,11 @@ mod tests {
             latency_ms: 1,
             cost_usd: None,
             run_id: None,
+            session_id: None,
+            turn_id: None,
+            ttft_ms: None,
+            finish_reason: None,
+            generation_ms: None,
         };
         let mut in_flight = HashMap::new();
         // THEN no panic, process_event completes normally

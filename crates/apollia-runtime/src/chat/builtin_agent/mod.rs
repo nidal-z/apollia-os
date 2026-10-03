@@ -298,6 +298,9 @@ pub struct BuiltInChatAgent {
     /// Delay after which a pending tool approval is refused. `None` waits for
     /// the human however long it takes.
     approval_timeout: Option<Duration>,
+    /// The conversation turn every model call of the run is made for: the
+    /// identifier of the answer it produces. `None` outside a conversation.
+    turn_id: Option<String>,
 }
 
 /// Mutable accumulators threaded through one ReAct turn's tool-call handling.
@@ -305,6 +308,8 @@ struct ReactAccumulators {
     all_tool_calls: Vec<ToolCallRecord>,
     newly_authorized: Vec<String>,
     authorized: HashSet<String>,
+    /// The measure of every model call of the turn, in order.
+    llm_calls: Vec<apollia_llm::CallMeasure>,
 }
 
 /// Owned/borrowed state needed to build the terminal [`ChatAgentResponse`]
