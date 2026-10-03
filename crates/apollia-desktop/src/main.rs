@@ -60,7 +60,6 @@ use apollia_runtime::registry::AgentRegistryHandle;
 use apollia_runtime::router::TaskRouterHandle;
 use apollia_tools::tools::ask_user::PendingUserInputs;
 use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository, ToolRegistryHandle};
-use mcp::McpRegistryClient;
 use tauri::Manager;
 
 use bootstrap::{
@@ -404,22 +403,6 @@ fn main() {
     };
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(backend::AIPAgentLoader);
 
-    let mcp_registry_client = match McpRegistryClient::new(&apollia_data_dir) {
-        Ok(client) => client,
-        Err(e) => {
-            tracing::warn!(
-                error = %e,
-                detail = "the registry commands are disabled",
-                "mcp.registry.client.init.failed"
-            );
-            // Fall back to a client with a writable temp dir so Tauri state is always populated.
-            or_exit(
-                McpRegistryClient::new(std::path::Path::new("/tmp")),
-                "open the fallback MCP registry client",
-            )
-        }
-    };
-
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -438,7 +421,6 @@ fn main() {
         .manage(agent_loader)
         .manage(runtime_handle.event_sender.clone())
         .manage(llm_router_lock.clone())
-        .manage(mcp_registry_client)
         .manage(stt_flow_state.clone())
         .manage(std::sync::Arc::new(
             tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()),
