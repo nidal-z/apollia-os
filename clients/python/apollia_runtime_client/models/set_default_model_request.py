@@ -16,8 +16,10 @@ class SetDefaultModelRequest:
     """Body of `PUT /api/v1/llm/default-model`.
 
     Attributes:
-        model_id (str): `local`: the name of a local engine backend. `server`: `<server>/<model>`
-            of a declared server, or the name of a server backend.
+        model_id (str): `local`: the name of a local engine backend, or the identifier of a
+            language model of the model index, which gets its backend row.
+            `server`: `<server>/<model>` of a declared server, or the name of a
+            server backend.
         model_source (ModelSourceDto): Where a model runs.
     """
 

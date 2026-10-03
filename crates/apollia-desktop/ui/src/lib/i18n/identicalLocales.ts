@@ -35,6 +35,7 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "dashboard.headline_greeting", // {greeting}.
   "hitl.fs.preview_mode_label", // {before} → {after}
   "inbox.activity.filter.llm", // LLM
+  "llm.loaded.engine_mlx", // MLX
   "notifications.field_headers_placeholder", // {"Authorization": "Bearer ..."}
   "notifications.field_url_placeholder", // https://hooks.example.com/notify
   "observability.timeline_window_30min", // 30 min
