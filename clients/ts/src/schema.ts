@@ -6424,6 +6424,37 @@ export interface components {
             /** @description ISO 8601 timestamp. */
             timestamp: string;
         };
+        /**
+         * @description How strictly a launch is held to the machine's memory.
+         * @enum {string}
+         */
+        GuardrailLevel: "disabled" | "lenient" | "balanced" | "strict" | "ceiling";
+        /**
+         * @description Body of an API answer to a launch the guardrail refused.
+         *
+         *     `error` is the English sentence; `code` and the figures let an interface
+         *     write its own, in its own language.
+         */
+        GuardrailRefusedBody: {
+            /**
+             * Format: double
+             * @description The limit the level holds to, in gigabytes.
+             */
+            budgetGb: number;
+            /** @description Always `guardrail_refused`. */
+            code: string;
+            /** @description Human-readable description, in English. */
+            error: string;
+            /**
+             * Format: double
+             * @description The estimated footprint, in gigabytes.
+             */
+            estimatedGb: number;
+            /** @description The level that refused it. */
+            level: components["schemas"]["GuardrailLevel"];
+            /** @description The model whose launch was refused. */
+            model: string;
+        };
         HardwareResponse: {
             accelerator: Record<string, never>;
             /** Format: double */
@@ -6832,6 +6863,11 @@ export interface components {
         LoadedModelDto: {
             /** @description Requests being answered right now. An unload is refused above zero. */
             activeRequests: number;
+            /**
+             * @description The engine serving the model, chosen by its format: `llama-server` for
+             *     GGUF, `vllm-mlx` for MLX.
+             */
+            engine: components["schemas"]["EngineName"];
             /** @description When a request last used the model, RFC 3339. */
             lastUsedAt: string;
             /** @description When the model finished loading, RFC 3339. */
@@ -7920,8 +7956,10 @@ export interface components {
         /** @description Body of `PUT /api/v1/llm/default-model`. */
         SetDefaultModelRequest: {
             /**
-             * @description `local`: the name of a local engine backend. `server`: `<server>/<model>`
-             *     of a declared server, or the name of a server backend.
+             * @description `local`: the name of a local engine backend, or the identifier of a
+             *     language model of the model index, which gets its backend row.
+             *     `server`: `<server>/<model>` of a declared server, or the name of a
+             *     server backend.
              */
             model_id: string;
             /** @description Where the model runs. */
@@ -12844,6 +12882,15 @@ export interface operations {
                     "application/json": components["schemas"]["ChatResponse"];
                 };
             };
+            /** @description A local model the load guardrail refused; confirm the load to go ahead */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuardrailRefusedBody"];
+                };
+            };
             /** @description No router configured or backend call failed */
             503: {
                 headers: {
@@ -12884,6 +12931,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description A local model the load guardrail refused; confirm the load to go ahead */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuardrailRefusedBody"];
                 };
             };
             /** @description No router configured or backend call failed */

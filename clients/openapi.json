@@ -4853,6 +4853,16 @@
               }
             }
           },
+          "409": {
+            "description": "A local model the load guardrail refused; confirm the load to go ahead",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuardrailRefusedBody"
+                }
+              }
+            }
+          },
           "503": {
             "description": "No router configured or backend call failed",
             "content": {
@@ -4901,6 +4911,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A local model the load guardrail refused; confirm the load to go ahead",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuardrailRefusedBody"
                 }
               }
             }
@@ -17860,6 +17880,57 @@
           }
         }
       },
+      "GuardrailLevel": {
+        "type": "string",
+        "description": "How strictly a launch is held to the machine's memory.",
+        "enum": [
+          "disabled",
+          "lenient",
+          "balanced",
+          "strict",
+          "ceiling"
+        ]
+      },
+      "GuardrailRefusedBody": {
+        "type": "object",
+        "description": "Body of an API answer to a launch the guardrail refused.\n\n`error` is the English sentence; `code` and the figures let an interface\nwrite its own, in its own language.",
+        "required": [
+          "error",
+          "code",
+          "model",
+          "level",
+          "estimatedGb",
+          "budgetGb"
+        ],
+        "properties": {
+          "budgetGb": {
+            "type": "number",
+            "format": "double",
+            "description": "The limit the level holds to, in gigabytes."
+          },
+          "code": {
+            "type": "string",
+            "description": "Always `guardrail_refused`."
+          },
+          "error": {
+            "type": "string",
+            "description": "Human-readable description, in English."
+          },
+          "estimatedGb": {
+            "type": "number",
+            "format": "double",
+            "description": "The estimated footprint, in gigabytes."
+          },
+          "level": {
+            "$ref": "#/components/schemas/GuardrailLevel",
+            "description": "The level that refused it."
+          },
+          "model": {
+            "type": "string",
+            "description": "The model whose launch was refused."
+          }
+        }
+      },
       "HardwareResponse": {
         "type": "object",
         "required": [
@@ -18817,6 +18888,7 @@
         "type": "object",
         "description": "One resident model.",
         "required": [
+          "engine",
           "model",
           "modelPath",
           "port",
@@ -18831,6 +18903,10 @@
             "type": "integer",
             "description": "Requests being answered right now. An unload is refused above zero.",
             "minimum": 0
+          },
+          "engine": {
+            "$ref": "#/components/schemas/EngineName",
+            "description": "The engine serving the model, chosen by its format: `llama-server` for\nGGUF, `vllm-mlx` for MLX."
           },
           "lastUsedAt": {
             "type": "string",
@@ -21287,7 +21363,7 @@
         "properties": {
           "model_id": {
             "type": "string",
-            "description": "`local`: the name of a local engine backend. `server`: `<server>/<model>`\nof a declared server, or the name of a server backend."
+            "description": "`local`: the name of a local engine backend, or the identifier of a\nlanguage model of the model index, which gets its backend row.\n`server`: `<server>/<model>` of a declared server, or the name of a\nserver backend."
           },
           "model_source": {
             "$ref": "#/components/schemas/ModelSourceDto",

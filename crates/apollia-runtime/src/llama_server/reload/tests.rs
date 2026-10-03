@@ -117,7 +117,12 @@ async fn test_the_default_preset_applies_when_a_model_is_ensured() {
 
     // WHEN the model is ensured
     let lease = sup
-        .ensure_model("qwen", "/models/qwen.gguf".to_owned(), None)
+        .ensure_model(
+            "qwen",
+            "/models/qwen.gguf".to_owned(),
+            None,
+            LoadConsent::Unconfirmed,
+        )
         .await
         .unwrap();
     drop(lease);
@@ -150,9 +155,14 @@ async fn test_changing_a_load_setting_relaunches_the_resident_model() {
     sup.system_db = Some(db);
     sup.events = Some(tx);
     drop(
-        sup.ensure_model("qwen", "/models/qwen.gguf".to_owned(), None)
-            .await
-            .unwrap(),
+        sup.ensure_model(
+            "qwen",
+            "/models/qwen.gguf".to_owned(),
+            None,
+            LoadConsent::Unconfirmed,
+        )
+        .await
+        .unwrap(),
     );
     let first_port = sup.instances.lock().await[0].port;
 
@@ -160,9 +170,14 @@ async fn test_changing_a_load_setting_relaunches_the_resident_model() {
     repo.update_preset(preset.id, &default_preset(json!({ "n_threads": 2 })))
         .unwrap();
     drop(
-        sup.ensure_model("qwen", "/models/qwen.gguf".to_owned(), None)
-            .await
-            .unwrap(),
+        sup.ensure_model(
+            "qwen",
+            "/models/qwen.gguf".to_owned(),
+            None,
+            LoadConsent::Unconfirmed,
+        )
+        .await
+        .unwrap(),
     );
 
     // THEN the first process is gone, a second one runs the new setting, and
@@ -208,16 +223,26 @@ async fn test_an_unchanged_preset_keeps_the_resident_model() {
     sup.system_db = Some(db);
     sup.events = Some(tx);
     drop(
-        sup.ensure_model("qwen", "/models/qwen.gguf".to_owned(), None)
-            .await
-            .unwrap(),
+        sup.ensure_model(
+            "qwen",
+            "/models/qwen.gguf".to_owned(),
+            None,
+            LoadConsent::Unconfirmed,
+        )
+        .await
+        .unwrap(),
     );
 
     // WHEN it is requested again with the preset untouched
     drop(
-        sup.ensure_model("qwen", "/models/qwen.gguf".to_owned(), None)
-            .await
-            .unwrap(),
+        sup.ensure_model(
+            "qwen",
+            "/models/qwen.gguf".to_owned(),
+            None,
+            LoadConsent::Unconfirmed,
+        )
+        .await
+        .unwrap(),
     );
 
     // THEN the engine was launched once and nothing was announced
@@ -247,15 +272,25 @@ async fn test_a_preset_fixing_the_slots_keeps_the_backend_window_and_the_process
 
     // WHEN the model is requested twice with the preset untouched
     let first = sup
-        .ensure_model("qwen", "/models/qwen.gguf".to_owned(), Some(16_384))
+        .ensure_model(
+            "qwen",
+            "/models/qwen.gguf".to_owned(),
+            Some(16_384),
+            LoadConsent::Unconfirmed,
+        )
         .await
         .unwrap();
     let first_window = first.n_ctx();
     drop(first);
     drop(
-        sup.ensure_model("qwen", "/models/qwen.gguf".to_owned(), Some(16_384))
-            .await
-            .unwrap(),
+        sup.ensure_model(
+            "qwen",
+            "/models/qwen.gguf".to_owned(),
+            Some(16_384),
+            LoadConsent::Unconfirmed,
+        )
+        .await
+        .unwrap(),
     );
 
     // THEN the engine was launched once, under the backend's window and the
@@ -267,3 +302,6 @@ async fn test_a_preset_fixing_the_slots_keeps_the_backend_window_and_the_process
     assert_eq!(first_window, 16_384);
     sup.shutdown_in_place().await;
 }
+
+#[cfg(unix)]
+mod guardrails;

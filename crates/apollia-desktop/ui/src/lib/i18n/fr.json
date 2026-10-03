@@ -40,6 +40,11 @@
       "friendly_message": "Une erreur inattendue a empêché cette action d'aboutir.",
       "suggested_action": "Réessayez l'action. Si l'échec persiste, consultez les détails ci-dessous."
     },
+    "guardrail_refused": {
+      "title": "Modèle trop lourd pour ce poste",
+      "message": "Ce modèle demande environ {estimated} Go de mémoire, et le garde-fou de chargement en autorise {budget} Go.",
+      "suggested_action": "Choisissez un modèle plus léger, ou confirmez le chargement pour passer outre."
+    },
     "show_details": "Détails techniques"
   },
   "next_steps": {
@@ -1204,6 +1209,7 @@
       "empty": "Aucun modèle n'est chargé en mémoire.",
       "since": "Chargé à {time}",
       "in_use": "En réponse",
+      "engine_mlx": "MLX",
       "unload": "Décharger",
       "unloaded_toast": "{name} déchargé, sa mémoire est libérée.",
       "in_use_error": "{name} est en cours d'usage : une réponse est en cours. Réessayez quand elle sera terminée."
