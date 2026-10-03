@@ -36,7 +36,7 @@ const MAX_NAME_LEN: usize = 128;
 #[non_exhaustive]
 pub enum AgentPackageError {
     /// No installed package carries this name.
-    #[error("Package '{0}' not found")]
+    #[error("package '{0}' not found")]
     NotFound(String),
     /// A package or agent name that cannot name a folder.
     #[error("invalid name '{0}': empty, too long, or a path")]

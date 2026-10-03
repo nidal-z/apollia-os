@@ -220,7 +220,7 @@ async fn test_an_unknown_package_is_a_404_and_an_unreadable_store_a_500() {
     // THEN the absent package is a 404 in the words of the embedded mode,
     // the store a 500
     assert_eq!(missing, StatusCode::NOT_FOUND, "{body}");
-    assert_eq!(body["error"], "Package 'veille' not found");
+    assert_eq!(body["error"], "package 'veille' not found");
     assert_eq!(failed, StatusCode::INTERNAL_SERVER_ERROR, "{failure}");
 }
 

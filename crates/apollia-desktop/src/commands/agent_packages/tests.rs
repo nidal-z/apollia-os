@@ -88,13 +88,31 @@ async fn test_the_packages_are_listed_by_the_daemon() {
 }
 
 #[tokio::test]
+async fn test_a_listing_refused_by_the_daemon_is_shown_as_written() {
+    // GIVEN a daemon that cannot read its package registry
+    let (_server, link) = daemon(
+        "GET",
+        "/api/v1/agent-packages/installed",
+        None,
+        refused(500, "agent package registry unavailable"),
+    )
+    .await;
+
+    // WHEN the attached arm lists the packages
+    let error = list(&link).await.unwrap_err();
+
+    // THEN the daemon's message is the error, untouched
+    assert_eq!(error, "agent package registry unavailable");
+}
+
+#[tokio::test]
 async fn test_the_detail_is_read_with_the_name_encoded_and_a_404_shown_as_written() {
     // GIVEN a daemon that knows no package named `a/b`
     let (_server, link) = daemon(
         "GET",
         "/api/v1/agent-packages/installed/a%2Fb",
         None,
-        refused(404, "Package 'a/b' not found"),
+        refused(404, "package 'a/b' not found"),
     )
     .await;
 
@@ -102,7 +120,7 @@ async fn test_the_detail_is_read_with_the_name_encoded_and_a_404_shown_as_writte
     let error = detail(&link, "a/b").await.unwrap_err();
 
     // THEN the name stayed one segment and the daemon's message is the error
-    assert_eq!(error, "Package 'a/b' not found");
+    assert_eq!(error, "package 'a/b' not found");
 }
 
 #[tokio::test]
@@ -228,7 +246,7 @@ async fn test_an_uninstall_deletes_on_the_daemon_and_a_refusal_is_shown_as_writt
         .await;
     Mock::given(method("DELETE"))
         .and(path("/api/v1/agent-packages/installed/ghost"))
-        .respond_with(refused(404, "Package 'ghost' not found"))
+        .respond_with(refused(404, "package 'ghost' not found"))
         .expect(1)
         .mount(&server)
         .await;
@@ -240,5 +258,5 @@ async fn test_an_uninstall_deletes_on_the_daemon_and_a_refusal_is_shown_as_writt
 
     // THEN the first is removed and the second refused with the daemon's text
     assert!(removed.is_ok(), "{removed:?}");
-    assert_eq!(error, "Package 'ghost' not found");
+    assert_eq!(error, "package 'ghost' not found");
 }
