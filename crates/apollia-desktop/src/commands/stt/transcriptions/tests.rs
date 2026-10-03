@@ -135,6 +135,28 @@ async fn test_the_daemon_refusal_is_shown_as_it_words_it() {
 }
 
 #[tokio::test]
+async fn test_the_daemon_refusal_of_a_deletion_is_shown_as_it_words_it() {
+    // GIVEN a daemon refusing the deletion with a body that names why
+    let server = MockServer::start().await;
+    Mock::given(method("DELETE"))
+        .and(path("/api/v1/stt/transcriptions/t-1"))
+        .and(header("authorization", BEARER))
+        .respond_with(
+            ResponseTemplate::new(500).set_body_json(json!({ "error": "database is locked" })),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+
+    // WHEN the attached arm deletes the transcription
+    let refused = String::from(delete_on(&client, "t-1").await.unwrap_err());
+
+    // THEN the refusal is the daemon's own message, not a success
+    assert_eq!(refused, "database is locked");
+}
+
+#[tokio::test]
 async fn test_a_missing_file_is_refused_before_the_daemon_is_asked() {
     // GIVEN a daemon that must not be reached
     let server = MockServer::start().await;
