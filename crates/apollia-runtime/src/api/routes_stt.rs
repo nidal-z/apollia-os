@@ -23,6 +23,8 @@ use crate::api::server::AppState;
 use crate::coordinator::{DynBackend, ExecutionBackend};
 use crate::stt::TranscriptSource;
 
+pub mod settings;
+
 /// Error response body shared across STT routes.
 #[derive(Debug, Serialize)]
 pub struct SttErrorResponse {
@@ -533,10 +535,12 @@ pub async fn delete_transcription<B: ExecutionBackend + Clone + From<DynBackend>
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// `GET /api/v1/stt/models`, list available `.bin` model files.
+/// `GET /api/v1/stt/models`, list available model files.
 ///
-/// Scans `~/.apollia/models/` for `.bin` files and returns their name,
-/// path, and size. Returns an empty list if the directory does not exist.
+/// Scans `~/.apollia/models/` for the extensions in
+/// [`MODEL_EXTENSIONS`](crate::stt::MODEL_EXTENSIONS) and returns their name,
+/// path, and size, the list the desktop shows in both modes. Returns an empty
+/// list if the directory does not exist.
 #[utoipa::path(
     get,
     path = "/api/v1/stt/models",
@@ -572,7 +576,7 @@ pub async fn list_models<B: ExecutionBackend + Clone + From<DynBackend>>(
                 Err(_) => continue,
             };
             let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) == Some("bin") {
+            if crate::stt::is_model_file(&path) {
                 let name = path
                     .file_name()
                     .map(|n| n.to_string_lossy().into_owned())
@@ -588,180 +592,6 @@ pub async fn list_models<B: ExecutionBackend + Clone + From<DynBackend>>(
     }
 
     Ok((StatusCode::OK, Json(ModelsListResponse { models })))
-}
-
-/// `GET /api/v1/stt/config`, return the persisted STT configuration.
-///
-/// Returns `200 OK` with the current [`SttConfigRow`] from `system.db`.
-/// If the table is empty (first boot), the defaults are inserted and returned.
-/// Returns `503 Service Unavailable` when the config repository is unavailable.
-#[utoipa::path(
-    get,
-    path = "/api/v1/stt/config",
-    tag = "stt",
-    responses(
-        (status = 200, description = "Persisted STT configuration"),
-        (status = 500, description = "Database error", body = crate::api::openapi::ApiErrorBody),
-        (status = 503, description = "STT config repository unavailable", body = crate::api::openapi::ApiErrorBody),
-    )
-)]
-pub async fn get_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
-    State(state): State<AppState<B>>,
-) -> RouteResult<SttConfigRow> {
-    let repo = state.stt_config_repo.as_ref().ok_or_else(|| {
-        (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(SttErrorResponse {
-                error: "STT config repository not available".into(),
-            }),
-        )
-    })?;
-
-    let config = repo
-        .lock()
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(SttErrorResponse {
-                    error: format!("repository lock error: {e}"),
-                }),
-            )
-        })?
-        .get_or_default()
-        .map_err(|e| {
-            tracing::error!(error = %e, "stt.config.read.failed");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(SttErrorResponse {
-                    error: format!("database error: {e}"),
-                }),
-            )
-        })?;
-
-    Ok((StatusCode::OK, Json(config)))
-}
-
-/// `PUT /api/v1/stt/config`, update the persisted STT configuration.
-///
-/// Accepts a JSON body of [`SttConfigRow`] (fields with `#[serde(default)]` may
-/// be omitted, missing fields receive their default values). Replaces the
-/// singleton row in `system.db` via an upsert.
-///
-/// Returns `200 OK` with the updated configuration.
-/// Returns `503 Service Unavailable` when the config repository is unavailable.
-#[utoipa::path(
-    put,
-    path = "/api/v1/stt/config",
-    tag = "stt",
-    request_body(content = Object, content_type = "application/json", description = "Updated STT configuration (SttConfigRow); fields with defaults may be omitted"),
-    responses(
-        (status = 200, description = "Updated STT configuration"),
-        (status = 500, description = "Database error", body = crate::api::openapi::ApiErrorBody),
-        (status = 503, description = "STT config repository unavailable", body = crate::api::openapi::ApiErrorBody),
-    )
-)]
-pub async fn update_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
-    State(state): State<AppState<B>>,
-    Json(new_config): Json<SttConfigRow>,
-) -> RouteResult<SttConfigRow> {
-    let repo = state.stt_config_repo.as_ref().ok_or_else(|| {
-        (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(SttErrorResponse {
-                error: "STT config repository not available".into(),
-            }),
-        )
-    })?;
-
-    let guard = repo.lock().map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(SttErrorResponse {
-                error: format!("repository lock error: {e}"),
-            }),
-        )
-    })?;
-
-    guard.upsert(&new_config).map_err(|e| {
-        tracing::error!(error = %e, "stt.config.persist.failed");
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(SttErrorResponse {
-                error: format!("database error: {e}"),
-            }),
-        )
-    })?;
-
-    let updated = guard.get_or_default().map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(SttErrorResponse {
-                error: format!("database error: {e}"),
-            }),
-        )
-    })?;
-
-    tracing::info!(enabled = updated.enabled, "stt.config.updated");
-    Ok((StatusCode::OK, Json(updated)))
-}
-
-/// Response body for `POST /api/v1/stt/reload`.
-#[derive(Debug, Serialize, utoipa::ToSchema)]
-pub struct SttReloadResponse {
-    /// Whether an engine is loaded after the reload. `false` when STT is
-    /// disabled, the model file is absent, or the runner is unavailable.
-    pub loaded: bool,
-}
-
-/// `POST /api/v1/stt/reload`, rebuild the STT engine from persisted config.
-///
-/// Reads the current `stt_config` row from `system.db`, rebuilds the engine
-/// actor via [`build_stt_engine`](crate::stt::build_stt_engine), swaps it into
-/// the shared cell, and shuts the previous engine down. Lets a model enabled or
-/// downloaded mid-session come online without restarting the daemon. Idempotent:
-/// swaps in `None` when STT is disabled or the model is missing.
-#[utoipa::path(
-    post,
-    path = "/api/v1/stt/reload",
-    tag = "stt",
-    responses(
-        (status = 200, description = "STT engine reloaded", body = SttReloadResponse),
-        (status = 500, description = "Database error", body = crate::api::openapi::ApiErrorBody),
-        (status = 503, description = "STT config repository unavailable", body = crate::api::openapi::ApiErrorBody),
-    )
-)]
-pub async fn reload_stt_engine<B: ExecutionBackend + Clone + From<DynBackend>>(
-    State(state): State<AppState<B>>,
-) -> RouteResult<SttReloadResponse> {
-    // Snapshot the persisted config, dropping the (!Send) lock guard before the
-    // async rebuild.
-    let cfg = read_stt_config(&state)?;
-
-    let (engine, repository) = crate::stt::build_stt_engine(
-        &state.data_dir,
-        Some(&cfg),
-        state.runner_proxy.clone(),
-        &state.event_sender,
-    )
-    .await;
-    let loaded = engine.is_some();
-
-    // Swap the new engine/repository in, then shut the previous engine down
-    // outside the write guard so no reader observes a half-swapped state.
-    let previous = {
-        let mut engine_cell = state.stt_engine.write().await;
-        let mut repo_cell = state.stt_repository.write().await;
-        let old = engine_cell.take();
-        *engine_cell = engine;
-        *repo_cell = repository;
-        old
-    };
-    if let Some(old) = previous {
-        old.shutdown().await;
-    }
-
-    tracing::info!(loaded, "stt.engine.reloaded");
-    Ok((StatusCode::OK, Json(SttReloadResponse { loaded })))
 }
 
 // ── WAV decoding ────────────────────────────────────────────────────
@@ -794,6 +624,7 @@ fn decode_wav(data: &[u8]) -> Result<(Vec<f32>, u32, u16), String> {
 
 #[cfg(test)]
 mod tests {
+    use super::settings::{get_stt_config, reload_stt_engine, update_stt_config};
     use super::*;
     use crate::api::server::AppState;
     use crate::coordinator::ExecutionBackend;
@@ -1170,6 +1001,41 @@ mod tests {
             .unwrap()
     }
 
+    /// A router serving the settings routes over a configuration repository
+    /// in a fresh directory, or over none.
+    fn settings_router(with_repo: bool) -> Router {
+        let mut state = base_state();
+        if with_repo {
+            let dir =
+                std::env::temp_dir().join(format!("apollia_stt_api_test_{}", uuid::Uuid::new_v4()));
+            std::fs::create_dir_all(&dir).expect("create temp dir");
+            let repo = SttConfigRepository::open(&dir.join("system.db")).expect("open config repo");
+            state.stt_config_repo = Some(Arc::new(std::sync::Mutex::new(repo)));
+            state.data_dir = dir;
+        }
+        Router::new()
+            .route(
+                "/api/v1/stt/config",
+                get(get_stt_config::<MockBackend>).put(update_stt_config::<MockBackend>),
+            )
+            .route("/api/v1/stt/reload", post(reload_stt_engine::<MockBackend>))
+            .with_state(state)
+    }
+
+    async fn json_of(resp: axum::response::Response) -> serde_json::Value {
+        let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
+        serde_json::from_slice(&body).unwrap()
+    }
+
+    fn put_config(body: serde_json::Value) -> Request<Body> {
+        Request::builder()
+            .method("PUT")
+            .uri("/api/v1/stt/config")
+            .header("content-type", "application/json")
+            .body(Body::from(body.to_string()))
+            .unwrap()
+    }
+
     #[tokio::test]
     async fn an_uploaded_file_is_kept_in_the_history_as_a_file() {
         // GIVEN a live engine, and a WAV the desktop read from a file
@@ -1215,5 +1081,164 @@ mod tests {
 
         // THEN it keeps the tag every caller had before the field existed
         assert_eq!(source.as_str(), "api");
+    }
+
+    #[tokio::test]
+    async fn config_is_read_with_its_defaults_on_first_boot() {
+        // GIVEN a configuration repository that holds no row yet
+        let router = settings_router(true);
+
+        // WHEN GET /api/v1/stt/config
+        let resp = router
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/stt/config")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // THEN 200 with the defaults, every field the desktop reads present
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = json_of(resp).await;
+        assert_eq!(json["enabled"], false);
+        for field in ["model_path", "hotkey", "clipboard_mode", "trigger_mode"] {
+            assert!(json[field].is_string(), "{field} missing: {json}");
+        }
+    }
+
+    #[tokio::test]
+    async fn config_without_repository_is_refused_with_503() {
+        // GIVEN no configuration repository
+        let router = settings_router(false);
+
+        // WHEN GET /api/v1/stt/config
+        let resp = router
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/stt/config")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // THEN 503 naming the missing repository
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let json = json_of(resp).await;
+        assert!(json["error"].as_str().unwrap().contains("not available"));
+    }
+
+    #[tokio::test]
+    async fn an_updated_configuration_is_persisted_and_returned() {
+        // GIVEN a configuration repository
+        let router = settings_router(true);
+
+        // WHEN PUT /api/v1/stt/config with another model and a listed language
+        let resp = router
+            .clone()
+            .oneshot(put_config(serde_json::json!({
+                "enabled": false,
+                "model_path": "/models/ggml-small.gguf",
+                "language": "de",
+                "input_device": "USB mic"
+            })))
+            .await
+            .unwrap();
+
+        // THEN 200 with the new values, and a later read returns them
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(json_of(resp).await["model_path"], "/models/ggml-small.gguf");
+        let read = router
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/stt/config")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let json = json_of(read).await;
+        assert_eq!(json["language"], "de");
+        assert_eq!(json["input_device"], "USB mic");
+    }
+
+    #[tokio::test]
+    async fn an_unlisted_language_is_refused_with_400_and_not_persisted() {
+        // GIVEN a configuration repository
+        let router = settings_router(true);
+
+        // WHEN PUT /api/v1/stt/config with a free-text language
+        let resp = router
+            .clone()
+            .oneshot(put_config(serde_json::json!({
+                "model_path": "/models/ggml-small.bin",
+                "language": "francais"
+            })))
+            .await
+            .unwrap();
+
+        // THEN 400 with the message the embedded desktop shows, and the
+        // persisted configuration is untouched
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let error = json_of(resp).await["error"].as_str().unwrap().to_owned();
+        assert!(
+            error.starts_with("unsupported dictation language 'francais'"),
+            "{error}"
+        );
+        let read = router
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/stt/config")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(json_of(read).await["model_path"], "/models/ggml-small.bin");
+    }
+
+    #[tokio::test]
+    async fn a_reload_with_dictation_disabled_answers_not_loaded() {
+        // GIVEN a configuration repository whose default row disables dictation
+        let router = settings_router(true);
+
+        // WHEN POST /api/v1/stt/reload
+        let resp = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/stt/reload")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // THEN 200, no engine loaded
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(json_of(resp).await["loaded"], false);
+    }
+
+    #[tokio::test]
+    async fn a_reload_without_repository_is_refused_with_503() {
+        // GIVEN no configuration repository
+        let router = settings_router(false);
+
+        // WHEN POST /api/v1/stt/reload
+        let resp = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/stt/reload")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // THEN 503
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 }

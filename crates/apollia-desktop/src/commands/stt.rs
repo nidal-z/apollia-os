@@ -16,15 +16,16 @@ use std::io::Cursor;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{Manager, State};
 
 use apollia_runtime::embedded::RuntimeHandle;
+use apollia_runtime::stt::TranscriptSource;
+use apollia_stt::{SttRepository, TranscriptRow};
 
 use crate::attached::RuntimeLink;
 
+mod daemon;
 mod transcriptions;
-use apollia_runtime::stt::TranscriptSource;
-use apollia_stt::{SttRepository, TranscriptRow};
 
 /// Description of an available STT model file on disk.
 #[derive(Debug, Clone, Serialize)]
@@ -70,6 +71,19 @@ pub struct SttConfigView {
     pub input_device: Option<String>,
 }
 
+impl SttModelInfo {
+    /// The description of a model file, its language read from its name.
+    pub(crate) fn from_file(name: String, path: String, size_bytes: u64) -> Self {
+        let language = detect_language_from_name(&name);
+        Self {
+            name,
+            path,
+            size_mb: size_bytes as f64 / (1024.0 * 1024.0),
+            language,
+        }
+    }
+}
+
 impl Default for SttConfigView {
     fn default() -> Self {
         Self {
@@ -90,9 +104,18 @@ impl Default for SttConfigView {
 /// Returns the current STT configuration from `~/.apollia/system.db`.
 ///
 /// Opens the repository, reads the singleton row, and returns it as a view.
-/// If the row does not exist yet, defaults are inserted and returned.
+/// If the row does not exist yet, defaults are inserted and returned. Attached,
+/// the daemon reads the same row through `GET /api/v1/stt/config`.
 #[tauri::command]
-pub async fn get_stt_config() -> Result<SttConfigView, String> {
+pub async fn get_stt_config(link: State<'_, RuntimeLink>) -> Result<SttConfigView, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(_) => read_local_config().await,
+        RuntimeLink::Attached(remote) => Ok(daemon::config_on(remote).await?),
+    }
+}
+
+/// The configuration row of this machine's `system.db`, as a view.
+async fn read_local_config() -> Result<SttConfigView, String> {
     let db_path = apollia_core::paths::DataFile::System
         .path(&apollia_core::paths::data_dir().unwrap_or_default());
     let row = tokio::task::spawn_blocking(move || {
@@ -138,15 +161,32 @@ pub async fn list_audio_input_devices() -> Result<Vec<String>, String> {
 /// Upserts the singleton row, then rebuilds the engine from the new config:
 /// enabling (with a model present) loads the model and arms the hotkey;
 /// disabling tears the engine down. A reload failure is logged, not fatal.
+/// Attached, the daemon persists the row and rebuilds its own engine.
 #[tauri::command]
 pub async fn update_stt_config(
     config: SttConfigView,
-    runtime: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     app: tauri::AppHandle,
-    stt_flow_state: State<'_, SttFlowState>,
 ) -> Result<(), String> {
-    validate_language(config.language.as_deref())?;
+    apollia_runtime::stt::validate_language(config.language.as_deref())
+        .map_err(|e| e.to_string())?;
+    match link.inner() {
+        RuntimeLink::Embedded(runtime) => {
+            let stt_flow_state = flow_state(&app)?;
+            update_local_config(config, runtime, &app, &stt_flow_state).await
+        }
+        RuntimeLink::Attached(remote) => Ok(daemon::update_config_on(remote, &config).await?),
+    }
+}
 
+/// Persists `config` to this machine's `system.db` and reloads the engine of
+/// the runtime in this process.
+async fn update_local_config(
+    config: SttConfigView,
+    runtime: &RuntimeHandle,
+    app: &tauri::AppHandle,
+    stt_flow_state: &SttFlowState,
+) -> Result<(), String> {
     let db_path = apollia_core::paths::DataFile::System
         .path(&apollia_core::paths::data_dir().unwrap_or_default());
 
@@ -186,7 +226,7 @@ pub async fn update_stt_config(
     );
 
     // Bring the running engine in line with the persisted config, no restart.
-    if let Err(e) = reload_stt_inner(&runtime, &app, &stt_flow_state).await {
+    if let Err(e) = reload_stt_inner(runtime, app, stt_flow_state).await {
         tracing::warn!(
             error = %e,
             detail = "the configuration is saved but the engine still runs the previous one",
@@ -195,32 +235,6 @@ pub async fn update_stt_config(
     }
 
     Ok(())
-}
-
-/// ISO 639-1 codes accepted as the dictation language hint.
-///
-/// A closed list rather than free text: the field used to accept anything an
-/// operator typed, so the same language could be spelled several ways across
-/// machines and a typo silently became auto-detection at the model. Documented
-/// in `reference/configuration.md`, and offered verbatim by the settings picker.
-pub(crate) const STT_LANGUAGES: [&str; 13] = [
-    "fr", "en", "es", "de", "it", "pt", "nl", "pl", "ru", "zh", "ja", "ko", "ar",
-];
-
-/// Validates the language hint against [`STT_LANGUAGES`].
-///
-/// `None` and the empty string both mean auto-detection and are accepted.
-fn validate_language(language: Option<&str>) -> Result<(), String> {
-    let Some(code) = language.map(str::trim).filter(|c| !c.is_empty()) else {
-        return Ok(());
-    };
-    if STT_LANGUAGES.contains(&code) {
-        return Ok(());
-    }
-    Err(format!(
-        "unsupported dictation language '{code}': expected one of {}, or none for auto-detection",
-        STT_LANGUAGES.join(", ")
-    ))
 }
 
 /// Whether the armed dictation configuration differs from the persisted one.
@@ -364,24 +378,45 @@ pub(crate) async fn reload_stt_inner(
 /// Rebuilds the STT engine from `system.db` and swaps it into the shared cell.
 ///
 /// Called by the frontend after a model is downloaded or STT is toggled so
-/// dictation works without restarting the app.
+/// dictation works without restarting the app. Attached, the daemon rebuilds
+/// its engine through `POST /api/v1/stt/reload`.
 #[tauri::command]
-pub async fn reload_stt(
-    runtime: State<'_, RuntimeHandle>,
-    app: tauri::AppHandle,
-    stt_flow_state: State<'_, SttFlowState>,
-) -> Result<(), String> {
-    reload_stt_inner(&runtime, &app, &stt_flow_state).await
+pub async fn reload_stt(link: State<'_, RuntimeLink>, app: tauri::AppHandle) -> Result<(), String> {
+    match link.inner() {
+        RuntimeLink::Embedded(runtime) => {
+            let stt_flow_state = flow_state(&app)?;
+            reload_stt_inner(runtime, &app, &stt_flow_state).await
+        }
+        RuntimeLink::Attached(remote) => Ok(daemon::reload_on(remote).await?),
+    }
+}
+
+/// The dictation flow of this window, managed only when the runtime runs in
+/// this process.
+fn flow_state(app: &tauri::AppHandle) -> Result<SttFlowState, String> {
+    app.try_state::<SttFlowState>()
+        .map(|state| Arc::clone(state.inner()))
+        .ok_or_else(|| "STT flow not available".to_owned())
 }
 
 /// Returns the current STT engine status.
 ///
 /// Returns an error string if the engine is not available (disabled or
-/// model failed to load).
+/// model failed to load). Attached, the status is the daemon's
+/// (`GET /api/v1/stt/status`), which answers `model_loaded: false` rather
+/// than an error when it holds no engine. In both modes the microphones are
+/// those of this machine.
 #[tauri::command]
-pub async fn get_stt_status(
-    runtime: State<'_, RuntimeHandle>,
-) -> Result<serde_json::Value, String> {
+pub async fn get_stt_status(link: State<'_, RuntimeLink>) -> Result<serde_json::Value, String> {
+    let value = match link.inner() {
+        RuntimeLink::Embedded(runtime) => local_engine_status(runtime).await?,
+        RuntimeLink::Attached(remote) => daemon::status_on(remote).await?,
+    };
+    Ok(with_input_available(value).await)
+}
+
+/// The status of the engine of the runtime in this process.
+async fn local_engine_status(runtime: &RuntimeHandle) -> Result<serde_json::Value, String> {
     let engine = runtime.stt_engine.read().await.clone().ok_or_else(|| {
         "STT engine not available (enable dictation and load a model in Settings)".to_owned()
     })?;
@@ -391,9 +426,11 @@ pub async fn get_stt_status(
         .await
         .ok_or_else(|| "STT engine actor has stopped".to_owned())?;
 
-    let mut value =
-        serde_json::to_value(&status).map_err(|e| format!("serialization error: {e}"))?;
+    serde_json::to_value(&status).map_err(|e| format!("serialization error: {e}"))
+}
 
+/// Adds `input_available` to an engine status.
+async fn with_input_available(mut value: serde_json::Value) -> serde_json::Value {
     // Enrich with live microphone availability so the UI can flag a machine
     // whose STT engine is loaded but has no capture device, instead of the
     // engine appearing armed while dictation silently does nothing.
@@ -408,8 +445,7 @@ pub async fn get_stt_status(
             serde_json::Value::Bool(!devices.is_empty()),
         );
     }
-
-    Ok(value)
+    value
 }
 
 /// Lists transcription history with optional limit.
@@ -505,35 +541,22 @@ pub async fn transcribe_file(
     Ok(row)
 }
 
-/// File extensions the whisper model scan accepts.
-///
-/// Must stay in step with the import picker in `SttEssentialSection.svelte`,
-/// which offers `bin` and `gguf`. Scanning for `.bin` alone meant an imported
-/// `.gguf` was written into the configuration, loaded by the engine, and yet
-/// absent from this list: the settings dropdown then had no option matching the
-/// configured model and rendered blank, while the status row beside it, fed by
-/// the engine rather than by this scan, showed the model correctly.
-const MODEL_EXTENSIONS: [&str; 2] = ["bin", "gguf"];
-
-/// Whether a path carries one of the accepted whisper model extensions.
-fn is_stt_model_file(path: &std::path::Path) -> bool {
-    path.extension()
-        .and_then(|e| e.to_str())
-        .map(|ext| {
-            let ext = ext.to_ascii_lowercase();
-            MODEL_EXTENSIONS.contains(&ext.as_str())
-        })
-        .unwrap_or(false)
-}
-
 /// Lists available STT model files in `~/.apollia/models/`.
 ///
-/// Scans for the extensions in [`MODEL_EXTENSIONS`] and returns their metadata.
+/// Scans for the extensions in [`apollia_runtime::stt::MODEL_EXTENSIONS`] and
+/// returns their metadata.
 /// Returns an empty list if the models directory does not exist.
+/// Attached, the daemon scans the same folder (`GET /api/v1/stt/models`).
 #[tauri::command]
-pub async fn list_stt_models(
-    _runtime: State<'_, RuntimeHandle>,
-) -> Result<Vec<SttModelInfo>, String> {
+pub async fn list_stt_models(link: State<'_, RuntimeLink>) -> Result<Vec<SttModelInfo>, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(_) => list_local_models(),
+        RuntimeLink::Attached(remote) => Ok(daemon::models_on(remote).await?),
+    }
+}
+
+/// The model files of this machine's models folder.
+fn list_local_models() -> Result<Vec<SttModelInfo>, String> {
     let models_dir = apollia_core::paths::data_dir()
         .unwrap_or_default()
         .join("models");
@@ -552,7 +575,7 @@ pub async fn list_stt_models(
             Err(_) => continue,
         };
         let path = entry.path();
-        if !is_stt_model_file(&path) {
+        if !apollia_runtime::stt::is_model_file(&path) {
             continue;
         }
 
@@ -561,15 +584,11 @@ pub async fn list_stt_models(
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         let size_bytes = entry.metadata().map(|m| m.len()).unwrap_or(0);
-        let size_mb = size_bytes as f64 / (1024.0 * 1024.0);
-        let language = detect_language_from_name(&name);
-
-        models.push(SttModelInfo {
+        models.push(SttModelInfo::from_file(
             name,
-            path: path.display().to_string(),
-            size_mb,
-            language,
-        });
+            path.display().to_string(),
+            size_bytes,
+        ));
     }
 
     Ok(models)
@@ -883,59 +902,6 @@ mod tests {
             detect_language_from_name("whisper-base-en-q4.bin"),
             Some("en".to_owned())
         );
-    }
-
-    #[test]
-    fn language_hint_accepts_only_the_documented_codes() {
-        // GIVEN the closed list documented in reference/configuration.md
-        // WHEN each code is validated
-        // THEN it is accepted
-        for code in STT_LANGUAGES {
-            assert!(validate_language(Some(code)).is_ok(), "{code} should pass");
-        }
-    }
-
-    #[test]
-    fn language_hint_rejects_free_text() {
-        // GIVEN the kind of value the old free-text field allowed
-        // WHEN it is validated
-        let err = validate_language(Some("francais")).expect_err("should reject");
-        // THEN it is refused, and the message names the accepted codes
-        assert!(err.contains("francais"));
-        assert!(err.contains("fr, en"));
-    }
-
-    #[test]
-    fn absent_language_means_auto_detection() {
-        // GIVEN no language, or an empty one left by a cleared field
-        // WHEN validated
-        // THEN both are accepted as auto-detection
-        assert!(validate_language(None).is_ok());
-        assert!(validate_language(Some("")).is_ok());
-        assert!(validate_language(Some("   ")).is_ok());
-    }
-
-    #[test]
-    fn model_scan_accepts_every_extension_the_import_picker_offers() {
-        // GIVEN the extensions the settings import dialog lets an operator pick
-        // WHEN the scan classifies a file of each
-        // THEN it is listed, so the model select can show the configured value
-        for ext in MODEL_EXTENSIONS {
-            let path = std::path::PathBuf::from(format!("/tmp/models/whisper.{ext}"));
-            assert!(is_stt_model_file(&path), "{ext} should be scanned");
-        }
-        assert!(is_stt_model_file(std::path::Path::new("/tmp/W.GGUF")));
-    }
-
-    #[test]
-    fn model_scan_ignores_unrelated_files() {
-        // GIVEN files that are not whisper models
-        // WHEN the scan classifies them
-        // THEN they are skipped
-        assert!(!is_stt_model_file(std::path::Path::new("/tmp/notes.txt")));
-        assert!(!is_stt_model_file(std::path::Path::new(
-            "/tmp/no-extension"
-        )));
     }
 
     #[test]
