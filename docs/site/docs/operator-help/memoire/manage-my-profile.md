@@ -97,6 +97,6 @@ In **Settings → Danger Zone**, the **Clear Memories** button deletes **all** A
 
 - **Fields stay empty after entry**: an agent may have been writing. Try again after a few seconds.
 - **The "Reset profile" button does not restart the onboarding**: use **Reset Onboarding** in Settings → Danger Zone instead. There is no Onboarding entry in the sidebar.
-- **An agent ignores your profile**: all Python agents have access to the profile by default. If the agent in question is third-party, open its code (or contact its author) to check that it reads `ctx.profile`.
+- **An agent ignores your profile**: an agent reads your profile only when the **profile** source is checked for it. Its package may check it by default; you decide with `apollia-os agent set <agent> sources profile` (list every source you want kept, the list replaces the package's), and `apollia-os agent show <agent>` tells you where it stands. Each read is recorded in the trace of the execution, with the agent, the profile and the time. Once the source is checked, if the agent is third-party, open its code (or contact its author) to check that it reads `ctx.profile`.
 
 > **Technical reference:** [Apollia reference](/reference) - canonical field schema, single source of truth for the global profile, Python SDK contract `ctx.profile.*`.
