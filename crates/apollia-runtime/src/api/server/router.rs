@@ -109,6 +109,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_hooks::list_hooks;
     use crate::api::routes_imap::imap_router;
     use crate::api::routes_llm::llm_routes;
+    use crate::api::routes_local_ai::local_ai_router;
     use crate::api::routes_mcp::mcp_router;
     use crate::api::routes_mcp_registry::mcp_registry_router;
     use crate::api::routes_mcp_secrets::mcp_secrets_router;
@@ -129,9 +130,9 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_resilience::resilience_router;
     use crate::api::routes_review::post_review;
     use crate::api::routes_sse::stream_task;
+    use crate::api::routes_stt::settings::{get_stt_config, reload_stt_engine, update_stt_config};
     use crate::api::routes_stt::{
-        delete_transcription, get_stt_config, list_models, list_transcriptions, reload_stt_engine,
-        stt_status, transcribe_audio, update_stt_config,
+        delete_transcription, list_models, list_transcriptions, stt_status, transcribe_audio,
     };
     use crate::api::routes_tasks::summaries::list_task_summaries;
     use crate::api::routes_tasks::{
@@ -370,6 +371,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(connections_router::<B>())
         .merge(profile_router::<B>())
         .merge(companion_router::<B>())
+        .merge(local_ai_router::<B>())
         .merge(tool_credentials_router::<B>())
         .merge(onboarding_router::<B>())
         .merge(artifacts_router::<B>())
@@ -388,5 +390,6 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(crate::api::routes_batches::batch_routes::<B>())
         .merge(crate::api::routes_workflows::workflow_routes::<B>())
         .merge(crate::api::routes_packages::package_routes::<B>())
+        .merge(crate::api::routes_agent_packages::agent_package_routes::<B>())
         .with_state(state)
 }

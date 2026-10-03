@@ -434,6 +434,9 @@ check_exit   "batch resume (off) → 2"          2     "$BIN" --socket "$OFFSOCK
 check_exit   "batch stop (off) → 2"            2     "$BIN" --socket "$OFFSOCK" batch stop 00000000-0000-0000-0000-000000000000
 check_exit   "batch retry --grant (off) → 2"   2     "$BIN" --socket "$OFFSOCK" batch retry 00000000-0000-0000-0000-000000000000 --grant gmail_send
 check_exit   "batch pause without id → 1"      1     "$BIN" --socket "$OFFSOCK" batch pause
+check_exit   "batch export (off) → 2"          2     "$BIN" --socket "$OFFSOCK" batch export 00000000-0000-0000-0000-000000000000 --format xlsx
+check_exit   "batch export --json (off) → 2"   2     "$BIN" --socket "$OFFSOCK" --json batch export 00000000-0000-0000-0000-000000000000 --format csv -o -
+check_exit   "batch export bad --format → 1"   1     "$BIN" --socket "$OFFSOCK" batch export 00000000-0000-0000-0000-000000000000 --format pdf
 # A workflow runs in the runtime: daemon off, each leaf refuses with 2; an
 # identifier without its package, a malformed --input, or a stop without
 # --confirm off a terminal is a usage error, 1, before any call.

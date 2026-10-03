@@ -329,6 +329,20 @@ runtime.
 Servers requiring OAuth go through a dedicated flow with its own, smaller
 response cap.
 
+Node.js is not shipped with Apollia, which keeps principle 2 (zero external
+dependency): nothing has to be installed on the machine beforehand. A pinned
+LTS release of Node.js is published in the signed digest manifest of the engine
+channel, the manifest signed in the minisign format with Apollia's dedicated
+distribution key (see [Local inference](#local-inference)), and it is
+downloaded the first time a server launched by `node` or `npx` needs it: the
+manifest signature is verified before any archive is requested, then the
+archive digest, then the archive is extracted into the engine store. Such a
+server then runs on that Node.js by its absolute path, never through the
+`PATH`; while none is installed, its launch fails with a typed "Node.js
+required" error. A machine without network imports Node.js from a disk,
+through the same verification. The npm packages of the servers install from a
+lockfile carrying an integrity digest for each package.
+
 ## Connectors {#connectors}
 
 Google and Microsoft connectors authenticate through OAuth2 with PKCE. No
@@ -365,6 +379,20 @@ The cost is named: two crates and their small trees (`imap-proto`, `hashify`,
 `stop-token`, `async-channel`) enter every build, for a protocol whose
 servers vary in how strictly they follow it. A server that misreads a command
 answers a typed protocol error rather than a crash.
+
+## Batch export {#batch-export}
+
+The result of a batch is exported as an Excel workbook, as CSV or as JSON, one
+row per item. CSV and JSON are written without a dependency. The workbook is
+written by `rust_xlsxwriter` (MIT or Apache-2.0), a writer only, with no
+network access, pinned to 0.92.0: it is the last release that depends on the
+major version of `zip` the workspace already carries, and a later one would
+put two versions of `zip` in every build. It adds three crates to the lock
+file, itself, `zopfli` and `zlib-rs` (see [Package archive](#package-archive)).
+
+`rust_xlsxwriter` cannot change a workbook that already exists. Writing results
+back into the file a batch was read from is decided with the reader of
+spreadsheets, not here.
 
 ## Agent-to-agent messaging {#agent-messaging}
 
@@ -591,9 +619,14 @@ already in the tree through the desktop updater; no crate entered the lock
 file. `zip` is compiled with deflate only: no encryption, no bzip2, lzma, zstd
 or deflate64. `flate2` is declared beside it for one reason, to choose the
 pure-Rust backend (`miniz_oxide`) of that deflate: `zip` leaves the backend to
-the caller, `flate2` refuses to compile without one, and the `deflate` feature
-of `zip` that would pick one itself pulls in `zopfli` and `zlib-rs`, which the
-tree does not hold.
+the caller, and `flate2` refuses to compile without one.
+
+The Excel export of a batch (see [Batch export](#batch-export)) changed one
+part of this. Its writer turns on the `deflate` feature of `zip`, which brings
+two pure-Rust crates, `zopfli` (Apache-2.0) and `zlib-rs` (Zlib), and makes
+`zlib-rs` the deflate backend of `flate2` across the build. Both were accepted
+rather than writing the workbook by hand over `zip` alone. The read bounds
+above are unchanged.
 
 The packages Apollia ships inside its own binary, the in-app guide first, are
 not signed. The desktop assembles each of them on start from files embedded at

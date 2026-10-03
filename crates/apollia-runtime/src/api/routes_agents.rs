@@ -6,7 +6,7 @@
 //! Agent loading is abstracted via the [`AgentLoader`] trait to keep
 //! `apollia-runtime` decoupled from PyO3/apollia-aip.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use axum::extract::{Path as AxumPath, Query, State};
@@ -33,6 +33,19 @@ pub trait AgentLoader: Send + Sync {
     ///
     /// Returns a human-readable error string on failure.
     fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String>;
+
+    /// Like [`Self::load_and_validate`], with `extra_sys_paths` put on
+    /// `sys.path` before the import: the `site-packages` of the virtualenv an
+    /// agent package built for this agent. The default ignores them, which
+    /// suits a loader that imports no Python.
+    fn load_and_validate_with(
+        &self,
+        path: &Path,
+        extra_sys_paths: &[PathBuf],
+    ) -> Result<AgentManifest, String> {
+        let _ = extra_sys_paths;
+        self.load_and_validate(path)
+    }
 }
 
 /// Factory for creating per-agent execution backends.

@@ -411,7 +411,7 @@ pub(crate) fn setup_stt_hotkey(
 
     let flow = Arc::new(crate::stt::flow::SttFlow::new(
         stt_cfg.clone(),
-        runtime_handle.stt_engine.clone(),
+        crate::stt::transcriber::Transcriber::Local(runtime_handle.stt_engine.clone()),
         runtime_handle.event_sender.clone(),
         app.clone(),
     ));

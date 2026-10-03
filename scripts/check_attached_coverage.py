@@ -89,10 +89,16 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # then at 61 once the artifacts of a conversation were served by the daemon,
 # then at 58 once the timeline, the tool audit and the mailbox of the
 # Observability view were, then at 54 once the assists around the chat
-# (rewrite, next steps, automation, coaching) were, then at 50 once the
-# companion read its preference and opened its guide session through the
-# daemon.
-EMBEDDED_ONLY_CEILING = 50
+# (rewrite, next steps, automation, coaching) were, then at 49 once the
+# transcription history and the transcription of a file reached the daemon and
+# the dictation was named a command of the window, then at 44 once the reading
+# side of the Model Hub (hardware, search, cards, installed models,
+# recommendation) reached the daemon, then at 39 once the local AI could be
+# installed at onboarding through the daemon, then at 34 once the agent
+# packages were installed, listed and uninstalled through the daemon, then at
+# 30 once the companion read its preference and opened its guide session
+# through the daemon.
+EMBEDDED_ONLY_CEILING = 30
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

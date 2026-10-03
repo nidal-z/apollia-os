@@ -516,6 +516,273 @@
         }
       }
     },
+    "/api/v1/agent-packages/installed": {
+      "get": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`GET /api/v1/agent-packages/installed`: the installed packages.",
+        "operationId": "list_agent_packages",
+        "responses": {
+          "200": {
+            "description": "The installed packages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentPackageListItem"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "agents.db cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`POST /api/v1/agent-packages/installed`: install a package folder.",
+        "description": "Python dependencies need `deps_confirmed`; without it the answer is a\n`428` whose message is `DEPS_CONFIRMATION_REQUIRED:<count>:<list>`. The\nagents installed take tasks at once, and the triggers written are loaded.",
+        "operationId": "install_agent_package",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentPackageInstallBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPackageInstallReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid manifest, or a name that is a path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The copy, a virtualenv or an agent import failed; nothing is left",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "The Python dependencies are not confirmed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "agents.db refused a row",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent-packages/installed/{name}": {
+      "get": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`GET /api/v1/agent-packages/installed/{name}`: one installed package, its\nmanifest as recorded.",
+        "operationId": "get_agent_package",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Package name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPackageDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A name that is a path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "agents.db cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package,\nits agents, their virtualenvs and its folder, best effort at each step.",
+        "operationId": "uninstall_agent_package",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Package name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uninstalled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPackageUninstalled"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A name that is a path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nothing of the package was found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "agents.db cannot be opened",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent-packages/preview": {
+      "post": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`POST /api/v1/agent-packages/preview`: what the package folder contains,\nits agents, its triggers and its Python dependencies. Nothing is written;\na manifest that breaks an invariant answers a preview marked invalid.",
+        "operationId": "preview_agent_package",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentPackagePreviewBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPackagePreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "agent.toml cannot be read or parsed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/agents": {
       "get": {
         "tags": [
@@ -1968,6 +2235,93 @@
         }
       }
     },
+    "/api/v1/batches/{id}/export": {
+      "get": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`GET /api/v1/batches/{id}/export`: the result of a batch as a file.",
+        "description": "One row per item, in source order: the input columns of the item, then\nits output, its status and the sources its answer cites. `xlsx` is a\nworkbook of one sheet, `csv` is UTF-8 with one header row, `json` is one\ndocument with the batch and an object per item. The file is offered as\n`batch-<id>.<format>`. A batch still running exports the items as they\nstand.",
+        "operationId": "export_batch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Batch id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "`xlsx`, `csv` or `json`.",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ExportFormat"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch as an Excel workbook, CSV or JSON file",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A format other than xlsx, csv or json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/batches/{id}/pause": {
       "post": {
         "tags": [
@@ -3098,6 +3452,64 @@
           },
           "502": {
             "description": "The mirror could not be reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "This build carries no distribution key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/engines/nodejs": {
+      "get": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "node_runtime_state",
+        "responses": {
+          "200": {
+            "description": "Where Node.js stands",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeRuntimeState"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "ensure_node_runtime",
+        "responses": {
+          "200": {
+            "description": "Node.js ready, or its download started or running; a failure is read from the state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeRuntimeState"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Settings file unreadable",
             "content": {
               "application/json": {
                 "schema": {
@@ -4838,6 +5250,29 @@
       }
     },
     "/api/v1/llm/installed-models": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/installed-models`",
+        "description": "The installed models, from the model index, each marked when an LLM\nbackend or the dictation engine references it.",
+        "operationId": "list_installed_models",
+        "responses": {
+          "200": {
+            "description": "The installed models, sorted by name"
+          },
+          "500": {
+            "description": "The model index can be neither read nor built",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "tags": [
           "model_hub"
@@ -5344,6 +5779,82 @@
           },
           "503": {
             "description": "HuggingFace unreachable, so there is no catalogue to rank",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/recommendations": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/recommendations?limit=...&n_ctx=...&fits_only=...`",
+        "description": "The recommendation as the desktop shows it: the ranked list, or the\nunreachable Hub and the empty ranking kept apart from it as a `status`,\neach with the hardware and the editorial selection. Unlike\n`GET /api/v1/llm/recommend`, an unreachable Hub is a `200` carrying the\nselection, since the selection needs no network.",
+        "operationId": "get_recommendations",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of ranked models, at most 10",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "n_ctx",
+            "in": "query",
+            "description": "Context window the cache is sized against",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "fits_only",
+            "in": "query",
+            "description": "Keep, in the editorial selection, only the sizes that fit this machine",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "hf_token",
+            "in": "query",
+            "description": "HuggingFace token for gated models",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The outcome: status ok, unreachable or empty, with the hardware and the editorial selection"
+          },
+          "400": {
+            "description": "A malformed query parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The hardware probe or the shipped model table failed",
             "content": {
               "application/json": {
                 "schema": {
@@ -6008,6 +6519,158 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LlmStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/local-ai/dictation": {
+      "post": {
+        "tags": [
+          "local_ai"
+        ],
+        "summary": "`POST /api/v1/local-ai/dictation`: makes a Whisper file the dictation model\nand marks the onboarding progress as dictation-ready.",
+        "operationId": "setup_dictation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupDictationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The dictation model stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DictationConfigured"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The onboarding store did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/local-ai/llm": {
+      "post": {
+        "tags": [
+          "local_ai"
+        ],
+        "summary": "`POST /api/v1/local-ai/llm`: copies a GGUF file into the models folder and\nmakes it the `local` backend.",
+        "description": "The copy runs in its own task, so a client that stops waiting does not\nleave half a model in the folder.",
+        "operationId": "setup_local_llm",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupLlmBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Where the model is stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupLlmResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No such file, or not a GGUF file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/local-ai/models/gguf": {
+      "get": {
+        "tags": [
+          "local_ai"
+        ],
+        "summary": "`GET /api/v1/local-ai/models/gguf`: the GGUF models already on disk,\nlargest first, each graded for this machine.",
+        "operationId": "scan_gguf_models",
+        "responses": {
+          "200": {
+            "description": "The GGUF files found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GgufModelInfo"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/local-ai/models/whisper": {
+      "get": {
+        "tags": [
+          "local_ai"
+        ],
+        "summary": "`GET /api/v1/local-ai/models/whisper`: the Whisper models already on disk,\neach graded for this machine.",
+        "operationId": "scan_whisper_models",
+        "responses": {
+          "200": {
+            "description": "The Whisper files found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WhisperModelInfo"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/local-ai/system": {
+      "get": {
+        "tags": [
+          "local_ai"
+        ],
+        "summary": "`GET /api/v1/local-ai/system`: memory, system and accelerator of the\nmachine the daemon runs on.",
+        "operationId": "get_local_ai_system",
+        "responses": {
+          "200": {
+            "description": "What this machine can run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemInfo"
                 }
               }
             }
@@ -11092,6 +11755,67 @@
         }
       }
     },
+    "/api/v1/sessions/{id}/turns/{turn_id}/llm-calls": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/turns/{turn_id}/llm-calls`.",
+        "operationId": "get_turn_llm_calls",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Conversation identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "turn_id",
+            "in": "path",
+            "description": "Identifier of the answer message of the turn",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The model calls of the turn, in order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TurnLlmCallsResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Query failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No LLM call repository configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{id}/workspace": {
       "get": {
         "tags": [
@@ -11367,10 +12091,10 @@
           "stt"
         ],
         "summary": "`POST /api/v1/stt/transcribe`, transcribe an uploaded audio file.",
-        "description": "Accepts `multipart/form-data` with:\n- `audio` (required): WAV audio file\n- `language` (optional): language hint (ISO 639-1 code)\n\nReturns `200 OK` with the persisted transcript row (`TranscriptRow`).\nReturns `400 Bad Request` on missing or invalid audio.\nReturns `503 Service Unavailable` when the engine is absent.",
+        "description": "Accepts `multipart/form-data` with:\n- `audio` (required): WAV audio file\n- `language` (optional): language hint (ISO 639-1 code)\n- `source` (optional): what the audio is, `api` (default), `file` or\n  `hotkey`, the tag the history shows; the desktop attached to this runtime\n  sends a file it read or a dictation it captured\n\nReturns `200 OK` with the persisted transcript row (`TranscriptRow`).\nReturns `400 Bad Request` on missing or invalid audio, or an unknown source.\nReturns `503 Service Unavailable` when the engine is absent.",
         "operationId": "transcribe_audio",
         "requestBody": {
-          "description": "Multipart form with an `audio` WAV field (required) and an optional `language` hint",
+          "description": "Multipart form with an `audio` WAV field (required), an optional `language` hint and an optional `source` tag",
           "content": {
             "multipart/form-data": {
               "schema": {
@@ -11387,6 +12111,15 @@
                   "language": {
                     "type": "string",
                     "description": "Language hint, an ISO 639-1 code"
+                  },
+                  "source": {
+                    "type": "string",
+                    "description": "What the audio is, the tag the history shows: api (default), file or hotkey",
+                    "enum": [
+                      "api",
+                      "file",
+                      "hotkey"
+                    ]
                   }
                 }
               }
@@ -13994,6 +14727,374 @@
           "interface"
         ]
       },
+      "AgentPackageAgent": {
+        "type": "object",
+        "description": "An agent of a package.",
+        "required": [
+          "name",
+          "role",
+          "entry"
+        ],
+        "properties": {
+          "entry": {
+            "type": "string",
+            "description": "Entry point, relative to the package folder."
+          },
+          "name": {
+            "type": "string",
+            "description": "Agent name."
+          },
+          "role": {
+            "type": "string",
+            "description": "`director`, `worker` or `assistant`."
+          }
+        }
+      },
+      "AgentPackageDetail": {
+        "type": "object",
+        "description": "An installed package, in full.",
+        "required": [
+          "name",
+          "version",
+          "description",
+          "author",
+          "agents",
+          "installed_at",
+          "updated_at",
+          "root_path",
+          "root_missing",
+          "manifest"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageAgent"
+            },
+            "description": "Its agents."
+          },
+          "author": {
+            "type": "string",
+            "description": "Author from its manifest."
+          },
+          "description": {
+            "type": "string",
+            "description": "Description from its manifest."
+          },
+          "installed_at": {
+            "type": "string",
+            "description": "When it was installed."
+          },
+          "manifest": {
+            "type": "object",
+            "description": "The manifest as recorded."
+          },
+          "name": {
+            "type": "string",
+            "description": "Package name."
+          },
+          "root_missing": {
+            "type": "boolean",
+            "description": "The folder is gone from the disk."
+          },
+          "root_path": {
+            "type": "string",
+            "description": "Its folder."
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "When it was last written."
+          },
+          "version": {
+            "type": "string",
+            "description": "Installed version."
+          }
+        }
+      },
+      "AgentPackageInstallBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/agent-packages/installed`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "deps_confirmed": {
+            "type": "boolean",
+            "description": "The user accepted the Python dependencies the package installs."
+          },
+          "path": {
+            "type": "string",
+            "description": "The package folder on this machine, the one holding `agent.toml`."
+          },
+          "trigger_configs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageTriggerConfig"
+            },
+            "description": "What the user gave each trigger, a webhook secret for now."
+          }
+        }
+      },
+      "AgentPackageInstallReport": {
+        "type": "object",
+        "description": "What an installation did.",
+        "required": [
+          "name",
+          "version",
+          "agent_count",
+          "trigger_count",
+          "trigger_errors"
+        ],
+        "properties": {
+          "agent_count": {
+            "type": "integer",
+            "description": "Agents recorded.",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string",
+            "description": "Package name."
+          },
+          "trigger_count": {
+            "type": "integer",
+            "description": "Triggers written.",
+            "minimum": 0
+          },
+          "trigger_errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Triggers refused, one line each."
+          },
+          "version": {
+            "type": "string",
+            "description": "Installed version."
+          }
+        }
+      },
+      "AgentPackageListItem": {
+        "type": "object",
+        "description": "An installed package in the listing.",
+        "required": [
+          "name",
+          "version",
+          "description",
+          "agent_count",
+          "agents",
+          "installed_at",
+          "root_path",
+          "root_missing"
+        ],
+        "properties": {
+          "agent_count": {
+            "type": "integer",
+            "description": "Number of agents.",
+            "minimum": 0
+          },
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageAgent"
+            },
+            "description": "Its agents."
+          },
+          "description": {
+            "type": "string",
+            "description": "Description from its manifest."
+          },
+          "installed_at": {
+            "type": "string",
+            "description": "When it was installed."
+          },
+          "name": {
+            "type": "string",
+            "description": "Package name."
+          },
+          "root_missing": {
+            "type": "boolean",
+            "description": "The folder is gone from the disk."
+          },
+          "root_path": {
+            "type": "string",
+            "description": "Its folder."
+          },
+          "version": {
+            "type": "string",
+            "description": "Installed version."
+          }
+        }
+      },
+      "AgentPackagePreview": {
+        "type": "object",
+        "description": "What a package folder contains, read without writing anything.",
+        "required": [
+          "name",
+          "version",
+          "description",
+          "author",
+          "agents",
+          "triggers",
+          "trigger_count",
+          "pip_packages",
+          "valid"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageAgent"
+            },
+            "description": "Its agents; empty when the manifest is invalid."
+          },
+          "author": {
+            "type": "string",
+            "description": "Author."
+          },
+          "description": {
+            "type": "string",
+            "description": "Description."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it does not, when it does not."
+          },
+          "name": {
+            "type": "string",
+            "description": "Package name."
+          },
+          "pip_packages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The Python dependencies it installs, every agent together."
+          },
+          "trigger_count": {
+            "type": "integer",
+            "description": "Number of triggers.",
+            "minimum": 0
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageTrigger"
+            },
+            "description": "Its triggers; empty when the manifest is invalid."
+          },
+          "valid": {
+            "type": "boolean",
+            "description": "The manifest holds its invariants."
+          },
+          "version": {
+            "type": "string",
+            "description": "Version."
+          }
+        }
+      },
+      "AgentPackagePreviewBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/agent-packages/preview`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "The package folder on this machine, the one holding `agent.toml`."
+          }
+        }
+      },
+      "AgentPackageTrigger": {
+        "type": "object",
+        "description": "A trigger a package declares, as the preview shows it.",
+        "required": [
+          "id",
+          "source_type",
+          "agent",
+          "needs_config",
+          "enabled"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string",
+            "description": "The agent it starts."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether it starts enabled."
+          },
+          "every": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Interval (interval triggers)."
+          },
+          "id": {
+            "type": "string",
+            "description": "Trigger identifier."
+          },
+          "needs_config": {
+            "type": "boolean",
+            "description": "A webhook without its secret: the user gives one at install."
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Watched path (file_watch triggers)."
+          },
+          "schedule": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cron expression (cron triggers)."
+          },
+          "source_type": {
+            "type": "string",
+            "description": "`cron`, `interval`, `oneshot`, `file_watch` or `webhook`."
+          }
+        }
+      },
+      "AgentPackageTriggerConfig": {
+        "type": "object",
+        "description": "What the user gives a trigger at install, a webhook secret for now.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Trigger identifier."
+          },
+          "secret": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "HMAC secret of a webhook."
+          }
+        }
+      },
+      "AgentPackageUninstalled": {
+        "type": "object",
+        "description": "Answer of `DELETE /api/v1/agent-packages/installed/{name}`.",
+        "required": [
+          "uninstalled"
+        ],
+        "properties": {
+          "uninstalled": {
+            "type": "string",
+            "description": "The package removed."
+          }
+        }
+      },
       "AgentPreview": {
         "type": "object",
         "description": "One agent of the package.",
@@ -16061,6 +17162,26 @@
           }
         }
       },
+      "DictationConfigured": {
+        "type": "object",
+        "description": "What the dictation setup did.",
+        "required": [
+          "model_path"
+        ],
+        "properties": {
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The transcription language stored, `None` when none is set."
+          },
+          "model_path": {
+            "type": "string",
+            "description": "The Whisper model file dictation now reads."
+          }
+        }
+      },
       "DictationModelsResponse": {
         "type": "object",
         "description": "The dictation category of the registry, and the entry for this machine.",
@@ -16334,7 +17455,8 @@
         "description": "An inference engine the store can hold.",
         "enum": [
           "llama-server",
-          "vllm-mlx"
+          "vllm-mlx",
+          "nodejs"
         ]
       },
       "EngineSettingsBody": {
@@ -16432,6 +17554,15 @@
             "description": "List of global events."
           }
         }
+      },
+      "ExportFormat": {
+        "type": "string",
+        "description": "The format a batch is exported in.",
+        "enum": [
+          "xlsx",
+          "csv",
+          "json"
+        ]
       },
       "FireResponse": {
         "type": "object",
@@ -16582,6 +17713,41 @@
           "title": {
             "type": "string",
             "description": "The title stored on the session."
+          }
+        }
+      },
+      "GgufModelInfo": {
+        "type": "object",
+        "description": "GGUF model file detected on the local filesystem.",
+        "required": [
+          "path",
+          "filename",
+          "size_bytes",
+          "size_human",
+          "recommended"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "Filename of the model."
+          },
+          "path": {
+            "type": "string",
+            "description": "Absolute path to the model file."
+          },
+          "recommended": {
+            "type": "boolean",
+            "description": "Whether the memory estimator says this model fits this machine."
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "File size in bytes.",
+            "minimum": 0
+          },
+          "size_human": {
+            "type": "string",
+            "description": "Human-readable file size (e.g. `\"4.2 GB\"`)."
           }
         }
       },
@@ -17880,6 +19046,100 @@
             "description": "The cards, in display order."
           }
         }
+      },
+      "NodeRuntimeState": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Not installed, and no download running.",
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "absent"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Being downloaded.",
+            "required": [
+              "received",
+              "total",
+              "state"
+            ],
+            "properties": {
+              "received": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Bytes of the archive received so far.",
+                "minimum": 0
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "downloading"
+                ]
+              },
+              "total": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Size of the archive the verified manifest states; 0 until the\nmanifest is verified.",
+                "minimum": 0
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Installed and verified.",
+            "required": [
+              "tag",
+              "path",
+              "state"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Directory it was extracted into."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "ready"
+                ]
+              },
+              "tag": {
+                "type": "string",
+                "description": "Release tag, `v22.11.0`."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The last download failed; asking for Node.js again retries it.",
+            "required": [
+              "error",
+              "state"
+            ],
+            "properties": {
+              "error": {
+                "type": "string",
+                "description": "Why, readable as is."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "failed"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Where Node.js stands on this machine."
       },
       "OauthClientIdStatus": {
         "type": "object",
@@ -19932,6 +21192,66 @@
           }
         }
       },
+      "SetupDictationBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/local-ai/dictation`.",
+        "required": [
+          "modelPath"
+        ],
+        "properties": {
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The language of the interface, stored only when none is set yet."
+          },
+          "modelPath": {
+            "type": "string",
+            "description": "Absolute path of the Whisper model file chosen."
+          }
+        }
+      },
+      "SetupLlmBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/local-ai/llm`.",
+        "required": [
+          "ggufPath"
+        ],
+        "properties": {
+          "contextWindow": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The context window chosen, in tokens; absent keeps the stored one.",
+            "minimum": 0
+          },
+          "ggufPath": {
+            "type": "string",
+            "description": "Absolute path of the GGUF file chosen."
+          }
+        }
+      },
+      "SetupLlmResult": {
+        "type": "object",
+        "description": "What the local language model setup did.",
+        "required": [
+          "model_path",
+          "quantization"
+        ],
+        "properties": {
+          "model_path": {
+            "type": "string",
+            "description": "Absolute path where the model is stored."
+          },
+          "quantization": {
+            "type": "string",
+            "description": "Inferred quantization from the filename (e.g. `\"q8_0\"`, `\"q4_k_m\"`)."
+          }
+        }
+      },
       "ShutdownResponse": {
         "type": "object",
         "description": "Response body for the shutdown endpoint.",
@@ -20330,6 +21650,49 @@
               "null"
             ],
             "description": "Skill to run, for an agent that declares several. Omitted, the agent's\nown dispatch picks the handler as before."
+          }
+        }
+      },
+      "SystemInfo": {
+        "type": "object",
+        "description": "System information used to compute model recommendations in the AI setup step.",
+        "required": [
+          "total_ram_gb",
+          "available_ram_gb",
+          "os",
+          "arch",
+          "gpu_available"
+        ],
+        "properties": {
+          "arch": {
+            "type": "string",
+            "description": "CPU architecture identifier (e.g. `\"aarch64\"`, `\"x86_64\"`)."
+          },
+          "available_ram_gb": {
+            "type": "number",
+            "format": "double",
+            "description": "Available RAM in gigabytes."
+          },
+          "gpu_available": {
+            "type": "boolean",
+            "description": "Whether a GPU is available (basic heuristic)."
+          },
+          "gpu_vram_gb": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "The accelerator's dedicated memory in gigabytes, when the engine's\ndevice list names one. `None` on a processor-only machine and on\nplatforms where the heuristic above answers without a device list."
+          },
+          "os": {
+            "type": "string",
+            "description": "Operating system identifier (e.g. `\"macos\"`, `\"linux\"`)."
+          },
+          "total_ram_gb": {
+            "type": "number",
+            "format": "double",
+            "description": "Total RAM in gigabytes."
           }
         }
       },
@@ -21335,6 +22698,92 @@
           }
         }
       },
+      "TurnLlmCall": {
+        "type": "object",
+        "description": "One model call of a turn.",
+        "required": [
+          "backend",
+          "model"
+        ],
+        "properties": {
+          "backend": {
+            "type": "string",
+            "description": "Logical backend name."
+          },
+          "completion_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Tokens generated.",
+            "minimum": 0
+          },
+          "finish_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the call ended: `stop`, `tool_calls`, `length`, `error` or\n`cancelled`."
+          },
+          "generation_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Time spent generating in milliseconds; `null` when not measured.",
+            "minimum": 0
+          },
+          "latency_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Duration of the call in milliseconds, from dispatch to its last chunk.",
+            "minimum": 0
+          },
+          "model": {
+            "type": "string",
+            "description": "Model identifier."
+          },
+          "prompt_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Tokens read.",
+            "minimum": 0
+          },
+          "ttft_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Time to first token in milliseconds; `null` when not measured.",
+            "minimum": 0
+          }
+        }
+      },
+      "TurnLlmCallsResponse": {
+        "type": "object",
+        "description": "Response body for `GET /api/v1/sessions/{id}/turns/{turn_id}/llm-calls`.",
+        "required": [
+          "calls"
+        ],
+        "properties": {
+          "calls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TurnLlmCall"
+            },
+            "description": "The calls, in the order they were made. Empty for a turn that made\nnone or that is unknown."
+          }
+        }
+      },
       "UnloadModelRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/llm/loaded-models/unload`.",
@@ -21767,6 +23216,41 @@
           }
         }
       },
+      "WhisperModelInfo": {
+        "type": "object",
+        "description": "Whisper GGML model file detected on the local filesystem.",
+        "required": [
+          "path",
+          "filename",
+          "size_bytes",
+          "model_size",
+          "recommended"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "Filename of the model."
+          },
+          "model_size": {
+            "type": "string",
+            "description": "Size variant parsed from the filename (`tiny`, `base`, `small`, `medium`, `large`)."
+          },
+          "path": {
+            "type": "string",
+            "description": "Absolute path to the model file."
+          },
+          "recommended": {
+            "type": "boolean",
+            "description": "Whether the dictation verdict says this file fits this machine."
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "File size in bytes.",
+            "minimum": 0
+          }
+        }
+      },
       "WorkflowErrorResponse": {
         "type": "object",
         "description": "Error body of the workflow routes.",
@@ -22092,6 +23576,10 @@
       "description": "The in-app companion and its guide session"
     },
     {
+      "name": "local_ai",
+      "description": "Installation of the local AI: the machine, the models on disk, the models chosen"
+    },
+    {
       "name": "onboarding",
       "description": "The onboarding: its phases, its profile and its conversation"
     },
@@ -22104,16 +23592,16 @@
       "description": "The memory of the agents, read and upkept per namespace"
     },
     {
+      "name": "lifecycle",
+      "description": "Resets and erasures of the installation"
+    },
+    {
       "name": "connectors",
       "description": "Native connector accounts and their consent"
     },
     {
       "name": "webhooks",
       "description": "Inbound webhooks"
-    },
-    {
-      "name": "lifecycle",
-      "description": "Resets and erasures of the installation"
     }
   ]
 }

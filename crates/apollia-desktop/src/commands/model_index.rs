@@ -10,48 +10,14 @@
 //! Every function takes the models directory as an argument so the tests run
 //! on a temporary folder, without touching the process environment.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use apollia_llm::model_index::INDEX_FILE_NAME;
-use apollia_llm::{ModelIndex, ModelIndexError, ModelOrigin};
+use apollia_llm::{ModelIndexError, ModelOrigin};
+use apollia_runtime::installed_models::load_or_empty;
 
-/// Where the index of `models_dir` is kept.
-pub(crate) fn index_path(models_dir: &Path) -> PathBuf {
-    models_dir.join(INDEX_FILE_NAME)
-}
-
-/// Read the persisted index, or start from an empty one when the file is
-/// unreadable: the disk is the truth and the next rebuild restores the rest.
-fn load_or_empty(models_dir: &Path) -> ModelIndex {
-    let path = index_path(models_dir);
-    ModelIndex::load(&path).unwrap_or_else(|e| {
-        tracing::event!(
-            tracing::Level::WARN,
-            path = %path.display(),
-            error = %e,
-            "model.index.load.failed"
-        );
-        ModelIndex::default()
-    })
-}
-
-/// Reconcile the index with the disk and persist it. Run at startup.
-pub(crate) fn reconcile(models_dir: &Path) -> Result<ModelIndex, ModelIndexError> {
-    let mut index = load_or_empty(models_dir);
-    index.rebuild(models_dir)?;
-    index.save(&index_path(models_dir))?;
-    Ok(index)
-}
-
-/// The index the Hub lists. Built from the disk the first time, when no index
-/// has been written yet.
-pub(crate) fn current(models_dir: &Path) -> Result<ModelIndex, ModelIndexError> {
-    if index_path(models_dir).is_file() {
-        Ok(load_or_empty(models_dir))
-    } else {
-        reconcile(models_dir)
-    }
-}
+/// Where the index is kept, how it is read and reconciled: shared with the
+/// daemon, which lists the same models.
+pub(crate) use apollia_runtime::installed_models::{current, index_path, reconcile};
 
 /// Add an imported model with its digest and whether that digest matched a
 /// known one.

@@ -5,6 +5,7 @@
 //! secrets go through the shared `apollia_auth::SecretStore`.
 
 pub mod enrichments;
+pub mod npm_server;
 pub mod origin;
 pub mod overrides;
 pub mod python_server;

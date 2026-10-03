@@ -73,7 +73,16 @@ impl AgentLoader for AIPAgentLoader {
         // resolves the SDK + the enclosing package root the same way
         // (otherwise installed agents that validated fine through the CLI
         // would 400 the moment the runtime tries to load them).
-        let extras = crate::community::validation_sys_paths(path);
+        self.load_and_validate_with(path, &[])
+    }
+
+    fn load_and_validate_with(
+        &self,
+        path: &Path,
+        extra_sys_paths: &[PathBuf],
+    ) -> Result<AgentManifest, String> {
+        let mut extras = extra_sys_paths.to_vec();
+        extras.extend(crate::community::validation_sys_paths(path));
         let module = apollia_aip::loader::load_agent_module_with_sys_paths(path, &extras)
             .map_err(|e| e.to_string())?;
         let validated =

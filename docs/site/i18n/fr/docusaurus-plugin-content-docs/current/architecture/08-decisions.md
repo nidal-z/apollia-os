@@ -353,6 +353,20 @@ mal se dégrade lui-même, pas le runtime.
 Les serveurs qui exigent OAuth passent par un flux dédié, avec son propre
 plafond de réponse, plus petit.
 
+Node.js n'est pas embarqué dans Apollia, ce qui tient le principe 2 (zéro
+dépendance externe) : rien n'est à installer sur le poste au préalable. Une
+version LTS épinglée de Node.js est publiée dans le manifeste d'empreintes
+signé du canal des moteurs, signé au format minisign avec la clé de
+distribution dédiée d'Apollia (voir [Inférence locale](#local-inference)), et
+elle se télécharge au premier serveur lancé par `node` ou `npx` qui en a
+besoin : la signature du manifeste est vérifiée avant toute requête d'archive,
+puis l'empreinte de l'archive, puis l'archive est extraite dans le magasin des
+moteurs. Un tel serveur tourne alors sur ce Node.js par son chemin absolu,
+jamais par le `PATH` ; tant qu'aucun n'est installé, son lancement échoue sur
+une erreur typée « Node.js requis ». Un poste sans réseau importe Node.js depuis
+un disque, par la même vérification. Les paquets npm des serveurs s'installent
+depuis un verrou qui porte une empreinte d'intégrité par paquet.
+
 ## Connecteurs {#connectors}
 
 Les connecteurs Google et Microsoft s'authentifient en OAuth2 avec PKCE. Aucun
@@ -390,6 +404,21 @@ Le coût est nommé : deux crates et leurs petits arbres (`imap-proto`, `hashify
 `stop-token`, `async-channel`) entrent dans chaque compilation, pour un
 protocole dont les serveurs varient dans leur rigueur. Un serveur qui comprend
 mal une commande donne une erreur de protocole typée, pas un plantage.
+
+## Export d'un lot {#batch-export}
+
+Le résultat d'un lot s'exporte en classeur Excel, en CSV ou en JSON, une ligne
+par élément. CSV et JSON s'écrivent sans dépendance. Le classeur est écrit par
+`rust_xlsxwriter` (MIT ou Apache-2.0), un écrivain seul, sans accès réseau,
+épinglé à 0.92.0 : c'est la dernière version qui dépend de la version majeure
+de `zip` que l'espace de travail porte déjà, et une version plus récente
+mettrait deux versions de `zip` dans chaque build. Il ajoute trois crates au
+fichier de verrouillage, lui-même, `zopfli` et `zlib-rs` (voir
+[Archive de paquet](#package-archive)).
+
+`rust_xlsxwriter` ne sait pas modifier un classeur existant. Écrire les
+résultats dans le fichier d'où un lot a été lu se décide avec le lecteur de
+tableurs, pas ici.
 
 ## Messagerie entre agents {#agent-messaging}
 
@@ -638,9 +667,15 @@ déjà dans l'arbre par le programme de mise à jour du bureau ; aucune crate n'
 entrée dans le fichier de verrouillage. `zip` est compilée avec deflate seul :
 ni chiffrement, ni bzip2, lzma, zstd ou deflate64. `flate2` est déclarée à côté
 pour une seule raison, choisir l'implémentation en Rust pur (`miniz_oxide`) de
-ce deflate : `zip` laisse ce choix à l'appelant, `flate2` refuse de compiler
-sans implémentation, et la fonctionnalité `deflate` de `zip`, qui en choisirait
-une d'elle-même, tire `zopfli` et `zlib-rs`, absentes de l'arbre.
+ce deflate : `zip` laisse ce choix à l'appelant, et `flate2` refuse de
+compiler sans implémentation.
+
+L'export Excel d'un lot (voir [Export d'un lot](#batch-export)) a changé un
+point de ce choix. Son écrivain active la fonctionnalité `deflate` de `zip`,
+qui apporte deux crates en Rust pur, `zopfli` (Apache-2.0) et `zlib-rs` (Zlib),
+et fait de `zlib-rs` l'implémentation deflate de `flate2` dans tout le
+programme. Les deux ont été acceptées plutôt qu'écrire le classeur à la main
+avec `zip` seul. Les bornes de lecture ci-dessus ne changent pas.
 
 Les paquets qu'Apollia livre dans son propre binaire, le guide de l'application
 d'abord, ne sont pas signés. Le bureau assemble chacun d'eux au démarrage à

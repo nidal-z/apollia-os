@@ -127,9 +127,10 @@ pub(super) async fn forward_stream(f: StreamForward) {
                         // Token accounting is not surfaced on this text-only
                         // Python bridge; drop the terminal usage chunk.
                     }
-                    Ok(StreamChunk::Timings(_)) => {
-                        // Same: engine timings are observed where they are
-                        // produced, not forwarded to Python.
+                    Ok(StreamChunk::Timings(_) | StreamChunk::Finish(_)) => {
+                        // Same: engine timings and the finish reason are
+                        // observed where they are produced, not forwarded to
+                        // Python.
                     }
                     Err(e) => {
                         let _ = tx.send(Err(e)).await;
