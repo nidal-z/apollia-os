@@ -288,6 +288,7 @@ Settings of the desktop application that the engine reads.
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `desktop.developer_mode` | boolean | `false` | Show the advanced surfaces of the application. The organization policy can fix it. |
+| `desktop.update_channel` | one of stable, preview | `"stable"` | Update channel of the application: stable receives the published versions, preview the trial versions as well. The organization policy can fix it. |
 
 ### `[server]`
 

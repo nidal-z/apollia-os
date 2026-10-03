@@ -226,6 +226,7 @@ fn the_named_settings_are_lockable() {
             "models.registry_enabled",
             "models.import.require_verified",
             "desktop.developer_mode",
+            "desktop.update_channel",
             "server.enabled",
             "server.port",
             "server.require_auth",

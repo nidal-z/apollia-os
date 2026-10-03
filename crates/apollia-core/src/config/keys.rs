@@ -183,6 +183,7 @@ pub const KEYS: &[ConfigKey] = &[
     key("workflows.wall_clock_secs", Integer, Some("3600"), Restart, "Seconds a workflow run may last."),
     // [desktop]
     locked(key("desktop.developer_mode", Boolean, Some("false"), Reloadable, "Show the advanced surfaces of the application.")),
+    locked(key("desktop.update_channel", Enum(&["stable", "preview"]), Some("\"stable\""), Reloadable, "Update channel of the application: stable receives the published versions, preview the trial versions as well.")),
     // [server]
     locked(key("server.enabled", Boolean, Some("false"), Restart, "Start the compatible server (OpenAI and Anthropic formats) with the engine.")),
     locked(key("server.port", Integer, Some("7772"), Restart, "TCP port of the compatible server, on the loopback interface.")),

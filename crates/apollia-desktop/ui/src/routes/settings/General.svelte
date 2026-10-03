@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { t, locale } from "svelte-i18n";
-  import { RefreshCw, Globe, FolderOpen, LifeBuoy, AlertTriangle } from "lucide-svelte";
+  import { RefreshCw, Globe, FolderOpen, LifeBuoy, AlertTriangle, Lock } from "lucide-svelte";
   import { systemInfoStore, settingsLoaders } from "$lib/stores/settings";
   import { setLocale } from "$lib/i18n";
   import { openExternalUrl } from "$lib/utils/externalLink";
@@ -16,6 +16,16 @@
   import AboutBlock from "../../components/settings/about/AboutBlock.svelte";
   import HelpBlock from "../../components/settings/help/HelpBlock.svelte";
   import DangerZone from "../../components/settings/DangerZone.svelte";
+  import {
+    UPDATE_CHANNELS,
+    hydrateUpdateChannel,
+    isUpdateChannel,
+    setUpdateChannel,
+    updateChannel,
+    updateChannelSelectState,
+    updateChannelSource,
+    type UpdateChannel,
+  } from "$lib/stores/updateChannel";
 
   const ISSUES_URL = "https://github.com/Apollia-OS/apollia-os/issues/new";
 
@@ -24,14 +34,22 @@
   // "~/.apollia": the two differ as soon as the process runs under another HOME.
   const dataDir = $derived($systemInfoStore.data?.data_dir ?? null);
 
-  // The channel is inferred from the version string's prerelease tag (the part
-  // after the first "-"), never fabricated: no tag means a stable build.
-  const channelLabel = $derived.by(() => {
-    if (!version) return undefined;
-    return version.includes("-")
+  // The channel is the setting in force, never guessed from the version string.
+  const channelLabel = $derived(
+    $updateChannel === "preview"
       ? $t("settings.about.channel_prerelease")
-      : $t("settings.about.channel_stable");
-  });
+      : $t("settings.about.channel_stable"),
+  );
+  const channelSelect = $derived(updateChannelSelectState($updateChannelSource));
+
+  const CHANNEL_LABEL_KEYS: Record<UpdateChannel, string> = {
+    stable: "settings.general.channel_stable",
+    preview: "settings.general.channel_preview",
+  };
+
+  function selectChannel(value: string): void {
+    if (isUpdateChannel(value)) void setUpdateChannel(value);
+  }
 
   const currentLang = $derived($locale?.startsWith("fr") ? "fr" : "en");
 
@@ -50,6 +68,7 @@
 
   onMount(() => {
     void settingsLoaders.systemInfo();
+    void hydrateUpdateChannel();
   });
 </script>
 
@@ -76,9 +95,44 @@
         {/if}
       {/snippet}
     </SettingsFieldRow>
-    <div class="py-3">
-      <UpdateCheckPanel variant="bare" />
-    </div>
+    <SettingsFieldRow
+      label={$t("settings.general.channel_label")}
+      hint={$t("settings.general.channel_hint")}
+      for="general-update-channel"
+      border={false}
+      data-testid="general-update-channel"
+    >
+      {#snippet control()}
+        <div class="flex flex-col items-end gap-1">
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <UpdateCheckPanel variant="bare" />
+            <Select
+              id="general-update-channel"
+              size="sm"
+              value={$updateChannel}
+              disabled={channelSelect.disabled}
+              onchange={(e) => selectChannel(e.currentTarget.value)}
+              aria-label={$t("settings.general.channel_label")}
+              data-testid="update-channel-select"
+            >
+              {#each UPDATE_CHANNELS as channel (channel)}
+                <option value={channel}>{$t(CHANNEL_LABEL_KEYS[channel])}</option>
+              {/each}
+            </Select>
+          </div>
+          {#if channelSelect.locked}
+            <p
+              class="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+              title={$t("settings.policy_locked_hint")}
+              data-testid="update-channel-policy"
+            >
+              <Lock class="h-3 w-3" aria-hidden="true" />
+              {$t("settings.policy_locked")}
+            </p>
+          {/if}
+        </div>
+      {/snippet}
+    </SettingsFieldRow>
   </SettingsSection>
 
   <!-- Interface -->

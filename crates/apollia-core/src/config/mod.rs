@@ -92,7 +92,7 @@ pub use autonomy::{
 };
 pub use chat::ChatConfig;
 pub use default_file::{default_file_text, write_default_file_if_absent};
-pub use desktop::DesktopConfig;
+pub use desktop::{DesktopConfig, UpdateChannel};
 pub use filesystem::{FilesystemConfig, JournalConfig};
 pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;

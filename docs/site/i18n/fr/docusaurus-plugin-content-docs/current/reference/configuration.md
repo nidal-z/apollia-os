@@ -293,6 +293,7 @@ Réglages de l'application de bureau que le moteur lit.
 | Clé | Type | Défaut | Rôle |
 | --- | --- | --- | --- |
 | `desktop.developer_mode` | booléen | `false` | Afficher les surfaces avancées de l'application. La politique de l'organisation peut l'imposer. |
+| `desktop.update_channel` | l'une de stable, preview | `"stable"` | Canal de mise à jour de l'application : stable reçoit les versions publiées, preview aussi les versions d'essai. La politique de l'organisation peut l'imposer. |
 
 ### `[server]`
 
