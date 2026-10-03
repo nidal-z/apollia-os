@@ -287,6 +287,13 @@ repos:
         files: '^(crates/apollia-desktop/ui/(src/.+|tailwind\.config\.ts)|scripts/check_design_tokens\.py)$'
         pass_filenames: false
 
+      - id: check-ui-vocabulary
+        name: no banned technical term in the interface texts outside developer mode
+        entry: python3 scripts/check_ui_vocabulary.py
+        language: system
+        files: '^(crates/apollia-desktop/ui/src/(lib/i18n/(en|fr|glossary)\.json|.+\.svelte)|scripts/check_ui_vocabulary\.py)$'
+        pass_filenames: false
+
       - id: check-eventbus-variants
         name: every RuntimeEvent variant is emitted and read, and lag stays one rule
         entry: python3 scripts/check_eventbus_variants.py
