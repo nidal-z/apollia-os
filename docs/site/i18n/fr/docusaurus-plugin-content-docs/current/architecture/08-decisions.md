@@ -405,6 +405,21 @@ Le coût est nommé : deux crates et leurs petits arbres (`imap-proto`, `hashify
 protocole dont les serveurs varient dans leur rigueur. Un serveur qui comprend
 mal une commande donne une erreur de protocole typée, pas un plantage.
 
+## Export d'un lot {#batch-export}
+
+Le résultat d'un lot s'exporte en classeur Excel, en CSV ou en JSON, une ligne
+par élément. CSV et JSON s'écrivent sans dépendance. Le classeur est écrit par
+`rust_xlsxwriter` (MIT ou Apache-2.0), un écrivain seul, sans accès réseau,
+épinglé à 0.92.0 : c'est la dernière version qui dépend de la version majeure
+de `zip` que l'espace de travail porte déjà, et une version plus récente
+mettrait deux versions de `zip` dans chaque build. Il ajoute trois crates au
+fichier de verrouillage, lui-même, `zopfli` et `zlib-rs` (voir
+[Archive de paquet](#package-archive)).
+
+`rust_xlsxwriter` ne sait pas modifier un classeur existant. Écrire les
+résultats dans le fichier d'où un lot a été lu se décide avec le lecteur de
+tableurs, pas ici.
+
 ## Messagerie entre agents {#agent-messaging}
 
 Un agent directeur délègue à des agents travailleurs par identifiant de skill,
@@ -652,9 +667,15 @@ déjà dans l'arbre par le programme de mise à jour du bureau ; aucune crate n'
 entrée dans le fichier de verrouillage. `zip` est compilée avec deflate seul :
 ni chiffrement, ni bzip2, lzma, zstd ou deflate64. `flate2` est déclarée à côté
 pour une seule raison, choisir l'implémentation en Rust pur (`miniz_oxide`) de
-ce deflate : `zip` laisse ce choix à l'appelant, `flate2` refuse de compiler
-sans implémentation, et la fonctionnalité `deflate` de `zip`, qui en choisirait
-une d'elle-même, tire `zopfli` et `zlib-rs`, absentes de l'arbre.
+ce deflate : `zip` laisse ce choix à l'appelant, et `flate2` refuse de
+compiler sans implémentation.
+
+L'export Excel d'un lot (voir [Export d'un lot](#batch-export)) a changé un
+point de ce choix. Son écrivain active la fonctionnalité `deflate` de `zip`,
+qui apporte deux crates en Rust pur, `zopfli` (Apache-2.0) et `zlib-rs` (Zlib),
+et fait de `zlib-rs` l'implémentation deflate de `flate2` dans tout le
+programme. Les deux ont été acceptées plutôt qu'écrire le classeur à la main
+avec `zip` seul. Les bornes de lecture ci-dessus ne changent pas.
 
 Les paquets qu'Apollia livre dans son propre binaire, le guide de l'application
 d'abord, ne sont pas signés. Le bureau assemble chacun d'eux au démarrage à

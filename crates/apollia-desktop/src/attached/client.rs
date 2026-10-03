@@ -18,6 +18,19 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 /// How long a request other than the event stream may take, answer included.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
+/// How long a transcription may take, the upload and the model's work
+/// included. A processor-bound machine needs several times the length of the
+/// audio, so the ordinary deadline would cut a file of a few minutes short.
+const TRANSCRIBE_TIMEOUT: Duration = Duration::from_secs(600);
+
+/// Boundary of the multipart body a transcription is uploaded in.
+const UPLOAD_BOUNDARY: &str = "apollia-desktop-audio-5d1c";
+
+/// How long a request the runtime answers by asking HuggingFace may take: a
+/// search asks several organisations, a recommendation reads the header of
+/// each finalist.
+const HUB_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
+
 /// How long the liveness request may take before the runtime counts as gone.
 const HEALTH_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -129,6 +142,17 @@ impl AttachedClient {
         self.send_json(self.http.get(self.url(path))).await
     }
 
+    /// `GET path` with `query`, for a route that asks HuggingFace before it
+    /// answers, under the longer deadline such a route needs.
+    pub(crate) async fn get_from_hub<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &[(&str, String)],
+    ) -> Result<T, AttachedError> {
+        let builder = self.http.get(self.url(path)).query(query);
+        self.send_json_within(builder, HUB_REQUEST_TIMEOUT).await
+    }
+
     /// `POST path` with a JSON body, its JSON answer read as `T`.
     pub(crate) async fn post<T: DeserializeOwned>(
         &self,
@@ -162,6 +186,42 @@ impl AttachedClient {
     /// `DELETE path`, its JSON answer read as `T`.
     pub(crate) async fn delete<T: DeserializeOwned>(&self, path: &str) -> Result<T, AttachedError> {
         self.send_json(self.http.delete(self.url(path))).await
+    }
+
+    /// `DELETE path` on a route that answers no body.
+    pub(crate) async fn delete_empty(&self, path: &str) -> Result<(), AttachedError> {
+        let response = self
+            .http
+            .delete(self.url(path))
+            .bearer_auth(&self.token)
+            .timeout(REQUEST_TIMEOUT)
+            .send()
+            .await
+            .map_err(AttachedError::Unreachable)?;
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            Err(refusal(response).await)
+        }
+    }
+
+    /// Uploads a WAV to `POST /api/v1/stt/transcribe` under `source`, the tag
+    /// the history shows; the answer is the row the runtime kept.
+    pub(crate) async fn transcribe<T: DeserializeOwned>(
+        &self,
+        wav: &[u8],
+        file_name: &str,
+        source: &str,
+    ) -> Result<T, AttachedError> {
+        let builder = self
+            .http
+            .post(self.url("/api/v1/stt/transcribe"))
+            .header(
+                reqwest::header::CONTENT_TYPE,
+                format!("multipart/form-data; boundary={UPLOAD_BOUNDARY}"),
+            )
+            .body(upload_body(wav, file_name, source));
+        self.send_json_within(builder, TRANSCRIBE_TIMEOUT).await
     }
 
     /// Whether the runtime answers its health route, within a short deadline.
@@ -202,9 +262,19 @@ impl AttachedClient {
         &self,
         builder: reqwest::RequestBuilder,
     ) -> Result<T, AttachedError> {
+        self.send_json_within(builder, REQUEST_TIMEOUT).await
+    }
+
+    /// Sends an authenticated request that may take up to `deadline`, and
+    /// reads its JSON answer.
+    async fn send_json_within<T: DeserializeOwned>(
+        &self,
+        builder: reqwest::RequestBuilder,
+        deadline: Duration,
+    ) -> Result<T, AttachedError> {
         let response = builder
             .bearer_auth(&self.token)
-            .timeout(REQUEST_TIMEOUT)
+            .timeout(deadline)
             .send()
             .await
             .map_err(AttachedError::Unreachable)?;
@@ -240,4 +310,32 @@ async fn refusal(response: reqwest::Response) -> AttachedError {
         })
         .unwrap_or_default();
     AttachedError::Refused { status, message }
+}
+
+/// The multipart body of a transcription: the audio part, then the source.
+///
+/// The file name is reduced to the characters a header value can carry
+/// without quoting, so a name chosen on this machine cannot end the part.
+fn upload_body(wav: &[u8], file_name: &str, source: &str) -> Vec<u8> {
+    let name: String = file_name
+        .chars()
+        .filter(|c| !matches!(c, '"' | '\\' | '\r' | '\n'))
+        .collect();
+    let mut body = Vec::with_capacity(wav.len() + 512);
+    body.extend_from_slice(
+        format!(
+            "--{UPLOAD_BOUNDARY}\r\nContent-Disposition: form-data; name=\"audio\"; \
+             filename=\"{name}\"\r\nContent-Type: audio/wav\r\n\r\n"
+        )
+        .as_bytes(),
+    );
+    body.extend_from_slice(wav);
+    body.extend_from_slice(
+        format!(
+            "\r\n--{UPLOAD_BOUNDARY}\r\nContent-Disposition: form-data; name=\"source\"\r\n\r\n\
+             {source}\r\n--{UPLOAD_BOUNDARY}--\r\n"
+        )
+        .as_bytes(),
+    );
+    body
 }

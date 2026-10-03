@@ -5,3 +5,4 @@ pub mod clipboard;
 pub mod flow;
 pub mod hotkey;
 pub mod overlay;
+pub mod transcriber;

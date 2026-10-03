@@ -12,18 +12,23 @@
 //!
 //! The import of a model from a disk lives in `model_import`.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use apollia_llm::hardware::detect as detect_hardware;
-use apollia_llm::{AcceleratorProfile, HardwareProfile, IndexedModel, ModelCategory, ModelFormat};
 use apollia_runtime::api::routes_model_hub::installed::DeletedInstalledModel;
-use apollia_runtime::installed_models::{delete_installed, in_use_refs, used_by, ModelRef};
-use serde::{Deserialize, Serialize};
+use apollia_runtime::installed_models::delete_installed;
+use serde::Deserialize;
 use tauri::{Emitter, State};
 use tokio::sync::Mutex;
 
 use crate::attached::{segment, RuntimeLink};
+
+mod hub_link;
+
+pub(crate) use hub_link::recommend_on;
+
+pub(crate) use apollia_runtime::api::routes_model_hub::HardwareResponse as HardwareProfileView;
 
 // ─────────────────────────────────────────────
 // Shared download manager state
@@ -35,35 +40,6 @@ pub type SharedDownloadManager = Arc<Mutex<apollia_llm::DownloadManager>>;
 // ─────────────────────────────────────────────
 // Response types
 // ─────────────────────────────────────────────
-
-/// Serializable view of the hardware profile.
-#[derive(Debug, Clone, Serialize)]
-pub struct HardwareProfileView {
-    pub total_ram_gb: f64,
-    pub available_ram_gb: f64,
-    pub cpu_model: String,
-    pub cpu_cores: u32,
-    pub accelerator: AcceleratorProfile,
-    pub memory_budget_gb: f64,
-    /// What a model can occupy here, in GB rounded to the tenth; the same
-    /// figure the runtime's hardware route publishes.
-    pub total_capacity_gb: f64,
-}
-
-impl From<HardwareProfile> for HardwareProfileView {
-    fn from(p: HardwareProfile) -> Self {
-        let total_capacity_gb = apollia_llm::recommend::estimated_capacity_gb(&p);
-        Self {
-            total_capacity_gb,
-            total_ram_gb: p.total_ram_gb,
-            available_ram_gb: p.available_ram_gb,
-            cpu_model: p.cpu_model,
-            cpu_cores: p.cpu_cores,
-            accelerator: p.accelerator,
-            memory_budget_gb: p.memory_budget_gb,
-        }
-    }
-}
 
 /// Search parameters. The search only ever asks the organisations of the two
 /// publisher lists; the query names a model, never an owner.
@@ -122,12 +98,22 @@ pub struct VariantDownloadRequest {
 // ─────────────────────────────────────────────
 
 /// Detects the machine's hardware profile (RAM, CPU, GPU/Metal/CUDA).
+///
+/// Attached, the daemon probes it: it runs on this machine.
 #[tauri::command]
-pub async fn get_hardware_profile() -> Result<HardwareProfileView, String> {
+pub async fn get_hardware_profile(
+    link: State<'_, RuntimeLink>,
+) -> Result<serde_json::Value, String> {
+    hub_link::hardware_on(&link).await
+}
+
+/// The hardware profile of this machine, probed in this process.
+pub(crate) async fn local_hardware_profile() -> Result<serde_json::Value, String> {
     let profile = tokio::task::spawn_blocking(detect_hardware)
         .await
         .map_err(|e| format!("hardware detection failed: {e}"))?;
-    Ok(HardwareProfileView::from(profile))
+    serde_json::to_value(HardwareProfileView::from(profile))
+        .map_err(|e| format!("serialization error: {e}"))
 }
 
 /// Searches the official publishers and the recognised converters.
@@ -136,7 +122,21 @@ pub async fn get_hardware_profile() -> Result<HardwareProfileView, String> {
 /// estimated capacity of this machine, and the organisations that could not
 /// be reached. Offline, the error says the search is unavailable.
 #[tauri::command]
-pub async fn search_hf_models(params: HfSearchParams) -> Result<serde_json::Value, String> {
+pub async fn search_hf_models(
+    link: State<'_, RuntimeLink>,
+    params: HfSearchParams,
+) -> Result<serde_json::Value, String> {
+    let mut value = hub_link::search_on(&link, params).await?;
+    // The bounded search has no further page. The Hub screen still reads a
+    // cursor, so it is answered as the last page.
+    if let Some(object) = value.as_object_mut() {
+        object.insert("next_cursor".to_owned(), serde_json::Value::Null);
+    }
+    Ok(value)
+}
+
+/// The bounded search, run in this process.
+pub(crate) async fn local_search(params: HfSearchParams) -> Result<serde_json::Value, String> {
     use apollia_llm::model_cards::default_cache_dir;
     use apollia_llm::{BoundedSearch, HfRegistryClient, SearchInputs, SearchSort};
 
@@ -162,14 +162,7 @@ pub async fn search_hf_models(params: HfSearchParams) -> Result<serde_json::Valu
         .search_bounded(&search, &inputs.context(hardware.as_ref()))
         .await
         .map_err(|e| e.to_string())?;
-
-    let mut value = serde_json::to_value(page).map_err(|e| format!("serialization error: {e}"))?;
-    // The bounded search has no further page. The Hub screen still reads a
-    // cursor, so it is answered as the last page.
-    if let Some(object) = value.as_object_mut() {
-        object.insert("next_cursor".to_owned(), serde_json::Value::Null);
-    }
-    Ok(value)
+    serde_json::to_value(page).map_err(|e| format!("serialization error: {e}"))
 }
 
 /// Fetches the full metadata for a HuggingFace model.
@@ -182,7 +175,17 @@ pub async fn search_hf_models(params: HfSearchParams) -> Result<serde_json::Valu
 /// (with a 24h session cache).
 #[tauri::command]
 pub async fn get_hf_model(
+    link: State<'_, RuntimeLink>,
     cache: State<'_, Arc<apollia_llm::HfModelTypeCache>>,
+    repo_id: String,
+    hf_token: Option<String>,
+) -> Result<serde_json::Value, String> {
+    hub_link::model_on(&link, &cache, repo_id, hf_token).await
+}
+
+/// The card of a repository, fetched in this process.
+pub(crate) async fn local_model(
+    cache: &apollia_llm::HfModelTypeCache,
     repo_id: String,
     hf_token: Option<String>,
 ) -> Result<serde_json::Value, String> {
@@ -192,7 +195,7 @@ pub async fn get_hf_model(
 
     let client = HfRegistryClient::new(hf_token);
     let mut card = client
-        .get_model(&repo_id, hardware.as_ref(), Some(&cache))
+        .get_model(&repo_id, hardware.as_ref(), Some(cache))
         .await
         .map_err(|e| format!("failed to fetch model {repo_id}: {e}"))?;
 
@@ -404,51 +407,6 @@ pub async fn cancel_model_download(
 // Installed models (list + guarded delete)
 // ─────────────────────────────────────────────
 
-/// Classification of an installed model, from the category its header declares.
-#[derive(Debug, Clone, Copy, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum InstalledModelKind {
-    /// GGUF weights for local LLM inference.
-    Llm,
-    /// GGML weights for local speech-to-text.
-    Stt,
-}
-
-/// A model installed under `~/.apollia/models/`, as the model index holds it.
-#[derive(Debug, Clone, Serialize)]
-pub struct InstalledModelView {
-    /// Identifier in the model index.
-    pub id: String,
-    /// Absolute path on disk: the file of a GGUF, the folder of an MLX model.
-    pub path: String,
-    /// File or folder name (basename).
-    pub name: String,
-    /// Size in bytes, every part of a split file included.
-    pub size_bytes: u64,
-    /// LLM or STT, from the category in force.
-    pub kind: InstalledModelKind,
-    /// Storage format.
-    pub format: ModelFormat,
-    /// Category in force (the developer override when set).
-    pub category: ModelCategory,
-    /// Parameter count label read from the header, for example `"8B"`.
-    pub parameters: Option<String>,
-    /// Last modification time, RFC 3339.
-    pub modified_at: Option<String>,
-    /// When the model was pinned to the top of the list, RFC 3339.
-    pub pinned_at: Option<String>,
-    /// Whether the weights matched a published or already verified digest.
-    /// False for a model imported from a disk with an unknown digest.
-    pub origin_verified: bool,
-    /// True when an LLM backend or the STT config references this file.
-    pub in_use: bool,
-    /// Human-readable owner when `in_use` (e.g. `LLM backend 'local-code'`).
-    pub used_by: Option<String>,
-    /// What the model can do, vision included only when the engine can read
-    /// an image for it. `None` until the index has been rebuilt by this build.
-    pub capabilities: Option<apollia_llm::Capabilities>,
-}
-
 pub(super) fn home_dir() -> PathBuf {
     apollia_core::paths::home_dir_or_temp()
 }
@@ -465,54 +423,19 @@ fn expand_tilde(raw: &str) -> PathBuf {
     }
 }
 
-fn collect_installed_models() -> Result<Vec<InstalledModelView>, String> {
-    let data_dir = apollia_core::paths::data_dir_under(home_dir());
-    collect_installed_models_in(&models_dir(), &in_use_refs(&data_dir))
+/// The data directory the models folder sits in.
+fn data_dir() -> PathBuf {
+    apollia_core::paths::data_dir_under(home_dir())
 }
 
-/// The installed models of `dir`, read from its model index.
-fn collect_installed_models_in(
-    dir: &Path,
-    refs: &[ModelRef],
-) -> Result<Vec<InstalledModelView>, String> {
-    let index = super::model_index::current(dir)
-        .map_err(|e| format!("failed to read the model index: {e}"))?;
-    let mut out: Vec<InstalledModelView> = index
-        .models
-        .iter()
-        .map(|model| installed_view(model, refs))
-        .collect();
-    out.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(out)
-}
-
-fn installed_view(model: &IndexedModel, refs: &[ModelRef]) -> InstalledModelView {
-    let category = model.effective_category();
-    let kind = match category {
-        ModelCategory::Dictation => InstalledModelKind::Stt,
-        _ => InstalledModelKind::Llm,
-    };
-    let owner = used_by(&model.path, refs);
-    InstalledModelView {
-        id: model.id.clone(),
-        path: model.path.to_string_lossy().to_string(),
-        name: model
-            .path
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default(),
-        size_bytes: model.size_bytes,
-        kind,
-        format: model.format,
-        category,
-        parameters: model.parameters.clone(),
-        modified_at: model.modified_at.map(|t| t.to_rfc3339()),
-        pinned_at: model.pinned_at.map(|t| t.to_rfc3339()),
-        origin_verified: model.origin_verified,
-        in_use: owner.is_some(),
-        used_by: owner,
-        capabilities: model.capabilities.clone(),
-    }
+/// The installed models, listed in this process.
+pub(crate) async fn local_installed_models() -> Result<serde_json::Value, String> {
+    let models =
+        tokio::task::spawn_blocking(|| apollia_runtime::installed_models::list(&data_dir()))
+            .await
+            .map_err(|e| format!("spawn_blocking failed: {e}"))?
+            .map_err(|e| e.to_string())?;
+    serde_json::to_value(models).map_err(|e| format!("serialization error: {e}"))
 }
 
 /// Reconciles the model index with `~/.apollia/models/`. Run once at startup,
@@ -531,10 +454,10 @@ pub(crate) fn reconcile_model_index() {
 
 /// Lists model files installed under `~/.apollia/models/` with size and usage.
 #[tauri::command]
-pub async fn list_installed_models() -> Result<Vec<InstalledModelView>, String> {
-    tokio::task::spawn_blocking(collect_installed_models)
-        .await
-        .map_err(|e| format!("spawn_blocking failed: {e}"))?
+pub async fn list_installed_models(
+    link: State<'_, RuntimeLink>,
+) -> Result<serde_json::Value, String> {
+    hub_link::installed_on(&link).await
 }
 
 /// Deletes an installed model file after a path and in-use safety check.
@@ -558,8 +481,7 @@ pub(crate) async fn delete_installed_through(
 ) -> Result<(), String> {
     match link {
         RuntimeLink::Embedded(_) => tokio::task::spawn_blocking(move || {
-            let data_dir = apollia_core::paths::data_dir_under(home_dir());
-            delete_installed(&data_dir, &path).map_err(|e| e.to_string())
+            delete_installed(&data_dir(), &path).map_err(|e| e.to_string())
         })
         .await
         .map_err(|e| format!("spawn_blocking failed: {e}"))?,
@@ -668,87 +590,5 @@ mod tests {
             "/mnt/models"
         };
         assert_eq!(expand_tilde(absolute), PathBuf::from(absolute));
-    }
-
-    // GIVEN a GGUF kept in a sub-folder of the models folder, the shape the
-    //       listing at the top level used to miss
-    // WHEN the installed models are listed
-    // THEN it is among them, read from the index
-    #[test]
-    fn test_the_installed_list_reads_the_index_and_sees_subfolders() {
-        let tmp = tempfile::tempdir().unwrap();
-        let dir = tmp.path();
-        std::fs::create_dir_all(dir.join("vendor")).unwrap();
-        std::fs::write(dir.join("vendor/deep.gguf"), b"GGUF").unwrap();
-
-        let list = collect_installed_models_in(dir, &[]).unwrap();
-
-        assert_eq!(list.len(), 1);
-        assert_eq!(list[0].id, "deep");
-        assert_eq!(list[0].name, "deep.gguf");
-        assert!(super::super::model_index::index_path(dir).is_file());
-    }
-
-    // GIVEN two indexed models, one whose digest matched its repository and
-    //       one imported with an unknown digest
-    // WHEN the installed models are listed
-    // THEN each carries its origin_verified field, as the index holds it
-    #[test]
-    fn test_the_installed_list_carries_the_verified_origin() {
-        let tmp = tempfile::tempdir().unwrap();
-        let dir = tmp.path();
-        std::fs::write(dir.join("checked.gguf"), b"GGUF1").unwrap();
-        std::fs::write(dir.join("from-key.gguf"), b"GGUF2").unwrap();
-        super::super::model_index::record_download(
-            dir,
-            &dir.join("checked.gguf"),
-            Some("org/repo".into()),
-            "checked.gguf".into(),
-            super::super::model_index::DownloadDigest {
-                sha256: Some("a".repeat(64)),
-                verified: true,
-            },
-        );
-        super::super::model_index::record_import(
-            dir,
-            &dir.join("from-key.gguf"),
-            "b".repeat(64),
-            false,
-        )
-        .unwrap();
-
-        let list = collect_installed_models_in(dir, &[]).unwrap();
-
-        let json = serde_json::to_value(&list).unwrap();
-        assert_eq!(json[0]["name"], "checked.gguf");
-        assert_eq!(json[0]["origin_verified"], true);
-        assert_eq!(json[1]["name"], "from-key.gguf");
-        assert_eq!(json[1]["origin_verified"], false);
-    }
-
-    // GIVEN a dictation model saved as .gguf, whose header names whisper
-    // WHEN the installed models are listed
-    // THEN it is filed as STT: the header decides, where the extension alone
-    //      used to file every .gguf as an LLM
-    #[test]
-    fn test_a_gguf_dictation_model_is_listed_as_stt() {
-        let tmp = tempfile::tempdir().unwrap();
-        let dir = tmp.path();
-        let mut header = b"GGUF".to_vec();
-        header.extend_from_slice(&3u32.to_le_bytes());
-        header.extend_from_slice(&0u64.to_le_bytes());
-        header.extend_from_slice(&1u64.to_le_bytes());
-        header.extend_from_slice(&20u64.to_le_bytes());
-        header.extend_from_slice(b"general.architecture");
-        header.extend_from_slice(&8u32.to_le_bytes());
-        header.extend_from_slice(&7u64.to_le_bytes());
-        header.extend_from_slice(b"whisper");
-        std::fs::write(dir.join("whisper-fr.gguf"), header).unwrap();
-
-        let list = collect_installed_models_in(dir, &[]).unwrap();
-
-        let json = serde_json::to_value(&list).unwrap();
-        assert_eq!(json[0]["kind"], "stt");
-        assert_eq!(json[0]["category"], "dictation");
     }
 }

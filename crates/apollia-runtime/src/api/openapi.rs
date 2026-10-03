@@ -101,6 +101,15 @@ impl utoipa::PartialSchema for TranscribeForm {
                     .schema_type(Type::String)
                     .description(Some("Language hint, an ISO 639-1 code")),
             )
+            .property(
+                "source",
+                ObjectBuilder::new()
+                    .schema_type(Type::String)
+                    .enum_values(Some(["api", "file", "hotkey"]))
+                    .description(Some(
+                        "What the audio is, the tag the history shows: api (default), file or hotkey",
+                    )),
+            )
             .into()
     }
 }
@@ -186,6 +195,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_batches::resume_batch,
         crate::api::routes_batches::stop_batch,
         crate::api::routes_batches::retry_batch,
+        crate::api::routes_batches::export_batch,
         crate::api::routes_workflows::launch_workflow,
         crate::api::routes_workflows::list_workflow_runs,
         crate::api::routes_workflows::get_workflow_run,
@@ -279,9 +289,9 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_stt::list_transcriptions,
         crate::api::routes_stt::delete_transcription,
         crate::api::routes_stt::list_models,
-        crate::api::routes_stt::get_stt_config,
-        crate::api::routes_stt::update_stt_config,
-        crate::api::routes_stt::reload_stt_engine,
+        crate::api::routes_stt::settings::get_stt_config,
+        crate::api::routes_stt::settings::update_stt_config,
+        crate::api::routes_stt::settings::reload_stt_engine,
         crate::api::routes_webhooks::handle_webhook,
         crate::api::routes_llm::get_llm_status,
         crate::api::routes_llm::ping_llm_backend,
@@ -323,6 +333,8 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_model_hub::search_registry,
         crate::api::routes_model_hub::recommend_models,
         crate::api::routes_model_hub::get_registry_model,
+        crate::api::routes_model_hub::get_recommendations,
+        crate::api::routes_model_hub::installed::list_installed_models,
         crate::api::routes_engines::list_engines,
         crate::api::routes_engines::get_engine_settings,
         crate::api::routes_engines::set_engine_settings,
@@ -454,6 +466,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_batches::BatchDetailView,
         crate::api::routes_batches::BatchListView,
         crate::api::routes_batches::BatchAccessesView,
+        crate::batch::ExportFormat,
         crate::batch::BatchAccess,
         crate::batch::BatchRetry,
         crate::api::routes_workflows::WorkflowLaunch,
@@ -554,7 +567,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_stt::TranscriptionsListResponse,
         crate::api::routes_stt::ModelInfo,
         crate::api::routes_stt::ModelsListResponse,
-        crate::api::routes_stt::SttReloadResponse,
+        crate::api::routes_stt::settings::SttReloadResponse,
         crate::api::routes_llm::LlmStatusResponse,
         crate::api::routes_llm::PingRequest,
         crate::api::routes_llm::PingResponse,

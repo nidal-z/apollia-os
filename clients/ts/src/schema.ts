@@ -717,6 +717,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/batches/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/batches/{id}/export`: the result of a batch as a file.
+         * @description One row per item, in source order: the input columns of the item, then
+         *     its output, its status and the sources its answer cites. `xlsx` is a
+         *     workbook of one sheet, `csv` is UTF-8 with one header row, `json` is one
+         *     document with the batch and an object per item. The file is offered as
+         *     `batch-<id>.<format>`. A batch still running exports the items as they
+         *     stand.
+         */
+        get: operations["export_batch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/batches/{id}/pause": {
         parameters: {
             query?: never;
@@ -1593,7 +1618,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * `GET /api/v1/llm/installed-models`
+         * @description The installed models, from the model index, each marked when an LLM
+         *     backend or the dictation engine references it.
+         */
+        get: operations["list_installed_models"];
         put?: never;
         post?: never;
         /** `DELETE /api/v1/llm/installed-models?path=...` */
@@ -1724,6 +1754,30 @@ export interface paths {
          *     false claim about the operator's machine.
          */
         get: operations["recommend_models"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/llm/recommendations?limit=...&n_ctx=...&fits_only=...`
+         * @description The recommendation as the desktop shows it: the ranked list, or the
+         *     unreachable Hub and the empty ranking kept apart from it as a `status`,
+         *     each with the hardware and the editorial selection. Unlike
+         *     `GET /api/v1/llm/recommend`, an unreachable Hub is a `200` carrying the
+         *     selection, since the selection needs no network.
+         */
+        get: operations["get_recommendations"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3980,9 +4034,12 @@ export interface paths {
          * @description Accepts `multipart/form-data` with:
          *     - `audio` (required): WAV audio file
          *     - `language` (optional): language hint (ISO 639-1 code)
+         *     - `source` (optional): what the audio is, `api` (default), `file` or
+         *       `hotkey`, the tag the history shows; the desktop attached to this runtime
+         *       sends a file it read or a dictation it captured
          *
          *     Returns `200 OK` with the persisted transcript row (`TranscriptRow`).
-         *     Returns `400 Bad Request` on missing or invalid audio.
+         *     Returns `400 Bad Request` on missing or invalid audio, or an unknown source.
          *     Returns `503 Service Unavailable` when the engine is absent.
          */
         post: operations["transcribe_audio"];
@@ -5885,6 +5942,11 @@ export interface components {
             /** @description List of global events. */
             events: string[];
         };
+        /**
+         * @description The format a batch is exported in.
+         * @enum {string}
+         */
+        ExportFormat: "xlsx" | "csv" | "json";
         /** @description Response for `POST /api/v1/triggers/:id/fire`. */
         FireResponse: {
             /** @description Identifier of the submitted task. */
@@ -9848,6 +9910,61 @@ export interface operations {
             };
         };
     };
+    export_batch: {
+        parameters: {
+            query: {
+                /** @description `xlsx`, `csv` or `json`. */
+                format: components["schemas"]["ExportFormat"];
+            };
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The batch as an Excel workbook, CSV or JSON file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": number[];
+                    "text/csv": string;
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description A format other than xlsx, csv or json */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description No such batch */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
     pause_batch: {
         parameters: {
             query?: never;
@@ -12132,6 +12249,33 @@ export interface operations {
             };
         };
     };
+    list_installed_models: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The installed models, sorted by name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The model index can be neither read nor built */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     delete_installed_model: {
         parameters: {
             query: {
@@ -12527,6 +12671,51 @@ export interface operations {
             };
             /** @description HuggingFace unreachable, so there is no catalogue to rank */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_recommendations: {
+        parameters: {
+            query?: {
+                /** @description Maximum number of ranked models, at most 10 */
+                limit?: number;
+                /** @description Context window the cache is sized against */
+                n_ctx?: number;
+                /** @description Keep, in the editorial selection, only the sizes that fit this machine */
+                fits_only?: boolean;
+                /** @description HuggingFace token for gated models */
+                hf_token?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The outcome: status ok, unreachable or empty, with the hardware and the editorial selection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A malformed query parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The hardware probe or the shipped model table failed */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -17440,7 +17629,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        /** @description Multipart form with an `audio` WAV field (required) and an optional `language` hint */
+        /** @description Multipart form with an `audio` WAV field (required), an optional `language` hint and an optional `source` tag */
         requestBody: {
             content: {
                 "multipart/form-data": {
@@ -17451,6 +17640,11 @@ export interface operations {
                     audio: string;
                     /** @description Language hint, an ISO 639-1 code */
                     language?: string;
+                    /**
+                     * @description What the audio is, the tag the history shows: api (default), file or hotkey
+                     * @enum {string}
+                     */
+                    source?: "api" | "file" | "hotkey";
                 };
             };
         };

@@ -1,14 +1,16 @@
 //! `apollia-os batch` subcommands: run an agent on every item of a source,
-//! follow a batch, list the batches, list the accesses a run may grant, and
-//! pause, resume, stop or retry a batch.
+//! follow a batch, list the batches, list the accesses a run may grant,
+//! pause, resume, stop or retry a batch, and export its result.
 //!
 //! A batch runs in the runtime: `run` returns once its items are recorded,
 //! and `status` reads its progress. Every item is a task of its own, listed by
 //! `task list` like any other. An item whose agent reaches for a sensitive
 //! access the run did not grant waits rather than failing; `retry` runs the
-//! failed and waiting items again, with more grants if given.
+//! failed and waiting items again, with more grants if given. `export` writes
+//! the result of a batch to a file, one row per item: Excel, CSV or JSON.
 
-use std::path::PathBuf;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 use clap::Subcommand;
 
@@ -82,6 +84,19 @@ pub enum BatchCommand {
         #[arg(long = "grant")]
         grants: Vec<String>,
     },
+    /// Export the result of a batch to a file: one row per item, its input
+    /// columns, its output, its status and the sources it cites.
+    Export {
+        /// The batch id.
+        batch_id: String,
+        /// The file format.
+        #[arg(long, value_parser = ["xlsx", "csv", "json"])]
+        format: String,
+        /// Where to write the file; `-` writes it to standard output.
+        /// Default: `batch-<id>.<format>` in the current folder.
+        #[arg(long, short = 'o', value_name = "PATH")]
+        output: Option<PathBuf>,
+    },
 }
 
 /// Execute a `batch` subcommand. Returns the process exit code.
@@ -111,6 +126,11 @@ pub async fn run(cmd: &BatchCommand, socket: Option<PathBuf>, json: bool) -> i32
             let body = serde_json::json!({ "grants": grants });
             run_control(&client, batch_id, "retry", Some(&body), json).await
         }
+        BatchCommand::Export {
+            batch_id,
+            format,
+            output,
+        } => run_export(&client, batch_id, format, output.as_deref(), json).await,
     }
 }
 
@@ -330,6 +350,62 @@ async fn run_control(
     }
 }
 
+/// Where `export` writes the file of `batch_id`: the path given, or
+/// `batch-<id>.<format>` in the current folder. `None` is standard output.
+fn export_target(batch_id: &str, format: &str, output: Option<&Path>) -> Option<PathBuf> {
+    match output {
+        Some(p) if p == Path::new("-") => None,
+        Some(p) => Some(p.to_path_buf()),
+        None => Some(PathBuf::from(format!("batch-{batch_id}.{format}"))),
+    }
+}
+
+async fn run_export(
+    client: &RuntimeClient,
+    batch_id: &str,
+    format: &str,
+    output: Option<&Path>,
+    json: bool,
+) -> i32 {
+    let bytes = match client.export_batch(batch_id, format).await {
+        Ok(bytes) => bytes,
+        Err(e) => return handle_error(e, json),
+    };
+    let Some(path) = export_target(batch_id, format, output) else {
+        let mut stdout = std::io::stdout().lock();
+        return match stdout.write_all(&bytes).and_then(|()| stdout.flush()) {
+            Ok(()) => exit_codes::SUCCESS,
+            Err(e) => crate::output::emit_error(
+                json,
+                exit_codes::GENERAL_ERROR,
+                &format!("could not write the export to standard output: {e}"),
+            ),
+        };
+    };
+    if let Err(e) = std::fs::write(&path, &bytes) {
+        return crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("could not write {}: {e}", path.display()),
+        );
+    }
+    if json {
+        print_json(&serde_json::json!({
+            "batchId": batch_id,
+            "format": format,
+            "path": path.display().to_string(),
+            "bytes": bytes.len(),
+        }));
+    } else {
+        println!("{}", path.display());
+        note!(
+            "Batch {batch_id} exported as {format}, {} bytes.",
+            bytes.len()
+        );
+    }
+    exit_codes::SUCCESS
+}
+
 /// An unreachable runtime, or one without a batch engine, is a runtime error
 /// (2); a refused launch, an unknown batch or a batch in the wrong state is
 /// a general error (1).
@@ -429,6 +505,56 @@ mod tests {
         // THEN both are runtime errors
         assert_eq!(stop, exit_codes::RUNTIME_ERROR);
         assert_eq!(accesses, exit_codes::RUNTIME_ERROR);
+    }
+
+    #[test]
+    fn test_batch_export_parses_its_format_and_output() {
+        // GIVEN an export to a named file, one to standard output, and one in
+        //       a format the runtime does not write
+        // WHEN parsed
+        let named =
+            TestCli::parse_from(["test", "export", "b-1", "--format", "xlsx", "-o", "r.xlsx"]);
+        let piped =
+            TestCli::parse_from(["test", "export", "b-1", "--format", "csv", "--output", "-"]);
+        let pdf = TestCli::try_parse_from(["test", "export", "b-1", "--format", "pdf"]);
+        let bare = TestCli::try_parse_from(["test", "export", "b-1"]);
+        // THEN the format and the path land in their fields, and an unknown or
+        //      missing format is a usage error
+        assert!(matches!(
+            named.cmd,
+            BatchCommand::Export { ref batch_id, ref format, ref output }
+                if batch_id == "b-1" && format == "xlsx"
+                    && output.as_deref() == Some(Path::new("r.xlsx"))
+        ));
+        let BatchCommand::Export { format, output, .. } = piped.cmd else {
+            panic!("expected Export");
+        };
+        assert_eq!(format, "csv");
+        assert_eq!(export_target("b-1", &format, output.as_deref()), None);
+        assert!(pdf.is_err());
+        assert!(bare.is_err());
+    }
+
+    #[test]
+    fn test_an_export_without_a_path_is_named_after_its_batch() {
+        // GIVEN an export without --output
+        // WHEN its target is resolved
+        let target = export_target("b-1", "json", None);
+        // THEN it is batch-<id>.<format> in the current folder
+        assert_eq!(target, Some(PathBuf::from("batch-b-1.json")));
+    }
+
+    #[tokio::test]
+    async fn test_batch_export_without_runtime_is_a_runtime_error_and_writes_nothing() {
+        // GIVEN a client on a socket nothing listens on, and a target path
+        let client = RuntimeClient::new(PathBuf::from("/tmp/apollia-test-batch-export.sock"));
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.csv");
+        // WHEN a batch is exported
+        let code = run_export(&client, "b-1", "csv", Some(&path), true).await;
+        // THEN it is a runtime error and no file is written
+        assert_eq!(code, exit_codes::RUNTIME_ERROR);
+        assert!(!path.exists());
     }
 
     #[test]
