@@ -7,17 +7,28 @@ title: Configuration (apollia.toml)
 
 Reference for the `apollia.toml` configuration surface.
 
-The file has three locations, and the two runtimes do not search the same ones.
+The file has one location, `~/.apollia/apollia.toml`, and every surface reads
+and writes that one: the daemon started by `apollia-os start`, the desktop
+application, and every command that touches the configuration
+(`apollia-os config`, `apollia-os llm costs`, `apollia-os tools config`,
+`apollia-os doctor`).
+A key set by one of them is the key the others read.
 
-| Reader | Search order, first match wins |
+Only a path given explicitly replaces it:
+
+| Command | Option |
 | --- | --- |
-| The daemon, started by `apollia-os start` | `./apollia.toml`, then `$XDG_CONFIG_HOME/apollia/apollia.toml`, falling back to `~/.config/apollia/apollia.toml` |
-| The desktop application | `~/.apollia/apollia.toml`, then `./apollia.toml`. The `~/.config` location is never read, deliberately: a copy forgotten there would resurrect backends on a fresh profile |
+| `apollia-os start` | `--config <PATH>`. The file must exist, or the start fails |
+| `apollia-os config get`, `set`, `show`, `validate`, `edit` | `--file <PATH>` |
+| `apollia-os llm costs` | `--config <PATH>` |
 
-The command line writes to both, depending on the subcommand. `apollia-os config
-set` writes the daemon's file; `apollia-os llm costs --threshold 25` writes
-`~/.apollia/apollia.toml`, which only the desktop application reads. Check which
-file you edited before concluding that a key had no effect.
+The working directory is not searched: an agent package keeps its manifest under
+the same name, `apollia.toml`, and starting the daemon in a package folder does
+not read it. A file left at a former location (`./apollia.toml`,
+`$XDG_CONFIG_HOME/apollia/apollia.toml`, `~/.config/apollia/apollia.toml`) is
+never read nor imported. The daemon logs a `config.legacy_location.ignored`
+warning for it at startup, and `apollia-os doctor` names it with the command
+that moves it to `~/.apollia/apollia.toml`.
 
 Every section is optional: an absent section falls back to its defaults. Runtime
 data (databases, the API token, models) lives separately under `~/.apollia/`.
