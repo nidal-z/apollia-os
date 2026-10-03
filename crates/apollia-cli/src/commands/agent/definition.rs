@@ -9,7 +9,7 @@ use crate::client::{ClientError, RuntimeClient};
 use crate::exit_codes;
 
 /// The value of `field` as typed on the command line: one string for `name`,
-/// `mission` and `autonomy`, the list of the given items for `examples`, `access` and
+/// `mission`, `autonomy` and `profile`, the list of the given items for `examples`, `access` and
 /// `sources` (none at all for an empty list).
 pub(in crate::commands::agent) fn override_value(
     field: &str,
@@ -180,6 +180,11 @@ pub(in crate::commands::agent) fn print_definition_section(resolved: &serde_json
         text(resolved, "autonomy"),
         mark("autonomy")
     );
+    let profile = resolved
+        .get("profile")
+        .and_then(|v| v.as_str())
+        .unwrap_or("(default)");
+    println!("    Profile  : {profile}{}", mark("profile"));
 }
 
 fn text<'a>(value: &'a serde_json::Value, key: &str) -> &'a str {

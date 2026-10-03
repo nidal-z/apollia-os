@@ -386,7 +386,7 @@
           {
             "name": "field",
             "in": "path",
-            "description": "name, mission, examples, access, sources or autonomy",
+            "description": "name, mission, examples, access, sources, autonomy or profile",
             "required": true,
             "schema": {
               "type": "string"
@@ -465,7 +465,7 @@
           {
             "name": "field",
             "in": "path",
-            "description": "name, mission, examples, access, sources or autonomy",
+            "description": "name, mission, examples, access, sources, autonomy or profile",
             "required": true,
             "schema": {
               "type": "string"
@@ -21342,7 +21342,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Fields whose value is the user's rather than the package's:\n`name`, `mission`, `examples`, `access`, `sources`, `autonomy`."
+            "description": "Fields whose value is the user's rather than the package's:\n`name`, `mission`, `examples`, `access`, `sources`, `autonomy`,\n`profile`."
           },
           "package": {
             "type": [
@@ -21350,6 +21350,13 @@
               "null"
             ],
             "description": "Package the agent came with."
+          },
+          "profile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the user profile designated for the agent; absent when\nit runs with the default profile."
           },
           "sources": {
             "type": "array",
@@ -22069,7 +22076,7 @@
         "properties": {
           "value": {
             "type": "object",
-            "description": "The user's value: a string for `name` and `mission`, a tier name for\n`autonomy`, a list of strings for `examples`, `access` and `sources`."
+            "description": "The user's value: a string for `name` and `mission`, a tier name for\n`autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`."
           }
         }
       },
