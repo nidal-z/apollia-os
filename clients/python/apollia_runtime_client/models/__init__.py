@@ -95,6 +95,8 @@ from .embedding_models_response_reason_type_0 import EmbeddingModelsResponseReas
 from .events_response import EventsResponse
 from .fire_response import FireResponse
 from .fork_session_request import ForkSessionRequest
+from .generate_title_body import GenerateTitleBody
+from .generated_title import GeneratedTitle
 from .get_model_card_response_200 import GetModelCardResponse200
 from .hardware_response import HardwareResponse
 from .hardware_response_accelerator import HardwareResponseAccelerator
@@ -123,6 +125,7 @@ from .item_preview import ItemPreview
 from .journal_anchor import JournalAnchor
 from .journal_break import JournalBreak
 from .journal_break_reason import JournalBreakReason
+from .link_project_body import LinkProjectBody
 from .llm_backend_response import LlmBackendResponse
 from .llm_backend_response_config_json import LlmBackendResponseConfigJson
 from .llm_backends_list_response import LlmBackendsListResponse
@@ -173,6 +176,7 @@ from .reject_user_input_request import RejectUserInputRequest
 from .reload_response import ReloadResponse
 from .reload_router_response import ReloadRouterResponse
 from .reload_router_response_backends_item import ReloadRouterResponseBackendsItem
+from .rename_session_body import RenameSessionBody
 from .required_connection_preview import RequiredConnectionPreview
 from .reset_response import ResetResponse
 from .resilience_status_response import ResilienceStatusResponse
@@ -275,6 +279,7 @@ from .update_llm_backend_request_config_json import UpdateLlmBackendRequestConfi
 from .update_preset_request import UpdatePresetRequest
 from .update_preset_request_load import UpdatePresetRequestLoad
 from .update_preset_request_request import UpdatePresetRequestRequest
+from .update_session_body import UpdateSessionBody
 from .update_stt_config_body import UpdateSttConfigBody
 from .update_trigger_request import UpdateTriggerRequest
 from .user_profile_view import UserProfileView
@@ -387,6 +392,8 @@ __all__ = (
     "EventsResponse",
     "FireResponse",
     "ForkSessionRequest",
+    "GeneratedTitle",
+    "GenerateTitleBody",
     "GetModelCardResponse200",
     "HardwareResponse",
     "HardwareResponseAccelerator",
@@ -415,6 +422,7 @@ __all__ = (
     "JournalAnchor",
     "JournalBreak",
     "JournalBreakReason",
+    "LinkProjectBody",
     "LlmBackendResponse",
     "LlmBackendResponseConfigJson",
     "LlmBackendsListResponse",
@@ -465,6 +473,7 @@ __all__ = (
     "ReloadResponse",
     "ReloadRouterResponse",
     "ReloadRouterResponseBackendsItem",
+    "RenameSessionBody",
     "RequiredConnectionPreview",
     "ResetResponse",
     "ResilienceStatusResponse",
@@ -563,6 +572,7 @@ __all__ = (
     "UpdatePresetRequest",
     "UpdatePresetRequestLoad",
     "UpdatePresetRequestRequest",
+    "UpdateSessionBody",
     "UpdateSttConfigBody",
     "UpdateTriggerRequest",
     "UserProfileView",

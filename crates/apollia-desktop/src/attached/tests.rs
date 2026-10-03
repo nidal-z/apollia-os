@@ -561,3 +561,150 @@ async fn test_the_daemon_profile_reads_as_the_page_draws_it_and_an_entry_is_put_
     assert_eq!(stored.value, "tableur");
     assert!(gate(LinkMode::Attached, "set_profile_entry").is_ok());
 }
+
+// ── The conversations ────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token() {
+    use crate::commands::chat::conversations;
+
+    // GIVEN a daemon answering each route of the conversations, only when the
+    // token of this installation comes with the request and the body is the
+    // one the command must send
+    let server = MockServer::start().await;
+    let auth = format!("Bearer {TOKEN}");
+    let ok = || ResponseTemplate::new(200).set_body_json(serde_json::json!({ "status": "ok" }));
+    let routes = [
+        (
+            "PATCH",
+            "/api/v1/sessions/s%201",
+            serde_json::json!({ "system_prompt": "Brief.", "tools": null, "llm_backend": null }),
+        ),
+        (
+            "POST",
+            "/api/v1/sessions/s%201/erase",
+            serde_json::json!({}),
+        ),
+        (
+            "PUT",
+            "/api/v1/sessions/s%201/title",
+            serde_json::json!({ "title": "Plan" }),
+        ),
+        (
+            "PUT",
+            "/api/v1/sessions/s%201/project",
+            serde_json::json!({ "project_id": "p-1" }),
+        ),
+    ];
+    for (verb, route, body) in routes {
+        Mock::given(method(verb))
+            .and(path(route))
+            .and(header("authorization", auth.as_str()))
+            .and(body_json(body))
+            .respond_with(ok())
+            .expect(1)
+            .mount(&server)
+            .await;
+    }
+    Mock::given(method("POST"))
+        .and(path("/api/v1/sessions/s%201/title/generate"))
+        .and(header("authorization", auth.as_str()))
+        .and(body_json(serde_json::json!({ "first_message": "Help me" })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "title": "CV help" })),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/projects/p%2F1/sessions"))
+        .and(header("authorization", auth.as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(vec![session("s-2")]))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+    let update = crate::commands::chat::UpdateSessionRequest {
+        system_prompt: Some("Brief.".to_owned()),
+        tools: None,
+        llm_backend: None,
+    };
+
+    // WHEN the attached arm of each command runs, with identifiers that need
+    // encoding in a path
+    conversations::update(&client, "s 1", &update)
+        .await
+        .unwrap();
+    conversations::erase(&client, "s 1").await.unwrap();
+    conversations::rename(&client, "s 1", "Plan").await.unwrap();
+    conversations::link_project(&client, "s 1", Some("p-1"))
+        .await
+        .unwrap();
+    let title = conversations::name(&client, "s 1", "Help me")
+        .await
+        .unwrap();
+    let sessions = conversations::project_sessions(&client, "p/1")
+        .await
+        .unwrap();
+
+    // THEN each reached its own route once (the mocks verify it on drop), the
+    // generated title and the project's sessions come back as the daemon said
+    assert_eq!(title, "CV help");
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(sessions[0].id, "s-2");
+}
+
+#[tokio::test]
+async fn test_a_conversation_refused_by_the_daemon_shows_its_message() {
+    use crate::commands::chat::conversations;
+
+    // GIVEN a daemon that refuses a blank title and an unknown session
+    let server = MockServer::start().await;
+    Mock::given(method("PUT"))
+        .and(path("/api/v1/sessions/s-1/title"))
+        .respond_with(
+            ResponseTemplate::new(400)
+                .set_body_json(serde_json::json!({ "error": "title must not be empty" })),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/sessions/ghost/erase"))
+        .respond_with(
+            ResponseTemplate::new(404)
+                .set_body_json(serde_json::json!({ "error": "session not found: ghost" })),
+        )
+        .mount(&server)
+        .await;
+    let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+
+    // WHEN the attached arm renames with a blank title and erases the unknown
+    let renamed = conversations::rename(&client, "s-1", "  ").await;
+    let erased = conversations::erase(&client, "ghost").await;
+
+    // THEN the interface reads the daemon's own words, not an unavailability
+    assert_eq!(renamed.unwrap_err(), "title must not be empty");
+    assert_eq!(erased.unwrap_err(), "session not found: ghost");
+}
+
+#[test]
+fn test_the_conversation_commands_pass_the_gate_attached() {
+    // GIVEN the commands that manage the conversations of the chat
+    let commands = [
+        "delete_chat_session",
+        "generate_chat_session_name",
+        "link_chat_to_project",
+        "list_chats_by_project",
+        "rename_chat_session",
+        "update_chat_session",
+    ];
+
+    // WHEN each is gated while attached
+    let refused: Vec<&str> = commands
+        .into_iter()
+        .filter(|command| gate(LinkMode::Attached, command).is_err())
+        .collect();
+
+    // THEN none is refused
+    assert!(refused.is_empty(), "refused: {refused:?}");
+}
