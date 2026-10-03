@@ -29,6 +29,21 @@ impl RuntimeLink {
         }
     }
 
+    /// [`Self::post_json`] for a request whose work takes longer than the
+    /// usual deadline of the attached arm; `deadline` replaces it. The
+    /// embedded arm sets none.
+    pub(crate) async fn post_json_within(
+        &self,
+        path: &str,
+        body: &Value,
+        deadline: std::time::Duration,
+    ) -> Result<Value, String> {
+        match self {
+            Self::Embedded(runtime) => http_post_json(runtime.api_port, path, body).await,
+            Self::Attached(remote) => Ok(remote.post_within(path, body, deadline).await?),
+        }
+    }
+
     /// `PUT path` with a JSON body on the runtime this application drives.
     pub(crate) async fn put_json(&self, path: &str, body: &Value) -> Result<Value, String> {
         match self {

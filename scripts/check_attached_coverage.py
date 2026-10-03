@@ -94,8 +94,9 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # the dictation was named a command of the window, then at 44 once the reading
 # side of the Model Hub (hardware, search, cards, installed models,
 # recommendation) reached the daemon, then at 39 once the local AI could be
-# installed at onboarding through the daemon.
-EMBEDDED_ONLY_CEILING = 39
+# installed at onboarding through the daemon, then at 34 once the agent
+# packages were installed, listed and uninstalled through the daemon.
+EMBEDDED_ONLY_CEILING = 34
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

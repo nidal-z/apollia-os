@@ -86,6 +86,7 @@
     "default_requires_approval": false,
     "package_registry_type": "npm",
     "package_runtime_hint": "npx",
+    "package_version": "0.6.2",
     "package_env_vars": [
       {
         "name": "BRAVE_API_KEY",
@@ -125,6 +126,7 @@
     "default_requires_approval": false,
     "package_registry_type": "npm",
     "package_runtime_hint": "npx",
+    "package_version": "2026.8.31",
     "package_arguments": [
       {
         "arg_type": "positional",
@@ -171,6 +173,7 @@
     "default_requires_approval": false,
     "package_registry_type": "npm",
     "package_runtime_hint": "npx",
+    "package_version": "2026.8.31",
     "cost_model": { "kind": "free" },
     "tool_families": {
       "add_observations": "write_or_delete",
@@ -186,6 +189,7 @@
   },
   {
     "package_identifier": "@modelcontextprotocol/server-puppeteer",
+    "withdrawn": true,
     "registry_names": [],
     "operator_label": { "en": "Web Browser", "fr": "Navigateur web" },
     "description": {
@@ -811,6 +815,7 @@
     "default_requires_approval": false,
     "package_registry_type": "npm",
     "package_runtime_hint": "npx",
+    "package_version": "0.6.2",
     "package_env_vars": [
       {
         "name": "POSTGRES_URL",
@@ -826,6 +831,7 @@
   },
   {
     "package_identifier": "@modelcontextprotocol/server-sqlite",
+    "withdrawn": true,
     "registry_names": [],
     "operator_label": { "en": "SQLite", "fr": "SQLite" },
     "description": {
@@ -852,6 +858,7 @@
   },
   {
     "package_identifier": "@modelcontextprotocol/server-git",
+    "withdrawn": true,
     "registry_names": [],
     "operator_label": { "en": "Git", "fr": "Git" },
     "description": {
