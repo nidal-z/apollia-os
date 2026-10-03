@@ -1789,6 +1789,13 @@ jobs:
       # platform whose signature is absent (no signing key on the build) is
       # left out, and an empty manifest is still published: the updater plugin
       # reports it as "channel unavailable", which is the true state.
+      #
+      # A trial version (the contract's `preview.tag`, vX.Y.Z-rc.N) publishes
+      # the preview manifests instead, latest-preview.json and
+      # latest-cuda-preview.json, and never a stable one: the stable channel is
+      # left exactly as the last stable release set it. Its bundle must carry
+      # the version X.Y.Z-N, numeric because WiX refuses any other pre-release
+      # identifier; the step refuses a trial tag whose bundle says otherwise.
       - name: Compose the updater manifest (latest.json)
         env:
           TAG: ${{ github.ref_name }}
@@ -1798,6 +1805,8 @@ jobs:
           import json
           import os
           import pathlib
+          import re
+          import sys
           import urllib.parse
 
           contract = json.loads(pathlib.Path("packaging/artifacts.json").read_text())
@@ -1806,6 +1815,19 @@ jobs:
           repo = contract["repo"]
           tag = os.environ["TAG"]
           base = f"https://github.com/{repo}/releases/download/{tag}/"
+
+          preview = contract["preview"]
+          trial = re.match(preview["tag"], tag)
+          if trial:
+              expected = f"{trial.group(1)}-{trial.group(2)}"
+              if version != expected:
+                  print(f"::error::the trial tag {tag} needs tauri.conf.json version "
+                        f"{expected} (numeric pre-release, WiX), found {version}")
+                  sys.exit(1)
+          published_as = {
+              name: preview["manifests"][name] if trial else name
+              for name in contract["updater_manifests"]
+          }
 
           # One manifest per channel, because a Tauri manifest keys platforms by
           # triple and two bundles share a triple: the CUDA variants would
@@ -1852,7 +1874,7 @@ jobs:
                   "pub_date": stamp,
                   "platforms": keyed,
               }
-              out = pathlib.Path("artifacts") / name
+              out = pathlib.Path("artifacts") / published_as[name]
               out.write_text(json.dumps(manifest, indent=2) + "\n")
               print(f"wrote {out} covering {sorted(keyed)}")
           EOF
@@ -1882,7 +1904,7 @@ jobs:
           for pattern in \
             '*.tar.gz' '*.tar.gz.sha256' '*.zip' '*.zip.sha256' \
             '*.dmg' '*.deb' '*.AppImage' '*.msi' '*.exe' \
-            'latest.json' 'latest-cuda.json' \
+            'latest*.json' \
             '*.cdx.json' '*.spdx.json' '*.sig'; do
             for f in $pattern; do
               [ -f "$f" ] && published+=("$f")
@@ -2060,8 +2082,7 @@ jobs:
             artifacts/*.AppImage
             artifacts/*.msi
             artifacts/*.exe
-            artifacts/latest.json
-            artifacts/latest-cuda.json
+            artifacts/latest*.json
             artifacts/SHA256SUMS
             artifacts/SHA256SUMS.asc
             artifacts/*.cdx.json
@@ -2069,5 +2090,9 @@ jobs:
             artifacts/*.sig
             artifacts/*.cosign.bundle
           draft: true
+          # A trial version is a pre-release: GitHub never serves it as the
+          # latest release, so the stable endpoint cannot reach it, and
+          # publishing it fires preview-channel.yml.
+          prerelease: ${{ contains(github.ref_name, '-rc.') }}
           generate_release_notes: true
           fail_on_unmatched_files: true

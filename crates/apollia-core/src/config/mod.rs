@@ -71,7 +71,7 @@ pub use autonomy::{
     AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, AutonomyLevelParseError, GatePolicy,
 };
 pub use chat::ChatConfig;
-pub use desktop::DesktopConfig;
+pub use desktop::{DesktopConfig, UpdateChannel};
 pub use filesystem::{FilesystemConfig, JournalConfig};
 pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
