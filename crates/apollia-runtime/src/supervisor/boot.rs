@@ -119,10 +119,18 @@ impl Supervisor {
         // The MLX engine, on a Mac with Apple Silicon whose build carries it.
         // An MLX model elsewhere is refused with its reason by the router.
         let mlx_engine =
-            crate::mlx_engine::MlxEngineSupervisor::for_this_machine(Some(guardrails_file));
+            crate::mlx_engine::MlxEngineSupervisor::for_this_machine(Some(guardrails_file.clone()));
         if let Some(engine) = &mlx_engine {
             Arc::clone(engine).spawn_supervision();
         }
+        // Both engines unload a model nothing uses any more, and keep a pinned one.
+        crate::residency::start_residency(
+            system_db_path.clone(),
+            guardrails_file,
+            event_sender.clone(),
+            llama_server_supervisor.as_ref(),
+            mlx_engine.as_ref(),
+        );
 
         // Phase 4 (pos 5): LlmRouter + LlmBackendRepository, loads backends from system.db
         let (llm_router, llm_backend_repo) = self

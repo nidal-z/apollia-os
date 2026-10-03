@@ -380,6 +380,37 @@ level, or a `ceiling` level without a positive `ceiling_gb` holds to `balanced`:
 a typo never turns the guardrail off. A model whose footprint cannot be
 estimated is launched.
 
+Several models can stay loaded at once, as many as the guardrail admits: a
+model is judged with the footprints of the models already loaded added to its
+own. When that sum is refused, the loaded models nothing keeps (no open
+conversation, no pin, no answer in progress) are unloaded, least recently used
+first and only as many as needed; when even that would not be enough, nothing
+is unloaded and the load is refused.
+
+## Model residency (`[llm.residency]`)
+
+A local model nothing uses gives its memory back on its own.
+
+```toml
+[llm.residency]
+idle_unload_minutes = 60   # 0 keeps an unused model loaded
+```
+
+| Rule | Unloads |
+| --- | --- |
+| Idle delay | a model no request has used for `idle_unload_minutes`, checked every thirty seconds |
+| Last conversation closed | a model at once, when the last open conversation that uses it closes |
+
+A model the user pinned is unloaded by neither rule, and a model answering a
+request is never unloaded. The pin is kept in `system.db` and survives a
+restart. The key is read at every check, so a change applies without a restart.
+An interface says which conversations are open with
+`POST /api/v1/llm/leases` and `POST /api/v1/llm/leases/release`, and pins a
+model with `PUT /api/v1/llm/pins`. When the event stream it opened with
+`GET /api/v1/events?client=<id>` ends, the conversations of that client count
+as closed. Each unload is published on the event bus as `LlmModelUnloaded`,
+with its reason: `idle`, `last_conversation`, `requested` or `make_room`.
+
 ## Dictation (`system.db`, not `apollia.toml`)
 
 Voice dictation has no `apollia.toml` section. Its ten settings live in a single

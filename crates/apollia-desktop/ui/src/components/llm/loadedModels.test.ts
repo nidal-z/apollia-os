@@ -43,7 +43,7 @@ describe("loadedModels", () => {
   test("the block stays hidden without a local engine or before the first answer", () => {
     // GIVEN no answer yet, then an answer from a host without a local engine
     const none = null;
-    const noEngine = { engineAvailable: false, maxLoaded: 0, models: [] };
+    const noEngine = { engineAvailable: false, maxLoaded: null, models: [] };
 
     // WHEN the block decides whether to show
     const shown = [showLoadedModels(none), showLoadedModels(noEngine)];

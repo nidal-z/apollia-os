@@ -20,7 +20,9 @@
 //!   [`resolve_setting`] and written by [`write_setting`], which refuses a key
 //!   the organization policy locks.
 //!
-//! `[llm]` is another, whose type lives in `apollia-llm`.
+//! `[llm]` is another, whose type lives in `apollia-llm`; its
+//! `[llm.residency]` subsection, [`LlmResidencyConfig`], is a named setting
+//! resolved by [`resolve_setting`].
 //!
 //! The other types in this module are runtime parameters, not `apollia.toml`
 //! sections. No loader deserializes an `[a2a]` or an `[oria]` table, and both
@@ -41,6 +43,7 @@ mod filesystem_risk;
 mod hitl;
 mod hooks;
 mod llm;
+mod llm_residency;
 mod mcp;
 mod models;
 mod oria;
@@ -73,6 +76,7 @@ pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
 pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig, LlmRunnerConfig};
+pub use llm_residency::{LlmResidencyConfig, DEFAULT_IDLE_UNLOAD_MINUTES, IDLE_UNLOAD_KEY};
 pub use mcp::{McpConfig, McpToolLoading};
 pub use models::{ModelsConfig, DEFAULT_MODEL_REGISTRY_MIRROR_URL, DEFAULT_MODEL_REGISTRY_URL};
 pub use oria::ORIAConfig;

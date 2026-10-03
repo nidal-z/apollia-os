@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::mcp_health::McpHealth;
 
-use super::{AgentId, FilesystemPreview, RunId, TaskId, ToolCallRationale};
+use super::{AgentId, FilesystemPreview, ModelUnloadReason, RunId, TaskId, ToolCallRationale};
 
 /// Complete catalogue of Apollia OS runtime events.
 ///
@@ -170,6 +170,15 @@ pub enum RuntimeEvent {
         backend: String,
         /// Path to the `.gguf` file the new process serves.
         model_path: String,
+    },
+    /// A resident local model was unloaded and its memory given back.
+    LlmModelUnloaded {
+        /// Wire name of the engine that served it (`llama-server`, `vllm-mlx`).
+        engine: String,
+        /// Path the model was loaded from, the key of the resident list.
+        model_path: String,
+        /// Why it was unloaded.
+        reason: ModelUnloadReason,
     },
     /// Loading an LLM backend failed: backend skipped, runtime continues.
     LlmModelFailed {

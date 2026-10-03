@@ -1,5 +1,6 @@
 //! The local-model operations of the OpenAPI document: what is resident,
-//! loading, estimating, unloading.
+//! loading, estimating, unloading, and the leases and pins that keep a model
+//! loaded.
 //!
 //! Declared apart from [`super::openapi::ApiDoc`] and merged into it by the
 //! [`LocalModels`] modifier, so the main document stays a readable size. The
@@ -17,6 +18,10 @@ use utoipa::{Modify, OpenApi};
         crate::api::routes_llm::load::load_model,
         crate::api::routes_llm::load::get_last_loaded_model,
         crate::api::routes_llm::load::reload_last_loaded_model,
+        crate::api::routes_llm::residency::open_model_lease,
+        crate::api::routes_llm::residency::release_model_lease,
+        crate::api::routes_llm::residency::list_model_pins,
+        crate::api::routes_llm::residency::set_model_pin,
     ),
     components(schemas(
         crate::api::routes_llm::loaded::LoadedModelDto,
@@ -35,6 +40,12 @@ use utoipa::{Modify, OpenApi};
         crate::api::routes_llm::load::LoadEstimateResponse,
         crate::api::routes_llm::load::LoadModelResponse,
         crate::api::routes_llm::load::LastLoadedModelResponse,
+        crate::api::routes_llm::residency::OpenLeaseRequest,
+        crate::api::routes_llm::residency::LeaseResponse,
+        crate::api::routes_llm::residency::ReleaseLeaseRequest,
+        crate::api::routes_llm::residency::ReleaseLeaseResponse,
+        crate::api::routes_llm::residency::PinsResponse,
+        crate::api::routes_llm::residency::ModelPin,
     ))
 )]
 struct LocalModelsDoc;
