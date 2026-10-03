@@ -22,6 +22,9 @@
 //!   that Rust reads, each a named setting resolved with its source by
 //!   [`resolve_setting`] and written by [`write_setting`], which refuses a key
 //!   the organization policy locks.
+//! - [`ServerConfig`]: `[server]`, the compatible server, a second listener
+//!   of the runtime on its own port, switched off by default; its two keys
+//!   are named settings too.
 //! - [`LlmConfig`]: `[llm]`, the backends declared in the file, routing and
 //!   the runner; `apollia-llm` re-exports its shapes.
 //! - [`UiConfig`]: `[ui]`, the desktop link preview.
@@ -56,6 +59,7 @@ mod retired;
 mod root;
 mod runtime;
 mod scan;
+mod server;
 mod settings;
 mod tools;
 mod triggers;
@@ -100,6 +104,7 @@ pub use registry::RegistryConfig;
 pub(crate) use retired::warn_retired_keys;
 pub use root::{ApolliaConfig, UiConfig};
 pub use runtime::RuntimeConfig;
+pub use server::{ServerConfig, DEFAULT_COMPAT_SERVER_PORT};
 pub use settings::{
     check_imposed_setting, resolve_setting, resolve_setting_in, write_setting, PolicySettings,
     ResolvedSetting, SettingError, SettingSource,

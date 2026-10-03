@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { llmBackends } from "$lib/stores/llm";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { Badge } from "$lib/components/ui/badge";
   import { Cpu, Cloud } from "lucide-svelte";
 
@@ -54,7 +54,7 @@
       <div class="min-w-0 flex-1">
         <span class="text-sm">{humanizeBackend(activeBackend.provider === "llama-cpp" ? "embedded" : "api", activeBackend.model)}</span>
 
-        {#if $uiMode === "builder"}
+        {#if $developerMode}
           <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span>{$t('agent_detail.llm_backend')}: {activeBackend.name}</span>
             <span>{$t('agent_detail.llm_model')}: {activeBackend.model}</span>
@@ -69,7 +69,7 @@
       </div>
     </div>
 
-    {#if $uiMode === "builder" && $llmBackends.length > 1}
+    {#if $developerMode && $llmBackends.length > 1}
       <p class="mt-2 text-xs text-muted-foreground">
         +{$llmBackends.length - 1} {$t('agent_detail.llm_more_backends')}
       </p>

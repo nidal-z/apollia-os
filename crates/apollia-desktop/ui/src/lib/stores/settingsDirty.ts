@@ -1,5 +1,5 @@
 import { writable, derived, get } from "svelte/store";
-import type { SettingsSubRoute } from "./settings";
+import type { SettingsFormRoute } from "./settings";
 
 export type SavingState = "idle" | "saving" | "saved" | "error";
 
@@ -11,7 +11,7 @@ export interface RouteDirtyState {
   autoSave: "debounced" | "explicit";
 }
 
-export type SettingsDirtyMap = Partial<Record<SettingsSubRoute, RouteDirtyState>>;
+export type SettingsDirtyMap = Partial<Record<SettingsFormRoute, RouteDirtyState>>;
 
 const DEFAULT: RouteDirtyState = {
   dirty: false,
@@ -23,21 +23,21 @@ const DEFAULT: RouteDirtyState = {
 export const settingsDirtyStore = writable<SettingsDirtyMap>({});
 
 /** Per-route scroll preservation. */
-export const settingsScrollStore = writable<Partial<Record<SettingsSubRoute, number>>>({});
+export const settingsScrollStore = writable<Partial<Record<SettingsFormRoute, number>>>({});
 
 /** True when any `explicit` sub-route has unsaved changes. */
 export const hasExplicitDirty = derived(settingsDirtyStore, ($m) =>
   Object.values($m).some((s) => s?.dirty && s.autoSave === "explicit"),
 );
 
-export function setRouteState(route: SettingsSubRoute, patch: Partial<RouteDirtyState>): void {
+export function setRouteState(route: SettingsFormRoute, patch: Partial<RouteDirtyState>): void {
   settingsDirtyStore.update((m) => {
     const prev = m[route] ?? DEFAULT;
     return { ...m, [route]: { ...prev, ...patch } };
   });
 }
 
-export function clearRoute(route: SettingsSubRoute): void {
+export function clearRoute(route: SettingsFormRoute): void {
   settingsDirtyStore.update((m) => {
     const next = { ...m };
     delete next[route];
@@ -45,14 +45,14 @@ export function clearRoute(route: SettingsSubRoute): void {
   });
 }
 
-export function getRouteState(route: SettingsSubRoute): RouteDirtyState {
+export function getRouteState(route: SettingsFormRoute): RouteDirtyState {
   return get(settingsDirtyStore)[route] ?? DEFAULT;
 }
 
-export function setScroll(route: SettingsSubRoute, y: number): void {
+export function setScroll(route: SettingsFormRoute, y: number): void {
   settingsScrollStore.update((m) => ({ ...m, [route]: y }));
 }
 
-export function getScroll(route: SettingsSubRoute): number {
+export function getScroll(route: SettingsFormRoute): number {
   return get(settingsScrollStore)[route] ?? 0;
 }

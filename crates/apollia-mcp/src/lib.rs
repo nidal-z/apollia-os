@@ -3,7 +3,8 @@
 //!
 //! Provides configuration parsing, JSON-RPC transport, session lifecycle,
 //! server management, tool execution for the Model Context Protocol, and
-//! an MCP stdio server that exposes native Apollia tools to external clients.
+//! an MCP stdio server that relays an external client to the agents and
+//! workflows the daemon exposes.
 //!
 //! The [`discovery`] module adds opt-in mDNS-based service discovery for
 //! locating MCP servers on the local network without manual configuration.
@@ -29,7 +30,6 @@ pub mod registry;
 mod sanitize;
 pub mod server;
 pub mod server_repository;
-pub mod server_tools;
 pub mod server_types;
 pub mod session;
 pub mod task_approval;
@@ -39,5 +39,7 @@ pub mod transport;
 pub use approvals::{McpApprovalError, McpApprovalStore, PendingApprovalEntry};
 pub use discovery::{DiscoveredServer, DiscoveryError};
 pub use origin::{ConnectionOrigin, Provenance};
-pub use server::{McpServerError, McpStdioServer, SubmitTaskHandler};
+pub use server::{
+    BridgeCallOutcome, BridgeError, BridgeFuture, McpBridge, McpServerError, McpStdioServer,
+};
 pub use server_repository::{McpRepoError, McpServerRepository};

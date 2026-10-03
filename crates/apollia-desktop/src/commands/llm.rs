@@ -467,8 +467,10 @@ async fn rebuild_desktop_router(
     // the reload would rebuild a router without the local backend (local
     // inference would become unreachable). We reuse the same factory as the
     // supervisor at boot.
-    let factory = apollia_runtime::llama_server_backend::llama_server_override(
+    let factory = apollia_runtime::local_engine::local_engine_override(
         runtime.llama_server_supervisor.clone(),
+        runtime.mlx_engine.clone(),
+        apollia_core::paths::data_dir().map(|d| apollia_runtime::installed_models::models_dir(&d)),
     );
 
     // `system.db` holds neither `[llm.routing]` nor the agents' last

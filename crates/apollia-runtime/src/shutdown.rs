@@ -85,6 +85,8 @@ pub struct ShutdownControllerDeps<B: ExecutionBackend> {
     /// Same reason as `runner_supervisor`, and the cost of missing it is higher:
     /// a loaded model holds gigabytes of resident memory.
     pub llama_server_supervisor: Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
+    /// The `vllm-mlx` processes serving MLX models, when this machine runs them.
+    pub mlx_engine: Option<Arc<crate::mlx_engine::MlxEngineSupervisor>>,
 }
 
 /// Graceful shutdown controller for the Apollia runtime.
@@ -111,6 +113,8 @@ pub struct ShutdownController<B: ExecutionBackend> {
     runner_supervisor: Option<Arc<crate::runner_supervisor::RunnerSupervisor>>,
     /// Owner of the `llama-server` child processes, if started.
     llama_server_supervisor: Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
+    /// The `vllm-mlx` processes serving MLX models, when this machine runs them.
+    mlx_engine: Option<Arc<crate::mlx_engine::MlxEngineSupervisor>>,
 }
 
 impl<B: ExecutionBackend> ShutdownController<B> {
@@ -126,6 +130,7 @@ impl<B: ExecutionBackend> ShutdownController<B> {
             mcp_handle: deps.mcp_handle,
             runner_supervisor: deps.runner_supervisor,
             llama_server_supervisor: deps.llama_server_supervisor,
+            mlx_engine: deps.mlx_engine,
         }
     }
 
@@ -181,10 +186,14 @@ impl<B: ExecutionBackend> ShutdownController<B> {
         // Skipping this leaves `llama-server` and the Python runner reparented to
         // init, alive and holding their memory, while the shell that ran
         // `apollia-os stop` reports the runtime stopped.
-        if self.runner_supervisor.is_some() || self.llama_server_supervisor.is_some() {
+        if self.runner_supervisor.is_some()
+            || self.llama_server_supervisor.is_some()
+            || self.mlx_engine.is_some()
+        {
             crate::embedded::stop_supervisors(
                 self.runner_supervisor.as_deref(),
                 self.llama_server_supervisor.as_deref(),
+                self.mlx_engine.as_deref(),
             )
             .await;
             info!("shutdown.children.stopped");
@@ -637,9 +646,11 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -666,6 +677,7 @@ mod tests {
             mcp_handle: None,
             runner_supervisor: None,
             llama_server_supervisor: Some(llama.clone()),
+            mlx_engine: None,
         });
 
         (controller, event_sender, socket_path, llama)
@@ -816,9 +828,11 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -845,6 +859,7 @@ mod tests {
             mcp_handle: None,
             runner_supervisor: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
         });
 
         // WHEN shutdown() runs and the in-flight task is released so it completes
@@ -944,9 +959,11 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -973,6 +990,7 @@ mod tests {
             mcp_handle: None,
             runner_supervisor: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
         });
 
         // WHEN the drain runs and the task completes while it is in progress. The
@@ -1067,9 +1085,11 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -1099,6 +1119,7 @@ mod tests {
             mcp_handle: None,
             runner_supervisor: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
         });
 
         let result = controller.shutdown().await;
@@ -1282,9 +1303,11 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -1313,6 +1336,7 @@ mod tests {
             mcp_handle: None,
             runner_supervisor: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
         });
 
         // WHEN shutdown

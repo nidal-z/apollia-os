@@ -1,34 +1,31 @@
 //! Canonical user profile schema.
 //!
-//! Declares the known profile fields shared across all agents: keys, display
-//! sections, sensitivity flag, field type, and i18n labels (FR/EN).  The schema
-//! is the single source of truth, consumed by the Rust repository for
-//! schema/extras partitioning, by the Tauri IPC layer for UI rendering, and by
-//! the Python SDK to expose typed `ctx.profile.<field>` accessors.
+//! Declares the fields a profile carries: five simple fields and one free
+//! text, all optional. The schema is the single source of truth, consumed by
+//! the Rust repository to tell a profile field from a free-form entry, by the
+//! interface layers to draw the profile form ([`profile_fields`]), and by the
+//! Python SDK to expose `ctx.profile` keys.
 //!
-//! Keys are stored flat in the `__user__` SemanticMemory namespace (no
-//! `category.` or `user.` prefix).  Adding a new canonical field requires
-//! appending to [`PROFILE_SCHEMA`].  Free-form keys written by agents outside
-//! this schema are tolerated and surface in the "Other entries" UI section.
+//! A profile is a row of the `profiles` table of `user_memory.db`; each key
+//! below names one of its columns. Free-form keys written by agents outside
+//! this schema are tolerated and stay in the `__user__` semantic namespace.
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-/// UI section a profile field belongs to.
-///
-/// Sections drive layout grouping on the Settings → Profile page.
+/// Section a profile field belongs to, for grouping in a form or a prompt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProfileSection {
-    /// Identity: name, role, goals.
+    /// Who the person is: name, role, function.
     Identity,
-    /// Work context: sector, team size, tech stack, daily tools, integrations.
+    /// How the person works: the tools they use.
     Work,
-    /// Preferences: language, LLM, agent supervision, agent domains, triggers.
+    /// What the person prefers.
     Preferences,
-    /// Constraints: sovereignty, compliance.
-    Constraints,
+    /// The free text.
+    Notes,
 }
 
 impl ProfileSection {
@@ -38,12 +35,12 @@ impl ProfileSection {
             Self::Identity => "identity",
             Self::Work => "work",
             Self::Preferences => "preferences",
-            Self::Constraints => "constraints",
+            Self::Notes => "notes",
         }
     }
 }
 
-/// Input control type the UI should render for a profile field.
+/// Input control a form should render for a profile field.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProfileFieldType {
@@ -51,14 +48,13 @@ pub enum ProfileFieldType {
     Text,
     /// Multi-line free text.
     LongText,
-    /// Closed set of allowed values (see [`ProfileField::options`]).
-    Select,
 }
 
-/// Declarative description of a canonical profile field.
-#[derive(Debug, Clone, Copy)]
+/// Declarative description of a profile field. Every field is optional.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct ProfileField {
-    /// Storage key (flat, e.g. `name`, `agents.hitl`, `constraints.sovereignty`).
+    /// Storage key (`name`, `role`, `function`, `tools`, `preferences`,
+    /// `free_text`).
     pub key: &'static str,
     /// French label for UI rendering.
     pub label_fr: &'static str,
@@ -68,207 +64,74 @@ pub struct ProfileField {
     pub help_fr: &'static str,
     /// English inline help / placeholder.
     pub help_en: &'static str,
-    /// UI section the field belongs to.
+    /// Section the field belongs to.
     pub section: ProfileSection,
-    /// `true` when changing the value warrants an "rerun onboarding" notice
-    /// because it affects agent permissions / governance.
-    pub sensitive: bool,
     /// Input control to render.
     pub field_type: ProfileFieldType,
-    /// Allowed values when [`Self::field_type`] is
-    /// [`ProfileFieldType::Select`], empty otherwise.
-    pub options: &'static [&'static str],
 }
 
 // ---------------------------------------------------------------------------
-// Canonical schema (~15 fields, Tier 1 + Tier 2)
+// Canonical schema: five fields and a free text
 // ---------------------------------------------------------------------------
 
-/// The canonical set of profile fields, ordered for stable UI rendering.
-///
-/// Tier 1 (`name`, `role`, `agents.hitl`, `constraints.sovereignty`) is what
-/// the onboarding agent writes by default.  Tier 2 fields surface as empty
-/// inputs in the UI until populated by the user or by an agent observation.
+/// Key of the free text of a profile.
+pub const FREE_TEXT_KEY: &str = "free_text";
+
+/// The profile fields, ordered for stable form rendering.
 pub const PROFILE_SCHEMA: &[ProfileField] = &[
-    // ─── Identity ────────────────────────────────────────────────────────
     ProfileField {
         key: "name",
-        label_fr: "Prénom",
-        label_en: "First name",
+        label_fr: "Nom",
+        label_en: "Name",
         help_fr: "Comment les agents doivent vous appeler.",
         help_en: "How agents should address you.",
         section: ProfileSection::Identity,
-        sensitive: false,
         field_type: ProfileFieldType::Text,
-        options: &[],
     },
     ProfileField {
         key: "role",
         label_fr: "Rôle",
         label_en: "Role",
-        help_fr: "Votre métier ou fonction principale.",
-        help_en: "Your main role or job title.",
+        help_fr: "Votre métier ou votre poste.",
+        help_en: "Your job or position.",
         section: ProfileSection::Identity,
-        sensitive: false,
         field_type: ProfileFieldType::Text,
-        options: &[],
     },
     ProfileField {
-        key: "goals",
-        label_fr: "Objectifs",
-        label_en: "Goals",
-        help_fr: "Ce que vous cherchez à accomplir avec Apollia.",
-        help_en: "What you want to accomplish with Apollia.",
+        key: "function",
+        label_fr: "Fonction",
+        label_en: "Function",
+        help_fr: "Le service ou le domaine dans lequel vous travaillez.",
+        help_en: "The department or field you work in.",
         section: ProfileSection::Identity,
-        sensitive: false,
-        field_type: ProfileFieldType::LongText,
-        options: &[],
-    },
-    // ─── Work ────────────────────────────────────────────────────────────
-    ProfileField {
-        key: "domain.sector",
-        label_fr: "Secteur d'activité",
-        label_en: "Industry",
-        help_fr: "ex : fintech, santé, e-commerce, R&D.",
-        help_en: "e.g. fintech, healthcare, e-commerce, R&D.",
-        section: ProfileSection::Work,
-        sensitive: false,
         field_type: ProfileFieldType::Text,
-        options: &[],
     },
     ProfileField {
-        key: "domain.team_size",
-        label_fr: "Taille d'équipe",
-        label_en: "Team size",
-        help_fr: "Solo, petite équipe, grande structure...",
-        help_en: "Solo, small team, large organization...",
+        key: "tools",
+        label_fr: "Outils utilisés",
+        label_en: "Tools you use",
+        help_fr: "Les outils de votre quotidien (tableur, messagerie, Notion...).",
+        help_en: "The tools of your day (spreadsheet, email, Notion...).",
         section: ProfileSection::Work,
-        sensitive: false,
-        field_type: ProfileFieldType::Text,
-        options: &[],
-    },
-    ProfileField {
-        key: "tech.stack",
-        label_fr: "Stack technique",
-        label_en: "Tech stack",
-        help_fr: "Langages, frameworks et outils principaux.",
-        help_en: "Main languages, frameworks and tools.",
-        section: ProfileSection::Work,
-        sensitive: false,
         field_type: ProfileFieldType::LongText,
-        options: &[],
     },
     ProfileField {
-        key: "tech.proficiency",
-        label_fr: "Niveau technique",
-        label_en: "Tech proficiency",
-        help_fr: "Profondeur souhaitée des explications techniques.",
-        help_en: "Depth of technical explanations you expect.",
-        section: ProfileSection::Work,
-        sensitive: false,
-        field_type: ProfileFieldType::Select,
-        options: &["debutant", "intermediaire", "avance", "expert"],
-    },
-    ProfileField {
-        key: "tools.daily",
-        label_fr: "Outils quotidiens",
-        label_en: "Daily tools",
-        help_fr: "Outils que vous utilisez tous les jours (Git, Notion, Slack...).",
-        help_en: "Tools you use daily (Git, Notion, Slack...).",
-        section: ProfileSection::Work,
-        sensitive: false,
+        key: "preferences",
+        label_fr: "Préférences",
+        label_en: "Preferences",
+        help_fr: "Langue, ton, format de réponse que vous préférez.",
+        help_en: "The language, tone and answer format you prefer.",
+        section: ProfileSection::Preferences,
         field_type: ProfileFieldType::LongText,
-        options: &[],
     },
     ProfileField {
-        key: "tech.integrations",
-        label_fr: "Intégrations connectées",
-        label_en: "Connected integrations",
-        help_fr: "Services connectés (GitHub, GitLab, Gmail...). Sensible : modifier ce champ peut nécessiter un nouvel onboarding.",
-        help_en: "Connected services (GitHub, GitLab, Gmail...). Sensitive: editing this may require re-running onboarding.",
-        section: ProfileSection::Work,
-        sensitive: true,
+        key: FREE_TEXT_KEY,
+        label_fr: "Texte libre",
+        label_en: "Free text",
+        help_fr: "Tout ce que vous voulez que les agents sachent de vous.",
+        help_en: "Anything you want agents to know about you.",
+        section: ProfileSection::Notes,
         field_type: ProfileFieldType::LongText,
-        options: &[],
-    },
-    // ─── Preferences ─────────────────────────────────────────────────────
-    ProfileField {
-        key: "preferences.language",
-        label_fr: "Langue préférée",
-        label_en: "Preferred language",
-        help_fr: "Langue dans laquelle les agents s'adressent à vous.",
-        help_en: "Language agents should use when addressing you.",
-        section: ProfileSection::Preferences,
-        sensitive: false,
-        field_type: ProfileFieldType::Select,
-        options: &["fr", "en"],
-    },
-    ProfileField {
-        key: "preferences.llm",
-        label_fr: "Modèle LLM préféré",
-        label_en: "Preferred LLM",
-        help_fr: "Modèle à privilégier quand plusieurs sont disponibles.",
-        help_en: "Which model to favor when several are available.",
-        section: ProfileSection::Preferences,
-        sensitive: false,
-        field_type: ProfileFieldType::Text,
-        options: &[],
-    },
-    ProfileField {
-        key: "agents.hitl",
-        label_fr: "Supervision des agents",
-        label_en: "Agent supervision",
-        help_fr: "Quand devons-nous vous demander confirmation. Sensible : impacte directement les règles de permissions.",
-        help_en: "When should we ask for your confirmation. Sensitive: directly impacts permission rules.",
-        section: ProfileSection::Preferences,
-        sensitive: true,
-        field_type: ProfileFieldType::Select,
-        options: &["always", "critical-only", "never"],
-    },
-    ProfileField {
-        key: "agents.domains",
-        label_fr: "Domaines des agents",
-        label_en: "Agent domains",
-        help_fr: "Domaines fonctionnels couverts (veille, code review, RSE...).",
-        help_en: "Functional domains covered (research, code review, ESG...).",
-        section: ProfileSection::Preferences,
-        sensitive: false,
-        field_type: ProfileFieldType::LongText,
-        options: &[],
-    },
-    ProfileField {
-        key: "agents.trigger",
-        label_fr: "Déclenchement des agents",
-        label_en: "Agent triggering",
-        help_fr: "Comment et quand les agents doivent s'activer (manuel, cron, événement).",
-        help_en: "How and when agents should run (manual, cron, event).",
-        section: ProfileSection::Preferences,
-        sensitive: false,
-        field_type: ProfileFieldType::Text,
-        options: &[],
-    },
-    // ─── Constraints ─────────────────────────────────────────────────────
-    ProfileField {
-        key: "constraints.sovereignty",
-        label_fr: "Souveraineté des données",
-        label_en: "Data sovereignty",
-        help_fr: "Niveau d'autonomie locale exigé. Sensible : impacte les règles réseau et LLM.",
-        help_en: "Required level of local autonomy. Sensitive: impacts network and LLM rules.",
-        section: ProfileSection::Constraints,
-        sensitive: true,
-        field_type: ProfileFieldType::Select,
-        options: &["local-only", "local-preferred", "cloud-ok"],
-    },
-    ProfileField {
-        key: "constraints.compliance",
-        label_fr: "Exigences de conformité",
-        label_en: "Compliance requirements",
-        help_fr: "Cadres réglementaires applicables (RGPD, HDS, SOC2...). Sensible.",
-        help_en: "Regulatory frameworks (GDPR, HIPAA, SOC2...). Sensitive.",
-        section: ProfileSection::Constraints,
-        sensitive: true,
-        field_type: ProfileFieldType::Text,
-        options: &[],
     },
 ];
 
@@ -289,6 +152,13 @@ pub fn is_canonical(key: &str) -> bool {
 /// Returns the set of all canonical keys, in schema order.
 pub fn canonical_keys() -> Vec<&'static str> {
     PROFILE_SCHEMA.iter().map(|f| f.key).collect()
+}
+
+/// Returns the profile fields a form draws, in display order.
+// TEST-ONLY: the profile form reads this list once it stops carrying its own
+// copy of the schema; until then only the schema tests call it.
+pub fn profile_fields() -> &'static [ProfileField] {
+    PROFILE_SCHEMA
 }
 
 // ---------------------------------------------------------------------------
@@ -312,36 +182,34 @@ mod tests {
     }
 
     #[test]
-    fn schema_select_fields_have_options() {
-        // GIVEN the declared profile schema
-        // WHEN each field is checked against its type
-        for f in PROFILE_SCHEMA {
-            // THEN a select field carries options, and any other field carries none
-            if f.field_type == ProfileFieldType::Select {
-                assert!(
-                    !f.options.is_empty(),
-                    "select field {} must have options",
-                    f.key
-                );
-            } else {
-                assert!(
-                    f.options.is_empty(),
-                    "non-select field {} must not have options",
-                    f.key
-                );
-            }
-        }
+    fn profile_fields_are_the_five_fields_and_the_free_text() {
+        // GIVEN the schema a form reads
+        // WHEN the public field list is asked for
+        let keys: Vec<&str> = profile_fields().iter().map(|f| f.key).collect();
+        // THEN it names the five fields then the free text, nothing else
+        assert_eq!(
+            keys,
+            vec![
+                "name",
+                "role",
+                "function",
+                "tools",
+                "preferences",
+                "free_text"
+            ]
+        );
     }
 
     #[test]
-    fn schema_includes_tier_1_keys() {
-        // GIVEN the canonical keys of the profile schema
-        let keys: HashSet<&str> = canonical_keys().into_iter().collect();
-        // WHEN the four first-tier keys are looked for
-        for required in &["name", "role", "agents.hitl", "constraints.sovereignty"] {
-            // THEN every one of them is present
-            assert!(keys.contains(required), "tier 1 key missing: {}", required);
-        }
+    fn profile_fields_serialize_for_a_form() {
+        // GIVEN the field list
+        // WHEN it is serialized the way an interface layer sends it
+        let json = serde_json::to_value(profile_fields()).unwrap();
+        // THEN each field carries its key, labels, section and control
+        assert_eq!(json[0]["key"], "name");
+        assert_eq!(json[0]["section"], "identity");
+        assert_eq!(json[5]["field_type"], "long_text");
+        assert_eq!(json[5]["section"], "notes");
     }
 
     #[test]
@@ -350,7 +218,7 @@ mod tests {
         // WHEN each is tested for canonicity
         // THEN the two schema keys are canonical and the third is not
         assert!(is_canonical("name"));
-        assert!(is_canonical("agents.hitl"));
+        assert!(is_canonical("free_text"));
         assert!(!is_canonical("random_key"));
     }
 }

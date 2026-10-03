@@ -472,6 +472,7 @@ pub async fn run(
         mcp_handle: handles.mcp_handle,
         runner_supervisor: handles.runner_supervisor,
         llama_server_supervisor: handles.llama_server_supervisor,
+        mlx_engine: handles.mlx_engine,
     });
 
     match shutdown.shutdown().await {

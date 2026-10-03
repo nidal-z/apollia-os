@@ -42,6 +42,7 @@
   } from "$lib/shortcuts/chatShortcuts";
   import { focusMessage } from "$lib/shortcuts/messageNav";
   import { commandPaletteOpen } from "$lib/stores/commandPalette";
+  import { developerMode } from "$lib/stores/developerMode";
   import { registerShortcuts } from "$lib/stores/shortcuts";
   import CommandPalette from "../components/chat/CommandPalette.svelte";
   import ShortcutsHelpDialog from "../components/chat/ShortcutsHelpDialog.svelte";
@@ -62,7 +63,9 @@
   let showNewChatPicker = $state(false);
   let showShortcutsHelp = $state(false);
   let sessionSearchQuery = $state("");
-  let journalMode = $state<JournalMode>("operator");
+  // The journal follows the developer mode: the technical reading when it
+  // is on, the plain one otherwise. There is no per-screen switch.
+  const journalMode = $derived<JournalMode>($developerMode ? "builder" : "operator");
   let railTab = $state<"journal" | "plan" | "config">("journal");
 
   // Open the inspector on the Config tab (from a row "..." action or the header
@@ -667,28 +670,6 @@
           {$t("chat.config_title")}
         </button>
       </div>
-      {#if railTab === "journal"}
-        <div class="inline-flex rounded-md border border-border p-0.5 text-micro-lg">
-          <button
-            type="button"
-            class="rounded px-2 py-0.5 transition-colors {journalMode === 'operator'
-              ? 'bg-primary/10 text-primary'
-              : 'text-muted-foreground hover:text-foreground'}"
-            onclick={() => (journalMode = "operator")}
-          >
-            {$t("chat.journal_mode_operator")}
-          </button>
-          <button
-            type="button"
-            class="rounded px-2 py-0.5 transition-colors {journalMode === 'builder'
-              ? 'bg-primary/10 text-primary'
-              : 'text-muted-foreground hover:text-foreground'}"
-            onclick={() => (journalMode = "builder")}
-          >
-            {$t("chat.journal_mode_builder")}
-          </button>
-        </div>
-      {/if}
     </div>
 
     {#if railTab === "config"}

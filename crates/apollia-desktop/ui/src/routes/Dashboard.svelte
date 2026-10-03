@@ -5,7 +5,7 @@
   import { tasks } from "$lib/stores/tasks";
   import { pendingApprovals, pendingCount } from "$lib/stores/hitl";
   import { pendingChatApprovals, pendingChatApprovalCount } from "$lib/stores/chat";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { navigateTo } from "$lib/stores/navigation";
   import { projects } from "$lib/stores/projects";
   import { LayoutDashboard, MessageSquarePlus, FolderOpen } from "lucide-svelte";
@@ -153,8 +153,8 @@
 </script>
 
 <!-- Unified dashboard - Operator layout shared by both modes; Builder mode
-     receives its technical overlay via BuilderOnly inside AgentsAtWorkCard. -->
-<div class="mx-auto w-full max-w-6xl" data-testid="dashboard-page" data-mode={$uiMode}>
+     receives its technical overlay via DeveloperOnly inside AgentsAtWorkCard. -->
+<div class="mx-auto w-full max-w-6xl" data-testid="dashboard-page" data-mode={$developerMode ? "builder" : "operator"}>
   <PageHeader
     kicker={todayLabel || undefined}
     title={headlineTitle}

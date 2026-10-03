@@ -180,6 +180,7 @@ MCP client: tool loading and response limits.
 | `approval_ttl_hours` | `u64` | `24` | Validity duration of MCP HITL approvals, in hours. |
 | `tool_loading` | `McpToolLoading` | type default | Tool schema loading strategy for all MCP servers. |
 | `tool_search_limit` | `usize` | `20` | Maximum number of results returned by the `tool_search` synthetic tool. |
+| `server_enabled` | `bool` | `false` | Whether the daemon accepts the MCP bridge, `apollia-os mcp server`, which serves the agents and workflows marked exposed to an MCP client. |
 
 ### `[hooks]`
 
@@ -366,6 +367,36 @@ These are listed rather than hidden because the settings page still shows some o
 them. A switch that looks like a privacy control and does nothing is worse than
 an absent one, so until they are implemented or removed, this table is the
 authority.
+
+## Load guardrails (`[llm.guardrails]`)
+
+Before a local model is launched, its memory footprint is estimated with the
+context window and the number of parallel slots it would really run with, and
+graded against this machine: it fits, it might fit (split between a graphics
+card and system memory), or it is too large. The level decides what is launched.
+
+```toml
+[llm.guardrails]
+level = "balanced"   # disabled, lenient, balanced, strict or ceiling
+ceiling_gb = 12.0    # read by the ceiling level only
+```
+
+| Level | Launches |
+| --- | --- |
+| `disabled` | every model, without an estimate |
+| `lenient` | every model, with a warning in the log past "might fit" |
+| `balanced` | up to "might fit". The default |
+| `strict` | only a model that fits |
+| `ceiling` | a model estimated at `ceiling_gb` gigabytes or less |
+
+The section is read at every launch, so a change applies to the next model
+loaded, without a restart. A model already loaded is not stopped. A refusal
+names the estimate and the limit: `POST /api/v1/llm/chat` and
+`POST /api/v1/llm/complete` answer it with status 409, the code
+`guardrail_refused`, the level, `estimatedGb` and `budgetGb`. A section that cannot be read, an unknown
+level, or a `ceiling` level without a positive `ceiling_gb` holds to `balanced`:
+a typo never turns the guardrail off. A model whose footprint cannot be
+estimated is launched.
 
 ## Dictation (`system.db`, not `apollia.toml`)
 

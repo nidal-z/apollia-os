@@ -201,11 +201,13 @@ pub enum McpCommand {
         command: McpSecretCommand,
     },
 
-    /// Launch Apollia as an MCP stdio server for external clients.
+    /// Serve the exposed agents and workflows to an MCP client over stdio.
     ///
-    /// Exposes native tools to MCP clients (Claude Desktop, VS Code, Cursor).
-    /// Use `--with-runtime` to additionally expose `submit_task`.
-    Server(super::mcp_server::McpServerArgs),
+    /// A bridge to the running daemon: an MCP client (an editor, another
+    /// assistant) spawns it and sees the agents and workflows marked exposed,
+    /// and nothing else. The daemon refuses it until `mcp.server_enabled` is
+    /// turned on.
+    Server,
 }
 
 /// Subcommands of `apollia-os mcp secret`.
@@ -398,10 +400,15 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
             run_get_raw_config(&client, name, json).await
         }
 
-        McpCommand::Server(args) => match super::mcp_server::run(args).await {
-            Ok(()) => exit_codes::SUCCESS,
-            Err(e) => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string()),
-        },
+        McpCommand::Server => {
+            let path = socket.unwrap_or_else(default_socket_path);
+            match super::mcp_server::run(path).await {
+                Ok(()) => exit_codes::SUCCESS,
+                Err(e) => {
+                    crate::output::emit_error(json, exit_codes::RUNTIME_ERROR, &e.to_string())
+                }
+            }
+        }
 
         McpCommand::Oauth { command } => crate::commands::mcp_oauth::run(command, json).await,
 

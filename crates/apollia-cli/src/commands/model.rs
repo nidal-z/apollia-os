@@ -42,6 +42,12 @@ pub enum ModelCommand {
         #[arg(long)]
         n_ctx: Option<u32>,
     },
+    /// The embeddings model search by meaning uses.
+    Embeddings {
+        /// Embeddings subcommand.
+        #[command(subcommand)]
+        command: crate::commands::model_embeddings::EmbeddingsCommand,
+    },
     /// Remove a local model file from `~/.apollia/models/`.
     Delete {
         /// File name relative to the models directory.
@@ -162,6 +168,9 @@ pub async fn run(cmd: &ModelCommand, socket: Option<PathBuf>, json: bool) -> i32
             run_recommend(socket, *limit, *n_ctx, json).await
         }
         ModelCommand::Delete { name, confirm } => run_delete(name, *confirm, json),
+        ModelCommand::Embeddings { command } => {
+            crate::commands::model_embeddings::run(command, socket, json).await
+        }
     }
 }
 

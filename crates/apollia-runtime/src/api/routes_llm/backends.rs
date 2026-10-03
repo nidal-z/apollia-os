@@ -604,8 +604,11 @@ pub async fn reload_llm_router<B: ExecutionBackend + Clone>(
     // stays wired through the managed server; otherwise the rebuild would drop
     // it and local inference would become unreachable from agents and chat.
     // Shares the same factory used by the supervisor at boot.
-    let factory =
-        crate::llama_server_backend::llama_server_override(state.llama_server_supervisor.clone());
+    let factory = crate::local_engine::local_engine_override(
+        state.llama_server_supervisor.clone(),
+        state.mlx_engine.clone(),
+        Some(crate::installed_models::models_dir(&state.data_dir)),
+    );
     let new_router = apollia_llm::LlmRouter::from_backend_configs_with_override(
         all_configs,
         default_name,

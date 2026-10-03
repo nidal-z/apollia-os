@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use super::keys::{is_live_path, lookup, withdrawn_covering, ReloadClass, KEYS};
-use super::{ApolliaConfig, LlmConfig};
+use super::{check_imposed_setting, ApolliaConfig, LlmConfig, SettingError};
 
 /// Every leaf path of a JSON value: a scalar, a null, an array, or an empty
 /// object ends a path; a non-empty object is walked.
@@ -128,6 +128,7 @@ fn every_section_carries_the_reload_class_of_the_measured_table() {
         ("observability", ReloadClass::Reloadable),
         ("ui", ReloadClass::Reloadable),
         ("desktop", ReloadClass::Reloadable),
+        ("server", ReloadClass::Restart),
     ];
 
     // WHEN every live key of those sections is read
@@ -177,13 +178,48 @@ fn the_formerly_inert_and_deprecated_sections_are_withdrawn() {
 }
 
 #[test]
-fn only_the_desktop_settings_are_lockable() {
+fn a_key_is_lockable_exactly_when_the_policy_can_impose_it() {
+    // GIVEN the live keys of the registry
+    let live = KEYS.iter().filter(|k| k.withdrawn.is_none());
+
+    // WHEN each is offered to the policy check, which knows the named settings
+    let wrong: Vec<_> = live
+        .filter(|k| {
+            let named = !matches!(
+                check_imposed_setting(k.path, &serde_json::Value::Null),
+                Err(SettingError::UnknownKey { .. })
+            );
+            named != k.lockable
+        })
+        .map(|k| k.path)
+        .collect();
+
+    // THEN the registry marks lockable the named settings, and only them
+    assert!(
+        wrong.is_empty(),
+        "lockable flag disagrees with the policy: {wrong:?}"
+    );
+}
+
+#[test]
+fn the_named_settings_are_lockable() {
     // GIVEN the registry
     // WHEN the lockable keys are listed
     let lockable: Vec<_> = KEYS.iter().filter(|k| k.lockable).map(|k| k.path).collect();
 
     // THEN they are the named settings the policy can impose today
-    assert_eq!(lockable, vec!["desktop.developer_mode"]);
+    assert_eq!(
+        lockable,
+        vec![
+            "mcp.approval_ttl_hours",
+            "mcp.tool_loading",
+            "mcp.tool_search_limit",
+            "mcp.server_enabled",
+            "desktop.developer_mode",
+            "server.enabled",
+            "server.port",
+        ]
+    );
 }
 
 #[test]

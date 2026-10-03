@@ -8,7 +8,7 @@
   import { MessageSquare } from "lucide-svelte";
   import { Card } from "$lib/components/operator";
   import { Button } from "$lib/components/ui/button";
-  import { BuilderOnly } from "$lib/components/shared";
+  import { DeveloperOnly } from "$lib/components/shared";
   import AgentLlmInfo from "../AgentLlmInfo.svelte";
   import AgentMessagesPanel from "../AgentMessagesPanel.svelte";
   import type { AgentListItem } from "$lib/types";
@@ -44,7 +44,7 @@
   </Card>
 
   {#if agent.supports_a2a}
-    <BuilderOnly>
+    <DeveloperOnly>
       <Card class="p-3.5">
         <div class="mb-3 flex items-center gap-2">
           <MessageSquare size={12} class="text-muted-foreground/50" />
@@ -54,6 +54,6 @@
         </div>
         <AgentMessagesPanel agentName={agent.name} />
       </Card>
-    </BuilderOnly>
+    </DeveloperOnly>
   {/if}
 </div>

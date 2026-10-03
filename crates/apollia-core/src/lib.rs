@@ -20,6 +20,7 @@ pub mod budget;
 pub mod config;
 pub mod context;
 pub mod decision_point;
+pub mod embedding_default;
 pub mod error_analysis;
 pub mod events;
 pub mod hitl_payload;
@@ -63,11 +64,12 @@ pub use config::{
     ConfigError, DesktopConfig, DuckDuckGoBackendConfig, FilesystemConfig, FilesystemRiskConfig,
     GatePolicy, HitlConfig, HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig,
     HybridRoutingConfig, JournalConfig, LlmRoutingConfig, LlmRunnerConfig, McpConfig,
-    McpToolLoading, ModelsConfig, ORIAConfig, RegistryConfig, RuntimeConfig, ToolsConfig,
-    TriggersConfig, WebReadConfig, WebSearchBackend, WebSearchConfig, WorkflowsConfig,
+    McpToolLoading, ModelsConfig, ORIAConfig, RegistryConfig, RuntimeConfig, ServerConfig,
+    ToolsConfig, TriggersConfig, WebReadConfig, WebSearchBackend, WebSearchConfig, WorkflowsConfig,
 };
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
 pub use decision_point::{ConsideredAlternative, DecisionKind, DecisionPoint};
+pub use embedding_default::{EmbeddingDefaultError, EmbeddingDefaultStore};
 pub use error_analysis::{ErrorAnalysis, ErrorCategory};
 pub use events::{
     resilient, subscribe_resilient, AgentId, EventBusSender, FilesystemPreview, Received,

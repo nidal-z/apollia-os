@@ -48,6 +48,10 @@ check_exit    "audit show (unknown id) → 1"  1     "${Q[@]}" audit show nonexi
 check         "resilience list"                    "${Q[@]}" resilience list
 check         "model hardware (daemon on)"         "${Q[@]}" model hardware
 check_json    "model hardware --json"              "${Q[@]}" model hardware --json
+check_content "model embeddings show (none set)" "keywords alone" "${Q[@]}" model embeddings show
+check_exit    "model embeddings set-default (chat model) → 1" 1 "${Q[@]}" model embeddings set-default qwen3-8b
+check_content "model embeddings set-default" "multilingual-e5-small" "${Q[@]}" model embeddings set-default multilingual-e5-small
+check_json    "model embeddings show --json"       "${Q[@]}" model embeddings show --json
 check         "digest --since 24h"                 "${Q[@]}" digest --since 24h
 check_json    "digest --json"                      "${Q[@]}" digest --since 24h --json
 
@@ -68,6 +72,9 @@ check_exit    "mcp show removed server → 1"  1     "${Q[@]}" mcp show notes
 # spawn error (ENOENT), well before the 30s init timeout a bad-but-spawnable
 # command would hit; nothing is persisted on that path.
 check_exit    "mcp add (unspawnable command) → 1"  1 "${Q[@]}" mcp add e2e-ghost --command /nonexistent-mcp-server-binary
+# The seeded apollia.toml leaves `mcp.server_enabled` off, so the daemon
+# refuses the MCP bridge with a reason that names the setting.
+check_exit    "mcp server (bridge off) → 2"  2    bash -c "'${Q[0]}' ${Q[*]:1} mcp server </dev/null"
 skip          "mcp add (live server)" "needs a single-binary MCP server; a bad-but-spawnable command blocks 30s on init timeout (seeded servers cover show/test/restart/update/remove)"
 
 # ── tools / audit ───────────────────────────────────────────────────────────

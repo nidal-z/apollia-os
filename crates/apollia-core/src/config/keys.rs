@@ -155,9 +155,10 @@ pub const KEYS: &[ConfigKey] = &[
     key("tools.web_read.ssrf_guard", Boolean, Some("true"), Reloadable, "Refuse an address on the local network or the machine itself."),
     key("tools.python_interpreter", Path, None, Reloadable, "Python interpreter used instead of the bundled one."),
     // [mcp]
-    key("mcp.approval_ttl_hours", Integer, Some("24"), Reloadable, "Hours an MCP tool approval stays valid; 0 never expires (0 to 8760)."),
-    key("mcp.tool_loading", Enum(&["eager", "deferred"]), Some("\"deferred\""), Reloadable, "Load every MCP tool schema up front, or on first use."),
-    key("mcp.tool_search_limit", Integer, Some("20"), Reloadable, "Results returned by the tool_search tool (1 to 500)."),
+    locked(key("mcp.approval_ttl_hours", Integer, Some("24"), Reloadable, "Hours an MCP tool approval stays valid; 0 never expires (0 to 8760).")),
+    locked(key("mcp.tool_loading", Enum(&["eager", "deferred"]), Some("\"deferred\""), Reloadable, "Load every MCP tool schema up front, or on first use.")),
+    locked(key("mcp.tool_search_limit", Integer, Some("20"), Reloadable, "Results returned by the tool_search tool (1 to 500).")),
+    locked(key("mcp.server_enabled", Boolean, Some("false"), Reloadable, "Let an MCP client reach the agents and workflows marked exposed, through apollia-os mcp server.")),
     // [hooks]
     key("hooks.handlers", TableArray, Some("[]"), Reloadable, "Lifecycle hook handlers, a command or an HTTP endpoint each."),
     // [chat]
@@ -180,6 +181,9 @@ pub const KEYS: &[ConfigKey] = &[
     key("workflows.wall_clock_secs", Integer, Some("3600"), Restart, "Seconds a workflow run may last."),
     // [desktop]
     locked(key("desktop.developer_mode", Boolean, Some("false"), Reloadable, "Show the advanced surfaces of the application.")),
+    // [server]
+    locked(key("server.enabled", Boolean, Some("false"), Restart, "Start the compatible server (OpenAI and Anthropic formats) with the engine.")),
+    locked(key("server.port", Integer, Some("7772"), Restart, "TCP port of the compatible server, on the loopback interface.")),
     // [observability]
     key("observability.max_input_bytes", Integer, Some("32768"), Reloadable, "Largest run input kept, in bytes."),
     key("observability.max_output_bytes", Integer, Some("32768"), Reloadable, "Largest run output kept, in bytes."),
