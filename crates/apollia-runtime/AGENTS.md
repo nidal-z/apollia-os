@@ -121,9 +121,12 @@ Exemption, the compatible endpoints. The compatible server is a second
 listener on its own port (`[server] port`, 7772 by default), separate from the
 native API above, and the paths it serves are not Apollia's: they follow the
 OpenAI and Anthropic formats, so they live under `/v1/...`, use those APIs'
-`snake_case` field names, and answer errors in the OpenAI envelope
-`{"error": {"message", "type", "code"}}`, except a `401` on the Anthropic
-endpoint (`/v1/messages`), which answers in Anthropic's. Their authentication is
+`snake_case` field names, and answer errors in the envelope of their family:
+OpenAI's `{"error": {"message", "type", "code"}}`, or Anthropic's
+`{"type": "error", "error": {"type", "message"}}` on `/v1/messages` and
+`/v1/messages/count_tokens` (`src/compat_server/errors.rs`). They serve the
+local models only, relayed to the engine that runs them; a remote backend is
+never relayed. Their authentication is
 not the native API's: with `[server] require_auth`, a request presents a token
 of the server (`apo_...`, `Authorization: Bearer` or `x-api-key`), and the
 internal token never opens them. None of the rules of this section

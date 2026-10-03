@@ -343,6 +343,12 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # refuses after a stop" are only observable on a real port. One helper,
     # borrowed by the route and supervisor tests of the same server.
     "crates/apollia-runtime/src/compat_server/tests.rs": 1,
+    # One helper, the transport is the subject: the relay forwards each
+    # request to the engine that holds the model, over HTTP, and the tests
+    # read what that engine received (the path, the `model` replaced, the
+    # body passed through). The fake engine holds a port-0 bind for the whole
+    # test, never a port released.
+    "crates/apollia-runtime/src/compat_server/relay_tests.rs": 1,
     "crates/apollia-runtime/src/hooks/executor.rs": 7,
     # The process is the subject: unloading a resident model has to stop its
     # child, and `kill -0` on the pid is the one observable left once the

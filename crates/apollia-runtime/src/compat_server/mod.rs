@@ -20,23 +20,32 @@
 //! and kept by [`ServerTokensHandle`] as a SHA-256 in `system.db`; the
 //! internal token of the desktop never opens this server.
 //!
-//! [`CompatServerHandle`] is the actor that owns the listener. The routes it
-//! serves are assembled by [`compat_router`]; every path that router mounts is
-//! listed on the public page of compatible endpoints, which
+//! The models it serves are the local models the user loaded, relayed to the
+//! engine that runs them (`llama-server` or `vllm-mlx`) with their `model`
+//! field set to what that engine expects; see [`LocalModels`]. A model of a
+//! remote backend is never relayed.
+//!
+//! [`CompatServerHandle`] is the actor that owns the listener. Every path its
+//! router mounts is listed on the public page of compatible endpoints, which
 //! `scripts/check_compat_routes.py` holds.
 
 mod actor;
 mod auth;
+mod errors;
+mod models;
+mod relay;
 mod router;
 mod tokens;
 
 #[cfg(test)]
 mod auth_tests;
 #[cfg(test)]
+mod relay_tests;
+#[cfg(test)]
 pub(crate) mod tests;
 
 pub use actor::{CompatServerHandle, CompatServerStatus};
-pub use router::compat_router;
+pub use models::LocalModels;
 pub use tokens::{CreatedServerToken, ServerTokensError, ServerTokensHandle, SERVER_TOKEN_PREFIX};
 
 use apollia_core::config::SettingError;
@@ -67,6 +76,9 @@ pub enum CompatServerError {
         #[from]
         source: SettingError,
     },
+    /// The client that reaches the local engines could not be built.
+    #[error("failed to build the client of the local engines")]
+    Client(#[source] reqwest::Error),
     /// The tokens of the server could not be counted.
     #[error(transparent)]
     Tokens(#[from] ServerTokensError),
