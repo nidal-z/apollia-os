@@ -139,6 +139,19 @@ impl AttachedClient {
             .await
     }
 
+    /// `POST path` with a JSON body, granted `deadline` instead of the usual
+    /// one: for a request whose work outlasts it, such as an install that
+    /// builds virtualenvs.
+    pub(crate) async fn post_within<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &impl serde::Serialize,
+        deadline: Duration,
+    ) -> Result<T, AttachedError> {
+        self.send_within(self.http.post(self.url(path)).json(body), deadline)
+            .await
+    }
+
     /// `PUT path` with a JSON body, its JSON answer read as `T`.
     pub(crate) async fn put<T: DeserializeOwned>(
         &self,
@@ -202,9 +215,18 @@ impl AttachedClient {
         &self,
         builder: reqwest::RequestBuilder,
     ) -> Result<T, AttachedError> {
+        self.send_within(builder, REQUEST_TIMEOUT).await
+    }
+
+    /// [`Self::send_json`] with its own deadline.
+    async fn send_within<T: DeserializeOwned>(
+        &self,
+        builder: reqwest::RequestBuilder,
+        deadline: Duration,
+    ) -> Result<T, AttachedError> {
         let response = builder
             .bearer_auth(&self.token)
-            .timeout(REQUEST_TIMEOUT)
+            .timeout(deadline)
             .send()
             .await
             .map_err(AttachedError::Unreachable)?;

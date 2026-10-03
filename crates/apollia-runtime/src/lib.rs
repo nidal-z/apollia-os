@@ -10,6 +10,7 @@
 //! - `Supervisor`, ordered startup + watchdog.
 
 pub mod a2a;
+pub mod agent_packages;
 pub mod agents;
 pub mod analyzers;
 pub mod api;

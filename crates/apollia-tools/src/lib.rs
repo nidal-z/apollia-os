@@ -29,6 +29,7 @@
 
 pub mod agent_definition;
 mod agent_overrides;
+pub mod agent_package;
 pub mod agent_repository;
 pub(crate) mod agents_db;
 pub mod apo_archive;

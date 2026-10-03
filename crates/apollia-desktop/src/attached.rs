@@ -98,6 +98,14 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "test_mcp_connection",
     "test_mcp_live_server",
     "update_mcp_server_config",
+    // Agent packages installed from a folder, over
+    // `/api/v1/agent-packages/`. The preview and the install name the folder
+    // the window picked; the daemon listens on this machine and reads it.
+    "get_agent_package_detail",
+    "install_agent_package",
+    "list_agent_packages",
+    "preview_agent_package",
+    "uninstall_agent_package",
     // Connections.
     "list_connections",
     // Notifications and the activity feed.

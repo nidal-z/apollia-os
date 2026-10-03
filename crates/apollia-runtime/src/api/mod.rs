@@ -6,6 +6,7 @@ pub mod middleware;
 pub mod openapi;
 pub mod routes_a2a;
 pub mod routes_agent_definitions;
+pub mod routes_agent_packages;
 pub mod routes_agents;
 pub mod routes_app_lifecycle;
 pub mod routes_approvals;
