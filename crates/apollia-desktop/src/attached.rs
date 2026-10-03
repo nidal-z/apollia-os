@@ -174,6 +174,17 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "governance_revoke_permission_rule",
     "governance_set_tool_config",
     "governance_set_tool_enabled",
+    // Accounts of the native connectors and their Drive folder, under
+    // `/api/v1/connectors/`. The window keeps the loopback listener and the
+    // browser of the consent; the daemon starts it, completes it and stores
+    // the token.
+    "oauth_complete_flow",
+    "oauth_disconnect",
+    "oauth_get_status",
+    "oauth_list_drive_folders",
+    "oauth_reset_drive_folder",
+    "oauth_set_drive_folder",
+    "oauth_start_flow",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no

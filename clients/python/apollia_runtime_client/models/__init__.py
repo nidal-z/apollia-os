@@ -100,6 +100,7 @@ from .dictation_models_response import DictationModelsResponse
 from .dictation_models_response_models_item import DictationModelsResponseModelsItem
 from .dictation_models_response_reason_type_0 import DictationModelsResponseReasonType0
 from .dismissed_proposal import DismissedProposal
+from .drive_folder_status import DriveFolderStatus
 from .embedding_models_response import EmbeddingModelsResponse
 from .embedding_models_response_models_item import EmbeddingModelsResponseModelsItem
 from .embedding_models_response_reason_type_0 import EmbeddingModelsResponseReasonType0
@@ -249,6 +250,7 @@ from .set_agent_model_request import SetAgentModelRequest
 from .set_approval_body import SetApprovalBody
 from .set_default_model_request import SetDefaultModelRequest
 from .set_default_response import SetDefaultResponse
+from .set_drive_folder_body import SetDriveFolderBody
 from .set_events_request import SetEventsRequest
 from .set_override_request import SetOverrideRequest
 from .set_override_request_value import SetOverrideRequestValue
@@ -453,6 +455,7 @@ __all__ = (
     "DictationModelsResponseModelsItem",
     "DictationModelsResponseReasonType0",
     "DismissedProposal",
+    "DriveFolderStatus",
     "EmbeddingModelsResponse",
     "EmbeddingModelsResponseModelsItem",
     "EmbeddingModelsResponseReasonType0",
@@ -600,6 +603,7 @@ __all__ = (
     "SetApprovalBody",
     "SetDefaultModelRequest",
     "SetDefaultResponse",
+    "SetDriveFolderBody",
     "SetEventsRequest",
     "SetOverrideRequest",
     "SetOverrideRequestValue",

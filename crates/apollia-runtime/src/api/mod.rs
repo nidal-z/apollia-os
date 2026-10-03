@@ -13,6 +13,7 @@ pub mod routes_batches;
 pub mod routes_chat;
 pub mod routes_connections;
 pub mod routes_connectors;
+pub mod routes_drive_folders;
 pub mod routes_engines;
 pub mod routes_events;
 pub mod routes_hooks;
