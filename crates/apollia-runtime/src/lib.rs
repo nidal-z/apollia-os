@@ -35,6 +35,7 @@ pub mod mailbox;
 pub mod memory_maintenance;
 pub mod observability;
 pub mod on_demand;
+pub mod onboarding;
 pub mod package_tools;
 pub mod packages;
 pub mod perf_trace;

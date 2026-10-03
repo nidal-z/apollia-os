@@ -143,6 +143,16 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "memory_export_namespace",
     "memory_import_namespace",
     "purge_memory",
+    // The onboarding, over `/api/v1/onboarding`: its state and phases, the
+    // profile chosen, the conversation with its agent and its completion.
+    "advance_onboarding_phase",
+    "check_onboarding_finalized",
+    "dismiss_onboarding",
+    "finalize_onboarding_chat",
+    "get_onboarding_state",
+    "resume_onboarding",
+    "set_onboarding_profile",
+    "trigger_onboarding",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no

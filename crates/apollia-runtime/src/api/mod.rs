@@ -25,6 +25,7 @@ pub mod routes_memory_maintenance;
 pub mod routes_messages;
 pub mod routes_model_hub;
 pub mod routes_notifications;
+pub mod routes_onboarding;
 pub mod routes_packages;
 pub mod routes_plan_cache;
 pub mod routes_profile;

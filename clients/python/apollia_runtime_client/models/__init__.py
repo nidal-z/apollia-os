@@ -11,6 +11,7 @@ from .a2a_skill_dto_input_schema_type_0 import A2ASkillDtoInputSchemaType0
 from .a2a_skills_response import A2ASkillsResponse
 from .access_preview import AccessPreview
 from .added_access import AddedAccess
+from .advance_phase_body import AdvancePhaseBody
 from .agent_list_response import AgentListResponse
 from .agent_message_dto import AgentMessageDto
 from .agent_message_dto_payload import AgentMessageDtoPayload
@@ -164,6 +165,12 @@ from .model_info import ModelInfo
 from .model_source_dto import ModelSourceDto
 from .models_list_response import ModelsListResponse
 from .ok_response import OkResponse
+from .onboarding_dismissed import OnboardingDismissed
+from .onboarding_finalized import OnboardingFinalized
+from .onboarding_phase import OnboardingPhase
+from .onboarding_profile_body import OnboardingProfileBody
+from .onboarding_state import OnboardingState
+from .onboarding_stats import OnboardingStats
 from .package_error_body import PackageErrorBody
 from .package_install_request import PackageInstallRequest
 from .package_notice_type_0 import PackageNoticeType0
@@ -290,7 +297,9 @@ from .transcriptions_list_response_transcriptions_item import (
 )
 from .trigger_definition_response import TriggerDefinitionResponse
 from .trigger_definition_response_source_config import TriggerDefinitionResponseSourceConfig
+from .trigger_onboarding_body import TriggerOnboardingBody
 from .trigger_preview import TriggerPreview
+from .trigger_result import TriggerResult
 from .trigger_source_input import TriggerSourceInput
 from .trust_key_request import TrustKeyRequest
 from .trusted_key_view import TrustedKeyView
@@ -334,6 +343,7 @@ __all__ = (
     "A2ASkillsResponse",
     "AccessPreview",
     "AddedAccess",
+    "AdvancePhaseBody",
     "AgentListResponse",
     "AgentMessageDto",
     "AgentMessageDtoPayload",
@@ -487,6 +497,12 @@ __all__ = (
     "ModelsListResponse",
     "ModelSourceDto",
     "OkResponse",
+    "OnboardingDismissed",
+    "OnboardingFinalized",
+    "OnboardingPhase",
+    "OnboardingProfileBody",
+    "OnboardingState",
+    "OnboardingStats",
     "PackageErrorBody",
     "PackageInstallRequest",
     "PackageNoticeType0",
@@ -609,7 +625,9 @@ __all__ = (
     "TranscriptionsListResponseTranscriptionsItem",
     "TriggerDefinitionResponse",
     "TriggerDefinitionResponseSourceConfig",
+    "TriggerOnboardingBody",
     "TriggerPreview",
+    "TriggerResult",
     "TriggerSourceInput",
     "TrustedKeyView",
     "TrustKeyRequest",
