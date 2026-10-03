@@ -6454,6 +6454,37 @@ export interface components {
             /** @description ISO 8601 timestamp. */
             timestamp: string;
         };
+        /**
+         * @description How strictly a launch is held to the machine's memory.
+         * @enum {string}
+         */
+        GuardrailLevel: "disabled" | "lenient" | "balanced" | "strict" | "ceiling";
+        /**
+         * @description Body of an API answer to a launch the guardrail refused.
+         *
+         *     `error` is the English sentence; `code` and the figures let an interface
+         *     write its own, in its own language.
+         */
+        GuardrailRefusedBody: {
+            /**
+             * Format: double
+             * @description The limit the level holds to, in gigabytes.
+             */
+            budgetGb: number;
+            /** @description Always `guardrail_refused`. */
+            code: string;
+            /** @description Human-readable description, in English. */
+            error: string;
+            /**
+             * Format: double
+             * @description The estimated footprint, in gigabytes.
+             */
+            estimatedGb: number;
+            /** @description The level that refused it. */
+            level: components["schemas"]["GuardrailLevel"];
+            /** @description The model whose launch was refused. */
+            model: string;
+        };
         HardwareResponse: {
             accelerator: Record<string, never>;
             /** Format: double */
@@ -12896,6 +12927,15 @@ export interface operations {
                     "application/json": components["schemas"]["ChatResponse"];
                 };
             };
+            /** @description A local model the load guardrail refused; confirm the load to go ahead */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuardrailRefusedBody"];
+                };
+            };
             /** @description No router configured or backend call failed */
             503: {
                 headers: {
@@ -12936,6 +12976,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description A local model the load guardrail refused; confirm the load to go ahead */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuardrailRefusedBody"];
                 };
             };
             /** @description No router configured or backend call failed */
