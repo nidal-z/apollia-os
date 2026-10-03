@@ -1,5 +1,5 @@
 //! Deterministic primitives for the crate's async tests: waiting for a
-//! condition, and reserving a loopback TCP port.
+//! condition or an event, and reserving a loopback TCP port.
 //!
 //! Timing-dependent tests must never sleep a fixed duration to "wait for
 //! propagation": under load the delay loses its race and the suite fails
@@ -52,6 +52,34 @@ where
         }
         tokio::time::sleep(POLL_INTERVAL).await;
     }
+}
+
+/// Collects the events `events` receives until one satisfies `last`, or
+/// `timeout` elapses. Returns them in order, and whether `last` was seen.
+pub(crate) async fn collect_events_until(
+    timeout: Duration,
+    events: &mut tokio::sync::broadcast::Receiver<apollia_core::RuntimeEvent>,
+    last: impl Fn(&apollia_core::RuntimeEvent) -> bool,
+) -> (Vec<apollia_core::RuntimeEvent>, bool) {
+    use tokio::sync::broadcast::error::TryRecvError;
+    let mut seen = Vec::new();
+    let mut found = false;
+    let _ = poll_until(timeout, || loop {
+        match events.try_recv() {
+            Ok(event) => {
+                found = last(&event);
+                seen.push(event);
+                if found {
+                    return true;
+                }
+            }
+            Err(TryRecvError::Empty | TryRecvError::Closed) => return false,
+            // A receiver that fell behind resumes at the oldest event kept.
+            Err(_) => {}
+        }
+    })
+    .await;
+    (seen, found)
 }
 
 /// First port of the private range these tests draw from.

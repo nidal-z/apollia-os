@@ -445,11 +445,12 @@ impl Supervisor {
         // source; it needs the task store and the agent executor, and resumes
         // the batches left running as soon as it starts. No source reader is
         // registered yet: a launch on any kind answers that it is unknown.
+        // Governance says which accesses of the agent are sensitive.
         let batches = match (&task_repository, &chat_manager) {
             (Some(repo), Some(chat)) => Some(crate::batch::BatchHandle::spawn(
                 repo.clone(),
                 Arc::new(apollia_core::batch_source::SourceRegistry::new()),
-                crate::batch::AgentItemRunner::new(
+                batch_runner(
                     crate::agents::task::AgentTaskLauncher {
                         router: router_handle.clone(),
                         chat: chat.clone(),
@@ -458,7 +459,9 @@ impl Supervisor {
                         observability: self.config.obs_config.clone(),
                     },
                     self.config.data_dir.clone(),
+                    audit_journal_handle.clone(),
                 ),
+                event_sender.clone(),
             )),
             _ => None,
         };
@@ -702,4 +705,21 @@ fn read_org_policy() -> apollia_permissions::PolicyVerdict {
         }
     }
     verdict
+}
+
+/// The item runner of the batch engine, asking the default governance which
+/// accesses are sensitive when the audit journal is open; without it, an
+/// access is sensitive when its tool declares it so, the same rule.
+fn batch_runner<B: crate::coordinator::ExecutionBackend>(
+    launcher: crate::agents::task::AgentTaskLauncher<B>,
+    data_dir: std::path::PathBuf,
+    journal: Option<crate::audit_journal::AuditJournalHandle>,
+) -> crate::batch::AgentItemRunner<B> {
+    let runner = crate::batch::AgentItemRunner::new(launcher, data_dir);
+    match journal {
+        Some(journal) => runner.with_governance(Arc::new(
+            crate::governance::NoPolicyGovernance::new(journal),
+        )),
+        None => runner,
+    }
 }

@@ -208,9 +208,6 @@ impl FamilyConsentStore {
         Ok(affected > 0)
     }
 
-    // TEST-ONLY: the reading and withdrawal side of the store, which the
-    // decision engine, the batch runner and the authorizations screen consume
-    // once wired; until then production only writes, through the access upgrade.
     /// Withdraws every consent given for the batch run `lot_id`, whatever the
     /// agent and the family. Returns the number of rows removed.
     ///
@@ -265,9 +262,6 @@ impl FamilyConsentStore {
             .collect()
     }
 
-    // TEST-ONLY: the reading and withdrawal side of the store, which the
-    // decision engine, the batch runner and the authorizations screen consume
-    // once wired; until then production only writes, through the access upgrade.
     /// Whether `agent_id` holds a standing consent for `family`: a permanent
     /// one, or one for the batch run `lot_id` when the call belongs to a run.
     ///
