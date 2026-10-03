@@ -6,8 +6,9 @@ use tempfile::TempDir;
 
 use crate::api::server::AppState;
 use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
-use crate::compat_server::tests::{file_enabled, free_port, held_port, listens, settings_file};
-use crate::compat_server::CompatServerHandle;
+use crate::compat_server::tests::{
+    file_enabled, free_port, held_port, listens, settings_file, spawn_server,
+};
 
 /// A daemon whose compatible server reads `[server]` from a file holding
 /// `content`, with `{port}` replaced by a port free at the time of the call.
@@ -18,7 +19,7 @@ fn daemon_with_server(content: &str) -> (TempDir, PathBuf, u16, AppState<MockBac
         Arc::new(StemLoader { refusal: None }),
         dir.path().to_path_buf(),
     );
-    state.compat_server = Some(CompatServerHandle::spawn(path.clone(), &state.event_sender));
+    state.compat_server = Some(spawn_server(&path, &state.event_sender));
     (dir, path, port, state)
 }
 
@@ -98,4 +99,184 @@ async fn test_a_runtime_without_a_compatible_server_answers_503() {
 
     // THEN the route says it is not available
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
+}
+
+// ── Tokens ───────────────────────────────────────────────────────────────
+
+/// Every cell of every row of the token table, as text.
+fn token_table_cells(settings: &std::path::Path) -> Vec<String> {
+    let conn = rusqlite::Connection::open(settings.with_file_name("system.db")).unwrap();
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, name, hash, last_four, created_at,
+                    COALESCE(last_used_at, ''), COALESCE(revoked_at, '')
+             FROM server_tokens",
+        )
+        .unwrap();
+    let rows = stmt
+        .query_map([], |row| {
+            Ok([
+                row.get::<_, i64>(0)?.to_string(),
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, String>(6)?,
+            ])
+        })
+        .unwrap();
+    rows.flat_map(Result::unwrap).collect()
+}
+
+#[tokio::test]
+async fn test_a_created_token_is_shown_once_and_no_column_holds_its_value() {
+    // GIVEN a daemon with a compatible server and no token
+    let (_dir, path, _, state) = daemon_with_server("[server]\nport = {port}\n");
+
+    // WHEN a client creates a token named editor
+    let (status, body) = call(
+        state.clone(),
+        "POST",
+        "/api/v1/server/tokens",
+        Some(serde_json::json!({ "name": "editor" })),
+    )
+    .await;
+
+    // THEN the value is answered once, prefixed apo_, ending with the four
+    // characters the token shows; no column of the table holds the value nor
+    // its random part; the list never carries it
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    let value = body["value"].as_str().unwrap().to_owned();
+    assert!(value.starts_with("apo_") && value.len() == 68, "{value}");
+    assert_eq!(body["name"], "editor");
+    assert_eq!(body["lastFour"], &value[64..]);
+    let secret = &value[4..];
+    let cells = token_table_cells(&path);
+    assert!(!cells.is_empty());
+    assert!(
+        cells.iter().all(|cell| !cell.contains(secret)),
+        "a column holds the value"
+    );
+    let (_, list) = call(state, "GET", "/api/v1/server/tokens", None).await;
+    assert!(!list.to_string().contains(secret));
+    assert!(list[0].get("value").is_none());
+}
+
+#[tokio::test]
+async fn test_tokens_list_without_values_and_revoke_by_name_or_identifier() {
+    // GIVEN two tokens
+    let (_dir, _path, _, state) = daemon_with_server("[server]\nport = {port}\n");
+    for name in ["editor", "notebook"] {
+        let (status, _) = call(
+            state.clone(),
+            "POST",
+            "/api/v1/server/tokens",
+            Some(serde_json::json!({ "name": name })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
+    let (_, before) = call(state.clone(), "GET", "/api/v1/server", None).await;
+
+    // WHEN one is revoked by name and the other by identifier
+    let (by_name, revoked) = call(
+        state.clone(),
+        "DELETE",
+        "/api/v1/server/tokens/editor",
+        None,
+    )
+    .await;
+    let (_, list) = call(state.clone(), "GET", "/api/v1/server/tokens", None).await;
+    let id = list[1]["id"].as_i64().unwrap();
+    let (by_id, _) = call(
+        state.clone(),
+        "DELETE",
+        &format!("/api/v1/server/tokens/{id}"),
+        None,
+    )
+    .await;
+
+    // THEN the state counted two tokens in use, then none; the list keeps both
+    // rows, revoked, with their name, last four characters and dates
+    assert_eq!(before["activeTokens"], 2);
+    assert_eq!(by_name, StatusCode::OK, "{revoked}");
+    assert_eq!(revoked["revoked"], true);
+    assert_eq!(by_id, StatusCode::OK);
+    let (_, after) = call(state.clone(), "GET", "/api/v1/server", None).await;
+    assert_eq!(after["activeTokens"], 0);
+    let (_, list) = call(state, "GET", "/api/v1/server/tokens", None).await;
+    let rows = list.as_array().unwrap();
+    assert_eq!(rows.len(), 2);
+    for row in rows {
+        assert_eq!(row["revoked"], true);
+        assert_eq!(row["lastFour"].as_str().unwrap().len(), 4);
+        assert!(row["createdAt"].is_string());
+        assert!(row.get("lastUsedAt").is_some());
+    }
+}
+
+#[tokio::test]
+async fn test_a_bad_name_a_taken_name_and_an_unknown_token_are_refused() {
+    // GIVEN a token named editor
+    let (_dir, _path, _, state) = daemon_with_server("[server]\nport = {port}\n");
+    let create = |name: &str| {
+        call(
+            state.clone(),
+            "POST",
+            "/api/v1/server/tokens",
+            Some(serde_json::json!({ "name": name })),
+        )
+    };
+    assert_eq!(create("editor").await.0, StatusCode::CREATED);
+
+    // WHEN a digits-only name, the same name, and an unknown token are asked
+    let (numeric, _) = create("42").await;
+    let (taken, _) = create("editor").await;
+    let (unknown, _) = call(
+        state.clone(),
+        "DELETE",
+        "/api/v1/server/tokens/nobody",
+        None,
+    )
+    .await;
+
+    // THEN each is refused with its own status
+    assert_eq!(numeric, StatusCode::BAD_REQUEST);
+    assert_eq!(taken, StatusCode::CONFLICT);
+    assert_eq!(unknown, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_a_server_token_does_not_open_the_native_api() {
+    // GIVEN the native API behind its internal token, and a token of the
+    // compatible server
+    let (_dir, _path, _, state) = daemon_with_server("[server]\nport = {port}\n");
+    let created = state
+        .compat_server
+        .as_ref()
+        .unwrap()
+        .tokens()
+        .create("editor".to_owned())
+        .await
+        .unwrap();
+    let internal = crate::api::middleware::generate_hex_token();
+    let native = crate::api::server::APIServer::build_router_for_test(state)
+        .layer(crate::api::TokenAuthLayer::new(internal.as_str()));
+    let ask = |token: &str| {
+        axum::http::Request::builder()
+            .uri("/api/v1/server")
+            .header("authorization", format!("Bearer {token}"))
+            .body(axum::body::Body::empty())
+            .unwrap()
+    };
+
+    // WHEN the native API is called with each
+    use tower::ServiceExt;
+    let with_server_token = native.clone().oneshot(ask(&created.value)).await.unwrap();
+    let with_internal = native.oneshot(ask(&internal)).await.unwrap();
+
+    // THEN the server token is refused and the internal one accepted
+    assert_eq!(with_server_token.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(with_internal.status(), StatusCode::OK);
 }

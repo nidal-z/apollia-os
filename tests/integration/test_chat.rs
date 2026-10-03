@@ -258,6 +258,7 @@ fn build_chat_app_state(
         audit_journal: None,
         connection_governance: Default::default(),
         governance: Some(governance),
+        inference_governance: Default::default(),
         backend: MockBackend,
         llm_router: apollia_runtime::api::server::shared_llm_router_from(Some(llm_router)),
         trigger_engine: None,

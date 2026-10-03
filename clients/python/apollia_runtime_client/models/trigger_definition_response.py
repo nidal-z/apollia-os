@@ -12,6 +12,9 @@ if TYPE_CHECKING:
     from ..models.trigger_definition_response_source_config import (
         TriggerDefinitionResponseSourceConfig,
     )
+    from ..models.trigger_definition_response_workflow_inputs_type_0 import (
+        TriggerDefinitionResponseWorkflowInputsType0,
+    )
 
 
 T = TypeVar("T", bound="TriggerDefinitionResponse")
@@ -28,9 +31,13 @@ class TriggerDefinitionResponse:
         on_busy (str): Policy when the agent is busy.
         source_config (TriggerDefinitionResponseSourceConfig): Source JSON configuration.
         source_type (str): Source type.
+        target_kind (str): `"agent"` or `"workflow"`.
         updated_at (str): Last-modified timestamp (ISO 8601).
-        agent (None | str | Unset): Target agent.
-        input_template (None | str | Unset): Input message template.
+        agent (None | str | Unset): Target agent, for an agent target.
+        input_template (None | str | Unset): The message of an agent target.
+        workflow (None | str | Unset): Target workflow, for a workflow target.
+        workflow_inputs (None | TriggerDefinitionResponseWorkflowInputsType0 | Unset): For a workflow target, one text
+            template per input field.
     """
 
     created_at: str
@@ -39,12 +46,19 @@ class TriggerDefinitionResponse:
     on_busy: str
     source_config: TriggerDefinitionResponseSourceConfig
     source_type: str
+    target_kind: str
     updated_at: str
     agent: None | str | Unset = UNSET
     input_template: None | str | Unset = UNSET
+    workflow: None | str | Unset = UNSET
+    workflow_inputs: None | TriggerDefinitionResponseWorkflowInputsType0 | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.trigger_definition_response_workflow_inputs_type_0 import (
+            TriggerDefinitionResponseWorkflowInputsType0,
+        )
+
         created_at = self.created_at
 
         enabled = self.enabled
@@ -56,6 +70,8 @@ class TriggerDefinitionResponse:
         source_config = self.source_config.to_dict()
 
         source_type = self.source_type
+
+        target_kind = self.target_kind
 
         updated_at = self.updated_at
 
@@ -71,6 +87,20 @@ class TriggerDefinitionResponse:
         else:
             input_template = self.input_template
 
+        workflow: None | str | Unset
+        if isinstance(self.workflow, Unset):
+            workflow = UNSET
+        else:
+            workflow = self.workflow
+
+        workflow_inputs: dict[str, Any] | None | Unset
+        if isinstance(self.workflow_inputs, Unset):
+            workflow_inputs = UNSET
+        elif isinstance(self.workflow_inputs, TriggerDefinitionResponseWorkflowInputsType0):
+            workflow_inputs = self.workflow_inputs.to_dict()
+        else:
+            workflow_inputs = self.workflow_inputs
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -81,6 +111,7 @@ class TriggerDefinitionResponse:
                 "on_busy": on_busy,
                 "source_config": source_config,
                 "source_type": source_type,
+                "target_kind": target_kind,
                 "updated_at": updated_at,
             }
         )
@@ -88,6 +119,10 @@ class TriggerDefinitionResponse:
             field_dict["agent"] = agent
         if input_template is not UNSET:
             field_dict["input_template"] = input_template
+        if workflow is not UNSET:
+            field_dict["workflow"] = workflow
+        if workflow_inputs is not UNSET:
+            field_dict["workflow_inputs"] = workflow_inputs
 
         return field_dict
 
@@ -95,6 +130,9 @@ class TriggerDefinitionResponse:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.trigger_definition_response_source_config import (
             TriggerDefinitionResponseSourceConfig,
+        )
+        from ..models.trigger_definition_response_workflow_inputs_type_0 import (
+            TriggerDefinitionResponseWorkflowInputsType0,
         )
 
         d = dict(src_dict)
@@ -109,6 +147,8 @@ class TriggerDefinitionResponse:
         source_config = TriggerDefinitionResponseSourceConfig.from_dict(d.pop("source_config"))
 
         source_type = d.pop("source_type")
+
+        target_kind = d.pop("target_kind")
 
         updated_at = d.pop("updated_at")
 
@@ -130,6 +170,36 @@ class TriggerDefinitionResponse:
 
         input_template = _parse_input_template(d.pop("input_template", UNSET))
 
+        def _parse_workflow(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        workflow = _parse_workflow(d.pop("workflow", UNSET))
+
+        def _parse_workflow_inputs(
+            data: object,
+        ) -> None | TriggerDefinitionResponseWorkflowInputsType0 | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                workflow_inputs_type_0 = TriggerDefinitionResponseWorkflowInputsType0.from_dict(
+                    data
+                )
+
+                return workflow_inputs_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | TriggerDefinitionResponseWorkflowInputsType0 | Unset, data)
+
+        workflow_inputs = _parse_workflow_inputs(d.pop("workflow_inputs", UNSET))
+
         trigger_definition_response = cls(
             created_at=created_at,
             enabled=enabled,
@@ -137,9 +207,12 @@ class TriggerDefinitionResponse:
             on_busy=on_busy,
             source_config=source_config,
             source_type=source_type,
+            target_kind=target_kind,
             updated_at=updated_at,
             agent=agent,
             input_template=input_template,
+            workflow=workflow,
+            workflow_inputs=workflow_inputs,
         )
 
         trigger_definition_response.additional_properties = d

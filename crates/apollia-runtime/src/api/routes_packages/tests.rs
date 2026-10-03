@@ -16,7 +16,7 @@ use crate::governance::{governance_run_id, package_run_id};
 
 const KEY: &[u8] = b"package-routes-journal-key-0001";
 
-const MANIFEST: &str = r#"[package]
+pub(super) const MANIFEST: &str = r#"[package]
 name = "crm"
 version = "1.0.0"
 publisher = "Acme"
@@ -39,7 +39,12 @@ inputs = { type = "object" }
 "#;
 
 /// Builds the archive of `manifest` into `dir/file`, signed with `key`.
-fn archive(dir: &Path, file: &str, manifest: &str, key: Option<&SigningKeyPair>) -> PathBuf {
+pub(super) fn archive(
+    dir: &Path,
+    file: &str,
+    manifest: &str,
+    key: Option<&SigningKeyPair>,
+) -> PathBuf {
     let src = dir.join(format!("src-{file}"));
     std::fs::create_dir_all(src.join("tools")).unwrap();
     std::fs::write(src.join("apollia.toml"), manifest).unwrap();
@@ -62,7 +67,7 @@ fn archive(dir: &Path, file: &str, manifest: &str, key: Option<&SigningKeyPair>)
 }
 
 /// A runtime over `dir`, with a signed audit journal when `journal` is set.
-async fn state(
+pub(super) async fn state(
     dir: &TempDir,
     journal: bool,
 ) -> (AppState<MockBackend>, Option<AuditJournalHandle>) {
@@ -87,7 +92,7 @@ async fn state(
     (state, handle)
 }
 
-fn agents_db(dir: &TempDir) -> PathBuf {
+pub(super) fn agents_db(dir: &TempDir) -> PathBuf {
     apollia_core::paths::DataFile::Agents.path(dir.path())
 }
 

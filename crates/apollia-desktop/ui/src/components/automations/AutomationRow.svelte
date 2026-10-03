@@ -11,7 +11,7 @@
   import { fireTrigger, setTriggerEnabled } from "$lib/ipc/triggers";
   import { StatusDot } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
-  import { Avatar } from "$lib/components/ui/avatar";
+  import TargetChip from "../triggers/TargetChip.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
   import { refreshTriggers } from "$lib/stores/sse";
   import { developerMode } from "$lib/stores/developerMode";
@@ -254,10 +254,13 @@
       </div>
     </div>
 
-    <!-- ASSISTANT -->
-    <div class="w-40 flex items-center gap-1.5 min-w-0">
-      <Avatar name={trigger.agent} size="sm" />
-      <span class="text-caption text-muted-foreground truncate">{trigger.agent}</span>
+    <!-- TARGET: agent or workflow -->
+    <div class="w-40 flex items-center min-w-0">
+      <TargetChip
+        kind={trigger.target_kind ?? "agent"}
+        name={trigger.agent}
+        testid="automation-target"
+      />
     </div>
 
     <!-- PROCHAIN -->

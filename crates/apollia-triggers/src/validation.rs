@@ -4,9 +4,11 @@
 //! in [`crate::definition_repository::TriggerDefinitionRepository`]. The
 //! validation rules are fail-fast.
 
+use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use crate::definition_repository::{TriggerDefinitionError, TriggerDefinitionRow};
+use crate::types::InputTemplate;
 
 /// Source types recognized by the trigger system.
 const VALID_SOURCE_TYPES: &[&str] = &["cron", "interval", "oneshot", "file_watch", "webhook"];
@@ -17,19 +19,13 @@ const MIN_WEBHOOK_SECRET_LENGTH: usize = 32;
 /// Validates a [`TriggerDefinitionRow`] before insert or update.
 ///
 /// Checks:
-/// - Agent set (non-None and non-empty)
+/// - One target: an agent (non-empty) or a workflow (`<package>/<workflow>`),
+///   never both; a workflow's inputs an object of strings
 /// - Non-empty identifier
 /// - Recognized `source_type`
 /// - `source_config` valid for the given `source_type`
 pub fn validate_trigger(def: &TriggerDefinitionRow) -> Result<(), TriggerDefinitionError> {
-    match def.agent.as_deref() {
-        None | Some("") => {
-            return Err(TriggerDefinitionError::ValidationError(
-                "agent must be set".to_string(),
-            ));
-        }
-        Some(_) => {}
-    }
+    validate_target(def)?;
 
     if def.id.is_empty() {
         return Err(TriggerDefinitionError::ValidationError(
@@ -45,6 +41,63 @@ pub fn validate_trigger(def: &TriggerDefinitionRow) -> Result<(), TriggerDefinit
     }
 
     validate_trigger_source(&def.source_type, &def.source_config)
+}
+
+/// Validates the target of `def`: exactly one of `agent` and `workflow`.
+fn validate_target(def: &TriggerDefinitionRow) -> Result<(), TriggerDefinitionError> {
+    let invalid = |message: &str| Err(TriggerDefinitionError::ValidationError(message.into()));
+    match (def.agent.as_deref(), def.workflow.as_deref()) {
+        (Some(_), Some(_)) => invalid("a trigger targets an agent or a workflow, not both"),
+        (None | Some(""), None) => invalid("agent must be set"),
+        (Some(_), None) => {
+            if def.workflow_inputs.is_some() {
+                return invalid("workflow_inputs only apply to a workflow target");
+            }
+            Ok(())
+        }
+        (None, Some(workflow)) => {
+            let well_formed = workflow
+                .split_once('/')
+                .is_some_and(|(p, w)| !p.is_empty() && !w.is_empty() && !w.contains('/'));
+            if !well_formed {
+                return Err(TriggerDefinitionError::ValidationError(format!(
+                    "workflow '{workflow}' is not <package>/<workflow>"
+                )));
+            }
+            if def.input_template.is_some() {
+                return invalid("input_template is the message of an agent target");
+            }
+            workflow_input_templates(def.workflow_inputs.as_ref()).map(|_| ())
+        }
+    }
+}
+
+/// The input templates of a workflow target, read from the JSON object
+/// `inputs`, one string per field; `None` means no input.
+///
+/// # Errors
+///
+/// [`TriggerDefinitionError::ValidationError`] when `inputs` is not an
+/// object, or a field is not a string.
+pub fn workflow_input_templates(
+    inputs: Option<&serde_json::Value>,
+) -> Result<BTreeMap<String, InputTemplate>, TriggerDefinitionError> {
+    let Some(inputs) = inputs else {
+        return Ok(BTreeMap::new());
+    };
+    let Some(map) = inputs.as_object() else {
+        return Err(TriggerDefinitionError::ValidationError(
+            "workflow_inputs must be an object".into(),
+        ));
+    };
+    map.iter()
+        .map(|(field, value)| match value.as_str() {
+            Some(text) => Ok((field.clone(), InputTemplate(text.to_string()))),
+            None => Err(TriggerDefinitionError::ValidationError(format!(
+                "workflow input '{field}' must be a text template"
+            ))),
+        })
+        .collect()
 }
 
 /// Validates the `source_config` JSON according to the `source_type`.
@@ -228,6 +281,8 @@ mod tests {
         TriggerDefinitionRow {
             id: "test".to_string(),
             agent: Some("agent".to_string()),
+            workflow: None,
+            workflow_inputs: None,
             enabled: true,
             on_busy: OnBusy::Queue,
             source_type: "cron".to_string(),
@@ -330,5 +385,53 @@ mod tests {
             result,
             Err(TriggerDefinitionError::ValidationError(ref msg)) if msg.contains("invalid fire_at")
         ));
+    }
+
+    fn workflow_def(workflow: &str, inputs: serde_json::Value) -> TriggerDefinitionRow {
+        TriggerDefinitionRow {
+            agent: None,
+            workflow: Some(workflow.to_string()),
+            workflow_inputs: Some(inputs),
+            ..make_valid_def()
+        }
+    }
+
+    #[test]
+    fn test_validate_accepts_a_workflow_target_with_text_inputs() {
+        // GIVEN a workflow target whose inputs are templates
+        let def = workflow_def("invoices/ingest", serde_json::json!({ "file": "{{path}}" }));
+        // WHEN it is validated
+        let result = validate_trigger(&def);
+        // THEN it passes, and its target reads back typed
+        assert!(result.is_ok(), "{result:?}");
+        assert_eq!(def.target_kind(), "workflow");
+    }
+
+    #[test]
+    fn test_validate_refuses_two_targets_a_bad_workflow_and_a_non_text_input() {
+        // GIVEN three malformed targets
+        let both = TriggerDefinitionRow {
+            workflow: Some("p/w".into()),
+            ..make_valid_def()
+        };
+        let bare = workflow_def("ingest", serde_json::json!({}));
+        let number = workflow_def("p/w", serde_json::json!({ "count": 3 }));
+        // WHEN each is validated
+        let results = [both, bare, number].map(|d| validate_trigger(&d));
+        // THEN each is refused with what is wrong
+        let messages: Vec<String> = results
+            .into_iter()
+            .map(|r| match r {
+                Err(TriggerDefinitionError::ValidationError(m)) => m,
+                other => format!("{other:?}"),
+            })
+            .collect();
+        assert!(messages[0].contains("not both"), "{}", messages[0]);
+        assert!(
+            messages[1].contains("<package>/<workflow>"),
+            "{}",
+            messages[1]
+        );
+        assert!(messages[2].contains("text template"), "{}", messages[2]);
     }
 }

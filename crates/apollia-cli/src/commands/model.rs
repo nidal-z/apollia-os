@@ -618,12 +618,13 @@ fn print_listing_row(m: &ModelListing) {
 // Filesystem helpers
 // ─────────────────────────────────────────────
 
-/// Return the default models directory: `~/.apollia/models/`.
+/// Return the models directory in force: `[models] dir` of `apollia.toml`,
+/// else `~/.apollia/models/`.
 ///
 /// Falls back to `/tmp/apollia/models` if `$HOME` is not set.
 fn default_models_dir() -> PathBuf {
     home_dir()
-        .map(|h| apollia_core::paths::data_dir_under(h).join("models"))
+        .map(|h| apollia_core::config::models_dir(&apollia_core::paths::data_dir_under(h)))
         .unwrap_or_else(|| PathBuf::from("/tmp/apollia/models"))
 }
 

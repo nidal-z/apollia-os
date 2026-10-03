@@ -19,7 +19,10 @@ function definition(
 ): RedactedTriggerDefinition {
   return {
     id: "daily-report",
+    target_kind: "agent",
     agent: "report-agent",
+    workflow: null,
+    workflow_inputs: null,
     enabled: true,
     on_busy: "queue",
     source_type: "cron",
@@ -311,5 +314,31 @@ describe("toUpdateRequest", () => {
     expect(request?.source).toEqual({ type: "cron", schedule: "0 9 * * MON" });
     expect(request?.on_busy).toBe("drop");
     expect(request?.input_template).toBe("weekly report");
+  });
+});
+
+describe("a workflow target", () => {
+  it("survives an edit with its inputs, and never gains an agent", () => {
+    // GIVEN a stored trigger on a workflow with one input
+    const stored = definition({
+      target_kind: "workflow",
+      agent: null,
+      workflow: "reports/weekly",
+      workflow_inputs: { when: "{{fired_at}}" },
+      source_type: "interval",
+      source_config: { every: "1h" },
+    });
+
+    // WHEN it is loaded, validated and turned back into an update
+    const model = modelFromDefinition(stored);
+    const errors = validateModel(model, "edit");
+    const request = toUpdateRequest(model);
+
+    // THEN the target is valid and the update keeps the workflow and its input
+    expect(errors.target).toBeNull();
+    expect(request?.workflow).toBe("reports/weekly");
+    expect(request?.workflow_inputs).toEqual({ when: "{{fired_at}}" });
+    expect(request?.agent).toBeUndefined();
+    expect(request?.input_template).toBeUndefined();
   });
 });

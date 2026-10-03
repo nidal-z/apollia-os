@@ -94,6 +94,31 @@ pub fn resolve_without_code(
         .map_err(|e| AgentResolveError::Agents(e.to_string()))
 }
 
+/// The agent without code `agent`, resolved now from the stores under
+/// `data_dir` as [`resolve_runnable`] reads them, enabled or not; `None` for
+/// an agent that runs code and for an unknown name.
+///
+/// # Errors
+///
+/// A message for a store that cannot be read.
+pub async fn resolve_stored(
+    data_dir: std::path::PathBuf,
+    agent: &str,
+) -> Result<Option<ResolvedAgent>, String> {
+    let name = agent.to_string();
+    tokio::task::spawn_blocking(move || {
+        let system = apollia_core::paths::DataFile::System.path(&data_dir);
+        let models = if system.exists() {
+            Some(apollia_core::LlmBackendRepository::open(&system).map_err(|e| e.to_string())?)
+        } else {
+            None
+        };
+        resolve_without_code(&data_dir, models.as_ref(), &name).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// The enabled agent without code `agent`, resolved now from the stores
 /// under `data_dir`, so that a run reads the overrides and the model in force
 /// when it starts. The stores are opened for the occasion, as the CLI opens
@@ -109,19 +134,7 @@ pub async fn resolve_runnable(
     agent: &str,
     runner: &str,
 ) -> Result<ResolvedAgent, String> {
-    let name = agent.to_string();
-    let resolved = tokio::task::spawn_blocking(move || {
-        let system = apollia_core::paths::DataFile::System.path(&data_dir);
-        let models = if system.exists() {
-            Some(apollia_core::LlmBackendRepository::open(&system).map_err(|e| e.to_string())?)
-        } else {
-            None
-        };
-        resolve_without_code(&data_dir, models.as_ref(), &name).map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| e.to_string())??;
-    match resolved {
+    match resolve_stored(data_dir, agent).await? {
         Some(agent) if agent.enabled => Ok(agent),
         Some(agent) => Err(format!("agent '{}' is disabled", agent.id)),
         None => Err(format!(
@@ -131,6 +144,7 @@ pub async fn resolve_runnable(
 }
 
 /// What an agent run outside a conversation goes through.
+#[derive(Clone)]
 pub struct AgentTaskLauncher<B: ExecutionBackend> {
     /// Follows the task, and cancels it.
     pub router: TaskRouterHandle<B>,

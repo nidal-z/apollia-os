@@ -12,12 +12,9 @@
 //! Stability: `/api/v1` is a versioned, stable contract. A breaking change ships
 //! as `/api/v2`; `v1` is never mutated in an incompatible way.
 //!
-//! `info.version` is deliberately not written here. `utoipa` fills it from
-//! `CARGO_PKG_VERSION`, so the document carries the version of the runtime that
-//! serves it. It used to be pinned to the literal `1.0.0` while every other
-//! surface of the product read `0.1.0-preview`, and an integrator reading the
-//! reference took a stability guarantee nobody had given. The path prefix, not
-//! this field, is what carries the contract's compatibility promise.
+//! `info.version` is deliberately not written here: `utoipa` fills it from
+//! `CARGO_PKG_VERSION`, the version of the runtime that serves the document.
+//! The path prefix, not this field, carries the compatibility promise.
 
 use axum::Json;
 use serde::Serialize;
@@ -329,6 +326,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_agent_definitions::set_agent_override,
         crate::api::routes_agent_definitions::remove_agent_override,
         crate::api::routes_agent_definitions::reset_agent_overrides,
+        crate::api::routes_agent_definitions::export::export_agent_definition,
         crate::api::routes_llm::presets::list_llm_presets,
         crate::api::routes_llm::presets::create_llm_preset,
         crate::api::routes_llm::presets::update_llm_preset,
@@ -421,6 +419,11 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_server::server_status,
         crate::api::routes_server::start_server,
         crate::api::routes_server::stop_server,
+        crate::api::routes_server::tokens::list_server_tokens,
+        crate::api::routes_server::tokens::create_server_token,
+        crate::api::routes_server::tokens::revoke_server_token,
+        crate::api::routes_server::logs::stream_server_logs,
+        crate::api::routes_server::logs::clear_server_logs,
         crate::api::routes_memory::list_memory_namespaces,
         crate::api::routes_memory::list_memory_entries,
         crate::api::routes_memory::search_memory,
@@ -465,6 +468,8 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_packages::list_trusted_keys,
         crate::api::routes_packages::trust_key,
         crate::api::routes_packages::remove_trusted_key,
+        crate::api::routes_packages::uninstall::uninstall_package,
+        crate::api::routes_packages::uninstall::uninstall_agent,
         crate::api::routes_agent_packages::list_agent_packages,
         crate::api::routes_agent_packages::install_agent_package,
         crate::api::routes_agent_packages::get_agent_package,
@@ -483,6 +488,8 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_packages::PackageInstallRequest,
         crate::api::routes_packages::TrustKeyRequest,
         crate::api::routes_packages::TrustedKeyView,
+        crate::api::routes_packages::UninstallRequest,
+        crate::packages::UninstallReport,
         crate::packages::PackagePreview,
         crate::packages::InstallReport,
         crate::agent_packages::AgentPackageAgent,
@@ -731,7 +738,6 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_app_lifecycle::OnboardingReset,
         crate::api::routes_app_lifecycle::MemoryWiped,
         crate::api::routes_app_lifecycle::DirectoryRemoved,
-        crate::compat_server::CompatServerStatus,
         crate::memory_view::MemoryEntryView,
         crate::memory_view::MemorySearchResultView,
         crate::memory_view::InjectedMemoryEntryView,

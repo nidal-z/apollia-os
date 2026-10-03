@@ -26,6 +26,7 @@
 
 use std::path::{Path, PathBuf};
 
+use apollia_core::config::EnginesConfig;
 use apollia_core::{
     ApiConfig, ChatConfig, DesktopConfig, FilesystemConfig, HitlConfig, HooksConfig, McpConfig,
     ModelsConfig, RuntimeConfig, ServerConfig, ToolsConfig,
@@ -136,6 +137,18 @@ pub struct ApolliaCConfig {
     ///
     /// `None` when absent; the [`ServerConfig`] defaults apply (off, 7772).
     pub server: Option<ServerConfig>,
+
+    /// Section `[engines]`: the settings of the local inference engines, the
+    /// engine log level first. An unknown key inside it is refused.
+    ///
+    /// `None` when absent; the [`EnginesConfig`] defaults apply (debug).
+    pub engines: Option<EnginesConfig>,
+
+    /// Section `[author]`: the publisher name of the agents exported from
+    /// this machine. An unknown key inside it is refused.
+    ///
+    /// `None` when absent; the name is then asked at export.
+    pub author: Option<apollia_core::config::AuthorConfig>,
 }
 
 /// Names of the TOML sections that are now deprecated.
@@ -209,6 +222,8 @@ pub const KNOWN_SECTIONS: &[&str] = &[
     "workflows",
     "desktop",
     "server",
+    "engines",
+    "author",
 ];
 
 /// Returns `true` when `section` is a recognized top-level `apollia.toml` section.
@@ -814,6 +829,27 @@ plan_mode_default = true
         assert!(refused.is_err());
     }
 
+    #[test]
+    fn test_engines_section_parses_and_refuses_an_unknown_level() {
+        // GIVEN an [engines] section naming a level, and one naming a level
+        // the engine does not have
+        let file = write_toml("[engines]\nlog_level = \"warning\"\n");
+        let unknown = write_toml("[engines]\nlog_level = \"trace\"\n");
+
+        // WHEN both are parsed
+        let config = parse_apollia_toml(file.path()).expect("parse should succeed");
+        let refused = parse_apollia_toml(unknown.path());
+
+        // THEN the level is read, the section is known, the unknown level refused
+        let engines = config.engines.expect("engines present");
+        assert_eq!(
+            engines.log_level,
+            apollia_core::config::EngineLogLevel::Warning
+        );
+        assert!(is_known_top_level_section("engines"));
+        assert!(refused.is_err());
+    }
+
     // GIVEN the ApolliaCConfig struct
     // WHEN verifying its structure
     // THEN it carries exactly the sections a loader actually consults
@@ -834,6 +870,8 @@ plan_mode_default = true
             workflows: None,
             desktop: None,
             server: None,
+            engines: None,
+            author: None,
         };
 
         // THEN every field is optional and absent
@@ -850,12 +888,14 @@ plan_mode_default = true
         assert!(config.workflows.is_none());
         assert!(config.desktop.is_none());
         assert!(config.server.is_none());
+        assert!(config.engines.is_none());
+        assert!(config.author.is_none());
 
         // AND the typed struct agrees with the key-path guard, so a section can
         // never again be settable without a field to land in.
         assert_eq!(
             KNOWN_SECTIONS.len(),
-            13,
+            15,
             "adding a section here means adding a field above, and a reader below"
         );
     }

@@ -1,0 +1,51 @@
+# Preview channel - points the preview update channel at a trial version.
+#
+# A trial version is a tag vX.Y.Z-rc.N. The release workflow builds it into a
+# draft pre-release that carries latest-preview.json and
+# latest-cuda-preview.json in place of the stable manifests. The draft is
+# reviewed and published by hand; this workflow runs on that publication and
+# copies the two manifests to the fixed `preview` release, which is the only
+# address the desktop application asks on the preview channel
+# (releases/download/preview/<manifest>). The stable manifests, served from the
+# latest stable release, are never touched.
+#
+# Copying at publication rather than at build time is deliberate: a manifest
+# that named the assets of a draft would offer every preview machine a
+# download that answers 404 until the draft is published.
+
+name: Preview channel
+
+on:
+  release:
+    types: [prereleased]
+
+permissions:
+  contents: write # create the `preview` release and replace its manifests
+
+jobs:
+  promote:
+    name: Promote the trial version to the preview channel
+    if: contains(github.event.release.tag_name, '-rc.')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - name: Fetch the preview manifests of the trial version
+        run: |
+          mkdir -p manifests
+          gh release download "$TAG" --repo "$REPO" --dir manifests \
+            --pattern latest-preview.json --pattern latest-cuda-preview.json
+          ls -l manifests
+
+      - name: Publish them on the fixed preview release
+        run: |
+          if ! gh release view preview --repo "$REPO" > /dev/null 2>&1; then
+            gh release create preview --repo "$REPO" --prerelease \
+              --title "Preview channel" \
+              --notes "Update manifests of the preview channel. The installers live on each trial version's own release."
+          fi
+          gh release upload preview --repo "$REPO" --clobber \
+            manifests/latest-preview.json manifests/latest-cuda-preview.json
+          echo "the preview channel now offers $TAG"
