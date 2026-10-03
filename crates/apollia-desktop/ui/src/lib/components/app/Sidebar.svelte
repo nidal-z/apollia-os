@@ -1,8 +1,50 @@
+<script lang="ts" module>
+  import type { Route } from "$lib/stores/navigation";
+  import {
+    LayoutDashboard, MessageSquare, Bot, FolderKanban, ListChecks, ShieldCheck,
+    Repeat, Brain, Database, Activity, Mic, Bell,
+  } from "lucide-svelte";
+
+  type Badge = "none" | "chat" | "tasks" | "approvals";
+
+  /** A primary entry of the sidebar; `developer` hides it with the mode off. */
+  export interface PrimaryNavEntry {
+    route: Route;
+    Icon: typeof LayoutDashboard;
+    labelKey: string;
+    badge: Badge;
+    developer?: boolean;
+  }
+
+  // Each entry's `labelKey` resolves through svelte-i18n at render time. Keeping
+  // labels out of the source array lets the bundle preserve a single
+  // translation map (`nav.sidebar.*`) shared by drawer + rail.
+  export const PRIMARY_NAV: readonly PrimaryNavEntry[] = [
+    { route: "dashboard"      as Route, Icon: LayoutDashboard, labelKey: "nav.sidebar.dashboard",      badge: "none"      },
+    { route: "chat"           as Route, Icon: MessageSquare,   labelKey: "nav.sidebar.chat",           badge: "chat"      },
+    { route: "agents"         as Route, Icon: Bot,             labelKey: "nav.sidebar.agents",         badge: "none"      },
+    { route: "projects"       as Route, Icon: FolderKanban,    labelKey: "nav.sidebar.projects",       badge: "none"      },
+    { route: "tasks"          as Route, Icon: ListChecks,      labelKey: "nav.sidebar.tasks",          badge: "tasks"     },
+    { route: "automations"    as Route, Icon: Repeat,          labelKey: "nav.sidebar.automations",    badge: "none"      },
+    { route: "inbox"          as Route, Icon: ShieldCheck,     labelKey: "nav.sidebar.inbox",          badge: "approvals" },
+    { route: "notifications"  as Route, Icon: Bell,            labelKey: "nav.sidebar.notifications",  badge: "none"      },
+    { route: "memory"         as Route, Icon: Database,        labelKey: "nav.sidebar.memory",         badge: "none"      },
+    { route: "observability"  as Route, Icon: Activity,        labelKey: "nav.sidebar.observability",  badge: "none"      },
+    { route: "llm"            as Route, Icon: Brain,           labelKey: "nav.sidebar.llm",            badge: "none"      },
+    { route: "transcriptions" as Route, Icon: Mic,             labelKey: "nav.sidebar.transcriptions", badge: "none", developer: true },
+  ];
+
+  /** The primary entries shown for a given developer mode. */
+  export function visiblePrimaryNav(developerMode: boolean): PrimaryNavEntry[] {
+    return PRIMARY_NAV.filter((entry) => developerMode || !entry.developer);
+  }
+</script>
+
 <script lang="ts">
   import { fade, fly } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
   import { t } from "svelte-i18n";
-  import { currentRoute, navigateTo, type Route } from "$lib/stores/navigation";
+  import { currentRoute, navigateTo } from "$lib/stores/navigation";
   import { sidebarState, drawerOpen, layoutActions } from "$lib/stores/layout";
   import { pendingCount } from "$lib/stores/hitl";
   import {
@@ -12,43 +54,16 @@
     openNewChatRequested,
   } from "$lib/stores/chat";
   import { runningTasks, tasksRunningCount } from "$lib/stores/tasks";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { Button } from "$lib/components/ui/button";
-  import {
-    LayoutDashboard, MessageSquare, Bot, FolderKanban, ListChecks, ShieldCheck, Plug,
-    Settings, X, Plus, Repeat,
-    Brain, Database, Activity, Mic, Bell, User,
-  } from "lucide-svelte";
+  import { Plug, Settings, X, Plus, User } from "lucide-svelte";
 
-  // Each entry's `labelKey` resolves through svelte-i18n at render time. Keeping
-  // labels out of the source array lets the bundle preserve a single
-  // translation map (`nav.sidebar.*`) shared by drawer + rail.
-  const PRIMARY_NAV = [
-    { route: "dashboard"     as Route, Icon: LayoutDashboard, labelKey: "nav.sidebar.dashboard",     badge: "none"      },
-    { route: "chat"          as Route, Icon: MessageSquare,   labelKey: "nav.sidebar.chat",          badge: "chat"      },
-    { route: "agents"        as Route, Icon: Bot,             labelKey: "nav.sidebar.agents",        badge: "none"      },
-    { route: "projects"      as Route, Icon: FolderKanban,    labelKey: "nav.sidebar.projects",      badge: "none"      },
-    { route: "tasks"         as Route, Icon: ListChecks,      labelKey: "nav.sidebar.tasks",         badge: "tasks"     },
-    { route: "automations"   as Route, Icon: Repeat,          labelKey: "nav.sidebar.automations",   badge: "none"      },
-    { route: "inbox"         as Route, Icon: ShieldCheck,     labelKey: "nav.sidebar.inbox",         badge: "approvals" },
-    { route: "notifications" as Route, Icon: Bell,            labelKey: "nav.sidebar.notifications", badge: "none"      },
-    { route: "memory"        as Route, Icon: Database,        labelKey: "nav.sidebar.memory",        badge: "none"      },
-    { route: "observability" as Route, Icon: Activity,        labelKey: "nav.sidebar.observability", badge: "none"      },
-  ];
-
-  // Builder cluster - purely technical views (shown in Builder mode only).
-  const BUILDER_NAV = [
-    { route: "llm"            as Route, Icon: Brain, labelKey: "nav.sidebar.llm" },
-    { route: "transcriptions" as Route, Icon: Mic,   labelKey: "nav.sidebar.transcriptions" },
-  ];
+  const primaryNav = $derived(visiblePrimaryNav($developerMode));
 
   const SECONDARY_NAV = [
     { route: "integrations" as Route, Icon: Plug,     labelKey: "nav.sidebar.integrations" },
     { route: "settings"     as Route, Icon: Settings, labelKey: "nav.sidebar.settings" },
   ];
-
-  const isBuilder = $derived($uiMode === "builder");
-
 
   const isDrawer = $derived($sidebarState === "drawer");
 
@@ -169,7 +184,7 @@
       </div>
 
       <nav class="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3" aria-label={$t("nav.sidebar_label")}>
-        {#each PRIMARY_NAV as item (item.route)}
+        {#each primaryNav as item (item.route)}
           {@const isActive = $currentRoute === item.route}
           {@const badgeCount = getBadgeCount(item.badge)}
           {@const label = $t(item.labelKey)}
@@ -178,6 +193,7 @@
             class="relative flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-primary/[0.04] hover:text-foreground'}"
             onclick={() => navigate(item.route)}
             aria-current={isActive ? "page" : undefined}
+            data-testid="nav-{item.route}"
           >
             <item.Icon size={17} strokeWidth={1.5} class="shrink-0" />
             <span class="truncate">{label}</span>
@@ -188,26 +204,6 @@
             {/if}
           </button>
         {/each}
-
-        {#if isBuilder}
-          <div class="section-meta mt-3 mb-1 px-3" data-testid="sidebar-builder-cluster-label">
-            {$t("nav.builder_cluster")}
-          </div>
-          {#each BUILDER_NAV as item (item.route)}
-            {@const isActive = $currentRoute === item.route}
-            {@const label = $t(item.labelKey)}
-            <button
-              type="button"
-              class="relative flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-primary/[0.04] hover:text-foreground'}"
-              onclick={() => navigate(item.route)}
-              aria-current={isActive ? "page" : undefined}
-              data-testid="nav-{item.route}"
-            >
-              <item.Icon size={17} strokeWidth={1.5} class="shrink-0" />
-              <span class="truncate">{label}</span>
-            </button>
-          {/each}
-        {/if}
       </nav>
 
       <div class="border-t border-border/60 p-3 flex flex-col gap-0.5">
@@ -242,7 +238,7 @@
     </div>
 
     <!-- Primary nav -->
-    {#each PRIMARY_NAV as item (item.route)}
+    {#each primaryNav as item (item.route)}
       {@const isActive = $currentRoute === item.route}
       {@const badgeCount = getBadgeCount(item.badge)}
       {@const isPulse = item.badge === "tasks" && runningCount > 0}
@@ -280,34 +276,6 @@
         </span>
       </div>
     {/each}
-
-    {#if isBuilder}
-      <!-- Builder cluster - Inspection -->
-      <div class="my-1 h-px w-8 bg-border/60" data-testid="sidebar-builder-separator"></div>
-      {#each BUILDER_NAV as item (item.route)}
-        {@const isActive = $currentRoute === item.route}
-        {@const label = $t(item.labelKey)}
-        <div class="rail-item group relative mb-1">
-          <button
-            type="button"
-            class="relative flex h-10 w-10 items-center justify-center rounded-lg transition-all duration-fast {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground'}"
-            onclick={() => navigate(item.route)}
-            aria-current={isActive ? "page" : undefined}
-            aria-label={label}
-            data-nav-item="true"
-            data-testid="nav-{item.route}"
-          >
-            {#if isActive}
-              <span class="active-bar"></span>
-            {/if}
-            <item.Icon size={17} strokeWidth={1.5} />
-          </button>
-          <span class="tooltip pointer-events-none absolute left-full top-1/2 z-overlay ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
-            {label}
-          </span>
-        </div>
-      {/each}
-    {/if}
 
     <!-- Spacer -->
     <div class="flex-1"></div>

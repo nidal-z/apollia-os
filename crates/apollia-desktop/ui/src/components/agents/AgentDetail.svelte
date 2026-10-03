@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import type { AgentListItem } from "$lib/types";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { navigateTo } from "$lib/stores/navigation";
   import { Sheet, SheetContent } from "$lib/components/ui/sheet";
   import { Avatar } from "$lib/components/ui/avatar";
@@ -32,7 +32,7 @@
 
   const status = $derived(availability(agent));
   const isAvailable = $derived(status !== "unavailable");
-  const showMessagesSection = $derived(agent.supports_a2a === true && $uiMode === "builder");
+  const showMessagesSection = $derived(agent.supports_a2a === true && $developerMode);
   const allTools = $derived([
     ...agent.tools_required.map((t) => ({ name: t, required: true })),
     ...agent.tools_optional.map((t) => ({ name: t, required: false })),
@@ -178,7 +178,7 @@
       {/if}
 
       <!-- Memory link (builder only) -->
-      {#if $uiMode === "builder"}
+      {#if $developerMode}
         <button
           class="flex w-full items-center gap-2 rounded-lg glass-card glass-border px-4 py-3 text-sm text-primary hover:bg-primary/5 transition-colors"
           onclick={handleMemoryLink}

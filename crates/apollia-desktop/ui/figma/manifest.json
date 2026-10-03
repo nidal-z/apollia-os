@@ -1316,7 +1316,7 @@
       "nodeId": "378:1286",
       "name": "BuilderOnly",
       "page": "Primitives",
-      "source": "lib/components/shared/BuilderOnly.svelte",
+      "source": "lib/components/shared/DeveloperOnly.svelte",
       "variants": 1
     },
     {

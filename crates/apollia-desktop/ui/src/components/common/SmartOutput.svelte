@@ -42,7 +42,7 @@
 <script lang="ts">
   import { t, locale } from "svelte-i18n";
   import { cn } from "$lib/utils";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import JsonViewer from "./JsonViewer.svelte";
   import MarkdownContent from "$lib/components/ui/markdown/MarkdownContent.svelte";
 
@@ -123,7 +123,6 @@
   ];
 
   let showRaw = $state(false);
-  let mode = $derived($uiMode);
 
   const parsed = $derived(tryParseJson(output));
   const isMarkdown = $derived(parsed.type === "text" && looksLikeMarkdown(parsed.data));
@@ -377,11 +376,11 @@
 
   <!-- Toggle raw/formatted (for JSON and markdown content) -->
   {#if parsed.type !== "text" || isMarkdown}
-    <div class={cn("pt-1", mode === "operator" ? "text-right" : "")}>
+    <div class={cn("pt-1", !$developerMode ? "text-right" : "")}>
       <button
         class={cn(
           "text-xs transition-colors",
-          mode === "operator"
+          !$developerMode
             ? "text-muted-foreground/60 hover:text-muted-foreground"
             : "rounded border px-2 py-1 text-muted-foreground hover:glass-inset"
         )}
