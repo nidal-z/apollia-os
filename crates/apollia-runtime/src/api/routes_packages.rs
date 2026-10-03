@@ -11,6 +11,11 @@
 //! callers share the file system. Both package routes answer `503` without
 //! an audit journal: an installation is never left unrecorded, and the
 //! preview reads the same governance the installation does.
+//!
+//! Each route reads the `[packages]` section of the organisation policy, from
+//! the folder and through the reader the runtime reads it with at startup:
+//! `require_signature` answers the signature question, and the
+//! `trusted_publishers` are laid over the keyring, read only.
 
 use std::path::PathBuf;
 
@@ -30,7 +35,7 @@ use apollia_tools::{
 use crate::api::server::AppState;
 use crate::connections::Connection;
 use crate::coordinator::ExecutionBackend;
-use crate::governance::NoPolicyGovernance;
+use crate::governance::PackagePolicyGovernance;
 use crate::packages::{
     commit, prepare, preview, CommitTargets, InstallOptions, InstallRefusal, InstallReport,
     McpServerAdder, PackageError, PackageOrigin, PackagePreview, PreviewSources,
@@ -46,10 +51,10 @@ pub struct PackageErrorBody {
     /// Human-readable description.
     pub error: String,
     /// Stable code: `archive`, `invalid_signature`, `signature_required`,
-    /// `downgrade`, `agent_taken`, `deps_confirmation_required`,
-    /// `changes_confirmation_required`, `mcp_unavailable`, `mcp_server`,
-    /// `environment`, `invalid_key`, `not_found`, `journal_unavailable`,
-    /// `internal`.
+    /// `publisher_not_trusted`, `downgrade`, `agent_taken`,
+    /// `deps_confirmation_required`, `changes_confirmation_required`,
+    /// `mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,
+    /// `policy_key`, `not_found`, `journal_unavailable`, `internal`.
     pub code: String,
 }
 
@@ -106,7 +111,8 @@ pub struct TrustKeyRequest {
 pub struct TrustedKeyView {
     /// SHA-256 fingerprint of the key.
     pub fingerprint: String,
-    /// The public key, 64 hexadecimal characters.
+    /// The public key, 64 hexadecimal characters; empty for a key the
+    /// organisation policy names by its fingerprint only.
     pub public_key: String,
     /// Name shown for the publisher.
     pub label: String,
@@ -146,7 +152,7 @@ pub fn package_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
 /// The stores a preview and an installation read, owned so that the work on
 /// the archive runs off the async runtime.
 struct Stores {
-    governance: NoPolicyGovernance,
+    governance: PackagePolicyGovernance,
     packages: PackageRepository,
     agents: AgentRepository,
     trusted_keys: TrustedKeyRepository,
@@ -187,9 +193,12 @@ async fn gather<B: ExecutionBackend + Clone>(
         )
     })?;
     let db = agents_db(state);
+    let policy = packages_policy();
     let packages = PackageRepository::open(&db).map_err(internal)?;
     let agents = AgentRepository::open(&db).map_err(internal)?;
-    let trusted_keys = TrustedKeyRepository::open(&db).map_err(internal)?;
+    let trusted_keys = TrustedKeyRepository::open(&db)
+        .map_err(internal)?
+        .with_policy_publishers(&policy.trusted_publishers);
 
     // The native accounts are read only for a package that requires a
     // connection: reading them opens the account index.
@@ -220,7 +229,7 @@ async fn gather<B: ExecutionBackend + Clone>(
         None => Vec::new(),
     };
     Ok(Stores {
-        governance: NoPolicyGovernance::new(journal),
+        governance: PackagePolicyGovernance::new(journal, &policy),
         packages,
         agents,
         trusted_keys,
@@ -244,6 +253,9 @@ fn package_error(error: PackageError) -> ApiError {
             ),
             InstallRefusal::SignatureRequired => {
                 api_err(StatusCode::FORBIDDEN, "signature_required", message)
+            }
+            InstallRefusal::PublisherNotTrusted { .. } => {
+                api_err(StatusCode::FORBIDDEN, "publisher_not_trusted", message)
             }
             InstallRefusal::Downgrade { .. } => api_err(StatusCode::CONFLICT, "downgrade", message),
             InstallRefusal::AgentTaken { .. } => {
@@ -344,7 +356,7 @@ fn mcp_message(body: &serde_json::Value) -> String {
     responses(
         (status = 201, description = "Installed", body = InstallReport),
         (status = 400, description = "The file cannot be read", body = PackageErrorBody),
-        (status = 403, description = "A signed package is required", body = PackageErrorBody),
+        (status = 403, description = "A signed package is required, or the organisation policy does not trust its publisher", body = PackageErrorBody),
         (status = 409, description = "Older version, or agent owned elsewhere", body = PackageErrorBody),
         (status = 422, description = "Invalid package or signature, or MCP server refused", body = PackageErrorBody),
         (status = 428, description = "A confirmation is missing", body = PackageErrorBody),
@@ -389,13 +401,31 @@ pub(crate) async fn install_package<B: ExecutionBackend + Clone>(
     Ok((StatusCode::CREATED, Json(report)))
 }
 
+/// The `[packages]` section of the organisation policy in force: the empty
+/// section, which requires nothing, without a valid policy.
+fn packages_policy() -> apollia_permissions::PackagesPolicy {
+    let location = apollia_permissions::policy_location();
+    apollia_permissions::load_policy(&location.dir, location.owner).packages()
+}
+
 fn open_keyring<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
 ) -> Result<TrustedKeyRepository, ApiError> {
-    TrustedKeyRepository::open(&agents_db(state)).map_err(internal)
+    Ok(TrustedKeyRepository::open(&agents_db(state))
+        .map_err(internal)?
+        .with_policy_publishers(&packages_policy().trusted_publishers))
 }
 
-/// `GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts.
+/// The answer to a removal the keyring refused.
+fn removal_error(error: TrustedKeyError) -> ApiError {
+    match error {
+        TrustedKeyError::HeldByPolicy { .. } => api_err(StatusCode::FORBIDDEN, "policy_key", error),
+        other => internal(other),
+    }
+}
+
+/// `GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts,
+/// and those the organisation policy trusts, of origin `policy`.
 #[utoipa::path(
     get,
     path = "/api/v1/packages/trusted-keys",
@@ -454,6 +484,7 @@ pub(crate) async fn trust_key<B: ExecutionBackend + Clone>(
     params(("fingerprint" = String, Path, description = "SHA-256 fingerprint of the key")),
     responses(
         (status = 200, description = "The key is removed"),
+        (status = 403, description = "The organisation policy trusts the key; only the policy removes it", body = PackageErrorBody),
         (status = 404, description = "No such key", body = PackageErrorBody),
         (status = 500, description = "The keyring cannot be written", body = PackageErrorBody),
     )
@@ -464,7 +495,7 @@ pub(crate) async fn remove_trusted_key<B: ExecutionBackend + Clone>(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     if !open_keyring(&state)?
         .remove(&fingerprint)
-        .map_err(internal)?
+        .map_err(removal_error)?
     {
         return Err(api_err(
             StatusCode::NOT_FOUND,

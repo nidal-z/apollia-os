@@ -12,6 +12,8 @@
 //! allowed, an access is sensitive only when its tool declares it so, no
 //! signature is required, and every record lands in the hash-chained audit
 //! journal next to the run entries, chained and signed like them.
+//! [`PackagePolicyGovernance`] is the same, except that the `[packages]`
+//! section of the organisation policy answers whether a signature is required.
 //!
 //! Connections answer to the same governance. [`tool_attributes`] describes
 //! every tool by what governance reads (family, connection, provenance,
@@ -29,6 +31,7 @@ mod admission;
 mod connection;
 mod contract;
 mod no_policy;
+mod package_policy;
 pub(crate) mod policy_admission;
 mod record;
 mod tool_attributes;
@@ -44,6 +47,7 @@ pub use contract::{
     GovernanceError, InstallSubject,
 };
 pub use no_policy::NoPolicyGovernance;
+pub use package_policy::PackagePolicyGovernance;
 pub use policy_admission::{PolicyAdmission, REMOTE_DENIED_REASON};
 pub use record::{
     governance_run_id, package_run_id, AccessChange, GovernanceEvent, GovernanceRecord,

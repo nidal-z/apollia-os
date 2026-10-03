@@ -33,6 +33,7 @@ mod tests;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use apollia_core::config::PolicySettings;
 use apollia_signing::{sha256, DigestList, PublicKey, SignatureFile, Verdict};
 
 pub use authoring::{
@@ -183,6 +184,39 @@ impl PolicyVerdict {
             Self::Absent => "absent",
             Self::Valid(_) => "valid",
             Self::Invalid(_) => "invalid",
+        }
+    }
+
+    /// The settings the policy fixes, as the settings contract of
+    /// `apollia.toml` reads them: each key of `[settings]` with its value.
+    ///
+    /// Without a valid policy nothing is fixed. A refused policy fixes nothing
+    /// either: what it shuts down is decided where the policy is applied.
+    pub fn imposed_settings(&self) -> PolicySettings {
+        let Self::Valid(valid) = self else {
+            return PolicySettings::none();
+        };
+        valid
+            .policy
+            .settings
+            .iter()
+            .fold(PolicySettings::none(), |imposed, (key, value)| {
+                // The parser already turned every value into JSON once, in
+                // `check_setting`; a value that could not be is a refused
+                // policy, never a valid one.
+                match serde_json::to_value(value) {
+                    Ok(value) => imposed.impose(key.clone(), value),
+                    Err(_) => imposed,
+                }
+            })
+    }
+
+    /// The `[packages]` section of a valid policy; the empty section, which
+    /// requires nothing, otherwise.
+    pub fn packages(&self) -> PackagesPolicy {
+        match self {
+            Self::Valid(valid) => valid.policy.packages.clone(),
+            Self::Absent | Self::Invalid(_) => PackagesPolicy::default(),
         }
     }
 }

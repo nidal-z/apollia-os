@@ -3285,7 +3285,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** `GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts. */
+        /**
+         * `GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts,
+         *     and those the organisation policy trusts, of origin `policy`.
+         */
         get: operations["list_trusted_keys"];
         put?: never;
         /**
@@ -6599,6 +6602,11 @@ export interface components {
             code: "signature_required";
         } | {
             /** @enum {string} */
+            code: "publisher_not_trusted";
+            /** @description Fingerprint of the signing key. */
+            fingerprint: string;
+        } | {
+            /** @enum {string} */
             code: "downgrade";
             /** @description Incoming version. */
             incoming: string;
@@ -7196,10 +7204,10 @@ export interface components {
         PackageErrorBody: {
             /**
              * @description Stable code: `archive`, `invalid_signature`, `signature_required`,
-             *     `downgrade`, `agent_taken`, `deps_confirmation_required`,
-             *     `changes_confirmation_required`, `mcp_unavailable`, `mcp_server`,
-             *     `environment`, `invalid_key`, `not_found`, `journal_unavailable`,
-             *     `internal`.
+             *     `publisher_not_trusted`, `downgrade`, `agent_taken`,
+             *     `deps_confirmation_required`, `changes_confirmation_required`,
+             *     `mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,
+             *     `policy_key`, `not_found`, `journal_unavailable`, `internal`.
              */
             code: string;
             /** @description Human-readable description. */
@@ -8597,7 +8605,10 @@ export interface components {
             label: string;
             /** @description Who put the key there: `user` or `policy`. */
             origin: string;
-            /** @description The public key, 64 hexadecimal characters. */
+            /**
+             * @description The public key, 64 hexadecimal characters; empty for a key the
+             *     organisation policy names by its fingerprint only.
+             */
             publicKey: string;
         };
         /** @description One model call of a turn. */
@@ -16381,7 +16392,7 @@ export interface operations {
                     "application/json": components["schemas"]["PackageErrorBody"];
                 };
             };
-            /** @description A signed package is required */
+            /** @description A signed package is required, or the organisation policy does not trust its publisher */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16577,6 +16588,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description The organisation policy trusts the key; only the policy removes it */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
             };
             /** @description No such key */
             404: {

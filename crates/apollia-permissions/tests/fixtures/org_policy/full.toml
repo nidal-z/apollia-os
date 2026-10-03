@@ -16,9 +16,7 @@ remote_endpoints = "deny"
 require_model_hash = true
 
 [settings]
-"chat.max_steps" = 20
-"privacy.telemetry" = false
-"ui.language" = "fr"
+"desktop.developer_mode" = false
 
 [packages]
 require_signature = true
