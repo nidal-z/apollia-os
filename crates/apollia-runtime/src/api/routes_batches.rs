@@ -8,9 +8,14 @@
 //! may grant for the duration of a batch. `POST /api/v1/batches/{id}/pause`,
 //! `/resume`, `/stop` and `/retry` drive a batch: pause and resume it, stop
 //! it, run its failed and waiting items again.
+//!
+//! `GET /api/v1/batches/{id}/export?format=xlsx|csv|json` answers the result
+//! of a batch as a file: one row per item, its input columns, its output, its
+//! status and the sources it cites.
 
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::http::{header, StatusCode};
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
@@ -19,7 +24,10 @@ use apollia_core::batch_source::SourceError;
 use apollia_tools::{BatchItemRow, BatchRow};
 
 use crate::api::server::AppState;
-use crate::batch::{BatchAccess, BatchControl, BatchError, BatchHandle, BatchLaunch, BatchRetry};
+use crate::batch::{
+    BatchAccess, BatchControl, BatchError, BatchHandle, BatchLaunch, BatchRetry, ExportError,
+    ExportFormat,
+};
 use crate::coordinator::ExecutionBackend;
 
 /// Error body of the batch routes.
@@ -389,6 +397,75 @@ pub async fn retry_batch<B: ExecutionBackend + Clone>(
     control(&state, &id, BatchControl::Retry(retry)).await
 }
 
+/// Query of `GET /api/v1/batches/{id}/export`.
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct BatchExportQuery {
+    /// `xlsx`, `csv` or `json`.
+    #[param(value_type = ExportFormat)]
+    pub format: String,
+}
+
+/// `GET /api/v1/batches/{id}/export`: the result of a batch as a file.
+///
+/// One row per item, in source order: the input columns of the item, then
+/// its output, its status and the sources its answer cites. `xlsx` is a
+/// workbook of one sheet, `csv` is UTF-8 with one header row, `json` is one
+/// document with the batch and an object per item. The file is offered as
+/// `batch-<id>.<format>`. A batch still running exports the items as they
+/// stand.
+#[utoipa::path(
+    get,
+    path = "/api/v1/batches/{id}/export",
+    tag = "batches",
+    params(("id" = String, Path, description = "Batch id"), BatchExportQuery),
+    responses(
+        (status = 200, description = "The batch as an Excel workbook, CSV or JSON file", content(
+            (Vec<u8> = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            (String = "text/csv"),
+            (Object = "application/json"),
+        )),
+        (status = 400, description = "A format other than xlsx, csv or json", body = BatchErrorResponse),
+        (status = 404, description = "No such batch", body = BatchErrorResponse),
+        (status = 503, description = "Batch engine unavailable", body = BatchErrorResponse),
+    )
+)]
+pub async fn export_batch<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+    Query(query): Query<BatchExportQuery>,
+) -> Result<Response, RouteError> {
+    let format: ExportFormat = query
+        .format
+        .parse()
+        .map_err(|e: ExportError| error(StatusCode::BAD_REQUEST, e))?;
+    let detail = engine(&state)?
+        .detail(&id)
+        .await
+        .map_err(batch_error)?
+        .ok_or_else(|| error(StatusCode::NOT_FOUND, format!("no batch '{id}'")))?;
+    let export = crate::batch::export(&detail, format)
+        .map_err(|e| error(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    tracing::event!(
+        tracing::Level::INFO,
+        batch_id = %id,
+        format = %format.extension(),
+        bytes = export.bytes.len(),
+        "batch.exported"
+    );
+    Ok((
+        [
+            (header::CONTENT_TYPE, format.content_type().to_owned()),
+            (
+                header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"{}\"", export.file_name),
+            ),
+        ],
+        export.bytes,
+    )
+        .into_response())
+}
+
 /// The batch routes.
 pub fn batch_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
@@ -402,6 +479,7 @@ pub fn batch_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route("/api/v1/batches/:id/resume", post(resume_batch::<B>))
         .route("/api/v1/batches/:id/stop", post(stop_batch::<B>))
         .route("/api/v1/batches/:id/retry", post(retry_batch::<B>))
+        .route("/api/v1/batches/:id/export", get(export_batch::<B>))
 }
 
 #[cfg(test)]

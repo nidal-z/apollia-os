@@ -859,6 +859,11 @@ async fn test_daily_costs_aggregates_the_calls_the_repository_holds() {
         latency_ms: Some(5),
         prompt_text: None,
         completion_text: None,
+        session_id: None,
+        turn_id: None,
+        ttft_ms: None,
+        finish_reason: None,
+        generation_ms: None,
     })
     .expect("save call");
     let mut state = base_state(dir.path());

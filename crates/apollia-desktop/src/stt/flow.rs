@@ -19,10 +19,8 @@ use serde::Serialize;
 use tauri::Emitter;
 use tauri_plugin_notification::NotificationExt;
 
-use apollia_runtime::api::server::SharedSttEngine;
-use apollia_runtime::stt::TranscriptSource;
-
 use crate::stt::clipboard;
+use crate::stt::transcriber::{Transcribed, Transcriber};
 
 /// Whisper model sample rate in Hz.
 const WHISPER_SAMPLE_RATE: u32 = 16_000;
@@ -113,10 +111,11 @@ fn emit_dictation_failed(app: &tauri::AppHandle, reason: DictationFailure) {
 pub struct SttFlow {
     /// STT configuration (thresholds, clipboard mode, etc.).
     config: SttConfigRow,
-    /// Shared, swappable handle to the SttEngine actor. Read on each trigger so
-    /// a model brought online mid-session (via `reload_stt`) is picked up
-    /// without rebuilding the flow or re-registering the hotkey.
-    stt_engine: SharedSttEngine,
+    /// The engine the dictation goes to: the runtime in this process, whose
+    /// engine cell is read on each trigger so a model brought online
+    /// mid-session (via `reload_stt`) is picked up without rebuilding the flow,
+    /// or the daemon this window is attached to.
+    transcriber: Transcriber,
     /// EventBus sender for lifecycle event broadcasting.
     event_bus: EventBusSender,
     /// Tauri application handle for desktop notifications.
@@ -154,15 +153,15 @@ impl SttFlow {
     }
 
     /// Creates a new orchestrator from the STT configuration and runtime handles.
-    pub fn new(
+    pub(crate) fn new(
         config: SttConfigRow,
-        stt_engine: SharedSttEngine,
+        transcriber: Transcriber,
         event_bus: EventBusSender,
         app: tauri::AppHandle,
     ) -> Self {
         Self {
             config,
-            stt_engine,
+            transcriber,
             event_bus,
             app,
             recording: Arc::new(AtomicBool::new(false)),
@@ -390,40 +389,34 @@ impl SttFlow {
             }
         };
 
-        // Read the current engine from the shared cell. `None` means STT was
-        // enabled in config but no model is loaded yet (download pending or a
-        // reload that resolved to disabled). Notify and bail rather than fail.
-        let Some(engine) = self.stt_engine.read().await.clone() else {
-            tracing::warn!(detail = "the transcription is skipped", "stt.engine.absent");
-            let locale = crate::i18n::locale();
-            let result = self
-                .app
-                .notification()
-                .builder()
-                .title(crate::i18n::stt_no_model_title(locale))
-                .body(crate::i18n::stt_no_model_body(locale))
-                .show();
-            if let Err(e) = result {
-                tracing::warn!(error = %e, "stt.notification.unavailable.send.failed");
+        // `NoModel` means STT was enabled in config but no engine runs yet
+        // (download pending, or a reload that resolved to disabled). Notify and
+        // bail rather than fail.
+        let text = match self.transcriber.transcribe(final_audio).await {
+            Transcribed::Text(text) => text,
+            Transcribed::NoModel => {
+                tracing::warn!(detail = "the transcription is skipped", "stt.engine.absent");
+                let locale = crate::i18n::locale();
+                let result = self
+                    .app
+                    .notification()
+                    .builder()
+                    .title(crate::i18n::stt_no_model_title(locale))
+                    .body(crate::i18n::stt_no_model_body(locale))
+                    .show();
+                if let Err(e) = result {
+                    tracing::warn!(error = %e, "stt.notification.unavailable.send.failed");
+                }
+                self.fail(DictationFailure::NoModel);
+                return;
             }
-            self.fail(DictationFailure::NoModel);
-            return;
-        };
-
-        // Transcribe via the SttEngine actor.
-        let transcript = match engine
-            .transcribe(final_audio, WHISPER_SAMPLE_RATE, TranscriptSource::Hotkey)
-            .await
-        {
-            Ok(t) => t,
-            Err(e) => {
-                tracing::warn!(error = %e, "stt.transcription.failed");
+            Transcribed::Failed => {
                 self.fail(DictationFailure::TranscriptionFailed);
                 return;
             }
         };
 
-        if transcript.full_text.trim().is_empty() {
+        if text.trim().is_empty() {
             tracing::info!(detail = "nothing is injected", "stt.transcription.empty");
             self.fail(DictationFailure::EmptyTranscript);
             return;
@@ -432,7 +425,7 @@ impl SttFlow {
         // In-app recordings rely on the broadcast `stt-transcribed` event to
         // fill the composer, so the OS paste is skipped for them.
         if self.origin() == RecordingOrigin::Hotkey {
-            self.dispatch_result(&transcript.full_text).await;
+            self.dispatch_result(&text).await;
         }
     }
 

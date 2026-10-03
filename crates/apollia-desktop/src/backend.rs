@@ -50,7 +50,16 @@ pub struct AIPAgentLoader;
 
 impl AgentLoader for AIPAgentLoader {
     fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String> {
-        let extras = venv_site_packages_for_agent_path(path);
+        self.load_and_validate_with(path, &[])
+    }
+
+    fn load_and_validate_with(
+        &self,
+        path: &Path,
+        extra_sys_paths: &[PathBuf],
+    ) -> Result<AgentManifest, String> {
+        let mut extras = extra_sys_paths.to_vec();
+        extras.extend(venv_site_packages_for_agent_path(path));
         let module = apollia_aip::loader::load_agent_module_with_sys_paths(path, &extras)
             .map_err(|e| e.to_string())?;
         let validated =

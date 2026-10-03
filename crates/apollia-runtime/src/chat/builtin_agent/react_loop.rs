@@ -234,8 +234,13 @@ impl BuiltInChatAgent {
                         )
                         .await
                     {
-                        Ok(next) => {
+                        Ok(mut next) => {
                             let output = next.content.clone();
+                            // The retry is the same turn: its calls follow the
+                            // ones already made.
+                            let mut calls = std::mem::take(&mut state.last_response.llm_calls);
+                            calls.append(&mut next.llm_calls);
+                            next.llm_calls = calls;
                             // Carry any tool authorized on this retry into the next.
                             carry_grants(&mut state.authorized, &next.newly_authorized);
                             state.last_response = next;

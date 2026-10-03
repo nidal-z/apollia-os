@@ -11,10 +11,10 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
     use crate::commands;
     tauri::generate_handler![
         commands::agent_packages::preview_agent_package,
-        commands::agent_packages::install::install_agent_package,
+        commands::agent_packages::install_agent_package,
         commands::agent_packages::list_agent_packages,
         commands::agent_packages::get_agent_package_detail,
-        commands::agent_packages::uninstall::uninstall_agent_package,
+        commands::agent_packages::uninstall_agent_package,
         commands::agents::list_agents,
         commands::agents::agent_status_snapshot,
         commands::agents::messages::list_agent_messages,

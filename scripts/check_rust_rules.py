@@ -139,16 +139,13 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-desktop/src/backend/factory.rs": 2,
     "crates/apollia-desktop/src/backend/runner.rs": 1,
     "crates/apollia-desktop/src/bootstrap.rs": 1,
-    "crates/apollia-desktop/src/commands/agent_packages.rs": 2,
-    "crates/apollia-desktop/src/commands/agent_packages/install.rs": 2,
-    "crates/apollia-desktop/src/commands/agent_packages/uninstall.rs": 2,
     "crates/apollia-desktop/src/commands/agents.rs": 1,
     "crates/apollia-desktop/src/commands/agents/lifecycle.rs": 2,
     "crates/apollia-desktop/src/commands/llm.rs": 1,
     "crates/apollia-desktop/src/commands/model_hub.rs": 1,
     "crates/apollia-desktop/src/commands/onboarding.rs": 1,
     "crates/apollia-desktop/src/commands/stt.rs": 2,
-    "crates/apollia-desktop/src/main.rs": 6,
+    "crates/apollia-desktop/src/main.rs": 5,
     "crates/apollia-desktop/src/stt/flow.rs": 3,
     "crates/apollia-llm/src/downloader.rs": 1,
     "crates/apollia-llm/src/meta_orchestrator.rs": 1,
@@ -300,6 +297,12 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # installer reads and runs the entry point it installed; neither can be
     # observed without a process.
     "crates/apollia-desktop/src/mcp/python_server/tests.rs": 1,
+    # Two helpers, the transport is the subject: these tests prove that npm
+    # installs from an integrity lock, refuses an altered digest, and that the
+    # rewritten command starts offline. One helper packs the tarball the fake
+    # registry serves (its digest is npm's own), the other runs the entry point
+    # the installer wrote; neither can be observed without a process.
+    "crates/apollia-desktop/src/mcp/npm_server/tests.rs": 2,
     "crates/apollia-llm/src/meta_orchestrator.rs": 1,
     "crates/apollia-llm/src/repository.rs": 1,
     "crates/apollia-llm/src/retry.rs": 1,
@@ -329,6 +332,9 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # fake server was asked, which is how "no archive before the signature
     # holds" is observed. The server holds a port-0 bind for the whole test.
     "crates/apollia-runtime/src/engine_store/tests.rs": 1,
+    # Same helper and same reason for Node.js, published in the same signed
+    # manifest: the fake server counts the archive requests.
+    "crates/apollia-runtime/src/engine_store/node/tests.rs": 1,
     "crates/apollia-runtime/src/hooks/executor.rs": 7,
     # The process is the subject: unloading a resident model has to stop its
     # child, and `kill -0` on the pid is the one observable left once the

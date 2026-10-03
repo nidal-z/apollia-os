@@ -1,5 +1,6 @@
 //! Batches: launch an agent on every item of a source, read one, list them,
-//! list the accesses a launch may grant, and pause, resume, stop or retry one.
+//! list the accesses a launch may grant, pause, resume, stop or retry one,
+//! and export its result as a file.
 
 use crate::client::{extract_error, ClientError, RawResponse, RuntimeClient};
 
@@ -53,5 +54,23 @@ impl RuntimeClient {
             self.post(&format!("/api/v1/batches/{id}/{verb}"), body)
                 .await?,
         )
+    }
+
+    /// The result of a batch as a file via
+    /// `GET /api/v1/batches/{id}/export?format=`: `xlsx`, `csv` or `json`.
+    pub async fn export_batch(&self, id: &str, format: &str) -> Result<Vec<u8>, ClientError> {
+        let id = crate::commands::model::urlencode(id);
+        let format = crate::commands::model::urlencode(format);
+        let (status, body) = self
+            .get_bytes(&format!("/api/v1/batches/{id}/export?format={format}"))
+            .await?;
+        if status >= 400 {
+            let text = String::from_utf8_lossy(&body);
+            return Err(ClientError::ServerError {
+                status,
+                body: extract_error(&text, status),
+            });
+        }
+        Ok(body.to_vec())
     }
 }

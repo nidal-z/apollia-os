@@ -490,6 +490,7 @@ impl CompletionModel for OpenAICompatibleClient {
             model,
             pending_timings: None,
             in_think: false,
+            finish: None,
         };
 
         let mapped = futures::stream::unfold(state, next_openai_stream_item);
@@ -1112,7 +1113,47 @@ mod tests {
 
     fn emit(chunk: TimedStreamResponse, in_think: &mut bool) -> Option<String> {
         let mut pending = HashMap::new();
-        next_emittable_text(&mut pending, chunk.inner, chunk.reasoning, in_think)
+        let mut finish = None;
+        next_emittable_text(
+            &mut pending,
+            chunk.inner,
+            chunk.reasoning,
+            super::stream::StreamFlags {
+                in_think,
+                finish: &mut finish,
+            },
+        )
+    }
+
+    // GIVEN the last chunk of a streamed answer, cut by the token limit
+    // WHEN it is read
+    // THEN its finish reason is kept for the stream's terminal chunk
+    #[test]
+    fn test_stream_chunk_finish_reason_is_kept() {
+        let chunk: TimedStreamResponse = serde_json::from_value(serde_json::json!({
+            "id": "c1",
+            "object": "chat.completion.chunk",
+            "created": 0,
+            "model": "m",
+            "choices": [{"index": 0, "delta": {"content": "fin"}, "finish_reason": "length"}],
+        }))
+        .expect("chunk must parse");
+        let mut pending = HashMap::new();
+        let mut in_think = false;
+        let mut finish = None;
+
+        let text = next_emittable_text(
+            &mut pending,
+            chunk.inner,
+            chunk.reasoning,
+            super::stream::StreamFlags {
+                in_think: &mut in_think,
+                finish: &mut finish,
+            },
+        );
+
+        assert_eq!(text.as_deref(), Some("fin"));
+        assert_eq!(finish, Some(FinishReason::Length));
     }
 
     // GIVEN a streamed chunk shaped like Ollama's, with the reasoning in its own

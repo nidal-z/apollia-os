@@ -490,6 +490,7 @@ fn build_response(content: String, newly_authorized: Vec<String>) -> ChatAgentRe
         // reported as unknown (window None, occupancy zero).
         context_window_tokens: None,
         context_tokens_used: 0,
+        llm_calls: Vec::new(),
     }
 }
 

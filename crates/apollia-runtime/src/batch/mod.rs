@@ -39,10 +39,13 @@
 mod access;
 mod actor;
 mod control;
+mod export;
 mod runner;
 
 #[cfg(test)]
 mod control_tests;
+#[cfg(test)]
+mod export_tests;
 #[cfg(test)]
 mod tests;
 
@@ -58,6 +61,7 @@ use tokio::sync::{mpsc, oneshot};
 use crate::eventbus::EventBusSender;
 
 pub use access::BatchAccess;
+pub use export::{export, BatchExport, ExportError, ExportFormat, XLSX_CELL_MAX};
 pub use runner::AgentItemRunner;
 
 /// Items of one batch run at once when the launch names no concurrency.
