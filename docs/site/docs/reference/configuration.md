@@ -35,9 +35,14 @@ data (databases, the API token, models) lives separately under `~/.apollia/`.
 
 ## Sections
 
-Ten sections are read. A section outside this list is ignored, and
-`apollia-os config set` rejects it rather than accepting a value nothing will
-ever consult.
+The file is read strictly, by the same validation everywhere. A key that no
+section declares, or a value of the wrong type, is a fault named at its line:
+`apollia-os config validate` lists every fault, `apollia-os config set` refuses
+to write one, and `apollia-os start` refuses to start, with exit code 1. The
+desktop application starts on the default values instead, and logs each fault
+and records the refusal in the audit journal rather than dropping the file in
+silence. A withdrawn section (see below) is
+still accepted, with a `config.key.retired` warning.
 
 | Section | Purpose |
 |---|---|
@@ -106,12 +111,13 @@ LLM backends and routing.
 
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
+| `format_version` | `u32` | `1` | Version of this on-disk format. A file written before versioning has no key and reads as format 1; a future format bumps the default and the reader branches on the value it finds. |
 | `default` | `String` | **required** | Default backend name (must exist in `backends`). |
-| `backends` | `Vec<BackendConfig>` | **required** | Backends to instantiate from `[[llm.backends]]`. |
-| `observability` | `ObservabilityConfig` | type default | Observability settings (tokens, latency, cost, prompt debug). |
-| `routing` | `Option<LlmRoutingConfig>` | `None` | LLM routing by precision level (`[llm.routing]` section). |
+| `backends` | `Vec<LlmBackendEntry>` | **required** | Backends declared with `[[llm.backends]]`. |
+| `observability` | `LlmObservabilityConfig` | type default | Observability settings of the router (tokens, latency, cost, prompt debug). |
+| `routing` | `Option<LlmRoutingConfig>` | `None` | LLM routing by precision level (`[llm.routing]` section). Optional. |
 | `pricing_overrides` | `HashMap<String, PricingTier>` | empty | Operator pricing overrides (`[llm.pricing_overrides]` section), not applied by a running daemon: only `LlmRouter::from_config` passes them to a client, and the daemon instead builds its backends from `system.db` through `instantiate_cloud_backend`, which hands over an empty table. |
-| `cost_alert_threshold_usd` | `Option<f64>` | `None` | Cost threshold in USD above which `RuntimeEvent::TokenBudgetUpdated` is emitted with `threshold_exceeded = true`. |
+| `cost_alert_threshold_usd` | `Option<f64>` | `None` | Cost threshold in USD above which `RuntimeEvent::TokenBudgetUpdated` is emitted with `threshold_exceeded = true`. `None` disables the alert. |
 | `runner` | `LlmRunnerConfig` | type default | Speech-to-text sidecar runner configuration (`[llm.runner]` section). |
 
 ### `[runtime]`
@@ -128,6 +134,7 @@ EventBus and mailbox capacities.
 | `mailbox_max_payload_bytes` | `usize` | `65_536` | Maximum serialized payload size of a mailbox message, in bytes. |
 | `mailbox_audit_full_payload` | `bool` | `false` | Whether the audit journal records the full message payload. |
 | `startup_timeout_secs` | `u64` | `300` | Runtime startup timeout in seconds. |
+| `agent_idle_unload_secs` | `u64` | `600` | How long an installed agent stays loaded after its last call, in seconds. |
 
 ### `[api]`
 

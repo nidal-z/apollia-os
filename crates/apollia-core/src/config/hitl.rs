@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::{validate_bounds, ConfigError};
 
@@ -11,7 +11,8 @@ use super::{validate_bounds, ConfigError};
 /// Controls the `TimeoutWatcher` behavior: maximum wait for human approval and
 /// the scan frequency for expired tasks. Every field has a sane default via
 /// [`Default`].
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HitlConfig {
     /// Maximum wait for human approval, in hours.
     ///

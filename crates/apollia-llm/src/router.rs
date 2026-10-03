@@ -152,9 +152,9 @@ mod tests {
     use apollia_core::{CeilingAction, LlmBackendConfig, LlmProvider};
 
     use super::backends::{extract_base_url, resolve_context_window, resolve_default_backend};
-    use super::config::infer_api_provider_from_url;
     use crate::routing_level::{EscalationSignal, LlmRoutingLevel};
     use crate::types::ChatMessage;
+    use apollia_core::config::infer_api_provider_from_url;
 
     use std::pin::Pin;
 
@@ -720,6 +720,7 @@ mod tests {
     async fn test_from_config_errors_if_default_missing() {
         // GIVEN
         let config = LlmConfig {
+            format_version: 1,
             default: "local".to_owned(),
             backends: vec![],
             observability: ObservabilityConfig::default(),
@@ -962,6 +963,7 @@ mod tests {
         // GIVEN
         let (tx, _rx) = broadcast::channel::<RuntimeEvent>(16);
         let config = LlmConfig {
+            format_version: 1,
             default: "local".to_owned(),
             backends: vec![],
             observability: ObservabilityConfig::default(),

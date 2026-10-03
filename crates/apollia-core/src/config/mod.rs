@@ -1,7 +1,10 @@
 //! Apollia OS runtime configuration.
 //!
-//! The `apollia.toml` sections a loader consults are listed by
-//! `apollia_cli::config::KNOWN_SECTIONS`. Those defined here include:
+//! [`ApolliaConfig`] is the single root of `apollia.toml`: every section the
+//! runtime, the CLI and the desktop application read, strict at every level.
+//! [`validate`] turns the text of the file into that root or into diagnostics
+//! placed at their line, and [`keys`] is the registry of every key, held to the
+//! structures by its test. The sections defined here include:
 //! - [`RuntimeConfig`]: `[runtime]`, EventBus and mailbox capacity.
 //! - [`ApiConfig`]: `[api]`, the TCP listener, authentication, TLS, and the
 //!   Unix socket.
@@ -13,8 +16,8 @@
 //! - [`FilesystemConfig`]: `[filesystem]`, the reversible journal and the
 //!   trusted paths.
 //! - [`ModelsConfig`]: `[models]`, the signed index of model cards the
-//!   catalogue reads, its mirror, and the switch that turns it off. Read when
-//!   the catalogue opens, not by the embedded loader.
+//!   catalogue reads, its mirror, the switch that turns it off, and the rule
+//!   applied to an imported file.
 //! - [`DesktopConfig`]: `[desktop]`, the settings of the desktop application
 //!   that Rust reads, each a named setting resolved with its source by
 //!   [`resolve_setting`] and written by [`write_setting`], which refuses a key
@@ -22,15 +25,16 @@
 //! - [`ServerConfig`]: `[server]`, the compatible server, a second listener
 //!   of the runtime on its own port, switched off by default; its two keys
 //!   are named settings too.
-//!
-//! `[llm]` is another, whose type lives in `apollia-llm`.
+//! - [`LlmConfig`]: `[llm]`, the backends declared in the file, routing and
+//!   the runner; `apollia-llm` re-exports its shapes.
+//! - [`UiConfig`]: `[ui]`, the desktop link preview.
 //!
 //! The other types in this module are runtime parameters, not `apollia.toml`
-//! sections. No loader deserializes an `[a2a]` or an `[oria]` table, and both
-//! are rejected by `apollia-os config set` as unknown: [`A2AConfig`] reaches
-//! the runtime from its [`Default`] alone, and [`ORIAConfig`] from its
-//! [`Default`] plus whatever the caller overrides in code, which today is the
-//! autonomy tier passed on the command line.
+//! sections. No loader deserializes an `[a2a]` or an `[oria]` table, both are
+//! withdrawn keys of the registry: [`A2AConfig`] reaches the runtime from its
+//! [`Default`] alone, and [`ORIAConfig`] from its [`Default`] plus whatever the
+//! caller overrides in code, which today is the autonomy tier passed on the
+//! command line.
 //!
 //! Every field has a sane default via [`Default`].
 
@@ -43,27 +47,36 @@ mod filesystem;
 mod filesystem_risk;
 mod hitl;
 mod hooks;
+pub mod keys;
 mod llm;
+mod llm_section;
 mod mcp;
 mod models;
 mod oria;
 mod permissions;
 mod registry;
 mod retired;
+mod root;
 mod runtime;
+mod scan;
 mod server;
 mod settings;
 mod tools;
 mod triggers;
+mod validate;
 mod web;
 mod workflows;
 
 #[cfg(test)]
 mod autonomy_tests;
 #[cfg(test)]
+mod keys_tests;
+#[cfg(test)]
 mod settings_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod validate_tests;
 
 pub use a2a::A2AConfig;
 pub use api::ApiConfig;
@@ -77,12 +90,19 @@ pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
 pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig, LlmRunnerConfig};
+pub use llm_section::{
+    infer_api_provider_from_url, LlmApiBackendEntry, LlmBackendEntry, LlmBackendKind, LlmConfig,
+    LlmObservabilityConfig, PricingTier,
+};
 pub use mcp::{McpConfig, McpToolLoading};
-pub use models::{ModelsConfig, DEFAULT_MODEL_REGISTRY_MIRROR_URL, DEFAULT_MODEL_REGISTRY_URL};
+pub use models::{
+    ModelsConfig, ModelsImportConfig, DEFAULT_MODEL_REGISTRY_MIRROR_URL, DEFAULT_MODEL_REGISTRY_URL,
+};
 pub use oria::ORIAConfig;
 pub use permissions::BashValidatorConfig;
 pub use registry::RegistryConfig;
-pub use retired::{retired_keys_in, warn_retired_keys, RetiredKey, RETIRED_KEYS};
+pub(crate) use retired::warn_retired_keys;
+pub use root::{ApolliaConfig, UiConfig};
 pub use runtime::RuntimeConfig;
 pub use server::{ServerConfig, DEFAULT_COMPAT_SERVER_PORT};
 pub use settings::{
@@ -91,6 +111,7 @@ pub use settings::{
 };
 pub use tools::ToolsConfig;
 pub use triggers::TriggersConfig;
+pub use validate::{validate, ConfigDiagnostic};
 pub use web::{
     BraveBackendConfig, DuckDuckGoBackendConfig, WebReadConfig, WebSearchBackend, WebSearchConfig,
 };
