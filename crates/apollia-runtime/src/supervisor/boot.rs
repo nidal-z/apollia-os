@@ -202,9 +202,15 @@ impl Supervisor {
 
         // Phase 8d: the settings the chat kept before it was the Apollia
         // agent, carried over once the access upgrade has read them.
+        let reading = apollia_tools::reading_family(
+            &tool_registry_handle,
+            &startup_disabled_tools(&self.config.data_dir, &self.config.tools_config),
+        )
+        .await;
         crate::agents::apollia::carry_over::run_at_startup(
             &self.config.data_dir,
             audit_journal_handle.as_ref(),
+            &reading,
         );
 
         // Connections answer to governance: admitted before they are added,
@@ -722,4 +728,22 @@ fn batch_runner<B: crate::coordinator::ExecutionBackend>(
         )),
         None => runner,
     }
+}
+
+/// The tools switched off at this start: the operator's `[tools] disabled`
+/// list and the tools disabled in `governance.db`. An unreadable governance
+/// database leaves the static list alone, the tolerance the runners apply.
+fn startup_disabled_tools(
+    data_dir: &std::path::Path,
+    tools_config: &apollia_core::ToolsConfig,
+) -> Vec<String> {
+    let mut disabled = apollia_tools::load_governance_snapshot(data_dir)
+        .map(|snapshot| snapshot.disabled_tools)
+        .unwrap_or_default();
+    for name in &tools_config.disabled {
+        if !disabled.contains(name) {
+            disabled.push(name.clone());
+        }
+    }
+    disabled
 }
