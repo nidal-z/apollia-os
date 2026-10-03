@@ -93,8 +93,9 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # transcription history and the transcription of a file reached the daemon and
 # the dictation was named a command of the window, then at 44 once the reading
 # side of the Model Hub (hardware, search, cards, installed models,
-# recommendation) reached the daemon.
-EMBEDDED_ONLY_CEILING = 44
+# recommendation) reached the daemon, then at 39 once the local AI could be
+# installed at onboarding through the daemon.
+EMBEDDED_ONLY_CEILING = 39
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

@@ -240,6 +240,14 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_installed_models",
     "recommend_models",
     "search_hf_models",
+    // The installation of the local AI at onboarding, over
+    // `/api/v1/local-ai/...`: the daemon describes its machine, scans its own
+    // folders, and copies and registers the models it will load.
+    "get_ai_setup_info",
+    "scan_for_gguf_models",
+    "scan_for_whisper_models",
+    "setup_local_llm",
+    "setup_whisper_model",
     // MCP: the secret of a server, and the public registry joined with the
     // servers installed.
     "delete_mcp_secret",

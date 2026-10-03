@@ -153,6 +153,17 @@ impl AttachedClient {
         self.send_json_within(builder, HUB_REQUEST_TIMEOUT).await
     }
 
+    /// `GET path`, its JSON answer read as `T`, for a read that may outlast
+    /// the usual deadline, such as a scan of the disk.
+    pub(crate) async fn get_within<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        deadline: Duration,
+    ) -> Result<T, AttachedError> {
+        self.send_json_within(self.http.get(self.url(path)), deadline)
+            .await
+    }
+
     /// `POST path` with a JSON body, its JSON answer read as `T`.
     pub(crate) async fn post<T: DeserializeOwned>(
         &self,
@@ -160,6 +171,18 @@ impl AttachedClient {
         body: &impl serde::Serialize,
     ) -> Result<T, AttachedError> {
         self.send_json(self.http.post(self.url(path)).json(body))
+            .await
+    }
+
+    /// `POST path` with a JSON body, its JSON answer read as `T`, for a write
+    /// that may outlast the usual deadline, such as a model copied on disk.
+    pub(crate) async fn post_within<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &impl serde::Serialize,
+        deadline: Duration,
+    ) -> Result<T, AttachedError> {
+        self.send_json_within(self.http.post(self.url(path)).json(body), deadline)
             .await
     }
 
