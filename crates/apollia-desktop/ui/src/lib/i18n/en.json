@@ -2034,6 +2034,8 @@
     "unsaved_dialog_stay": "Stay",
     "save_toast_success": "Settings saved",
     "save_toast_error": "Save failed: {error}",
+    "policy_locked": "Enforced by policy",
+    "policy_locked_hint": "Your organization sets this. It cannot be changed here.",
     "nav": {
       "aria_label": "Settings sections",
       "cluster_personalization": "Personalization",
