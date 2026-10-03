@@ -71,7 +71,7 @@ pub use autonomy::{
     AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, AutonomyLevelParseError, GatePolicy,
 };
 pub use chat::ChatConfig;
-pub use desktop::DesktopConfig;
+pub use desktop::{DesktopConfig, UpdateChannel};
 pub use filesystem::{FilesystemConfig, JournalConfig};
 pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
@@ -87,7 +87,7 @@ pub use runtime::RuntimeConfig;
 pub use server::{ServerConfig, DEFAULT_COMPAT_SERVER_PORT};
 pub use settings::{
     check_imposed_setting, resolve_setting, resolve_setting_in, write_setting, PolicySettings,
-    ResolvedSetting, SettingError, SettingSource,
+    ResolvedSetting, SettingError, SettingSource, GUARDRAIL_LEVELS,
 };
 pub use tools::ToolsConfig;
 pub use triggers::TriggersConfig;

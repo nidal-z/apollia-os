@@ -141,8 +141,16 @@ where
 /// resolved is left out and logged: its models are then not routable, and the
 /// other servers still are.
 ///
+/// A server the organisation policy refuses (`governance`) stays in the list
+/// with the reason of the refusal and no key, so a request to one of its
+/// models fails with that reason before anything is sent to it.
+///
 /// The store is opened at most once, and only for a server that has a key in it.
-pub fn server_endpoints<F>(repo: &LlmBackendRepository, store: F) -> Vec<ServerEndpoint>
+pub fn server_endpoints<F>(
+    repo: &LlmBackendRepository,
+    store: F,
+    governance: &crate::governance::InferenceGovernance,
+) -> Vec<ServerEndpoint>
 where
     F: Fn() -> Result<Box<dyn SecretStore>, String>,
 {
@@ -164,23 +172,48 @@ where
     servers
         .into_iter()
         .filter(|s| s.enabled)
-        .filter_map(|server| match resolve_server_key(&server, shared) {
-            Ok(api_key) => Some(ServerEndpoint {
-                name: server.name,
-                base_url: server.base_url,
-                api_key,
-            }),
-            Err(e) => {
+        .filter_map(|server| {
+            if let Err(reason) = governance.server_decision(&server.base_url) {
                 tracing::event!(
                     tracing::Level::WARN,
                     server = %server.name,
-                    error = %e,
-                    "llm.server.skipped"
+                    reason = %reason,
+                    "llm.server.refused_by_policy"
                 );
-                None
+                return Some(ServerEndpoint {
+                    name: server.name,
+                    base_url: server.base_url,
+                    api_key: None,
+                    refusal: Some(reason),
+                });
             }
+            resolved_endpoint(server, shared)
         })
         .collect()
+}
+
+/// `server` with its key resolved, or `None`, logged, when the key cannot be.
+fn resolved_endpoint<F>(server: InferenceServer, store: F) -> Option<ServerEndpoint>
+where
+    F: FnOnce() -> Result<Box<dyn SecretStore>, String>,
+{
+    match resolve_server_key(&server, store) {
+        Ok(api_key) => Some(ServerEndpoint {
+            name: server.name,
+            base_url: server.base_url,
+            api_key,
+            refusal: None,
+        }),
+        Err(e) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                server = %server.name,
+                error = %e,
+                "llm.server.skipped"
+            );
+            None
+        }
+    }
 }
 
 /// A shared store handed out as a `Box<dyn SecretStore>`.
@@ -264,7 +297,11 @@ mod tests {
             Some("sk-live")
         );
         assert!(repo.find_server("gateway").unwrap().unwrap().has_key);
-        let endpoints = server_endpoints(&repo, || Ok(file_store(&store_dir)));
+        let endpoints = server_endpoints(
+            &repo,
+            || Ok(file_store(&store_dir)),
+            &crate::governance::InferenceGovernance::default(),
+        );
         assert_eq!(endpoints.len(), 1);
         assert_eq!(endpoints[0].api_key.as_deref(), Some("sk-live"));
         assert_eq!(
@@ -294,7 +331,11 @@ mod tests {
         }
 
         // WHEN
-        let endpoints = server_endpoints(&repo, no_store);
+        let endpoints = server_endpoints(
+            &repo,
+            no_store,
+            &crate::governance::InferenceGovernance::default(),
+        );
 
         // THEN
         assert_eq!(endpoints.len(), 1);

@@ -586,9 +586,12 @@ pub async fn reload_llm_router<B: ExecutionBackend + Clone>(
                 }),
             )
         })?;
-        let (all, default) =
-            crate::backend_keys::routable_configs(&guard, || (state.secret_store)())
-                .map_err(map_backend_error)?;
+        let (all, default) = crate::backend_keys::routable_configs(
+            &guard,
+            || (state.secret_store)(),
+            &state.inference_governance,
+        )
+        .map_err(map_backend_error)?;
         let default = default.ok_or_else(|| {
                 (
                     StatusCode::SERVICE_UNAVAILABLE,
@@ -625,7 +628,11 @@ pub async fn reload_llm_router<B: ExecutionBackend + Clone>(
     })?;
 
     let endpoints = match repo.lock() {
-        Ok(guard) => crate::inference_servers::server_endpoints(&guard, || (state.secret_store)()),
+        Ok(guard) => crate::inference_servers::server_endpoints(
+            &guard,
+            || (state.secret_store)(),
+            &state.inference_governance,
+        ),
         Err(_) => Vec::new(),
     };
     let new_router = new_router.with_servers(endpoints);

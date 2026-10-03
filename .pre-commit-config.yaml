@@ -454,7 +454,7 @@ repos:
         name: artifact names bind producer and consumers
         entry: python3 scripts/check_release_artifacts.py
         language: system
-        files: '^(packaging/artifacts\.json|packaging/fetch-llama-server\.sh|\.github/workflows/release\.yml|crates/apollia-cli/src/commands/update\.rs|crates/apollia-desktop/tauri\.conf\.json|docs/site/docs/how-to/install-the-desktop-app\.md|docs/site/i18n/fr/docusaurus-plugin-content-docs/current/how-to/install-the-desktop-app\.md|scripts/check_release_artifacts\.py)$'
+        files: '^(packaging/artifacts\.json|packaging/fetch-llama-server\.sh|\.github/workflows/release\.yml|\.github/workflows/preview-channel\.yml|crates/apollia-desktop/src/commands/updates\.rs|crates/apollia-cli/src/commands/update\.rs|crates/apollia-desktop/tauri\.conf\.json|docs/site/docs/how-to/install-the-desktop-app\.md|docs/site/i18n/fr/docusaurus-plugin-content-docs/current/how-to/install-the-desktop-app\.md|scripts/check_release_artifacts\.py)$'
         pass_filenames: false
 
       # The connector replay fixtures against the operations the crate declares.

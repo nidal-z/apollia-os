@@ -114,6 +114,28 @@ describe("General gathers the moved content", () => {
     expect(mounts).toEqual(["/src/routes/settings/General.svelte"]);
   });
 
+  it("orders the update block as the capture: version, then check and channel on one row", () => {
+    // GIVEN the General source
+    const text = source("routes/settings/General.svelte");
+
+    // WHEN the update block's parts are located
+    const at = positions(text, [
+      'data-testid="general-updates"',
+      'data-testid="general-version"',
+      'data-testid="general-update-channel"',
+      "<UpdateCheckPanel",
+      'data-testid="update-channel-select"',
+      'data-testid="language-select"',
+    ]);
+
+    // THEN the version comes first, then the channel row holding the check
+    // button before the channel selector, all before the next block
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    const row = text.slice(at[2], text.indexOf("</SettingsFieldRow>", at[2]));
+    expect(row).toContain("<UpdateCheckPanel");
+    expect(row).toContain('data-testid="update-channel-select"');
+  });
+
   it("carries updates, language, application folder, report, help, danger zone, then About", () => {
     // GIVEN the General source
     const text = source("routes/settings/General.svelte");
