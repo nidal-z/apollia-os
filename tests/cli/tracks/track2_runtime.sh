@@ -48,6 +48,10 @@ check_exit    "audit show (unknown id) → 1"  1     "${Q[@]}" audit show nonexi
 check         "resilience list"                    "${Q[@]}" resilience list
 check         "model hardware (daemon on)"         "${Q[@]}" model hardware
 check_json    "model hardware --json"              "${Q[@]}" model hardware --json
+check_content "model embeddings show (none set)" "keywords alone" "${Q[@]}" model embeddings show
+check_exit    "model embeddings set-default (chat model) → 1" 1 "${Q[@]}" model embeddings set-default qwen3-8b
+check_content "model embeddings set-default" "multilingual-e5-small" "${Q[@]}" model embeddings set-default multilingual-e5-small
+check_json    "model embeddings show --json"       "${Q[@]}" model embeddings show --json
 check         "digest --since 24h"                 "${Q[@]}" digest --since 24h
 check_json    "digest --json"                      "${Q[@]}" digest --since 24h --json
 
@@ -240,6 +244,7 @@ check_exit    "batch export unknown → 1"          1  "${Q[@]}" batch export 00
 # history of any workflow is empty.
 section "workflows"
 check_json_field "workflow logs --json holds no run" "len(d['runs'])" 0 "${Q[@]}" workflow logs invoices/close-month --json
+check_exit    "workflow show unknown → 1"         1  "${Q[@]}" workflow show invoices/close-month
 check_exit    "workflow run unknown → 1"          1  "${Q[@]}" workflow run invoices/close-month --input folder=/data/march
 check_exit    "workflow status unknown → 1"       1  "${Q[@]}" workflow status 00000000-0000-0000-0000-000000000000
 check_exit    "workflow cancel unknown → 1"       1  "${Q[@]}" workflow cancel 00000000-0000-0000-0000-000000000000 --confirm

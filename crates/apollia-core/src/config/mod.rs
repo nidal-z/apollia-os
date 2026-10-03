@@ -86,8 +86,8 @@ pub use retired::{retired_keys_in, warn_retired_keys, RetiredKey, RETIRED_KEYS};
 pub use runtime::RuntimeConfig;
 pub use server::{ServerConfig, DEFAULT_COMPAT_SERVER_PORT};
 pub use settings::{
-    resolve_setting, resolve_setting_in, write_setting, PolicySettings, ResolvedSetting,
-    SettingError, SettingSource,
+    check_imposed_setting, resolve_setting, resolve_setting_in, write_setting, PolicySettings,
+    ResolvedSetting, SettingError, SettingSource,
 };
 pub use tools::ToolsConfig;
 pub use triggers::TriggersConfig;

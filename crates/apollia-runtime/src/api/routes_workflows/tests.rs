@@ -27,10 +27,14 @@ impl WorkflowHost for Host {
                 "type": "object",
                 "properties": {
                     "folder": {"type": "string"},
-                    "hold": {"type": "boolean"}
+                    "hold": {"type": "boolean"},
+                    "closing_day": {"type": "string", "format": "date"},
+                    "note": {"type": "string", "format": "long-text"},
+                    "ledger": {"type": "string", "format": "file-path"}
                 },
                 "required": ["folder"],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "x-order": ["folder", "hold", "closing_day", "note", "ledger"]
             })),
         })
     }
@@ -155,6 +159,101 @@ async fn an_invalid_input_is_refused_with_the_field_at_fault() {
     assert_eq!(missing_body["field"], "folder");
     assert_eq!(extra, StatusCode::BAD_REQUEST);
     assert_eq!(extra_body["field"], "colour");
+}
+
+#[tokio::test]
+async fn a_workflow_reads_with_the_kind_of_each_input_in_its_order() {
+    // GIVEN the engine with one workflow taking a date, a long text and a file
+    let fx = fixture().await;
+
+    // WHEN it is read, and an unknown one
+    let (status, body) = call(
+        fx.state.clone(),
+        "GET",
+        "/api/v1/workflows/invoices/close-month",
+        None,
+    )
+    .await;
+    let (unknown, _) = call(
+        fx.state.clone(),
+        "GET",
+        "/api/v1/workflows/invoices/other",
+        None,
+    )
+    .await;
+
+    // THEN each input carries its kind, in the declared order, and the
+    //      unknown workflow is not found
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["workflowId"], "invoices/close-month");
+    assert_eq!(body["steps"], json!(["extract", "file"]));
+    let inputs: Vec<(&str, &str, bool)> = body["inputs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| {
+            (
+                i["name"].as_str().unwrap(),
+                i["kind"].as_str().unwrap(),
+                i["required"].as_bool().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        inputs,
+        [
+            ("folder", "text", true),
+            ("hold", "boolean", false),
+            ("closing_day", "date", false),
+            ("note", "long_text", false),
+            ("ledger", "file", false),
+        ]
+    );
+    assert_eq!(unknown, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn a_malformed_date_and_an_absent_file_are_refused_before_the_run() {
+    // GIVEN the engine with one workflow, and a folder with no `missing.pdf`
+    let fx = fixture().await;
+    let absent = fx._dir.path().join("missing.pdf");
+
+    // WHEN it is launched with a day that does not exist, then with that file
+    let (date, date_body) = call(
+        fx.state.clone(),
+        "POST",
+        "/api/v1/workflows/invoices/close-month/runs",
+        Some(json!({"inputs": {"folder": "/a", "closing_day": "2026-02-30"}})),
+    )
+    .await;
+    let (file, file_body) = call(
+        fx.state.clone(),
+        "POST",
+        "/api/v1/workflows/invoices/close-month/runs",
+        Some(json!({"inputs": {"folder": "/a", "ledger": absent.to_str().unwrap()}})),
+    )
+    .await;
+
+    // THEN both are refused with 400, the field named and the code typed, and
+    //      no run was recorded
+    assert_eq!(date, StatusCode::BAD_REQUEST);
+    assert_eq!(date_body["field"], "closing_day");
+    assert_eq!(date_body["code"], "malformed_date");
+    assert!(date_body["error"]
+        .as_str()
+        .unwrap()
+        .ends_with("[malformed_date]"));
+    assert_eq!(file, StatusCode::BAD_REQUEST);
+    assert_eq!(file_body["field"], "ledger");
+    assert_eq!(file_body["code"], "missing_file");
+    let (_, history) = call(
+        fx.state.clone(),
+        "GET",
+        "/api/v1/workflows/invoices/close-month/runs",
+        None,
+    )
+    .await;
+    assert_eq!(history["runs"], json!([]));
 }
 
 #[tokio::test]

@@ -40,6 +40,11 @@
       "friendly_message": "Une erreur inattendue a empêché cette action d'aboutir.",
       "suggested_action": "Réessayez l'action. Si l'échec persiste, consultez les détails ci-dessous."
     },
+    "guardrail_refused": {
+      "title": "Modèle trop lourd pour ce poste",
+      "message": "Ce modèle demande environ {estimated} Go de mémoire, et le garde-fou de chargement en autorise {budget} Go.",
+      "suggested_action": "Choisissez un modèle plus léger, ou confirmez le chargement pour passer outre."
+    },
     "show_details": "Détails techniques"
   },
   "next_steps": {
@@ -208,20 +213,7 @@
       "settings": "Paramètres"
     }
   },
-  "sidebar": {
-    "mode": {
-      "chip_aria": "Mode courant : {mode}. Ouvrir le sélecteur de mode.",
-      "chip_tooltip": "Mode : {current} - clic pour passer en {other}",
-      "operator": {
-        "label": "Opérateur",
-        "description": "Vue simplifiée : lancer et surveiller les assistants."
-      },
-      "builder": {
-        "label": "Builder",
-        "description": "Vue technique : LLMs, triggers, mémoire, observabilité."
-      }
-    }
-  },
+  "sidebar": {},
   "topbar": {
     "search": {
       "placeholder": "Rechercher…"
@@ -342,7 +334,7 @@
     },
     "native_google_description": "Gmail (envoi + brouillons), Calendar, Drive Workspace",
     "native_microsoft_description": "Outlook Mail, Outlook Calendar, OneDrive",
-    "error_sovereignty_blocked": "Profil souveraineté « local-only » : connecteurs cloud désactivés.",
+    "error_refused_by_policy": "Refusé par la politique de l'organisation.",
     "error_oauth_client_missing": "Identifiant OAuth manquant - ouvrez Réglages → Intégrations pour le coller.",
     "error_oauth_client_secret_missing": "Secret client OAuth manquant - ouvrez Réglages → Intégrations pour l'ajouter.",
     "error_invalid_client_file": "Ce fichier n'est pas un export de client OAuth exploitable.",
@@ -415,10 +407,9 @@
     "oauth_drive_folder_expert_html": "Pour permettre à vos agents d'accéder à tout votre Drive, il faut passer en <strong>Mode Expert</strong> (votre propre app Google Cloud avec les scopes étendus) - voir Réglages → Intégrations après la connexion.",
     "oauth_drive_folder_path_label_html": "Chemin du dossier (séparé par <code>/</code>)",
     "oauth_drive_folder_examples_html": "Exemples : <code>Apollia</code> (défaut), <code>Documents/Apollia</code>, <code>Travail/IA</code>. Vide = garder le défaut <code>Apollia</code>. Modifiable plus tard dans Réglages → Intégrations.",
-    "oauth_sovereignty_title": "Connecteurs cloud désactivés par le profil",
-    "oauth_sovereignty_body": "Ton profil de souveraineté est « Local strict », ou n'a pas encore été choisi. Un connecteur cloud envoie des données à un service externe. Tu peux garder le local strict, ou autoriser le cloud maintenant : le choix est enregistré dans Réglages > Profil > Contraintes, et modifiable là.",
-    "oauth_sovereignty_keep_local": "Garder le local strict",
-    "oauth_sovereignty_allow_cloud": "Autoriser le cloud et continuer",
+    "oauth_policy_refused_title": "Refusé par la politique de l'organisation",
+    "oauth_policy_refused_body": "Votre organisation n'autorise pas les connexions à des services en ligne sur ce poste. Rien n'a été envoyé à {provider}.",
+    "oauth_policy_refused_contact": "Pour une exception, adressez-vous à la personne qui gère la politique de votre organisation.",
     "oauth_missing_client_title": "Identifiant OAuth manquant",
     "oauth_missing_client_body_html": "Aucun client OAuth n'est configuré pour {provider}, Apollia s'est donc arrêté plutôt que d'ouvrir un écran de consentement qui n'aboutirait pas. Créez-le dans la console {console}, puis ouvrez Réglages → Intégrations pour l'ajouter. Aucune variable d'environnement n'est nécessaire.",
     "oauth_missing_secret_title": "Secret client OAuth manquant",
@@ -1205,6 +1196,7 @@
       "empty": "Aucun modèle n'est chargé en mémoire.",
       "since": "Chargé à {time}",
       "in_use": "En réponse",
+      "engine_mlx": "MLX",
       "unload": "Décharger",
       "unloaded_toast": "{name} déchargé, sa mémoire est libérée.",
       "in_use_error": "{name} est en cours d'usage : une réponse est en cours. Réessayez quand elle sera terminée."
@@ -2059,7 +2051,8 @@
       "about": "À propos",
       "danger": "Zone de danger",
       "mobile_open": "Sections",
-      "mobile_title": "Sections des paramètres"
+      "mobile_title": "Sections des paramètres",
+      "developer": "Développeur"
     },
     "help": {
       "subtitle": "Prenez en main Apollia et repérez l'essentiel.",
@@ -2313,11 +2306,6 @@
     "theme_light": "Clair",
     "theme_dark": "Sombre",
     "theme_system": "Système",
-    "mode_title": "Mode d'interface",
-    "mode_operator": "Opérateur",
-    "mode_builder": "Builder",
-    "mode_operator_desc": "Vue simplifiée pour l'usage quotidien",
-    "mode_builder_desc": "Vue technique avec tous les détails",
     "system_info": "Informations système",
     "system_version": "Version",
     "system_os": "Système d'exploitation",
@@ -3096,7 +3084,6 @@
     "language_label": "Langue de l'interface",
     "language_field_help": "Appliquée immédiatement, aucun redémarrage requis.",
     "theme_help": "Apparence claire, sombre ou synchronisée au système.",
-    "mode_help": "Niveau de détail affiché dans le chat et les vues d'outils.",
     "credential": {
       "configured": "Configuré",
       "absent": "Absent",
@@ -3140,6 +3127,15 @@
       "none_for_tool": "Aucun identifiant configuré pour cet outil.",
       "created": "ajouté {date}",
       "values_hidden": "Les valeurs restent chiffrées sur cette machine et ne sont jamais affichées."
+    },
+    "developer": {
+      "subtitle": "Le mode développeur et les réglages avancés.",
+      "mode_title": "Mode développeur",
+      "mode_label": "Mode développeur",
+      "mode_hint": "Affiche les vues techniques (Transcriptions, Observabilité, Mémoire) et les réglages avancés ci-dessous.",
+      "mode_off": "Éteint",
+      "mode_on": "Allumé",
+      "write_failed": "Le mode développeur n'a pas pu être enregistré."
     }
   },
   "onboarding": {
@@ -3419,8 +3415,6 @@
     "no_results": "Aucun résultat",
     "search_placeholder": "Rechercher…",
     "select_or_start": "Sélectionnez une conversation à gauche ou démarrez-en une nouvelle.",
-    "journal_mode_operator": "Opérateur",
-    "journal_mode_builder": "Builder",
     "journal_empty": "Activité de l'agent en direct.",
     "conversations_aria": "Conversations",
     "past_session": "Session passée",
@@ -4238,7 +4232,7 @@
     "actions": {
       "createAgent": "Créer un agent",
       "createTrigger": "Créer un trigger",
-      "toggleMode": "Basculer mode Opérateur / Builder",
+      "toggleDeveloperMode": "Activer / désactiver le mode développeur",
       "toggleCompanion": "Basculer le Companion"
     },
     "help": {

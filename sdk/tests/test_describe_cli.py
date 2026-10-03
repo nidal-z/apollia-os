@@ -59,6 +59,15 @@ def test_describe_writes_tools_and_workflows_into_the_manifest(
     assert close_month["module"] == "invoice_tools/flows.py"
     assert close_month["steps"] == ["extract", "file"]
     assert close_month["inputs"]["required"] == ["folder"]
+    inputs = close_month["inputs"]["properties"]
+    assert inputs["closing_day"] == {"type": "string", "format": "date"}
+    assert inputs["note"] == {
+        "type": "string",
+        "format": "long-text",
+        "description": "a note filed with the totals",
+    }
+    assert inputs["ledger"] == {"type": "string", "format": "file-path"}
+    assert close_month["inputs"]["x-order"] == ["folder", "notify", "closing_day", "note", "ledger"]
 
     # AND every other table is kept as written, the stale tool gone
     assert manifest["package"]["name"] == "invoices"

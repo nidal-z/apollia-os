@@ -1,4 +1,4 @@
-//! Workflows: launch one, read its history, read a run, stop a run.
+//! Workflows: read one, launch one, read its history, read a run, stop a run.
 
 use crate::client::{extract_error, ClientError, RawResponse, RuntimeClient};
 
@@ -13,6 +13,19 @@ fn json_or_error(resp: RawResponse) -> Result<serde_json::Value, ClientError> {
 }
 
 impl RuntimeClient {
+    /// A workflow and the fields of its inputs via
+    /// `GET /api/v1/workflows/{package}/{workflow}`.
+    pub async fn get_workflow(
+        &self,
+        package: &str,
+        workflow: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        json_or_error(
+            self.get(&format!("/api/v1/workflows/{package}/{workflow}"))
+                .await?,
+        )
+    }
+
     /// Launch a workflow via `POST /api/v1/workflows/{package}/{workflow}/runs`.
     pub async fn launch_workflow(
         &self,

@@ -63,8 +63,9 @@ pub use governance_schema::{
     open_governance_schema, GOVERNANCE_MIGRATIONS, GOVERNANCE_SCHEMA_VERSION,
 };
 pub use org_policy::{
-    load_policy, parse_policy, policy_location, OrgPolicy, OwnerRequirement, PolicyInvalid,
-    PolicyInvalidReason, PolicyLocation, PolicySchemaError, PolicyVerdict, ValidPolicy,
+    load_policy, parse_policy, policy_location, OrgPolicy, OwnerRequirement, PackagesPolicy,
+    PolicyInvalid, PolicyInvalidReason, PolicyLocation, PolicySchemaError, PolicyVerdict,
+    ValidPolicy,
 };
 pub use prefix_rule_engine::{
     extract_first_arg, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction, ScopeContext,

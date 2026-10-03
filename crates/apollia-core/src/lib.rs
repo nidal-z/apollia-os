@@ -20,6 +20,7 @@ pub mod budget;
 pub mod config;
 pub mod context;
 pub mod decision_point;
+pub mod embedding_default;
 pub mod error_analysis;
 pub mod events;
 pub mod hitl_payload;
@@ -68,6 +69,7 @@ pub use config::{
 };
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
 pub use decision_point::{ConsideredAlternative, DecisionKind, DecisionPoint};
+pub use embedding_default::{EmbeddingDefaultError, EmbeddingDefaultStore};
 pub use error_analysis::{ErrorAnalysis, ErrorCategory};
 pub use events::{
     resilient, subscribe_resilient, AgentId, EventBusSender, FilesystemPreview, Received,

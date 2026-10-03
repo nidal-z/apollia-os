@@ -227,8 +227,10 @@ impl From<DefaultModel> for DefaultModelResponse {
 pub struct SetDefaultModelRequest {
     /// Where the model runs.
     pub model_source: ModelSourceDto,
-    /// `local`: the name of a local engine backend. `server`: `<server>/<model>`
-    /// of a declared server, or the name of a server backend.
+    /// `local`: the name of a local engine backend, or the identifier of a
+    /// language model of the model index, which gets its backend row.
+    /// `server`: `<server>/<model>` of a declared server, or the name of a
+    /// server backend.
     pub model_id: String,
 }
 
@@ -541,9 +543,19 @@ pub async fn set_default_model<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<SetDefaultModelRequest>,
 ) -> Result<Json<DefaultModelResponse>, ApiError> {
+    let models_dir = crate::installed_models::models_dir(&state.data_dir);
     let default = with_repo(&state, |repo| {
+        // A local model named by its index identifier gets its row first.
+        let model_id = match req.model_source {
+            ModelSourceDto::Local => {
+                crate::local_engine::local_row_for(repo, &models_dir, &req.model_id)
+                    .map_err(map_backend_error)?
+                    .unwrap_or_else(|| req.model_id.clone())
+            }
+            ModelSourceDto::Server => req.model_id.clone(),
+        };
         let default = repo
-            .set_default_model(req.model_source.into(), &req.model_id)
+            .set_default_model(req.model_source.into(), &model_id)
             .map_err(map_backend_error)?;
         sync_toml_after_mutation(&state, repo);
         Ok(default)

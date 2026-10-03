@@ -86,8 +86,11 @@ check_exit    "project link empty session → 1"  1      "$BIN" project link see
 check         "project delete --confirm"               "$BIN" project delete "$PID" --confirm
 
 # ── A.4 profile (3 seeded __user__ keys) ────────────────────────────────────
+# The seed is a profile written before profiles existed: the first open migrates
+# `preferences.language` into the `preferences` field of the default profile.
 section "A.4 profile"
-check_content "profile show has seeded language=fr" "preferences.language" "$BIN" profile show
+check_json_field "profile show: language migrated into preferences" \
+  "[e['value'] for e in d if e['key']=='preferences'][0]" "en" "$BIN" profile show --json
 check_content "profile show has monthly_budget"     "monthly_budget"       "$BIN" profile show
 check_json    "profile show --json"                  "$BIN" profile show --json
 check         "profile schema"                       "$BIN" profile schema
@@ -114,6 +117,10 @@ check_exit   "chat config get --json (runtime absent) → 2" 2 "$BIN" --socket "
 check_exit   "chat config set system-prompt (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat config set system-prompt "You are helpful."
 check_exit   "chat config set bogus-key"  1          "$BIN" --socket "$CHAT_OFF" chat config set bogus-key x
 check_exit   "chat config reset --confirm (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat config reset --confirm
+# What the model of a session can do is read from the runtime: with no
+# runtime, exit 2. The real read is covered by the runtime's route tests.
+check_exit   "chat capabilities (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1
+check_exit   "chat capabilities --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1 --json
 # Apollia is built in: uninstalling it is refused, exit 1.
 check_exit   "agent uninstall apollia:chat (built in) → 1" 1 "$BIN" agent uninstall apollia:chat --confirm
 check        "chat config permissions list (empty)"  "$BIN" chat config permissions list --db "$GDB"
@@ -402,6 +409,10 @@ check_exit   "model search (off) → 2"  2  "$BIN" --socket "$OFFSOCK" model sea
 # The ranking is computed by the daemon (hardware probe, live HuggingFace
 # listing), so with the daemon off the refusal is the deterministic path.
 check_exit   "model recommend (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model recommend
+# The default embeddings model lives in the daemon's system.db, which checks the
+# identifier against the registry: daemon off, both leaves refuse with 2.
+check_exit   "model embeddings show (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model embeddings show
+check_exit   "model embeddings set-default (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model embeddings set-default multilingual-e5-small
 check        "agent list (off, local fallback)"      "$BIN" --socket "$OFFSOCK" agent list
 check_content "agent list shows 4 seeded agents" "apollia-chat" "$BIN" --socket "$OFFSOCK" agent list
 check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK" agent install /tmp/never-exists.py
@@ -440,6 +451,8 @@ check_exit   "batch export bad --format → 1"   1     "$BIN" --socket "$OFFSOCK
 # A workflow runs in the runtime: daemon off, each leaf refuses with 2; an
 # identifier without its package, a malformed --input, or a stop without
 # --confirm off a terminal is a usage error, 1, before any call.
+check_exit   "workflow show (off) → 2"         2     "$BIN" --socket "$OFFSOCK" workflow show invoices/close-month
+check_exit   "workflow show bare name → 1"     1     "$BIN" --socket "$OFFSOCK" --json workflow show close-month
 check_exit   "workflow run (off) → 2"          2     "$BIN" --socket "$OFFSOCK" workflow run invoices/close-month --input folder=/data/march
 check_exit   "workflow run --json (off) → 2"   2     "$BIN" --socket "$OFFSOCK" --json workflow run invoices/close-month --input folder=/data/march --wait
 check_exit   "workflow status (off) → 2"       2     "$BIN" --socket "$OFFSOCK" workflow status 00000000-0000-0000-0000-000000000000

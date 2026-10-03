@@ -68,6 +68,9 @@ def test_all_is_exactly_the_published_surface() -> None:
         "tool",
         "workflow",
         "WorkflowCtx",
+        # Workflow input types
+        "LongText",
+        "FileInput",
         # ReAct utility
         "react",
         # Exceptions
@@ -190,6 +193,12 @@ def test_public_submodules_are_exact_snapshots() -> None:
             "A2AInterface",
             "AIPResult",
             "AgentsInterface",
+            "DATE_FORMAT",
+            "FILE_PATH_FORMAT",
+            "FileInput",
+            "InputFormat",
+            "LONG_TEXT_FORMAT",
+            "LongText",
             "BudgetView",
             "Ctx",
             "DatasourcesInterface",

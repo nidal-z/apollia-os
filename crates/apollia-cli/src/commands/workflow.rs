@@ -1,5 +1,6 @@
-//! `apollia-os workflow` subcommands: run a workflow of an installed package,
-//! follow a run, read the history of a workflow, stop a run.
+//! `apollia-os workflow` subcommands: show a workflow of an installed package
+//! and its inputs, run it, follow a run, read the history of a workflow, stop
+//! a run.
 //!
 //! A workflow is named `<package>/<workflow>` and runs in the runtime: `run`
 //! returns once the run is recorded, unless `--wait` follows it to its end,
@@ -20,12 +21,18 @@ const WAIT_POLL: Duration = Duration::from_millis(500);
 /// Workflow subcommands: `apollia-os workflow <verb>`.
 #[derive(Debug, Subcommand)]
 pub enum WorkflowCommand {
+    /// Show a workflow: what it does, its steps, and each input with its type.
+    Show {
+        /// The workflow, `<package>/<workflow>`.
+        workflow: String,
+    },
     /// Run a workflow, in the runtime.
     Run {
         /// The workflow, `<package>/<workflow>`.
         workflow: String,
         /// An input, as `key=value`; repeatable. A value is read as the type
-        /// the workflow declares for it.
+        /// the workflow declares for it: a date as `YYYY-MM-DD`, a file as
+        /// its absolute path.
         #[arg(long = "input", value_name = "KEY=VALUE")]
         inputs: Vec<String>,
         /// Follow the run to its end; exit 3 when it fails or is stopped.
@@ -59,6 +66,10 @@ pub enum WorkflowCommand {
 pub async fn run(cmd: &WorkflowCommand, socket: Option<PathBuf>, json: bool) -> i32 {
     let client = RuntimeClient::new(socket.unwrap_or_else(default_socket_path));
     match cmd {
+        WorkflowCommand::Show { workflow } => match split_id(workflow) {
+            Ok(ids) => run_show(&client, ids, json).await,
+            Err(msg) => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg),
+        },
         WorkflowCommand::Run {
             workflow,
             inputs,
@@ -133,6 +144,61 @@ fn print_json(value: &serde_json::Value) {
 
 fn field<'a>(value: &'a serde_json::Value, key: &str) -> &'a str {
     value.get(key).and_then(|v| v.as_str()).unwrap_or("-")
+}
+
+async fn run_show(client: &RuntimeClient, (package, workflow): (&str, &str), json: bool) -> i32 {
+    let view = match client.get_workflow(package, workflow).await {
+        Ok(view) => view,
+        Err(e) => return handle_error(e, json),
+    };
+    if json {
+        print_json(&view);
+        return exit_codes::SUCCESS;
+    }
+    println!("Workflow   : {}", field(&view, "workflowId"));
+    println!("Version    : {}", field(&view, "version"));
+    println!("Description: {}", field(&view, "description"));
+    let steps: Vec<&str> = view["steps"]
+        .as_array()
+        .map(|s| s.iter().filter_map(|step| step.as_str()).collect())
+        .unwrap_or_default();
+    println!("Steps      : {}", steps.join(", "));
+    note!();
+    note!(
+        "  {:<24} {:<10} {:<9} DESCRIPTION",
+        "INPUT",
+        "TYPE",
+        "REQUIRED"
+    );
+    for input in view["inputs"].as_array().map(Vec::as_slice).unwrap_or(&[]) {
+        let required = input["required"].as_bool().unwrap_or(false);
+        println!(
+            "  {:<24} {:<10} {:<9} {}",
+            field(input, "name"),
+            input_type(input),
+            if required { "yes" } else { "no" },
+            input
+                .get("description")
+                .and_then(|d| d.as_str())
+                .unwrap_or("")
+        );
+    }
+    exit_codes::SUCCESS
+}
+
+/// The type of an input as `show` prints it: its kind, a list with the kind
+/// of its items, a choice with its values.
+fn input_type(input: &serde_json::Value) -> String {
+    let kind = field(input, "kind");
+    let choices: Vec<&str> = input["choices"]
+        .as_array()
+        .map(|c| c.iter().filter_map(|v| v.as_str()).collect())
+        .unwrap_or_default();
+    match (kind, input.get("itemKind").and_then(|k| k.as_str())) {
+        ("choice", _) => format!("choice ({})", choices.join("|")),
+        ("list", Some(item)) => format!("list of {item}"),
+        (kind, _) => kind.to_string(),
+    }
 }
 
 async fn run_launch(
@@ -337,6 +403,42 @@ mod tests {
             cancel.cmd,
             WorkflowCommand::Cancel { ref run_id, confirm: true } if run_id == "r-1"
         ));
+    }
+
+    #[test]
+    fn test_workflow_show_parses_its_workflow() {
+        // GIVEN a show of one workflow
+        // WHEN parsed
+        let cli = TestCli::parse_from(["test", "show", "invoices/close-month"]);
+        // THEN the workflow lands in its field
+        assert!(matches!(
+            cli.cmd,
+            WorkflowCommand::Show { ref workflow } if workflow == "invoices/close-month"
+        ));
+    }
+
+    #[test]
+    fn test_an_input_type_names_its_kind_its_items_and_its_choices() {
+        // GIVEN a date, a list of numbers and a choice, as the runtime describes them
+        let date = serde_json::json!({"name": "due", "kind": "date"});
+        let list = serde_json::json!({"name": "amounts", "kind": "list", "itemKind": "number"});
+        let choice =
+            serde_json::json!({"name": "channel", "kind": "choice", "choices": ["mail", "letter"]});
+        // WHEN their types are written
+        // THEN each reads as the field it takes
+        assert_eq!(input_type(&date), "date");
+        assert_eq!(input_type(&list), "list of number");
+        assert_eq!(input_type(&choice), "choice (mail|letter)");
+    }
+
+    #[tokio::test]
+    async fn test_workflow_show_without_runtime_is_a_runtime_error() {
+        // GIVEN a client on a socket nothing listens on
+        let client = RuntimeClient::new(PathBuf::from("/tmp/apollia-test-workflow-show.sock"));
+        // WHEN a workflow is shown
+        let code = run_show(&client, ("invoices", "close-month"), true).await;
+        // THEN the exit code is the runtime error
+        assert_eq!(code, exit_codes::RUNTIME_ERROR);
     }
 
     #[test]

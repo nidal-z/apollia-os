@@ -130,6 +130,7 @@ from .dictation_models_response_reason_type_0 import DictationModelsResponseReas
 from .directory_removed import DirectoryRemoved
 from .dismissed_proposal import DismissedProposal
 from .drive_folder_status import DriveFolderStatus
+from .embedding_default_response import EmbeddingDefaultResponse
 from .embedding_models_response import EmbeddingModelsResponse
 from .embedding_models_response_models_item import EmbeddingModelsResponseModelsItem
 from .embedding_models_response_reason_type_0 import EmbeddingModelsResponseReasonType0
@@ -164,6 +165,8 @@ from .get_model_card_response_200 import GetModelCardResponse200
 from .gguf_model_info import GgufModelInfo
 from .global_timeline_event import GlobalTimelineEvent
 from .global_timeline_event_detail import GlobalTimelineEventDetail
+from .guardrail_level import GuardrailLevel
+from .guardrail_refused_body import GuardrailRefusedBody
 from .hardware_response import HardwareResponse
 from .hardware_response_accelerator import HardwareResponseAccelerator
 from .health_response import HealthResponse
@@ -177,6 +180,9 @@ from .inject_message_body import InjectMessageBody
 from .inject_message_body_payload import InjectMessageBodyPayload
 from .inject_message_response import InjectMessageResponse
 from .injected_memory_entry_view import InjectedMemoryEntryView
+from .input_error_code import InputErrorCode
+from .input_field import InputField
+from .input_kind import InputKind
 from .install_agent_request import InstallAgentRequest
 from .install_agent_response import InstallAgentResponse
 from .install_refusal_type_0 import InstallRefusalType0
@@ -187,6 +193,8 @@ from .install_refusal_type_2 import InstallRefusalType2
 from .install_refusal_type_2_code import InstallRefusalType2Code
 from .install_refusal_type_3 import InstallRefusalType3
 from .install_refusal_type_3_code import InstallRefusalType3Code
+from .install_refusal_type_4 import InstallRefusalType4
+from .install_refusal_type_4_code import InstallRefusalType4Code
 from .install_report import InstallReport
 from .installed_agent_view import InstalledAgentView
 from .invoke_request import InvokeRequest
@@ -218,6 +226,7 @@ from .model_cards_response import ModelCardsResponse
 from .model_cards_response_cards_item import ModelCardsResponseCardsItem
 from .model_cards_response_publishers import ModelCardsResponsePublishers
 from .model_info import ModelInfo
+from .model_kind import ModelKind
 from .model_source_dto import ModelSourceDto
 from .models_list_response import ModelsListResponse
 from .next_steps_reply import NextStepsReply
@@ -282,6 +291,7 @@ from .proposed_rule_view import ProposedRuleView
 from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
 from .readme_response import ReadmeResponse
+from .reasoning_profile_dto import ReasoningProfileDto
 from .reject_plan_request import RejectPlanRequest
 from .reject_user_input_request import RejectUserInputRequest
 from .reload_response import ReloadResponse
@@ -317,6 +327,7 @@ from .server_probe_error_response import ServerProbeErrorResponse
 from .server_response import ServerResponse
 from .servers_list_response import ServersListResponse
 from .session_metrics import SessionMetrics
+from .session_model_capabilities import SessionModelCapabilities
 from .session_workspace import SessionWorkspace
 from .set_agent_model_request import SetAgentModelRequest
 from .set_approval_body import SetApprovalBody
@@ -324,6 +335,7 @@ from .set_credential_body import SetCredentialBody
 from .set_default_model_request import SetDefaultModelRequest
 from .set_default_response import SetDefaultResponse
 from .set_drive_folder_body import SetDriveFolderBody
+from .set_embedding_default_body import SetEmbeddingDefaultBody
 from .set_events_request import SetEventsRequest
 from .set_override_request import SetOverrideRequest
 from .set_override_request_value import SetOverrideRequestValue
@@ -439,6 +451,7 @@ from .workflow_run_view import WorkflowRunView
 from .workflow_run_view_inputs import WorkflowRunViewInputs
 from .workflow_run_view_output_type_0 import WorkflowRunViewOutputType0
 from .workflow_step_view import WorkflowStepView
+from .workflow_view import WorkflowView
 
 __all__ = (
     "A2AAgentDto",
@@ -571,6 +584,7 @@ __all__ = (
     "DirectoryRemoved",
     "DismissedProposal",
     "DriveFolderStatus",
+    "EmbeddingDefaultResponse",
     "EmbeddingModelsResponse",
     "EmbeddingModelsResponseModelsItem",
     "EmbeddingModelsResponseReasonType0",
@@ -605,6 +619,8 @@ __all__ = (
     "GgufModelInfo",
     "GlobalTimelineEvent",
     "GlobalTimelineEventDetail",
+    "GuardrailLevel",
+    "GuardrailRefusedBody",
     "HardwareResponse",
     "HardwareResponseAccelerator",
     "HealthResponse",
@@ -618,6 +634,9 @@ __all__ = (
     "InjectMessageBody",
     "InjectMessageBodyPayload",
     "InjectMessageResponse",
+    "InputErrorCode",
+    "InputField",
+    "InputKind",
     "InstallAgentRequest",
     "InstallAgentResponse",
     "InstalledAgentView",
@@ -629,6 +648,8 @@ __all__ = (
     "InstallRefusalType2Code",
     "InstallRefusalType3",
     "InstallRefusalType3Code",
+    "InstallRefusalType4",
+    "InstallRefusalType4Code",
     "InstallReport",
     "InvokeRequest",
     "InvokeRequestInput",
@@ -659,6 +680,7 @@ __all__ = (
     "ModelCardsResponseCardsItem",
     "ModelCardsResponsePublishers",
     "ModelInfo",
+    "ModelKind",
     "ModelsListResponse",
     "ModelSourceDto",
     "NextStepsReply",
@@ -721,6 +743,7 @@ __all__ = (
     "PurgeMemoryBody",
     "PutMcpSecretBody",
     "ReadmeResponse",
+    "ReasoningProfileDto",
     "RejectPlanRequest",
     "RejectUserInputRequest",
     "ReloadResponse",
@@ -754,6 +777,7 @@ __all__ = (
     "ServerResponse",
     "ServersListResponse",
     "SessionMetrics",
+    "SessionModelCapabilities",
     "SessionWorkspace",
     "SetAgentModelRequest",
     "SetApprovalBody",
@@ -761,6 +785,7 @@ __all__ = (
     "SetDefaultModelRequest",
     "SetDefaultResponse",
     "SetDriveFolderBody",
+    "SetEmbeddingDefaultBody",
     "SetEventsRequest",
     "SetOverrideRequest",
     "SetOverrideRequestValue",
@@ -874,4 +899,5 @@ __all__ = (
     "WorkflowRunViewInputs",
     "WorkflowRunViewOutputType0",
     "WorkflowStepView",
+    "WorkflowView",
 )

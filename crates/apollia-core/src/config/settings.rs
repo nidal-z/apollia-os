@@ -13,8 +13,11 @@
 //!
 //! This module holds the contract only. Where the policy comes from (a file
 //! outside the user's folder, its format, its signature) belongs to
-//! governance; until it lands every caller passes [`PolicySettings::none`],
-//! and every write goes through.
+//! governance, which builds the [`PolicySettings`] from the `[settings]` table
+//! of the loaded policy and checks each of its keys with
+//! [`check_imposed_setting`]: a key that names no setting, or a value of the
+//! wrong type, makes the whole policy invalid. Without a policy, callers pass
+//! [`PolicySettings::none`] and every write goes through.
 
 use std::collections::BTreeMap;
 use std::io::Write as _;
@@ -50,8 +53,8 @@ pub struct ResolvedSetting {
 
 /// The settings an organization policy imposes, by dotted key.
 ///
-/// Empty in this version: the source of the policy is not decided yet, and an
-/// empty policy locks nothing.
+/// An empty value, [`PolicySettings::none`], locks nothing: it is what a
+/// machine without a policy resolves against.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PolicySettings {
     imposed: BTreeMap<String, Value>,
@@ -178,6 +181,24 @@ fn check_type(key: &str, value: &Value, default: &Value) -> Result<(), SettingEr
         key: key.to_owned(),
         reason: format!("expected a value like {default}, got {value}"),
     })
+}
+
+/// Checks that a policy may impose `value` on the setting `key`: the key names
+/// a setting of a typed section, and the value has that setting's type.
+///
+/// The policy loader calls it on every key of its `[settings]` table, so a
+/// policy that names a setting this build does not know is refused whole
+/// rather than half applied.
+///
+/// # Errors
+///
+/// [`SettingError::UnknownKey`] when `key` names no setting,
+/// [`SettingError::InvalidValue`] when `value` has another type.
+pub fn check_imposed_setting(key: &str, value: &Value) -> Result<(), SettingError> {
+    let default = default_of(key).ok_or_else(|| SettingError::UnknownKey {
+        key: key.to_owned(),
+    })?;
+    check_type(key, value, &default)
 }
 
 /// Reads `path`, an absent file reading as an empty document.

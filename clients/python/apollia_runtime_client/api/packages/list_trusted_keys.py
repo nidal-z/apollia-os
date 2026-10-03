@@ -59,7 +59,8 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[PackageErrorBody | list[TrustedKeyView]]:
-    """`GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts.
+    """`GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts,
+    and those the organisation policy trusts, of origin `policy`.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -82,7 +83,8 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> PackageErrorBody | list[TrustedKeyView] | None:
-    """`GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts.
+    """`GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts,
+    and those the organisation policy trusts, of origin `policy`.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -101,7 +103,8 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[PackageErrorBody | list[TrustedKeyView]]:
-    """`GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts.
+    """`GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts,
+    and those the organisation policy trusts, of origin `policy`.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -122,7 +125,8 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> PackageErrorBody | list[TrustedKeyView] | None:
-    """`GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts.
+    """`GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts,
+    and those the organisation policy trusts, of origin `policy`.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

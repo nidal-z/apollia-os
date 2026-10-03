@@ -1,5 +1,6 @@
-//! REST routes of the workflow engine: launch a workflow, read its history,
-//! read one run with its steps, stop a run.
+//! REST routes of the workflow engine: read a workflow and the fields of its
+//! inputs, launch it, read its history, read one run with its steps, stop a
+//! run.
 //!
 //! A workflow is named by its package and its name,
 //! `/api/v1/workflows/{package}/{workflow}`; a run by its identifier,
@@ -15,7 +16,7 @@ use apollia_tools::{WorkflowRunRow, WorkflowStepRow};
 
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
-use crate::workflows::{WorkflowError, WorkflowHandle};
+use crate::workflows::{input_fields, InputErrorCode, InputField, WorkflowError, WorkflowHandle};
 
 /// Error body of the workflow routes.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -25,6 +26,9 @@ pub struct WorkflowErrorResponse {
     /// The input at fault, when an input was refused.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub field: Option<String>,
+    /// Why the input was refused, when one was.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<InputErrorCode>,
 }
 
 type RouteError = (StatusCode, Json<WorkflowErrorResponse>);
@@ -35,6 +39,7 @@ fn error(status: StatusCode, message: impl ToString) -> RouteError {
         Json(WorkflowErrorResponse {
             error: message.to_string(),
             field: None,
+            code: None,
         }),
     )
 }
@@ -53,7 +58,13 @@ fn workflow_error(e: WorkflowError) -> RouteError {
         WorkflowError::InvalidInput(input) => (
             StatusCode::BAD_REQUEST,
             Json(WorkflowErrorResponse {
-                error: format!("input '{}': {}", input.field, input.message),
+                error: format!(
+                    "input '{}': {} [{}]",
+                    input.field,
+                    input.message,
+                    input.code.as_str()
+                ),
+                code: Some(input.code),
                 field: Some(input.field),
             }),
         ),
@@ -67,6 +78,22 @@ fn workflow_error(e: WorkflowError) -> RouteError {
         WorkflowError::NoHost | WorkflowError::Stopped => error(StatusCode::SERVICE_UNAVAILABLE, e),
         other => error(StatusCode::INTERNAL_SERVER_ERROR, other),
     }
+}
+
+/// A workflow as its package declares it, with the fields of its inputs.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowView {
+    /// `<package>/<workflow>`.
+    pub workflow_id: String,
+    /// The version of the package that declares it.
+    pub version: String,
+    pub description: String,
+    /// The declared steps, in order.
+    pub steps: Vec<String>,
+    /// One field per input, in the order the workflow declares them, each
+    /// with the kind of field a launch form shows for it.
+    pub inputs: Vec<InputField>,
 }
 
 /// A workflow run: what it was launched with, its status and its result.
@@ -177,6 +204,40 @@ pub struct WorkflowRunsQuery {
     pub limit: Option<u32>,
 }
 
+/// `GET /api/v1/workflows/{package}/{workflow}`: a workflow, its steps and
+/// the fields of its inputs.
+#[utoipa::path(
+    get,
+    path = "/api/v1/workflows/{package}/{workflow}",
+    tag = "workflows",
+    params(
+        ("package" = String, Path, description = "Package that declares the workflow"),
+        ("workflow" = String, Path, description = "Workflow name in the package"),
+    ),
+    responses(
+        (status = 200, description = "The workflow and the fields of its inputs", body = WorkflowView),
+        (status = 404, description = "No installed workflow by that name", body = WorkflowErrorResponse),
+        (status = 503, description = "Workflow engine unavailable", body = WorkflowErrorResponse),
+    )
+)]
+pub async fn get_workflow<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path((package, workflow)): Path<(String, String)>,
+) -> Result<Json<WorkflowView>, RouteError> {
+    let id = format!("{package}/{workflow}");
+    let descriptor = engine(&state)?
+        .describe(&id)
+        .await
+        .ok_or_else(|| workflow_error(WorkflowError::NotFound(id)))?;
+    Ok(Json(WorkflowView {
+        inputs: input_fields(descriptor.input_schema.as_ref()),
+        workflow_id: descriptor.id,
+        version: descriptor.version,
+        description: descriptor.description,
+        steps: descriptor.steps,
+    }))
+}
+
 /// `POST /api/v1/workflows/{package}/{workflow}/runs`: run a workflow.
 ///
 /// The inputs are checked and the run recorded, with its declared steps,
@@ -192,7 +253,7 @@ pub struct WorkflowRunsQuery {
     request_body = WorkflowLaunch,
     responses(
         (status = 202, description = "Run launched", body = WorkflowRunView),
-        (status = 400, description = "An input does not fit the schema; `field` names it", body = WorkflowErrorResponse),
+        (status = 400, description = "An input does not fit the schema; `field` names it and `code` says why", body = WorkflowErrorResponse),
         (status = 404, description = "No installed workflow by that name", body = WorkflowErrorResponse),
         (status = 503, description = "Workflow engine or package host unavailable", body = WorkflowErrorResponse),
     )
@@ -293,6 +354,10 @@ pub async fn cancel_workflow_run<B: ExecutionBackend + Clone>(
 /// The workflow routes.
 pub fn workflow_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
+        .route(
+            "/api/v1/workflows/:package/:workflow",
+            get(get_workflow::<B>),
+        )
         .route(
             "/api/v1/workflows/:package/:workflow/runs",
             get(list_workflow_runs::<B>).post(launch_workflow::<B>),

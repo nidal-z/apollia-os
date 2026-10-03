@@ -1,9 +1,11 @@
 <script module lang="ts">
+  import type { SettingSource } from "$lib/ipc/settings";
+
   /**
    * Where the value of a named setting comes from, as the Rust side resolves
    * it (`apollia_core::config::SettingSource`).
    */
-  export type SettingSource = "default" | "user" | "policy";
+  export type { SettingSource };
 
   export type SettingsToggleState = {
     /** True when the switch refuses a change. */
