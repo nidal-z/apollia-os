@@ -247,6 +247,27 @@ environ 150 Mo à l'image disque macOS, et ils demandent macOS 14 ou plus
 récent, plancher des roues MLX à la version épinglée. Les paquets Windows et
 Linux ne le portent pas.
 
+Les moteurs ont leur propre canal de mise à jour et ne suivent pas la version
+d'Apollia. Le moteur embarqué sert chaque machine dès le premier lancement ; une
+version accélérée, CUDA sur une machine dotée d'une carte NVIDIA, se télécharge
+à la demande, ou s'importe depuis un disque sans réseau, et le lanceur prend
+alors la version installée la plus récente de cette variante plutôt que le
+moteur embarqué. Tout téléchargement ou import de moteur est précédé de la
+vérification d'un manifeste d'empreintes signé au format minisign avec une clé
+de distribution dédiée. Chaque canal, stable ou préversion, publie un tel
+manifeste, qui liste chaque archive de moteur avec son SHA-256. La moitié
+publique de cette clé est compilée dans le binaire et c'est la seule clé
+acceptée. Aucune archive n'est demandée avant que la signature tienne, une
+archive dont l'empreinte diffère du manifeste est supprimée, et un manifeste
+plus ancien que le dernier accepté sur son canal est refusé. Un miroir peut
+remplacer l'adresse d'où viennent manifestes et archives ; il ne peut pas
+remplacer la clé. Les archives de moteur se lisent au format zip seul, celui déjà
+lu pour les paquets d'agents, et aucun autre format d'archive n'est analysé. Les
+versions amont publiées en `.tar.gz`, dont celles pour macOS et Linux, sont
+reconditionnées en zip par la chaîne de publication qui produit le manifeste, et
+le manifeste porte l'empreinte de ce zip. L'environnement du moteur MLX figure
+dans le même manifeste et s'installe par la même vérification.
+
 Il n'y a aucun fournisseur cloud dédié. Un modèle distant se joint par une seule
 connexion générique à un serveur compatible OpenAI, à l'adresse que
 l'organisation désigne : un vLLM ou un LM Studio auto-hébergé, ou une
@@ -641,6 +662,32 @@ qui apporte deux crates en Rust pur, `zopfli` (Apache-2.0) et `zlib-rs` (Zlib),
 et fait de `zlib-rs` l'implémentation deflate de `flate2` dans tout le
 programme. Les deux ont été acceptées plutôt qu'écrire le classeur à la main
 avec `zip` seul. Les bornes de lecture ci-dessus ne changent pas.
+
+Les paquets qu'Apollia livre dans son propre binaire, le guide de l'application
+d'abord, ne sont pas signés. Le bureau assemble chacun d'eux au démarrage à
+partir de fichiers embarqués à la compilation et l'installe par le même chemin
+que tout paquet. L'installation les reconnaît comme embarqués parce que le
+bureau le dit, jamais parce qu'une archive le dit : rien dans un fichier ne peut
+revendiquer cette origine, et la même archive remise d'ailleurs est un paquet
+non signé ordinaire. Un paquet embarqué s'installe sans avertissement sur sa
+signature, et une politique d'organisation qui exige des paquets signés ne le
+refuse pas. L'exemption est bornée à cette origine. Sa raison : le binaire qui
+porte le paquet est ce que couvre la signature de la distribution, si bien que
+signer le paquet une seconde fois ne prouverait rien de plus. Comme tout paquet,
+il est inscrit au journal d'audit, une version installée plus récente n'est
+jamais rétrogradée, et les surcharges de l'utilisateur comme l'état désactivé de
+ses agents survivent à une mise à jour.
+
+Un outil de paquet s'exécute avec un contexte nu : ni mémoire, ni profil de
+l'utilisateur. Une exception est décidée par l'hôte, jamais par un paquet.
+L'onboarding d'Apollia est livré comme un agent déclaratif doté d'un outil qui
+enregistre les faits de profil de la première conversation, le droit que
+l'agent d'onboarding tenait quand il exécutait du code. Le runtime accorde à cet
+outil le profil de l'utilisateur, en écriture, et la mémoire de l'onboarding,
+que le bureau lit pour savoir que l'onboarding est terminé. L'accord nomme le
+paquet, le module et la source que porte le binaire : un outil dont le module
+sur le disque n'est pas cette source octet pour octet, quel que soit le nom de
+son paquet, n'obtient rien.
 
 ## Intégration hôte {#host-integration}
 

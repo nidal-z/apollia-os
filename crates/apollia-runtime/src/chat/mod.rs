@@ -20,17 +20,18 @@ pub mod project_context;
 pub mod repository;
 pub(crate) mod schema;
 pub mod summarizer;
+pub mod title;
 pub mod todo_actor;
 pub mod todo_handle;
 pub mod todo_tool;
 pub mod turn_router;
 pub mod types;
 
-pub use a2a_tools::{generate_a2a_tool_specs, CompositeToolInvoker};
+pub use a2a_tools::CompositeToolInvoker;
 pub use agent_chat::{AgentChatExecutor, ChatAgentRunner};
 pub use agent_executor::{
-    AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, ProjectContextSource, RunInput,
-    SessionWiring,
+    AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, Composition,
+    ProjectContextSource, RunInput, SessionWiring,
 };
 pub use builtin_agent::{
     BuiltInChatAgent, BuiltInChatAgentDeps, ChatAgentResponse, NativeChatToolInvoker,
@@ -49,6 +50,7 @@ pub use repository::{
     AppendMessageParams, ChatApprovalLogRow, ChatSessionRepository, MessageRow, SessionRow,
 };
 pub use summarizer::{summarize, SummarizerError};
+pub use title::TitleError;
 pub use todo_actor::spawn_todo_actor;
 pub use todo_handle::TodoHandle;
 pub use types::PastSessionSummary;

@@ -117,6 +117,12 @@ pub struct ApolliaCConfig {
     ///
     /// `None` when absent; the [`ModelsConfig`] defaults apply.
     pub models: Option<ModelsConfig>,
+
+    /// Section `[workflows]`: the budget a workflow run starts with, shared
+    /// by every agent and workflow it runs.
+    ///
+    /// `None` when absent; the [`apollia_core::WorkflowsConfig`] defaults apply.
+    pub workflows: Option<apollia_core::WorkflowsConfig>,
 }
 
 /// Names of the TOML sections that are now deprecated.
@@ -187,6 +193,7 @@ pub const KNOWN_SECTIONS: &[&str] = &[
     "chat",
     "filesystem",
     "models",
+    "workflows",
 ];
 
 /// Returns `true` when `section` is a recognized top-level `apollia.toml` section.
@@ -756,6 +763,7 @@ plan_mode_default = true
             chat: None,
             filesystem: None,
             models: None,
+            workflows: None,
         };
 
         // THEN every field is optional and absent
@@ -769,12 +777,13 @@ plan_mode_default = true
         assert!(config.chat.is_none());
         assert!(config.filesystem.is_none());
         assert!(config.models.is_none());
+        assert!(config.workflows.is_none());
 
         // AND the typed struct agrees with the key-path guard, so a section can
         // never again be settable without a field to land in.
         assert_eq!(
             KNOWN_SECTIONS.len(),
-            10,
+            11,
             "adding a section here means adding a field above, and a reader below"
         );
     }

@@ -36,6 +36,7 @@ apollia-permissions   = { workspace = true }
 apollia-triggers      = { workspace = true }
 apollia-auth          = { workspace = true }
 apollia-connectors    = { workspace = true }
+apollia-signing       = { workspace = true }
 async-trait           = { workspace = true }
 futures            = { workspace = true }
 chrono             = { workspace = true }
@@ -73,6 +74,8 @@ reqwest            = { workspace = true, features = ["json", "stream"] }
 tempfile           = { workspace = true }
 # Excel export of a batch. See the `package-archive` decision.
 rust_xlsxwriter    = { workspace = true }
+# Engine store archives are zip, the format already read for agent packages.
+zip                = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 wmi = { workspace = true }

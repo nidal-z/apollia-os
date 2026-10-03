@@ -8,8 +8,13 @@ body is written ``async with ctx.step("name"):`` and calls ``ctx.llm``,
 The list on the decorator is what the workflow card shows without running the
 code, so the body may not drift from it: ``ctx.step`` refuses a name the
 decorator did not declare.
+
+Run by the runtime, each step is reported as it opens, closes or raises: it is
+recorded with its run and published on the event bus. Run under a
+``MockContext``, the steps report nothing.
 """
 
+import asyncio
 import functools
 import inspect
 from collections.abc import AsyncIterator, Callable, Coroutine
@@ -77,12 +82,33 @@ class _StepContext:
                 f"@workflow {self._apollia_spec.name!r}: step {name!r} is not declared; "
                 f"declared steps are {list(self._apollia_spec.steps)}"
             )
-        return _open_step()
+        return _open_step(self._apollia_inner, name)
 
 
 @asynccontextmanager
-async def _open_step() -> AsyncIterator[None]:
-    yield
+async def _open_step(inner: object, name: str) -> AsyncIterator[None]:
+    """Run the body of the step ``name``, reporting it to the runtime.
+
+    The runtime context of a workflow carries a private hook, awaited when the
+    step opens, when it closes, and when it raises. Any other context, a
+    ``MockContext`` included, has none, and the step reports nothing. A step
+    the runtime refuses to open (the run was stopped, its budget is spent)
+    raises before its body runs. A cancellation is not reported: the runtime
+    stopped the run and closes the step itself.
+    """
+    hook = getattr(inner, "_apollia_step_hook", None)
+    if hook is None:
+        yield
+        return
+    await hook("started", name)
+    try:
+        yield
+    except asyncio.CancelledError:
+        raise
+    except BaseException as exc:
+        await hook("failed", name, f"{type(exc).__name__}: {exc}")
+        raise
+    await hook("completed", name)
 
 
 def _check_steps(name: str, steps: object) -> tuple[str, ...]:

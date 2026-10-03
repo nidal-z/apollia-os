@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "channel": "stable",
+  "sequence": 3,
+  "packages": [
+    {
+      "engine": "llama-server",
+      "tag": "b6000",
+      "variant": "cuda",
+      "platform": "linux-x64",
+      "size": 725,
+      "url": "llama-b6000-cuda.zip",
+      "sha256": "c8f2c2c371fd12d2cd7caa64a10d5dd35f9b7bc45d09f92f7abd58f4b7e01990"
+    }
+  ]
+}

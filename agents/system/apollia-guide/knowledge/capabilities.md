@@ -1,46 +1,81 @@
-# Apollia OS, capabilities
+# Apollia, capabilities
 
-Apollia OS is a sovereign, local-first runtime for autonomous AI agents. It
-runs any Python agent locally, in isolation, with tools, and without a cloud
-dependency.
+Apollia runs AI agents on your own machine. Your data stays there unless you
+connect a service yourself. It works with a local model, or with a model
+server you choose to connect.
 
-## Core features
+## Agents
 
-- **Agents**: run Python agents built with the Apollia AgentKit SDK. An agent
-  is a class decorated with `@agent`; it handles chat with `@on_message` or
-  exposes callable skills with `@skill`.
-- **Local inference**: llama.cpp GGUF models run on-device (Metal / CUDA). You
-  can also point Apollia at Ollama, Anthropic, or OpenAI backends.
-- **Memory**: cross-session semantic, episodic, and procedural memory in local
-  SQLite. Agents read and write it at their own initiative through `ctx.memory`;
-  nothing is injected into an agent's prompt automatically. This chat window is
-  the exception: at the `long_autonomous` tier I get a short brief about you, and
-  on the first message of a new conversation I may be given summaries of up to
-  three earlier ones.
-- **Tools**: native tools include web search (`web_search`), web read
-  (`web_read`), HTTP fetch (`http_fetch`), file access (`file_read`,
-  `file_write`, `file_glob`), and a sandboxed `bash_executor`.
-- **Triggers**: cron, interval, file-watch, and webhook triggers automate agent
-  runs.
-- **Orchestration (ORIA)**: a ReAct engine with an enforced, non-bypassable step
-  budget and a resilience layer, plus post-run verification.
-- **A2A**: agents delegate to one another (director / worker) through
-  `ctx.a2a`, with a recursion guard and a chain deadline.
-- **Audit**: every run is recorded in a tamper-evident, hash-chained journal you
-  can verify and export.
-- **MCP**: a native MCP client connects tool servers over stdio, HTTP, or SSE.
-- **Connectors**: OAuth connectors for Google and Microsoft, gated per scope.
-- **Surfaces**: a Unix-socket + TCP HTTP API (token auth, optional native TLS),
-  a `apollia-os` CLI, and a Tauri desktop app.
+An agent is a description, not a program: a name, a mission (what it is
+for, in plain words), example requests, the model it uses, and the accesses
+it is granted (tools, connections, workflows). Apollia runs every agent with
+the same engine. Each agent has a card on the Agents screen where you read
+what it does and what it may use. You can adjust an agent on its card; your
+adjustments are kept when its package is updated, and you can go back to the
+package defaults at any time. A disabled agent does not run until you enable
+it again.
 
-## The 8 principles
+## Packages
 
-1. Local-first: no user data leaves the machine without an explicit action.
-2. Zero external dependency: the binary runs on a clean machine with no prior
-   install.
-3. Minimal contract: an agent is a decorated Python class, nothing more.
-4. Fail-fast: any startup-detectable error is detected at startup.
-5. One actor, one responsibility: no shared state between runtime actors.
-6. Memory at the agent's initiative: context is never injected automatically.
-7. Non-bypassable safeguards: the step budget is enforced by the runtime.
-8. Human CLI, machine API: `--json` everywhere, TTY auto-detected.
+Agents travel in packages: one `.apo` file that can hold several agents,
+workflows and Python tools. Before a package is installed, Apollia shows what
+it contains, what each agent asks to use, who published it and whether its
+signature holds. An unsigned package installs with a warning. An update shows
+what it adds before you accept it, and never takes back the adjustments you
+made. A package never installs a version older than the one you have unless
+you allow it.
+
+## Workflows
+
+A workflow is a fixed sequence of steps written by its author: a model call,
+a tool, an agent, or Python code. You run it with its inputs, and each step
+is recorded so you can follow it.
+
+## Models
+
+Models run on your machine with llama.cpp (GGUF files, Metal or CUDA). You
+can also connect a model server: Ollama, any OpenAI-compatible server,
+Anthropic or OpenAI. Each agent can be given its own model; otherwise it uses
+the default model.
+
+## Tools and connections
+
+Native tools search the web, read a page, fetch a URL, read and write files
+in the folders you trust, and run commands in a sandbox. Connections add more:
+MCP servers, and Google or Microsoft accounts. An agent only uses the tools it
+is granted, and a sensitive action asks for your approval first.
+
+## Memory
+
+Each agent keeps its own memory and reads it when it decides to: nothing is
+slipped into its prompt behind your back. You can read and erase what an
+agent remembers on the Memory screen.
+
+## Automations
+
+Automations start an agent or a workflow on a schedule, at a fixed interval,
+when a file changes, or when a webhook is called.
+
+## Trust and audit
+
+Every run is bounded by a step budget the runtime enforces. Installations,
+access changes and runs are recorded in a tamper-evident journal you can
+verify and export.
+
+## Screens of the application
+
+Use only these routes in an action block:
+
+- `/dashboard`: what is running and what needs you.
+- `/chat`: talk with Apollia or with an agent.
+- `/agents`: the agents, their cards, installing a package.
+- `/tasks`: the tasks agents ran, with their results.
+- `/inbox`: the approvals and questions waiting for you.
+- `/projects`: projects and the agents attached to them.
+- `/automations`: schedules, intervals, file watches and webhooks.
+- `/integrations`: MCP servers and connected accounts.
+- `/llm`: models, local and remote, and the default model.
+- `/memory`: what each agent remembers.
+- `/notifications`: the notifications Apollia sent.
+- `/observability`: runs, costs and the audit journal.
+- `/settings`: preferences, profile and security.

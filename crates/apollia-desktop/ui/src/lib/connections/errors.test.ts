@@ -42,6 +42,17 @@ describe("isMissingSecretError", () => {
 });
 
 describe("formatTauriError", () => {
+  it("shows a refusal of the attached daemon in its own words", () => {
+    // GIVEN the error a command returns when the daemon refused the request
+    const raw = { kind: "service", detail: "invalid OAuth client file: no client_id field" };
+
+    // WHEN it is formatted
+    const text = formatTauriError(raw, echo);
+
+    // THEN the daemon's sentence is shown unchanged, without the kind
+    expect(text).toBe("invalid OAuth client file: no client_id field");
+  });
+
   it("maps the missing-secret kind to its own copy", () => {
     // GIVEN the missing-secret refusal
     const raw = { kind: "oauth_client_secret_missing", detail: "google" };

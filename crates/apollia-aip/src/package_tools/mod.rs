@@ -7,18 +7,27 @@
 //! them in the shared tool registry with their input schema and their action
 //! family. The module of a tool is imported on its first call only, in the
 //! embedded interpreter, with the package root and the package environment on
-//! `sys.path`; see [`PackageToolExecutor`].
+//! `sys.path`; see [`PackageToolExecutor`]. Once no tool of a package has been
+//! called for the idle delay, the package is unloaded: its functions are
+//! released and its modules leave `sys.modules`, until the next call imports
+//! them again; see [`PackageTools::unload_idle`].
 //!
 //! A package tool and an MCP tool are the same kind of object for the agent
 //! engine: one registry, one dispatcher, one access check. [`PackageTools`]
 //! hands its executors to the engine through
 //! [`apollia_runtime::package_tools::PackageToolHost`].
+//!
+//! A tool runs with a bare `ctx`, unless the host grants it more: see
+//! [`grant`].
 
 mod executor;
+pub mod grant;
+pub mod workflows;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
 use apollia_core::paths::DataFile;
 use apollia_core::SandboxProfile;
@@ -31,11 +40,13 @@ use apollia_tools::{
     PackageRepositoryError, ToolDescriptor, ToolKind, ToolRegistryHandle,
 };
 use pyo3::prelude::*;
-use pyo3::sync::GILOnceCell;
 
 use crate::apollia_manifest::{self, ApolliaManifest, ToolDecl, PACKAGE_TOOL_PREFIX};
 
 pub use executor::PackageToolExecutor;
+pub use grant::ProfileGrant;
+
+use grant::GrantedStores;
 
 /// One Python tool of an installed package.
 pub struct PackageTool {
@@ -43,11 +54,69 @@ pub struct PackageTool {
     version: String,
     root: PathBuf,
     decl: ToolDecl,
-    /// The decorated function, set by the first call that imports it.
-    function: GILOnceCell<Py<PyAny>>,
+    /// The decorated function while the package is loaded, and the calls
+    /// that keep it so.
+    state: Mutex<ToolState>,
+}
+
+/// What one tool holds between calls.
+#[derive(Default)]
+struct ToolState {
+    /// Set by the first call that imports the module, cleared by an unload.
+    function: Option<Py<PyAny>>,
+    /// Calls running now.
+    in_flight: usize,
+    /// When the last call started or ended.
+    last_call: Option<Instant>,
 }
 
 impl PackageTool {
+    fn new(package: &InstalledPackage, decl: ToolDecl) -> Self {
+        Self {
+            package: package.name.clone(),
+            version: package.version.clone(),
+            root: package.root_path.clone(),
+            decl,
+            state: Mutex::new(ToolState::default()),
+        }
+    }
+
+    fn state(&self) -> std::sync::MutexGuard<'_, ToolState> {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// The loaded function, when there is one.
+    fn function(&self, py: Python<'_>) -> Option<Py<PyAny>> {
+        self.state().function.as_ref().map(|f| f.clone_ref(py))
+    }
+
+    /// Keeps the function a call has just imported.
+    fn keep_function(&self, py: Python<'_>, function: &Py<PyAny>) {
+        let mut state = self.state();
+        if state.function.is_none() {
+            state.function = Some(function.clone_ref(py));
+        }
+    }
+
+    /// A call starts.
+    fn begin_call(&self) {
+        let mut state = self.state();
+        state.in_flight += 1;
+        state.last_call = Some(Instant::now());
+    }
+
+    /// A call ends, whatever its outcome.
+    fn end_call(&self) {
+        let mut state = self.state();
+        state.in_flight = state.in_flight.saturating_sub(1);
+        state.last_call = Some(Instant::now());
+    }
+
+    /// Whether the tool's function is loaded.
+    pub fn is_loaded(&self) -> bool {
+        self.state().function.is_some()
+    }
+
     /// The tool's name in the registry, `pkg:<package>/<tool>`.
     pub fn full_name(&self) -> String {
         format!("{PACKAGE_TOOL_PREFIX}{}/{}", self.package, self.decl.name)
@@ -110,6 +179,7 @@ fn action_family(action: apollia_manifest::ActionFamily) -> ActionFamily {
 pub struct PackageTools {
     tools: Vec<Arc<PackageTool>>,
     venvs: PathBuf,
+    grants: Vec<GrantedStores>,
 }
 
 impl PackageTools {
@@ -141,17 +211,25 @@ impl PackageTools {
             };
             for decl in manifest.tools {
                 if linked.contains(&decl.name) {
-                    tools.push(Arc::new(PackageTool {
-                        package: package.name.clone(),
-                        version: package.version.clone(),
-                        root: package.root_path.clone(),
-                        decl,
-                        function: GILOnceCell::new(),
-                    }));
+                    tools.push(Arc::new(PackageTool::new(&package, decl)));
                 }
             }
         }
-        Ok(Self { tools, venvs })
+        Ok(Self {
+            tools,
+            venvs,
+            grants: Vec::new(),
+        })
+    }
+
+    /// The same tools, with `grants` resolved against the stores under
+    /// `data_dir`. A tool a grant covers runs with what the grant gives.
+    pub fn with_grants(mut self, grants: &[ProfileGrant], data_dir: &Path) -> Self {
+        self.grants = grants
+            .iter()
+            .map(|grant| GrantedStores::new(*grant, data_dir))
+            .collect();
+        self
     }
 
     /// The names of the tools, `pkg:<package>/<tool>`.
@@ -183,6 +261,58 @@ impl PackageTools {
         registered
     }
 
+    /// Whether a tool of `package` is loaded.
+    pub fn is_loaded(&self, package: &str) -> bool {
+        self.tools
+            .iter()
+            .any(|tool| tool.package == package && tool.is_loaded())
+    }
+
+    /// Unloads every package none of whose tools has been called within
+    /// `idle` of `now`, and none of whose tools is running: the functions are
+    /// released and the package's modules leave `sys.modules`, so the next
+    /// call imports them again. Returns the names of the packages unloaded.
+    ///
+    /// Takes the GIL; call it from a blocking thread.
+    pub fn unload_idle(&self, now: Instant, idle: Duration) -> Vec<String> {
+        let mut packages: BTreeMap<&str, Vec<&Arc<PackageTool>>> = BTreeMap::new();
+        for tool in &self.tools {
+            packages
+                .entry(tool.package.as_str())
+                .or_default()
+                .push(tool);
+        }
+        let mut unloaded = Vec::new();
+        for (package, tools) in packages {
+            let states: Vec<_> = tools.iter().map(|tool| tool.state()).collect();
+            let loaded = states.iter().any(|state| state.function.is_some());
+            let running = states.iter().any(|state| state.in_flight > 0);
+            let last_call = states.iter().filter_map(|state| state.last_call).max();
+            let idle_for = last_call.map_or(Duration::MAX, |at| now.saturating_duration_since(at));
+            if !loaded || running || idle_for < idle {
+                continue;
+            }
+            let functions: Vec<Py<PyAny>> = states
+                .into_iter()
+                .filter_map(|mut state| state.function.take())
+                .collect();
+            Python::with_gil(|py| {
+                drop(functions);
+                for root in tools.iter().map(|tool| &tool.root).collect::<BTreeSet<_>>() {
+                    forget_modules(py, &executor::module_prefix(root));
+                }
+            });
+            tracing::event!(
+                tracing::Level::INFO,
+                package = %package,
+                idle_secs = idle_for.as_secs(),
+                "package.unloaded"
+            );
+            unloaded.push(package.to_string());
+        }
+        unloaded
+    }
+
     fn site_packages(&self, package: &str) -> Vec<PathBuf> {
         apollia_tools::tools::python_executor::agent_venv_site_packages(&self.venvs, package)
     }
@@ -193,19 +323,32 @@ impl PackageToolHost for PackageTools {
         self.tools
             .iter()
             .map(|tool| {
-                Box::new(PackageToolExecutor::new(
-                    Arc::clone(tool),
-                    self.site_packages(&tool.package),
-                    caller,
-                    cancel.clone(),
-                )) as Box<dyn ToolExecutor>
+                let granted = self
+                    .grants
+                    .iter()
+                    .find(|grant| grant.covers(&tool.package, &tool.root, &tool.decl.module))
+                    .cloned();
+                Box::new(
+                    PackageToolExecutor::new(
+                        Arc::clone(tool),
+                        self.site_packages(&tool.package),
+                        caller,
+                        cancel.clone(),
+                    )
+                    .with_grant(granted),
+                ) as Box<dyn ToolExecutor>
             })
             .collect()
     }
 }
 
+/// How often the idle packages are looked for.
+const IDLE_CHECK_PERIOD: Duration = Duration::from_secs(30);
+
 /// Read the package tools of the store under `data_dir`, enter them in
-/// `registry`, and hand them to the agent engine behind `chat`.
+/// `registry`, and hand them to the agent engine behind `chat`, with
+/// `grants`. A package none of whose tools has been called for `idle` is
+/// unloaded.
 ///
 /// Called once the runtime is up. Without a store there is nothing to read;
 /// a store that cannot be read is reported and the runtime goes on without
@@ -214,6 +357,8 @@ pub async fn attach(
     data_dir: &Path,
     registry: &ToolRegistryHandle,
     chat: Option<&ChatSessionManagerHandle>,
+    idle: Duration,
+    grants: &[ProfileGrant],
 ) -> usize {
     let agents_db = DataFile::Agents.path(data_dir);
     if !agents_db.exists() {
@@ -222,7 +367,7 @@ pub async fn attach(
     let tools = match PackageRepository::open(&agents_db)
         .and_then(|repo| PackageTools::read(&repo, data_dir.join("venvs")))
     {
-        Ok(tools) => tools,
+        Ok(tools) => tools.with_grants(grants, data_dir),
         Err(error) => {
             tracing::event!(
                 tracing::Level::WARN,
@@ -234,11 +379,54 @@ pub async fn attach(
         }
     };
     let registered = tools.register(registry).await;
+    if !tools.tools.is_empty() {
+        tokio::spawn(unload_idle_packages(tools.clone(), idle));
+    }
     if let Some(chat) = chat {
         chat.set_package_tools(Arc::new(tools)).await;
     }
     tracing::event!(tracing::Level::INFO, registered, "package.tools.attached");
     registered
+}
+
+/// Unloads the idle packages of `tools` every [`IDLE_CHECK_PERIOD`], for the
+/// life of the runtime.
+async fn unload_idle_packages(tools: PackageTools, idle: Duration) {
+    let mut ticker = tokio::time::interval(IDLE_CHECK_PERIOD);
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    loop {
+        ticker.tick().await;
+        let tools = tools.clone();
+        let _ = tokio::task::spawn_blocking(move || tools.unload_idle(Instant::now(), idle)).await;
+    }
+}
+
+/// Removes from `sys.modules` every module imported under `prefix`.
+fn forget_modules(py: Python<'_>, prefix: &str) {
+    let dotted = format!("{prefix}.");
+    let result = py
+        .import("sys")
+        .and_then(|sys| sys.getattr("modules"))
+        .and_then(|modules| {
+            let names: Vec<String> = modules
+                .call_method0("keys")?
+                .try_iter()?
+                .filter_map(|name| name.ok()?.extract::<String>().ok())
+                .filter(|name| name == prefix || name.starts_with(&dotted))
+                .collect();
+            for name in names {
+                modules.call_method1("pop", (name, py.None()))?;
+            }
+            Ok(())
+        });
+    if let Err(error) = result {
+        tracing::event!(
+            tracing::Level::WARN,
+            prefix = %prefix,
+            error = %error,
+            "package.modules.forget.failed"
+        );
+    }
 }
 
 /// The `apollia.toml` manifest a package was stored with, when it is one.

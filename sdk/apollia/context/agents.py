@@ -12,8 +12,9 @@ class AgentsInterface(Protocol):
     turn of a fresh conversation, under its own grants, and returns its final
     answer once its loop ends.
 
-    The runtime does not bind this service yet: reading ``ctx.agents`` on a
-    runtime context raises ``AttributeError`` until it does.
+    The runtime binds this service in a workflow run: the agent runs nested
+    in the run, stopped with it and spending from its budget. Reading
+    ``ctx.agents`` on any other runtime context raises ``AttributeError``.
     """
 
     async def run(self, agent_id: str, message: str) -> str:

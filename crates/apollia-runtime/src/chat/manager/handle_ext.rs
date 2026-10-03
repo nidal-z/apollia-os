@@ -201,6 +201,14 @@ impl ChatSessionManagerHandle {
         let _ = self.tx.send(ChatCommand::SetPackageTools { host }).await;
     }
 
+    /// Hand over the composer of the granted agent and workflow calls.
+    ///
+    /// Every run that starts afterwards, in the chat or outside it, is offered
+    /// the agents and workflows its agent is granted.
+    pub async fn set_composer(&self, composer: Arc<dyn crate::composition::Composer>) {
+        let _ = self.tx.send(ChatCommand::SetComposer { composer }).await;
+    }
+
     /// List the N most recent sessions with their first user message.
     ///
     /// Returns an empty vec if the actor is unreachable or the query fails.
@@ -452,6 +460,17 @@ impl ChatSessionManagerHandle {
             return None;
         }
         reply_rx.await.ok().flatten()
+    }
+
+    /// The metrics the metrics panel draws, in both modes of the desktop.
+    ///
+    /// A zero-filled record for the session when no exchange has completed yet
+    /// (or the session is unknown), so the panel renders empty values instead
+    /// of an error.
+    pub async fn session_metrics_or_empty(&self, session_id: SessionId) -> SessionMetrics {
+        self.get_session_metrics(session_id.clone())
+            .await
+            .unwrap_or_else(|| SessionMetrics::new(session_id))
     }
 
     pub async fn shutdown(&self) {

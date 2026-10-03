@@ -10,13 +10,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use apollia_core::paths::DataFile;
-use apollia_core::LlmBackendRepository;
 use apollia_permissions::{ConsentFamily, ConsentScope, FamilyConsentStore};
 use apollia_tools::ResolvedAgent;
 
 use super::access::{classify, known_tools, sensitive, BatchAccess, KnownTool};
 use super::{item_message, ItemEnd, ItemRunner, ItemStatus, StartedItem};
-use crate::agents::task::{resolve_without_code, AgentTaskLauncher};
+use crate::agents::task::{resolve_runnable, AgentTaskLauncher};
 use crate::coordinator::ExecutionBackend;
 use crate::governance::GovernanceContract;
 
@@ -103,29 +102,9 @@ impl<B: ExecutionBackend> AgentItemRunner<B> {
     }
 
     /// The agent as resolved now, so that each item reads the overrides and
-    /// the model in force when it starts. The stores are opened for the
-    /// occasion, as the CLI opens them: the batch engine shares no lock.
+    /// the model in force when it starts.
     async fn resolve(&self, agent: &str) -> Result<ResolvedAgent, String> {
-        let data_dir = self.data_dir.clone();
-        let name = agent.to_string();
-        let resolved = tokio::task::spawn_blocking(move || {
-            let system = DataFile::System.path(&data_dir);
-            let models = if system.exists() {
-                Some(LlmBackendRepository::open(&system).map_err(|e| e.to_string())?)
-            } else {
-                None
-            };
-            resolve_without_code(&data_dir, models.as_ref(), &name).map_err(|e| e.to_string())
-        })
-        .await
-        .map_err(|e| e.to_string())??;
-        match resolved {
-            Some(agent) if agent.enabled => Ok(agent),
-            Some(agent) => Err(format!("agent '{}' is disabled", agent.id)),
-            None => Err(format!(
-                "agent '{agent}' is not a stored agent without code, which is what a batch runs"
-            )),
-        }
+        resolve_runnable(self.data_dir.clone(), agent, "a batch").await
     }
 }
 

@@ -112,7 +112,6 @@ async fn pause_stops_loop_at_checkpoint() {
         tool_invoker: Arc::new(MockToolInvoker::ok()),
         event_bus: make_event_bus(),
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -172,7 +171,6 @@ async fn running_tool_completes_before_loop_stops() {
         tool_invoker: invoker,
         event_bus: make_event_bus(),
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -237,7 +235,6 @@ async fn pre_authorized_tool_not_granted_is_not_run() {
         tool_invoker: invoker,
         event_bus: make_event_bus(),
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -298,7 +295,6 @@ async fn live_token_lets_turn_converge() {
         tool_invoker: invoker,
         event_bus: make_event_bus(),
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });

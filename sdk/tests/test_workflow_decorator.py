@@ -118,6 +118,75 @@ async def test_a_workflow_called_from_a_workflow_sees_its_own_steps() -> None:
     assert result == "done"
 
 
+class _HookedContext(MockContext):
+    """A mock context carrying the private step hook the runtime context has."""
+
+    def __init__(self, refuse: str | None = None) -> None:
+        super().__init__()
+        self.reports: list[tuple[str, str, str | None]] = []
+        self._refuse = refuse
+
+    async def _apollia_step_hook(self, event: str, name: str, error: str | None = None) -> None:
+        if event == "started" and name == self._refuse:
+            raise RuntimeError(f"step {name!r} refused")
+        self.reports.append((event, name, error))
+
+
+@pytest.mark.asyncio
+async def test_each_step_is_reported_to_the_runtime_hook() -> None:
+    # GIVEN a workflow whose second step raises, run on a context with the hook
+    @workflow("reported", "Two steps.", inputs=MonthClose, steps=["a", "b"], action="read")
+    async def reported(ctx: WorkflowCtx, inputs: MonthClose) -> None:
+        async with ctx.step("a"):
+            pass
+        async with ctx.step("b"):
+            raise ValueError("no invoice")
+
+    ctx = _HookedContext()
+
+    # WHEN it runs
+    with pytest.raises(ValueError, match="no invoice"):
+        await reported(ctx, {"folder": "x"})
+
+    # THEN the hook saw each opening and closing, the failure with its error
+    assert ctx.reports == [
+        ("started", "a", None),
+        ("completed", "a", None),
+        ("started", "b", None),
+        ("failed", "b", "ValueError: no invoice"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_step_the_runtime_refuses_does_not_run_its_body() -> None:
+    # GIVEN a context whose hook refuses to open the step `b`
+    ran: list[str] = []
+
+    @workflow("refused", "Two steps.", inputs=MonthClose, steps=["a", "b"], action="read")
+    async def refused(ctx: WorkflowCtx, inputs: MonthClose) -> None:
+        async with ctx.step("a"):
+            ran.append("a")
+        async with ctx.step("b"):
+            ran.append("b")
+
+    # WHEN it runs
+    # THEN the refusal is raised and the body of `b` never ran
+    with pytest.raises(RuntimeError, match="refused"):
+        await refused(_HookedContext(refuse="b"), {"folder": "x"})
+    assert ran == ["a"]
+
+
+@pytest.mark.asyncio
+async def test_a_mock_context_has_no_hook_and_reports_nothing() -> None:
+    # GIVEN the plain mock context
+    ctx = MockContext()
+
+    # WHEN the private hook is looked up the way ctx.step looks it up
+    # THEN there is none, so a workflow run under it reports nothing
+    assert getattr(ctx, "_apollia_step_hook", None) is None
+    assert await _close_month()(ctx, {"folder": "x"}) is not None
+
+
 def test_workflow_ctx_is_a_ctx_with_step() -> None:
     # GIVEN the protocol a workflow body is typed against
     # WHEN its members are read

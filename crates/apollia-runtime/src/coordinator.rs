@@ -40,6 +40,13 @@ pub trait ExecutionBackend: Send + Sync + 'static {
         let _ = cancel;
         self.execute(task)
     }
+
+    /// Releases what the backend loaded for its agent, now.
+    ///
+    /// Called when the agent is parked, so that nothing it imported stays in
+    /// memory while nobody calls it. The next execution loads it again. The
+    /// default holds nothing to release.
+    fn unload(&self) {}
 }
 
 /// How long a cancelled execution may take to stop by itself before the
@@ -78,6 +85,10 @@ impl ExecutionBackend for DynBackend {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>>
     {
         self.0.execute_cancellable(task, cancel)
+    }
+
+    fn unload(&self) {
+        self.0.unload();
     }
 }
 
@@ -172,6 +183,12 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
     pub fn with_agent_name(mut self, name: String) -> Self {
         self.agent_name = name;
         self
+    }
+
+    /// Releases what the backend loaded for this agent; see
+    /// [`ExecutionBackend::unload`].
+    pub fn unload(&self) {
+        self.backend.unload();
     }
 
     /// Submits a task for execution.

@@ -147,6 +147,7 @@ pub(crate) fn app_state(loader: Arc<dyn AgentLoader>, data_dir: PathBuf) -> AppS
         llama_server_supervisor: None,
         secret_store: crate::inference_servers::default_store_opener(),
         batches: None,
+        workflows: None,
     }
 }
 
@@ -177,4 +178,74 @@ pub(crate) async fn call(
         .expect("body");
     let json = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
     (status, json)
+}
+
+/// A state whose chat manager reads `data_dir/chat.db`, seeded with the libre
+/// session `s-1` (the user turn `u-1` and its answer `a-1`) and one refused
+/// tool call in its ledger. The session sits in SQLite until a route resumes it.
+pub(crate) fn seeded_chat(data_dir: &Path) -> AppState<MockBackend> {
+    use crate::chat::repository::{
+        AppendMessageParams, ChatSessionRepository, ToolApprovalLogEntry,
+    };
+    use crate::chat::{ChatMode, ChatRole};
+
+    let db_path = apollia_core::paths::DataFile::Chat.path(data_dir);
+    let now = chrono::Utc::now().to_rfc3339();
+    let repo = ChatSessionRepository::open(&db_path).expect("open chat db");
+    repo.create_session("s-1", &ChatMode::Libre, None, "", &[], &now, None, None)
+        .expect("seed session");
+    for (id, role, content) in [
+        ("u-1", ChatRole::User, "Bonjour"),
+        ("a-1", ChatRole::Assistant, "Hello, how can I help?"),
+    ] {
+        repo.append_message(&AppendMessageParams {
+            id,
+            session_id: "s-1",
+            role: &role,
+            content,
+            tool_calls_json: None,
+            tool_name: None,
+            created_at: &now,
+            metadata: None,
+        })
+        .expect("seed message");
+    }
+    repo.log_tool_approval(ToolApprovalLogEntry {
+        session_id: "s-1",
+        message_id: "a-1",
+        tool_name: "bash_executor",
+        decision: "refuse",
+        resolved_at: &now,
+        reason: Some("not this folder"),
+    })
+    .expect("seed approval");
+    drop(repo);
+
+    let loader: Arc<dyn AgentLoader> = Arc::new(StemLoader { refusal: None });
+    let mut state = app_state(loader.clone(), data_dir.to_path_buf());
+    let tool_registry = apollia_tools::ToolRegistryHandle::start();
+    let chat_manager = crate::chat::manager::ChatSessionManagerHandle::spawn(
+        &db_path,
+        Some(Arc::new(apollia_llm::LlmRouter::empty())),
+        tool_registry.clone(),
+        loader,
+        None,
+        state.event_sender.clone(),
+        apollia_core::StepBudgetConfig::default(),
+        None,
+        state.registry_handle.clone(),
+        None,
+        None,
+        None,
+        None,
+        None,
+        apollia_mcp::session::LoadingMode::Eager,
+        20,
+        None,
+        false,
+    )
+    .expect("spawn chat manager");
+    state.tool_registry_handle = Some(tool_registry);
+    state.chat_manager = Some(chat_manager);
+    state
 }

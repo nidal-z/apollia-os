@@ -8,59 +8,25 @@
 //! which handles persistence, event emission, and resolution of the oneshot
 //! channel.
 
-use apollia_runtime::chat::{AlwaysAcceptScope, FsHitlDecision};
-use apollia_runtime::embedded::RuntimeHandle;
+use apollia_runtime::api::routes_permissions::{
+    AddPermissionRuleBody, AddedPermissionRule, FsHitlDecisionBody, ResolvedFilesystemApproval,
+};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use super::http_post_json;
-use crate::attached::{segment, RuntimeLink};
+use crate::attached::{segment, AttachedClient, RuntimeLink};
 
-/// Filesystem decision serialized from the frontend.
-///
-/// Corresponds to [`FsHitlDecision`] on the Rust side. The `decision`
-/// discriminant is expressed in snake_case; the scope of an "always accept" is
-/// a separate field (`scope`) to stay backward-compatible with earlier builds
-/// that only sent `op`+`level`.
-#[derive(Debug, Deserialize)]
-#[serde(tag = "decision", rename_all = "snake_case")]
-pub enum HitlFilesystemDecisionInput {
-    /// The user approves the operation for this invocation.
-    Approve,
-    /// The user denies; the operation is cancelled.
-    /// `reason` is required on the frontend when the tool manifest asks for it;
-    /// it is forwarded to the agent via `FsHitlDecision::Deny { reason }`.
-    Deny {
-        /// Free-text reason entered by the operator (optional).
-        #[serde(default)]
-        reason: Option<String>,
-    },
-    /// The user approves **and** installs an "always accept" rule.
-    /// The scope sets the breadth; by default (`None` on the JS side) we apply
-    /// [`AlwaysAcceptScope::ThisSession`].
-    AlwaysAllow {
-        /// Filesystem operation (e.g. `"write"`).
-        op: String,
-        /// Risk level (e.g. `"medium"`).
-        level: String,
-        /// Scope of the "always accept". Absent means session only.
-        #[serde(default)]
-        scope: Option<AlwaysAcceptScope>,
-    },
-    /// Legacy variant kept for older frontends, equivalent to `AlwaysAllow`
-    /// with `scope = ThisSession`.
-    AlwaysAllowSession {
-        /// Filesystem operation (e.g. `"write"`).
-        op: String,
-        /// Risk level (e.g. `"medium"`).
-        level: String,
-    },
-}
+/// The user's answer to a request to touch a file, as the approval card
+/// sends it. The same type is the body of the daemon's route, so the attached
+/// arm forwards it as received.
+pub type HitlFilesystemDecisionInput = FsHitlDecisionBody;
 
 /// Resolves a filesystem HITL approval request emitted by `HitlFilesystemRequired`.
 ///
 /// The frontend calls this command after the user clicks Approve / Deny /
-/// Always allow in the HITL modal.
+/// Always allow in the HITL modal. Attached to a daemon, the daemon's
+/// `POST /api/v1/approvals/filesystem/{request_id}` resolves it.
 ///
 /// # Errors
 ///
@@ -68,38 +34,34 @@ pub enum HitlFilesystemDecisionInput {
 /// unknown (already resolved or expired).
 #[tauri::command]
 pub async fn respond_hitl_filesystem(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     request_id: String,
     decision: HitlFilesystemDecisionInput,
 ) -> Result<(), String> {
+    let state = match link.inner() {
+        RuntimeLink::Embedded(state) => state,
+        RuntimeLink::Attached(remote) => {
+            return respond_fs_attached(remote, &request_id, &decision).await
+        }
+    };
     let manager = state
         .chat_manager
         .as_ref()
         .ok_or_else(|| "chat subsystem not available".to_string())?;
-
-    let fs_decision = match decision {
-        HitlFilesystemDecisionInput::Approve => FsHitlDecision::Approve,
-        HitlFilesystemDecisionInput::Deny { reason } => FsHitlDecision::Deny { reason },
-        HitlFilesystemDecisionInput::AlwaysAllow { op, level, scope } => {
-            FsHitlDecision::AlwaysAllow {
-                scope: scope.unwrap_or_else(AlwaysAcceptScope::safe_default),
-                op,
-                level,
-            }
-        }
-        HitlFilesystemDecisionInput::AlwaysAllowSession { op, level } => {
-            FsHitlDecision::AlwaysAllow {
-                scope: AlwaysAcceptScope::ThisSession,
-                op,
-                level,
-            }
-        }
-    };
-
     manager
-        .resolve_fs_hitl(request_id, fs_decision)
+        .resolve_fs_hitl(request_id, decision.into_decision())
         .await
         .map_err(|e| e.to_string())
+}
+
+async fn respond_fs_attached(
+    remote: &AttachedClient,
+    request_id: &str,
+    decision: &HitlFilesystemDecisionInput,
+) -> Result<(), String> {
+    let path = format!("/api/v1/approvals/filesystem/{}", segment(request_id));
+    let _: ResolvedFilesystemApproval = remote.post(&path, decision).await?;
+    Ok(())
 }
 
 /// Pending approval for display in the UI. A subset of the daemon's
@@ -303,7 +265,8 @@ pub async fn list_resolved_approvals(
 /// (`"global"`), and the chat writes agent rules through
 /// `authorize_chat_tool`. The `"project"` scope was retired: a rule never
 /// targets a project, and `project_path` is accepted only so the current
-/// caller keeps its argument list.
+/// caller keeps its argument list. Attached to a daemon, the daemon's
+/// `POST /api/v1/permissions/rules` stores it.
 ///
 /// # Errors
 ///
@@ -311,62 +274,161 @@ pub async fn list_resolved_approvals(
 /// - `tool_name`, `action`, or `scope` are invalid, `"project"` included;
 /// - the `HOME` variable is absent;
 /// - the SQLite database cannot be opened or written.
+// REASON: a Tauri command; the arguments are those the interface invokes it with.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn add_permission_prefix_rule(
+    link: State<'_, RuntimeLink>,
     tool_name: String,
     arg_prefix: Option<String>,
     action: String,
     scope: String,
     project_path: Option<String>,
 ) -> Result<(), String> {
-    use apollia_permissions::prefix_rule_engine::RuleAction;
-
-    use super::tool_governance::persist_scoped_rule;
-
     let _ = project_path;
-    if tool_name.trim().is_empty() {
-        return Err("tool_name must not be empty".to_string());
-    }
-
-    let rule_action = match action.as_str() {
-        "allow" => RuleAction::Allow,
-        "deny" => RuleAction::Deny,
-        other => {
-            return Err(format!(
-                "unknown action '{other}', expected 'allow' or 'deny'"
-            ))
+    match link.inner() {
+        RuntimeLink::Embedded(_) => {
+            let home = apollia_core::paths::home_string_or_err()?;
+            apollia_runtime::permission_rules::add_global_rule(
+                apollia_core::paths::data_dir_under(home),
+                tool_name,
+                arg_prefix,
+                action,
+                scope,
+            )
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string())
         }
-    };
-
-    if scope != "global" {
-        return Err(format!(
-            "unknown scope '{scope}', expected 'global' (a rule targets one agent or every agent)"
-        ));
+        RuntimeLink::Attached(remote) => {
+            let body = AddPermissionRuleBody {
+                tool_name,
+                arg_prefix,
+                action,
+                scope,
+            };
+            add_rule_attached(remote, &body).await
+        }
     }
+}
 
-    let home = apollia_core::paths::home_string_or_err()?;
-    let base_dir = apollia_core::paths::data_dir_under(home);
-    persist_scoped_rule(
-        &base_dir,
-        tool_name.clone(),
-        arg_prefix.clone(),
-        rule_action,
-        apollia_permissions::PermissionScope::Global,
-        None,
-    )?;
-    tracing::info!(
-        tool = %tool_name,
-        arg_prefix = ?arg_prefix,
-        scope = "global",
-        "permission.rule.added"
-    );
-
+async fn add_rule_attached(
+    remote: &AttachedClient,
+    body: &AddPermissionRuleBody,
+) -> Result<(), String> {
+    let _: AddedPermissionRule = remote.post("/api/v1/permissions/rules", body).await?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+    use apollia_runtime::chat::AlwaysAcceptScope;
+    use wiremock::matchers::{body_json, header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
     use super::*;
+
+    const TOKEN: &str = "token-of-this-installation";
+
+    #[tokio::test]
+    async fn test_attached_a_file_request_is_answered_on_the_daemon_with_the_token() {
+        // GIVEN a daemon waiting on a file request whose id needs encoding
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/approvals/filesystem/req%201"))
+            .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+            .and(body_json(serde_json::json!({
+                "decision": "always_allow", "op": "write", "level": "high", "scope": "this_project"
+            })))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "request_id": "req 1" })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+        let decision: HitlFilesystemDecisionInput = serde_json::from_value(serde_json::json!({
+            "decision": "always_allow", "op": "write", "level": "high", "scope": "this_project"
+        }))
+        .unwrap();
+
+        // WHEN the attached arm forwards the user's answer
+        let answered = respond_fs_attached(&client, "req 1", &decision).await;
+
+        // THEN the daemon received the answer as the card sent it
+        assert!(answered.is_ok(), "{answered:?}");
+    }
+
+    #[tokio::test]
+    async fn test_attached_an_unknown_file_request_shows_the_daemon_words() {
+        // GIVEN a daemon that waits on no file request
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/approvals/filesystem/gone"))
+            .respond_with(ResponseTemplate::new(404).set_body_json(serde_json::json!({
+                "error": "internal error: no pending fs HITL request for id 'gone'"
+            })))
+            .mount(&server)
+            .await;
+        let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+        let decision: HitlFilesystemDecisionInput =
+            serde_json::from_value(serde_json::json!({ "decision": "approve" })).unwrap();
+
+        // WHEN the attached arm forwards an answer to it
+        let error = respond_fs_attached(&client, "gone", &decision)
+            .await
+            .unwrap_err();
+
+        // THEN the interface shows the daemon's refusal as is
+        assert!(
+            error.contains("no pending fs HITL request for id 'gone'"),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_attached_a_rule_is_added_on_the_daemon_and_its_refusal_shown() {
+        // GIVEN a daemon storing a global rule and refusing a project one
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/permissions/rules"))
+            .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+            .and(body_json(serde_json::json!({
+                "tool_name": "file_write", "arg_prefix": "/tmp/", "action": "allow", "scope": "global"
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({ "rule_id": 7 })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/permissions/rules"))
+            .and(body_json(serde_json::json!({
+                "tool_name": "file_write", "arg_prefix": null, "action": "allow", "scope": "project"
+            })))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "error": "unknown scope 'project', expected 'global' (a rule targets one agent or every agent)"
+            })))
+            .mount(&server)
+            .await;
+        let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+        let rule = |prefix: Option<&str>, scope: &str| AddPermissionRuleBody {
+            tool_name: "file_write".into(),
+            arg_prefix: prefix.map(str::to_owned),
+            action: "allow".into(),
+            scope: scope.into(),
+        };
+
+        // WHEN the attached arm adds both
+        let stored = add_rule_attached(&client, &rule(Some("/tmp/"), "global")).await;
+        let refused = add_rule_attached(&client, &rule(None, "project"))
+            .await
+            .unwrap_err();
+
+        // THEN the first is stored by the daemon and the second shows its words
+        assert!(stored.is_ok(), "{stored:?}");
+        assert!(refused.contains("unknown scope 'project'"), "{refused}");
+    }
 
     #[test]
     fn test_pending_approval_serializes_to_json() {

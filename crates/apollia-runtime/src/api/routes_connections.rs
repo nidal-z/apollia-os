@@ -51,7 +51,7 @@ pub(crate) async fn list_connections<B: ExecutionBackend + Clone>(
 }
 
 /// Connected accounts of every native provider.
-async fn native_accounts() -> Result<Vec<NativeAccounts>, ApiError> {
+pub(crate) async fn native_accounts() -> Result<Vec<NativeAccounts>, ApiError> {
     let manager = crate::connectors_bridge::get_auth()
         .await
         .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;

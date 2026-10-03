@@ -62,17 +62,30 @@ impl ChatSessionManager {
     /// `&ChatSessionManager` (which owns a `RefCell` via rusqlite) across the
     /// `find_by_name` await would make `run`'s future non-`Send`. Borrowing only
     /// the `Send + Sync` registry handle keeps the future spawnable.
+    ///
+    /// `declarative` is the agent an Agent-mode request names when it is a
+    /// declarative agent: it is run by the agent executor, not found in the
+    /// registry, so it needs a configured LLM and must be enabled.
     pub(in crate::chat::manager) async fn validate_create_request(
         registry_handle: &AgentRegistryHandle,
         llm_configured: bool,
         mode: ChatMode,
         agent_name: Option<&str>,
+        declarative: Option<&apollia_tools::ResolvedAgent>,
     ) -> Result<(), ChatError> {
         // Agent mode requires an agent name
         if mode == ChatMode::Agent && agent_name.is_none() {
             return Err(ChatError::AgentNotFound(
                 "agent_name is required for Agent mode".into(),
             ));
+        }
+
+        if let (ChatMode::Agent, Some(agent)) = (&mode, declarative) {
+            super::declarative::require_enabled(agent)?;
+            if !llm_configured {
+                return Err(ChatError::NoLlmConfigured);
+            }
+            return Ok(());
         }
 
         // Validate agent exists in the registry if agent mode
@@ -109,11 +122,18 @@ impl ChatSessionManager {
             tools,
             project_id,
         } = params;
+        let declarative = match (&mode, agent_name.as_deref()) {
+            (ChatMode::Agent, Some(name)) => {
+                super::declarative::declarative_agent(self.governance_db_path.as_deref(), name)
+            }
+            _ => None,
+        };
         Self::validate_create_request(
             &self.registry_handle,
             self.llm_router.is_some(),
             mode.clone(),
             agent_name.as_deref(),
+            declarative.as_ref(),
         )
         .await?;
 

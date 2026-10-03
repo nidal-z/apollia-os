@@ -201,7 +201,6 @@ async fn test_chat_agent_compacts_its_buffer_and_emits_context_compacted() {
         tool_invoker: Arc::new(NoInvoker),
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -247,7 +246,6 @@ async fn test_chat_agent_below_threshold_leaves_buffer_untouched() {
         tool_invoker: Arc::new(NoInvoker),
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });

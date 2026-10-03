@@ -27,22 +27,31 @@ impl BuiltInChatAgent {
     /// - `tool_search`, in deferred MCP mode: searches the granted MCP tools
     ///   and reads nothing else;
     /// - `todo_write`, when the conversation keeps a task list;
-    /// - the `plan_*` tools, while the conversation is in plan mode;
-    /// - the A2A skills of the loaded agents, through which an agent hands a
-    ///   request to another one.
+    /// - the `plan_*` tools, while the conversation is in plan mode.
+    ///
+    /// An agent or a workflow is offered only when granted (`agent:<id>`,
+    /// `workflow:<id>`), described by the agent's mission or the workflow's
+    /// description, and never the agent itself: no other agent, no A2A skill,
+    /// reaches the model on its own.
     ///
     /// A pre-authorization or an allow rule only spares a granted tool its
     /// approval: it never makes a tool callable.
     pub(in crate::chat::builtin_agent) async fn catalog(&self, granted: &[String]) -> Catalog {
+        let (calls, tools): (Vec<String>, Vec<String>) = granted
+            .iter()
+            .cloned()
+            .partition(|access| crate::composition::is_call_access(access));
         let mut specs = build_tool_specs(
-            granted,
+            &tools,
             &self.tool_registry,
             self.mcp_index.as_deref(),
             self.tool_search_limit,
         )
         .await;
-        if let Some(ref a2a) = self.a2a_invoker {
-            specs.extend(generate_a2a_tool_specs(a2a).await);
+        if let Some(composer) = &self.composer {
+            specs.extend(
+                crate::composition::tool_specs(composer.as_ref(), &calls, &self.agent_id).await,
+            );
         }
         if self.todo.is_some() {
             specs.push(todo_write_spec());
@@ -59,7 +68,7 @@ impl BuiltInChatAgent {
         // name is refused with a corrective tool result rather than handed to
         // the invoker.
         let mut callable: HashSet<String> = specs.iter().map(|s| s.name.clone()).collect();
-        callable.extend(granted.iter().cloned());
+        callable.extend(tools);
         if let Some(index) = self.mcp_index.as_deref() {
             callable.extend(
                 index

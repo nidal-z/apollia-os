@@ -20,8 +20,10 @@ class InvokeRequest:
     """Request body for `POST /api/v1/a2a/invoke`.
 
     Attributes:
-        input_ (InvokeRequestInput): JSON payload passed to the Worker Agent as input.
-        skill_id (str): Target skill identifier (e.g. `"read-excel"`).
+        input_ (InvokeRequestInput): JSON payload passed as input: the skill's payload, `{"message": ...}`
+            (or a bare string) for an agent, the typed inputs of a workflow.
+        skill_id (str): What to launch, as the card names it: a skill id (e.g.
+            `"read-excel"`), `agent:<id>` or `workflow:<package>/<name>`.
         caller (None | str | Unset): Caller name (Director Agent), used for observability.
         invocation_id (None | str | Unset): A name the client chooses for this invocation, so it can cancel it.
 

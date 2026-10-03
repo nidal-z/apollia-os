@@ -156,7 +156,7 @@ fn get_batch(
 }
 
 impl TaskRepository {
-    async fn blocking<T: Send + 'static>(
+    pub(super) async fn blocking<T: Send + 'static>(
         &self,
         f: impl FnOnce(&mut rusqlite::Connection) -> Result<T, TaskRepoError> + Send + 'static,
     ) -> Result<T, TaskRepoError> {

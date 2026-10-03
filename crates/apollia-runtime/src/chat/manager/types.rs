@@ -98,6 +98,10 @@ pub(in crate::chat::manager) struct AlwaysAcceptScopeCtx<'a> {
 /// spawned so the spawned future never captures the non-`Send` `&self`
 /// (the manager owns a `RefCell` via rusqlite).
 pub(in crate::chat::manager) struct LibreExchangeParams {
+    /// The agent the exchange runs: Apollia, or the declarative agent of an
+    /// agent session. Its model, connector accounts and journal entries are
+    /// resolved under this identifier.
+    pub(in crate::chat::manager) agent_id: String,
     pub(in crate::chat::manager) llm_router: Arc<LlmRouter>,
     pub(in crate::chat::manager) tool_registry: ToolRegistryHandle,
     pub(in crate::chat::manager) event_bus: EventBusSender,
@@ -112,7 +116,9 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// Runtime ceiling the tier's budget is capped by.
     pub(in crate::chat::manager) runtime_budget: StepBudgetConfig,
     pub(in crate::chat::manager) history: Vec<ChatMessage>,
-    pub(in crate::chat::manager) available_tools: Vec<String>,
+    /// The access of the agent: a list, or the reading family read when the
+    /// exchange starts.
+    pub(in crate::chat::manager) available_tools: apollia_tools::AgentAccess,
     pub(in crate::chat::manager) authorized_tools: std::collections::HashSet<String>,
     pub(in crate::chat::manager) system_prompt: String,
     pub(in crate::chat::manager) inject_project_context: bool,
@@ -127,8 +133,10 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
         apollia_tools::tools::ask_user::PendingUserInputs,
     pub(in crate::chat::manager) mcp_handle_for_session:
         Option<apollia_mcp::manager::McpClientManagerHandle>,
-    /// Executors of the package tools, built for the Apollia agent.
+    /// Executors of the package tools, built for the agent of the exchange.
     pub(in crate::chat::manager) package_tools: Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
+    /// Runs the agents and workflows the Apollia agent was granted.
+    pub(in crate::chat::manager) composer: Option<Arc<dyn crate::composition::Composer>>,
     pub(in crate::chat::manager) chat_tools_config_for_session: Option<Arc<ChatToolsConfig>>,
     pub(in crate::chat::manager) mcp_loading: LoadingMode,
     pub(in crate::chat::manager) tool_search_limit: usize,

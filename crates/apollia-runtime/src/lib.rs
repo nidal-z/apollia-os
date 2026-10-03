@@ -18,10 +18,14 @@ pub mod backend_keys;
 pub mod batch;
 pub mod chat;
 pub mod commands;
+pub mod composition;
 pub mod connections;
 pub mod connectors_bridge;
+pub mod conversation_stats;
 pub mod coordinator;
+pub mod drive_folders;
 pub mod embedded;
+pub mod engine_store;
 pub mod eventbus;
 pub mod governance;
 pub mod hooks;
@@ -30,9 +34,15 @@ pub mod llama_server;
 pub mod llama_server_backend;
 pub mod llm_timings;
 pub mod mailbox;
+pub mod memory_maintenance;
+pub mod memory_view;
+pub mod oauth_clients;
 pub mod observability;
+pub mod on_demand;
 pub mod package_tools;
+pub mod packages;
 pub mod perf_trace;
+pub mod permission_rules;
 pub mod plan_approval;
 pub mod profile;
 pub mod projects;
@@ -46,6 +56,8 @@ pub mod shutdown;
 pub mod stt;
 pub mod supervisor;
 pub mod timeout_watcher;
+pub mod tool_governance;
+pub mod workflows;
 
 #[cfg(test)]
 mod test_support;
@@ -72,8 +84,8 @@ pub use mailbox::{AgentMailboxHandle, AgentMessage, MailboxError};
 // A2A routing
 pub use a2a::{
     make_delegate_fn, resolve_skill, A2AAgentCard, A2AError, A2AInvocationResult, A2AInvokeRequest,
-    A2AInvoker, A2ASkillInfo, A2AToolsProvider, A2aDelegateFn, A2aDelegateResult, A2aError,
-    A2aErrorResponse, SkillListing,
+    A2AInvoker, A2ASkillInfo, A2aDelegateFn, A2aDelegateResult, A2aError, A2aErrorResponse,
+    SkillListing,
 };
 
 // Chat subsystem

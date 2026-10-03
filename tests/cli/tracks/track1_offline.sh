@@ -339,6 +339,18 @@ check_exit "package inspect (tampered after signing) → 1" 1 "$BIN" package ins
 printf "@workflow(name='report', steps=['a'])\nasync def report(ctx, inputs):\n    pass\n" > "$PKG/tools/report.py"
 check_exit "package build (undescribed module) → 1" 1 "$BIN" package build "$PKG" -o "$SCRATCH/e2e-bad.apo"
 check_exit "package inspect (not an archive) → 1"   1 "$BIN" package inspect "$PKG/apollia.toml"
+# The preview, the installation and the keyring go through the runtime: with no
+# runtime they answer 2. A package file that does not exist is refused before
+# the runtime is reached, 1.
+PKGOFF="$RUN_TMP/package-off.sock"
+E2E_KEY="ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c"
+check_exit "package preview (runtime absent) → 2"       2 "$BIN" --socket "$PKGOFF" package preview "$SCRATCH/e2e.apo"
+check_exit "package install (runtime absent) → 2"       2 "$BIN" --socket "$PKGOFF" package install "$SCRATCH/e2e.apo"
+check_exit "package preview (missing file) → 1"         1 "$BIN" --socket "$PKGOFF" package preview "$SCRATCH/no-such.apo"
+check_exit "package install --json (missing file) → 1"  1 "$BIN" --socket "$PKGOFF" package install "$SCRATCH/no-such.apo" --json
+check_exit "package trust import (runtime absent) → 2"  2 "$BIN" --socket "$PKGOFF" package trust import "$E2E_KEY" --label "E2E"
+check_exit "package trust list (runtime absent) → 2"    2 "$BIN" --socket "$PKGOFF" package trust list
+check_exit "package trust remove (runtime absent) → 2"  2 "$BIN" --socket "$PKGOFF" package trust remove "$E2E_KEY" --confirm
 
 # ── A.13b organisation policy (files only) ──────────────────────────────────
 # The key pair and the policy folder are prepared under the scratch folder;
@@ -425,6 +437,17 @@ check_exit   "batch pause without id → 1"      1     "$BIN" --socket "$OFFSOCK
 check_exit   "batch export (off) → 2"          2     "$BIN" --socket "$OFFSOCK" batch export 00000000-0000-0000-0000-000000000000 --format xlsx
 check_exit   "batch export --json (off) → 2"   2     "$BIN" --socket "$OFFSOCK" --json batch export 00000000-0000-0000-0000-000000000000 --format csv -o -
 check_exit   "batch export bad --format → 1"   1     "$BIN" --socket "$OFFSOCK" batch export 00000000-0000-0000-0000-000000000000 --format pdf
+# A workflow runs in the runtime: daemon off, each leaf refuses with 2; an
+# identifier without its package, a malformed --input, or a stop without
+# --confirm off a terminal is a usage error, 1, before any call.
+check_exit   "workflow run (off) → 2"          2     "$BIN" --socket "$OFFSOCK" workflow run invoices/close-month --input folder=/data/march
+check_exit   "workflow run --json (off) → 2"   2     "$BIN" --socket "$OFFSOCK" --json workflow run invoices/close-month --input folder=/data/march --wait
+check_exit   "workflow status (off) → 2"       2     "$BIN" --socket "$OFFSOCK" workflow status 00000000-0000-0000-0000-000000000000
+check_exit   "workflow logs --json (off) → 2"  2     "$BIN" --socket "$OFFSOCK" --json workflow logs invoices/close-month
+check_exit   "workflow cancel (off) → 2"       2     "$BIN" --socket "$OFFSOCK" workflow cancel 00000000-0000-0000-0000-000000000000 --confirm
+check_exit   "workflow cancel no confirm → 1"  1     "$BIN" --socket "$OFFSOCK" --json workflow cancel 00000000-0000-0000-0000-000000000000
+check_exit   "workflow run bare name → 1"      1     "$BIN" --socket "$OFFSOCK" workflow run close-month
+check_exit   "workflow run bad --input → 1"    1     "$BIN" --socket "$OFFSOCK" workflow run invoices/close-month --input folder
 # Usage errors are exit 1 by contract (1 = usage, 2 = runtime): a script can
 # tell a typo from a stopped daemon.
 check_exit   "clap usage refusal → 1"  1  "$BIN" agent list --bogus

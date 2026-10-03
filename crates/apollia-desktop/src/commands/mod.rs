@@ -142,8 +142,9 @@ pub(crate) async fn http_get_json(port: u16, path: &str) -> Result<serde_json::V
 
 /// Sends a POST request with a JSON body to the internal REST API.
 ///
-/// Used for `start_agent`, `resume_task`, and the graceful shutdown via the
-/// tray, which need complex operations handled by the REST handlers.
+/// Used to register an installed agent, for `resume_task`, and for the
+/// graceful shutdown via the tray, which need complex operations handled by
+/// the REST handlers.
 pub(crate) async fn http_post_json(
     port: u16,
     path: &str,

@@ -2,7 +2,7 @@
   /**
    * Prominent A2A badge.
    *
-   * Surfaces the pool of active worker agents that the current conversation can
+   * Surfaces the pool of available worker agents that the current conversation can
    * delegate to. Click opens a popover listing each worker with its live status
    * and declared skills (as colored chips).
    *
@@ -22,6 +22,7 @@
   import { listAgents } from "$lib/ipc/connections";
   import { listA2aSkills } from "$lib/ipc/agents";
   import A2AWorkerSkillChip from "./A2AWorkerSkillChip.svelte";
+  import { availability, isAvailable, statusLabel } from "../agents/agentStatus";
 
   let open = $state(false);
   let agents = $state<AgentListItem[]>([]);
@@ -33,7 +34,7 @@
   );
 
   const activeWorkers = $derived(
-    workers.filter((w) => w.runtime_status === "active"),
+    workers.filter((w) => isAvailable(w)),
   );
 
   const skillsByAgent = $derived.by(() => {
@@ -63,15 +64,12 @@
     await refresh();
   });
 
-  function statusTone(status: AgentListItem["runtime_status"]): string {
-    switch (status) {
-      case "active":
+  function statusTone(worker: AgentListItem): string {
+    switch (availability(worker)) {
+      case "available":
         return "text-success";
       case "degraded":
         return "text-warning";
-      case "initializing":
-      case "stopping":
-        return "text-info";
       default:
         return "text-muted-foreground/50";
     }
@@ -116,13 +114,13 @@
               <div class="flex items-center gap-1.5">
                 <Dot
                   size={18}
-                  class="-m-1 shrink-0 {statusTone(worker.runtime_status)}"
+                  class="-m-1 shrink-0 {statusTone(worker)}"
                 />
                 <span class="flex-1 truncate text-body-xs font-medium text-foreground">
                   {worker.name}
                 </span>
-                <span class="shrink-0 text-micro-xs uppercase tracking-wider {statusTone(worker.runtime_status)}">
-                  {worker.runtime_status ?? $t("chat.a2a_worker_stopped")}
+                <span class="shrink-0 text-micro-xs uppercase tracking-wider {statusTone(worker)}">
+                  {statusLabel(worker, $t)}
                 </span>
               </div>
               {#if worker.description}

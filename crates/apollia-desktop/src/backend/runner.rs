@@ -24,7 +24,7 @@ use apollia_oria::budget::StepBudget;
 use apollia_oria::engine::{AgentRunner, ORIAEngine};
 use apollia_oria::plan_cache::PlanCacheRepository;
 use apollia_oria::PendingPlanGates;
-use apollia_runtime::a2a::{A2AInvoker, A2AToolsProvider};
+use apollia_runtime::a2a::A2AInvoker;
 use apollia_runtime::coordinator::{CancellationToken, ExecutionBackend};
 use apollia_runtime::eventbus::EventBusSender;
 use apollia_runtime::mailbox::AgentMailboxHandle;
@@ -288,7 +288,7 @@ impl AgentRunner for BridgeRunner {
         let llm_router = self.llm_router.clone();
         let event_bus = self.event_bus.clone();
         let agent_id = self.agent_id.clone();
-        let mut allowed_tools = self.allowed_tools.clone();
+        let allowed_tools = self.allowed_tools.clone();
         let tool_registry = self.tool_registry.clone();
         let audit_trail = self.audit_trail.clone();
         let memory_namespace = self.memory_namespace.clone();
@@ -344,10 +344,6 @@ impl AgentRunner for BridgeRunner {
                 Default::default()
             });
 
-            // Augment allowed_tools with live A2A virtual skills (`a2a:*`).
-            // Without this, even when ToolProxy gets `.with_a2a(...)`, the
-            // ToolRegistry filter would reject the call as "unknown tool".
-            augment_allowed_tools_with_a2a(&mut allowed_tools, &a2a_invoker).await;
             // An access to a connector tool without its account names the
             // single connected account, or nothing.
             let allowed_tools = apollia_runtime::connectors_bridge::resolve_connector_access(
@@ -549,25 +545,6 @@ pub(crate) fn llm_router_snapshot(
     lock.read()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .clone()
-}
-
-/// Add live A2A virtual skills (`a2a:*`) to the allowed-tools list.
-///
-/// Without this, even when `ToolProxy` gets `.with_a2a(...)`, the `ToolRegistry`
-/// filter would reject the call as "unknown tool".
-async fn augment_allowed_tools_with_a2a(
-    allowed_tools: &mut Vec<String>,
-    a2a_invoker: &Option<Arc<A2AInvoker>>,
-) {
-    let Some(invoker) = a2a_invoker else { return };
-    let descriptors = A2AToolsProvider::new(Arc::clone(invoker))
-        .build_tool_descriptors()
-        .await;
-    for desc in descriptors {
-        if !allowed_tools.iter().any(|n| n == &desc.name) {
-            allowed_tools.push(desc.name);
-        }
-    }
 }
 
 /// Build one `McpToolExecutor` per registered MCP tool so the agent's

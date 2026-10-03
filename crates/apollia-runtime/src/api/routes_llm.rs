@@ -559,6 +559,10 @@ pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
 // Tests
 // ─────────────────────────────────────────────
 
+// The engine routes' tests build their state with the same helper.
+#[cfg(test)]
+pub(crate) use tests::{test_app_state_no_llm, MockBackend};
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -643,6 +647,7 @@ pub mod tests {
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
+            workflows: None,
         }
     }
 

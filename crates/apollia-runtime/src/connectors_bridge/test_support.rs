@@ -46,7 +46,7 @@ impl SecretStore for MemoryStore {
 /// An authentication manager holding, for each `(account, token)` of
 /// `tokens`, a token of `provider` that never expires. The index lives in
 /// `dir`.
-pub(super) async fn auth_with_tokens(
+pub(crate) async fn auth_with_tokens(
     dir: &std::path::Path,
     provider: ConnectorProvider,
     tokens: &[(&str, &str)],

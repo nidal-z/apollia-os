@@ -1,8 +1,10 @@
 //! Writing a conversation to disk and revealing it in the system file browser.
 //! The frontend owns the formatting; these commands own the path.
 
-use apollia_runtime::embedded::RuntimeHandle;
+use apollia_runtime::api::routes_chat::session_reads::SessionWorkspace;
 use tauri::State;
+
+use crate::attached::{segment, AttachedClient, AttachedError, RuntimeLink};
 
 /// Writes exported conversation content to disk.
 ///
@@ -38,10 +40,14 @@ pub async fn export_conversation(
 /// is revealed best-effort; a reveal failure returns an error the frontend
 /// swallows, so a click is never a hard failure but also never silently
 /// misleading.
+///
+/// The file manager is the one of the machine carrying this window, in both
+/// modes; attached, only the workspace is read from the daemon, over
+/// [`workspace_path`].
 #[tauri::command]
 pub async fn reveal_session_path(
     app: tauri::AppHandle,
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     session_id: String,
     path: String,
 ) -> Result<(), String> {
@@ -57,9 +63,25 @@ pub async fn reveal_session_path(
     let resolved = match expand_absolute_path(&path) {
         Some(abs) => abs,
         None => {
-            let workspace = match state.chat_manager.as_ref() {
-                Some(manager) => manager.resolve_session_workspace(session_id.clone()).await,
-                None => None,
+            let workspace = match link.inner() {
+                RuntimeLink::Embedded(runtime) => match runtime.chat_manager.as_ref() {
+                    Some(manager) => manager.resolve_session_workspace(session_id.clone()).await,
+                    None => None,
+                },
+                RuntimeLink::Attached(remote) => {
+                    match daemon_workspace(remote, &session_id).await {
+                        Ok(workspace) => workspace,
+                        Err(error) => {
+                            tracing::event!(
+                                tracing::Level::WARN,
+                                session_id = %session_id,
+                                error = %error,
+                                "chat.reveal_session_path.workspace_unread"
+                            );
+                            None
+                        }
+                    }
+                }
             };
             match workspace {
                 Some(ws) => ws.join(&path),
@@ -93,6 +115,21 @@ pub async fn reveal_session_path(
             Err(format!("failed to reveal path: {e}"))
         }
     }
+}
+
+/// The daemon route of the working directory of `session_id`.
+pub(crate) fn workspace_path(session_id: &str) -> String {
+    format!("/api/v1/sessions/{}/workspace", segment(session_id))
+}
+
+/// The working directory of `session_id` as the daemon resolves it, `None`
+/// when none resolves.
+pub(crate) async fn daemon_workspace(
+    remote: &AttachedClient,
+    session_id: &str,
+) -> Result<Option<std::path::PathBuf>, AttachedError> {
+    let answer: SessionWorkspace = remote.get(&workspace_path(session_id)).await?;
+    Ok(answer.workspace.map(std::path::PathBuf::from))
 }
 
 /// Expand a path that is absolute without a working directory: a POSIX root
