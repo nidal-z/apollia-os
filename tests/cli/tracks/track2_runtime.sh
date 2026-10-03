@@ -68,6 +68,9 @@ check_exit    "mcp show removed server → 1"  1     "${Q[@]}" mcp show notes
 # spawn error (ENOENT), well before the 30s init timeout a bad-but-spawnable
 # command would hit; nothing is persisted on that path.
 check_exit    "mcp add (unspawnable command) → 1"  1 "${Q[@]}" mcp add e2e-ghost --command /nonexistent-mcp-server-binary
+# The seeded apollia.toml leaves `mcp.server_enabled` off, so the daemon
+# refuses the MCP bridge with a reason that names the setting.
+check_exit    "mcp server (bridge off) → 2"  2    bash -c "'${Q[0]}' ${Q[*]:1} mcp server </dev/null"
 skip          "mcp add (live server)" "needs a single-binary MCP server; a bad-but-spawnable command blocks 30s on init timeout (seeded servers cover show/test/restart/update/remove)"
 
 # ── tools / audit ───────────────────────────────────────────────────────────

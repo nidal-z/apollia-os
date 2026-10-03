@@ -2650,7 +2650,7 @@ MCP server management (list, add, remove, show, test, restart, update, raw-confi
 * `raw-config` - Show the raw persisted configuration of an MCP server
 * `oauth` - Interactive OAuth (PKCE) management for HTTP/streamable-http MCP servers
 * `secret` - Manage MCP server secrets (env-var values) in the OS keychain
-* `server` - Launch Apollia as an MCP stdio server for external clients
+* `server` - Serve the exposed agents and workflows to an MCP client over stdio
 
 
 
@@ -3027,22 +3027,11 @@ Delete the stored secret for `(<server>, <env_var>)`
 
 ## `apollia-os mcp server`
 
-Launch Apollia as an MCP stdio server for external clients.
+Serve the exposed agents and workflows to an MCP client over stdio.
 
-Exposes native tools to MCP clients (Claude Desktop, VS Code, Cursor). Use `--with-runtime` to additionally expose `submit_task`.
+A bridge to the running daemon: an MCP client (an editor, another assistant) spawns it and sees the agents and workflows marked exposed, and nothing else. The daemon refuses it until `mcp.server_enabled` is turned on.
 
-**Usage:** `apollia-os mcp server [OPTIONS]`
-
-###### **Options:**
-
-* `--with-runtime` - Enable the `submit_task` tool by starting the full Apollia runtime.
-
-   Without this flag, only the 9 stateless native tools are exposed.
-
-  Default value: `false`
-* `--sandbox-root <PATH>` - Sandbox root for file tools (default: user home directory).
-
-   File operations are restricted to this directory tree.
+**Usage:** `apollia-os mcp server`
 
 
 

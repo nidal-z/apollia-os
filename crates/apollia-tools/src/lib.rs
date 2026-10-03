@@ -39,6 +39,7 @@ pub mod default_access;
 pub mod descriptor;
 pub mod dispatcher_invoker;
 pub mod executor;
+pub mod exposed_items;
 pub mod file_path_extractor;
 pub mod governance_db;
 pub mod granted_access;
@@ -73,6 +74,7 @@ pub use descriptor::{
 pub use executor::{
     SessionToolFilter, ToolBatchCall, ToolDispatcher, ToolExecutionError, ToolExecutor,
 };
+pub use exposed_items::{ExposedItem, ExposedItemError, ExposedItemRepository, ExposedKind};
 pub use file_path_extractor::FilePathExtractor;
 pub use governance_db::{
     GovernanceDb, GovernanceError, GOVERNANCE_DB_FILENAME, LEGACY_BACKUP_FILENAME,

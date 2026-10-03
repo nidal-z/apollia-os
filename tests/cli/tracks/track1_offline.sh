@@ -239,9 +239,14 @@ check_exit   "mcp oauth logout (no --confirm)"  1    "$BIN" mcp oauth logout som
 # so an unconfigured name is a deterministic, offline refusal.
 check_exit   "mcp oauth login (unconfigured server) → 1"    1 "$BIN" mcp oauth login e2e-unconfigured
 check_exit   "mcp oauth discover (unconfigured server) → 1" 1 "$BIN" mcp oauth discover e2e-unconfigured
-# `mcp server` speaks JSON-RPC over stdio and exits cleanly on stdin EOF; the
-# explicit /dev/null keeps it from blocking on a terminal when run by hand.
-check        "mcp server exits on stdin EOF"         bash -c "'$BIN' mcp server </dev/null"
+# `mcp server` is a stdio bridge to the daemon and serves no tool of its own:
+# with no daemon on its socket it stops at once, exit 2, naming the command
+# that starts one. The native-tool flags it used to take are gone.
+MCP_OFF="$RUN_TMP/mcp-off.sock"
+check_exit   "mcp server (no daemon) → 2"  2         bash -c "'$BIN' --socket '$MCP_OFF' mcp server </dev/null"
+check        "mcp server (no daemon) names apollia-os start" bash -c "out=\$('$BIN' --socket '$MCP_OFF' mcp server </dev/null 2>&1); [[ \$out == *'apollia-os start'* ]] || { echo \"\$out\"; false; }"
+check_exit   "mcp server --with-runtime (retired) → 1"  1 "$BIN" mcp server --with-runtime
+check_exit   "mcp server --sandbox-root (retired) → 1"  1 "$BIN" mcp server --sandbox-root /tmp
 
 # ── A.10 chat hygiene (4 seeded sessions) ───────────────────────────────────
 section "A.10 chat hygiene"

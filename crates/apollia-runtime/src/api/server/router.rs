@@ -389,6 +389,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(imap_router::<B>())
         .merge(crate::api::routes_batches::batch_routes::<B>())
         .merge(crate::api::routes_workflows::workflow_routes::<B>())
+        .merge(crate::api::routes_mcp_bridge::mcp_bridge_routes::<B>())
         .merge(crate::api::routes_packages::package_routes::<B>())
         .merge(crate::api::routes_agent_packages::agent_package_routes::<B>())
         .with_state(state)

@@ -211,6 +211,17 @@ from .loaded_models_response import LoadedModelsResponse
 from .logs_response import LogsResponse
 from .logs_response_entries_item import LogsResponseEntriesItem
 from .mailbox_message_row import MailboxMessageRow
+from .mcp_bridge_call import McpBridgeCall
+from .mcp_bridge_call_arguments import McpBridgeCallArguments
+from .mcp_bridge_call_result import McpBridgeCallResult
+from .mcp_bridge_error_body import McpBridgeErrorBody
+from .mcp_bridge_tool import McpBridgeTool
+from .mcp_bridge_tool_input_schema import McpBridgeToolInputSchema
+from .mcp_bridge_tool_list import McpBridgeToolList
+from .mcp_exposed_item import McpExposedItem
+from .mcp_exposed_item_list import McpExposedItemList
+from .mcp_exposed_item_state import McpExposedItemState
+from .mcp_exposure import McpExposure
 from .memory_entry_deleted import MemoryEntryDeleted
 from .memory_entry_view import MemoryEntryView
 from .memory_imported import MemoryImported
@@ -657,6 +668,17 @@ __all__ = (
     "LogsResponse",
     "LogsResponseEntriesItem",
     "MailboxMessageRow",
+    "McpBridgeCall",
+    "McpBridgeCallArguments",
+    "McpBridgeCallResult",
+    "McpBridgeErrorBody",
+    "McpBridgeTool",
+    "McpBridgeToolInputSchema",
+    "McpBridgeToolList",
+    "McpExposedItem",
+    "McpExposedItemList",
+    "McpExposedItemState",
+    "McpExposure",
     "MemoryEntryDeleted",
     "MemoryEntryView",
     "MemoryImported",

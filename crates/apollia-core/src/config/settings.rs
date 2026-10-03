@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use serde_json::Value;
 
-use super::DesktopConfig;
+use super::{DesktopConfig, McpConfig};
 
 /// Where the value of a resolved setting comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -144,6 +144,9 @@ fn defaults() -> serde_json::Map<String, Value> {
     // its keys unknown, never a wrong value.
     if let Ok(desktop) = serde_json::to_value(DesktopConfig::default()) {
         sections.insert("desktop".to_owned(), desktop);
+    }
+    if let Ok(mcp) = serde_json::to_value(McpConfig::default()) {
+        sections.insert("mcp".to_owned(), mcp);
     }
     sections
 }

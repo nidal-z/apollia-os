@@ -1010,29 +1010,28 @@ fn test_cli_parses_mcp_revoke_approval() {
 }
 
 #[test]
-fn test_cli_parses_mcp_server_with_runtime() {
-    // GIVEN "apollia-os mcp server --with-runtime --sandbox-root /tmp/box"
+fn test_cli_parses_mcp_server() {
+    // GIVEN "apollia-os mcp server"
     // WHEN the top-level parser reads it
-    let cli = parse(&[
-        "apollia-os",
-        "mcp",
-        "server",
-        "--with-runtime",
-        "--sandbox-root",
-        "/tmp/box",
-    ]);
-    // THEN the server arguments are carried in their flattened struct
+    let cli = parse(&["apollia-os", "mcp", "server"]);
+    // THEN it is the bridge, which takes no tool flag
     let Commands::Mcp {
-        command: McpCommand::Server(args),
+        command: McpCommand::Server,
     } = cli.command
     else {
         panic!("expected mcp server");
     };
-    assert!(args.with_runtime);
-    assert_eq!(
-        args.sandbox_root,
-        Some(std::path::PathBuf::from("/tmp/box"))
-    );
+}
+
+#[test]
+fn test_cli_refuses_the_retired_mcp_server_flags() {
+    // GIVEN the flags the native-tool server used to take
+    for flag in ["--with-runtime", "--sandbox-root"] {
+        // WHEN the parser reads them
+        let parsed = Cli::try_parse_from(["apollia-os", "mcp", "server", flag]);
+        // THEN they are refused
+        assert!(parsed.is_err(), "{flag} must be refused");
+    }
 }
 
 // ─── config ──────────────────────────────────────────────────────────────────
