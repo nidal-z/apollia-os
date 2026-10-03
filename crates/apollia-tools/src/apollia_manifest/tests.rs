@@ -465,7 +465,8 @@ fn test_the_manifest_the_python_sdk_writes_is_read_as_written() {
     // WHEN it is parsed with the strict schema
     let m = parse(&text).expect("the SDK writes nothing the schema refuses");
 
-    // THEN every descriptor is read, with its family, steps and inputs
+    // THEN every descriptor is read, with its family, steps and inputs, the
+    //      date, long text and file inputs with their format, in their order
     let tools: Vec<(&str, bool)> = m
         .tools
         .iter()
@@ -476,7 +477,19 @@ fn test_the_manifest_the_python_sdk_writes_is_read_as_written() {
     assert_eq!(workflow.name, "close-month");
     assert_eq!(workflow.steps, ["extract", "file"]);
     assert_eq!(workflow.action, ActionFamily::WriteOrDelete);
-    assert!(workflow.inputs.is_some());
+    let inputs = workflow
+        .inputs
+        .as_ref()
+        .expect("the workflow declares inputs");
+    let format = |name: &str| inputs["properties"][name]["format"].as_str();
+    assert_eq!(format("closing_day"), Some("date"));
+    assert_eq!(format("note"), Some("long-text"));
+    assert_eq!(format("ledger"), Some("file-path"));
+    assert_eq!(format("folder"), None);
+    assert_eq!(
+        inputs["x-order"],
+        serde_json::json!(["folder", "notify", "closing_day", "note", "ledger"])
+    );
 }
 
 #[test]

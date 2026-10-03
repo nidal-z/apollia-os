@@ -331,7 +331,7 @@ enum Commands {
         command: commands::batch::BatchCommand,
     },
 
-    /// Run the workflows of installed packages (run, status, logs, cancel).
+    /// Run the workflows of installed packages (show, run, status, logs, cancel).
     Workflow {
         /// Workflow subcommand.
         #[command(subcommand)]

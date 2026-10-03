@@ -12,7 +12,7 @@ sidebar_position: 4
 
 - Apollia running.
 - A Microsoft account, personal or professional.
-- Your **Data sovereignty** setting, in **Settings, Profile**, is not on *Strictly local*, and has been answered at least once.
+- Your organisation's policy, if it has deployed one, does not deny remote connections.
 - If your Entra ID tenant requires administrative approval, the administrator has to pre-approve the application.
 - An active internet connection.
 
@@ -121,7 +121,7 @@ Clearing the field again restores the identifier shipped with Apollia. Existing 
 - **Consent refused at the Microsoft screen**: a managed Entra ID tenant often requires an organization-level approval before an external application may be used at all. The error text comes from Microsoft, not from Apollia, and it names the tenant policy at fault. Ask your administrator to pre-approve the application, or use a personal Microsoft account.
 - **`outlook.send` fails on a recipient**: Microsoft Graph validates recipients more strictly than Google does. Apollia surfaces Graph's own error verbatim, prefixed with the HTTP status. Check the target address and make sure there is no dead alias.
 - **OneDrive write refused**: that is expected in v0.1.0, OneDrive is read-only.
-- **Connecting stops on the sovereignty profile**: the dialog says cloud connectors are off in your profile, which also happens when the onboarding never asked the question. It offers to keep strictly local or to allow cloud and continue; the second writes **Data sovereignty** to *Cloud allowed* in **Settings, Profile**.
+- **Connecting stops with "Refused by your organisation's policy"**: your organisation's policy denies connections to online services on this computer, and nothing was sent to Microsoft. Only the person who manages that policy can grant an exception.
 
 ## Disconnecting an account
 

@@ -18,8 +18,10 @@ from apollia.skills import skill
 from apollia.tool_decorator import tool
 from apollia.types import (
     Ctx,
+    FileInput,
     ImageContent,
     LlmMessage,
+    LongText,
     MapItemResult,
     Message,
     MessageContent,
@@ -44,8 +46,10 @@ __all__ = [
     # Ctx Protocol surface
     "Ctx",
     "DomainError",
+    "FileInput",
     "ImageContent",
     "LlmMessage",
+    "LongText",
     "MapItemResult",
     # Multi-modal types
     "Message",
