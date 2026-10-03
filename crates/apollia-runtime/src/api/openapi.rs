@@ -333,6 +333,8 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_model_hub::search_registry,
         crate::api::routes_model_hub::recommend_models,
         crate::api::routes_model_hub::get_registry_model,
+        crate::api::routes_model_hub::get_recommendations,
+        crate::api::routes_model_hub::installed::list_installed_models,
         crate::api::routes_engines::list_engines,
         crate::api::routes_engines::get_engine_settings,
         crate::api::routes_engines::set_engine_settings,
