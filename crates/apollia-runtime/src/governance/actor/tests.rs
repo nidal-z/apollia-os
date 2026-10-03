@@ -164,14 +164,10 @@ async fn test_external_write_is_picked_up() {
         .unwrap();
 
     // THEN a decision reads it within a few refresh periods
-    let mut allowed = false;
-    for _ in 0..50 {
-        if governance.decide(&write_call("file_write")).is_allowed() {
-            allowed = true;
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
+    let allowed = crate::test_support::poll_until(Duration::from_secs(5), || {
+        governance.decide(&write_call("file_write")).is_allowed()
+    })
+    .await;
     assert!(
         allowed,
         "the actor never read the consent written outside it"

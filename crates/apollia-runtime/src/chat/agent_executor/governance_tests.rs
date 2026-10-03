@@ -130,19 +130,20 @@ async fn run_off_chat_write(unattended: bool) -> OffChatRun {
         tokio::spawn(async move {
             let mut raised = Vec::new();
             let mut ran_before_answer = 0;
-            while let Ok(Ok(event)) =
-                tokio::time::timeout(Duration::from_secs(5), events.recv()).await
-            {
-                if let RuntimeEvent::ChatApprovalRequired { tool_call_id, .. } = event {
-                    ran_before_answer = ran.load(Ordering::SeqCst);
-                    raised.push(tool_call_id.clone());
-                    let key = format!("task-1::task-1::{tool_call_id}");
-                    crate::test_support::poll_until(Duration::from_secs(5), || {
-                        approvals.resolve(&key, ToolDecision::refuse())
-                    })
-                    .await;
-                    break;
-                }
+            let (seen, _) = crate::test_support::collect_events_until(
+                Duration::from_secs(5),
+                &mut events,
+                |event| matches!(event, RuntimeEvent::ChatApprovalRequired { .. }),
+            )
+            .await;
+            if let Some(RuntimeEvent::ChatApprovalRequired { tool_call_id, .. }) = seen.last() {
+                ran_before_answer = ran.load(Ordering::SeqCst);
+                raised.push(tool_call_id.clone());
+                let key = format!("task-1::task-1::{tool_call_id}");
+                crate::test_support::poll_until(Duration::from_secs(5), || {
+                    approvals.resolve(&key, ToolDecision::refuse())
+                })
+                .await;
             }
             (raised, ran_before_answer)
         })
