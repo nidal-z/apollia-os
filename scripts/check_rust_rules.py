@@ -268,6 +268,12 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-cli/src/commands/eval.rs": 1,
     "crates/apollia-cli/src/commands/start.rs": 1,
     "crates/apollia-core/src/net.rs": 1,
+    # The environment is the subject: the configuration file has to follow
+    # `HOME`, and swapping that variable inside the test binary would race
+    # every other test reading it. The test re-runs itself as a child with a
+    # temporary `HOME`, which is the only way to observe it without a lock
+    # over the whole process environment.
+    "crates/apollia-core/src/paths.rs": 1,
     "crates/apollia-core/src/subprocess_env.rs": 3,
     "crates/apollia-core/src/subprocess_window.rs": 2,
     # The network is the subject: the IMAP client is proven against a fake
@@ -334,6 +340,11 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # Same helper and same reason for Node.js, published in the same signed
     # manifest: the fake server counts the archive requests.
     "crates/apollia-runtime/src/engine_store/node/tests.rs": 1,
+    # The listener is the subject: the compatible server is a second TCP
+    # listener, and "nothing listens", "the port is taken" and "the port
+    # refuses after a stop" are only observable on a real port. One helper,
+    # borrowed by the route and supervisor tests of the same server.
+    "crates/apollia-runtime/src/compat_server/tests.rs": 1,
     "crates/apollia-runtime/src/hooks/executor.rs": 7,
     # The process is the subject: unloading a resident model has to stop its
     # child, and `kill -0` on the pid is the one observable left once the

@@ -389,6 +389,7 @@ Start the runtime in foreground
 ###### **Options:**
 
 * `--port <PORT>` - TCP port to listen on (default: 7771)
+* `--config <PATH>` - Configuration file to load instead of `~/.apollia/apollia.toml`
 
 
 
@@ -524,7 +525,7 @@ Display detailed information about an agent, with its definition as resolved (pa
 
 Override one field of an agent's definition; a package update keeps it.
 
-Fields: `name`, `mission`, `autonomy` and `profile` (a profile identifier, see `profile list`) take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). Recorded in the audit journal.
+Fields: `name`, `mission`, `autonomy` and `profile` (a profile identifier, see `profile list`) take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). The source `profile` lets the agent read your profile through `ctx.profile`: `agent set <id> sources profile` checks it, a list without it unchecks it, and `agent reset --field sources` goes back to the package default. Recorded in the audit journal.
 
 **Usage:** `apollia-os agent set <AGENT_ID> <FIELD> [VALUES]...`
 
@@ -1601,7 +1602,7 @@ Without flags, prints the cost table. Use `--get-threshold` to print `[llm] cost
 
 * `--get-threshold` - Read the cost alert threshold from `apollia.toml` instead of the cost table
 * `--threshold <USD>` - Set the cost alert threshold (USD). Writes `[llm] cost_alert_threshold_usd = N` to `apollia.toml`. Pass `0` or a negative value to clear the threshold
-* `--config <PATH>` - Optional `apollia.toml` path override. Without it, the same file the runtime loads at startup: `./apollia.toml` when the working directory holds one, otherwise `$XDG_CONFIG_HOME/apollia/apollia.toml` (default `~/.config/apollia/apollia.toml`)
+* `--config <PATH>` - Optional `apollia.toml` path override. Without it, the same file the runtime loads at startup: `~/.apollia/apollia.toml`
 
 
 

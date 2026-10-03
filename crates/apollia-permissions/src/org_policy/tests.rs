@@ -599,3 +599,71 @@ fn test_missing_policy_file_is_invalid_schema() {
     // THEN the schema is the reason
     assert_eq!(reason_of(&verdict), Some(PolicyInvalidReason::Schema));
 }
+
+#[test]
+fn test_require_model_hash_fixes_the_import_rule_to_true() {
+    // GIVEN a correctly signed folder requiring a model hash, whose [settings]
+    //   tries to leave the import rule off
+    let root = tempfile::tempdir().unwrap();
+    let dir = write_policy_dir(
+        root.path(),
+        &format!(
+            "{MINIMAL_POLICY}[inference]\nrequire_model_hash = true\n\
+             [settings]\n\"models.import.require_verified\" = false\n"
+        ),
+    );
+
+    // WHEN the settings it fixes are read
+    let imposed = load(&dir).imposed_settings();
+
+    // THEN the import rule is fixed to true
+    assert_eq!(
+        imposed.imposed(crate::REQUIRE_VERIFIED_SETTING),
+        Some(&serde_json::json!(true))
+    );
+}
+
+#[test]
+fn test_settings_fix_the_guardrail_and_the_model_registry() {
+    // GIVEN a correctly signed folder fixing the guardrail level and cutting
+    //   the model registry
+    let root = tempfile::tempdir().unwrap();
+    let dir = write_policy_dir(
+        root.path(),
+        &format!(
+            "{MINIMAL_POLICY}[settings]\n\"llm.guardrails.level\" = \"strict\"\n\
+             \"models.registry_enabled\" = false\n"
+        ),
+    );
+
+    // WHEN it is read
+    let verdict = load(&dir);
+    let imposed = verdict.imposed_settings();
+
+    // THEN it is valid and both keys are fixed at their values
+    assert!(matches!(verdict, PolicyVerdict::Valid(_)), "{verdict:?}");
+    assert_eq!(
+        imposed.imposed("llm.guardrails.level"),
+        Some(&serde_json::json!("strict"))
+    );
+    assert_eq!(
+        imposed.imposed("models.registry_enabled"),
+        Some(&serde_json::json!(false))
+    );
+}
+
+#[test]
+fn test_a_guardrail_level_the_guardrail_does_not_know_is_invalid_schema() {
+    // GIVEN a correctly signed folder fixing an unknown guardrail level
+    let root = tempfile::tempdir().unwrap();
+    let dir = write_policy_dir(
+        root.path(),
+        &format!("{MINIMAL_POLICY}[settings]\n\"llm.guardrails.level\" = \"relaxed\"\n"),
+    );
+
+    // WHEN it is read
+    let verdict = load(&dir);
+
+    // THEN it is refused for its schema
+    assert_eq!(reason_of(&verdict), Some(PolicyInvalidReason::Schema));
+}

@@ -52,8 +52,8 @@ automation suite, never a fork). `lib/seed.sh` rebuilds a throwaway `HOME` per
 phase, so the reference fixtures a later assertion depends on are never mutated,
 and the real `~/.apollia` is never written to; when `APOLLIA_TEST_MODEL_GGUF` is
 unset, Track 3 reads one file from it (the default model GGUF), read-only.
-Isolation is a `HOME` swap: the CLI resolves everything from `$HOME/.apollia`
-and `$HOME/.config/apollia`.
+Isolation is a `HOME` swap: the CLI resolves everything from `$HOME/.apollia`,
+`apollia.toml` included.
 
 The builder also accepts a narrative overlay (`APOLLIA_SEED_OVERLAY`), used to
 give the documentation screenshots a coherent usage history. This suite never

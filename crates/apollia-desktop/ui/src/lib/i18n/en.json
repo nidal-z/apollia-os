@@ -2237,7 +2237,9 @@
         "companion_focus": "Focus the Companion input",
         "approvals_accept": "Accept the current approval",
         "approvals_refuse": "Refuse the current approval",
-        "approvals_next": "Jump to next / previous approval"
+        "approvals_next": "Jump to next / previous approval",
+        "settings_engines": "Open System > Engines",
+        "settings_hardware": "Open System > Hardware"
       },
       "reserved": "OS reserved",
       "reserved_hint": "Reserved by the operating system and cannot be reassigned.",
@@ -3128,12 +3130,33 @@
       "mode_hint": "Shows the technical views (Transcriptions, Observability, Memory) and the advanced settings below.",
       "mode_off": "Off",
       "mode_on": "On",
-      "write_failed": "The developer mode could not be saved."
+      "write_failed": "The developer mode could not be saved.",
+      "mcp": {
+        "title": "Apollia as an MCP server",
+        "switch_label": "Expose Apollia as an MCP server",
+        "switch_hint": "An MCP client (Claude Desktop, a code editor) calls the checked agents and workflows as tools.",
+        "write_failed": "The MCP server setting could not be saved.",
+        "items_label": "Exposed agents and workflows",
+        "items_hint": "Check what an MCP client may call.",
+        "items_empty": "No agent or workflow installed yet. The ones you install from the Library will appear here, ready to check.",
+        "items_failed": "The agents and workflows could not be read: {error}",
+        "expose_failed": "{name} could not be updated.",
+        "kind_agent": "Agent",
+        "kind_workflow": "Workflow",
+        "config_label": "Paste into the configuration of the MCP client",
+        "copy": "Copy",
+        "copied": "Copied",
+        "copy_failed": "The configuration could not be copied."
+      }
     },
     "general": {
       "subtitle": "Updates, language, application folder, help and danger zone.",
       "updates_title": "App update",
       "version_label": "Installed version",
+      "channel_label": "Update channel",
+      "channel_hint": "Stable receives the published versions; Preview also receives the trial versions.",
+      "channel_stable": "Stable",
+      "channel_preview": "Preview",
       "interface_title": "Interface",
       "language_hint": "Also changes the application menus.",
       "application_title": "Application",
@@ -3153,6 +3176,10 @@
     },
     "engines": {
       "subtitle": "The engines that run the models and dictation on this machine."
+    },
+    "window": {
+      "label": "Settings",
+      "close": "Close settings"
     }
   },
   "onboarding": {

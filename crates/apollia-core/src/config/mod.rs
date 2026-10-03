@@ -19,6 +19,9 @@
 //!   that Rust reads, each a named setting resolved with its source by
 //!   [`resolve_setting`] and written by [`write_setting`], which refuses a key
 //!   the organization policy locks.
+//! - [`ServerConfig`]: `[server]`, the compatible server, a second listener
+//!   of the runtime on its own port, switched off by default; its two keys
+//!   are named settings too.
 //!
 //! `[llm]` is another, whose type lives in `apollia-llm`; its
 //! `[llm.residency]` subsection, [`LlmResidencyConfig`], is a named setting
@@ -51,6 +54,7 @@ mod permissions;
 mod registry;
 mod retired;
 mod runtime;
+mod server;
 mod settings;
 mod tools;
 mod triggers;
@@ -70,7 +74,7 @@ pub use autonomy::{
     AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, AutonomyLevelParseError, GatePolicy,
 };
 pub use chat::ChatConfig;
-pub use desktop::DesktopConfig;
+pub use desktop::{DesktopConfig, UpdateChannel};
 pub use filesystem::{FilesystemConfig, JournalConfig};
 pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
@@ -84,9 +88,10 @@ pub use permissions::BashValidatorConfig;
 pub use registry::RegistryConfig;
 pub use retired::{retired_keys_in, warn_retired_keys, RetiredKey, RETIRED_KEYS};
 pub use runtime::RuntimeConfig;
+pub use server::{ServerConfig, DEFAULT_COMPAT_SERVER_PORT};
 pub use settings::{
     check_imposed_setting, resolve_setting, resolve_setting_in, write_setting, PolicySettings,
-    ResolvedSetting, SettingError, SettingSource,
+    ResolvedSetting, SettingError, SettingSource, GUARDRAIL_LEVELS,
 };
 pub use tools::ToolsConfig;
 pub use triggers::TriggersConfig;

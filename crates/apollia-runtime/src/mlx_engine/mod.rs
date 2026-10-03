@@ -152,6 +152,8 @@ pub struct MlxEngineSupervisor {
     /// The leases and pins that keep a model loaded, shared with the other
     /// engine. Unset, every resident model may be unloaded to make room.
     residency: std::sync::OnceLock<Arc<crate::residency::Residency>>,
+    /// The guardrail settings the organisation policy fixes, over the file.
+    imposed: apollia_core::config::PolicySettings,
 }
 
 impl MlxEngineSupervisor {
@@ -159,19 +161,28 @@ impl MlxEngineSupervisor {
     /// and holds them to the load guardrail of `config_file`, `apollia.toml`.
     /// Call [`spawn_supervision`](Self::spawn_supervision) for the respawns.
     #[must_use]
-    pub fn new(launch: MlxLaunch, config_file: Option<PathBuf>) -> Arc<Self> {
+    pub fn new(
+        launch: MlxLaunch,
+        config_file: Option<PathBuf>,
+        imposed: apollia_core::config::PolicySettings,
+    ) -> Arc<Self> {
         let mut engine = Self::with_timing(launch, Timing::default());
         engine.config_file = config_file;
+        engine.imposed = imposed;
         Arc::new(engine)
     }
 
     /// The engine of this installation, on a Mac with Apple Silicon only,
-    /// holding its launches to the guardrail of `config_file`.
+    /// holding its launches to the guardrail of `config_file` and to the
+    /// guardrail settings the organisation policy fixes in `imposed`.
     ///
     /// `None` elsewhere, and when the build carries no engine: an MLX model is
     /// then refused with its reason by the router factory.
     #[must_use]
-    pub fn for_this_machine(config_file: Option<PathBuf>) -> Option<Arc<Self>> {
+    pub fn for_this_machine(
+        config_file: Option<PathBuf>,
+        imposed: apollia_core::config::PolicySettings,
+    ) -> Option<Arc<Self>> {
         if !crate::local_engine::is_apple_silicon() {
             return None;
         }
@@ -183,7 +194,7 @@ impl MlxEngineSupervisor {
         let launch = locate(exe_dir.as_deref(), store_root.as_deref(), |var| {
             std::env::var(var).ok()
         })?;
-        Some(Self::new(launch, config_file))
+        Some(Self::new(launch, config_file, imposed))
     }
 
     fn with_timing(launch: MlxLaunch, timing: Timing) -> Self {
@@ -196,6 +207,7 @@ impl MlxEngineSupervisor {
             shutting_down: AtomicBool::new(false),
             config_file: None,
             residency: std::sync::OnceLock::new(),
+            imposed: apollia_core::config::PolicySettings::none(),
         }
     }
 
@@ -273,9 +285,10 @@ impl MlxEngineSupervisor {
         consent: LoadConsent,
     ) -> Result<Option<f64>, LocalEngineError> {
         let config_file = self.config_file.clone();
+        let imposed = self.imposed.clone();
         let folder = model_path.to_owned();
         let sized = tokio::task::spawn_blocking(move || {
-            let policy = GuardrailPolicy::read(config_file.as_deref());
+            let policy = GuardrailPolicy::read_under(config_file.as_deref(), &imposed);
             if policy.level == guardrails::GuardrailLevel::Disabled {
                 return (policy, None);
             }

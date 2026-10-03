@@ -3,7 +3,7 @@
 //! One row: the identifier the model index gives the model, and the load
 //! settings it was loaded with, so "reload the last model" brings back the
 //! same model under the same settings after a restart. Only a load that
-//! succeeded is written. The table is created by `system_db::migrate_v6`.
+//! succeeded is written. The table is created by `system_db::migrate_v7`.
 
 use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -161,17 +161,17 @@ mod tests {
     }
 
     #[test]
-    fn test_a_file_at_version_five_gains_the_table_and_keeps_its_rows() {
-        // GIVEN a system.db written by a binary at schema version five, with a
+    fn test_a_file_at_version_six_gains_the_table_and_keeps_its_rows() {
+        // GIVEN a system.db written by a binary at schema version six, with a
         // default embeddings model
         let dir = tempfile::TempDir::new().unwrap();
         let path = dir.path().join("system.db");
         {
             let conn = rusqlite::Connection::open(&path).unwrap();
-            for step in &crate::system_db::SYSTEM_DB_MIGRATIONS[..5] {
+            for step in &crate::system_db::SYSTEM_DB_MIGRATIONS[..6] {
                 step(&conn).unwrap();
             }
-            conn.pragma_update(None, "user_version", 5).unwrap();
+            conn.pragma_update(None, "user_version", 6).unwrap();
             conn.execute(
                 "INSERT INTO embedding_default (id, model_id) VALUES (1, 'e5')",
                 [],

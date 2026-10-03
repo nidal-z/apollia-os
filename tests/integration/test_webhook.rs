@@ -154,6 +154,7 @@ async fn build_webhook_state(
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        inference_governance: Default::default(),
         backend: MockBackend,
         llm_router: apollia_runtime::api::server::empty_shared_llm_router(),
         trigger_engine: Some(engine_handle),
@@ -188,6 +189,7 @@ async fn build_webhook_state(
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     };
     (state, submit_count)
 }

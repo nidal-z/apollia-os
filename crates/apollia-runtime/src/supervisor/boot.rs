@@ -5,6 +5,7 @@ use apollia_core::events::resilient;
 use super::bootstrap::{
     drain_until_all_ready, emit_onboarding_if_needed, flatten_api_start, load_trigger_definitions,
     rollback_startup_actors, seed_default_desktop_channel_if_needed, spawn_runner_supervisor,
+    start_local_engines,
 };
 use super::bundled::{
     auto_load_bundled_agents, register_builtin_tools, validate_installed_packages,
@@ -101,40 +102,22 @@ impl Supervisor {
         // `apollia.toml`, whose `[llm.guardrails]` both engines read at every
         // launch: the file the runtime was started with, else the one in its
         // data directory.
-        let guardrails_file = self
-            .config
-            .config_path
-            .clone()
-            .unwrap_or_else(|| self.config.data_dir.join("apollia.toml"));
-        let llama_server_supervisor = crate::llama_server::LlamaServerSupervisor::new(
-            crate::llama_server::LlamaServerConfig::default(),
-            Some(system_db_path.clone()),
-            Some(event_sender.clone()),
-            Some(guardrails_file.clone()),
-        )
-        .ok();
-        if let Some(supervisor) = &llama_server_supervisor {
-            Arc::clone(supervisor).spawn_supervision();
-        }
-        // The MLX engine, on a Mac with Apple Silicon whose build carries it.
-        // An MLX model elsewhere is refused with its reason by the router.
-        let mlx_engine =
-            crate::mlx_engine::MlxEngineSupervisor::for_this_machine(Some(guardrails_file.clone()));
-        if let Some(engine) = &mlx_engine {
-            Arc::clone(engine).spawn_supervision();
-        }
-        // Both engines unload a model nothing uses any more, and keep a pinned one.
-        crate::residency::start_residency(
-            system_db_path.clone(),
-            guardrails_file,
-            event_sender.clone(),
-            llama_server_supervisor.as_ref(),
-            mlx_engine.as_ref(),
-        );
+        let guardrails_file = self.config.config_path.clone().unwrap_or_else(|| {
+            self.config
+                .data_dir
+                .join(apollia_core::paths::CONFIG_FILE_NAME)
+        });
+        let (llama_server_supervisor, mlx_engine) =
+            start_local_engines(&system_db_path, guardrails_file, &event_sender, &org_policy);
 
         // Phase 4 (pos 5): LlmRouter + LlmBackendRepository, loads backends from system.db
         let (llm_router, llm_backend_repo) = self
-            .start_llm_router(&system_db_path, &llama_server_supervisor, &mlx_engine)
+            .start_llm_router(
+                &system_db_path,
+                &llama_server_supervisor,
+                &mlx_engine,
+                &crate::governance::InferenceGovernance::new(Arc::clone(&org_policy)),
+            )
             .await;
 
         // Phase 4b: LlmCallRepository, an EventBus subscriber that persists LLM calls.
@@ -535,6 +518,17 @@ impl Supervisor {
             )))
             .await;
         }
+        // The compatible server reads and writes its switch in the file the
+        // runtime was started with, or in the data directory's apollia.toml,
+        // the file the desktop reads, when it was started without one.
+        let compat_server = crate::compat_server::CompatServerHandle::spawn(
+            self.config
+                .config_path
+                .clone()
+                .unwrap_or_else(|| self.config.data_dir.join("apollia.toml")),
+            system_db_path.clone(),
+            &event_sender,
+        );
         let shared_llm_router = crate::api::server::shared_llm_router_from(llm_router.clone());
         let state = AppState {
             router_handle: router_handle.clone(),
@@ -554,6 +548,9 @@ impl Supervisor {
             audit_trail: audit_trail_handle.clone(),
             audit_journal: audit_journal_handle.clone(),
             connection_governance: connection_governance.clone(),
+            inference_governance: crate::governance::InferenceGovernance::new(Arc::clone(
+                &org_policy,
+            )),
             obs_config: self.config.obs_config.clone(),
             llm_call_repository: llm_call_repository.clone(),
             trigger_def_repo: Some(trigger_def_repo.clone()),
@@ -578,6 +575,7 @@ impl Supervisor {
             secret_store: crate::inference_servers::default_store_opener(),
             batches,
             workflows: workflows.clone(),
+            compat_server: Some(compat_server),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 

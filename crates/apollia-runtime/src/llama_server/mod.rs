@@ -253,6 +253,8 @@ pub struct LlamaServerSupervisor {
     /// The leases and pins that keep a model loaded, shared with the other
     /// engine. Unset, every resident model may be unloaded to make room.
     residency: std::sync::OnceLock<Arc<crate::residency::Residency>>,
+    /// The guardrail settings the organisation policy fixes, over the file.
+    imposed: apollia_core::config::PolicySettings,
 }
 
 impl LlamaServerSupervisor {
@@ -269,6 +271,7 @@ impl LlamaServerSupervisor {
         system_db: Option<PathBuf>,
         events: Option<EventBusSender>,
         config_file: Option<PathBuf>,
+        imposed: apollia_core::config::PolicySettings,
     ) -> Result<Arc<Self>, LlamaServerError> {
         let bin_path = locate_llama_server_binary()?;
         // The reported window must be the one the server will actually launch
@@ -294,6 +297,7 @@ impl LlamaServerSupervisor {
             embedding: Mutex::new(None),
             config_file,
             residency: std::sync::OnceLock::new(),
+            imposed,
         }))
     }
 
@@ -488,6 +492,7 @@ impl LlamaServerSupervisor {
             embedding: Mutex::new(None),
             config_file: None,
             residency: std::sync::OnceLock::new(),
+            imposed: apollia_core::config::PolicySettings::none(),
         }
     }
 
@@ -518,6 +523,7 @@ impl LlamaServerSupervisor {
             embedding: Mutex::new(None),
             config_file: None,
             residency: std::sync::OnceLock::new(),
+            imposed: apollia_core::config::PolicySettings::none(),
         })
     }
 
@@ -788,6 +794,7 @@ mod test_support {
             embedding: Mutex::new(None),
             config_file: None,
             residency: std::sync::OnceLock::new(),
+            imposed: apollia_core::config::PolicySettings::none(),
         }
     }
 

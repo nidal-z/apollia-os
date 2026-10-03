@@ -4,7 +4,7 @@
 //! unloaded after a delay without use, nor when the last conversation that
 //! uses it closes. A model is keyed by the path it is loaded from, the key the
 //! list of resident models and an unload take. The table is created by
-//! `system_db::migrate_v7`.
+//! `system_db::migrate_v8`.
 
 use rusqlite::params;
 
