@@ -56,6 +56,24 @@ pub trait TaskSubmitter: Send + Sync + 'static {
         &'a self,
         agent: &'a str,
     ) -> Pin<Box<dyn Future<Output = usize> + Send + 'a>>;
+
+    /// Launches the workflow `workflow`, `<package>/<workflow>`, on `inputs`.
+    ///
+    /// Returns the identifier of the run once it is recorded; the inputs are
+    /// checked against the schema the workflow declares. The default refuses:
+    /// a runtime without a workflow engine starts no workflow.
+    fn submit_workflow<'a>(
+        &'a self,
+        workflow: &'a str,
+        inputs: serde_json::Value,
+    ) -> Pin<Box<dyn Future<Output = Result<TaskId, String>> + Send + 'a>> {
+        let _ = inputs;
+        Box::pin(async move {
+            Err(format!(
+                "workflow '{workflow}' cannot start: this runtime runs no workflow"
+            ))
+        })
+    }
 }
 
 // --- Queue types -------------------------------------------------------------
@@ -178,8 +196,10 @@ pub(crate) enum TriggerCommand {
 pub struct TriggerStatus {
     /// Trigger identifier.
     pub id: String,
-    /// Target agent name.
+    /// The agent name or the workflow identifier the trigger starts.
     pub agent: String,
+    /// `"agent"` or `"workflow"`.
+    pub target_kind: String,
     /// Source type (`"cron"` | `"interval"` | `"file_watch"` | `"webhook"` | `"oneshot"`).
     pub source_kind: String,
     /// Source configuration detail (e.g. cron expression, interval, path).
@@ -350,7 +370,7 @@ impl TriggerEngine {
             if let Err(e) = p.record_fired(
                 crate::persistence::TriggerRecord {
                     trigger_id: &event.trigger_id,
-                    agent_name: &event.agent,
+                    agent_name: &event.target,
                     fired_at: event.fired_at,
                     payload_json: payload_json.as_deref(),
                 },
@@ -380,7 +400,7 @@ impl TriggerEngine {
             if let Err(e) = p.record_skipped(
                 crate::persistence::TriggerRecord {
                     trigger_id: &event.trigger_id,
-                    agent_name: &event.agent,
+                    agent_name: &event.target,
                     fired_at: event.fired_at,
                     payload_json: payload_json.as_deref(),
                 },
@@ -409,7 +429,7 @@ impl TriggerEngine {
             if let Err(e) = p.record_error(
                 crate::persistence::TriggerRecord {
                     trigger_id: &event.trigger_id,
-                    agent_name: &event.agent,
+                    agent_name: &event.target,
                     fired_at: event.fired_at,
                     payload_json: payload_json.as_deref(),
                 },
@@ -520,11 +540,14 @@ impl TriggerEngineHandle {}
 // --- Tests -------------------------------------------------------------------
 
 #[cfg(test)]
+mod target_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::persistence::TriggerPersistence;
     use crate::types::OnBusyPolicy;
-    use crate::types::{InputTemplate, TriggerSourceConfig};
+    use crate::types::TriggerSourceConfig;
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -540,13 +563,12 @@ mod tests {
     fn make_definition(id: &str, on_busy: OnBusyPolicy) -> TriggerDefinition {
         TriggerDefinition {
             id: id.into(),
-            agent: "test-agent".into(),
+            target: crate::types::TriggerTarget::agent("test-agent", "test {{scheduled_at}}"),
             enabled: true,
             on_busy,
             source: TriggerSourceConfig::Cron {
                 schedule: "0 8 * * MON".into(),
             },
-            input_template: InputTemplate("test {{scheduled_at}}".into()),
         }
     }
 

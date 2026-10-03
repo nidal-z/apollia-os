@@ -85,11 +85,13 @@ still accepted, with a `config.key.retired` warning.
 | `[chat]` | Chat subsystem session-level defaults (for example `plan_mode_default`). |
 | `[filesystem]` | The reversible journal, and the paths an agent works in without being asked (`trusted_paths`, see below). |
 | `[workflows]` | The budget a workflow run starts with, shared by every agent and workflow it runs. |
-| `[models]` | The signed index of model cards, and the rule applied to an imported model file. |
-| `[server]` | The compatible server (OpenAI and Anthropic formats), its port and its token. |
-| `[desktop]` | Settings of the desktop application that the engine reads. |
+| `[models]` | The signed index of model cards, the models folder (`dir`), and the rule applied to an imported file (`[models.import]`). |
+| `[desktop]` | Settings of the desktop application that the engine reads: `developer_mode`, `update_channel` (`stable` or `preview`), `background_service_allowed`. |
+| `[server]` | The compatible server: `enabled`, `port`, `require_auth`. |
+| `[engines]` | Settings of the local inference engines (`log_level`). |
+| `[author]` | The publisher name of the agents exported from this machine (`name`). |
 | `[observability]` | Trace capture and retention, documented below. |
-| `[ui]` | The opt-in link preview of the desktop application. |
+| `[ui]` | The opt-in link preview of the desktop application (`link_preview_enabled`). |
 
 `[observability]` is read by the desktop application only; the daemon uses its
 defaults. `apollia-os config set` writes it like any other key.
@@ -262,13 +264,14 @@ The reversible journal, and the paths an agent works in without being asked. `tr
 
 ### `[models]`
 
-The signed index of model cards, its mirror, and the rule applied to an imported model file.
+The signed index of model cards, its mirror, the models folder, and the rule applied to an imported model file.
 
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `models.registry_url` | string | `"https://registry.apollia.fr/models/stable/index.json"` | Address of the signed index of model cards. The organization policy can fix it. |
 | `models.registry_mirror_url` | string | `"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json"` | Address tried when the index does not answer; empty disables it. The organization policy can fix it. |
 | `models.registry_enabled` | boolean | `true` | Read the online index of model cards. The organization policy can fix it. |
+| `models.dir` | path | `""` | Folder the language models, their projectors and the embedding models are kept in; empty means &lt;data dir&gt;/models. Changing it moves no file. The organization policy can fix it. |
 | `models.import.require_verified` | boolean | `false` | Refuse an imported model file that matches no signed card. The organization policy can fix it. |
 
 ### `[workflows]`
@@ -289,6 +292,7 @@ Settings of the desktop application that the engine reads.
 | --- | --- | --- | --- |
 | `desktop.developer_mode` | boolean | `false` | Show the advanced surfaces of the application. The organization policy can fix it. |
 | `desktop.update_channel` | one of stable, preview | `"stable"` | Update channel of the application: stable receives the published versions, preview the trial versions as well. The organization policy can fix it. |
+| `desktop.background_service_allowed` | boolean | `true` | Allow the application to install the engine as a service of the user's session. The organization policy can fix it. |
 
 ### `[server]`
 
@@ -299,6 +303,22 @@ The compatible server, which answers the OpenAI and Anthropic formats on the loo
 | `server.enabled` | boolean | `false` | Start the compatible server (OpenAI and Anthropic formats) with the engine. The organization policy can fix it. |
 | `server.port` | integer | `7772` | TCP port of the compatible server, on the loopback interface. The organization policy can fix it. |
 | `server.require_auth` | boolean | `false` | Require a token of the compatible server on every request; read when the listener opens. The organization policy can fix it. |
+
+### `[engines]`
+
+Settings of the local inference engines.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `engines.log_level` | one of error, warning, info, debug | `"debug"` | Log level of the local engine, applied when a model is next loaded. The organization policy can fix it. |
+
+### `[author]`
+
+The publisher name of the agents exported from this machine.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `author.name` | string | `""` | Publisher name of the agents exported from this machine; empty asks at export. The organization policy can fix it. |
 
 ### `[observability]`
 

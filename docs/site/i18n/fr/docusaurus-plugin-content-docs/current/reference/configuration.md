@@ -88,11 +88,13 @@ avertissement `config.key.retired`.
 | `[chat]` | Valeurs par défaut au niveau session du sous-système de chat (par exemple `plan_mode_default`). |
 | `[filesystem]` | Le journal réversible, et les chemins où un agent travaille sans demander (`trusted_paths`, voir plus bas). |
 | `[workflows]` | Le budget avec lequel démarre l'exécution d'un workflow, partagé par chaque agent et chaque workflow qu'elle lance. |
-| `[models]` | L'index signé des fiches de modèles, et la règle appliquée à un fichier de modèle importé. |
-| `[server]` | Le serveur compatible (formats OpenAI et Anthropic), son port et son jeton. |
-| `[desktop]` | Réglages de l'application de bureau que le moteur lit. |
+| `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), et la règle appliquée à un fichier importé (`[models.import]`). |
+| `[desktop]` | Réglages de l'application de bureau que le moteur lit : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`. |
+| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`. |
+| `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`). |
+| `[author]` | Le nom d'éditeur des agents exportés depuis cette machine (`name`). |
 | `[observability]` | Capture et rétention des traces, documentées plus bas. |
-| `[ui]` | L'aperçu de lien, sur option, de l'application de bureau. |
+| `[ui]` | L'aperçu des liens de l'application de bureau, désactivé par défaut (`link_preview_enabled`). |
 
 `[observability]` n'est lue que par l'application de bureau ; le démon prend ses
 valeurs par défaut. `apollia-os config set` l'écrit comme toute autre clé.
@@ -267,13 +269,14 @@ Le journal réversible, et les chemins où un agent travaille sans demander. `tr
 
 ### `[models]`
 
-L'index signé des fiches de modèles, son miroir, et la règle appliquée à un fichier de modèle importé.
+L'index signé des fiches de modèles, son miroir, le dossier des modèles, et la règle appliquée à un fichier de modèle importé.
 
 | Clé | Type | Défaut | Rôle |
 | --- | --- | --- | --- |
 | `models.registry_url` | chaîne | `"https://registry.apollia.fr/models/stable/index.json"` | Adresse de l'index signé des fiches de modèles. La politique de l'organisation peut l'imposer. |
 | `models.registry_mirror_url` | chaîne | `"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json"` | Adresse essayée quand l'index ne répond pas ; vide, elle est désactivée. La politique de l'organisation peut l'imposer. |
 | `models.registry_enabled` | booléen | `true` | Lire l'index en ligne des fiches de modèles. La politique de l'organisation peut l'imposer. |
+| `models.dir` | chemin | `""` | Dossier où sont gardés les modèles de langage, leurs projecteurs et les modèles d'embeddings ; vide, il vaut &lt;dossier de données&gt;/models. Le changer ne déplace aucun fichier. La politique de l'organisation peut l'imposer. |
 | `models.import.require_verified` | booléen | `false` | Refuser un fichier de modèle importé qui ne correspond à aucune fiche signée. La politique de l'organisation peut l'imposer. |
 
 ### `[workflows]`
@@ -294,6 +297,7 @@ Réglages de l'application de bureau que le moteur lit.
 | --- | --- | --- | --- |
 | `desktop.developer_mode` | booléen | `false` | Afficher les surfaces avancées de l'application. La politique de l'organisation peut l'imposer. |
 | `desktop.update_channel` | l'une de stable, preview | `"stable"` | Canal de mise à jour de l'application : stable reçoit les versions publiées, preview aussi les versions d'essai. La politique de l'organisation peut l'imposer. |
+| `desktop.background_service_allowed` | booléen | `true` | Autoriser l'application à installer le moteur comme service de la session de l'utilisateur. La politique de l'organisation peut l'imposer. |
 
 ### `[server]`
 
@@ -304,6 +308,22 @@ Le serveur compatible, qui répond aux formats OpenAI et Anthropic sur l'interfa
 | `server.enabled` | booléen | `false` | Démarrer le serveur compatible (formats OpenAI et Anthropic) avec le moteur. La politique de l'organisation peut l'imposer. |
 | `server.port` | entier | `7772` | Port TCP du serveur compatible, sur l'interface de boucle locale. La politique de l'organisation peut l'imposer. |
 | `server.require_auth` | booléen | `false` | Exiger un jeton du serveur compatible à chaque requête ; lu à l'ouverture de l'écoute. La politique de l'organisation peut l'imposer. |
+
+### `[engines]`
+
+Réglages des moteurs d'inférence locaux.
+
+| Clé | Type | Défaut | Rôle |
+| --- | --- | --- | --- |
+| `engines.log_level` | l'une de error, warning, info, debug | `"debug"` | Niveau de journal du moteur local, appliqué au prochain chargement d'un modèle. La politique de l'organisation peut l'imposer. |
+
+### `[author]`
+
+Le nom d'éditeur des agents exportés depuis cette machine.
+
+| Clé | Type | Défaut | Rôle |
+| --- | --- | --- | --- |
+| `author.name` | chaîne | `""` | Nom d'éditeur des agents exportés depuis cette machine ; vide, il est demandé à l'export. La politique de l'organisation peut l'imposer. |
 
 ### `[observability]`
 

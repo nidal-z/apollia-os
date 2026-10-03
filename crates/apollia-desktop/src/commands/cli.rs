@@ -35,7 +35,7 @@ pub struct CliStatus {
 }
 
 /// Resolves the path to the bundled CLI binary inside the app resources.
-fn bundled_cli_path(app: &tauri::AppHandle) -> Option<PathBuf> {
+pub(crate) fn bundled_cli_path(app: &tauri::AppHandle) -> Option<PathBuf> {
     let resource_dir = app.path().resource_dir().ok()?;
     let candidate = resource_dir.join(CLI_BINARY_NAME);
     if candidate.exists() {

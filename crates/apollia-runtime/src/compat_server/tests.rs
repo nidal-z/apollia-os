@@ -36,7 +36,12 @@ pub(crate) fn settings_file(content: &str) -> (TempDir, PathBuf) {
 /// Spawns the compatible server over the `apollia.toml` at `path`, its tokens
 /// in a `system.db` beside it.
 pub(crate) fn spawn_server(path: &std::path::Path, bus: &EventBusSender) -> CompatServerHandle {
-    CompatServerHandle::spawn(path.to_path_buf(), path.with_file_name("system.db"), bus)
+    CompatServerHandle::spawn(
+        path.to_path_buf(),
+        path.with_file_name("system.db"),
+        super::LocalModels::default(),
+        bus,
+    )
 }
 
 pub(crate) fn file_enabled(path: &PathBuf) -> bool {

@@ -177,6 +177,46 @@ impl LlamaServerSupervisor {
         live.into_iter().map(|(_, m)| m).collect()
     }
 
+    /// A lease on the live process already serving `model_path`, chat model
+    /// or embeddings instance, marked as just used; `None` when none does.
+    ///
+    /// Never launches anything: a caller that relays a request to a model the
+    /// user loaded holds the process for the length of that request, so an
+    /// unload waits for it, without the spawn `ensure_model` falls back to.
+    pub async fn lease_resident(&self, model_path: &str) -> Option<ModelLease> {
+        {
+            let mut instances = self.instances.lock().await;
+            let tick = self.next_tick();
+            let live = instances
+                .iter_mut()
+                .filter(|i| i.model_path == model_path)
+                .filter_map(|i| i.is_running().then_some(i))
+                .max_by_key(|i| i.last_used);
+            if let Some(instance) = live {
+                instance.last_used = tick;
+                instance.last_used_at = Utc::now();
+                return Some(ModelLease::new(
+                    instance.base_url(),
+                    instance.n_ctx,
+                    Arc::clone(&instance.in_flight),
+                ));
+            }
+        }
+        let mut slot = self.embedding.lock().await;
+        let resident = slot.as_mut()?;
+        if resident.instance.model_path != model_path || !resident.instance.is_running() {
+            return None;
+        }
+        resident.last_call = std::time::Instant::now();
+        resident.instance.last_used = self.next_tick();
+        resident.instance.last_used_at = Utc::now();
+        Some(ModelLease::new(
+            resident.instance.base_url(),
+            resident.instance.n_ctx,
+            Arc::clone(&resident.instance.in_flight),
+        ))
+    }
+
     /// Stop every process serving `model_path`, and forget it.
     ///
     /// Returns how many processes were stopped (more than one when the same
@@ -232,6 +272,32 @@ impl LlamaServerSupervisor {
             );
         }
         Ok(stopped)
+    }
+}
+
+/// A supervisor whose resident models are stand-in processes on ports the
+/// test chose, so a test outside this module can point them at a fake engine.
+#[cfg(test)]
+impl LlamaServerSupervisor {
+    pub(crate) async fn with_resident_for_test(
+        chat: &[(&str, u16)],
+        embeddings: Option<(&str, u16)>,
+    ) -> Arc<Self> {
+        use super::test_support::{live_instance, supervisor_with_ceiling};
+        let sup = supervisor_with_ceiling(chat.len().max(1));
+        for (model, port) in chat {
+            let instance = live_instance(&sup, model, *port).await;
+            sup.instances.lock().await.push(instance);
+        }
+        if let Some((model, port)) = embeddings {
+            let instance = live_instance(&sup, model, port).await;
+            *sup.embedding.lock().await = Some(super::embeddings::EmbeddingInstance {
+                instance,
+                pooling: apollia_llm::recommend::Pooling::Mean,
+                last_call: std::time::Instant::now(),
+            });
+        }
+        Arc::new(sup)
     }
 }
 
@@ -362,6 +428,38 @@ mod tests {
         assert_eq!(listed[0].active_requests, 0);
         assert!(listed[0].last_used_at >= listed[0].loaded_at);
         assert_eq!(listed[1].model_path, "/models/b.gguf");
+    }
+
+    #[tokio::test]
+    async fn test_a_resident_lease_holds_the_model_and_never_launches_one() {
+        // GIVEN one resident chat model, and an embeddings instance
+        let sup = LlamaServerSupervisor::with_resident_for_test(
+            &[("/models/a.gguf", 9001)],
+            Some(("/models/e.gguf", 9002)),
+        )
+        .await;
+
+        // WHEN a lease is asked for each, and for a model nobody loaded
+        let chat = sup.lease_resident("/models/a.gguf").await;
+        let vectors = sup.lease_resident("/models/e.gguf").await;
+        let absent = sup.lease_resident("/models/absent.gguf").await;
+
+        // THEN both resident ones answer their own port and refuse an unload
+        // while held, and the absent one is not launched
+        assert_eq!(
+            chat.as_ref().map(ModelLease::base_url),
+            Some("http://127.0.0.1:9001/v1")
+        );
+        assert_eq!(
+            vectors.as_ref().map(ModelLease::base_url),
+            Some("http://127.0.0.1:9002/v1")
+        );
+        assert!(absent.is_none());
+        assert!(matches!(
+            sup.unload_model("/models/a.gguf").await,
+            Err(UnloadError::InUse { .. })
+        ));
+        assert_eq!(sup.loaded_models().await.len(), 2);
     }
 
     #[tokio::test]

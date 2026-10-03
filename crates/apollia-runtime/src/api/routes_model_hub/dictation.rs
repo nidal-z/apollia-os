@@ -76,7 +76,7 @@ pub async fn list_dictation_models<B: ExecutionBackend + Clone>(
     let profile = tokio::task::spawn_blocking(apollia_llm::hardware::detect)
         .await
         .unwrap_or_else(|_| apollia_llm::hardware::detect());
-    let models_dir = state.data_dir.join("models");
+    let models_dir = crate::installed_models::models_dir(&state.data_dir);
     let language = match params.language_model_bytes {
         Some(size_bytes) => Some(CountedLanguageModel {
             source: "query".to_owned(),

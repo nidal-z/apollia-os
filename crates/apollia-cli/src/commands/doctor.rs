@@ -285,7 +285,7 @@ fn check_agents_db(data_dir: &Path) -> CheckResult {
 fn check_models_dir(data_dir: &Path) -> CheckResult {
     const MODELS_HINT: &str = "Place a .gguf file in ~/.apollia/models/, or run `apollia-os llm setup --local --model <path.gguf>`";
 
-    let dir = data_dir.join("models");
+    let dir = apollia_core::config::models_dir(data_dir);
     if !dir.exists() {
         return CheckResult::warn(
             "models_dir",

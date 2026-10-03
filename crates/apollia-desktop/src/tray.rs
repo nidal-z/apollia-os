@@ -96,6 +96,28 @@ pub(crate) fn close_button_action() -> CloseAction {
     }
 }
 
+/// What quitting does to the runtime.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum QuitPlan {
+    /// The runtime runs in this process: drain it, then exit, which stops its
+    /// child processes.
+    ShutDownEmbedded,
+    /// The runtime is a daemon, a service of the session among others: exit
+    /// and leave it serving. This process spawned no runtime child to orphan.
+    LeaveDaemonServing,
+}
+
+/// The quit for a process that does or does not hold the `embedded` runtime.
+/// The same on every OS: only the close button differs, and on Windows and
+/// Linux it routes to this quit.
+pub(crate) fn quit_plan(embedded: bool) -> QuitPlan {
+    if embedded {
+        QuitPlan::ShutDownEmbedded
+    } else {
+        QuitPlan::LeaveDaemonServing
+    }
+}
+
 /// Shows and focuses the main window.
 ///
 /// Silently ignores errors if the window is not found (defensive; should not
@@ -129,10 +151,10 @@ pub(crate) fn initiate_quit(app: &AppHandle) {
 
     // Attached to a daemon, this process owns no runtime: quitting closes the
     // window and leaves the daemon serving.
-    if app
+    let embedded = app
         .try_state::<apollia_runtime::embedded::RuntimeHandle>()
-        .is_none()
-    {
+        .is_some();
+    if quit_plan(embedded) == QuitPlan::LeaveDaemonServing {
         app.exit(0);
         return;
     }
@@ -420,6 +442,18 @@ mod tests {
         assert_eq!(action, CloseAction::HideToTray);
         #[cfg(not(target_os = "macos"))]
         assert_eq!(action, CloseAction::Quit);
+    }
+
+    #[test]
+    fn test_quitting_while_attached_leaves_the_daemon_serving() {
+        // GIVEN a process attached to the service, and one embedding the runtime
+        // WHEN each quits, from the close button or any other surface
+        let attached = quit_plan(false);
+        let embedded = quit_plan(true);
+        // THEN the attached one leaves the daemon running and the embedded one
+        // shuts its own runtime down
+        assert_eq!(attached, QuitPlan::LeaveDaemonServing);
+        assert_eq!(embedded, QuitPlan::ShutDownEmbedded);
     }
 
     #[test]

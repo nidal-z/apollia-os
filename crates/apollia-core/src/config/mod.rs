@@ -25,6 +25,11 @@
 //! - [`ServerConfig`]: `[server]`, the compatible server, a second listener
 //!   of the runtime on its own port, switched off by default; its two keys
 //!   are named settings too.
+//! - [`EnginesConfig`]: `[engines]`, the settings of the local inference
+//!   engines, the engine log level first; named settings, read when a model
+//!   loads.
+//! - [`AuthorConfig`]: `[author]`, the publisher name of the agents exported
+//!   from this machine.
 //! - [`LlmConfig`]: `[llm]`, the backends declared in the file, routing and
 //!   the runner; `apollia-llm` re-exports its shapes.
 //! - [`UiConfig`]: `[ui]`, the desktop link preview.
@@ -44,10 +49,12 @@
 
 mod a2a;
 mod api;
+mod author;
 mod autonomy;
 mod chat;
 mod default_file;
 mod desktop;
+mod engines;
 mod filesystem;
 mod filesystem_risk;
 mod hitl;
@@ -87,12 +94,14 @@ mod validate_tests;
 
 pub use a2a::A2AConfig;
 pub use api::ApiConfig;
+pub use author::{AuthorConfig, AUTHOR_NAME_KEY};
 pub use autonomy::{
     AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, AutonomyLevelParseError, GatePolicy,
 };
 pub use chat::ChatConfig;
 pub use default_file::{default_file_text, write_default_file_if_absent};
 pub use desktop::{DesktopConfig, UpdateChannel};
+pub use engines::{EngineLogLevel, EnginesConfig, ENGINE_LOG_LEVELS};
 pub use filesystem::{FilesystemConfig, JournalConfig};
 pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
@@ -104,7 +113,8 @@ pub use llm_section::{
 };
 pub use mcp::{McpConfig, McpToolLoading};
 pub use models::{
-    ModelsConfig, ModelsImportConfig, DEFAULT_MODEL_REGISTRY_MIRROR_URL, DEFAULT_MODEL_REGISTRY_URL,
+    default_models_dir, models_dir, resolve_models_dir, ModelsConfig, ModelsImportConfig,
+    DEFAULT_MODEL_REGISTRY_MIRROR_URL, DEFAULT_MODEL_REGISTRY_URL, MODELS_DIR_KEY, MODELS_DIR_NAME,
 };
 pub use oria::ORIAConfig;
 pub use permissions::BashValidatorConfig;

@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use apollia_core::{PendingApprovals, SttConfigRepository, ToolsConfig};
 use apollia_llm::LlmRouter;
-use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_runtime::api::routes_agents::AgentBackendFactory;
 use apollia_runtime::coordinator::DynBackend;
 use apollia_runtime::embedded::{EmbeddedConfig, RuntimeHandle};
@@ -249,7 +248,6 @@ pub(crate) struct RuntimeLocks<'a> {
     pub(crate) agent_registry: &'a std::sync::OnceLock<AgentRegistryHandle>,
     pub(crate) task_router: &'a std::sync::OnceLock<TaskRouterHandle<DynBackend>>,
     pub(crate) mailbox_handle: &'a std::sync::OnceLock<AgentMailboxHandle>,
-    pub(crate) user_memory: &'a std::sync::OnceLock<Arc<std::sync::Mutex<UserMemoryRepository>>>,
     pub(crate) tools_config: &'a std::sync::OnceLock<ToolsConfig>,
 }
 
@@ -257,7 +255,7 @@ pub(crate) struct RuntimeLocks<'a> {
 ///
 /// Required for parity between Chat Libre, Chat Agent, and task-mode flows.
 /// Without these, Python agents in non-chat-libre flows lose `ctx.a2a_invoke`,
-/// `ctx.mailbox`, `ctx.user_context`, and apollia.toml's `[tools]` overrides.
+/// `ctx.mailbox`, and apollia.toml's `[tools]` overrides.
 pub(crate) fn populate_runtime_locks(runtime_handle: &RuntimeHandle, locks: RuntimeLocks<'_>) {
     let _ = locks.event_bus.set(runtime_handle.event_sender.clone());
     *locks
@@ -288,9 +286,6 @@ pub(crate) fn populate_runtime_locks(runtime_handle: &RuntimeHandle, locks: Runt
     let _ = locks.task_router.set(runtime_handle.router_handle.clone());
     if let Some(mailbox) = runtime_handle.mailbox_handle.clone() {
         let _ = locks.mailbox_handle.set(mailbox);
-    }
-    if let Some(um) = runtime_handle.user_memory.clone() {
-        let _ = locks.user_memory.set(um);
     }
     let _ = locks.tools_config.set(runtime_handle.tools_config.clone());
 }

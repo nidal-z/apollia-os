@@ -66,13 +66,15 @@ PURPOSES = {
                   "being asked. `trusted_paths` sets friction rather than a wall, and "
                   "the two surfaces read it differently; see *Trusted paths, and what "
                   "happens outside them* below.",
-    "models": "The signed index of model cards, its mirror, and the rule applied "
-              "to an imported model file.",
+    "models": "The signed index of model cards, its mirror, the models folder, "
+              "and the rule applied to an imported model file.",
     "server": "The compatible server, which answers the OpenAI and Anthropic "
               "formats on the loopback interface.",
     "workflows": "The budget a workflow run starts with. It is shared: every agent "
                  "a step runs and every workflow a step calls spend from it.",
     "desktop": "Settings of the desktop application that the engine reads.",
+    "engines": "Settings of the local inference engines.",
+    "author": "The publisher name of the agents exported from this machine.",
     "observability": "Trace capture and retention. Read by the desktop application "
                      "only.",
     "ui": "The opt-in link preview of the desktop application.",
@@ -105,7 +107,7 @@ def render(keys) -> str | None:
             if k.path.split(".")[0] != section:
                 continue
             default = f"`{k.default}`" if k.default is not None else "not set"
-            meaning = k.doc.replace("|", "\\|")
+            meaning = k.doc.replace("|", "\\|").replace("<", "&lt;").replace(">", "&gt;")
             if k.lockable:
                 meaning += " The organization policy can fix it."
             out.append(f"| `{k.path}` | {k.ty} | {default} | {meaning} |")

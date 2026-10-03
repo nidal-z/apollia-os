@@ -129,6 +129,8 @@ fn every_section_carries_the_reload_class_of_the_measured_table() {
         ("ui", ReloadClass::Reloadable),
         ("desktop", ReloadClass::Reloadable),
         ("server", ReloadClass::Restart),
+        ("engines", ReloadClass::Reloadable),
+        ("author", ReloadClass::Reloadable),
         // Read again at every model launch, unlike the rest of `[llm]`.
         ("llm.guardrails", ReloadClass::Reloadable),
     ];
@@ -224,12 +226,16 @@ fn the_named_settings_are_lockable() {
             "models.registry_url",
             "models.registry_mirror_url",
             "models.registry_enabled",
+            "models.dir",
             "models.import.require_verified",
             "desktop.developer_mode",
             "desktop.update_channel",
+            "desktop.background_service_allowed",
             "server.enabled",
             "server.port",
             "server.require_auth",
+            "engines.log_level",
+            "author.name",
         ]
     );
 }

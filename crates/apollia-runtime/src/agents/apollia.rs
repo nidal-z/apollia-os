@@ -128,16 +128,6 @@ impl ConfigWrite {
             Self::SetModel(_) | Self::ClearModel => model_path(),
         }
     }
-
-    /// The body of an override write, `None` for a removal and for a model,
-    /// whose body needs its source ([`model_body`]).
-    pub fn override_body(&self) -> Option<Value> {
-        match self {
-            Self::SetMission(prompt) => Some(json!({ "value": prompt })),
-            Self::SetAccess(tools) => Some(json!({ "value": tools })),
-            _ => None,
-        }
-    }
 }
 
 /// `GET` route of the resolved Apollia agent.
@@ -148,11 +138,6 @@ pub fn definition_path() -> String {
 /// Route of the model assigned to Apollia (`GET`, `PUT`, `DELETE`).
 pub fn model_path() -> String {
     format!("/api/v1/llm/agents/{APOLLIA_AGENT_ID}/model")
-}
-
-/// `GET` route of the backend named `name`, read for its provider.
-pub fn backend_path(name: &str) -> String {
-    format!("/api/v1/llm/backends/{name}")
 }
 
 fn override_path(field: &str) -> String {
@@ -280,7 +265,6 @@ mod tests {
             writes[0].path(),
             "/api/v1/agent-definitions/apollia:chat/overrides/mission"
         );
-        assert_eq!(writes[0].override_body(), Some(json!({"value": "New."})));
     }
 
     // GIVEN a backend set, then cleared
