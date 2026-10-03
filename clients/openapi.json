@@ -6435,6 +6435,49 @@
         }
       }
     },
+    "/api/v1/sessions/{id}/metrics": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/metrics`, the metrics of a session.",
+        "description": "Zero-filled when no exchange has completed yet, as in the embedded desktop.",
+        "operationId": "get_session_metrics",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session metrics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionMetrics"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{id}/pause": {
       "post": {
         "tags": [
@@ -6625,6 +6668,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/workspace": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/workspace`, the working directory of\na session.",
+        "operationId": "get_session_workspace",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session working directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionWorkspace"
                 }
               }
             }
@@ -13013,6 +13098,138 @@
           }
         }
       },
+      "SessionMetrics": {
+        "type": "object",
+        "description": "Aggregated metrics for a chat session.\n\nAccumulated by the [`ChatSessionManager`] on each `ExchangeComplete`.\nBackend-local: never persisted in SQLite, rebuilt from memory on restart\n(minimal slice; persistence is a future concern).\n\n`cost_usd` is `None` when the backend does not report pricing (e.g. local\nrunner sidecar via `RunnerLlmBackend`).",
+        "required": [
+          "session_id",
+          "prompt_tokens",
+          "completion_tokens",
+          "cache_read_input_tokens",
+          "cache_write_input_tokens",
+          "budget_max_steps",
+          "steps_used",
+          "context_window_tokens",
+          "context_tokens_used",
+          "tool_stats",
+          "exchanges_count"
+        ],
+        "properties": {
+          "active_duration_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cumulative active duration in milliseconds (LLM + tool execution time estimates).",
+            "minimum": 0
+          },
+          "budget_max_steps": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Step budget in effect for this session (max steps).",
+            "minimum": 0
+          },
+          "cache_read_input_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Cached input tokens read (subset of `prompt_tokens`).",
+            "minimum": 0
+          },
+          "cache_write_input_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Cached input tokens written (subset of `prompt_tokens`).",
+            "minimum": 0
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Output tokens generated.",
+            "minimum": 0
+          },
+          "context_tokens_used": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Current context occupancy in tokens (prompt size of the last LLM call).",
+            "minimum": 0
+          },
+          "context_window_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Real context window of the active model, in tokens (`0` when unknown).",
+            "minimum": 0
+          },
+          "cost_usd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Estimated cost in USD (`None` for local backends)."
+          },
+          "exchanges_count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of exchanges completed.",
+            "minimum": 0
+          },
+          "llm_backend": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Backend/model name associated with the session (for pricing resolution)."
+          },
+          "prompt_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Input tokens consumed (prompt + cache reads + cache writes).",
+            "minimum": 0
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Target session."
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "RFC-3339 timestamp of the first assistant response (session start, LLM time)."
+          },
+          "steps_used": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Steps consumed so far (exchanges producing assistant responses).",
+            "minimum": 0
+          },
+          "tool_stats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolStatEntry"
+            },
+            "description": "Aggregated per-tool statistics."
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "RFC-3339 timestamp of the last update."
+          }
+        }
+      },
+      "SessionWorkspace": {
+        "type": "object",
+        "description": "Answer of `GET /api/v1/sessions/{id}/workspace`.",
+        "properties": {
+          "workspace": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The working directory of the session, `null` when none resolves (an\nunknown session, or a free chat with no default workspace and no data\ndirectory)."
+          }
+        }
+      },
       "SetAgentModelRequest": {
         "type": "object",
         "description": "Body of `PUT /api/v1/llm/agents/{agent}/model`.",
@@ -14165,6 +14382,40 @@
               "type": "object"
             },
             "description": "All descriptors currently registered in the tool catalogue."
+          }
+        }
+      },
+      "ToolStatEntry": {
+        "type": "object",
+        "description": "Per-tool aggregated statistics within a session.",
+        "required": [
+          "tool_name",
+          "calls",
+          "refused",
+          "executed"
+        ],
+        "properties": {
+          "calls": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of invocations (any status).",
+            "minimum": 0
+          },
+          "executed": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of invocations that ended with `Executed` status.",
+            "minimum": 0
+          },
+          "refused": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of invocations that ended with `Refused` status.",
+            "minimum": 0
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "Tool name (scoped, e.g. `\"bash\"` or `\"native:read_file\"`)."
           }
         }
       },

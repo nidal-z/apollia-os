@@ -2226,6 +2226,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{id}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/{id}/metrics`, the metrics of a session.
+         * @description Zero-filled when no exchange has completed yet, as in the embedded desktop.
+         */
+        get: operations["get_session_metrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{id}/pause": {
         parameters: {
             query?: never;
@@ -2298,6 +2318,26 @@ export interface paths {
          *     no todo), and 404 when the session is unknown to the runtime.
          */
         get: operations["get_session_todo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/workspace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/{id}/workspace`, the working directory of
+         *     a session.
+         */
+        get: operations["get_session_workspace"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4846,6 +4886,92 @@ export interface components {
             /** @description Every declared server, sorted by name. */
             servers: components["schemas"]["ServerResponse"][];
         };
+        /**
+         * @description Aggregated metrics for a chat session.
+         *
+         *     Accumulated by the [`ChatSessionManager`] on each `ExchangeComplete`.
+         *     Backend-local: never persisted in SQLite, rebuilt from memory on restart
+         *     (minimal slice; persistence is a future concern).
+         *
+         *     `cost_usd` is `None` when the backend does not report pricing (e.g. local
+         *     runner sidecar via `RunnerLlmBackend`).
+         */
+        SessionMetrics: {
+            /**
+             * Format: int64
+             * @description Cumulative active duration in milliseconds (LLM + tool execution time estimates).
+             */
+            active_duration_ms?: number;
+            /**
+             * Format: int32
+             * @description Step budget in effect for this session (max steps).
+             */
+            budget_max_steps: number;
+            /**
+             * Format: int32
+             * @description Cached input tokens read (subset of `prompt_tokens`).
+             */
+            cache_read_input_tokens: number;
+            /**
+             * Format: int32
+             * @description Cached input tokens written (subset of `prompt_tokens`).
+             */
+            cache_write_input_tokens: number;
+            /**
+             * Format: int32
+             * @description Output tokens generated.
+             */
+            completion_tokens: number;
+            /**
+             * Format: int32
+             * @description Current context occupancy in tokens (prompt size of the last LLM call).
+             */
+            context_tokens_used: number;
+            /**
+             * Format: int32
+             * @description Real context window of the active model, in tokens (`0` when unknown).
+             */
+            context_window_tokens: number;
+            /**
+             * Format: double
+             * @description Estimated cost in USD (`None` for local backends).
+             */
+            cost_usd?: number | null;
+            /**
+             * Format: int32
+             * @description Number of exchanges completed.
+             */
+            exchanges_count: number;
+            /** @description Backend/model name associated with the session (for pricing resolution). */
+            llm_backend?: string | null;
+            /**
+             * Format: int32
+             * @description Input tokens consumed (prompt + cache reads + cache writes).
+             */
+            prompt_tokens: number;
+            /** @description Target session. */
+            session_id: string;
+            /** @description RFC-3339 timestamp of the first assistant response (session start, LLM time). */
+            started_at?: string | null;
+            /**
+             * Format: int32
+             * @description Steps consumed so far (exchanges producing assistant responses).
+             */
+            steps_used: number;
+            /** @description Aggregated per-tool statistics. */
+            tool_stats: components["schemas"]["ToolStatEntry"][];
+            /** @description RFC-3339 timestamp of the last update. */
+            updated_at?: string | null;
+        };
+        /** @description Answer of `GET /api/v1/sessions/{id}/workspace`. */
+        SessionWorkspace: {
+            /**
+             * @description The working directory of the session, `null` when none resolves (an
+             *     unknown session, or a free chat with no default workspace and no data
+             *     directory).
+             */
+            workspace?: string | null;
+        };
         /** @description Body of `PUT /api/v1/llm/agents/{agent}/model`. */
         SetAgentModelRequest: {
             /**
@@ -5348,6 +5474,26 @@ export interface components {
         ToolListResponse: {
             /** @description All descriptors currently registered in the tool catalogue. */
             tools: Record<string, never>[];
+        };
+        /** @description Per-tool aggregated statistics within a session. */
+        ToolStatEntry: {
+            /**
+             * Format: int32
+             * @description Number of invocations (any status).
+             */
+            calls: number;
+            /**
+             * Format: int32
+             * @description Number of invocations that ended with `Executed` status.
+             */
+            executed: number;
+            /**
+             * Format: int32
+             * @description Number of invocations that ended with `Refused` status.
+             */
+            refused: number;
+            /** @description Tool name (scoped, e.g. `"bash"` or `"native:read_file"`). */
+            tool_name: string;
         };
         /** @description JSON response. */
         TraceResponse: {
@@ -10892,6 +11038,38 @@ export interface operations {
             };
         };
     };
+    get_session_metrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session metrics */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionMetrics"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     pause_session: {
         parameters: {
             query?: never;
@@ -11048,6 +11226,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_session_workspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session working directory */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionWorkspace"];
                 };
             };
             /** @description Chat subsystem unavailable */

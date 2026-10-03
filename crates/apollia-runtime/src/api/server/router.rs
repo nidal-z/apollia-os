@@ -269,6 +269,14 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         )
         .route("/api/v1/sessions/:id/stream", get(stream_session::<B>))
         .route("/api/v1/sessions/:id/pause", post(pause_session::<B>))
+        .route(
+            "/api/v1/sessions/:id/metrics",
+            get(crate::api::routes_chat::session_reads::get_session_metrics::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/workspace",
+            get(crate::api::routes_chat::session_reads::get_session_workspace::<B>),
+        )
         .route("/api/v1/sessions/:id/todo", get(chat_get_session_todo::<B>))
         .route(
             "/api/v1/sessions/:id/resume",
