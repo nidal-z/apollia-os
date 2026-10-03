@@ -45,6 +45,7 @@
   import DelegationTree from "../components/observability/DelegationTree.svelte";
   import MailboxTable from "../components/observability/MailboxTable.svelte";
   import ActiveHooksPanel from "../components/observability/ActiveHooksPanel.svelte";
+  import CapturePolicyPanel from "../components/observability/CapturePolicyPanel.svelte";
 
   type ObsTab =
     | "timeline"
@@ -53,7 +54,8 @@
     | "mailbox"
     | "delegation"
     | "plan-cache"
-    | "hooks";
+    | "hooks"
+    | "capture";
 
   let activeTab = $state<ObsTab>("timeline");
   let timelineLoaded = $state(false);
@@ -63,6 +65,7 @@
   let delegationLoaded = $state(false);
   let planCacheLoaded = $state(false);
   let hooksLoaded = $state(false);
+  let captureLoaded = $state(false);
   /** Task the timeline tab is focused on, `null` for the whole activity. */
   let timelineTaskId = $state<string | null>(null);
 
@@ -83,10 +86,12 @@
     "delegation",
     "plan-cache",
     "hooks",
+    "capture",
   ]);
 
   // Operator: 4 tabs - Timeline, Costs, Audit, Mailbox (non-technical reading).
-  // Builder: 7 tabs - adds Delegation, Plan-Cache and Hooks (full inspection).
+  // Builder: 8 tabs - adds Delegation, Plan-Cache, Hooks (full inspection) and
+  // the capture policy, which decides what the other tabs get to show.
   let tabItems = $derived.by(() => {
     const base = [
       { key: "timeline", label: $t("observability.tab_timeline") },
@@ -99,6 +104,7 @@
         { key: "delegation", label: $t("observability.tab_delegation") },
         { key: "plan-cache", label: $t("observability.tab_plan_cache") },
         { key: "hooks", label: $t("observability.tab_hooks") },
+        { key: "capture", label: $t("observability.tab_capture") },
       );
     }
     return base;
@@ -114,6 +120,7 @@
     if (tab === "delegation") delegationLoaded = true;
     if (tab === "plan-cache") planCacheLoaded = true;
     if (tab === "hooks") hooksLoaded = true;
+    if (tab === "capture") captureLoaded = true;
   }
 
   $effect(() => {
@@ -181,6 +188,10 @@
             <DeveloperOnly>
               <ActiveHooksPanel />
             </DeveloperOnly>
+          {/if}
+        {:else if activeTab === "capture"}
+          {#if captureLoaded}
+            <CapturePolicyPanel />
           {/if}
         {/if}
       </RouteTransition>

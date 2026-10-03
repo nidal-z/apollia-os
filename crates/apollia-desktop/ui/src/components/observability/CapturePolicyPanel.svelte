@@ -1,10 +1,9 @@
-<script lang="ts" context="module">
+<script module lang="ts">
   /**
-   * Settings > Observability - the observability *policy* sub-page.
+   * The capture policy tab of the Observability screen (developer mode).
    *
-   * Distinct from the top-level Observability dashboard: the dashboard shows
-   * what has already been collected (timeline, LLM costs, audit trail); this
-   * page governs what will be collected (capture flags, privacy, truncation,
+   * The other tabs show what has already been collected (timeline, LLM costs,
+   * audit trail); this one governs what will be collected (capture flags, privacy, truncation,
    * retention). It maps to the `[observability]` section of `apollia.toml`
    * (`ObservabilityConfig`, apollia-core).
    *
@@ -12,12 +11,6 @@
    * runtime does not hot-reload this section: persisted changes apply on the
    * next app restart, hence the persistent restart banner.
    */
-  export const meta = {
-    title: "settings.nav.observability",
-    icon: "activity",
-    group: "settings.nav.cluster_system",
-    cluster: "system",
-  } as const;
 </script>
 
 <script lang="ts">
@@ -29,7 +22,6 @@
     Scissors,
     Clock,
     ExternalLink,
-    ArrowRight,
   } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -38,7 +30,6 @@
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import { reportError } from "$lib/errors/reportError";
   import type { HumanizedError } from "$lib/errors/humanize";
-  import { navigateTo } from "$lib/stores/navigation";
   import { openConfigInEditor } from "$lib/ipc/app";
   import {
     getObservabilityConfig,
@@ -46,11 +37,11 @@
     type ObservabilityConfig,
   } from "$lib/ipc/observability";
   import { useSettingsForm } from "$lib/settings/useSettingsForm";
-  import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
-  import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
-  import SettingsSection from "../../components/settings/SettingsSection.svelte";
-  import SettingsFieldRow from "../../components/settings/SettingsFieldRow.svelte";
-  import SensitiveBadge from "../../components/settings/observability/SensitiveBadge.svelte";
+  import SettingSectionSkeleton from "../settings/SettingSectionSkeleton.svelte";
+  import SettingsSubPage from "../settings/SettingsSubPage.svelte";
+  import SettingsSection from "../settings/SettingsSection.svelte";
+  import SettingsFieldRow from "../settings/SettingsFieldRow.svelte";
+  import SensitiveBadge from "../settings/observability/SensitiveBadge.svelte";
 
   type BoolKey =
     | "capture_thoughts"
@@ -210,10 +201,6 @@
     }
   }
 
-  function openDashboard(): void {
-    navigateTo("observability");
-  }
-
   onMount(() => {
     void load();
   });
@@ -360,6 +347,7 @@
         label={$t("settings.observability.retention_days")}
         hint={$t("settings.observability.retention_days_desc")}
         for="observability-retention_days"
+        border={false}
       >
         {#snippet control()}
           <div class="relative w-40">
@@ -379,26 +367,6 @@
               {$t("settings.observability.unit_days")}
             </span>
           </div>
-        {/snippet}
-      </SettingsFieldRow>
-
-      <SettingsFieldRow
-        label={$t("settings.observability.view_data_label")}
-        hint={$t("settings.observability.view_data_desc")}
-        border={false}
-      >
-        {#snippet control()}
-          <Button
-            onclick={openDashboard}
-            variant="link"
-            size="sm"
-            data-testid="observability-open-dashboard"
-          >
-            <span class="inline-flex items-center gap-1.5">
-              {$t("settings.observability.view_data_link")}
-              <ArrowRight size={14} aria-hidden="true" />
-            </span>
-          </Button>
         {/snippet}
       </SettingsFieldRow>
     </SettingsSection>
