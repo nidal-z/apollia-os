@@ -101,7 +101,10 @@ fn error(status: StatusCode, message: impl Into<String>) -> RouteError {
 /// The registry source `apollia.toml` configures: the file the runtime was
 /// started with, else the one in its data directory.
 pub(crate) fn configured_source(config_path: Option<&Path>, data_dir: &Path) -> RegistrySource {
-    let path = config_path.map_or_else(|| data_dir.join("apollia.toml"), Path::to_path_buf);
+    let path = config_path.map_or_else(
+        || data_dir.join(apollia_core::paths::CONFIG_FILE_NAME),
+        Path::to_path_buf,
+    );
     RegistrySource::from_config_file(&path)
 }
 

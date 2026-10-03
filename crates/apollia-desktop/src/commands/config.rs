@@ -55,8 +55,7 @@ pub struct ApollaConfigView {
 
 /// Resolves the standard path `~/.apollia/apollia.toml`.
 fn default_config_path() -> PathBuf {
-    let home = apollia_core::paths::home_dir_or_temp();
-    apollia_core::paths::data_dir_under(home).join("apollia.toml")
+    apollia_core::paths::config_file_under(apollia_core::paths::home_dir_or_temp())
 }
 
 /// Extracts a string value from a TOML table, or returns a default.

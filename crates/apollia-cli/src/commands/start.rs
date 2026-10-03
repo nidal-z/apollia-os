@@ -125,7 +125,14 @@ fn open_secret_store(data_dir: &Path) -> Option<Arc<std::sync::Mutex<ToolCredent
 /// Returns `Ok(true)` when shutdown was triggered by SIGINT (Ctrl+C), so the
 /// caller can exit with code 5 to distinguish voluntary interruption from
 /// success (0) or error (1–4).
-pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, StartError> {
+///
+/// `config` is the configuration file named by `--config`; without it the
+/// runtime reads `~/.apollia/apollia.toml`.
+pub async fn run(
+    socket: Option<PathBuf>,
+    port: Option<u16>,
+    config: Option<PathBuf>,
+) -> Result<bool, StartError> {
     let start = Instant::now();
     let socket_path = socket.unwrap_or_else(default_socket_path);
     let tcp_port = port.unwrap_or(DEFAULT_TCP_PORT);
@@ -149,7 +156,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
 
     // Load apollia.toml if found. Agents, triggers, pipelines, notifications, and stt
     // are loaded from SQLite by the Supervisor; only static sections are parsed here.
-    let (loaded_config, config_path) = load_start_config()?;
+    let (loaded_config, config_path) = load_start_config(config.as_deref())?;
     let (
         llm_config,
         api_file_config,
