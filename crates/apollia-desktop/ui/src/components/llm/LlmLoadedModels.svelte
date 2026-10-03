@@ -79,6 +79,11 @@
               </p>
             </div>
             <div class="flex shrink-0 items-center gap-2">
+              {#if item.engine === "vllm-mlx"}
+                <Badge variant="neutral" size="sm" data-testid="llm-loaded-engine-mlx">
+                  {$t("llm.loaded.engine_mlx")}
+                </Badge>
+              {/if}
               {#if !canUnload(item)}
                 <Badge variant="warning" size="sm" data-testid="llm-loaded-in-use">
                   {$t("llm.loaded.in_use")}
