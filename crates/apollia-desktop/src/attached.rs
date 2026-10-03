@@ -208,6 +208,12 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "delete_mcp_secret",
     "fetch_mcp_registry",
     "store_mcp_secret",
+    // The Observability view: the global timeline and the mailbox, read by
+    // the runtime over `/api/v1/observability/timeline` and
+    // `/api/v1/mailbox/messages`, and the tool audit over `/api/v1/audit`.
+    "get_global_timeline",
+    "get_tool_audit_trail",
+    "list_mailbox_messages",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no

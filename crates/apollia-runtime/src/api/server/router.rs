@@ -369,6 +369,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(permissions_router::<B>())
         .merge(tool_governance_router::<B>())
         .merge(oauth_clients_router::<B>())
+        .merge(crate::api::routes_observability::observability_router::<B>())
         .merge(connectors_router::<B>())
         .merge(drive_folders_router::<B>())
         .merge(imap_router::<B>())
