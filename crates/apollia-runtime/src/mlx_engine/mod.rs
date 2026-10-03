@@ -18,7 +18,7 @@ pub use locate::{locate, MlxLaunch, ENV_ENGINE_DIR, ENV_PYTHON};
 
 use std::path::Path;
 use std::process::Stdio;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -138,12 +138,12 @@ pub fn trained_context(dir: &Path) -> Option<u64> {
 pub struct MlxEngineSupervisor {
     launch: MlxLaunch,
     timing: Timing,
-    instances: Arc<Mutex<Vec<Instance>>>,
-    tick: Arc<AtomicU64>,
+    instances: Mutex<Vec<Instance>>,
+    tick: AtomicU64,
     /// Serialises launches, so a request and the supervision task never start
     /// two processes for one model.
-    respawn_lock: Arc<Mutex<()>>,
-    shutting_down: Arc<Mutex<bool>>,
+    respawn_lock: Mutex<()>,
+    shutting_down: AtomicBool,
 }
 
 impl MlxEngineSupervisor {
@@ -178,10 +178,10 @@ impl MlxEngineSupervisor {
         Self {
             launch,
             timing,
-            instances: Arc::new(Mutex::new(Vec::new())),
-            tick: Arc::new(AtomicU64::new(0)),
-            respawn_lock: Arc::new(Mutex::new(())),
-            shutting_down: Arc::new(Mutex::new(false)),
+            instances: Mutex::new(Vec::new()),
+            tick: AtomicU64::new(0),
+            respawn_lock: Mutex::new(()),
+            shutting_down: AtomicBool::new(false),
         }
     }
 
@@ -396,7 +396,7 @@ impl MlxEngineSupervisor {
             let mut backoff = timing.min_backoff;
             let mut owed: Vec<(String, u32)> = Vec::new();
             loop {
-                if *self.shutting_down.lock().await {
+                if self.shutting_down.load(Ordering::SeqCst) {
                     return;
                 }
                 for (model_path, n_ctx, reason) in self.take_dead_instances().await {
@@ -416,7 +416,7 @@ impl MlxEngineSupervisor {
                     continue;
                 }
                 tokio::time::sleep(backoff).await;
-                if *self.shutting_down.lock().await {
+                if self.shutting_down.load(Ordering::SeqCst) {
                     return;
                 }
                 let _guard = self.respawn_lock.lock().await;
@@ -508,7 +508,7 @@ impl MlxEngineSupervisor {
 
     /// Stop every process and the respawns, without consuming the supervisor.
     pub async fn shutdown_in_place(&self) {
-        *self.shutting_down.lock().await = true;
+        self.shutting_down.store(true, Ordering::SeqCst);
         let _guard = self.respawn_lock.lock().await;
         for mut instance in std::mem::take(&mut *self.instances.lock().await) {
             let _ = instance.child.kill().await;
