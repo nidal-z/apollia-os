@@ -30,9 +30,12 @@
 
 mod actor;
 mod agents;
+pub mod fields;
 pub mod inputs;
 mod run;
 
+#[cfg(test)]
+mod inputs_tests;
 #[cfg(test)]
 mod tests;
 
@@ -50,7 +53,8 @@ use crate::agents::task::Nesting;
 use crate::eventbus::EventBusSender;
 
 pub use agents::LaunchedAgentRunner;
-pub use inputs::InputError;
+pub use fields::{input_fields, InputField, InputKind};
+pub use inputs::{InputError, InputErrorCode};
 
 /// Levels a nesting of runs may reach: a workflow, a workflow it calls, and
 /// one more. An agent run started by a step counts as a level.

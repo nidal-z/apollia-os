@@ -6,6 +6,7 @@ from typing import Any, TypeVar, cast
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..models.input_error_code import InputErrorCode
 from ..types import UNSET, Unset
 
 T = TypeVar("T", bound="WorkflowErrorResponse")
@@ -17,15 +18,25 @@ class WorkflowErrorResponse:
 
     Attributes:
         error (str): What went wrong.
+        code (InputErrorCode | None | Unset):
         field (None | str | Unset): The input at fault, when an input was refused.
     """
 
     error: str
+    code: InputErrorCode | None | Unset = UNSET
     field: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         error = self.error
+
+        code: None | str | Unset
+        if isinstance(self.code, Unset):
+            code = UNSET
+        elif isinstance(self.code, InputErrorCode):
+            code = self.code.value
+        else:
+            code = self.code
 
         field: None | str | Unset
         if isinstance(self.field, Unset):
@@ -40,6 +51,8 @@ class WorkflowErrorResponse:
                 "error": error,
             }
         )
+        if code is not UNSET:
+            field_dict["code"] = code
         if field is not UNSET:
             field_dict["field"] = field
 
@@ -49,6 +62,23 @@ class WorkflowErrorResponse:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
         error = d.pop("error")
+
+        def _parse_code(data: object) -> InputErrorCode | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                code_type_1 = InputErrorCode(data)
+
+                return code_type_1
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(InputErrorCode | None | Unset, data)
+
+        code = _parse_code(d.pop("code", UNSET))
 
         def _parse_field(data: object) -> None | str | Unset:
             if data is None:
@@ -61,6 +91,7 @@ class WorkflowErrorResponse:
 
         workflow_error_response = cls(
             error=error,
+            code=code,
             field=field,
         )
 

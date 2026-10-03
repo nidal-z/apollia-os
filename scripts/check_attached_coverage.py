@@ -95,8 +95,10 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # side of the Model Hub (hardware, search, cards, installed models,
 # recommendation) reached the daemon, then at 39 once the local AI could be
 # installed at onboarding through the daemon, then at 34 once the agent
-# packages were installed, listed and uninstalled through the daemon.
-EMBEDDED_ONLY_CEILING = 34
+# packages were installed, listed and uninstalled through the daemon, then at
+# 30 once the companion read its preference and opened its guide session
+# through the daemon.
+EMBEDDED_ONLY_CEILING = 30
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

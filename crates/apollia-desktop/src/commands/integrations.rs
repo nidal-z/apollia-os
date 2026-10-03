@@ -16,12 +16,14 @@
 //! so the `complete_flow` handler can pair the callback `state` with the
 //! original PKCE verifier and provider configuration.
 //!
-//! ## Sovereignty profile
+//! ## Organisation policy
 //!
-//! When the user has selected the `local_only` sovereignty profile, every
-//! OAuth-starting command returns [`IntegrationsError::SovereigntyBlocked`]
-//! and the UI surfaces a static explanation panel instead of the wizards.
-//!
+//! Starting a consent is submitted to the runtime's connection admission
+//! before the loopback port is bound, so a policy that denies remote
+//! connections refuses the flow with [`IntegrationsError::RefusedByPolicy`].
+//! The check reads the policy the runtime loaded, never a value the renderer
+//! sends.
+
 //! ## Credentials
 //!
 //! Builds embed Apollia's own Microsoft client, and no Google client at all
@@ -117,9 +119,6 @@ fn pending_flows() -> &'static DashMap<String, FlowEntry> {
 #[serde(tag = "kind", content = "detail", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum IntegrationsError {
-    /// The active sovereignty profile (`local_only`) bans cloud connectors.
-    #[error("sovereignty profile blocks cloud connectors")]
-    SovereigntyBlocked,
     /// The provider has no OAuth client id configured.
     ///
     /// Google's normal state on a fresh install: no build embeds a Google
@@ -226,28 +225,6 @@ fn build_provider_with_scopes(
     })
 }
 
-// ─── Sovereignty gate ────────────────────────────────────────────────────────
-
-/// Sovereignty profile (mirror of the desktop config field). When set to
-/// `local_only`, cloud OAuth flows are blocked at the command boundary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SovereigntyProfile {
-    /// All cloud connectors allowed.
-    CloudAllowed,
-    /// Local-only: block all cloud OAuth flows.
-    LocalOnly,
-}
-
-/// Convenience guard returning [`IntegrationsError::SovereigntyBlocked`] when
-/// the active profile forbids cloud connectors.
-fn ensure_cloud_allowed(profile: SovereigntyProfile) -> Result<(), IntegrationsError> {
-    match profile {
-        SovereigntyProfile::CloudAllowed => Ok(()),
-        SovereigntyProfile::LocalOnly => Err(IntegrationsError::SovereigntyBlocked),
-    }
-}
-
 // ─── Tauri commands ──────────────────────────────────────────────────────────
 
 /// Start an OAuth flow for the given provider + scopes.
@@ -263,19 +240,22 @@ fn ensure_cloud_allowed(profile: SovereigntyProfile) -> Result<(), IntegrationsE
 /// environment, user closed the tab before granting), the frontend keeps a
 /// manual paste fallback so the user can recover the code from the URL bar.
 ///
-/// Attached to the daemon, the consent is started there, for the same
-/// loopback redirect, and completed there by [`oauth_complete_flow`].
+/// The account is submitted to the connection admission first, before any
+/// port is bound or browser opened. Attached to the daemon, the consent is
+/// started there, for the same loopback redirect, under the daemon's own
+/// admission, and completed there by [`oauth_complete_flow`].
 #[tauri::command]
 pub async fn oauth_start_flow(
     app: tauri::AppHandle,
     link: State<'_, RuntimeLink>,
     provider: String,
     scopes: Vec<String>,
-    sovereignty: SovereigntyProfile,
 ) -> Result<OauthStartFlow, IntegrationsError> {
     use tauri::Emitter;
 
-    ensure_cloud_allowed(sovereignty)?;
+    if let RuntimeLink::Embedded(runtime) = link.inner() {
+        admit_start(&runtime.connection_governance, &provider)?;
+    }
     let (listener, port) = apollia_auth::callback::bind_ephemeral_port()
         .await
         .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
@@ -458,6 +438,17 @@ pub async fn oauth_disconnect(
 }
 
 /// Submit an account of `provider` to the connection admission.
+/// Submit the provider a consent is about to start for to the connection
+/// admission, answering the provider it names.
+fn admit_start(
+    governance: &ConnectionGovernance,
+    provider: &str,
+) -> Result<ConnectorProvider, IntegrationsError> {
+    let provider = provider_from_id(provider)?;
+    admit_account(governance, provider)?;
+    Ok(provider)
+}
+
 fn admit_account(
     governance: &ConnectionGovernance,
     provider: ConnectorProvider,
@@ -782,21 +773,65 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_sovereignty_gate_allows_cloud_when_cloud_allowed() {
-        // GIVEN a profile that allows the cloud
-        // WHEN the sovereignty gate is asked
-        // THEN the call goes through
-        assert!(ensure_cloud_allowed(SovereigntyProfile::CloudAllowed).is_ok());
+    /// Governance over the organisation policy whose `[connections]` section
+    /// is `connections`, as the runtime builds it at boot.
+    fn governance_over_policy(connections: &str) -> ConnectionGovernance {
+        let text = format!(
+            "schema_version = 1\nsigned_at = 2026-10-01T09:00:00Z\n[connections]\n{connections}\n"
+        );
+        let policy = apollia_permissions::parse_policy(&text).unwrap();
+        let verdict =
+            apollia_permissions::PolicyVerdict::Valid(Box::new(apollia_permissions::ValidPolicy {
+                signed_at: policy.signed_at,
+                policy,
+                key_fingerprint: "00".into(),
+                publisher: "it".into(),
+            }));
+        ConnectionGovernance::new(
+            std::sync::Arc::new(apollia_runtime::governance::PolicyAdmission::new(
+                std::sync::Arc::new(verdict),
+            )),
+            None,
+        )
     }
 
+    // A policy denying remote connections refuses the start of a native consent.
     #[test]
-    fn test_sovereignty_gate_blocks_when_local_only() {
-        // GIVEN a local-only profile
-        // WHEN the sovereignty gate is asked
-        let err = ensure_cloud_allowed(SovereigntyProfile::LocalOnly).unwrap_err();
-        // THEN the call is blocked, which is what keeps an OAuth round trip from starting
-        assert!(matches!(err, IntegrationsError::SovereigntyBlocked));
+    fn test_start_refused_by_a_policy_denying_remote_connections() {
+        // GIVEN a loaded organisation policy carrying `connections.remote = "deny"`
+        let governance = governance_over_policy("remote = \"deny\"");
+
+        // WHEN the start of a Google consent is submitted
+        let err = admit_start(&governance, "google").unwrap_err();
+
+        // THEN it is refused by the policy, a kind the renderer recognises
+        assert!(
+            matches!(&err, IntegrationsError::RefusedByPolicy(reason)
+                if reason == apollia_runtime::governance::REMOTE_DENIED_REASON),
+            "{err:?}"
+        );
+        let json = serde_json::to_value(&err).unwrap();
+        assert_eq!(json["kind"], "refused_by_policy");
+    }
+
+    // With no policy and no sovereignty key anywhere, a Google consent starts.
+    #[test]
+    fn test_start_admitted_without_a_policy() {
+        // GIVEN no organisation policy (the command takes no profile value)
+        let governance = ConnectionGovernance::new(
+            std::sync::Arc::new(apollia_runtime::governance::PolicyAdmission::new(
+                std::sync::Arc::new(apollia_permissions::PolicyVerdict::Absent),
+            )),
+            None,
+        );
+
+        // WHEN the start of a Google consent is submitted
+        let provider = admit_start(&governance, "google").unwrap();
+
+        // THEN it is admitted
+        assert_eq!(provider, ConnectorProvider::Google);
+        // AND a policy silent on remote connections admits it too
+        assert!(admit_start(&governance_over_policy(""), "google").is_ok());
     }
 
     #[test]

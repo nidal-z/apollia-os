@@ -21,8 +21,16 @@ pub(super) struct ConsentStarted {
     pub(super) state: String,
 }
 
+/// The daemon's refusal, as the interface reads it. A `403` is the daemon's
+/// connection admission refusing the account, so it keeps its own kind.
 fn refused(error: AttachedError) -> IntegrationsError {
-    IntegrationsError::Service(String::from(error))
+    match error {
+        AttachedError::Refused {
+            status: 403,
+            message,
+        } => IntegrationsError::RefusedByPolicy(message),
+        other => IntegrationsError::Service(String::from(other)),
+    }
 }
 
 fn drive_route(account_id: &str) -> String {

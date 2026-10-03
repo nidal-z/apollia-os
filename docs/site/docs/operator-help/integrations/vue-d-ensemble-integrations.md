@@ -67,7 +67,7 @@ You can also add your own server, on the **Custom MCP** tab of the same sheet. C
 
 - **HITL approval**: every write (sending mail, creating an event, writing a file) asks for your confirmation before execution. See [Understand MCP permissions](understand-mcp-permissions.md).
 - **Local tokens**: no secret leaves your machine. See [Manage OAuth tokens](manage-oauth-tokens.md).
-- **Sovereignty profile**: the switch is in **Settings, Profile**, under **Data sovereignty**, with three values, *Strictly local*, *Local preferred* and *Cloud allowed*. On *Strictly local*, and also when the question has never been answered, Apollia refuses to open a cloud OAuth flow and says so on the connector page. That is the whole of what the profile gates in `v0.1.0-preview`: it does not filter MCP servers, so a remote HTTP or SSE server already installed keeps answering under it.
+- **Organisation policy**: forbidding the cloud for connections is a rule of the signed policy your organisation may deploy, `connections.remote = "deny"`, checked by the runtime. Under it, Apollia refuses to add a connection to an online service, a Google or Microsoft account among them, and says so in the connection dialog. Without a policy you are free: no connection is refused for being online. The policy checks a connection when it is added; a connection already in place keeps answering.
 
 ## Verification
 
@@ -77,6 +77,6 @@ You can also add your own server, on the **Custom MCP** tab of the same sheet. C
 ## If it does not work
 
 - **The Connections page is empty or does not load**: restart Apollia, the runtime may not have finished initializing the MCP client.
-- **Connecting a native connector stops on the sovereignty profile**: the dialog says cloud connectors are off in your profile, which also happens when the onboarding never asked the question. It offers to keep strictly local or to allow cloud and continue; the second writes **Data sovereignty** to *Cloud allowed* in **Settings, Profile**, where the three values stay available.
+- **Connecting a native connector stops with "Refused by your organisation's policy"**: your organisation's policy denies connections to online services on this computer. Nothing was sent; ask the person who manages the policy for an exception.
 
 > **Technical reference:** [Apollia reference](/reference) , Tool Registry architecture, scoping, tool governance.

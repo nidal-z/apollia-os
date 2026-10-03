@@ -1,7 +1,7 @@
 //! Apollia OS runtime configuration.
 //!
-//! Ten `apollia.toml` sections are consulted by a loader, the list held by
-//! `apollia_cli::config::KNOWN_SECTIONS`. Nine of them are defined here:
+//! The `apollia.toml` sections a loader consults are listed by
+//! `apollia_cli::config::KNOWN_SECTIONS`. Those defined here include:
 //! - [`RuntimeConfig`]: `[runtime]`, EventBus and mailbox capacity.
 //! - [`ApiConfig`]: `[api]`, the TCP listener, authentication, TLS, and the
 //!   Unix socket.
@@ -15,8 +15,12 @@
 //! - [`ModelsConfig`]: `[models]`, the signed index of model cards the
 //!   catalogue reads, its mirror, and the switch that turns it off. Read when
 //!   the catalogue opens, not by the embedded loader.
+//! - [`DesktopConfig`]: `[desktop]`, the settings of the desktop application
+//!   that Rust reads, each a named setting resolved with its source by
+//!   [`resolve_setting`] and written by [`write_setting`], which refuses a key
+//!   the organization policy locks.
 //!
-//! The tenth is `[llm]`, whose type lives in `apollia-llm`.
+//! `[llm]` is another, whose type lives in `apollia-llm`.
 //!
 //! The other types in this module are runtime parameters, not `apollia.toml`
 //! sections. No loader deserializes an `[a2a]` or an `[oria]` table, and both
@@ -31,6 +35,7 @@ mod a2a;
 mod api;
 mod autonomy;
 mod chat;
+mod desktop;
 mod filesystem;
 mod filesystem_risk;
 mod hitl;
@@ -43,6 +48,7 @@ mod permissions;
 mod registry;
 mod retired;
 mod runtime;
+mod settings;
 mod tools;
 mod triggers;
 mod web;
@@ -50,6 +56,8 @@ mod workflows;
 
 #[cfg(test)]
 mod autonomy_tests;
+#[cfg(test)]
+mod settings_tests;
 #[cfg(test)]
 mod tests;
 
@@ -59,6 +67,7 @@ pub use autonomy::{
     AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, AutonomyLevelParseError, GatePolicy,
 };
 pub use chat::ChatConfig;
+pub use desktop::DesktopConfig;
 pub use filesystem::{FilesystemConfig, JournalConfig};
 pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
@@ -71,6 +80,10 @@ pub use permissions::BashValidatorConfig;
 pub use registry::RegistryConfig;
 pub use retired::{retired_keys_in, warn_retired_keys, RetiredKey, RETIRED_KEYS};
 pub use runtime::RuntimeConfig;
+pub use settings::{
+    resolve_setting, resolve_setting_in, write_setting, PolicySettings, ResolvedSetting,
+    SettingError, SettingSource,
+};
 pub use tools::ToolsConfig;
 pub use triggers::TriggersConfig;
 pub use web::{

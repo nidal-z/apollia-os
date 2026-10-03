@@ -80,6 +80,8 @@ from .clear_cache_response import ClearCacheResponse
 from .clear_memory_body import ClearMemoryBody
 from .coaching_example import CoachingExample
 from .coaching_request import CoachingRequest
+from .companion_enabled import CompanionEnabled
+from .companion_session import CompanionSession
 from .complete_consent_body import CompleteConsentBody
 from .complete_request import CompleteRequest
 from .complete_request_schema_type_0 import CompleteRequestSchemaType0
@@ -96,6 +98,7 @@ from .costs_response import CostsResponse
 from .counted_language_model import CountedLanguageModel
 from .create_channel_request import CreateChannelRequest
 from .create_channel_request_config import CreateChannelRequestConfig
+from .create_companion_session_body import CreateCompanionSessionBody
 from .create_llm_backend_request import CreateLlmBackendRequest
 from .create_llm_backend_request_config_json import CreateLlmBackendRequestConfigJson
 from .create_preset_request import CreatePresetRequest
@@ -173,6 +176,9 @@ from .inject_message_body import InjectMessageBody
 from .inject_message_body_payload import InjectMessageBodyPayload
 from .inject_message_response import InjectMessageResponse
 from .injected_memory_entry_view import InjectedMemoryEntryView
+from .input_error_code import InputErrorCode
+from .input_field import InputField
+from .input_kind import InputKind
 from .install_agent_request import InstallAgentRequest
 from .install_agent_response import InstallAgentResponse
 from .install_refusal_type_0 import InstallRefusalType0
@@ -435,6 +441,7 @@ from .workflow_run_view import WorkflowRunView
 from .workflow_run_view_inputs import WorkflowRunViewInputs
 from .workflow_run_view_output_type_0 import WorkflowRunViewOutputType0
 from .workflow_step_view import WorkflowStepView
+from .workflow_view import WorkflowView
 
 __all__ = (
     "A2AAgentDto",
@@ -517,6 +524,8 @@ __all__ = (
     "ClearMemoryBody",
     "CoachingExample",
     "CoachingRequest",
+    "CompanionEnabled",
+    "CompanionSession",
     "CompleteConsentBody",
     "CompleteRequest",
     "CompleteRequestSchemaType0",
@@ -533,6 +542,7 @@ __all__ = (
     "CountedLanguageModel",
     "CreateChannelRequest",
     "CreateChannelRequestConfig",
+    "CreateCompanionSessionBody",
     "CreateLlmBackendRequest",
     "CreateLlmBackendRequestConfigJson",
     "CreatePresetRequest",
@@ -610,6 +620,9 @@ __all__ = (
     "InjectMessageBody",
     "InjectMessageBodyPayload",
     "InjectMessageResponse",
+    "InputErrorCode",
+    "InputField",
+    "InputKind",
     "InstallAgentRequest",
     "InstallAgentResponse",
     "InstalledAgentView",
@@ -866,4 +879,5 @@ __all__ = (
     "WorkflowRunViewInputs",
     "WorkflowRunViewOutputType0",
     "WorkflowStepView",
+    "WorkflowView",
 )

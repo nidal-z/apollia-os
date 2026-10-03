@@ -112,7 +112,10 @@ roadmap rather than shipped:
   writable-scope mount), so the declared sandbox profile becomes a real
   constraint rather than metadata.
 - A true filesystem jail for the shell and Python executors.
-- Enforcement of the sovereignty profile (`local_only`) as an automatic gate.
+- An organisation policy that forbids the cloud on every outbound path. Today
+  its `connections.remote = "deny"` rule refuses adding a connection to an
+  online service, checked by the runtime; it does not yet cover inference
+  endpoints.
 
 Until those land, the trust model above is the whole story. When they do, this
 page and the decision record will be updated to match, never ahead of the code.

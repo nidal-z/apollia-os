@@ -888,6 +888,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/companion/enabled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/companion/enabled`: whether the companion is on. */
+        get: operations["get_companion_enabled"];
+        /** `PUT /api/v1/companion/enabled`: turns the companion on or off. */
+        put: operations["set_companion_enabled"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/companion/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/companion/sessions`: opens a session on the guide. */
+        post: operations["create_companion_session"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connections": {
         parameters: {
             query?: never;
@@ -4863,6 +4898,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workflows/{package}/{workflow}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/workflows/{package}/{workflow}`: a workflow, its steps and
+         *     the fields of its inputs.
+         */
+        get: operations["get_workflow"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workflows/{package}/{workflow}/runs": {
         parameters: {
             query?: never;
@@ -5743,6 +5798,16 @@ export interface components {
             /** @description The title shown to the operator, the name when absent. */
             serverTitle?: string | null;
         };
+        /** @description Body of `PUT /api/v1/companion/enabled`, and answer of both verbs. */
+        CompanionEnabled: {
+            /** @description Whether the companion panel is on. */
+            enabled: boolean;
+        };
+        /** @description Answer of `POST /api/v1/companion/sessions`. */
+        CompanionSession: {
+            /** @description Identifier of the guide session just opened. */
+            session_id: string;
+        };
         /** @description Body of `POST /api/v1/connectors/oauth/complete`. */
         CompleteConsentBody: {
             /** @description The authorization `code` the provider returned. */
@@ -5932,6 +5997,11 @@ export interface components {
              * @description Minimum throttling interval, in seconds. Default: `0` (none).
              */
             min_interval_seconds?: number;
+        };
+        /** @description Body of `POST /api/v1/companion/sessions`. */
+        CreateCompanionSessionBody: {
+            /** @description The route the panel opened on, logged with the session. */
+            context?: string | null;
         };
         /** @description Request body for `POST /api/v1/llm/backends`. */
         CreateLlmBackendRequest: {
@@ -6475,6 +6545,35 @@ export interface components {
              */
             relevance_score: number;
         };
+        /**
+         * @description Why an input was refused, as a caller matches it.
+         * @enum {string}
+         */
+        InputErrorCode: "not_an_object" | "required" | "unknown" | "null" | "wrong_type" | "not_a_choice" | "malformed_date" | "missing_file";
+        /** @description One input of a workflow, as its launch form shows it. */
+        InputField: {
+            /**
+             * @description The values a choice, or each item of a list of choices, may take, as
+             *     text: a launch reads each back as the type the input declares.
+             */
+            choices?: string[];
+            /** @description What the input is, as the workflow describes it. */
+            description?: string | null;
+            itemKind?: null | components["schemas"]["InputKind"];
+            /** @description The field to show. */
+            kind: components["schemas"]["InputKind"];
+            /** @description The input's name, the key of the inputs object. */
+            name: string;
+            /** @description `true` when the input accepts null. */
+            nullable: boolean;
+            /** @description `true` when a launch without it is refused. */
+            required: boolean;
+        };
+        /**
+         * @description The field a form shows for an input.
+         * @enum {string}
+         */
+        InputKind: "text" | "long_text" | "file" | "date" | "integer" | "number" | "boolean" | "choice" | "list" | "other";
         /** @description Request body for `POST /api/v1/agents/installed`. */
         InstallAgentRequest: {
             /** @description Path of the Python module on this machine. */
@@ -8748,6 +8847,7 @@ export interface components {
         };
         /** @description Error body of the workflow routes. */
         WorkflowErrorResponse: {
+            code?: null | components["schemas"]["InputErrorCode"];
             /** @description What went wrong. */
             error: string;
             /** @description The input at fault, when an input was refused. */
@@ -8824,6 +8924,21 @@ export interface components {
              *     `not_started`.
              */
             status: string;
+        };
+        /** @description A workflow as its package declares it, with the fields of its inputs. */
+        WorkflowView: {
+            description: string;
+            /**
+             * @description One field per input, in the order the workflow declares them, each
+             *     with the kind of field a launch form shows for it.
+             */
+            inputs: components["schemas"]["InputField"][];
+            /** @description The declared steps, in order. */
+            steps: string[];
+            /** @description The version of the package that declares it. */
+            version: string;
+            /** @description `<package>/<workflow>`. */
+            workflowId: string;
         };
     };
     responses: never;
@@ -10860,6 +10975,119 @@ export interface operations {
             };
         };
     };
+    get_companion_enabled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The preference, off when never written */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanionEnabled"];
+                };
+            };
+            /** @description The user memory did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_companion_enabled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompanionEnabled"];
+            };
+        };
+        responses: {
+            /** @description The preference as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanionEnabled"];
+                };
+            };
+            /** @description The user memory did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    create_companion_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCompanionSessionBody"];
+            };
+        };
+        responses: {
+            /** @description The guide session opened */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanionSession"];
+                };
+            };
+            /** @description The guide is not installed */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The chat subsystem refused the session */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The chat subsystem did not start */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     list_connections: {
         parameters: {
             query?: never;
@@ -11278,6 +11506,15 @@ export interface operations {
             };
             /** @description Unknown provider or scope, or invalid redirect URI */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Refused by the connection admission */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -20034,6 +20271,49 @@ export interface operations {
             };
         };
     };
+    get_workflow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package that declares the workflow */
+                package: string;
+                /** @description Workflow name in the package */
+                workflow: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The workflow and the fields of its inputs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowView"];
+                };
+            };
+            /** @description No installed workflow by that name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+            /** @description Workflow engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+        };
+    };
     list_workflow_runs: {
         parameters: {
             query?: {
@@ -20098,7 +20378,7 @@ export interface operations {
                     "application/json": components["schemas"]["WorkflowRunView"];
                 };
             };
-            /** @description An input does not fit the schema; `field` names it */
+            /** @description An input does not fit the schema; `field` names it and `code` says why */
             400: {
                 headers: {
                     [name: string]: unknown;

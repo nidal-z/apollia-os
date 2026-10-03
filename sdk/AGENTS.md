@@ -28,7 +28,13 @@ documentation site.
 `action` is one of the five families `apollia.toml` reads (`read`,
 `read_personal`, `write_or_delete`, `send_external`, `execute_code`); every
 family except `read` is sensitive, and sensitivity follows the family alone:
-`@tool` takes no `dangerous` flag. A workflow's `inputs` is a `TypedDict`, and its body opens each step
+`@tool` takes no `dangerous` flag. A workflow's `inputs` is a `TypedDict` whose fields are each a type the launch
+form knows: `str`, `apollia.LongText`, `apollia.FileInput` (received as the
+absolute path of the file), `datetime.date` (received as a `date`), `int`,
+`float`, `bool`, `Literal[...]`, or a list of text or numbers; any other type is
+refused at decoration time. The schema carries `format` `date`, `long-text` or
+`file-path` for the three typed texts, and `x-order`, the declared order, which
+the form follows. Its body opens each step
 with `async with ctx.step("name")`, which refuses a name missing from `steps`.
 Run by the runtime, a step reports its opening, its end and its failure through
 a private hook of the runtime context (`_apollia_step_hook`); `MockContext` has
