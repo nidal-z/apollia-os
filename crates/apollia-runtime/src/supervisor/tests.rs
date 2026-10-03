@@ -601,6 +601,7 @@ async fn test_app_state_clone_with_llm_router_none() {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
 
     // WHEN the AppState is cloned

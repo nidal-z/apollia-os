@@ -39,7 +39,7 @@ fn test_a_v5_system_db_gains_the_token_table_and_keeps_its_rows() {
     drop(open_repo(&dir));
 
     // THEN the table holds the six columns, the backend survives, and the
-    // file is at version 6
+    // file is at the current version
     let conn = Connection::open(&path).unwrap();
     assert_eq!(
         columns(&conn),
@@ -60,7 +60,10 @@ fn test_a_v5_system_db_gains_the_token_table_and_keeps_its_rows() {
     let version: i64 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 6);
+    assert_eq!(
+        version,
+        i64::from(crate::system_db::SYSTEM_DB_SCHEMA_VERSION)
+    );
 }
 
 #[test]

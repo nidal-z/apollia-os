@@ -108,6 +108,7 @@ service in the [SDK reference](/reference/sdk). The fifteen services are `llm`,
 | **apollia-stt** | Local speech-to-text on `whisper`: batch transcribe and translate plus an audio pipeline. Batch only, no streaming. |
 | **apollia-workspace** | Project context (Git, an `APOLLIA.md` rules provider, a file tree, a script provider) and custom slash-commands: the harness layer around an agent. |
 | **apollia-auth** | OAuth and PKCE flows backing the connectors, with secrets landing in the keyring or an age file. |
+| **apollia-sources** | The sources an agent may consult once they are checked for it: indexed folders, files, mailboxes, the profile and memory. Holds the actor that owns their registry, a table of `system.db`; an agent's `sources` list names its identifiers, or `profile` and `memory`. |
 
 For the full native tool list see the [native tool catalog](/reference/native-tools).
 

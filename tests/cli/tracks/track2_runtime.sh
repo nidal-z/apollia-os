@@ -52,6 +52,14 @@ check_content "model embeddings show (none set)" "keywords alone" "${Q[@]}" mode
 check_exit    "model embeddings set-default (chat model) → 1" 1 "${Q[@]}" model embeddings set-default qwen3-8b
 check_content "model embeddings set-default" "multilingual-e5-small" "${Q[@]}" model embeddings set-default multilingual-e5-small
 check_json    "model embeddings show --json"       "${Q[@]}" model embeddings show --json
+# The registry of sources: a folder is added, listed and removed by its
+# identifier; a mailbox without a reference is refused with 1.
+check_exit    "source create mail without reference → 1" 1 "${Q[@]}" source create --kind mail --label Inbox
+SRCID=$("${Q[@]}" -q source create --kind folder --label E2E-Contracts --reference conn-e2e 2>/dev/null)
+check_content "source list shows the folder" "E2E-Contracts" "${Q[@]}" source list
+check_json    "source list --json"                 "${Q[@]}" source list --json
+check_exit    "source delete the folder → 0" 0     "${Q[@]}" source delete "$SRCID" --confirm
+check_exit    "source delete again → 1"      1     "${Q[@]}" source delete "$SRCID" --confirm
 check         "digest --since 24h"                 "${Q[@]}" digest --since 24h
 check_json    "digest --json"                      "${Q[@]}" digest --since 24h --json
 
