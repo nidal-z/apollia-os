@@ -259,9 +259,9 @@ pub struct AgentManifest {
     /// Logical names of the secrets declared via `@agent(secrets=...)`.
     ///
     /// Strict allowlist of credential keys the agent may read from
-    /// `ctx.secrets.get(key)`. The runtime resolves each key via the encrypted
-    /// [`ToolCredentialStore`](apollia_tools::ToolCredentialStore)
-    /// (AES-256-GCM) using the tool namespace `"agent"`.
+    /// `ctx.secrets.get(key)`. The runtime resolves each key via the
+    /// [`ToolCredentialStore`](apollia_tools::ToolCredentialStore), whose values
+    /// live in the secret store, using the tool namespace `"agent"`.
     ///
     /// **Gating**: an undeclared key always returns `None` on the Python side,
     /// even if the value exists in the store. A direct consequence of the

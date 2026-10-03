@@ -6,7 +6,8 @@
 //! - `permission_rules`: scope-aware prefix rules (session/project/global);
 //! - `permission_audit`: immutable decision log, append-only via triggers;
 //! - `tools`: enabled/disabled state and per-tool JSON configuration;
-//! - `tool_credentials`: per-tool secrets, AES-256-GCM encrypted values.
+//! - `tool_credentials`: the index of the per-tool secrets, whose values live
+//!   in the secret store.
 //!
 //! ## Migration from `permissions.db`
 //!

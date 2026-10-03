@@ -1,7 +1,7 @@
 //! ctx.secrets: read-only credentials access for agents.
 //!
 //! Wraps an existing [`ToolCredentialStore`](apollia_tools::ToolCredentialStore)
-//! (AES-256-GCM) with **manifest gating**: an agent only sees the keys
+//! (values in the secret store) with **manifest gating**: an agent only sees the keys
 //! declared in `@agent(secrets=...)`. Any undeclared key is invisible
 //! (returns `None`), even if it exists in the database.
 //!
@@ -176,6 +176,50 @@ mod tests {
 
     // Tests with a real ToolCredentialStore
 
+    /// In-memory secret store standing in for the OS keychain.
+    #[derive(Default)]
+    struct MemorySecrets {
+        entries: Mutex<std::collections::HashMap<(String, String), String>>,
+    }
+
+    impl apollia_auth::SecretStore for MemorySecrets {
+        fn set(
+            &self,
+            service: &str,
+            user: &str,
+            value: &str,
+        ) -> Result<(), apollia_auth::AuthError> {
+            let mut entries = self.entries.lock().unwrap_or_else(|e| e.into_inner());
+            entries.insert((service.to_owned(), user.to_owned()), value.to_owned());
+            Ok(())
+        }
+
+        fn get(
+            &self,
+            service: &str,
+            user: &str,
+        ) -> Result<Option<String>, apollia_auth::AuthError> {
+            let entries = self.entries.lock().unwrap_or_else(|e| e.into_inner());
+            Ok(entries.get(&(service.to_owned(), user.to_owned())).cloned())
+        }
+
+        fn delete(&self, service: &str, user: &str) -> Result<(), apollia_auth::AuthError> {
+            let mut entries = self.entries.lock().unwrap_or_else(|e| e.into_inner());
+            entries.remove(&(service.to_owned(), user.to_owned()));
+            Ok(())
+        }
+
+        fn backend_id(&self) -> &'static str {
+            "memory"
+        }
+    }
+
+    fn open_store(dir: &tempfile::TempDir) -> ToolCredentialStore {
+        let _ = apollia_tools::GovernanceDb::open(dir.path()).expect("init governance.db");
+        let db = dir.path().join(apollia_tools::GOVERNANCE_DB_FILENAME);
+        ToolCredentialStore::new(&db, Box::new(MemorySecrets::default())).expect("open store")
+    }
+
     /// Builds an ephemeral `ToolCredentialStore` and inserts a secret for the
     /// `"agent"` namespace.
     fn store_with_agent_secret(
@@ -183,10 +227,7 @@ mod tests {
         key: &str,
         value: &str,
     ) -> Arc<Mutex<ToolCredentialStore>> {
-        let _ = apollia_tools::GovernanceDb::open(dir.path()).expect("init governance.db");
-        let db = dir.path().join(apollia_tools::GOVERNANCE_DB_FILENAME);
-        let kf = dir.path().join(".keyfile");
-        let mut store = ToolCredentialStore::new(&db, &kf).expect("open store");
+        let mut store = open_store(dir);
         store
             .set(AGENT_SECRETS_NAMESPACE, key, value)
             .expect("set secret");
@@ -230,10 +271,7 @@ mod tests {
     fn test_has_false_when_declared_but_missing_in_store() {
         // GIVEN an empty credential store and an interface declaring api_key
         let tmp = tempfile::tempdir().expect("tempdir");
-        let _ = apollia_tools::GovernanceDb::open(tmp.path()).expect("init");
-        let db = tmp.path().join(apollia_tools::GOVERNANCE_DB_FILENAME);
-        let kf = tmp.path().join(".keyfile");
-        let store = ToolCredentialStore::new(&db, &kf).expect("open");
+        let store = open_store(&tmp);
         let iface = SecretsInterface::new(
             Some(Arc::new(Mutex::new(store))),
             vec!["api_key".to_string()],
@@ -251,10 +289,7 @@ mod tests {
     fn test_with_namespace_isolates_secrets() {
         // GIVEN a store holding brave_api_key under the `agent::veille-ia` namespace
         let tmp = tempfile::tempdir().expect("tempdir");
-        let _ = apollia_tools::GovernanceDb::open(tmp.path()).expect("init");
-        let db = tmp.path().join(apollia_tools::GOVERNANCE_DB_FILENAME);
-        let kf = tmp.path().join(".keyfile");
-        let mut store = ToolCredentialStore::new(&db, &kf).expect("open");
+        let mut store = open_store(&tmp);
         store
             .set("agent::veille-ia", "brave_api_key", "scoped-value")
             .expect("set scoped");

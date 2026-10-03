@@ -6,6 +6,7 @@
 use apollia_runtime::api::routes_tool_credentials::{
     DeletedCredential, SetCredentialBody, StoredCredential,
 };
+use apollia_runtime::inference_servers::default_store_opener;
 use apollia_runtime::tool_credentials::{
     self, CredentialEntryView, CredentialError, CredentialTestView,
 };
@@ -19,9 +20,11 @@ pub(super) async fn list(
     tool_name: Option<String>,
 ) -> Result<Vec<CredentialEntryView>, String> {
     match link {
-        RuntimeLink::Embedded(_) => tool_credentials::list_credentials(home_base_dir()?, tool_name)
-            .await
-            .map_err(|e| e.to_string()),
+        RuntimeLink::Embedded(_) => {
+            tool_credentials::list_credentials(home_base_dir()?, default_store_opener(), tool_name)
+                .await
+                .map_err(|e| e.to_string())
+        }
         RuntimeLink::Attached(remote) => {
             let path = match tool_name {
                 Some(tool) => format!("/api/v1/tool-credentials?tool_name={}", segment(&tool)),
@@ -40,11 +43,15 @@ pub(super) async fn set(
     value: String,
 ) -> Result<(), String> {
     match link {
-        RuntimeLink::Embedded(_) => {
-            tool_credentials::set_credential(home_base_dir()?, tool_name, key_name, value)
-                .await
-                .map_err(|e| e.to_string())
-        }
+        RuntimeLink::Embedded(_) => tool_credentials::set_credential(
+            home_base_dir()?,
+            default_store_opener(),
+            tool_name,
+            key_name,
+            value,
+        )
+        .await
+        .map_err(|e| e.to_string()),
         RuntimeLink::Attached(remote) => {
             let path = credential_path(&tool_name, &key_name)?;
             let _: StoredCredential = remote.put(&path, &SetCredentialBody { value }).await?;
@@ -60,12 +67,15 @@ pub(super) async fn delete(
     key_name: String,
 ) -> Result<(), String> {
     match link {
-        RuntimeLink::Embedded(_) => {
-            tool_credentials::delete_credential(home_base_dir()?, tool_name, key_name)
-                .await
-                .map(|_| ())
-                .map_err(|e| e.to_string())
-        }
+        RuntimeLink::Embedded(_) => tool_credentials::delete_credential(
+            home_base_dir()?,
+            default_store_opener(),
+            tool_name,
+            key_name,
+        )
+        .await
+        .map(|_| ())
+        .map_err(|e| e.to_string()),
         RuntimeLink::Attached(remote) => {
             let path = credential_path(&tool_name, &key_name)?;
             let _: DeletedCredential = remote.delete(&path).await?;
@@ -81,9 +91,11 @@ pub(super) async fn test(
     tool_name: String,
 ) -> Result<CredentialTestView, String> {
     match link {
-        RuntimeLink::Embedded(_) => tool_credentials::test_credential(home_base_dir()?, tool_name)
-            .await
-            .map_err(|e| e.to_string()),
+        RuntimeLink::Embedded(_) => {
+            tool_credentials::test_credential(home_base_dir()?, default_store_opener(), tool_name)
+                .await
+                .map_err(|e| e.to_string())
+        }
         RuntimeLink::Attached(remote) => {
             let path = format!("/api/v1/tool-credential-tests/{}", segment(&tool_name));
             Ok(remote.post(&path, &()).await?)
