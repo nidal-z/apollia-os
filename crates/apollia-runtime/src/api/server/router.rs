@@ -83,6 +83,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
     use crate::api::routes_app_lifecycle::app_lifecycle_router;
     use crate::api::routes_approvals::{list_pending_approvals, list_resolved_approvals};
+    use crate::api::routes_artifacts::artifacts_router;
     use crate::api::routes_audit::{
         get_audit_anchor, get_audit_stats, list_audit, list_audit_journal, post_replay_run,
         show_audit_run, verify_audit_journal, verify_audit_run,
@@ -368,6 +369,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(profile_router::<B>())
         .merge(tool_credentials_router::<B>())
         .merge(onboarding_router::<B>())
+        .merge(artifacts_router::<B>())
         .merge(memory_maintenance_router::<B>())
         .merge(app_lifecycle_router::<B>())
         .merge(conversations_router::<B>())
