@@ -14,6 +14,8 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
+use super::models::LocalModels;
+use super::relay::RelayState;
 use super::router::{compat_router, serve};
 use super::tokens::ServerTokensHandle;
 use super::CompatServerError;
@@ -60,19 +62,26 @@ impl CompatServerHandle {
     /// Spawns the actor and returns its handle.
     ///
     /// `settings_path` is the `apollia.toml` holding the `[server]` section,
-    /// `system_db` the `system.db` holding the server's tokens.
+    /// `system_db` the `system.db` holding the server's tokens, `models` the
+    /// local models the server relays to.
     /// When it turns the server on, the actor opens the listener before it
     /// answers its first command; a failure to open it is logged and kept as
     /// the last error, and the runtime goes on without the server. The actor
     /// stops, closing the listener and leaving the setting as it is, when the
     /// bus carries [`RuntimeEvent::ShutdownRequested`] or every handle is
     /// dropped.
-    pub fn spawn(settings_path: PathBuf, system_db: PathBuf, bus: &EventBusSender) -> Self {
+    pub fn spawn(
+        settings_path: PathBuf,
+        system_db: PathBuf,
+        models: LocalModels,
+        bus: &EventBusSender,
+    ) -> Self {
         let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
         let events = apollia_core::events::subscribe_resilient(bus, "compat_server");
         let tokens = ServerTokensHandle::spawn(system_db);
         let actor = CompatServerActor {
             settings_path,
+            models,
             tokens: tokens.clone(),
             running: None,
             last_error: None,
@@ -159,6 +168,7 @@ struct Running {
 
 struct CompatServerActor {
     settings_path: PathBuf,
+    models: LocalModels,
     tokens: ServerTokensHandle,
     running: Option<Running>,
     last_error: Option<String>,
@@ -269,6 +279,7 @@ impl CompatServerActor {
         .value
             == Value::Bool(true);
         let tokens = require_auth.then(|| self.tokens.clone());
+        let relay = RelayState::new(self.models.clone()).map_err(CompatServerError::Client)?;
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, port))
             .await
             .map_err(|source| match source.kind() {
@@ -276,7 +287,11 @@ impl CompatServerActor {
                 _ => CompatServerError::Bind { port, source },
             })?;
         let cancel = CancellationToken::new();
-        let task = tokio::spawn(serve(listener, compat_router(tokens), cancel.clone()));
+        let task = tokio::spawn(serve(
+            listener,
+            compat_router(tokens, relay),
+            cancel.clone(),
+        ));
         self.running = Some(Running { port, cancel, task });
         self.last_error = None;
         tracing::event!(
