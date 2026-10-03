@@ -4463,5 +4463,31 @@
     "grant_group_tools": "Outils",
     "grant_group_agents": "Agents",
     "grant_group_workflows": "Workflows"
+  },
+  "agent_export": {
+    "action": "Exporter",
+    "title": "Exporter « {name} » en paquet",
+    "legend": "Le paquet reprend la mission, les exemples, le modèle conseillé, les accès demandés et les sources attendues. Vos réglages actuels deviennent ses valeurs par défaut.",
+    "never_title": "Jamais dans le paquet",
+    "never_secrets": "Vos identifiants et ceux de vos connexions",
+    "never_memory": "La mémoire de l'agent",
+    "never_history": "L'historique de ses exécutions",
+    "sign": "Signer le paquet",
+    "sign_hint": "À la première signature, une clé d'auteur est créée et rangée dans le coffre du poste. Qui installe le paquet voit votre nom et l'empreinte de la clé.",
+    "file_name": "Nom du fichier",
+    "file_hint": "Vous choisissez où l'enregistrer à l'étape suivante.",
+    "file_filter": "Paquet Apollia",
+    "publisher": "Nom d'éditeur",
+    "publisher_placeholder": "Votre nom ou celui de votre équipe",
+    "publisher_hint": "Gardé pour vos prochains exports.",
+    "publisher_required": "Indiquez un nom d'éditeur.",
+    "confirm": "Exporter",
+    "exporting": "Export en cours…",
+    "done": "Paquet exporté",
+    "written": "Paquet enregistré : {path}",
+    "signed_by": "Signé par {publisher}, empreinte de la clé : {fingerprint}",
+    "unsigned": "Non signé, éditeur : {publisher}",
+    "required": "Demande les connexions : {list}",
+    "removed": "Laissés hors du paquet (autre paquet, agent ou workflow) : {list}"
   }
 }

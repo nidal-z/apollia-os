@@ -314,6 +314,103 @@
         }
       }
     },
+    "/api/v1/agent-definitions/{name}/export": {
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "`POST /api/v1/agent-definitions/{name}/export`: the agent as a `.apo`\npackage, signed on request.",
+        "operationId": "export_agent_definition",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Agent identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The `.apo` archive. The `X-Apollia-Export-Report` header carries an `ExportReport` as ASCII JSON",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<id>-<version>.apo\""
+              },
+              "X-Apollia-Export-Report": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "The ExportReport of this export, ASCII JSON"
+              }
+            },
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Agent not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The agent came with a package, or is the built-in agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "No publisher name, an invalid one, or an identifier that cannot name a package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Secret store unavailable for a signed export",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/agent-definitions/{name}/overrides": {
       "delete": {
         "tags": [
@@ -18402,6 +18499,23 @@
               "type": "string"
             },
             "description": "List of global events."
+          }
+        }
+      },
+      "ExportAgentRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/agent-definitions/{name}/export`.",
+        "properties": {
+          "publisher": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Publisher name for this export only; the `author.name` setting when\nabsent or blank."
+          },
+          "sign": {
+            "type": "boolean",
+            "description": "Sign the package with the author key, generated on the first signature."
           }
         }
       },

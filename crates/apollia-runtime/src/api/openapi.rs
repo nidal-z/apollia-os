@@ -329,6 +329,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_agent_definitions::set_agent_override,
         crate::api::routes_agent_definitions::remove_agent_override,
         crate::api::routes_agent_definitions::reset_agent_overrides,
+        crate::api::routes_agent_definitions::export::export_agent_definition,
         crate::api::routes_llm::presets::list_llm_presets,
         crate::api::routes_llm::presets::create_llm_preset,
         crate::api::routes_llm::presets::update_llm_preset,

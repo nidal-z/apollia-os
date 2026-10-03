@@ -128,6 +128,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent-definitions/{name}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/agent-definitions/{name}/export`: the agent as a `.apo`
+         *     package, signed on request.
+         */
+        post: operations["export_agent_definition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent-definitions/{name}/overrides": {
         parameters: {
             query?: never;
@@ -6581,6 +6601,16 @@ export interface components {
             /** @description List of global events. */
             events: string[];
         };
+        /** @description Body of `POST /api/v1/agent-definitions/{name}/export`. */
+        ExportAgentRequest: {
+            /**
+             * @description Publisher name for this export only; the `author.name` setting when
+             *     absent or blank.
+             */
+            publisher?: string | null;
+            /** @description Sign the package with the author key, generated on the first signature. */
+            sign?: boolean;
+        };
         /**
          * @description The format a batch is exported in.
          * @enum {string}
@@ -9618,6 +9648,73 @@ export interface operations {
             };
             /** @description Agent not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    export_agent_definition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent identifier */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description The `.apo` archive. The `X-Apollia-Export-Report` header carries an `ExportReport` as ASCII JSON */
+            200: {
+                headers: {
+                    /** @description attachment; filename="<id>-<version>.apo" */
+                    "Content-Disposition"?: string;
+                    /** @description The ExportReport of this export, ASCII JSON */
+                    "X-Apollia-Export-Report"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Agent not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The agent came with a package, or is the built-in agent */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No publisher name, an invalid one, or an identifier that cannot name a package */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Secret store unavailable for a signed export */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

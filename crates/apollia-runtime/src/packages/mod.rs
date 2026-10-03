@@ -33,6 +33,7 @@
 //! key is refused ([`InstallRefusal::PublisherNotTrusted`]).
 
 mod embedded;
+mod export;
 mod install;
 mod preview;
 
@@ -43,11 +44,14 @@ mod tests;
 #[cfg(test)]
 mod tests_embedded;
 #[cfg(test)]
+mod tests_export;
+#[cfg(test)]
 mod tests_install;
 
 use apollia_tools::apo_archive::ApoError;
 
 pub use embedded::{install_embedded, EmbeddedOutcome, EMBEDDED_ACTOR};
+pub use export::{export_agent, export_plan, publisher_of, AgentExport, ExportError, ExportPlan};
 pub use install::{
     commit, prepare, CommitTargets, InstallOptions, InstallReport, McpServerAdder, StagedInstall,
 };
