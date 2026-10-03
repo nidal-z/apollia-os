@@ -4,7 +4,6 @@
 //! the parent, the methods the runtime calls to build and equip a context
 //! live here.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use apollia_core::events::{AgentId, EventBusSender, RuntimeEvent};
@@ -44,7 +43,6 @@ impl RuntimeContext {
         memory_interface: Option<crate::memory::MemoryInterface>,
         mailbox: Option<AgentMailboxHandle>,
         agent_name: String,
-        user_context: Option<HashMap<String, Vec<(String, String)>>>,
         a2a_invoker: Option<Arc<A2AInvoker>>,
         user_memory_writable: bool,
     ) -> Self {
@@ -126,7 +124,6 @@ impl RuntimeContext {
             mailbox_allowlist: None,
             mailbox_send_requires_approval: false,
             agent_name,
-            user_context,
             a2a_invoker,
             user_memory_writable,
             workspace: None,
@@ -195,7 +192,6 @@ impl RuntimeContext {
             mailbox_allowlist: None,
             mailbox_send_requires_approval: false,
             agent_name,
-            user_context: None,
             a2a_invoker: None,
             user_memory_writable: false,
             workspace: None,

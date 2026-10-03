@@ -248,10 +248,6 @@ pub(super) struct BridgeRunner {
     pub(super) a2a_invoker: Option<Arc<A2AInvoker>>,
     /// Inter-agent mailbox handle, exposed as `ctx.mailbox`.
     pub(super) mailbox: Option<AgentMailboxHandle>,
-    /// Per-task user context (typically `{"profile": [(k, v), ...]}`). Populated
-    /// only by the chat-agent runner so chat-mode Python agents see the same
-    /// profile data Chat Libre receives. `None` in task-mode (triggers/API).
-    pub(super) user_context: Option<std::collections::HashMap<String, Vec<(String, String)>>>,
     /// Operator-supplied tools configuration (`[tools]` apollia.toml).
     pub(super) tools_config: ToolsConfig,
     /// Filesystem roots an agent may reach (`[filesystem] trusted_paths`, `~`
@@ -311,7 +307,6 @@ impl AgentRunner for BridgeRunner {
             .any(|t| t == "mailbox:send");
         let a2a_invoker = self.a2a_invoker.clone();
         let mailbox = self.mailbox.clone();
-        let user_context = self.user_context.clone();
         let tools_config = self.tools_config.clone();
         let datasources_declared = self.datasources_declared.clone();
         let templates_declared = self.templates_declared.clone();
@@ -479,7 +474,6 @@ impl AgentRunner for BridgeRunner {
                     memory_interface,
                     mailbox,
                     agent_id,
-                    user_context,
                     a2a_invoker,
                     user_memory_write,
                 );
@@ -613,10 +607,6 @@ impl ExecutionBackend for AIPProductionBackend {
             mcp_handle: self.mcp_handle.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
             mailbox: self.mailbox.clone(),
-            // Task mode = trigger-fired/manual/API tasks. No user is "present"
-            // in a chat the way Chat Libre has one, so no profile injection
-            // here. Chat Agent mode populates this through ChatAgentRunner.
-            user_context: None,
             tools_config: self.tools_config.clone(),
             trusted_paths: self.trusted_paths.clone(),
             datasources_declared: self.datasources_declared.clone(),
