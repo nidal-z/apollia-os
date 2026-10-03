@@ -2237,7 +2237,9 @@
         "companion_focus": "Focaliser la saisie du Companion",
         "approvals_accept": "Accepter l'approbation courante",
         "approvals_refuse": "Refuser l'approbation courante",
-        "approvals_next": "Approbation suivante / précédente"
+        "approvals_next": "Approbation suivante / précédente",
+        "settings_engines": "Ouvrir Système > Moteurs",
+        "settings_hardware": "Ouvrir Système > Matériel"
       },
       "reserved": "Réservé OS",
       "reserved_hint": "Réservé par le système d'exploitation, non réassignable.",
@@ -3170,6 +3172,10 @@
     },
     "engines": {
       "subtitle": "Les moteurs qui font tourner les modèles et la dictée sur ce poste."
+    },
+    "window": {
+      "label": "Réglages",
+      "close": "Fermer les réglages"
     }
   },
   "onboarding": {

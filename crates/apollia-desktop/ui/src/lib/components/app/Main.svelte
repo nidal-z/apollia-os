@@ -18,7 +18,7 @@
   import Notifications from "../../../routes/Notifications.svelte";
   import Observability from "../../../routes/Observability.svelte";
   import Chat from "../../../routes/Chat.svelte";
-  import Settings from "../../../routes/Settings.svelte";
+  import SettingsWindow from "../../../components/settings/SettingsWindow.svelte";
   import Transcriptions from "../../../routes/Transcriptions.svelte";
   import Connections from "../../../routes/Connections.svelte";
   import Projects from "../../../routes/Projects.svelte";
@@ -100,8 +100,6 @@
           <Observability />
         {:else if shownRoute === "integrations"}
           <Connections />
-        {:else if shownRoute === "settings"}
-          <Settings />
         {:else if isDev && shownRoute === "design"}
           <Design />
         {:else if isDev && shownRoute === "design-motion"}
@@ -121,4 +119,8 @@
       </PageTransition>
     {/key}
   </div>
+
+  <!-- The settings open above the screen, which stays mounted underneath: the
+       `settings` route opens this window rather than switching the screen. -->
+  <SettingsWindow />
 </main>

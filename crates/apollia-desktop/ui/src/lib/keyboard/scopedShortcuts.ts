@@ -7,6 +7,7 @@
 
 import { get } from "svelte/store";
 import { currentRoute, type Route } from "$lib/stores/navigation";
+import { settingsWindowOpen } from "$lib/stores/settingsWindow";
 
 export interface ScopedShortcut {
   /** Combo description for debugging (e.g. `"cmd+s"`). */
@@ -67,5 +68,8 @@ export function registerScopedShortcut(shortcut: ScopedShortcut): () => void {
   };
 }
 
-/** Convenience scope predicate: `currentRoute === "settings"`. */
-export const inSettingsScope = (route: Route): boolean => route === "settings";
+/**
+ * Scope predicate of the settings: the settings window is open. The settings
+ * are no longer a route of their own, so the screen underneath does not count.
+ */
+export const inSettingsScope = (_route: Route): boolean => get(settingsWindowOpen);
