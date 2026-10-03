@@ -80,8 +80,10 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # mode had its routes, then at 96 once the MCP secrets and registry had their
 # routes and the MCP sign-in was named a window command, then at 92 once the
 # credentials of the native tools had their routes, then at 88 once the
-# downloads, the import and the removal of a model served the daemon.
-EMBEDDED_ONLY_CEILING = 88
+# downloads, the import and the removal of a model served the daemon, then at 83
+# once the LLM engines were listed, tested and reloaded, and the cost alert
+# threshold read, through the daemon.
+EMBEDDED_ONLY_CEILING = 83
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

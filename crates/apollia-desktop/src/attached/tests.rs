@@ -1109,3 +1109,222 @@ fn test_the_downloads_the_import_and_the_removal_of_a_model_pass_the_gate_attach
         );
     }
 }
+
+// ── The LLM engines ──────────────────────────────────────────────────────
+
+fn attached_link(server: &MockServer) -> RuntimeLink {
+    RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap())
+}
+
+fn bearer() -> String {
+    format!("Bearer {TOKEN}")
+}
+
+#[tokio::test]
+async fn test_the_daemon_engines_are_listed_with_the_last_ping_of_this_window() {
+    // GIVEN a daemon holding one engine, answering only the token, and a ping
+    // of that engine this window recorded earlier
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/llm/backends"))
+        .and(header("authorization", bearer().as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "backends": [{
+                "name": "local",
+                "provider": "llama-cpp",
+                "model": "qwen3.gguf",
+                "config_json": {},
+                "enabled": true,
+                "is_default": true,
+            }]
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let cache = crate::commands::llm::LlmPingCache::default();
+    cache.write().unwrap().insert(
+        "local".to_owned(),
+        crate::commands::llm::PingState {
+            last_error: Some("connection refused".to_owned()),
+            last_latency_ms: None,
+            last_ping_at: Some("2026-10-03T00:00:00Z".to_owned()),
+            last_available: false,
+        },
+    );
+
+    // WHEN the attached arm lists the engines
+    let views = crate::commands::llm::backends_with_pings(&attached_link(&server), &cache)
+        .await
+        .unwrap();
+
+    // THEN the daemon's engine comes back with the last ping projected on it
+    assert_eq!(views.len(), 1);
+    assert_eq!(views[0].name, "local");
+    assert_eq!(
+        views[0].last_ping_error.as_deref(),
+        Some("connection refused")
+    );
+    assert!(gate(LinkMode::Attached, "list_llm_backends").is_ok());
+}
+
+#[tokio::test]
+async fn test_an_engine_is_pinged_on_the_daemon_and_the_outcome_recorded() {
+    // GIVEN a daemon that reaches the engine it is asked about
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/llm/ping"))
+        .and(header("authorization", bearer().as_str()))
+        .and(body_json(serde_json::json!({ "backend": "local" })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "backend": "local",
+            "available": true,
+            "latency_ms": 42,
+            "error": null,
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let cache = crate::commands::llm::LlmPingCache::default();
+
+    // WHEN the attached arm tests the engine
+    let result =
+        crate::commands::llm::ping_and_record(&attached_link(&server), &cache, "local".to_owned())
+            .await;
+
+    // THEN the engine answered, and this window remembers it for the list
+    assert!(result.available);
+    assert_eq!(result.latency_ms, Some(42));
+    let recorded = cache.read().unwrap().get("local").cloned().unwrap();
+    assert!(recorded.last_available);
+    assert!(recorded.last_error.is_none());
+    assert!(gate(LinkMode::Attached, "ping_llm_backend").is_ok());
+}
+
+#[tokio::test]
+async fn test_a_ping_refused_by_the_daemon_is_a_failed_test_with_its_message() {
+    // GIVEN a daemon serving no router
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/llm/ping"))
+        .respond_with(
+            ResponseTemplate::new(503)
+                .set_body_json(serde_json::json!({ "error": "no LLM router configured" })),
+        )
+        .mount(&server)
+        .await;
+    let cache = crate::commands::llm::LlmPingCache::default();
+
+    // WHEN the attached arm tests an engine
+    let result =
+        crate::commands::llm::ping_and_record(&attached_link(&server), &cache, "local".to_owned())
+            .await;
+
+    // THEN the test failed with the daemon's own words, recorded as such
+    assert!(!result.available);
+    assert_eq!(result.error.as_deref(), Some("no LLM router configured"));
+    let recorded = cache.read().unwrap().get("local").cloned().unwrap();
+    assert_eq!(
+        recorded.last_error.as_deref(),
+        Some("no LLM router configured")
+    );
+}
+
+#[tokio::test]
+async fn test_the_cost_alert_threshold_is_read_from_the_daemon() {
+    // GIVEN a daemon whose router carries a threshold, and one that has none
+    let with = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/llm/cost-alert-threshold"))
+        .and(header("authorization", bearer().as_str()))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "threshold_usd": 0.5 })),
+        )
+        .expect(1)
+        .mount(&with)
+        .await;
+    let without = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/llm/cost-alert-threshold"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "threshold_usd": null })),
+        )
+        .mount(&without)
+        .await;
+
+    // WHEN the attached arm reads the threshold of each
+    let set = crate::commands::llm::cost_alert_threshold(&attached_link(&with)).await;
+    let unset = crate::commands::llm::cost_alert_threshold(&attached_link(&without)).await;
+
+    // THEN the first reads as its value and the second as none
+    assert_eq!(set, Ok(Some(0.5)));
+    assert_eq!(unset, Ok(None));
+    assert!(gate(LinkMode::Attached, "get_cost_alert_threshold").is_ok());
+}
+
+#[tokio::test]
+async fn test_the_engines_are_reloaded_by_the_daemon_with_the_token() {
+    // GIVEN a daemon that rebuilds its router on request
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/llm/reload"))
+        .and(header("authorization", bearer().as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "backends": [],
+            "default": "local",
+            "reaches_running_agents": true,
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    // WHEN the attached arm asks for the reload
+    let outcome = crate::commands::llm::reload_runtime_router(&attached_link(&server)).await;
+
+    // THEN the daemon did it, and both reload commands pass the gate
+    assert_eq!(outcome, Ok(()));
+    assert!(gate(LinkMode::Attached, "reload_llm").is_ok());
+    assert!(gate(LinkMode::Attached, "reload_llm_from_db").is_ok());
+}
+
+#[tokio::test]
+async fn test_a_list_threshold_or_reload_refused_by_the_daemon_shows_its_message() {
+    // GIVEN a daemon refusing each of the three routes with its own words
+    let server = MockServer::start().await;
+    for (verb, route, words) in [
+        (
+            "GET",
+            "/api/v1/llm/backends",
+            "backend repository unavailable",
+        ),
+        (
+            "GET",
+            "/api/v1/llm/cost-alert-threshold",
+            "threshold unreadable",
+        ),
+        (
+            "POST",
+            "/api/v1/llm/reload",
+            "rebuild failed: model file missing",
+        ),
+    ] {
+        Mock::given(method(verb))
+            .and(path(route))
+            .respond_with(
+                ResponseTemplate::new(503).set_body_json(serde_json::json!({ "error": words })),
+            )
+            .mount(&server)
+            .await;
+    }
+    let link = attached_link(&server);
+    let cache = crate::commands::llm::LlmPingCache::default();
+
+    // WHEN the attached arm lists, reads the threshold and reloads
+    let listed = crate::commands::llm::backends_with_pings(&link, &cache).await;
+    let threshold = crate::commands::llm::cost_alert_threshold(&link).await;
+    let reloaded = crate::commands::llm::reload_runtime_router(&link).await;
+
+    // THEN the interface reads the daemon's own words, not an unavailability
+    assert_eq!(listed.unwrap_err(), "backend repository unavailable");
+    assert_eq!(threshold.unwrap_err(), "threshold unreadable");
+    assert_eq!(reloaded.unwrap_err(), "rebuild failed: model file missing");
+}
