@@ -346,6 +346,13 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # can show. The site is the shell script of the fake engine, one helper
     # shared by the reload tests.
     "crates/apollia-runtime/src/llama_server/reload/tests.rs": 1,
+    # The process and the clock are the subject: the MLX supervisor has to
+    # respawn an engine that dies, with backoff, and stop it for good on
+    # shutdown. Two `kill` spawns make the engine die, one sleep polls for the
+    # respawn, one sleep is the window in which no respawn may follow, and one
+    # `sleep 60` child is the stand-in process of `with_stand_in_models`, since
+    # `tokio::process::Child` has no constructor.
+    "crates/apollia-runtime/src/mlx_engine/tests.rs": 5,
     "crates/apollia-runtime/src/perf_trace.rs": 2,
     "crates/apollia-runtime/src/router.rs": 2,
     "crates/apollia-runtime/src/runner_supervisor/gpu_detection.rs": 1,
