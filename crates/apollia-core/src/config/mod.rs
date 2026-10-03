@@ -92,7 +92,7 @@ pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
 pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig, LlmRunnerConfig};
 pub use llm_section::{
     infer_api_provider_from_url, LlmApiBackendEntry, LlmBackendEntry, LlmBackendKind, LlmConfig,
-    LlmObservabilityConfig, PricingTier,
+    LlmGuardrailsConfig, LlmObservabilityConfig, PricingTier,
 };
 pub use mcp::{McpConfig, McpToolLoading};
 pub use models::{
@@ -107,7 +107,7 @@ pub use runtime::RuntimeConfig;
 pub use server::{ServerConfig, DEFAULT_COMPAT_SERVER_PORT};
 pub use settings::{
     check_imposed_setting, resolve_setting, resolve_setting_in, write_setting, PolicySettings,
-    ResolvedSetting, SettingError, SettingSource,
+    ResolvedSetting, SettingError, SettingSource, GUARDRAIL_LEVELS,
 };
 pub use tools::ToolsConfig;
 pub use triggers::TriggersConfig;

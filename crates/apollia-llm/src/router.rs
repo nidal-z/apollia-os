@@ -728,6 +728,7 @@ mod tests {
             pricing_overrides: HashMap::new(),
             cost_alert_threshold_usd: None,
             runner: Default::default(),
+            guardrails: Default::default(),
         };
 
         // WHEN
@@ -971,6 +972,7 @@ mod tests {
             pricing_overrides: HashMap::new(),
             cost_alert_threshold_usd: None,
             runner: Default::default(),
+            guardrails: Default::default(),
         };
 
         // WHEN

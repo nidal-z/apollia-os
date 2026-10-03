@@ -25,7 +25,7 @@
   }
 
   function goShortcuts() {
-    navigateToSettings("shortcuts");
+    navigateToSettings("chat");
     close();
   }
 
@@ -43,12 +43,12 @@
   }
 
   function goHelp() {
-    navigateToSettings("help");
+    navigateToSettings("general");
     close();
   }
 
   function goAbout() {
-    navigateToSettings("about");
+    navigateToSettings("general");
     close();
   }
 

@@ -12,9 +12,15 @@
     onclose: () => void;
     size?: "sm" | "md" | "lg" | "xl";
     title?: string;
+    /** Accessible name when the dialog renders no title of its own. */
+    label?: string;
     class?: string;
     /** ARIA role for the dialog surface (e.g. `"alertdialog"` for destructive confirmations). */
     role?: string;
+    /** Classes of the body wrapper, `p-6` by default. */
+    bodyClass?: string;
+    /** Leave the close button to the content, which then renders its own. */
+    hideClose?: boolean;
     children?: import("svelte").Snippet;
     "data-testid"?: string;
   }
@@ -24,8 +30,11 @@
     onclose,
     size = "md",
     title,
+    label,
     class: className = "",
     role = "dialog",
+    bodyClass = "p-6",
+    hideClose = false,
     children,
     ...restProps
   }: Props = $props();
@@ -136,7 +145,7 @@
     style="z-index: var(--z-overlay);"
     {role}
     aria-modal="true"
-    aria-label={title}
+    aria-label={title ?? label}
     onkeydown={handleKeydown}
     onclick={handleDialogClick}
     transition:dialogTransition
@@ -164,7 +173,7 @@
             <X size={16} />
           </button>
         </div>
-      {:else}
+      {:else if !hideClose}
         <button
           class="absolute right-4 top-4 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors z-10"
           onclick={onclose}
@@ -174,7 +183,7 @@
           <X size={16} />
         </button>
       {/if}
-      <div class="p-6">
+      <div class={bodyClass}>
         {@render children?.()}
       </div>
     </div>

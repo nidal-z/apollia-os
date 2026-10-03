@@ -129,17 +129,21 @@ fn every_section_carries_the_reload_class_of_the_measured_table() {
         ("ui", ReloadClass::Reloadable),
         ("desktop", ReloadClass::Reloadable),
         ("server", ReloadClass::Restart),
+        // Read again at every model launch, unlike the rest of `[llm]`.
+        ("llm.guardrails", ReloadClass::Reloadable),
     ];
 
-    // WHEN every live key of those sections is read
+    // WHEN every live key of those sections is read, against its longest
+    // listed prefix
     let wrong: Vec<_> = KEYS
         .iter()
         .filter(|k| k.withdrawn.is_none())
         .filter(|k| {
-            let section = k.path.split('.').next().unwrap_or_default();
             expected
                 .iter()
-                .any(|(s, class)| *s == section && *class != k.reload)
+                .filter(|(s, _)| k.path.starts_with(&format!("{s}.")))
+                .max_by_key(|(s, _)| s.len())
+                .is_some_and(|(_, class)| *class != k.reload)
         })
         .map(|k| k.path)
         .collect();
@@ -211,13 +215,20 @@ fn the_named_settings_are_lockable() {
     assert_eq!(
         lockable,
         vec![
+            "llm.guardrails.level",
+            "llm.guardrails.ceiling_gb",
             "mcp.approval_ttl_hours",
             "mcp.tool_loading",
             "mcp.tool_search_limit",
             "mcp.server_enabled",
+            "models.registry_url",
+            "models.registry_mirror_url",
+            "models.registry_enabled",
+            "models.import.require_verified",
             "desktop.developer_mode",
             "server.enabled",
             "server.port",
+            "server.require_auth",
         ]
     );
 }

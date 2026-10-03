@@ -11,6 +11,8 @@ use serde::Serialize;
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 
+use super::tokens::ServerTokensHandle;
+
 /// The error envelope of the OpenAI API, which the compatible server answers
 /// with whatever the client called.
 #[derive(Debug, Serialize)]
@@ -31,8 +33,19 @@ pub(crate) struct OpenAiError {
 }
 
 /// Builds the router of the compatible server.
-pub fn compat_router() -> Router {
-    Router::new().fallback(unknown_endpoint)
+///
+/// With `tokens`, every request, the unknown paths included, must present a
+/// token in use (see [`super::auth`]); without, the server answers anyone on
+/// the loopback interface.
+pub fn compat_router(tokens: Option<ServerTokensHandle>) -> Router {
+    let router = Router::new().fallback(unknown_endpoint);
+    match tokens {
+        Some(tokens) => router.layer(axum::middleware::from_fn_with_state(
+            tokens,
+            super::auth::require_token,
+        )),
+        None => router,
+    }
 }
 
 /// Answers a path no route serves, in the OpenAI error format.

@@ -65,7 +65,7 @@ pub use governance_schema::{
 pub use org_policy::{
     load_policy, parse_policy, policy_location, OrgPolicy, OwnerRequirement, PackagesPolicy,
     PolicyInvalid, PolicyInvalidReason, PolicyLocation, PolicySchemaError, PolicyVerdict,
-    ValidPolicy,
+    ValidPolicy, REQUIRE_VERIFIED_SETTING,
 };
 pub use prefix_rule_engine::{
     extract_first_arg, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction, ScopeContext,

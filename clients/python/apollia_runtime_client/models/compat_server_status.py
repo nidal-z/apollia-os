@@ -16,17 +16,21 @@ class CompatServerStatus:
     """What the compatible server is doing.
 
     Attributes:
+        active_tokens (int): How many tokens of the server are in use (not revoked).
         port (int): The port it listens on, or the configured port when it is stopped.
         running (bool): Whether the listener is open.
         last_error (None | str | Unset): Why the last start failed, cleared by the next successful start.
     """
 
+    active_tokens: int
     port: int
     running: bool
     last_error: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        active_tokens = self.active_tokens
+
         port = self.port
 
         running = self.running
@@ -41,6 +45,7 @@ class CompatServerStatus:
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
+                "activeTokens": active_tokens,
                 "port": port,
                 "running": running,
             }
@@ -53,6 +58,8 @@ class CompatServerStatus:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
+        active_tokens = d.pop("activeTokens")
+
         port = d.pop("port")
 
         running = d.pop("running")
@@ -67,6 +74,7 @@ class CompatServerStatus:
         last_error = _parse_last_error(d.pop("lastError", UNSET))
 
         compat_server_status = cls(
+            active_tokens=active_tokens,
             port=port,
             running=running,
             last_error=last_error,

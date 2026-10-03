@@ -122,6 +122,7 @@ Backends LLM et routage.
 | `pricing_overrides` | `HashMap<String, PricingTier>` | vide | Surcharges de tarification par l'opérateur (section `[llm.pricing_overrides]`). |
 | `cost_alert_threshold_usd` | `Option<f64>` | `None` | Seuil de coût en USD au-delà duquel `RuntimeEvent::TokenBudgetUpdated` est émis avec `threshold_exceeded = true`. |
 | `runner` | `LlmRunnerConfig` | défaut du type | Configuration du sidecar LLM local (section `[llm.runner]`). |
+| `guardrails` | `LlmGuardrailsConfig` | défaut du type | Garde-fous de chargement d'un modèle local (section `[llm.guardrails]`). |
 
 ### `[runtime]`
 

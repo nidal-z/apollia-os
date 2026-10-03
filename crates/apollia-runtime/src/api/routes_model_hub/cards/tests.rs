@@ -58,8 +58,9 @@ fn the_models_section_replaces_the_address_and_its_mirror() {
     .expect("write config");
 
     // WHEN the source is read, and read again with no file at all
-    let configured = configured_source(None, tmp.path());
-    let defaults = configured_source(None, &tmp.path().join("absent"));
+    let none = apollia_core::config::PolicySettings::none();
+    let configured = configured_source(None, tmp.path(), &none);
+    let defaults = configured_source(None, &tmp.path().join("absent"), &none);
 
     // THEN the mirror replaces the address and the fallback is off; without
     //      a file the project registry applies
@@ -82,6 +83,7 @@ async fn offline_the_kept_copy_serves_the_catalogue_in_the_asked_language() {
         url: closed_address(),
         mirror_url: Some(closed_address()),
         enabled: true,
+        disabled_by_policy: false,
     };
 
     // WHEN the catalogue opens in French
@@ -110,6 +112,7 @@ async fn offline_without_a_copy_the_catalogue_is_empty_with_a_clear_message() {
         url: closed_address(),
         mirror_url: None,
         enabled: true,
+        disabled_by_policy: false,
     };
 
     // WHEN the catalogue opens
@@ -199,4 +202,75 @@ async fn the_readme_route_refuses_an_identifier_that_is_not_owner_and_name() {
     // THEN it is refused before any request, and nothing is written
     assert_eq!(status, axum::http::StatusCode::BAD_REQUEST);
     assert_eq!(std::fs::read_dir(tmp.path()).expect("read").count(), 0);
+}
+
+#[tokio::test]
+async fn a_registry_cut_by_the_policy_says_so_and_the_import_from_a_disk_stays() {
+    // GIVEN an apollia.toml that leaves the registry on, and a policy whose
+    //       [settings] cut it
+    let tmp = tempfile::tempdir().expect("tempdir");
+    std::fs::write(
+        tmp.path().join("apollia.toml"),
+        "[models]\nregistry_enabled = true\n",
+    )
+    .expect("write config");
+    let mut state = app_state(
+        Arc::new(StemLoader { refusal: None }),
+        tmp.path().to_path_buf(),
+    );
+    let verdict =
+        apollia_permissions::PolicyVerdict::Valid(Box::new(apollia_permissions::ValidPolicy {
+            policy: apollia_permissions::parse_policy(
+                "schema_version = 1\nsigned_at = 2026-10-01T09:00:00Z\n\
+                 [settings]\n\"models.registry_enabled\" = false\n",
+            )
+            .expect("policy parses"),
+            key_fingerprint: "00".into(),
+            publisher: "it".into(),
+            signed_at: "2026-10-01T09:00:00Z".parse().expect("datetime"),
+        }));
+    state.inference_governance = crate::governance::InferenceGovernance::new(Arc::new(verdict));
+
+    // WHEN the catalogue opens
+    let (status, body) = call(state, "GET", "/api/v1/llm/registry/cards?lang=fr", None).await;
+
+    // THEN it is empty, turned off, imposed by the policy, and a disk import
+    //      is still offered
+    assert_eq!(status, axum::http::StatusCode::OK, "{body}");
+    assert_eq!(body["status"], "disabled");
+    assert_eq!(body["cards"], serde_json::json!([]));
+    let message = body["message"].as_str().unwrap_or_default();
+    assert!(
+        message.contains("imposed by the organisation policy"),
+        "{message}"
+    );
+    assert!(message.contains("imported from a disk"), "{message}");
+}
+
+#[test]
+fn a_policy_replaces_the_registry_address_by_an_internal_mirror() {
+    // GIVEN an apollia.toml pointing at the project registry, and a policy
+    //       fixing an internal address with no fallback
+    let tmp = tempfile::tempdir().expect("tempdir");
+    std::fs::write(
+        tmp.path().join("apollia.toml"),
+        "[models]\nregistry_url = \"https://registry.apollia.fr/models/stable/index.json\"\n",
+    )
+    .expect("write config");
+    let imposed = apollia_core::config::PolicySettings::none()
+        .impose(
+            "models.registry_url",
+            serde_json::json!("https://models.intranet.example/index.json"),
+        )
+        .impose("models.registry_mirror_url", serde_json::json!(""));
+
+    // WHEN the source is read under the policy
+    let source = configured_source(None, tmp.path(), &imposed);
+
+    // THEN the internal address replaces the file's, the fallback is off and
+    //      the registry stays on
+    assert_eq!(source.url, "https://models.intranet.example/index.json");
+    assert_eq!(source.mirror_url, None);
+    assert!(source.enabled);
+    assert!(!source.disabled_by_policy);
 }

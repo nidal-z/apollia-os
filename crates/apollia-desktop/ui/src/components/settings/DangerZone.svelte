@@ -6,6 +6,7 @@
   import { Button } from "$lib/components/ui/button";
   import { addToast } from "$lib/components/ui/toast";
   import { reportError } from "$lib/errors/reportError";
+  import { consumeSettingsFocus } from "$lib/stores/settingsWindow";
   import {
     clearAllMemories,
     clearLogs,
@@ -99,11 +100,12 @@
     { id: "factory-reset", key: "factory_reset", icon: Trash2, confirmWord: "FACTORY RESET", irreversible: true, critical: true, warning: true, lockMs: 3000, run: runFactoryReset },
   ];
 
-  // Anchor scroll (?focus=<action id> from UserMenu).
+  // Direct access to one action: the palette opens General with the action's
+  // id as focus target; `?focus=<action id>` in the address does the same.
   onMount(async () => {
     await tick();
-    const params = new URLSearchParams(window.location.search);
-    const focus = params.get("focus");
+    const focus =
+      consumeSettingsFocus() ?? new URLSearchParams(window.location.search).get("focus");
     if (focus) {
       const el = document.getElementById(focus);
       el?.scrollIntoView({ behavior: "smooth", block: "center" });
