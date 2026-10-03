@@ -27,8 +27,7 @@ use apollia_runtime::{
     eventbus::EventBus, registry::AgentRegistry, router::TaskRouterHandle,
 };
 use apollia_triggers::{
-    InputTemplate, OnBusyPolicy, TaskSubmitter, TriggerDefinition, TriggerEngineHandle,
-    TriggerSourceConfig,
+    OnBusyPolicy, TaskSubmitter, TriggerDefinition, TriggerEngineHandle, TriggerSourceConfig,
 };
 
 // ─── MockTaskSubmitter ────────────────────────────────────────────────────
@@ -115,13 +114,12 @@ fn compute_hmac(secret: &str, body: &[u8]) -> String {
 fn webhook_def(id: &str, secret: &str) -> TriggerDefinition {
     TriggerDefinition {
         id: id.into(),
-        agent: "crm-agent".into(),
+        target: apollia_triggers::TriggerTarget::agent("crm-agent", "{{body}}"),
         enabled: true,
         on_busy: OnBusyPolicy::Queue { max_depth: 16 },
         source: TriggerSourceConfig::Webhook {
             secret: secret.into(),
         },
-        input_template: InputTemplate("{{body}}".into()),
     }
 }
 

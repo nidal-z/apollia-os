@@ -194,9 +194,7 @@ pub(super) fn run_setup(args: SetupArgs<'_>) -> i32 {
     let apollia_home = apollia_core::paths::home_dir()
         .map(apollia_core::paths::data_dir_under)
         .unwrap_or_else(|| PathBuf::from(apollia_core::paths::DATA_DIR_NAME));
-    let models_dir = models_dir_override
-        .map(|p| p.to_path_buf())
-        .unwrap_or_else(|| apollia_home.join("models"));
+    let models_dir = apollia_core::config::resolve_models_dir(&apollia_home, models_dir_override);
     if let Err(e) = std::fs::create_dir_all(&models_dir) {
         return emit_llm_error(format!("create {} failed: {e}", models_dir.display()), json);
     }

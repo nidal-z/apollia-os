@@ -12,72 +12,18 @@
 //! Stability: `/api/v1` is a versioned, stable contract. A breaking change ships
 //! as `/api/v2`; `v1` is never mutated in an incompatible way.
 //!
-//! `info.version` is deliberately not written here. `utoipa` fills it from
-//! `CARGO_PKG_VERSION`, so the document carries the version of the runtime that
-//! serves it. It used to be pinned to the literal `1.0.0` while every other
-//! surface of the product read `0.1.0-preview`, and an integrator reading the
-//! reference took a stability guarantee nobody had given. The path prefix, not
-//! this field, is what carries the contract's compatibility promise.
-
-use axum::Json;
-use serde::Serialize;
-use utoipa::openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme};
-use utoipa::{Modify, OpenApi, ToSchema};
+//! `info.version` is deliberately not written here: `utoipa` fills it from
+//! `CARGO_PKG_VERSION`, the version of the runtime that serves the document.
+//! The path prefix, not this field, carries the compatibility promise.
 
 mod bodies;
+mod security;
 
-pub use bodies::{RawWebhookBody, TranscribeForm};
+use axum::Json;
+use utoipa::OpenApi;
 
-/// Name of the single security scheme the contract declares.
-///
-/// Generated clients derive an identifier from this string, so it is part of
-/// the published surface and is not renamed without regenerating them.
-const BEARER_SCHEME: &str = "bearerAuth";
-
-/// Declares the Bearer token the TCP listener enforces.
-///
-/// `utoipa` builds the document from the handler annotations, which say nothing
-/// about authentication; this modifier is where the transport-level rule of
-/// `crates/apollia-runtime/src/api/middleware.rs` enters the spec. Without it
-/// the document describes an API that needs no credential, which is what every
-/// generated client and the published reference then say.
-struct BearerToken;
-
-impl Modify for BearerToken {
-    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
-        let components = openapi.components.get_or_insert_with(Default::default);
-        components.add_security_scheme(
-            BEARER_SCHEME,
-            SecurityScheme::Http(
-                HttpBuilder::new()
-                    .scheme(HttpAuthScheme::Bearer)
-                    .description(Some(
-                        "Token read from `<data_dir>/api-token`, generated on first start \
-                         and sent as `Authorization: Bearer <token>`. Enforced on the TCP \
-                         listener by `TokenAuthLayer`, on every route except two: \
-                         `GET /api/v1/health`, which reveals the product marker and the \
-                         version only, and `POST /webhooks/{id}`, which authenticates its \
-                         caller with an HMAC-SHA256 signature instead. Requests arriving on the Unix \
-                         socket bypass the check: the socket file is mode 0600, so its \
-                         permissions carry the same rule. Setting `[api] require_token = \
-                         false` in `apollia.toml` removes the layer from the TCP listener \
-                         altogether.",
-                    ))
-                    .build(),
-            ),
-        );
-    }
-}
-
-/// Canonical error body for every non-2xx response in the spec.
-///
-/// Matches the wire shape of the per-module `ErrorResponse { error }` used
-/// across the route handlers.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct ApiErrorBody {
-    /// Human-readable error description.
-    pub error: String,
-}
+pub use bodies::{ApiErrorBody, RawWebhookBody, TranscribeForm};
+use security::BearerToken;
 
 /// The generated OpenAPI document for the `/api/v1` driving contract.
 ///
@@ -267,6 +213,10 @@ pub struct ApiErrorBody {
         crate::api::routes_llm::backends::reload_llm_router,
         crate::api::routes_llm::loaded::list_loaded_models,
         crate::api::routes_llm::loaded::unload_loaded_model,
+        crate::api::routes_llm::load::estimate_model_load,
+        crate::api::routes_llm::load::load_model,
+        crate::api::routes_llm::load::get_last_loaded_model,
+        crate::api::routes_llm::load::reload_last_loaded_model,
         crate::api::routes_llm::servers::test_llm_server,
         crate::api::routes_llm::servers::list_llm_servers,
         crate::api::routes_llm::servers::create_llm_server,
@@ -277,6 +227,7 @@ pub struct ApiErrorBody {
         crate::api::routes_agent_definitions::set_agent_override,
         crate::api::routes_agent_definitions::remove_agent_override,
         crate::api::routes_agent_definitions::reset_agent_overrides,
+        crate::api::routes_agent_definitions::export::export_agent_definition,
         crate::api::routes_llm::presets::list_llm_presets,
         crate::api::routes_llm::presets::create_llm_preset,
         crate::api::routes_llm::presets::update_llm_preset,
@@ -375,6 +326,8 @@ pub struct ApiErrorBody {
         crate::api::routes_sources::list_sources,
         crate::api::routes_sources::create_source,
         crate::api::routes_sources::delete_source,
+        crate::api::routes_server::logs::stream_server_logs,
+        crate::api::routes_server::logs::clear_server_logs,
         crate::api::routes_memory::list_memory_namespaces,
         crate::api::routes_memory::list_memory_entries,
         crate::api::routes_memory::search_memory,
@@ -419,6 +372,8 @@ pub struct ApiErrorBody {
         crate::api::routes_packages::list_trusted_keys,
         crate::api::routes_packages::trust_key,
         crate::api::routes_packages::remove_trusted_key,
+        crate::api::routes_packages::uninstall::uninstall_package,
+        crate::api::routes_packages::uninstall::uninstall_agent,
         crate::api::routes_agent_packages::list_agent_packages,
         crate::api::routes_agent_packages::install_agent_package,
         crate::api::routes_agent_packages::get_agent_package,
@@ -437,6 +392,8 @@ pub struct ApiErrorBody {
         crate::api::routes_packages::PackageInstallRequest,
         crate::api::routes_packages::TrustKeyRequest,
         crate::api::routes_packages::TrustedKeyView,
+        crate::api::routes_packages::UninstallRequest,
+        crate::packages::UninstallReport,
         crate::packages::PackagePreview,
         crate::packages::InstallReport,
         crate::agent_packages::AgentPackageAgent,
@@ -604,6 +561,15 @@ pub struct ApiErrorBody {
         crate::api::routes_llm::loaded::LoadedModelsResponse,
         crate::api::routes_llm::loaded::UnloadModelRequest,
         crate::api::routes_llm::loaded::UnloadModelResponse,
+        crate::api::routes_llm::load::LoadModelRequest,
+        crate::api::routes_llm::load::ReloadLastRequest,
+        crate::api::routes_llm::load::FitDto,
+        crate::api::routes_llm::load::GuardrailVerdictDto,
+        crate::api::routes_llm::load::GuardrailCheckDto,
+        crate::api::routes_llm::load::MemoryEstimateDto,
+        crate::api::routes_llm::load::LoadEstimateResponse,
+        crate::api::routes_llm::load::LoadModelResponse,
+        crate::api::routes_llm::load::LastLoadedModelResponse,
         crate::api::routes_llm::servers::TestServerRequest,
         crate::api::routes_llm::servers::CreateServerRequest,
         crate::api::routes_llm::servers::ServerResponse,
@@ -685,10 +651,6 @@ pub struct ApiErrorBody {
         crate::api::routes_app_lifecycle::OnboardingReset,
         crate::api::routes_app_lifecycle::MemoryWiped,
         crate::api::routes_app_lifecycle::DirectoryRemoved,
-        crate::compat_server::CompatServerStatus,
-        crate::api::routes_server::tokens::CreateServerTokenRequest,
-        crate::api::routes_server::tokens::ServerTokenView,
-        crate::api::routes_server::tokens::CreatedServerTokenView,
         crate::memory_view::MemoryEntryView,
         crate::memory_view::MemorySearchResultView,
         crate::memory_view::InjectedMemoryEntryView,
@@ -748,6 +710,7 @@ pub(crate) async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
 
 #[cfg(test)]
 mod tests {
+    use super::security::BEARER_SCHEME;
     use super::*;
 
     #[test]

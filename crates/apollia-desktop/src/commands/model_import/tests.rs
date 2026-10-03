@@ -44,7 +44,7 @@ fn import(source: &Path, dir: &Path, rule: ModelImportRule) -> Result<String, Im
 fn test_an_import_adds_its_entry_to_the_index() {
     let tmp = tempfile::tempdir().unwrap();
     let source = write(tmp.path(), "picked.gguf", &gguf_bytes(0));
-    let dir = tmp.path().join("models");
+    let dir = apollia_core::config::default_models_dir(tmp.path());
 
     import(&source, &dir, ModelImportRule::default()).unwrap();
 
@@ -61,7 +61,7 @@ fn test_an_import_adds_its_entry_to_the_index() {
 #[test]
 fn test_an_import_of_a_known_digest_is_verified() {
     let tmp = tempfile::tempdir().unwrap();
-    let dir = tmp.path().join("models");
+    let dir = apollia_core::config::default_models_dir(tmp.path());
     let downloaded = write(&dir, "qwen.gguf", &gguf_bytes(1));
     let digest = apollia_llm::check_import(&downloaded, &[], ModelImportRule::default())
         .unwrap()
@@ -92,7 +92,7 @@ fn test_an_import_of_a_known_digest_is_verified() {
 #[test]
 fn test_an_import_of_an_unknown_digest_is_unverified() {
     let tmp = tempfile::tempdir().unwrap();
-    let dir = tmp.path().join("models");
+    let dir = apollia_core::config::default_models_dir(tmp.path());
     let source = write(tmp.path(), "key/private.gguf", &gguf_bytes(2));
 
     import(&source, &dir, ModelImportRule::default()).unwrap();
@@ -110,7 +110,7 @@ fn test_an_import_of_an_unknown_digest_is_unverified() {
 #[test]
 fn test_a_text_file_renamed_gguf_is_refused() {
     let tmp = tempfile::tempdir().unwrap();
-    let dir = tmp.path().join("models");
+    let dir = apollia_core::config::default_models_dir(tmp.path());
     let source = write(tmp.path(), "key/notes.gguf", b"meeting notes\n");
 
     let err = import(&source, &dir, ModelImportRule::default()).unwrap_err();
@@ -127,7 +127,7 @@ fn test_a_text_file_renamed_gguf_is_refused() {
 #[test]
 fn test_require_verified_refuses_an_unverified_import() {
     let tmp = tempfile::tempdir().unwrap();
-    let dir = tmp.path().join("models");
+    let dir = apollia_core::config::default_models_dir(tmp.path());
     let source = write(tmp.path(), "key/private.gguf", &gguf_bytes(3));
     let rule = ModelImportRule {
         require_verified: true,
@@ -145,7 +145,7 @@ fn test_require_verified_refuses_an_unverified_import() {
 #[test]
 fn test_an_mlx_folder_is_imported_whole() {
     let tmp = tempfile::tempdir().unwrap();
-    let dir = tmp.path().join("models");
+    let dir = apollia_core::config::default_models_dir(tmp.path());
     let source = tmp.path().join("key/qwen-mlx");
     write(&source, "config.json", br#"{"model_type": "qwen2"}"#);
     write(&source, "model.safetensors", b"weights");
@@ -228,7 +228,7 @@ fn test_a_policy_requiring_a_hash_refuses_an_unverified_import() {
         apollia_permissions::REQUIRE_VERIFIED_SETTING,
         serde_json::json!(true),
     );
-    let dir = tmp.path().join("models");
+    let dir = apollia_core::config::default_models_dir(tmp.path());
     let source = write(tmp.path(), "key/private.gguf", &gguf_bytes(4));
 
     // WHEN

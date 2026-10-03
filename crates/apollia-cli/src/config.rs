@@ -143,6 +143,12 @@ pub struct ApolliaCConfig {
     ///
     /// `None` when absent; the [`EnginesConfig`] defaults apply (debug).
     pub engines: Option<EnginesConfig>,
+
+    /// Section `[author]`: the publisher name of the agents exported from
+    /// this machine. An unknown key inside it is refused.
+    ///
+    /// `None` when absent; the name is then asked at export.
+    pub author: Option<apollia_core::config::AuthorConfig>,
 }
 
 /// Names of the TOML sections that are now deprecated.
@@ -217,6 +223,7 @@ pub const KNOWN_SECTIONS: &[&str] = &[
     "desktop",
     "server",
     "engines",
+    "author",
 ];
 
 /// Returns `true` when `section` is a recognized top-level `apollia.toml` section.
@@ -864,6 +871,7 @@ plan_mode_default = true
             desktop: None,
             server: None,
             engines: None,
+            author: None,
         };
 
         // THEN every field is optional and absent
@@ -881,12 +889,13 @@ plan_mode_default = true
         assert!(config.desktop.is_none());
         assert!(config.server.is_none());
         assert!(config.engines.is_none());
+        assert!(config.author.is_none());
 
         // AND the typed struct agrees with the key-path guard, so a section can
         // never again be settable without a field to land in.
         assert_eq!(
             KNOWN_SECTIONS.len(),
-            14,
+            15,
             "adding a section here means adding a field above, and a reader below"
         );
     }

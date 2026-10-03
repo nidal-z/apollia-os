@@ -72,6 +72,9 @@ pub enum JournalEntryKind {
     /// An installed package was updated. The payload is a
     /// [`crate::governance::GovernanceRecord`].
     PackageUpdated,
+    /// A package was uninstalled. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    PackageUninstalled,
     /// A connection was added: an MCP server, a native account, or a folder. The payload is a
     /// [`crate::governance::ConnectionRecord`].
     ConnectionAdded,
@@ -135,6 +138,7 @@ impl JournalEntryKind {
             JournalEntryKind::AgentOverrideChanged => "agent_override_changed",
             JournalEntryKind::PackageInstalled => "package_installed",
             JournalEntryKind::PackageUpdated => "package_updated",
+            JournalEntryKind::PackageUninstalled => "package_uninstalled",
             JournalEntryKind::ConnectionAdded => "connection_added",
             JournalEntryKind::ConnectionModified => "connection_modified",
             JournalEntryKind::ConnectionRemoved => "connection_removed",
@@ -174,6 +178,7 @@ impl JournalEntryKind {
             "agent_override_changed" => JournalEntryKind::AgentOverrideChanged,
             "package_installed" => JournalEntryKind::PackageInstalled,
             "package_updated" => JournalEntryKind::PackageUpdated,
+            "package_uninstalled" => JournalEntryKind::PackageUninstalled,
             "connection_added" => JournalEntryKind::ConnectionAdded,
             "connection_modified" => JournalEntryKind::ConnectionModified,
             "connection_removed" => JournalEntryKind::ConnectionRemoved,
@@ -354,6 +359,7 @@ mod tests {
             ),
             (JournalEntryKind::PackageInstalled, "package_installed"),
             (JournalEntryKind::PackageUpdated, "package_updated"),
+            (JournalEntryKind::PackageUninstalled, "package_uninstalled"),
         ];
         for (kind, expected) in cases {
             // WHEN converting to its tag and back
