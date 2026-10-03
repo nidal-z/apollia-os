@@ -143,6 +143,15 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "memory_export_namespace",
     "memory_import_namespace",
     "purge_memory",
+    // Resets and erasures, over `/api/v1/onboarding/*`, `/api/v1/memory/wipe`,
+    // `/api/v1/logs/clear` and `/api/v1/factory-reset`. The flag, the memory,
+    // the logs and the data directory they erase are the daemon's: the
+    // window's process writes none of them.
+    "clear_all_memories",
+    "clear_logs",
+    "factory_reset",
+    "mark_onboarded",
+    "reset_onboarding",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no

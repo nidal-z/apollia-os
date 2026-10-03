@@ -93,6 +93,7 @@ from .deleted_profile_entry import DeletedProfileEntry
 from .dictation_models_response import DictationModelsResponse
 from .dictation_models_response_models_item import DictationModelsResponseModelsItem
 from .dictation_models_response_reason_type_0 import DictationModelsResponseReasonType0
+from .directory_removed import DirectoryRemoved
 from .embedding_models_response import EmbeddingModelsResponse
 from .embedding_models_response_models_item import EmbeddingModelsResponseModelsItem
 from .embedding_models_response_reason_type_0 import EmbeddingModelsResponseReasonType0
@@ -156,6 +157,7 @@ from .logs_response_entries_item import LogsResponseEntriesItem
 from .memory_entry_deleted import MemoryEntryDeleted
 from .memory_imported import MemoryImported
 from .memory_removed import MemoryRemoved
+from .memory_wiped import MemoryWiped
 from .message_dto import MessageDto
 from .model_cards_response import ModelCardsResponse
 from .model_cards_response_cards_item import ModelCardsResponseCardsItem
@@ -164,6 +166,8 @@ from .model_info import ModelInfo
 from .model_source_dto import ModelSourceDto
 from .models_list_response import ModelsListResponse
 from .ok_response import OkResponse
+from .onboarding_marked import OnboardingMarked
+from .onboarding_reset import OnboardingReset
 from .package_error_body import PackageErrorBody
 from .package_install_request import PackageInstallRequest
 from .package_notice_type_0 import PackageNoticeType0
@@ -416,6 +420,7 @@ __all__ = (
     "DictationModelsResponse",
     "DictationModelsResponseModelsItem",
     "DictationModelsResponseReasonType0",
+    "DirectoryRemoved",
     "EmbeddingModelsResponse",
     "EmbeddingModelsResponseModelsItem",
     "EmbeddingModelsResponseReasonType0",
@@ -479,6 +484,7 @@ __all__ = (
     "MemoryEntryDeleted",
     "MemoryImported",
     "MemoryRemoved",
+    "MemoryWiped",
     "MessageDto",
     "ModelCardsResponse",
     "ModelCardsResponseCardsItem",
@@ -487,6 +493,8 @@ __all__ = (
     "ModelsListResponse",
     "ModelSourceDto",
     "OkResponse",
+    "OnboardingMarked",
+    "OnboardingReset",
     "PackageErrorBody",
     "PackageInstallRequest",
     "PackageNoticeType0",

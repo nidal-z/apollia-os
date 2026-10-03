@@ -890,6 +890,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/factory-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/factory-reset`: removes the daemon's whole data directory. */
+        post: operations["factory_reset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -1575,6 +1592,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/logs/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/logs/clear`: removes the daemon's logs directory. */
+        post: operations["clear_logs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mailbox/stream": {
         parameters: {
             query?: never;
@@ -2011,6 +2045,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/memory/wipe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/memory/wipe`: removes every memory database of the daemon. */
+        post: operations["clear_all_memories"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications/channels": {
         parameters: {
             query?: never;
@@ -2130,6 +2181,46 @@ export interface paths {
          *     `apollia.toml`-only config.
          */
         post: operations["test_channels"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/onboarding/complete`: writes the flag that says the
+         *     onboarding is complete.
+         */
+        post: operations["mark_onboarded"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/onboarding/reset`: removes the flag, the onboarding markers,
+         *     the visible profile and the onboarding agent's memory.
+         */
+        post: operations["reset_onboarding"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4377,6 +4468,11 @@ export interface components {
             /** @description Identifier of the entry recommended for this machine. */
             recommended?: string | null;
         };
+        /** @description Answer of `POST /api/v1/logs/clear` and `POST /api/v1/factory-reset`. */
+        DirectoryRemoved: {
+            /** @description Whether the directory existed and was removed. */
+            removed: boolean;
+        };
         /** @description The embeddings category of the registry, and the entry for this machine. */
         EmbeddingModelsResponse: {
             /** @description The machine the recommendation was made for. */
@@ -4922,6 +5018,11 @@ export interface components {
              */
             removed: number;
         };
+        /** @description Answer of `POST /api/v1/memory/wipe`. */
+        MemoryWiped: {
+            /** @description How many memory databases were removed. */
+            removed_databases: number;
+        };
         /**
          * @description A single message in a multi-turn conversation request.
          *
@@ -4979,6 +5080,16 @@ export interface components {
         OkResponse: {
             /** @description Confirmation flag. */
             ok: boolean;
+        };
+        /** @description Answer of `POST /api/v1/onboarding/complete`. */
+        OnboardingMarked: {
+            /** @description Always `true`: the flag is written. */
+            onboarded: boolean;
+        };
+        /** @description Answer of `POST /api/v1/onboarding/reset`. */
+        OnboardingReset: {
+            /** @description How many profile entries were removed. */
+            removed_profile_entries: number;
         };
         /**
          * @description Error body of the package routes: the message, and a stable code a client
@@ -8465,6 +8576,35 @@ export interface operations {
             };
         };
     };
+    factory_reset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether the data directory was removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryRemoved"];
+                };
+            };
+            /** @description The directory cannot be removed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     health_handler: {
         parameters: {
             query?: never;
@@ -10173,6 +10313,35 @@ export interface operations {
             };
         };
     };
+    clear_logs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether a logs directory was removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryRemoved"];
+                };
+            };
+            /** @description The directory cannot be removed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     stream_mailbox: {
         parameters: {
             query?: never;
@@ -11051,6 +11220,35 @@ export interface operations {
             };
         };
     };
+    clear_all_memories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many databases were removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryWiped"];
+                };
+            };
+            /** @description The memory directory cannot be listed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     list_channels: {
         parameters: {
             query?: never;
@@ -11379,6 +11577,64 @@ export interface operations {
             };
             /** @description Failed to build channels */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    mark_onboarded: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The flag is written */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingMarked"];
+                };
+            };
+            /** @description The flag cannot be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    reset_onboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many profile entries were removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingReset"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
