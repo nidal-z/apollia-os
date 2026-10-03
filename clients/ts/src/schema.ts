@@ -1077,6 +1077,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/models/installed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/llm/models/installed`
+         * @description The models installed under the models folder, from the model index, each
+         *     marked when an LLM backend or the dictation engine references it.
+         */
+        get: operations["list_installed_models"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/ping": {
         parameters: {
             query?: never;
@@ -1160,6 +1181,30 @@ export interface paths {
          *     false claim about the operator's machine.
          */
         get: operations["recommend_models"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/llm/recommendations?limit=...&n_ctx=...&fits_only=...`
+         * @description The recommendation as the desktop shows it: the ranked list, or the
+         *     unreachable Hub and the empty ranking kept apart from it as a `status`,
+         *     each with the hardware and the editorial selection. Unlike
+         *     `GET /api/v1/llm/recommend`, an unreachable Hub is a `200` carrying the
+         *     selection, since the selection needs no network.
+         */
+        get: operations["get_recommendations"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8154,6 +8199,33 @@ export interface operations {
             };
         };
     };
+    list_installed_models: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The installed models, sorted by name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The model index can be neither read nor built */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     ping_llm_backend: {
         parameters: {
             query?: never;
@@ -8410,6 +8482,51 @@ export interface operations {
             };
             /** @description HuggingFace unreachable, so there is no catalogue to rank */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_recommendations: {
+        parameters: {
+            query?: {
+                /** @description Maximum number of ranked models, at most 10 */
+                limit?: number;
+                /** @description Context window the cache is sized against */
+                n_ctx?: number;
+                /** @description Keep, in the editorial selection, only the sizes that fit this machine */
+                fits_only?: boolean;
+                /** @description HuggingFace token for gated models */
+                hf_token?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The outcome: status ok, unreachable or empty, with the hardware and the editorial selection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A malformed query parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The hardware probe or the shipped model table failed */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

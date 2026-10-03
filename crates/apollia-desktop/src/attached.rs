@@ -126,6 +126,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "start_variant_download",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
+    // Models: the hardware, the search, a model's card, the installed models
+    // and the recommendation, over `/api/v1/llm`.
+    "get_hardware_profile",
+    "get_hf_model",
+    "list_installed_models",
+    "recommend_models",
+    "search_hf_models",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no
@@ -337,6 +344,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
             std::sync::Arc::new(tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()))
                 as crate::commands::model_hub::SharedDownloadManager,
         )
+        .manage(std::sync::Arc::new(apollia_llm::HfModelTypeCache::new()))
         .on_menu_event(|app, event| {
             if event.id().as_ref() == crate::tray::MENU_QUIT_APP {
                 crate::tray::initiate_quit(app);

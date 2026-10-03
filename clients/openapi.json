@@ -3132,6 +3132,31 @@
         }
       }
     },
+    "/api/v1/llm/models/installed": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/models/installed`",
+        "description": "The models installed under the models folder, from the model index, each\nmarked when an LLM backend or the dictation engine references it.",
+        "operationId": "list_installed_models",
+        "responses": {
+          "200": {
+            "description": "The installed models, sorted by name"
+          },
+          "500": {
+            "description": "The model index can be neither read nor built",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/ping": {
       "post": {
         "tags": [
@@ -3474,6 +3499,82 @@
           },
           "503": {
             "description": "HuggingFace unreachable, so there is no catalogue to rank",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/recommendations": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/recommendations?limit=...&n_ctx=...&fits_only=...`",
+        "description": "The recommendation as the desktop shows it: the ranked list, or the\nunreachable Hub and the empty ranking kept apart from it as a `status`,\neach with the hardware and the editorial selection. Unlike\n`GET /api/v1/llm/recommend`, an unreachable Hub is a `200` carrying the\nselection, since the selection needs no network.",
+        "operationId": "get_recommendations",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of ranked models, at most 10",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "n_ctx",
+            "in": "query",
+            "description": "Context window the cache is sized against",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "fits_only",
+            "in": "query",
+            "description": "Keep, in the editorial selection, only the sizes that fit this machine",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "hf_token",
+            "in": "query",
+            "description": "HuggingFace token for gated models",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The outcome: status ok, unreachable or empty, with the hardware and the editorial selection"
+          },
+          "400": {
+            "description": "A malformed query parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The hardware probe or the shipped model table failed",
             "content": {
               "application/json": {
                 "schema": {
@@ -15030,10 +15131,6 @@
     {
       "name": "webhooks",
       "description": "Inbound webhooks"
-    },
-    {
-      "name": "packages",
-      "description": "Package preview, installation, and trusted publisher keys"
     }
   ]
 }

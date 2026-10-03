@@ -294,6 +294,8 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_model_hub::search_registry,
         crate::api::routes_model_hub::recommend_models,
         crate::api::routes_model_hub::get_registry_model,
+        crate::api::routes_model_hub::get_recommendations,
+        crate::api::routes_model_hub::list_installed_models,
         crate::api::routes_model_hub::embeddings::list_embedding_models,
         crate::api::routes_model_hub::dictation::list_dictation_models,
         crate::api::routes_model_hub::cards::list_model_cards,
