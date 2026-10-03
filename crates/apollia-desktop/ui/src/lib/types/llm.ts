@@ -17,6 +17,8 @@ export interface LlmBackendConfig {
 
 /** One local model resident in memory, as `list_loaded_models` returns it. */
 export interface LoadedModel {
+  /** The engine serving the model, chosen by its format. */
+  engine: "llama-server" | "vllm-mlx";
   /** Display name, the model file name without its extension. */
   model: string;
   /** Path the model was loaded from; the key an unload takes. */

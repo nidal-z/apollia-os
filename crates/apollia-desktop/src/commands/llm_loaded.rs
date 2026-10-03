@@ -17,6 +17,9 @@ const UNLOAD_PATH: &str = "/api/v1/llm/loaded-models/unload";
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoadedModelView {
+    /// The engine serving the model, chosen by its format: `llama-server` for
+    /// GGUF, `vllm-mlx` for MLX.
+    pub engine: String,
     /// Display name, the model file name without its extension.
     pub model: String,
     /// Path the model was loaded from; the key an unload takes.
@@ -109,6 +112,7 @@ mod tests {
             "maxLoaded": 2,
             "models": [
                 {
+                    "engine": "llama-server",
                     "model": "b", "modelPath": "/models/b.gguf", "port": 41002,
                     "nCtx": 8192, "nGpuLayers": 99, "nParallel": 2,
                     "loadedAt": "2026-10-01T10:00:00+00:00",
@@ -116,6 +120,7 @@ mod tests {
                     "activeRequests": 1
                 },
                 {
+                    "engine": "vllm-mlx",
                     "model": "a", "modelPath": "/models/a.gguf", "port": 41001,
                     "nCtx": 4096, "nGpuLayers": 0,
                     "loadedAt": "2026-10-01T09:00:00+00:00",
@@ -137,6 +142,8 @@ mod tests {
         assert_eq!(view.models[0].n_parallel, Some(2));
         assert_eq!(view.models[0].active_requests, 1);
         assert_eq!(view.models[1].n_parallel, None);
+        assert_eq!(view.models[0].engine, "llama-server");
+        assert_eq!(view.models[1].engine, "vllm-mlx");
     }
 
     #[test]
@@ -146,6 +153,7 @@ mod tests {
             engine_available: true,
             max_loaded: 1,
             models: vec![LoadedModelView {
+                engine: "vllm-mlx".into(),
                 model: "a".into(),
                 model_path: "/models/a.gguf".into(),
                 port: 41001,
@@ -165,6 +173,7 @@ mod tests {
         assert_eq!(json["engineAvailable"], true);
         assert_eq!(json["models"][0]["modelPath"], "/models/a.gguf");
         assert_eq!(json["models"][0]["activeRequests"], 0);
+        assert_eq!(json["models"][0]["engine"], "vllm-mlx");
         assert!(json["models"][0].get("nParallel").is_none());
     }
 
