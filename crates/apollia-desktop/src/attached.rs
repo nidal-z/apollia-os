@@ -352,6 +352,14 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "reads the command-line link this application installs",
     ),
     (
+        "get_background_service",
+        "reads the service the OS manager holds for this user, which the window attaches to at startup",
+    ),
+    (
+        "set_background_service",
+        "installs or removes the service of this user's session, then relaunches this window",
+    ),
+    (
         "install_cli",
         "links the command line bundled with this application",
     ),

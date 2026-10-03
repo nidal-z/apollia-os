@@ -271,6 +271,9 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::cli::get_cli_status,
         commands::cli::install_cli,
         commands::cli::uninstall_cli,
+        // Keep Apollia running without the application
+        commands::background_service::get_background_service,
+        commands::background_service::set_background_service,
         // Automation harness (dev-only, absent from release builds)
         #[cfg(debug_assertions)]
         commands::automation::automation_script,
