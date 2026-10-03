@@ -283,6 +283,7 @@ fn build_chat_app_state(
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
 
     (state, event_rx)

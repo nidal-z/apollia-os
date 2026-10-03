@@ -176,6 +176,7 @@ async fn harness(admission: Arc<dyn ConnectionAdmission>) -> Harness {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
     Harness {
         dir,

@@ -646,6 +646,7 @@ dependencies = [
  "apollia-permissions",
  "apollia-prompts",
  "apollia-signing",
+ "apollia-sources",
  "apollia-stt",
  "apollia-tools",
  "apollia-triggers",
@@ -697,6 +698,21 @@ dependencies = [
  "sha2",
  "tempfile",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "apollia-sources"
+version = "0.2.0-preview"
+dependencies = [
+ "apollia-core",
+ "apollia-llm",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

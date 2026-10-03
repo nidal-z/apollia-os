@@ -4,8 +4,9 @@
 //! inference servers ([`crate::inference_server`]), the model presets and the
 //! model of each agent ([`crate::model_preset`]), the STT configuration
 //! ([`crate::stt_config`]), the default embeddings model
-//! ([`crate::embedding_default`]), and the tokens of the compatible server
-//! ([`crate::server_token`]).
+//! ([`crate::embedding_default`]), the tokens of the compatible server
+//! ([`crate::server_token`]), and the registry of sources
+//! ([`crate::source_registry`]).
 //! `PRAGMA user_version` belongs to the database file, not to a table, so the
 //! stores share one migration list: whichever opens first brings the whole
 //! file to the current version, and both refuse a file written by a newer
@@ -17,14 +18,14 @@ use crate::inference_server::{openai_api_base, DEFAULT_OLLAMA_ADDRESS};
 use crate::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `system.db`.
-pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 6;
+pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 7;
 
 /// Numbered migration steps of `system.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`SYSTEM_DB_SCHEMA_VERSION`].
 pub(crate) const SYSTEM_DB_MIGRATIONS: &[Migration] = &[
-    migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5, migrate_v6,
+    migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5, migrate_v6, migrate_v7,
 ];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
@@ -438,6 +439,29 @@ pub(crate) fn migrate_v6(conn: &Connection) -> Result<(), rusqlite::Error> {
 
         CREATE UNIQUE INDEX IF NOT EXISTS server_tokens_one_active_name
             ON server_tokens (name) WHERE revoked_at IS NULL;",
+    )
+}
+
+/// v7: the registry of sources, what an agent may consult once checked.
+///
+/// The kinds and index states are held by `CHECK`, and so is the rule that a
+/// folder, a file or a mailbox names what it points at. The statement is
+/// idempotent, so a replay changes nothing.
+pub(crate) fn migrate_v7(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS sources (
+            id          TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+            kind        TEXT NOT NULL CHECK (kind IN
+                ('folder', 'file', 'mail', 'profile', 'memory', 'code_folder')),
+            label       TEXT NOT NULL CHECK (length(trim(label)) > 0),
+            group_name  TEXT,
+            reference   TEXT,
+            index_state TEXT NOT NULL DEFAULT 'absent' CHECK (index_state IN
+                ('absent', 'indexing', 'ready', 'error', 'keywords_only')),
+            added_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            CHECK (kind NOT IN ('folder', 'file', 'mail')
+                   OR length(trim(coalesce(reference, ''))) > 0)
+        );",
     )
 }
 
