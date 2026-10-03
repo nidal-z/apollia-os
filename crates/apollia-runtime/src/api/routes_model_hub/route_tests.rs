@@ -39,7 +39,11 @@ async fn test_the_installed_models_are_listed_from_the_models_folder_of_the_daem
 async fn test_a_models_folder_that_cannot_be_read_is_refused_with_its_reason() {
     // GIVEN a daemon whose models folder is a plain file
     let dir = TempDir::new().unwrap();
-    std::fs::write(dir.path().join("models"), b"not a folder").unwrap();
+    std::fs::write(
+        apollia_core::config::default_models_dir(dir.path()),
+        b"not a folder",
+    )
+    .unwrap();
 
     // WHEN a client lists the installed models
     let (status, body) = call(state_in(&dir), "GET", "/api/v1/llm/installed-models", None).await;

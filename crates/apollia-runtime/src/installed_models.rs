@@ -97,9 +97,10 @@ pub struct ModelRef {
     pub label: String,
 }
 
-/// The models folder of `data_dir`.
+/// The models folder in force for `data_dir`: the `[models] dir` setting,
+/// else `<data_dir>/models` (see [`apollia_core::config::models_dir`]).
 pub fn models_dir(data_dir: &Path) -> PathBuf {
-    data_dir.join("models")
+    apollia_core::config::models_dir(data_dir)
 }
 
 /// Where the index of `models_dir` is kept.

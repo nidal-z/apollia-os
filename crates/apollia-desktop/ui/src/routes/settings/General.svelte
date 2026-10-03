@@ -16,6 +16,7 @@
   import AboutBlock from "../../components/settings/about/AboutBlock.svelte";
   import HelpBlock from "../../components/settings/help/HelpBlock.svelte";
   import DangerZone from "../../components/settings/DangerZone.svelte";
+  import ModelsBlock from "../../components/settings/general/ModelsBlock.svelte";
   import {
     UPDATE_CHANNELS,
     hydrateUpdateChannel,
@@ -163,6 +164,9 @@
       {/snippet}
     </SettingsFieldRow>
   </SettingsSection>
+
+  <!-- Models: folder and Hugging Face token -->
+  <ModelsBlock />
 
   <!-- Application -->
   <SettingsSection

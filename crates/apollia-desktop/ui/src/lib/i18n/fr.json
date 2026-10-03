@@ -2668,10 +2668,7 @@
         "delete_title": "Supprimer le modèle ?",
         "delete_message": "Supprimer définitivement « {name} » du disque ? Cette action est irréversible.",
         "deleted_toast": "Modèle « {name} » supprimé",
-        "help": "Fichiers présents dans votre dossier de modèles local.",
-        "dest_dir_default": "Nouveaux téléchargements dans ~/.apollia/models",
-        "dest_dir_custom": "Nouveaux téléchargements dans {path}",
-        "dest_dir_change": "Changer…"
+        "help": "Fichiers présents dans votre dossier de modèles local."
       },
       "hardware": {
         "label": "Votre matériel",
@@ -2693,12 +2690,10 @@
         "failed_toast": "Échec du téléchargement. Libérez de l'espace ou vérifiez votre connexion, puis réessayez."
       },
       "token": {
-        "label": "Jeton HuggingFace (modèles soumis à acceptation)",
-        "description": "Ce modèle nécessite d'accepter sa licence sur HuggingFace. Générez un jeton sur",
-        "done": "Terminé",
         "title_button": "Configurer le jeton HuggingFace",
         "set": "Jeton défini",
-        "btn": "Jeton"
+        "btn": "Jeton",
+        "needed": "Ce modèle est à accès restreint : enregistrez un jeton Hugging Face dans Réglages > Général, puis relancez le téléchargement."
       },
       "search": {
         "placeholder": "Rechercher des modèles GGUF (ex. qwen3, llama3, mistral)…",
@@ -3163,7 +3158,23 @@
       "report_button": "Ouvrir dans le navigateur",
       "help_title": "Aide",
       "about_title": "À propos",
-      "report_hint": "Ouvre la page de signalement dans le navigateur. Vos diagnostics restent sur ce poste tant que vous ne les joignez pas."
+      "report_hint": "Ouvre la page de signalement dans le navigateur. Vos diagnostics restent sur ce poste tant que vous ne les joignez pas.",
+      "models_title": "Modèles",
+      "models_dir_label": "Dossier des modèles",
+      "models_dir_hint": "Où les modèles sont téléchargés et cherchés. Changer de dossier ne déplace pas les modèles déjà téléchargés.",
+      "models_dir_change": "Changer",
+      "models_dir_unknown": "Dossier inconnu",
+      "models_dir_changed_toast": "Dossier des modèles changé. Les modèles déjà téléchargés restent dans l'ancien dossier.",
+      "hf_token_label": "Jeton Hugging Face",
+      "hf_token_hint": "Nécessaire pour télécharger un modèle à accès restreint. Rangé dans le coffre de secrets du poste.",
+      "hf_token_link": "Créer un jeton sur la page des jetons de Hugging Face",
+      "hf_token_show": "Afficher",
+      "hf_token_hide": "Masquer",
+      "hf_token_save": "Enregistrer",
+      "hf_token_clear": "Effacer",
+      "hf_token_unsaved": "Jeton saisi, pas encore enregistré",
+      "hf_token_saved_toast": "Jeton Hugging Face enregistré.",
+      "hf_token_cleared_toast": "Jeton Hugging Face effacé."
     },
     "chat": {
       "subtitle": "Comportement des conversations et raccourcis clavier.",

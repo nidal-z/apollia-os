@@ -78,7 +78,10 @@ pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
 pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig, LlmRunnerConfig};
 pub use mcp::{McpConfig, McpToolLoading};
-pub use models::{ModelsConfig, DEFAULT_MODEL_REGISTRY_MIRROR_URL, DEFAULT_MODEL_REGISTRY_URL};
+pub use models::{
+    default_models_dir, models_dir, resolve_models_dir, ModelsConfig,
+    DEFAULT_MODEL_REGISTRY_MIRROR_URL, DEFAULT_MODEL_REGISTRY_URL, MODELS_DIR_KEY, MODELS_DIR_NAME,
+};
 pub use oria::ORIAConfig;
 pub use permissions::BashValidatorConfig;
 pub use registry::RegistryConfig;

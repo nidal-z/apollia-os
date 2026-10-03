@@ -555,7 +555,9 @@ pub async fn list_models<B: ExecutionBackend + Clone + From<DynBackend>>(
 ) -> RouteResult<ModelsListResponse> {
     // No home directory resolves to no models directory, hence the empty
     // list below, which is what the unresolved `~` used to produce.
-    let models_dir = apollia_core::paths::data_dir().map(|d| d.join("models"));
+    // Dictation models stay in the default folder whatever `[models] dir` says.
+    let models_dir =
+        apollia_core::paths::data_dir().map(|d| apollia_core::config::default_models_dir(&d));
 
     let mut models = Vec::new();
 

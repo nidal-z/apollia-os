@@ -17180,38 +17180,43 @@
     },
     {
       "kind": "waitFor",
-      "testid": "hf-token-input",
+      "testid": "general-hf-token-input",
       "timeoutMs": 6000
     },
     {
-      "kind": "fill",
-      "testid": "hf-token-input",
-      "text": "hf_automationDummyTokenNotReal"
+      "kind": "expect",
+      "testid": "general-models-dir-path"
     },
     {
       "kind": "expect",
-      "testid": "hf-token-save"
+      "testid": "general-models-dir-change"
     },
     {
-      "kind": "click",
-      "testid": "hf-token-save",
+      "kind": "fill",
+      "testid": "general-hf-token-input",
+      "text": "hf_automationDummyTokenNotReal"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "general-hf-token-unsaved",
       "timeoutMs": 3000
     },
     {
-      "kind": "sleep",
-      "ms": 400
+      "kind": "expect",
+      "testid": "general-hf-token-save"
     },
     {
       "kind": "screenshot",
-      "label": "04-hf-token-form"
+      "label": "04-hf-token-general"
     },
     {
       "kind": "click",
-      "testid": "hf-token-toggle"
+      "testid": "settings-nav-model-hub"
     },
     {
-      "kind": "sleep",
-      "ms": 300
+      "kind": "waitFor",
+      "testid": "model-hub-search-input",
+      "timeoutMs": 6000
     },
     {
       "kind": "fill",
