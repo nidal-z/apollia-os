@@ -21,7 +21,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Avatar } from "$lib/components/ui/avatar";
   import { TabBar } from "$lib/components/ui/tabs";
-  import { BuilderOnly } from "$lib/components/shared";
+  import { DeveloperOnly } from "$lib/components/shared";
   import type { TaskSummary } from "$lib/types";
   import { statusMeta } from "./taskStatus";
   import { formatDate } from "./taskFormat";
@@ -131,9 +131,9 @@
         {#snippet icon()}<StatusIcon size={11} />{/snippet}
         {$t(meta.i18nKey)}
       </Badge>
-      <BuilderOnly>
+      <DeveloperOnly>
         <code class="text-body-xs text-muted-foreground/40 font-mono">{task.id.slice(0, 12)}</code>
-      </BuilderOnly>
+      </DeveloperOnly>
     {/snippet}
     {#snippet footer()}
       <span class="inline-flex items-center gap-1 text-body-xs text-muted-foreground">

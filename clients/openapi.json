@@ -386,7 +386,7 @@
           {
             "name": "field",
             "in": "path",
-            "description": "name, mission, examples, access, sources or autonomy",
+            "description": "name, mission, examples, access, sources, autonomy or profile",
             "required": true,
             "schema": {
               "type": "string"
@@ -465,7 +465,7 @@
           {
             "name": "field",
             "in": "path",
-            "description": "name, mission, examples, access, sources or autonomy",
+            "description": "name, mission, examples, access, sources, autonomy or profile",
             "required": true,
             "schema": {
               "type": "string"
@@ -6887,6 +6887,209 @@
         "responses": {
           "200": {
             "description": "SSE stream of mailbox events"
+          }
+        }
+      }
+    },
+    "/api/v1/mcp/bridge/call": {
+      "post": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "`POST /api/v1/mcp/bridge/call`: run an exposed item to its end.",
+        "operationId": "call_bridge_tool",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpBridgeCall"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The run ended; `isError` says whether it failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpBridgeCallResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The arguments do not fit the tool (`invalid_arguments`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpBridgeErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The bridge is turned off (`bridge_disabled`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpBridgeErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No exposed item carries this name (`unknown_tool`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpBridgeErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The agent executor or the workflow engine is not running (`unavailable`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpBridgeErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mcp/bridge/tools": {
+      "get": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "`GET /api/v1/mcp/bridge/tools`: the exposed items, as MCP tools.",
+        "operationId": "list_bridge_tools",
+        "responses": {
+          "200": {
+            "description": "The tools the bridge serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpBridgeToolList"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The bridge is turned off (`bridge_disabled`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpBridgeErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A store could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpBridgeErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mcp/exposed": {
+      "get": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "`GET /api/v1/mcp/exposed`: the agents and workflows marked exposed.",
+        "operationId": "list_exposed",
+        "responses": {
+          "200": {
+            "description": "The items marked exposed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpExposedItemList"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "agents.db could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpBridgeErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "`PUT /api/v1/mcp/exposed`: mark an agent or a workflow exposed, or not.",
+        "description": "Exposing an item checks that it exists; withdrawing one does not, so an\nitem that has since been removed can still be withdrawn.",
+        "operationId": "set_exposed",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpExposure"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The flag, as stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpExposedItemState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The kind is neither `agent` nor `workflow` (`invalid_kind`), or the identifier is empty (`unknown_item`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpBridgeErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No agent or workflow by that identifier (`unknown_item`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpBridgeErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "agents.db could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpBridgeErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -19564,6 +19767,191 @@
           }
         }
       },
+      "McpBridgeCall": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/mcp/bridge/call`.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "arguments": {
+            "type": "object",
+            "description": "The arguments: `{\"message\": \"...\"}` for an agent, the inputs for a\nworkflow."
+          },
+          "name": {
+            "type": "string",
+            "description": "The tool, as `GET /api/v1/mcp/bridge/tools` names it."
+          }
+        }
+      },
+      "McpBridgeCallResult": {
+        "type": "object",
+        "description": "The end of a bridge call.",
+        "required": [
+          "text",
+          "isError",
+          "status",
+          "kind",
+          "itemId"
+        ],
+        "properties": {
+          "isError": {
+            "type": "boolean",
+            "description": "`true` when the run failed or was stopped."
+          },
+          "itemId": {
+            "type": "string",
+            "description": "The agent name, or `<package>/<workflow>`."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`agent` or `workflow`."
+          },
+          "status": {
+            "type": "string",
+            "description": "`completed`, `failed` or `canceled`."
+          },
+          "text": {
+            "type": "string",
+            "description": "The answer of the agent, or what the workflow returned; the failure\nwhen the run did not complete."
+          }
+        }
+      },
+      "McpBridgeErrorBody": {
+        "type": "object",
+        "description": "Error body of the MCP bridge routes.",
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable code: `bridge_disabled`, `unknown_tool`, `invalid_arguments`,\n`invalid_kind`, `unknown_item`, `unavailable` or `internal`."
+          },
+          "error": {
+            "type": "string",
+            "description": "What went wrong, in words a person can act on."
+          }
+        }
+      },
+      "McpBridgeTool": {
+        "type": "object",
+        "description": "One tool of the bridge, an MCP tool descriptor.",
+        "required": [
+          "name",
+          "description",
+          "inputSchema"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "What the agent or the workflow does."
+          },
+          "inputSchema": {
+            "type": "object",
+            "description": "JSON Schema of the arguments."
+          },
+          "name": {
+            "type": "string",
+            "description": "`agent__<id>` or `workflow__<package>_<workflow>`."
+          }
+        }
+      },
+      "McpBridgeToolList": {
+        "type": "object",
+        "description": "The tools the bridge serves.",
+        "required": [
+          "tools"
+        ],
+        "properties": {
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpBridgeTool"
+            }
+          }
+        }
+      },
+      "McpExposedItem": {
+        "type": "object",
+        "description": "One item marked exposed.",
+        "required": [
+          "kind",
+          "itemId"
+        ],
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "description": "The agent name, or `<package>/<workflow>`."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`agent` or `workflow`."
+          }
+        }
+      },
+      "McpExposedItemList": {
+        "type": "object",
+        "description": "The items marked exposed.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpExposedItem"
+            }
+          }
+        }
+      },
+      "McpExposedItemState": {
+        "type": "object",
+        "description": "The exposure flag of one item, as stored.",
+        "required": [
+          "kind",
+          "itemId",
+          "exposed"
+        ],
+        "properties": {
+          "exposed": {
+            "type": "boolean",
+            "description": "Whether the bridge serves the item."
+          },
+          "itemId": {
+            "type": "string",
+            "description": "The agent name, or `<package>/<workflow>`."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`agent` or `workflow`."
+          }
+        }
+      },
+      "McpExposure": {
+        "type": "object",
+        "description": "Body of `PUT /api/v1/mcp/exposed`.",
+        "required": [
+          "kind",
+          "itemId",
+          "exposed"
+        ],
+        "properties": {
+          "exposed": {
+            "type": "boolean",
+            "description": "Whether the bridge serves the item."
+          },
+          "itemId": {
+            "type": "string",
+            "description": "The agent name, or `<package>/<workflow>`."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`agent` or `workflow`."
+          }
+        }
+      },
       "MemoryEntryDeleted": {
         "type": "object",
         "description": "Answer of `DELETE /api/v1/memory/namespaces/{namespace}/entries/{entry_id}`.",
@@ -21300,7 +21688,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Fields whose value is the user's rather than the package's:\n`name`, `mission`, `examples`, `access`, `sources`, `autonomy`."
+            "description": "Fields whose value is the user's rather than the package's:\n`name`, `mission`, `examples`, `access`, `sources`, `autonomy`,\n`profile`."
           },
           "package": {
             "type": [
@@ -21308,6 +21696,13 @@
               "null"
             ],
             "description": "Package the agent came with."
+          },
+          "profile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the user profile designated for the agent; absent when\nit runs with the default profile."
           },
           "sources": {
             "type": "array",
@@ -22075,7 +22470,7 @@
         "properties": {
           "value": {
             "type": "object",
-            "description": "The user's value: a string for `name` and `mission`, a tier name for\n`autonomy`, a list of strings for `examples`, `access` and `sources`."
+            "description": "The user's value: a string for `name` and `mission`, a tier name for\n`autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`."
           }
         }
       },
@@ -24523,7 +24918,7 @@
     },
     {
       "name": "mcp",
-      "description": "MCP servers and resources"
+      "description": "MCP servers and resources, and the bridge that serves exposed agents and workflows to an MCP client"
     },
     {
       "name": "connections",

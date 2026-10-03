@@ -22,7 +22,8 @@ pub(crate) fn data_dir() -> std::path::PathBuf {
 #[tauri::command]
 pub async fn list_model_cards(lang: Option<String>) -> Result<CatalogueView, String> {
     let data_dir = data_dir();
-    let source = RegistrySource::from_config_file(&data_dir.join("apollia.toml"));
+    let source =
+        RegistrySource::from_config_file(&data_dir.join(apollia_core::paths::CONFIG_FILE_NAME));
     open_catalogue(
         &source,
         &default_cache_dir(&data_dir),

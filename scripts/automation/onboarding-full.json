@@ -4,7 +4,7 @@
   "dynamicTestids": [
     "onboarding-lang-en",
     "onboarding-lang-fr",
-    "settings-nav-danger"
+    "settings-nav-appearance"
   ],
   "steps": [
     {
@@ -494,12 +494,12 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger",
+      "testid": "settings-nav-appearance",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "danger-section",
+      "testid": "appearance-reset-onboarding",
       "timeoutMs": 6000
     },
     {
@@ -592,12 +592,12 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-danger",
+      "testid": "settings-nav-appearance",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "danger-section",
+      "testid": "appearance-reset-onboarding",
       "timeoutMs": 6000
     },
     {

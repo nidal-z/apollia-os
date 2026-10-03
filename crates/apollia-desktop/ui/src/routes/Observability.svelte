@@ -34,9 +34,9 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { TabBar } from "$lib/components/ui/tabs";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { PageHeader } from "$lib/components/operator";
-  import { BuilderOnly } from "$lib/components/shared";
+  import { DeveloperOnly } from "$lib/components/shared";
   import { RouteTransition } from "$lib/components/ui/route-transition";
   import TimelinePanel from "../components/observability/TimelinePanel.svelte";
   import LlmCostChart from "../components/observability/LlmCostChart.svelte";
@@ -45,6 +45,7 @@
   import DelegationTree from "../components/observability/DelegationTree.svelte";
   import MailboxTable from "../components/observability/MailboxTable.svelte";
   import ActiveHooksPanel from "../components/observability/ActiveHooksPanel.svelte";
+  import CapturePolicyPanel from "../components/observability/CapturePolicyPanel.svelte";
 
   type ObsTab =
     | "timeline"
@@ -53,7 +54,8 @@
     | "mailbox"
     | "delegation"
     | "plan-cache"
-    | "hooks";
+    | "hooks"
+    | "capture";
 
   let activeTab = $state<ObsTab>("timeline");
   let timelineLoaded = $state(false);
@@ -63,6 +65,7 @@
   let delegationLoaded = $state(false);
   let planCacheLoaded = $state(false);
   let hooksLoaded = $state(false);
+  let captureLoaded = $state(false);
   /** Task the timeline tab is focused on, `null` for the whole activity. */
   let timelineTaskId = $state<string | null>(null);
 
@@ -83,10 +86,12 @@
     "delegation",
     "plan-cache",
     "hooks",
+    "capture",
   ]);
 
   // Operator: 4 tabs - Timeline, Costs, Audit, Mailbox (non-technical reading).
-  // Builder: 7 tabs - adds Delegation, Plan-Cache and Hooks (full inspection).
+  // Builder: 8 tabs - adds Delegation, Plan-Cache, Hooks (full inspection) and
+  // the capture policy, which decides what the other tabs get to show.
   let tabItems = $derived.by(() => {
     const base = [
       { key: "timeline", label: $t("observability.tab_timeline") },
@@ -94,11 +99,12 @@
       { key: "audit-trail", label: $t("observability.tab_audit_trail") },
       { key: "mailbox", label: $t("observability.tab_mailbox") },
     ];
-    if ($uiMode === "builder") {
+    if ($developerMode) {
       base.push(
         { key: "delegation", label: $t("observability.tab_delegation") },
         { key: "plan-cache", label: $t("observability.tab_plan_cache") },
         { key: "hooks", label: $t("observability.tab_hooks") },
+        { key: "capture", label: $t("observability.tab_capture") },
       );
     }
     return base;
@@ -114,6 +120,7 @@
     if (tab === "delegation") delegationLoaded = true;
     if (tab === "plan-cache") planCacheLoaded = true;
     if (tab === "hooks") hooksLoaded = true;
+    if (tab === "capture") captureLoaded = true;
   }
 
   $effect(() => {
@@ -121,7 +128,7 @@
   });
 
   $effect(() => {
-    if ($uiMode !== "builder" && BUILDER_TABS.has(activeTab)) {
+    if (!$developerMode && BUILDER_TABS.has(activeTab)) {
       activeTab = "timeline";
       timelineLoaded = true;
     }
@@ -178,9 +185,13 @@
           {/if}
         {:else if activeTab === "hooks"}
           {#if hooksLoaded}
-            <BuilderOnly>
+            <DeveloperOnly>
               <ActiveHooksPanel />
-            </BuilderOnly>
+            </DeveloperOnly>
+          {/if}
+        {:else if activeTab === "capture"}
+          {#if captureLoaded}
+            <CapturePolicyPanel />
           {/if}
         {/if}
       </RouteTransition>

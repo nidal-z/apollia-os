@@ -1,4 +1,5 @@
-//! ProfileInterface: Python-facing proxy for the global user profile.
+//! ProfileInterface: Python-facing proxy for the user profile an execution
+//! runs with.
 //!
 //! Exposes `#[pyclass]` accessors that agents use via:
 //!
@@ -8,6 +9,13 @@
 //! ctx.profile.all()
 //! ctx.profile.has("agents.hitl")
 //! ```
+//!
+//! The profile served is resolved at each call: the profile the user
+//! designated for the agent (its `profile` override in `agents.db`), else the
+//! default profile ([`apollia_runtime::profile::profile_for_agent`]). It
+//! carries five fields (`name`, `role`, `function`, `tools`, `preferences`)
+//! and a free text (`free_text`); a key outside these reads and writes a
+//! free-form entry, shared by every profile.
 //!
 //! Reads are always available: every agent can recall the profile through
 //! the `__user__` namespace.  Writes are gated by the manifest's
@@ -24,9 +32,9 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use pyo3::IntoPyObjectExt;
 
-use apollia_memory::user_memory::{ProfileEntry, WrittenBy};
+use apollia_memory::user_memory::{Profile, ProfileEntry, WrittenBy};
 
-/// Python-facing handle on the global user profile.
+/// Python-facing handle on the user profile resolved for the agent.
 #[pyclass]
 pub struct ProfileInterface {
     /// Canonical user-profile database (`<data_dir>/user_memory.db`), the SAME
@@ -50,8 +58,9 @@ impl ProfileInterface {
     /// Returns the value of a profile field by key, or `None` when absent.
     fn get<'py>(&self, py: Python<'py>, key: String) -> PyResult<Bound<'py, PyAny>> {
         let db_path = self.db_path.clone();
+        let agent = self.agent_name.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let value = tokio::task::spawn_blocking(move || profile_get(&db_path, &key))
+            let value = tokio::task::spawn_blocking(move || profile_get(&db_path, &agent, &key))
                 .await
                 .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?
                 .map_err(PyRuntimeError::new_err)?;
@@ -65,8 +74,9 @@ impl ProfileInterface {
     /// Returns `True` when the given key is present in the profile.
     fn has<'py>(&self, py: Python<'py>, key: String) -> PyResult<Bound<'py, PyAny>> {
         let db_path = self.db_path.clone();
+        let agent = self.agent_name.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let present = tokio::task::spawn_blocking(move || profile_get(&db_path, &key))
+            let present = tokio::task::spawn_blocking(move || profile_get(&db_path, &agent, &key))
                 .await
                 .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?
                 .map_err(PyRuntimeError::new_err)?
@@ -81,8 +91,9 @@ impl ProfileInterface {
     /// Returns a dict mapping every profile key to its value.
     fn all<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let db_path = self.db_path.clone();
+        let agent = self.agent_name.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let entries = tokio::task::spawn_blocking(move || profile_list_all(&db_path))
+            let entries = tokio::task::spawn_blocking(move || profile_list_all(&db_path, &agent))
                 .await
                 .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?
                 .map_err(PyRuntimeError::new_err)?;
@@ -117,16 +128,19 @@ impl ProfileInterface {
             ));
         }
         let db_path = self.db_path.clone();
+        let agent = self.agent_name.clone();
         let written_by = if self.is_onboarding {
             WrittenBy::Onboarding
         } else {
             WrittenBy::Agent(self.agent_name.clone())
         };
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            tokio::task::spawn_blocking(move || profile_set(&db_path, &key, &value, written_by))
-                .await
-                .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?
-                .map_err(PyRuntimeError::new_err)?;
+            tokio::task::spawn_blocking(move || {
+                profile_set(&db_path, &agent, &key, &value, written_by)
+            })
+            .await
+            .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?
+            .map_err(PyRuntimeError::new_err)?;
             Ok(Python::with_gil(|py| py.None()))
         })
     }
@@ -152,6 +166,7 @@ impl ProfileInterface {
             pairs.push((key, value));
         }
         let db_path = self.db_path.clone();
+        let agent = self.agent_name.clone();
         let written_by = if self.is_onboarding {
             WrittenBy::Onboarding
         } else {
@@ -160,7 +175,7 @@ impl ProfileInterface {
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             tokio::task::spawn_blocking(move || {
                 for (key, value) in &pairs {
-                    profile_set(&db_path, key, value, written_by.clone())?;
+                    profile_set(&db_path, &agent, key, value, written_by.clone())?;
                 }
                 Ok::<(), String>(())
             })
@@ -217,26 +232,117 @@ fn open_repo(
         .map_err(|e| format!("open user memory repo: {e}"))
 }
 
-fn profile_get(db_path: &std::path::Path, key: &str) -> Result<Option<String>, String> {
+/// The profile `agent` runs with: its designated one, else the default. The
+/// designation is read from the `agents.db` beside `user_memory.db`.
+fn resolved_profile(
+    repo: &apollia_memory::user_memory::UserMemoryRepository,
+    db_path: &std::path::Path,
+    agent: &str,
+) -> Result<Profile, String> {
+    let data_dir = db_path
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."));
+    apollia_runtime::profile::profile_for_agent(repo, data_dir, agent)
+        .map_err(|e| format!("resolve profile: {e}"))
+}
+
+fn profile_get(
+    db_path: &std::path::Path,
+    agent: &str,
+    key: &str,
+) -> Result<Option<String>, String> {
     let flat_key = key.strip_prefix("user.").unwrap_or(key);
     let repo = open_repo(db_path)?;
-    let entry = repo.get(flat_key).map_err(|e| format!("get: {e}"))?;
+    let profile = resolved_profile(&repo, db_path, agent)?;
+    let entry = repo
+        .get_in(&profile, flat_key)
+        .map_err(|e| format!("get: {e}"))?;
     Ok(entry.map(|e| e.value))
 }
 
-fn profile_list_all(db_path: &std::path::Path) -> Result<Vec<ProfileEntry>, String> {
+fn profile_list_all(db_path: &std::path::Path, agent: &str) -> Result<Vec<ProfileEntry>, String> {
     let repo = open_repo(db_path)?;
-    repo.list_all().map_err(|e| format!("list_all: {e}"))
+    let profile = resolved_profile(&repo, db_path, agent)?;
+    repo.list_all_in(&profile)
+        .map_err(|e| format!("list_all: {e}"))
 }
 
 fn profile_set(
     db_path: &std::path::Path,
+    agent: &str,
     key: &str,
     value: &str,
     written_by: WrittenBy,
 ) -> Result<(), String> {
     let flat_key = key.strip_prefix("user.").unwrap_or(key);
     let repo = open_repo(db_path)?;
-    repo.set(flat_key, value, written_by)
+    let profile = resolved_profile(&repo, db_path, agent)?;
+    repo.set_in(&profile, flat_key, value, written_by)
         .map_err(|e| format!("set: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use apollia_memory::user_memory::UserMemoryRepository;
+    use apollia_tools::{AgentOrigin, AgentRepository, OverrideField, StoredAgent};
+
+    fn designate(data_dir: &std::path::Path, agent: &str, profile_id: &str) {
+        let repo = AgentRepository::open(&apollia_core::paths::DataFile::Agents.path(data_dir))
+            .expect("agents.db opens");
+        repo.save_definition(&StoredAgent {
+            name: agent.to_owned(),
+            origin: AgentOrigin::Interface,
+            package: None,
+            version: "1".to_owned(),
+            definition: serde_json::json!({ "id": agent, "name": agent, "mission": "" }),
+            enabled: true,
+            installed_at: "2026-10-03T00:00:00Z".to_owned(),
+            updated_at: "2026-10-03T00:00:00Z".to_owned(),
+        })
+        .expect("agent stored");
+        repo.set_override(
+            agent,
+            OverrideField::Profile,
+            &serde_json::json!(profile_id),
+        )
+        .expect("override set");
+    }
+
+    #[test]
+    fn ctx_profile_serves_the_designated_profile_then_the_default() {
+        // GIVEN a default profile with a role, a "Formateur" profile with another, and an agent designating it
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = apollia_core::paths::DataFile::UserMemory.path(dir.path());
+        let repo = UserMemoryRepository::new(&db).expect("user_memory.db opens");
+        repo.set("role", "Responsable SI", WrittenBy::User)
+            .expect("default role");
+        let formateur = repo.create_profile("Formateur").expect("created");
+        repo.set_profile_field(&formateur.id, "role", Some("Formateur"))
+            .expect("formateur role");
+        drop(repo);
+        designate(dir.path(), "cours", &formateur.id);
+
+        // WHEN the designated agent and another one read the role, and the designated one writes a field
+        let for_cours = profile_get(&db, "cours", "role").expect("read");
+        let for_other = profile_get(&db, "veille", "user.role").expect("read");
+        profile_set(
+            &db,
+            "cours",
+            "tools",
+            "Moodle",
+            WrittenBy::Agent("cours".into()),
+        )
+        .expect("write");
+        let all_cours = profile_list_all(&db, "cours").expect("list");
+        let all_other = profile_list_all(&db, "veille").expect("list");
+
+        // THEN each reads its own profile, and the write landed in the designated one only
+        assert_eq!(for_cours.as_deref(), Some("Formateur"));
+        assert_eq!(for_other.as_deref(), Some("Responsable SI"));
+        assert!(all_cours
+            .iter()
+            .any(|e| e.key == "tools" && e.value == "Moodle"));
+        assert!(!all_other.iter().any(|e| e.key == "tools"));
+    }
 }

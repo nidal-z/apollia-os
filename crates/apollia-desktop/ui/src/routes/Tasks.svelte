@@ -6,7 +6,7 @@
   import { tasks } from "$lib/stores/tasks";
   import { navigateTo } from "$lib/stores/navigation";
   import { openNewChatRequested } from "$lib/stores/chat";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { formatRelativeTime } from "$lib/utils";
   import { listTasks, cancelTask, submitTask, deleteTask } from "$lib/ipc/tasks";
   import { reportError } from "$lib/errors/reportError";
@@ -116,7 +116,7 @@
         : ($t("tasks.inflight_many", { values: { n: inFlightCount } }) as string),
   );
   const headlineSubtitle = $derived(
-    $uiMode === "operator"
+    !$developerMode
       ? ($t("tasks.headline_subtitle_operator") as string)
       : ($t("tasks.subtitle") as string),
   );
@@ -132,7 +132,7 @@
       { key: "output", label: $t("tasks.tab_output") as string },
       { key: "trace", label: $t("tasks.tab_trace") as string },
     ];
-    if ($uiMode === "builder") {
+    if ($developerMode) {
       base.push({ key: "technical", label: $t("tasks.tab_technical") as string });
     }
     return base;

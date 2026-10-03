@@ -76,7 +76,7 @@ pub async fn import_model_file(
 /// The import rule set in `<data_dir>/apollia.toml`. A missing file or key
 /// leaves the default: unverified imports are accepted.
 pub(crate) fn import_rule(data_dir: &Path) -> ModelImportRule {
-    let path = data_dir.join("apollia.toml");
+    let path = data_dir.join(apollia_core::paths::CONFIG_FILE_NAME);
     let Ok(content) = std::fs::read_to_string(&path) else {
         return ModelImportRule::default();
     };

@@ -14,6 +14,10 @@
 //! The autonomy tier is an override like the mission: the definition declares
 //! it, the user may replace it, and when neither says anything the global
 //! default passed to [`resolve`] applies.
+//!
+//! The profile an agent runs with is an override and nothing else: a
+//! definition never names one, the user designates it. An empty designation,
+//! or one naming a profile deleted since, reads as the default profile.
 
 use apollia_core::model_preset::AgentModel;
 use apollia_core::{AgentManifest, AutonomyLevel};
@@ -88,16 +92,19 @@ pub enum OverrideField {
     Sources,
     /// Autonomy tier: budget, verification, critic.
     Autonomy,
+    /// Identifier of the user profile the agent runs with.
+    Profile,
 }
 
 /// Every overridable field, in display order.
-pub const OVERRIDE_FIELDS: [OverrideField; 6] = [
+pub const OVERRIDE_FIELDS: [OverrideField; 7] = [
     OverrideField::Name,
     OverrideField::Mission,
     OverrideField::Examples,
     OverrideField::Access,
     OverrideField::Sources,
     OverrideField::Autonomy,
+    OverrideField::Profile,
 ];
 
 /// A value that does not fit the field it is written to.
@@ -106,7 +113,7 @@ pub const OVERRIDE_FIELDS: [OverrideField; 6] = [
 pub enum OverrideValueError {
     /// The field name is not one of [`OVERRIDE_FIELDS`].
     #[error(
-        "unknown field '{0}', expected one of name, mission, examples, access, sources, autonomy"
+        "unknown field '{0}', expected one of name, mission, examples, access, sources, autonomy, profile"
     )]
     UnknownField(String),
     /// The field takes a string.
@@ -132,6 +139,7 @@ impl OverrideField {
             OverrideField::Access => "access",
             OverrideField::Sources => "sources",
             OverrideField::Autonomy => "autonomy",
+            OverrideField::Profile => "profile",
         }
     }
 
@@ -164,6 +172,7 @@ impl OverrideField {
             OverrideField::Access => "/defaults/access",
             OverrideField::Sources => "/defaults/sources",
             OverrideField::Autonomy => "/defaults/autonomy",
+            OverrideField::Profile => "/defaults/profile",
         }
     }
 
@@ -256,6 +265,9 @@ pub struct ResolvedAgent {
     /// Autonomy tier: the user's override, else the definition's, else the
     /// global default.
     pub autonomy: AutonomyLevel,
+    /// Identifier of the profile the user designated for the agent; `None`
+    /// runs it with the default profile.
+    pub profile: Option<String>,
     /// Fields whose value comes from an override rather than the definition.
     pub overridden: Vec<OverrideField>,
     /// The definition the overrides apply to, unchanged.
@@ -321,6 +333,13 @@ pub fn resolve(
         autonomy: value_of(OverrideField::Autonomy)
             .and_then(autonomy_of)
             .unwrap_or(default_autonomy),
+        profile: overrides
+            .iter()
+            .find(|o| o.field == OverrideField::Profile)
+            .and_then(|o| o.value.as_str())
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .map(str::to_owned),
         overridden,
         definition: stored.definition.clone(),
     }
