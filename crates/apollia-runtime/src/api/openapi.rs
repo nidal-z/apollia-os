@@ -101,6 +101,15 @@ impl utoipa::PartialSchema for TranscribeForm {
                     .schema_type(Type::String)
                     .description(Some("Language hint, an ISO 639-1 code")),
             )
+            .property(
+                "source",
+                ObjectBuilder::new()
+                    .schema_type(Type::String)
+                    .enum_values(Some(["api", "file", "hotkey"]))
+                    .description(Some(
+                        "What the audio is, the tag the history shows: api (default), file or hotkey",
+                    )),
+            )
             .into()
     }
 }
@@ -279,9 +288,9 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_stt::list_transcriptions,
         crate::api::routes_stt::delete_transcription,
         crate::api::routes_stt::list_models,
-        crate::api::routes_stt::get_stt_config,
-        crate::api::routes_stt::update_stt_config,
-        crate::api::routes_stt::reload_stt_engine,
+        crate::api::routes_stt::settings::get_stt_config,
+        crate::api::routes_stt::settings::update_stt_config,
+        crate::api::routes_stt::settings::reload_stt_engine,
         crate::api::routes_webhooks::handle_webhook,
         crate::api::routes_llm::get_llm_status,
         crate::api::routes_llm::ping_llm_backend,
@@ -552,7 +561,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_stt::TranscriptionsListResponse,
         crate::api::routes_stt::ModelInfo,
         crate::api::routes_stt::ModelsListResponse,
-        crate::api::routes_stt::SttReloadResponse,
+        crate::api::routes_stt::settings::SttReloadResponse,
         crate::api::routes_llm::LlmStatusResponse,
         crate::api::routes_llm::PingRequest,
         crate::api::routes_llm::PingResponse,
