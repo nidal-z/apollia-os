@@ -117,7 +117,7 @@ pub use tools::notebook_edit::{
 pub use tools::notebook_read::{
     NotebookRead, NotebookReadError, NotebookReadInput, NotebookReadOutput,
 };
-pub use tools::risk_classifier::{FilesystemOp, RiskCategory, RiskClassifier, RiskLevel};
+pub use tools::risk_classifier::{RiskCategory, RiskClassifier};
 #[cfg(feature = "web-search")]
 pub use tools::web_search::{ToolConfigError, WebSearch, WebSearchError};
 pub use trusted_keys::{TrustedKey, TrustedKeyError, TrustedKeyOrigin, TrustedKeyRepository};

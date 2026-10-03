@@ -163,20 +163,6 @@ impl ChatSessionManager {
             let tool_search_limit = self.tool_search_limit;
             let session_id_str = session_id.to_string();
 
-            // Capture HITL filesystem params for the invoker.
-            let hitl_params = HitlInvokerParams {
-                session_id: session_id.to_string(),
-                event_bus: self.event_bus.clone(),
-                pending_fs: self.pending_fs_approvals.clone(),
-                fs_allow_rules: std::sync::Arc::clone(&session.fs_allow_rules),
-                risk_config: apollia_core::FilesystemRiskConfig::default(),
-                trusted_paths: self
-                    .chat_tools_config
-                    .as_ref()
-                    .map(|c| c.trusted_paths.clone())
-                    .unwrap_or_default(),
-            };
-
             tokio::spawn(run_libre_exchange(LibreExchangeParams {
                 agent_id,
                 llm_router,
@@ -208,7 +194,6 @@ impl ChatSessionManager {
                 mcp_loading,
                 tool_search_limit,
                 session_id_str,
-                hitl_params,
                 sid,
                 mid,
                 run_id: run_id.clone(),

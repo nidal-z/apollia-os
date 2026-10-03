@@ -699,55 +699,33 @@
       "label": "01-critical-approval-card"
     },
     {
-      "kind": "click",
-      "testidPrefix": "approval-always-toggle-"
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "approval-scope-menu-",
-      "timeoutMs": 8000
+      "kind": "expect",
+      "testidPrefix": "approval-accept-"
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-scope-session-"
+      "testidPrefix": "approval-always-"
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-scope-agent-"
-    },
-    {
-      "kind": "expect",
-      "testidPrefix": "approval-scope-project-"
-    },
-    {
-      "kind": "expect",
-      "testidPrefix": "approval-scope-global-"
+      "testidPrefix": "approval-reason-"
     },
     {
       "kind": "screenshot",
-      "label": "02-approval-scope-menu"
+      "label": "02-approval-three-answers"
+    },
+    {
+      "kind": "fill",
+      "testidPrefix": "approval-reason-",
+      "text": "Refused during the automation coverage run."
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-approval-refuse-reason-typed"
     },
     {
       "kind": "click",
       "testidPrefix": "approval-refuse-"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-reject-dialog",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "screenshot",
-      "label": "03-approval-reject-dialog"
-    },
-    {
-      "kind": "fill",
-      "testid": "inbox-reject-reason",
-      "text": "Refused during the automation coverage run."
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-reject-confirm"
     },
     {
       "kind": "waitGone",
@@ -785,7 +763,7 @@
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-always-toggle-",
+      "testidPrefix": "approval-always-",
       "nth": 0
     },
     {

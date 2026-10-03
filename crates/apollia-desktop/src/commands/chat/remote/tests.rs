@@ -35,7 +35,6 @@ fn accept() -> AuthorizeBody {
         tool_name: "bash_executor".to_owned(),
         decision: "accept".to_owned(),
         reason: None,
-        scope: None,
     }
 }
 
@@ -70,7 +69,7 @@ async fn test_an_answer_is_regenerated_and_an_edited_message_resent_on_the_daemo
 }
 
 #[tokio::test]
-async fn test_a_tool_decision_is_posted_with_its_scope() {
+async fn test_a_refusal_is_posted_with_its_reason() {
     // GIVEN a daemon waiting for a decision on one tool call
     let server = MockServer::start().await;
     Mock::given(method("POST"))
@@ -78,15 +77,15 @@ async fn test_a_tool_decision_is_posted_with_its_scope() {
         .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
         .and(body_json(json!({
             "message_id": "a-1", "tool_call_id": "call-1", "tool_name": "bash_executor",
-            "decision": "always_accept", "reason": null, "scope": "this_project",
+            "decision": "refuse", "reason": "write a copy instead",
         })))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "status": "resolved" })))
         .expect(1)
         .mount(&server)
         .await;
     let body = AuthorizeBody {
-        decision: "always_accept".to_owned(),
-        scope: Some(AlwaysAcceptScope::ThisProject),
+        decision: "refuse".to_owned(),
+        reason: Some("write a copy instead".to_owned()),
         ..accept()
     };
 

@@ -97,11 +97,6 @@ pub struct AuthorizeToolRequest {
     /// `decision == "refuse"`.
     #[serde(default)]
     pub reason: Option<String>,
-    /// Always-accept scope. Only honoured when `decision == "always_accept"`.
-    /// Defaults to [`crate::chat::AlwaysAcceptScope::ThisSession`].
-    #[serde(default)]
-    #[schema(value_type = Option<String>)]
-    pub scope: Option<crate::chat::AlwaysAcceptScope>,
 }
 
 /// Standard error response body.
@@ -456,11 +451,7 @@ pub async fn authorize_tool<B: ExecutionBackend + Clone>(
         "refuse" => ToolDecision::Refuse {
             reason: body.reason.clone(),
         },
-        "always_accept" => ToolDecision::AlwaysAccept {
-            scope: body
-                .scope
-                .unwrap_or_else(crate::chat::AlwaysAcceptScope::safe_default),
-        },
+        "always_accept" => ToolDecision::AlwaysAccept,
         other => {
             return (
                 StatusCode::BAD_REQUEST,

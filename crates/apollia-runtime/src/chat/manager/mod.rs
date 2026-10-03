@@ -32,9 +32,7 @@ use super::agent_executor::{
     AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, Composition,
     ProjectContextSource, RunInput, SessionWiring,
 };
-use super::builtin_agent::{
-    ChatAgentResponse, HitlInvokerParams, NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE,
-};
+use super::builtin_agent::{ChatAgentResponse, NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE};
 use super::extractor::UserMemoryExtractor;
 use super::plan_actor::{spawn_plan_actor, PlanHandle};
 use super::repository::{AppendMessageParams, ChatSessionRepository, ToolApprovalLogEntry};
@@ -42,9 +40,9 @@ use super::todo_actor::spawn_todo_actor;
 use super::todo_handle::TodoHandle;
 use super::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, InjectedInstruction,
-    MessageId, PauseState, PendingChatApprovals, PendingFilesystemApprovals, PlanPhase,
-    ProjectContextProvider, RecentSessionSummary, SessionDetail, SessionId, SessionInfo,
-    SessionMetrics, SessionStatus, ToolCallRecord, ToolDecision,
+    MessageId, PauseState, PendingChatApprovals, PlanPhase, ProjectContextProvider,
+    RecentSessionSummary, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
+    ToolCallRecord, ToolDecision,
 };
 use crate::a2a::A2AInvoker;
 use crate::api::routes_agents::AgentLoader;
@@ -116,8 +114,6 @@ struct ChatSessionManager {
     plan_mode_default: bool,
     /// Pending tool approval channels (operator HITL).
     pending_chat_approvals: PendingChatApprovals,
-    /// Pending filesystem HITL approval channels.
-    pending_fs_approvals: PendingFilesystemApprovals,
     /// Optional user memory repository for system prompt enrichment.
     user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
     /// Stateful extractor for passive memory enrichment from conversations.

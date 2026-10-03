@@ -73,10 +73,11 @@ human-in-the-loop, layered as defense in depth.
   before installing it. The command-line install prints a notice restating that
   the agent will run with full user rights and no sandbox.
 - **Human approval (HITL).** In a chat session, file writes, edits, shell and
-  Python execution route through an approval wrapper whose default decision is to
-  ask: the action surfaces to the operator rather than running silently.
+  Python execution go through the consent decision of the agent loop, whose
+  default is to ask: the action surfaces to the operator on the approval card
+  rather than running silently.
   <!-- claim:hitl-wired-in-chat-path-only -->
-  **This wrapper is not placed on an installed agent's dispatcher.** An agent's
+  **This decision is not placed on an installed agent's dispatcher.** An agent's
   own `ctx.tools` calls meet no human checkpoint, which is consistent with the
   rest of this page: an agent already runs arbitrary Python under your account,
   so a gate on one call path would not contain a hostile one. Treat HITL as

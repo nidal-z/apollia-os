@@ -93,10 +93,11 @@ profondeur.
   droits de l'utilisateur et sans sandbox.
 - **Approbation humaine (HITL).** Dans une session de chat, les écritures de
   fichiers, les modifications, ainsi que l'exécution shell et Python passent
-  par un wrapper d'approbation dont la décision par défaut est de demander :
-  l'action remonte à l'opérateur plutôt que de s'exécuter silencieusement.
+  par la décision de consentement de la boucle de l'agent, qui demande par
+  défaut : l'action remonte à l'opérateur sur la carte d'approbation plutôt que
+  de s'exécuter silencieusement.
   <!-- claim:hitl-wired-in-chat-path-only -->
-  **Ce wrapper n'est pas placé sur le dispatcher d'un agent installé.** Les
+  **Cette décision n'est pas placée sur le dispatcher d'un agent installé.** Les
   propres appels `ctx.tools` d'un agent ne rencontrent aucun point de
   contrôle humain, ce qui est cohérent avec le reste de cette page : un
   agent exécute déjà du code Python arbitraire sous votre compte, donc une

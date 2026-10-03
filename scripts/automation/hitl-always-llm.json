@@ -1,0 +1,208 @@
+{
+  "name": "hitl-always-llm (the always answer of the inbox HITL card: one grant, then the same family runs without a card)",
+  "stopOnError": false,
+  "dynamicTestids": [
+    "inbox-filter-approval",
+    "inbox-tab-pending"
+  ],
+  "notes": [
+    "Standalone by design. hitl-always renders only inside the inbox HITLCard mounted with onAlwaysAccept, which InboxPendingList passes for an EXPANDED chat-tool pending row (InboxPendingList.svelte, HITLCard.svelte). The pending row is a live tool call awaiting approval (in-memory pendingChatApprovals, no seed row), so the block starts a new free-chat session whose prompt names the tool and the file.",
+    "The grant persists beyond the block: inboxActions.ts alwaysAccept -> authorize_chat_tool always_accept, which the loop turns into a standing consent of the agent for the family of the tool (governance grant_always, table family_consents of governance.db), never a rule on a tool name. Hence the second block: file_edit is a different tool of the same \"write or delete\" family, in a fresh session, and must run without any card; the turn is closed by waitGone chat-stop-button and not by awaitTurn, which would accept a card and hide the defect.",
+    "Chat unmounts on every route change ({#key $currentRoute}, lib/components/app/Main.svelte), so the way back to the session after the inbox detour is conversation-row-menu-button nth 0 -> conversation-row-menu-configure (openConfig -> navigateToSession, Chat.svelte; list_chat_sessions is ORDER BY created_at DESC so row 0 is the session the block created). awaitTurn then follows the real session status while the granted tool runs.",
+    "Side effects in the throwaway HOME: two new sessions, one file under the workspace's tmp/ (the seed workspace is the checkout, apollia.toml default_workspace), one edit of it, and one standing consent of the agent for the write family. Never fold this book into master-llm before hitl-critical: hitl-critical expects file_write to ask in a new session.",
+    "Model-dependent: each block needs the named tool call."
+  ],
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00-chat-ready"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Avec l'outil file_write, écris le texte \"toujours\" dans le fichier tmp/always-write.txt."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-approval-inline",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-filter-approval",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-filter-approval",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-always",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-inbox-always-for-agent"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-always",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "hitl-always",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-always-granted"
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-configure",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "03-always-turn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-always-turn"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Avec l'outil file_edit, remplace \"toujours\" par \"sans redemander\" dans le fichier tmp/always-write.txt."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 180000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-same-family-runs-without-a-card"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-hitl-always-complete"
+    }
+  ]
+}

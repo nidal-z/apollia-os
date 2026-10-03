@@ -3,11 +3,9 @@
   import { resolveToolDisplay } from "$lib/tools/tool-display";
   import { authorizeChatTool } from "$lib/ipc/inbox";
   import { t } from "svelte-i18n";
-  import { Shield, ChevronDown } from "lucide-svelte";
+  import { Shield } from "lucide-svelte";
   import { slide } from "svelte/transition";
-  import { Button } from "$lib/components/ui/button";
-  import { currentSession } from "$lib/stores/chat";
-  import RejectReasonDialog from "../inbox/RejectReasonDialog.svelte";
+  import ConsentAnswers, { type ConsentDecision } from "./ConsentAnswers.svelte";
 
   interface Props {
     sessionId: string;
@@ -23,25 +21,11 @@
 
   const resolvedToolCallId = $derived(toolCallId ?? toolCall.tool_name);
 
-  /** See ApprovalCard: greys out "Always for this project" outside a project. */
-  const hasProject = $derived(
-    $currentSession?.id === sessionId && $currentSession?.project_id !== null,
-  );
-
-  /** Maps onto the runtime enum `AlwaysAcceptScope` (snake_case through serde). */
-  type AlwaysScope =
-    | "this_session"
-    | "this_agent"
-    | "this_project"
-    | "global";
-
   const display = $derived(resolveToolDisplay(toolCall));
   const ToolIcon = $derived(display.icon);
 
   let isProcessing = $state(false);
   let error = $state<string | null>(null);
-  let scopeOpen = $state(false);
-  let rejectDialogOpen = $state(false);
 
   // Reset the busy state when this card is reused for a different approval, so
   // consecutive HITL prompts do not stay greyed out from a prior decision.
@@ -52,7 +36,9 @@
     error = null;
   });
 
-  async function handleAccept(): Promise<void> {
+  /** Sends one of the three answers. A refusal acts at once, with the reason
+   *  typed beside it if there is one, which the agent reads in its result. */
+  async function handleAnswer({ decision, reason }: ConsentDecision): Promise<void> {
     isProcessing = true;
     error = null;
     try {
@@ -61,49 +47,12 @@
         messageId,
         toolCallId: resolvedToolCallId,
         toolName: toolCall.tool_name,
-        decision: "accept",
-      });
-    } catch (err: unknown) {
-      error = err instanceof Error ? err.message : String(err);
-      isProcessing = false;
-    }
-  }
-
-  async function handleRefuse(reason: string): Promise<void> {
-    isProcessing = true;
-    error = null;
-    try {
-      await authorizeChatTool({
-        sessionId,
-        messageId,
-        toolCallId: resolvedToolCallId,
-        toolName: toolCall.tool_name,
-        decision: "refuse",
+        decision,
         reason,
       });
-      rejectDialogOpen = false;
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : String(err);
       isProcessing = false;
-    }
-  }
-
-  async function handleAlwaysAccept(scope: AlwaysScope): Promise<void> {
-    isProcessing = true;
-    error = null;
-    try {
-      await authorizeChatTool({
-        sessionId,
-        messageId,
-        toolCallId: resolvedToolCallId,
-        toolName: toolCall.tool_name,
-        decision: "always_accept",
-        scope,
-      });
-    } catch (err: unknown) {
-      error = err instanceof Error ? err.message : String(err);
-      isProcessing = false;
-      scopeOpen = false;
     }
   }
 </script>
@@ -133,109 +82,10 @@
     <p class="mt-1.5 text-micro text-destructive">{error}</p>
   {/if}
 
-  <!-- Decision buttons -->
-  <div class="mt-4 flex flex-wrap items-center gap-2">
-    <Button
-      variant="outline"
-      size="sm"
-      class="h-7 px-3 text-caption"
-      disabled={isProcessing}
-      onclick={handleAccept}
-      data-testid="operator-approval-accept-{toolCall.tool_name}"
-    >
-      {$t("approval.action.allow_once")}
-    </Button>
-    <Button
-      variant="ghost"
-      size="sm"
-      class="h-7 px-3 text-caption text-destructive hover:bg-destructive/10 hover:text-destructive"
-      disabled={isProcessing}
-      onclick={() => (rejectDialogOpen = true)}
-      data-testid="operator-approval-refuse-{toolCall.tool_name}"
-    >
-      {$t("approval.action.refuse")}
-    </Button>
-    <Button
-      variant="ghost"
-      size="sm"
-      class="h-7 px-3 text-caption text-primary"
-      disabled={isProcessing}
-      onclick={() => (scopeOpen = !scopeOpen)}
-      data-testid="operator-approval-always-toggle-{toolCall.tool_name}"
-      aria-expanded={scopeOpen}
-    >
-      {$t("approval.action.always_allow")}
-      <ChevronDown
-        size={11}
-        class="ml-0.5 transition-transform {scopeOpen ? 'rotate-180' : ''}"
-      />
-    </Button>
-  </div>
-
-  {#if scopeOpen}
-    <div
-      class="mt-2 grid grid-cols-1 gap-1.5 rounded-md bg-surface-2/40 p-2 sm:grid-cols-2"
-      transition:slide={{ duration: 150 }}
-      data-testid="operator-approval-scope-menu-{toolCall.tool_name}"
-    >
-      <button
-        type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-surface-1 transition-colors disabled:opacity-50"
-        disabled={isProcessing}
-        onclick={() => handleAlwaysAccept("this_session")}
-        data-testid="operator-approval-scope-session-{toolCall.tool_name}"
-      >
-        <div class="font-medium text-foreground">{$t("approval.scope.session_title")}</div>
-        <div class="text-micro text-muted-foreground">
-          {$t("approval.scope.session_desc")}
-        </div>
-      </button>
-      <button
-        type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-surface-1 transition-colors disabled:opacity-50"
-        disabled={isProcessing}
-        onclick={() => handleAlwaysAccept("this_agent")}
-        data-testid="operator-approval-scope-agent-{toolCall.tool_name}"
-      >
-        <div class="font-medium text-foreground">{$t("approval.scope.agent_title")}</div>
-        <div class="text-micro text-muted-foreground">
-          {$t("approval.scope.agent_desc_apollia")}
-        </div>
-      </button>
-      <button
-        type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-surface-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-        disabled={isProcessing || !hasProject}
-        onclick={() => handleAlwaysAccept("this_project")}
-        data-testid="operator-approval-scope-project-{toolCall.tool_name}"
-        title={!hasProject ? $t("approval.scope.project_no_project") : undefined}
-      >
-        <div class="font-medium text-foreground">{$t("approval.scope.project_title")}</div>
-        <div class="text-micro text-muted-foreground">
-          {hasProject
-            ? $t("approval.scope.project_desc")
-            : $t("approval.scope.project_unavailable")}
-        </div>
-      </button>
-      <button
-        type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-surface-1 transition-colors disabled:opacity-50"
-        disabled={isProcessing}
-        onclick={() => handleAlwaysAccept("global")}
-        data-testid="operator-approval-scope-global-{toolCall.tool_name}"
-      >
-        <div class="font-medium text-foreground">{$t("approval.scope.global_title")}</div>
-        <div class="text-micro text-warning">
-          {$t("approval.scope.global_desc")}
-        </div>
-      </button>
-    </div>
-  {/if}
+  <ConsentAnswers
+    testidPrefix="operator-approval"
+    toolName={toolCall.tool_name}
+    disabled={isProcessing}
+    onanswer={handleAnswer}
+  />
 </div>
-
-<RejectReasonDialog
-  open={rejectDialogOpen}
-  submitting={isProcessing}
-  onclose={() => (rejectDialogOpen = false)}
-  onconfirm={handleRefuse}
-/>

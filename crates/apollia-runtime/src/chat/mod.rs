@@ -57,9 +57,8 @@ pub use todo_handle::TodoHandle;
 pub use types::PastSessionSummary;
 pub use types::RecentSessionSummary;
 pub use types::{
-    AlwaysAcceptScope, ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ChatSessionConfig,
-    ExchangeState, FsHitlDecision, InjectedInstruction, MessageId, PauseState,
-    PendingChatApprovals, ProjectContextProvider, SessionDetail, SessionId, SessionInfo,
-    SessionMetrics, SessionStatus, ToolCallRecord, ToolCallStatus, ToolDecision, ToolStatEntry,
-    TurnOutcome,
+    ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ChatSessionConfig, ExchangeState,
+    InjectedInstruction, MessageId, PauseState, PendingChatApprovals, ProjectContextProvider,
+    SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus, ToolCallRecord,
+    ToolCallStatus, ToolDecision, ToolStatEntry, TurnOutcome,
 };

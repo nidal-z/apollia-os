@@ -40,7 +40,6 @@ mod autonomy;
 mod chat;
 mod desktop;
 mod filesystem;
-mod filesystem_risk;
 mod hitl;
 mod hooks;
 mod llm;
@@ -73,7 +72,6 @@ pub use autonomy::{
 pub use chat::ChatConfig;
 pub use desktop::DesktopConfig;
 pub use filesystem::{FilesystemConfig, JournalConfig};
-pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
 pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig, LlmRunnerConfig};

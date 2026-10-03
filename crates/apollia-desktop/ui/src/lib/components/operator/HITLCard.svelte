@@ -1,17 +1,11 @@
 <script lang="ts">
-  import { Shield, Check, Zap, ChevronDown } from "lucide-svelte";
+  import { Shield, Check, Zap } from "lucide-svelte";
   import { t } from "svelte-i18n";
-  import { slide } from "svelte/transition";
   import StatusDot from "./StatusDot.svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
 
   export type RiskLevel = "low" | "medium" | "high" | "paid";
-  export type AlwaysScope =
-    | "this_session"
-    | "this_agent"
-    | "this_project"
-    | "global";
 
   interface Props {
     /** Agent name initiating the action. */
@@ -33,10 +27,8 @@
     expires?: string;
     onApprove?: (e: MouseEvent) => void;
     onReject?: (e: MouseEvent) => void;
-    /** When set, surfaces the "Toujours autoriser" scope picker (chat tool flows). */
-    onAlwaysAccept?: (scope: AlwaysScope) => void;
-    /** Disables the "Toujours pour ce projet" option when the session has no project. */
-    hasProject?: boolean;
+    /** When set, offers "always for this agent" (chat tool flows). */
+    onAlwaysAccept?: () => void;
   }
 
   let {
@@ -52,10 +44,7 @@
     onApprove,
     onReject,
     onAlwaysAccept,
-    hasProject = false,
   }: Props = $props();
-
-  let scopeOpen = $state(false);
 
   const RISK_CONFIG: Record<
     RiskLevel,
@@ -161,19 +150,14 @@
     </Button>
     <Button variant="outline" size="sm" onclick={onReject}>{$t("approval.action.refuse")}</Button>
     {#if onAlwaysAccept}
-      <button
-        type="button"
-        class="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-caption text-primary hover:bg-primary/10 transition-colors"
-        onclick={() => (scopeOpen = !scopeOpen)}
-        aria-expanded={scopeOpen}
-        data-testid="hitl-always-toggle"
+      <Button
+        variant="outline"
+        size="sm"
+        onclick={onAlwaysAccept}
+        data-testid="hitl-always"
       >
-        {$t("approval.action.always_allow")}
-        <ChevronDown
-          size={11}
-          class="transition-transform {scopeOpen ? 'rotate-180' : ''}"
-        />
-      </button>
+        {$t("approval.action.always_for_agent")}
+      </Button>
     {/if}
     {#if expires}
       <span
@@ -183,60 +167,4 @@
       </span>
     {/if}
   </div>
-  {#if onAlwaysAccept && scopeOpen}
-    <div
-      class="px-3.5 py-2 border-t border-border/60 grid grid-cols-1 gap-1.5 sm:grid-cols-2 bg-muted/20"
-      transition:slide={{ duration: 150 }}
-      data-testid="hitl-scope-menu"
-    >
-      <button
-        type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-card transition-colors"
-        onclick={() => { scopeOpen = false; onAlwaysAccept!("this_session"); }}
-        data-testid="hitl-scope-session"
-      >
-        <div class="font-medium text-foreground">{$t("approval.scope.session_title")}</div>
-        <div class="text-micro text-muted-foreground">
-          {$t("approval.scope.session_desc")}
-        </div>
-      </button>
-      <button
-        type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-card transition-colors"
-        onclick={() => { scopeOpen = false; onAlwaysAccept!("this_agent"); }}
-        data-testid="hitl-scope-agent"
-      >
-        <div class="font-medium text-foreground">{$t("approval.scope.agent_title")}</div>
-        <div class="text-micro text-muted-foreground">
-          {$t("approval.scope.agent_desc")}
-        </div>
-      </button>
-      <button
-        type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-card transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-        disabled={!hasProject}
-        onclick={() => { scopeOpen = false; onAlwaysAccept!("this_project"); }}
-        data-testid="hitl-scope-project"
-        title={!hasProject ? $t("approval.scope.project_no_project") : undefined}
-      >
-        <div class="font-medium text-foreground">{$t("approval.scope.project_title")}</div>
-        <div class="text-micro text-muted-foreground">
-          {hasProject
-            ? $t("approval.scope.project_desc")
-            : $t("approval.scope.project_unavailable")}
-        </div>
-      </button>
-      <button
-        type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-card transition-colors"
-        onclick={() => { scopeOpen = false; onAlwaysAccept!("global"); }}
-        data-testid="hitl-scope-global"
-      >
-        <div class="font-medium text-foreground">{$t("approval.scope.global_title")}</div>
-        <div class="text-micro text-warning-a11y">
-          {$t("approval.scope.global_desc")}
-        </div>
-      </button>
-    </div>
-  {/if}
 </div>

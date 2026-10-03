@@ -314,13 +314,6 @@ impl ChatSessionManager {
                     info!("chat.governance.set");
                     self.governance = Some(governance);
                 }
-                ChatCommand::ResolveFsHitl {
-                    request_id,
-                    decision,
-                    reply,
-                } => {
-                    let _ = reply.send(self.handle_resolve_fs_hitl(&request_id, decision));
-                }
                 ChatCommand::ListApprovalHistory { limit, days, reply } => {
                     let result = self.repository.list_tool_approval_history(limit, days);
                     let _ = reply.send(result);

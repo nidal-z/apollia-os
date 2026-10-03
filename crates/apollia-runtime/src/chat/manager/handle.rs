@@ -15,10 +15,6 @@ pub struct ChatSessionManagerHandle {
     /// Shared lifecycle hook executor, exposed so the API can list the active
     /// handlers. `None` when no hooks are configured.
     pub(in crate::chat::manager) hook_executor: Option<Arc<HookExecutor>>,
-    /// The filesystem requests the actor waits on, the same store it
-    /// resolves. Read by the route tests to stand in for a tool call.
-    #[cfg(test)]
-    pub(in crate::chat::manager) pending_fs_approvals: PendingFilesystemApprovals,
     /// Plan-mode state a new session starts in, the `[chat] plan_mode_default`
     /// key of `apollia.toml` this manager was spawned with.
     pub(in crate::chat::manager) plan_mode_default: bool,
@@ -42,13 +38,6 @@ impl ChatSessionManagerHandle {
             .as_ref()
             .map(|exec| exec.registry().list_all())
             .unwrap_or_default()
-    }
-
-    /// The filesystem requests the actor waits on, for a test that plays the
-    /// tool asking for one.
-    #[cfg(test)]
-    pub(crate) fn pending_fs_approvals(&self) -> PendingFilesystemApprovals {
-        self.pending_fs_approvals.clone()
     }
 
     /// The plan-mode state a new session starts in, read from the
@@ -122,9 +111,6 @@ impl ChatSessionManagerHandle {
         );
 
         let pending_chat_approvals = PendingChatApprovals::new();
-        let pending_fs_approvals = PendingFilesystemApprovals::new();
-        #[cfg(test)]
-        let test_pending_fs = pending_fs_approvals.clone();
         let pending_user_inputs = apollia_tools::tools::ask_user::PendingUserInputs::new();
 
         let enrichment_extractor = match (&llm_router, &user_memory) {
@@ -160,7 +146,6 @@ impl ChatSessionManagerHandle {
             runtime_budget,
             plan_mode_default,
             pending_chat_approvals,
-            pending_fs_approvals,
             user_memory,
             enrichment_extractor,
             tx: tx.clone(),
@@ -220,8 +205,6 @@ impl ChatSessionManagerHandle {
             tx,
             pending_user_inputs,
             hook_executor: hook_executor_for_handle,
-            #[cfg(test)]
-            pending_fs_approvals: test_pending_fs,
             plan_mode_default,
         })
     }
@@ -267,29 +250,6 @@ impl ChatSessionManagerHandle {
             .send(ChatCommand::SendMessage {
                 session_id,
                 content,
-                reply: reply_tx,
-            })
-            .await
-            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
-
-        reply_rx
-            .await
-            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
-    }
-
-    /// Resolve a pending filesystem HITL request.
-    ///
-    /// Called by the `respond_hitl_filesystem` Tauri command.
-    pub async fn resolve_fs_hitl(
-        &self,
-        request_id: String,
-        decision: super::super::types::FsHitlDecision,
-    ) -> Result<(), ChatError> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        self.tx
-            .send(ChatCommand::ResolveFsHitl {
-                request_id,
-                decision,
                 reply: reply_tx,
             })
             .await

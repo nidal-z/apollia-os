@@ -8,14 +8,14 @@ use super::*;
 /// - `~/.apollia/` for free-chat sessions (no project), if that directory exists;
 /// - `None` as a last resort (bash will then inherit the process CWD).
 ///
-/// When `hitl` is provided, HITL filesystem support is enabled on the returned invoker.
+/// Consent for each call is decided by the agent loop, by action family, before
+/// the invoker is reached; nothing here asks the user anything.
 pub(in crate::chat::manager) async fn resolve_workspace_for_session(
     params: WorkspaceResolutionParams,
 ) -> Result<NativeChatToolInvoker, ChatError> {
     let WorkspaceResolutionParams {
         project_id,
         project_repo,
-        hitl,
         pending_user_inputs,
         mcp_handle,
         chat_tools_config,
@@ -35,8 +35,7 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
         .as_ref()
         .map(|c| c.trusted_paths.clone())
         .unwrap_or_default();
-    let mut invoker = NativeChatToolInvoker::new_unrestricted(workspace_path.clone())
-        .with_trusted_paths(trusted_paths.clone());
+    let mut invoker = NativeChatToolInvoker::new_unrestricted(workspace_path.clone());
     if let Some(pending) = pending_user_inputs.clone() {
         invoker = invoker.with_ask_user_support(pending, session_id);
     }
@@ -45,9 +44,7 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
     // MCP, Google connectors, read-only natives, future providers, is
     // resolved through a single `ToolDispatcher`.
     // The dispatcher applies the same governed path and audit trail as
-    // the Agent-mode pipeline. HITL-sensitive natives (file_write/edit,
-    // bash, python_executor, notebook_edit) stay in the fast path because
-    // their inline approval flow is not yet ported to events.
+    // the Agent-mode pipeline.
     let mut extra_executors: Vec<Box<dyn apollia_tools::executor::ToolExecutor>> = Vec::new();
 
     // MCP executors. Eager: one per tool registered by a connected server.
@@ -93,19 +90,13 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
     // dispatcher (same factory the Agent-mode + Triggers pipeline uses). This
     // pulls in web_search, web_read, http_fetch, memory_search and ask_user
     // with the operator's `apollia.toml` cfg.
-    // HITL-sensitive natives (bash, python_executor, file_write/edit,
-    // notebook_edit) stay disabled from the dispatcher so the fast path
-    // continues to drive their inline approval flow; migrating that flow to
-    // EventBus events is tracked separately.
     let dispatcher = if let Some(cfg) = chat_tools_config.as_ref() {
         build_full_chat_dispatcher(FullDispatcherParams {
             cfg,
             session_id,
             sandbox_root: &sandbox_root,
             sandbox_roots: &sandbox_roots,
-            workspace_path: &workspace_path,
             pending_user_inputs: &pending_user_inputs,
-            hitl: hitl.as_ref(),
             extra_executors,
         })
     } else {
@@ -116,11 +107,7 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
             dispatcher,
         )),
     ));
-    if let Some(p) = hitl {
-        Ok(invoker.with_hitl_support(p))
-    } else {
-        Ok(invoker)
-    }
+    Ok(invoker)
 }
 
 /// Resolve the sandbox root path for a chat session.
@@ -197,7 +184,8 @@ async fn collect_mcp_executors(
 }
 
 /// Build the full chat dispatcher (every native flows through the dispatcher,
-/// HITL-sensitive natives wrapped, dynamic http_fetch).
+/// the writing and code natives re-added with their own roots, dynamic
+/// http_fetch).
 fn build_full_chat_dispatcher(
     params: FullDispatcherParams<'_>,
 ) -> apollia_tools::executor::ToolDispatcher {
@@ -206,14 +194,12 @@ fn build_full_chat_dispatcher(
         session_id,
         sandbox_roots,
         sandbox_root,
-        workspace_path,
         pending_user_inputs,
-        hitl,
         mut extra_executors,
     } = params;
     // We disable the dispatcher's default versions of:
     //   - file_write / file_edit / notebook_edit / bash / python:
-    //     re-added below wrapped in `HitlFilesystemGuard`.
+    //     re-added below, rooted at the session's anchor.
     //   - http_fetch: re-added as `DynamicAllowlistHttpFetch`.
     //
     // The remaining natives (file_read/list/glob/grep, notebook_read,
@@ -261,22 +247,20 @@ fn build_full_chat_dispatcher(
         python_interpreter: cfg.tools_config.python_interpreter.clone(),
     };
 
-    // Wrap the HITL-sensitive natives with the approval-flow guard. The
-    // disabled set is handed down because these executors are re-added after
-    // `build_dispatcher_with` was told to drop them: without the filter, a
-    // disabled `bash_executor` came straight back through this door.
-    if let Some(p) = hitl {
-        push_hitl_natives(
-            &mut extra_executors,
-            HitlNativesParams {
-                hitl: p,
-                workspace_path,
-                sandbox_root,
-                venv_base_dir: &native_cfg.venv_base_dir,
-                disabled: &effective_disabled,
-            },
-        );
-    }
+    // Re-add the writing and code natives. Their consent is the family
+    // decision of the loop, on the same card as every other tool; no second
+    // prompt sits in front of them. The disabled set is handed down because
+    // these executors are re-added after `build_dispatcher_with` was told to
+    // drop them: without the filter, a disabled `bash_executor` came straight
+    // back through this door.
+    push_writing_natives(
+        &mut extra_executors,
+        WritingNativesParams {
+            sandbox_root,
+            venv_base_dir: &native_cfg.venv_base_dir,
+            disabled: &effective_disabled,
+        },
+    );
 
     // Dynamic-allowlist http_fetch (preserves the per-call host
     // injection that the legacy fast path did). Same re-add caveat as above.
@@ -326,11 +310,9 @@ pub(in crate::chat::manager) fn effective_disabled_tools(cfg: &ChatToolsConfig) 
 /// other, and the interpreter is created once on the first execution.
 const CHAT_VENV_ID: &str = "apollia-chat";
 
-/// Inputs of [`push_hitl_natives`], grouped so the function stays inside the
-/// workspace's argument budget.
-struct HitlNativesParams<'a> {
-    hitl: &'a HitlInvokerParams,
-    workspace_path: &'a Option<std::path::PathBuf>,
+/// Inputs of [`push_writing_natives`], grouped so the function stays inside
+/// the workspace's argument budget.
+struct WritingNativesParams<'a> {
     sandbox_root: &'a std::path::Path,
     venv_base_dir: &'a std::path::Path,
     /// Effective disabled set (operator plus governance): a native named here
@@ -338,86 +320,48 @@ struct HitlNativesParams<'a> {
     disabled: &'a [String],
 }
 
-/// Wrap and append the HITL-sensitive native executors (file write/edit,
-/// notebook edit, bash, python) behind the filesystem approval guard.
-fn push_hitl_natives(
+/// Append the natives that write files or run code (file write/edit, notebook
+/// edit, bash, python).
+fn push_writing_natives(
     extra_executors: &mut Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
-    params: HitlNativesParams<'_>,
+    params: WritingNativesParams<'_>,
 ) {
-    let HitlNativesParams {
-        hitl: p,
-        workspace_path,
+    let WritingNativesParams {
         sandbox_root,
         venv_base_dir,
         disabled,
     } = params;
     let is_active = |name: &str| !disabled.iter().any(|d| d == name);
-    let hitl_ctx = crate::chat::native_wrappers::HitlFilesystemContext {
-        event_bus: p.event_bus.clone(),
-        pending_fs: p.pending_fs.clone(),
-        fs_allow_rules: p.fs_allow_rules.clone(),
-        session_id: p.session_id.clone(),
-        workspace_path: workspace_path.clone(),
-        trusted_paths: p.trusted_paths.clone(),
-        sandbox_root: sandbox_root.to_path_buf(),
-        risk_config: p.risk_config.clone(),
-    };
-
-    let push_hitl = |execs: &mut Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
-                     inner: Box<dyn apollia_tools::executor::ToolExecutor>,
-                     op: apollia_tools::FilesystemOp| {
-        execs.push(Box::new(
-            crate::chat::native_wrappers::HitlFilesystemGuard::new(inner, op, hitl_ctx.clone()),
-        ));
-    };
 
     if is_active("file_write") {
         if let Ok(t) = apollia_tools::tools::file_write::FileWrite::new(sandbox_root.to_path_buf())
         {
-            push_hitl(
-                extra_executors,
-                Box::new(t),
-                apollia_tools::FilesystemOp::Write,
-            );
+            extra_executors.push(Box::new(t));
         }
     }
     if is_active("file_edit") {
         if let Ok(t) = apollia_tools::tools::file_edit::FileEdit::new(sandbox_root.to_path_buf()) {
-            push_hitl(
-                extra_executors,
-                Box::new(t),
-                apollia_tools::FilesystemOp::Write,
-            );
+            extra_executors.push(Box::new(t));
         }
     }
     if is_active("notebook_edit") {
         if let Ok(t) =
             apollia_tools::tools::notebook_edit::NotebookEdit::new(sandbox_root.to_path_buf())
         {
-            push_hitl(
-                extra_executors,
-                Box::new(t),
-                apollia_tools::FilesystemOp::Write,
-            );
+            extra_executors.push(Box::new(t));
         }
     }
     if is_active("bash_executor") {
-        push_hitl(
-            extra_executors,
-            Box::new(apollia_tools::tools::bash_executor::BashExecutor::new()),
-            apollia_tools::FilesystemOp::Write,
-        );
+        extra_executors.push(Box::new(
+            apollia_tools::tools::bash_executor::BashExecutor::new(),
+        ));
     }
     if is_active("python_executor") {
         match apollia_tools::tools::python_executor::PythonExecutor::new(
             CHAT_VENV_ID,
             venv_base_dir,
         ) {
-            Ok(t) => push_hitl(
-                extra_executors,
-                Box::new(t),
-                apollia_tools::FilesystemOp::Write,
-            ),
+            Ok(t) => extra_executors.push(Box::new(t)),
             // A host with no Python 3 must hear why. Dropping the executor here
             // left the descriptor advertised to the model and the call answered
             // with UnknownTool, which reads as a wiring bug rather than a missing
@@ -592,26 +536,6 @@ mod tests {
         assert!(volume.is_none());
     }
 
-    /// HITL parameters that approve every filesystem risk level up front, so a
-    /// test never waits on an approval nobody will answer.
-    fn preapproved_hitl(session_id: &str) -> HitlInvokerParams {
-        let (event_bus, _rx) = crate::eventbus::EventBus::new();
-        let fs_allow_rules = std::sync::Arc::new(std::sync::Mutex::new(
-            ["write:medium", "write:high", "write:critical"]
-                .iter()
-                .map(|s| (*s).to_string())
-                .collect::<std::collections::HashSet<String>>(),
-        ));
-        HitlInvokerParams {
-            session_id: session_id.to_string(),
-            event_bus,
-            pending_fs: crate::chat::types::PendingFilesystemApprovals::new(),
-            fs_allow_rules,
-            risk_config: apollia_core::FilesystemRiskConfig::default(),
-            trusted_paths: Vec::new(),
-        }
-    }
-
     /// Returns `true` if the platform can actually execute code through the
     /// python executor's sandbox. On Linux without `CAP_SYS_ADMIN` (e.g.
     /// GitHub Actions runners), `unshare --pid --mount` fails with EPERM
@@ -655,15 +579,12 @@ mod tests {
         let data_dir = tempfile::tempdir().expect("tempdir");
         let sandbox = tempfile::tempdir().expect("tempdir");
         let cfg = chat_tools_config(data_dir.path());
-        let hitl = preapproved_hitl("session-under-test");
         let dispatcher = build_full_chat_dispatcher(FullDispatcherParams {
             cfg: &cfg,
             session_id: "session-under-test",
             sandbox_root: sandbox.path(),
             sandbox_roots: &[sandbox.path().to_path_buf()],
-            workspace_path: &None,
             pending_user_inputs: &None,
-            hitl: Some(&hitl),
             extra_executors: Vec::new(),
         });
 
@@ -699,6 +620,42 @@ mod tests {
         );
     }
 
+    // GIVEN the dispatcher a chat session really gets, with no project open and
+    //       no trusted path, where a write used to be classified by risk
+    // WHEN file_write is dispatched on the conversation path
+    // THEN the file is written at once: its consent was the family card of
+    //      the loop, and no prompt of its own sits in front of the executor
+    #[tokio::test]
+    async fn test_chat_dispatcher_writes_without_a_prompt_of_its_own() {
+        // GIVEN
+        let data_dir = tempfile::tempdir().expect("tempdir");
+        let sandbox = tempfile::tempdir().expect("tempdir");
+        let cfg = chat_tools_config(data_dir.path());
+        let dispatcher = build_full_chat_dispatcher(FullDispatcherParams {
+            cfg: &cfg,
+            session_id: "session-under-test",
+            sandbox_root: sandbox.path(),
+            sandbox_roots: &[sandbox.path().to_path_buf()],
+            pending_user_inputs: &None,
+            extra_executors: Vec::new(),
+        });
+
+        // WHEN
+        let result = dispatcher
+            .dispatch(
+                "file_write",
+                serde_json::json!({ "path": "note.txt", "content": "hello" }),
+            )
+            .await;
+
+        // THEN
+        assert!(result.is_ok(), "file_write failed: {result:?}");
+        assert_eq!(
+            std::fs::read_to_string(sandbox.path().join("note.txt")).expect("written"),
+            "hello"
+        );
+    }
+
     /// Switch `tools` off in the governance database of `data_dir`, the way
     /// `apollia-os tools disable` and the desktop tool page write them.
     fn disable_in_governance(data_dir: &std::path::Path, tools: &[&str]) {
@@ -712,7 +669,7 @@ mod tests {
     }
 
     // GIVEN a data directory whose governance database carries a plain native,
-    //       a HITL-wrapped native and the http_fetch wrapper switched off
+    //       a re-added code native and the http_fetch wrapper switched off
     // WHEN the dispatcher a chat session really gets is built over it
     // THEN none of the three is registered, while an untouched native still is
     #[tokio::test]
@@ -725,7 +682,6 @@ mod tests {
             &["file_read", "bash_executor", "http_fetch"],
         );
         let cfg = chat_tools_config(data_dir.path());
-        let hitl = preapproved_hitl("session-under-test");
 
         // WHEN
         let dispatcher = build_full_chat_dispatcher(FullDispatcherParams {
@@ -733,9 +689,7 @@ mod tests {
             session_id: "session-under-test",
             sandbox_root: sandbox.path(),
             sandbox_roots: &[sandbox.path().to_path_buf()],
-            workspace_path: &None,
             pending_user_inputs: &None,
-            hitl: Some(&hitl),
             extra_executors: Vec::new(),
         });
 
@@ -753,8 +707,7 @@ mod tests {
         );
     }
 
-    // GIVEN a governance database with `bash_executor` switched off, and HITL
-    //       parameters that would have approved the call
+    // GIVEN a governance database with `bash_executor` switched off
     // WHEN bash_executor is dispatched on the conversation path
     // THEN the call is refused as an unknown tool instead of running
     #[tokio::test]
@@ -764,15 +717,12 @@ mod tests {
         let sandbox = tempfile::tempdir().expect("tempdir");
         disable_in_governance(data_dir.path(), &["bash_executor"]);
         let cfg = chat_tools_config(data_dir.path());
-        let hitl = preapproved_hitl("session-under-test");
         let dispatcher = build_full_chat_dispatcher(FullDispatcherParams {
             cfg: &cfg,
             session_id: "session-under-test",
             sandbox_root: sandbox.path(),
             sandbox_roots: &[sandbox.path().to_path_buf()],
-            workspace_path: &None,
             pending_user_inputs: &None,
-            hitl: Some(&hitl),
             extra_executors: Vec::new(),
         });
 

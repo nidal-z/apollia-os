@@ -272,7 +272,14 @@ manual purge command.
 
 The file tools (`file_read`, `file_write`, `file_edit`, `file_list`,
 `file_glob`, `file_grep`, notebook read/edit) resolve every path against a
-`SandboxRoot` jail and reject escapes. A reversible journal logs every write.
+`SandboxRoot` jail and reject escapes. Nothing records a write so that it can be
+undone (see the last rule below).
+
+A write is consented to like any other tool call: `file_write`, `file_edit` and
+`notebook_edit` are in the "write or delete" family, so the decision of
+section 5 asks once, on the same card as every tool, with the same three
+answers. There is no second prompt of their own, no classification of the path
+by risk level and no confirmation word to type.
 
 This jail applies to those tools only. `bash_executor` and `python_executor`
 spawn child processes that dereference paths themselves, so a string-level jail
@@ -281,14 +288,15 @@ described in section 0 instead. And an in-process agent can touch the filesystem
 directly with raw Python, bypassing the tool layer entirely.
 
 Rules :
-- Prefer the file tools for agent filesystem access so the jail and journal
-  apply.
+- Prefer the file tools for agent filesystem access so the jail and the
+  family consent apply.
 - Path validation : file-tool paths are resolved against the sandbox root and
   rejected if they escape (`..`, symlinks pointing outside).
-- The journal is the intended rollback path, and it is not wired: the file
-  tools accept a journal handle through `with_journal`, and no production site
-  passes one, so nothing is recorded and nothing can be reverted. Do not write a
-  rule, a doc page, or an error message that implies otherwise.
+- A rollback journal exists in `apollia-tools` and it is not wired: the file
+  tools accept a journal handle through `with_journal`, only their own tests
+  pass one, and no production site does, so nothing is recorded and nothing can
+  be reverted. Do not write a rule, a doc page, or an error message that implies
+  otherwise.
 
 ---
 
@@ -361,7 +369,7 @@ Rules, held by `scripts/check_http_clients.py` :
 | Threat | Mitigation |
 |---|---|
 | Local file exfiltration by a deliberately malicious agent | Not technically prevented: agent code runs in-process (section 0). Defense is the install-chain audit plus HITL on tool actions. The filesystem sandbox and audit journal apply to native tool calls, not to raw agent Python |
-| Buggy agent writing outside its intent via file tools | File-tool path jail (`SandboxRoot`), audit journal, reversible writes |
+| Buggy agent writing outside its intent via file tools | File-tool path jail (`SandboxRoot`), the "write or delete" consent, asked on each write until the user answers "always" for the agent, audit journal. No write can be undone: the rollback journal is not wired (section 6) |
 | Credential leak via prompt injection | **Not mitigated.** No prompt-injection defence exists: fetched content feeds the model context as data with no output-side scanning (`web_read` documents this in-module). The only barrier is that any resulting tool call still goes through the prefix rules, the code-executor guard and HITL, so injected instructions cannot silently execute |
 | Network exfiltration | Profile gating, host pinning, audit log |
 | Token theft from disk | OS keyring or age-encrypted file |

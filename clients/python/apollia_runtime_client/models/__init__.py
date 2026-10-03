@@ -150,14 +150,6 @@ from .export_format import ExportFormat
 from .export_memory_namespace_response_200 import ExportMemoryNamespaceResponse200
 from .fire_response import FireResponse
 from .fork_session_request import ForkSessionRequest
-from .fs_hitl_decision_body_type_0 import FsHitlDecisionBodyType0
-from .fs_hitl_decision_body_type_0_decision import FsHitlDecisionBodyType0Decision
-from .fs_hitl_decision_body_type_1 import FsHitlDecisionBodyType1
-from .fs_hitl_decision_body_type_1_decision import FsHitlDecisionBodyType1Decision
-from .fs_hitl_decision_body_type_2 import FsHitlDecisionBodyType2
-from .fs_hitl_decision_body_type_2_decision import FsHitlDecisionBodyType2Decision
-from .fs_hitl_decision_body_type_3 import FsHitlDecisionBodyType3
-from .fs_hitl_decision_body_type_3_decision import FsHitlDecisionBodyType3Decision
 from .generate_next_steps_body import GenerateNextStepsBody
 from .generate_title_body import GenerateTitleBody
 from .generated_title import GeneratedTitle
@@ -319,7 +311,6 @@ from .resilience_status_response_circuit_breakers_item import (
 from .resolved_agent_response import ResolvedAgentResponse
 from .resolved_agent_response_definition import ResolvedAgentResponseDefinition
 from .resolved_approval_response import ResolvedApprovalResponse
-from .resolved_filesystem_approval import ResolvedFilesystemApproval
 from .resume_error_body import ResumeErrorBody
 from .resume_request import ResumeRequest
 from .resume_response import ResumeResponse
@@ -615,14 +606,6 @@ __all__ = (
     "ExportMemoryNamespaceResponse200",
     "FireResponse",
     "ForkSessionRequest",
-    "FsHitlDecisionBodyType0",
-    "FsHitlDecisionBodyType0Decision",
-    "FsHitlDecisionBodyType1",
-    "FsHitlDecisionBodyType1Decision",
-    "FsHitlDecisionBodyType2",
-    "FsHitlDecisionBodyType2Decision",
-    "FsHitlDecisionBodyType3",
-    "FsHitlDecisionBodyType3Decision",
     "GeneratedTitle",
     "GenerateNextStepsBody",
     "GenerateTitleBody",
@@ -780,7 +763,6 @@ __all__ = (
     "ResolvedAgentResponse",
     "ResolvedAgentResponseDefinition",
     "ResolvedApprovalResponse",
-    "ResolvedFilesystemApproval",
     "ResumeErrorBody",
     "ResumeRequest",
     "ResumeResponse",

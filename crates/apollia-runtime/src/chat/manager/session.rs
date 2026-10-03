@@ -208,9 +208,6 @@ impl ChatSessionManager {
             fork_depth: 0,
             project_id,
             force_project_context_inject: false,
-            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
-                std::collections::HashSet::new(),
-            )),
             // Plan mode is seeded from the runtime-level default; the per-session
             // toggle overrides it afterwards.
             plan_mode,
@@ -474,9 +471,6 @@ impl ChatSessionManager {
             fork_depth: row.fork_depth,
             project_id: row.project_id,
             force_project_context_inject: false,
-            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
-                std::collections::HashSet::new(),
-            )),
             plan_mode,
             plan_phase,
         };

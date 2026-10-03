@@ -222,13 +222,12 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "factory_reset",
     "mark_onboarded",
     "reset_onboarding",
-    // Permissions: the rules the onboarding agent proposed, a rule written
-    // from an approval card, and the answer to a request to touch a file.
+    // Permissions: the rules the onboarding agent proposed and a rule written
+    // from an approval card.
     "add_permission_prefix_rule",
     "apply_proposed_permission_rule",
     "dismiss_proposed_permission_rule",
     "list_proposed_permission_rules",
-    "respond_hitl_filesystem",
     // Tool governance: the tools, their configuration, the permission rules
     // and the audit, over `/api/v1/governance`.
     "governance_get_tool_config",

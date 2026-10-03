@@ -7,7 +7,7 @@
  *   `inline_text`     the file was small enough to read and its decoded text
  *                     rides inside the user message.
  *   `path_reference`  the file came from a desktop drop, so an absolute path
- *                     rides instead and the filesystem HITL flow reads it.
+ *                     rides instead and the file tools read it.
  *
  * Anything that fits neither form is refused at intake, with a reason the
  * composer shows. The refusal exists because the three dead forms were silently

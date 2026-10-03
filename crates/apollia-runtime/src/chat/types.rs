@@ -3,18 +3,13 @@
 //! Defines sessions, messages, roles, tool approval mechanics,
 //! and the `ChatError` hierarchy used throughout the chat subsystem.
 
-use std::sync::{Arc, Mutex};
-
 use serde::{Deserialize, Serialize};
 
 use apollia_core::RunId;
 
 mod approvals;
 
-pub use approvals::{
-    AlwaysAcceptScope, ApprovalTimeoutParams, FsHitlDecision, PendingChatApprovals,
-    PendingFilesystemApprovals,
-};
+pub use approvals::{ApprovalTimeoutParams, PendingChatApprovals};
 
 /// Alias for a chat session identifier (UUID v4 string).
 pub type SessionId = String;
@@ -65,13 +60,6 @@ pub struct ChatSession {
     /// skip context for already-active sessions. Transient, not persisted.
     #[serde(skip)]
     pub force_project_context_inject: bool,
-    /// In-memory filesystem allow rules for this session (not persisted).
-    ///
-    /// Set by the user via "Always allow (this session)" in `HitlFilesystemModal`.
-    /// Format: `"op:level"` e.g., `"write:medium"`.
-    /// Cleared when the session ends (intentional, session-scoped only).
-    #[serde(skip)]
-    pub fs_allow_rules: Arc<Mutex<std::collections::HashSet<String>>>,
     /// Whether this session runs in first-class plan mode.
     ///
     /// When `true`, the `plan_*` tool surface is advertised and the plan-mode
@@ -416,51 +404,38 @@ impl ToolCallStatus {
 
 /// User decision on a tool approval request.
 ///
-/// The enum mirrors the three buttons surfaced by `ApprovalCardV2`
-/// (approve / reject / always-accept). `Refuse` optionally carries a free-form
-/// reason forwarded to the agent so it can adapt its plan, and `AlwaysAccept`
-/// carries the sticky scope picked by the operator.
+/// Three answers, and only three: once, always for this agent, refuse.
+/// `Refuse` optionally carries a free-form reason forwarded to the agent so it
+/// can adapt its next step. `AlwaysAccept` carries no scope: what it grants is
+/// fixed, a standing consent of the asking agent for the action family of the
+/// tool, which governance records.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ToolDecision {
     /// Approve this single invocation.
     Accept,
     /// Refuse this single invocation. `reason` is `None` when the operator
-    /// declines without providing a justification (or when the manifest does
-    /// not flag `reject_reason_required`).
+    /// declines without giving one.
     Refuse {
         /// Free-form reason shared with the agent.
         #[serde(default)]
         reason: Option<String>,
     },
-    /// Approve this invocation **and** install an "always accept" rule whose
-    /// stickiness is controlled by `scope` (cf. [`AlwaysAcceptScope`]).
-    AlwaysAccept {
-        /// Scope picked by the operator. Defaults to
-        /// [`AlwaysAcceptScope::ThisSession`] for safety.
-        #[serde(default = "AlwaysAcceptScope::safe_default")]
-        scope: AlwaysAcceptScope,
-    },
+    /// Approve this invocation and every later call of the same agent in the
+    /// same action family, until the consent is withdrawn.
+    AlwaysAccept,
 }
 
 impl ToolDecision {
-    /// Convenience: "plain refuse" without a reason (legacy call-sites).
+    /// Convenience: "plain refuse" without a reason.
     #[must_use]
     pub fn refuse() -> Self {
         Self::Refuse { reason: None }
     }
 
-    /// Convenience: "always accept" with the safe default scope.
-    #[must_use]
-    pub fn always_accept_default() -> Self {
-        Self::AlwaysAccept {
-            scope: AlwaysAcceptScope::safe_default(),
-        }
-    }
-
-    /// Returns `true` if this decision is an `AlwaysAccept` of any scope.
+    /// Returns `true` if this decision is `AlwaysAccept`.
     #[must_use]
     pub fn is_always_accept(&self) -> bool {
-        matches!(self, Self::AlwaysAccept { .. })
+        matches!(self, Self::AlwaysAccept)
     }
 
     /// Serde-friendly identifier used for log rows / event payloads.
@@ -469,7 +444,7 @@ impl ToolDecision {
         match self {
             Self::Accept => "accept",
             Self::Refuse { .. } => "refuse",
-            Self::AlwaysAccept { .. } => "always_accept",
+            Self::AlwaysAccept => "always_accept",
         }
     }
 }
@@ -845,9 +820,6 @@ mod tests {
             fork_depth: 0,
             project_id: None,
             force_project_context_inject: false,
-            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
-                std::collections::HashSet::new(),
-            )),
             plan_mode: false,
             plan_phase: PlanPhase::Done,
         };

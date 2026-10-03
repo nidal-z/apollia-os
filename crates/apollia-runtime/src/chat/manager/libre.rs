@@ -225,7 +225,6 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         mcp_loading,
         tool_search_limit,
         session_id_str,
-        hitl_params,
         sid,
         mid,
         run_id,
@@ -287,7 +286,6 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         WorkspaceResolutionParams {
             project_id: session_project_id.clone(),
             project_repo: project_repo_for_session,
-            hitl: Some(hitl_params),
             pending_user_inputs: Some(pending_user_inputs_for_session),
             mcp_handle: mcp_handle_for_session,
             chat_tools_config: chat_tools_config_for_session,
@@ -443,8 +441,8 @@ pub(in crate::chat::manager) async fn build_session_invoker(
     Ok(ResolvedSessionInvoker { invoker, workspace })
 }
 
-/// Trace-log the enriched approval metadata (reject reason / always-accept
-/// scope) without touching the `log_tool_approval` SQL schema.
+/// Trace-log the enriched approval metadata (reject reason, always-accept)
+/// without touching the `log_tool_approval` SQL schema.
 pub(in crate::chat::manager) fn log_resolution_metadata(
     decision: &ToolDecision,
     session_id: &str,
@@ -461,12 +459,11 @@ pub(in crate::chat::manager) fn log_resolution_metadata(
                 "chat.tool.rejected"
             );
         }
-        ToolDecision::AlwaysAccept { scope } => {
+        ToolDecision::AlwaysAccept => {
             tracing::info!(
                 session_id,
                 message_id,
                 tool_name,
-                always_accept_scope = ?scope,
                 "chat.tool.always_accept.installed"
             );
         }
@@ -528,9 +525,6 @@ mod context_gauge_tests {
             fork_depth: 0,
             project_id: None,
             force_project_context_inject: false,
-            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
-                std::collections::HashSet::new(),
-            )),
             plan_mode: false,
             plan_phase: PlanPhase::Done,
         }

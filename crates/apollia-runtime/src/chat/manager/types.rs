@@ -129,7 +129,6 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     pub(in crate::chat::manager) mcp_loading: LoadingMode,
     pub(in crate::chat::manager) tool_search_limit: usize,
     pub(in crate::chat::manager) session_id_str: String,
-    pub(in crate::chat::manager) hitl_params: HitlInvokerParams,
     pub(in crate::chat::manager) sid: String,
     pub(in crate::chat::manager) mid: String,
     pub(in crate::chat::manager) run_id: RunId,
@@ -263,10 +262,8 @@ pub(in crate::chat::manager) struct FullDispatcherParams<'a> {
     /// Every root the file tools may reach, anchor first. Wider than
     /// `sandbox_root`, which stays the anchor for relative paths alone.
     pub(in crate::chat::manager) sandbox_roots: &'a [std::path::PathBuf],
-    pub(in crate::chat::manager) workspace_path: &'a Option<std::path::PathBuf>,
     pub(in crate::chat::manager) pending_user_inputs:
         &'a Option<apollia_tools::tools::ask_user::PendingUserInputs>,
-    pub(in crate::chat::manager) hitl: Option<&'a HitlInvokerParams>,
     pub(in crate::chat::manager) extra_executors:
         Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
 }
@@ -275,7 +272,6 @@ pub(in crate::chat::manager) struct FullDispatcherParams<'a> {
 pub(in crate::chat::manager) struct WorkspaceResolutionParams {
     pub(in crate::chat::manager) project_id: Option<String>,
     pub(in crate::chat::manager) project_repo: Option<Arc<ProjectRepository>>,
-    pub(in crate::chat::manager) hitl: Option<HitlInvokerParams>,
     pub(in crate::chat::manager) pending_user_inputs:
         Option<apollia_tools::tools::ask_user::PendingUserInputs>,
     pub(in crate::chat::manager) mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,

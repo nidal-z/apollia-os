@@ -94,9 +94,7 @@ pub struct FilesystemConfig {
     /// refused: it is classified one risk level higher, which is what suspends
     /// the operation and asks the user. Emptying the list therefore does not
     /// lock an agent out of the machine, it only means every write is asked
-    /// about. Naming a path here is a statement of trust, and the sensitive
-    /// paths of `FilesystemRiskConfig` (`~/.ssh`, `/etc`, credentials) keep
-    /// their own classification whatever this list says.
+    /// about. Naming a path here is a statement of trust.
     #[serde(default = "default_trusted_paths")]
     pub trusted_paths: Vec<PathBuf>,
 }

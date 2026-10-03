@@ -33,7 +33,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "connections.custom_transport_sse", // SSE (legacy 2024-11-05)
   "connections.native_microsoft_description", // Outlook Mail, Outlook Calendar, OneDrive
   "dashboard.headline_greeting", // {greeting}.
-  "hitl.fs.preview_mode_label", // {before} → {after}
   "inbox.activity.filter.llm", // LLM
   "llm.loaded.engine_mlx", // MLX
   "notifications.field_headers_placeholder", // {"Authorization": "Bearer ..."}

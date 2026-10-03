@@ -66,15 +66,6 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
     builtBy: "components/agents/useAgentActions.svelte.ts",
   },
   {
-    pattern: new RegExp(`^(approvals\\.risk|hitl\\.impact)\\.${SEG}$`),
-    builtBy:
-      "lib/components/operator/badges/RiskBadge.svelte, components/chat/HitlFilesystemModal.svelte",
-  },
-  {
-    pattern: new RegExp(`^approvals\\.scope\\.${SEG}$`),
-    builtBy: "components/chat/ApprovalScopeSelect.svelte",
-  },
-  {
     pattern: new RegExp(`^automations\\.humanize\\.${SEG}$`),
     builtBy: "lib/automations/humanize.ts",
   },

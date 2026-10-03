@@ -378,7 +378,6 @@ async fn test_resolve_tool_approval() {
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: pending,
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -423,9 +422,6 @@ async fn test_resolve_tool_approval() {
         fork_depth: 0,
         project_id: None,
         force_project_context_inject: false,
-        fs_allow_rules: std::sync::Arc::new(
-            std::sync::Mutex::new(std::collections::HashSet::new()),
-        ),
         plan_mode: false,
         plan_phase: PlanPhase::Done,
     };
@@ -467,7 +463,6 @@ async fn test_always_accept_grants_no_tool_by_name() {
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: pending,
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -511,17 +506,12 @@ async fn test_always_accept_grants_no_tool_by_name() {
         fork_depth: 0,
         project_id: None,
         force_project_context_inject: false,
-        fs_allow_rules: std::sync::Arc::new(
-            std::sync::Mutex::new(std::collections::HashSet::new()),
-        ),
         plan_mode: false,
         plan_phase: PlanPhase::Done,
     };
     manager.sessions.insert("sess-1".into(), session);
 
-    let always = ToolDecision::AlwaysAccept {
-        scope: crate::chat::AlwaysAcceptScope::ThisSession,
-    };
+    let always = ToolDecision::AlwaysAccept;
 
     // WHEN "always accept" resolves for the code executor
     manager
@@ -636,7 +626,6 @@ async fn test_cross_session_context_substantive_message() {
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: PendingChatApprovals::new(),
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -714,7 +703,6 @@ async fn test_cross_session_context_trivial_message() {
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: PendingChatApprovals::new(),
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -770,7 +758,6 @@ async fn test_cross_session_context_no_relevant_sessions() {
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: PendingChatApprovals::new(),
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -969,7 +956,6 @@ pub(super) fn manager_with_session_in_phase(
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: PendingChatApprovals::new(),
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -1012,9 +998,6 @@ pub(super) fn manager_with_session_in_phase(
         fork_depth: 0,
         project_id: None,
         force_project_context_inject: false,
-        fs_allow_rules: std::sync::Arc::new(
-            std::sync::Mutex::new(std::collections::HashSet::new()),
-        ),
         plan_mode: true,
         plan_phase: phase,
     };
