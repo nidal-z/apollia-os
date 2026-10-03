@@ -176,6 +176,9 @@ from .inject_message_body import InjectMessageBody
 from .inject_message_body_payload import InjectMessageBodyPayload
 from .inject_message_response import InjectMessageResponse
 from .injected_memory_entry_view import InjectedMemoryEntryView
+from .input_error_code import InputErrorCode
+from .input_field import InputField
+from .input_kind import InputKind
 from .install_agent_request import InstallAgentRequest
 from .install_agent_response import InstallAgentResponse
 from .install_refusal_type_0 import InstallRefusalType0
@@ -438,6 +441,7 @@ from .workflow_run_view import WorkflowRunView
 from .workflow_run_view_inputs import WorkflowRunViewInputs
 from .workflow_run_view_output_type_0 import WorkflowRunViewOutputType0
 from .workflow_step_view import WorkflowStepView
+from .workflow_view import WorkflowView
 
 __all__ = (
     "A2AAgentDto",
@@ -616,6 +620,9 @@ __all__ = (
     "InjectMessageBody",
     "InjectMessageBodyPayload",
     "InjectMessageResponse",
+    "InputErrorCode",
+    "InputField",
+    "InputKind",
     "InstallAgentRequest",
     "InstallAgentResponse",
     "InstalledAgentView",
@@ -872,4 +879,5 @@ __all__ = (
     "WorkflowRunViewInputs",
     "WorkflowRunViewOutputType0",
     "WorkflowStepView",
+    "WorkflowView",
 )

@@ -240,6 +240,7 @@ check_exit    "batch export unknown → 1"          1  "${Q[@]}" batch export 00
 # history of any workflow is empty.
 section "workflows"
 check_json_field "workflow logs --json holds no run" "len(d['runs'])" 0 "${Q[@]}" workflow logs invoices/close-month --json
+check_exit    "workflow show unknown → 1"         1  "${Q[@]}" workflow show invoices/close-month
 check_exit    "workflow run unknown → 1"          1  "${Q[@]}" workflow run invoices/close-month --input folder=/data/march
 check_exit    "workflow status unknown → 1"       1  "${Q[@]}" workflow status 00000000-0000-0000-0000-000000000000
 check_exit    "workflow cancel unknown → 1"       1  "${Q[@]}" workflow cancel 00000000-0000-0000-0000-000000000000 --confirm

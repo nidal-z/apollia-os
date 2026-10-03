@@ -103,6 +103,24 @@ A conversational message exchanged with a user-facing agent.
 | `role` | `Literal['user', 'assistant']` |  |
 | `content` | `str` |  |
 
+### `InputFormat`
+
+_Bases: object_
+
+What a text input of a workflow holds, beyond being text.
+
+Carried as ``Annotated`` metadata by `LongText` and
+`FileInput`, and written as the JSON Schema ``format`` of the input,
+so the launch form picks its field and the runtime checks the value before
+the run. A date needs no marker: annotate the input ``datetime.date``.
+
+Attributes:
+    format: ``long-text`` or ``file-path``.
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `format` | `str` |  |
+
 ### `AIPResult`
 
 _Bases: object_
@@ -167,6 +185,17 @@ Serialize to dict for runtime consumption.
 
 Only fields with non-``None`` values (and non-empty ``data``) are
 included so the runtime receives a compact payload.
+
+## Aliases and constants
+
+| Name | Value | Meaning |
+| --- | --- | --- |
+| `MessageContent` | `TextContent \| ImageContent` | Union of all supported content block kinds. |
+| `DATE_FORMAT` | `'date'` | JSON Schema ``format`` of a date input, ``datetime.date``: ``YYYY-MM-DD``. |
+| `LONG_TEXT_FORMAT` | `'long-text'` | JSON Schema ``format`` of a long text input, `LongText`. |
+| `FILE_PATH_FORMAT` | `'file-path'` | JSON Schema ``format`` of a file input, `FileInput`. |
+| `LongText` | `Annotated[str, InputFormat(LONG_TEXT_FORMAT)]` | A text input written over several lines (a brief, a note); the form shows a text area. The workflow receives a ``str``. |
+| `FileInput` | `Annotated[str, InputFormat(FILE_PATH_FORMAT)]` | A file the user picks; the form shows a file chooser. The workflow receives the absolute path of the file as a ``str``, and the runtime refuses a launch whose file does not exist. |
 
 ## Helpers
 

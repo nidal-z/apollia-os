@@ -55,6 +55,7 @@ def test_workflow_records_its_declaration_and_input_schema() -> None:
         },
         "required": ["folder"],
         "additionalProperties": False,
+        "x-order": ["folder", "notify"],
     }
     assert inspect.iscoroutinefunction(close_month)
 

@@ -440,6 +440,8 @@ check_exit   "batch export bad --format → 1"   1     "$BIN" --socket "$OFFSOCK
 # A workflow runs in the runtime: daemon off, each leaf refuses with 2; an
 # identifier without its package, a malformed --input, or a stop without
 # --confirm off a terminal is a usage error, 1, before any call.
+check_exit   "workflow show (off) → 2"         2     "$BIN" --socket "$OFFSOCK" workflow show invoices/close-month
+check_exit   "workflow show bare name → 1"     1     "$BIN" --socket "$OFFSOCK" --json workflow show close-month
 check_exit   "workflow run (off) → 2"          2     "$BIN" --socket "$OFFSOCK" workflow run invoices/close-month --input folder=/data/march
 check_exit   "workflow run --json (off) → 2"   2     "$BIN" --socket "$OFFSOCK" --json workflow run invoices/close-month --input folder=/data/march --wait
 check_exit   "workflow status (off) → 2"       2     "$BIN" --socket "$OFFSOCK" workflow status 00000000-0000-0000-0000-000000000000
