@@ -52,7 +52,7 @@ impl IntervalTrigger {
                 let now = Utc::now();
                 let event = TriggerEvent {
                     trigger_id: def.id.clone(),
-                    agent: def.agent.clone(),
+                    target: def.target.name().to_string(),
                     payload: TriggerPayload::Timer {
                         scheduled_at: now,
                         fired_at: now,
@@ -72,7 +72,7 @@ impl IntervalTrigger {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{InputTemplate, OnBusyPolicy, TriggerSourceConfig};
+    use crate::types::{OnBusyPolicy, TriggerSourceConfig};
     use std::time::Duration;
 
     #[tokio::test]
@@ -81,13 +81,12 @@ mod tests {
         let (tx, mut rx) = tokio::sync::mpsc::channel(10);
         let def = TriggerDefinition {
             id: "interval-test".into(),
-            agent: "agent".into(),
+            target: crate::types::TriggerTarget::agent("agent", "tick"),
             enabled: true,
             on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::Interval {
                 every: "100ms".into(),
             },
-            input_template: InputTemplate("tick".into()),
         };
 
         // WHEN letting 350ms pass

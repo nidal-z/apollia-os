@@ -97,7 +97,7 @@ async fn a_chosen_gguf_file_is_copied_into_the_models_folder_and_becomes_the_loc
 
     // THEN the file sits in the models folder, and system.db holds the
     // default "local" backend pointing at it with its quantisation and window
-    let copied = data.path().join("models").join("Qwen3-0.6B-Q8_0.gguf");
+    let copied = apollia_core::config::default_models_dir(data.path()).join("Qwen3-0.6B-Q8_0.gguf");
     assert_eq!(result.model_path, copied.display().to_string());
     assert_eq!(result.quantization, "q8_0");
     assert_eq!(std::fs::read(&copied).unwrap(), b"GGUF");

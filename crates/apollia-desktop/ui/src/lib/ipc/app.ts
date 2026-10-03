@@ -39,3 +39,12 @@ export async function openConfigInEditor(path?: string): Promise<void> {
   const { invoke } = await import("@tauri-apps/api/core");
   await invoke("open_config_in_editor", path ? { path } : undefined);
 }
+
+/**
+ * Open the folder of the application's log files (`~/.apollia/logs`) in the
+ * file manager, creating it when it does not exist yet.
+ */
+export async function openLogsDir(): Promise<void> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("open_logs_dir");
+}

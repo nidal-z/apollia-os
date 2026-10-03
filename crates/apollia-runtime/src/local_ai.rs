@@ -102,7 +102,7 @@ pub async fn system_info() -> Result<SystemInfo, LocalAiError> {
         })
 }
 
-/// The GGUF models under `home` and in `<data_dir>/models`, largest first.
+/// The GGUF models under `home` and in the models folder in force, largest first.
 ///
 /// # Errors
 ///
@@ -175,7 +175,7 @@ pub async fn setup_local_llm(
         .unwrap_or("model");
     let quantization = infer_quantization(file_stem);
 
-    let models_dir = data_dir.join("models");
+    let models_dir = apollia_core::config::models_dir(data_dir);
     tokio::fs::create_dir_all(&models_dir)
         .await
         .map_err(LocalAiError::ModelsDir)?;

@@ -11,10 +11,10 @@
 //! declares Python dependencies, imports each agent through the
 //! [`AgentLoader`](crate::api::routes_agents::AgentLoader) with that
 //! virtualenv on `sys.path`, records the agents and the package, and writes
-//! the package's triggers. The removal undoes it, best effort.
+//! the package's triggers. The removal is the one every package takes
+//! ([`crate::packages::uninstall_package`]).
 
 mod install;
-mod uninstall;
 
 #[cfg(test)]
 mod tests;
@@ -26,7 +26,6 @@ use apollia_tools::{InstalledPackage, PackageRepository};
 use serde::{Deserialize, Serialize};
 
 pub use install::{install, InstallRequest, Installed};
-pub use uninstall::uninstall;
 
 /// Longest package or agent name accepted: it becomes a folder name.
 const MAX_NAME_LEN: usize = 128;

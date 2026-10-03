@@ -161,3 +161,58 @@ fn test_reading_the_token_never_creates_it() {
     assert_eq!(token, None);
     assert!(!dir.path().join("api-token").exists());
 }
+
+// ── The runtime installed as a service ──────────────────────────────────
+
+#[test]
+fn test_the_service_step_follows_the_observed_service_and_the_port() {
+    // GIVEN the combinations of an installed service, its process, and an
+    // Apollia runtime already serving the port
+    // WHEN the step is chosen for each
+    // THEN no service decides at once, a stopped one is started, a running
+    // one is awaited, and a runtime already serving is attached to as is
+    assert_eq!(
+        service::service_step(false, false, false),
+        service::ServiceStep::Decide
+    );
+    assert_eq!(
+        service::service_step(true, false, false),
+        service::ServiceStep::StartThenAwait
+    );
+    assert_eq!(
+        service::service_step(true, true, false),
+        service::ServiceStep::Await
+    );
+    assert_eq!(
+        service::service_step(true, false, true),
+        service::ServiceStep::Decide
+    );
+}
+
+#[test]
+fn test_waiting_for_the_service_ends_when_an_apollia_runtime_answers() {
+    // GIVEN an Apollia runtime serving a loopback port, and a data directory
+    // without a token
+    let addr = serve_once(apollia_answer(env!("CARGO_PKG_VERSION")));
+    let data = tempfile::tempdir().unwrap();
+
+    // WHEN the application waits for it
+    let served = service::await_serving(addr, data.path(), Duration::ZERO);
+
+    // THEN it answers, and the decision that follows attaches
+    assert!(served);
+    assert!(matches!(decide(addr, None), StartupDecision::Attach { .. }));
+}
+
+#[test]
+fn test_waiting_for_a_service_that_never_answers_gives_up_at_the_bound() {
+    // GIVEN port 0, on which no runtime can ever answer
+    let addr = SocketAddr::from(([127, 0, 0, 1], 0));
+    let data = tempfile::tempdir().unwrap();
+
+    // WHEN the application waits for a runtime there, with no time left
+    let served = service::await_serving(addr, data.path(), Duration::ZERO);
+
+    // THEN it gives up and leaves the decision to the startup probe
+    assert!(!served);
+}

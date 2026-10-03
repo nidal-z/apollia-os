@@ -11,11 +11,12 @@
 //! [`TokenAuthLayer`](crate::api::middleware::TokenAuthLayer) rather than taken
 //! from a crate: what it does is a constant answer and one added header.
 //!
-//! It must wrap every other layer of the compatible router, authentication
-//! included, because a browser never sends credentials on a preflight: an
-//! `OPTIONS` request is answered here and never reaches what is beneath. The
-//! request that follows the preflight is an ordinary request and passes through
-//! every layer. [`with_cors`] is the one place that applies it, last.
+//! It must sit above the token check of the compatible router, because a
+//! browser never sends credentials on a preflight: an `OPTIONS` request is
+//! answered here and never reaches what is beneath. The request that follows
+//! the preflight is an ordinary request and passes through every layer. Only
+//! the request log sits above it, so a preflight leaves its line like any other
+//! request. [`with_cors`] is the one place that applies it.
 //!
 //! The native API never carries these headers: its router is assembled in
 //! `src/api/` and this layer is not part of it.
@@ -53,9 +54,9 @@ const MAX_AGE_SECS: &str = "600";
 /// Applies the cross-origin layer to `router` when `enabled`, outside every
 /// layer the router already carries.
 ///
-/// The compatible router is built first, its own layers included, and handed
-/// here last; a layer added after this call would sit outside it and see the
-/// preflights.
+/// The compatible router is built first, the token check included, and handed
+/// here; a layer added after this call sits outside it and sees the preflights,
+/// which only the request log may do.
 pub(crate) fn with_cors(router: Router, enabled: bool) -> Router {
     if enabled {
         router.layer(CorsLayer)

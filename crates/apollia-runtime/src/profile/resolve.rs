@@ -50,8 +50,29 @@ pub fn profile_for_agent(
     data_dir: &Path,
     agent_id: &str,
 ) -> Result<Profile, UserMemoryError> {
-    let designated = designated_profile_id(data_dir, agent_id);
-    repo.profile_or_default(designated.as_deref())
+    profile_for_execution(repo, data_dir, agent_id, None)
+}
+
+/// The profile an execution of `agent_id` runs with, in this order: the
+/// profile designated for the agent, then the profile designated for the
+/// conversation the execution answers (`conversation_profile`), then the
+/// default profile. A designation naming a profile deleted since is skipped.
+///
+/// # Errors
+///
+/// [`UserMemoryError`] when `user_memory.db` cannot be read.
+pub fn profile_for_execution(
+    repo: &UserMemoryRepository,
+    data_dir: &Path,
+    agent_id: &str,
+    conversation_profile: Option<&str>,
+) -> Result<Profile, UserMemoryError> {
+    if let Some(id) = designated_profile_id(data_dir, agent_id) {
+        if let Some(profile) = repo.profile(&id)? {
+            return Ok(profile);
+        }
+    }
+    repo.profile_or_default(conversation_profile)
 }
 
 #[cfg(test)]
@@ -126,6 +147,37 @@ mod tests {
 
         // THEN the orphaned designation reads as empty: the default applies
         assert_eq!(resolved.id, default.id);
+    }
+
+    #[test]
+    fn the_agent_designation_wins_over_the_conversation_then_the_default() {
+        // GIVEN a "Formateur" profile designated for an agent, a "Juriste" profile, and an agent designating none
+        let dir = tempfile::tempdir().expect("tempdir");
+        let profiles = user_memory(dir.path());
+        let default = profiles.default_profile().expect("default profile");
+        let formateur = profiles.create_profile("Formateur").expect("created");
+        let juriste = profiles.create_profile("Juriste").expect("created");
+        let agents = store_agent(dir.path(), "cours");
+        store_agent(dir.path(), "veille");
+        agents
+            .set_override(
+                "cours",
+                OverrideField::Profile,
+                &serde_json::json!(formateur.id),
+            )
+            .expect("override set");
+
+        // WHEN each agent answers a conversation designating "Juriste", and one answers a conversation designating nothing
+        let cours = profile_for_execution(&profiles, dir.path(), "cours", Some(&juriste.id))
+            .expect("resolved");
+        let veille = profile_for_execution(&profiles, dir.path(), "veille", Some(&juriste.id))
+            .expect("resolved");
+        let bare = profile_for_execution(&profiles, dir.path(), "veille", None).expect("resolved");
+
+        // THEN the agent designation comes first, the conversation second, the default last
+        assert_eq!(cours.id, formateur.id);
+        assert_eq!(veille.id, juriste.id);
+        assert_eq!(bare.id, default.id);
     }
 
     #[test]

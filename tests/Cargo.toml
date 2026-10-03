@@ -168,3 +168,8 @@ required-features = ["python-tests"]
 name = "test_package_workflows"
 path = "integration/test_package_workflows.rs"
 required-features = ["python-tests"]
+
+[[test]]
+name = "test_profile_source"
+path = "integration/test_profile_source.rs"
+required-features = ["python-tests"]

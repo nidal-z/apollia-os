@@ -96,20 +96,3 @@ export function getConversationStats(
 ): Promise<ConversationStatsView> {
   return invoke<ConversationStatsView>("get_conversation_stats", { sessionId });
 }
-
-/** Stored defaults applied to every free-chat session. */
-export interface ChatLibreConfig {
-  system_prompt: string;
-  allowed_tools: string[];
-  llm_backend: string | null;
-}
-
-/** Read the free-chat defaults. */
-export function getChatLibreConfig(): Promise<ChatLibreConfig> {
-  return invoke<ChatLibreConfig>("get_chat_libre_config");
-}
-
-/** Persist the free-chat defaults. */
-export function updateChatLibreConfig(config: ChatLibreConfig): Promise<void> {
-  return invoke<void>("update_chat_libre_config", { config });
-}

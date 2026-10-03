@@ -45,6 +45,7 @@ pub mod review;
 pub mod sandbox;
 pub mod schema;
 pub mod security_posture;
+pub mod server_token;
 pub mod session_metrics;
 pub mod stt_config;
 pub mod subprocess_env;

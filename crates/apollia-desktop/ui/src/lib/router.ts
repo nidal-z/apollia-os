@@ -1,4 +1,4 @@
-import { navigateTo, type Route } from "$lib/stores/navigation";
+import { openSettingsWindow } from "$lib/stores/settingsWindow";
 import {
   goToSettingsSubRoute,
   SETTINGS_SUB_ROUTES,
@@ -19,13 +19,15 @@ export function parseSettingsPath(path: string): SettingsSubRoute | null {
 }
 
 /**
- * Navigate to `/settings` or `/settings/:sub`. Handles the redirect
- * `/settings` → `/settings/general` so callers don't have to.
+ * Open the settings window on a section (General by default), above the current
+ * screen. A former section name lands on the section that holds its content.
+ * `focus` names an element the section scrolls to and focuses once shown.
  */
-export function navigateToSettings(sub?: string | SettingsSubRoute | null): SettingsSubRoute { // NOSONAR typescript:S6571
-  const resolved = goToSettingsSubRoute(sub ?? DEFAULT_SETTINGS_SUB_ROUTE);
-  navigateTo("settings" as Route);
-  return resolved;
+export function navigateToSettings(
+  sub?: string | SettingsSubRoute | null, // NOSONAR typescript:S6571
+  focus?: string | null,
+): SettingsSubRoute {
+  return openSettingsWindow(sub ?? DEFAULT_SETTINGS_SUB_ROUTE, focus);
 }
 
 /** Update the active settings sub-route without touching the top-level route. */

@@ -3,15 +3,16 @@ use super::*;
 use apollia_core::events::resilient;
 
 use super::bootstrap::{
-    drain_until_all_ready, emit_onboarding_if_needed, flatten_api_start, load_trigger_definitions,
-    rollback_startup_actors, seed_default_desktop_channel_if_needed, spawn_runner_supervisor,
+    agent_launcher, drain_until_all_ready, emit_onboarding_if_needed, flatten_api_start,
+    load_trigger_definitions, rollback_startup_actors, seed_default_desktop_channel_if_needed,
+    spawn_runner_supervisor, start_trigger_engine,
 };
 use super::bundled::{
     auto_load_bundled_agents, register_builtin_tools, validate_installed_packages,
 };
 use super::persistence::{
     open_audit_journal, open_audit_trail, open_plan_cache, open_project_repository,
-    open_sidechain_logger, open_task_repository, open_trigger_persistence, open_user_memory,
+    open_sidechain_logger, open_task_repository, open_user_memory,
 };
 
 impl Supervisor {
@@ -111,6 +112,7 @@ impl Supervisor {
             Some(system_db_path.clone()),
             Some(event_sender.clone()),
             Some(guardrails_file.clone()),
+            org_policy.imposed_settings(),
         )
         .ok();
         if let Some(supervisor) = &llama_server_supervisor {
@@ -118,15 +120,22 @@ impl Supervisor {
         }
         // The MLX engine, on a Mac with Apple Silicon whose build carries it.
         // An MLX model elsewhere is refused with its reason by the router.
-        let mlx_engine =
-            crate::mlx_engine::MlxEngineSupervisor::for_this_machine(Some(guardrails_file));
+        let mlx_engine = crate::mlx_engine::MlxEngineSupervisor::for_this_machine(
+            Some(guardrails_file),
+            org_policy.imposed_settings(),
+        );
         if let Some(engine) = &mlx_engine {
             Arc::clone(engine).spawn_supervision();
         }
 
         // Phase 4 (pos 5): LlmRouter + LlmBackendRepository, loads backends from system.db
         let (llm_router, llm_backend_repo) = self
-            .start_llm_router(&system_db_path, &llama_server_supervisor, &mlx_engine)
+            .start_llm_router(
+                &system_db_path,
+                &llama_server_supervisor,
+                &mlx_engine,
+                &crate::governance::InferenceGovernance::new(Arc::clone(&org_policy)),
+            )
             .await;
 
         // Phase 4b: LlmCallRepository, an EventBus subscriber that persists LLM calls.
@@ -180,21 +189,8 @@ impl Supervisor {
             })?;
         let trigger_definitions = load_trigger_definitions(&trigger_def_repo)?;
         let trigger_def_repo = Arc::new(std::sync::Mutex::new(trigger_def_repo));
-        // Open the SQLite trigger persistence (history of fires/skips).
-        let trigger_persistence = open_trigger_persistence(&self.config.data_dir);
-        let enabled_count = trigger_definitions.iter().filter(|t| t.enabled).count();
-        let trigger_engine = TriggerEngineHandle::spawn(
-            trigger_definitions,
-            router_handle.clone(),
-            event_sender.clone(),
-            trigger_persistence,
-            self.config.obs_config.clone(),
-        )
-        .await;
-        tracing::info!(active = enabled_count, "trigger.engine.started");
-        let _ = event_sender.send(RuntimeEvent::TriggersReloaded {
-            count: enabled_count,
-        });
+        // The engine itself starts once the agent executor and the workflow
+        // engine exist, below: a trigger starts either.
 
         // Phase 8 (pos 9): AuditTrail, opened before APIServer so it's injectable into AppState.
         info!("supervisor.audit_trail.opening");
@@ -472,18 +468,21 @@ impl Supervisor {
         // the batches left running as soon as it starts. No source reader is
         // registered yet: a launch on any kind answers that it is unknown.
         // Governance says which accesses of the agent are sensitive.
-        let batches = match (&task_repository, &chat_manager) {
-            (Some(repo), Some(chat)) => Some(crate::batch::BatchHandle::spawn(
+        // One agent executor path, shared by batches, workflow steps and
+        // triggers; `None` without the executor or the task store.
+        let launcher = agent_launcher(
+            &router_handle,
+            chat_manager.as_ref(),
+            task_repository.as_ref(),
+            &event_sender,
+            &self.config.obs_config,
+        );
+        let batches = match (&task_repository, &launcher) {
+            (Some(repo), Some(launcher)) => Some(crate::batch::BatchHandle::spawn(
                 repo.clone(),
                 Arc::new(apollia_core::batch_source::SourceRegistry::new()),
                 batch_runner(
-                    crate::agents::task::AgentTaskLauncher {
-                        router: router_handle.clone(),
-                        chat: chat.clone(),
-                        repository: Some(repo.clone()),
-                        event_bus: event_sender.clone(),
-                        observability: self.config.obs_config.clone(),
-                    },
+                    launcher.clone(),
                     self.config.data_dir.clone(),
                     audit_journal_handle.clone(),
                 ),
@@ -497,15 +496,9 @@ impl Supervisor {
         // up, by whoever embeds the interpreter.
         let mut step_agents: Option<Arc<dyn crate::workflows::AgentRunner>> = None;
         let workflows = task_repository.as_ref().map(|repo| {
-            let agents = chat_manager.as_ref().map(|chat| {
+            let agents = launcher.clone().map(|launcher| {
                 Arc::new(crate::workflows::LaunchedAgentRunner::new(
-                    crate::agents::task::AgentTaskLauncher {
-                        router: router_handle.clone(),
-                        chat: chat.clone(),
-                        repository: Some(repo.clone()),
-                        event_bus: event_sender.clone(),
-                        observability: self.config.obs_config.clone(),
-                    },
+                    launcher,
                     self.config.data_dir.clone(),
                 )) as Arc<dyn crate::workflows::AgentRunner>
             });
@@ -527,6 +520,19 @@ impl Supervisor {
             )))
             .await;
         }
+        // Phase 6b: TriggerEngine; a trigger starts an agent or a workflow.
+        let trigger_engine = start_trigger_engine(
+            trigger_definitions,
+            crate::trigger_targets::TriggerTargets {
+                router: router_handle.clone(),
+                agents: launcher,
+                workflows: workflows.clone(),
+                data_dir: self.config.data_dir.clone(),
+            },
+            &event_sender,
+            &self.config,
+        )
+        .await;
         // The compatible server reads and writes its switch in the file the
         // runtime was started with, or in the data directory's apollia.toml,
         // the file the desktop reads, when it was started without one.
@@ -535,6 +541,12 @@ impl Supervisor {
                 .config_path
                 .clone()
                 .unwrap_or_else(|| self.config.data_dir.join("apollia.toml")),
+            system_db_path.clone(),
+            crate::compat_server::LocalModels::new(
+                llama_server_supervisor.clone(),
+                mlx_engine.clone(),
+                Some(crate::installed_models::models_dir(&self.config.data_dir)),
+            ),
             &event_sender,
         );
         let shared_llm_router = crate::api::server::shared_llm_router_from(llm_router.clone());
@@ -556,6 +568,9 @@ impl Supervisor {
             audit_trail: audit_trail_handle.clone(),
             audit_journal: audit_journal_handle.clone(),
             connection_governance: connection_governance.clone(),
+            inference_governance: crate::governance::InferenceGovernance::new(Arc::clone(
+                &org_policy,
+            )),
             obs_config: self.config.obs_config.clone(),
             llm_call_repository: llm_call_repository.clone(),
             trigger_def_repo: Some(trigger_def_repo.clone()),

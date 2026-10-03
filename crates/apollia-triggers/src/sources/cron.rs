@@ -66,7 +66,7 @@ impl CronTrigger {
                 let fired_at = Utc::now();
                 let event = TriggerEvent {
                     trigger_id: def.id.clone(),
-                    agent: def.agent.clone(),
+                    target: def.target.name().to_string(),
                     payload: TriggerPayload::Timer {
                         scheduled_at: next,
                         fired_at,
@@ -86,20 +86,19 @@ impl CronTrigger {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{InputTemplate, OnBusyPolicy, TriggerSourceConfig};
+    use crate::types::{OnBusyPolicy, TriggerSourceConfig};
     use std::time::Duration;
     use tokio::time::timeout;
 
     fn make_def_cron(id: &str, schedule: &str) -> TriggerDefinition {
         TriggerDefinition {
             id: id.into(),
-            agent: "test-agent".into(),
+            target: crate::types::TriggerTarget::agent("test-agent", "{{fired_at}}"),
             enabled: true,
             on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::Cron {
                 schedule: schedule.into(),
             },
-            input_template: InputTemplate("{{fired_at}}".into()),
         }
     }
 

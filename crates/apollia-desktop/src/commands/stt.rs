@@ -557,9 +557,10 @@ pub async fn list_stt_models(link: State<'_, RuntimeLink>) -> Result<Vec<SttMode
 
 /// The model files of this machine's models folder.
 fn list_local_models() -> Result<Vec<SttModelInfo>, String> {
-    let models_dir = apollia_core::paths::data_dir()
-        .unwrap_or_default()
-        .join("models");
+    // Dictation models stay in the default folder whatever `[models] dir` says.
+    let models_dir = apollia_core::config::default_models_dir(
+        &apollia_core::paths::data_dir().unwrap_or_default(),
+    );
 
     if !models_dir.is_dir() {
         return Ok(Vec::new());
