@@ -1,8 +1,11 @@
-//! `apollia-os user-memory` subcommands: manage the global user profile.
+//! `apollia-os profile` subcommands: the named user profiles.
 //!
 //! Operates directly on `~/.apollia/user_memory.db` (a [`UserMemoryRepository`])
-//! without requiring the runtime to be running. This is the CLI counterpart
-//! to the Desktop `user_memory` Tauri commands.
+//! without requiring the runtime to be running. `list`, `show`, `create`,
+//! `rename`, `set`, `set-default` and `delete` address a profile by its
+//! identifier (`default` names the default profile, see [`profiles`]);
+//! `forget`, `reset`, `schema`, `export` and `import` act on the default
+//! profile and the free-form entries.
 
 use std::path::{Path, PathBuf};
 
@@ -12,21 +15,70 @@ use apollia_memory::user_memory::{ProfileEntry, UserMemoryRepository, WrittenBy}
 
 use crate::exit_codes;
 
-/// Subcommands of `apollia-os user-memory`.
+mod profiles;
+
+/// Subcommands of `apollia-os profile`.
 #[derive(Debug, Subcommand)]
 pub enum UserMemoryCommand {
-    /// Display every key currently stored in the global user profile.
-    Show {
+    /// List the profiles: identifier, name, and which one is the default.
+    List {
         /// Optional override for the user_memory.db path.
         #[arg(long, value_name = "PATH")]
         db: Option<PathBuf>,
     },
-    /// Insert or replace the value of `KEY`.
+    /// Display a profile: its fields, then the free-form entries every
+    /// profile shares. Without an identifier, the default profile.
+    Show {
+        /// Profile identifier, or `default` (the default when omitted).
+        id: Option<String>,
+        /// Optional override for the user_memory.db path.
+        #[arg(long, value_name = "PATH")]
+        db: Option<PathBuf>,
+    },
+    /// Create a profile with empty fields; it is not the default.
+    Create {
+        /// Display name of the profile (e.g. `Formateur`).
+        name: String,
+        #[arg(long, value_name = "PATH")]
+        db: Option<PathBuf>,
+    },
+    /// Rename a profile.
+    Rename {
+        /// Profile identifier, or `default`.
+        id: String,
+        /// New display name.
+        name: String,
+        #[arg(long, value_name = "PATH")]
+        db: Option<PathBuf>,
+    },
+    /// Write one field of a profile: `name`, `role`, `function`, `tools`,
+    /// `preferences` or `free_text`. Any other key is a free-form entry,
+    /// shared by every profile.
     Set {
-        /// Profile key (e.g. `name`, `email`, `preferences.tone`).
-        key: String,
-        /// Value to store.
+        /// Profile identifier, or `default`.
+        id: String,
+        /// Field to write (e.g. `role`).
+        field: String,
+        /// Value to store; an empty value empties a field.
         value: String,
+        #[arg(long, value_name = "PATH")]
+        db: Option<PathBuf>,
+    },
+    /// Make a profile the default; the previous default stops being one.
+    SetDefault {
+        /// Profile identifier.
+        id: String,
+        #[arg(long, value_name = "PATH")]
+        db: Option<PathBuf>,
+    },
+    /// Delete a profile. The default profile cannot be deleted: make another
+    /// one the default first.
+    Delete {
+        /// Profile identifier.
+        id: String,
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
         #[arg(long, value_name = "PATH")]
         db: Option<PathBuf>,
     },
@@ -79,8 +131,26 @@ pub enum UserMemoryCommand {
 /// Entry point for `apollia-os user-memory <verb>`.
 pub fn run(cmd: &UserMemoryCommand, json: bool) -> i32 {
     match cmd {
-        UserMemoryCommand::Show { db } => run_show(db.as_deref(), json),
-        UserMemoryCommand::Set { key, value, db } => run_set(db.as_deref(), key, value, json),
+        UserMemoryCommand::List { db } => profiles::run_list(db.as_deref(), json),
+        UserMemoryCommand::Show { id, db } => {
+            profiles::run_show(db.as_deref(), id.as_deref(), json)
+        }
+        UserMemoryCommand::Create { name, db } => profiles::run_create(db.as_deref(), name, json),
+        UserMemoryCommand::Rename { id, name, db } => {
+            profiles::run_rename(db.as_deref(), id, name, json)
+        }
+        UserMemoryCommand::Set {
+            id,
+            field,
+            value,
+            db,
+        } => profiles::run_set(db.as_deref(), id, field, value, json),
+        UserMemoryCommand::SetDefault { id, db } => {
+            profiles::run_set_default(db.as_deref(), id, json)
+        }
+        UserMemoryCommand::Delete { id, confirm, db } => {
+            profiles::run_delete(db.as_deref(), id, *confirm, json)
+        }
         UserMemoryCommand::Forget { key, confirm, db } => {
             run_forget(db.as_deref(), key, *confirm, json)
         }
@@ -107,7 +177,7 @@ fn resolve_db(override_path: Option<&Path>) -> PathBuf {
         .join(apollia_core::paths::DataFile::UserMemory.file_name())
 }
 
-fn open_repo(db_path: Option<&Path>, json: bool) -> Option<UserMemoryRepository> {
+pub(super) fn open_repo(db_path: Option<&Path>, json: bool) -> Option<UserMemoryRepository> {
     let path = resolve_db(db_path);
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
@@ -125,65 +195,11 @@ fn emit_error(msg: impl Into<String>, json: bool) {
     let _ = crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.into());
 }
 
-// ─── show ─────────────────────────────────────────────────────────────────────
-
-fn run_show(db_path: Option<&Path>, json: bool) -> i32 {
-    let Some(repo) = open_repo(db_path, json) else {
-        return exit_codes::GENERAL_ERROR;
-    };
-    let entries = match repo.list_all() {
-        Ok(v) => v,
-        Err(e) => {
-            emit_error(format!("read failed: {e}"), json);
-            return exit_codes::GENERAL_ERROR;
-        }
-    };
-    if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&entries).unwrap_or_default()
-        );
-    } else if entries.is_empty() {
-        println!("  (profile is empty - run `apollia-os onboard` to fill it)");
-    } else {
-        let kw = entries.iter().map(|e| e.key.len()).max().unwrap_or(8);
-        println!("  {:<width$}  WRITTEN BY  VALUE", "KEY", width = kw);
-        for e in &entries {
-            let by = format_written_by(&e.written_by);
-            println!("  {:<width$}  {:<10}  {}", e.key, by, e.value, width = kw);
-        }
-    }
-    exit_codes::SUCCESS
-}
-
-fn format_written_by(by: &WrittenBy) -> String {
+pub(super) fn format_written_by(by: &WrittenBy) -> String {
     match by {
         WrittenBy::Onboarding => "onboarding".to_string(),
         WrittenBy::User => "user".to_string(),
         WrittenBy::Agent(name) => format!("agent:{name}"),
-    }
-}
-
-// ─── set ──────────────────────────────────────────────────────────────────────
-
-fn run_set(db_path: Option<&Path>, key: &str, value: &str, json: bool) -> i32 {
-    let Some(repo) = open_repo(db_path, json) else {
-        return exit_codes::GENERAL_ERROR;
-    };
-    match repo.set(key, value, WrittenBy::User) {
-        Ok(()) => {
-            if json {
-                let out = serde_json::json!({"key": key, "value": value, "written_by": "user"});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                println!("  * {key} = {value}");
-            }
-            exit_codes::SUCCESS
-        }
-        Err(e) => {
-            emit_error(format!("set failed: {e}"), json);
-            exit_codes::GENERAL_ERROR
-        }
     }
 }
 
@@ -394,18 +410,56 @@ mod tests {
     }
 
     #[test]
-    fn parses_set() {
-        // GIVEN "user-memory set name Alice"
+    fn parses_show_with_an_identifier() {
+        // GIVEN "profile show default"
         // WHEN clap parses the argument line
-        let cli = TestCli::parse_from(["x", "set", "name", "Alice"]);
-        // THEN key and value land in the right order
+        let cli = TestCli::parse_from(["x", "show", "default"]);
+        // THEN the identifier is captured
         match cli.cmd {
-            UserMemoryCommand::Set { key, value, .. } => {
-                assert_eq!(key, "name");
+            UserMemoryCommand::Show { id, .. } => assert_eq!(id.as_deref(), Some("default")),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_set() {
+        // GIVEN "profile set <id> name Alice"
+        // WHEN clap parses the argument line
+        let cli = TestCli::parse_from(["x", "set", "p1", "name", "Alice"]);
+        // THEN identifier, field and value land in the right order
+        match cli.cmd {
+            UserMemoryCommand::Set {
+                id, field, value, ..
+            } => {
+                assert_eq!(id, "p1");
+                assert_eq!(field, "name");
                 assert_eq!(value, "Alice");
             }
             other => panic!("unexpected: {other:?}"),
         }
+    }
+
+    #[test]
+    fn parses_list_create_rename_set_default_and_delete() {
+        // GIVEN the five other profile verbs
+        // WHEN clap parses each argument line
+        let list = TestCli::parse_from(["x", "list"]).cmd;
+        let create = TestCli::parse_from(["x", "create", "Formateur"]).cmd;
+        let rename = TestCli::parse_from(["x", "rename", "p1", "Formatrice"]).cmd;
+        let set_default = TestCli::parse_from(["x", "set-default", "p1"]).cmd;
+        let delete = TestCli::parse_from(["x", "delete", "p1", "--confirm"]).cmd;
+        // THEN each lands on its variant with its arguments
+        assert!(matches!(list, UserMemoryCommand::List { .. }));
+        assert!(
+            matches!(create, UserMemoryCommand::Create { ref name, .. } if name == "Formateur")
+        );
+        assert!(
+            matches!(rename, UserMemoryCommand::Rename { ref id, ref name, .. } if id == "p1" && name == "Formatrice")
+        );
+        assert!(matches!(set_default, UserMemoryCommand::SetDefault { ref id, .. } if id == "p1"));
+        assert!(
+            matches!(delete, UserMemoryCommand::Delete { ref id, confirm: true, .. } if id == "p1")
+        );
     }
 
     #[test]
@@ -437,10 +491,10 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("um.db");
         // WHEN a key is set, then the profile is shown
-        let code = run_set(Some(&db), "name", "Bob", true);
+        let code = profiles::run_set(Some(&db), "default", "name", "Bob", true);
         // THEN both report success
         assert_eq!(code, exit_codes::SUCCESS);
-        let code = run_show(Some(&db), true);
+        let code = profiles::run_show(Some(&db), None, true);
         assert_eq!(code, exit_codes::SUCCESS);
     }
 
@@ -452,8 +506,8 @@ mod tests {
         let db_dst = tmp.path().join("dst.db");
         let out = tmp.path().join("dump.json");
 
-        run_set(Some(&db_src), "alpha", "1", true);
-        run_set(Some(&db_src), "beta", "2", true);
+        profiles::run_set(Some(&db_src), "default", "alpha", "1", true);
+        profiles::run_set(Some(&db_src), "default", "beta", "2", true);
         // WHEN the source is exported, imported into the destination, then imported again without overwrite
         // THEN all three report success, so a second import is a no-op rather than a failure
         assert_eq!(
@@ -477,7 +531,7 @@ mod tests {
         // GIVEN a database holding one entry
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("um.db");
-        run_set(Some(&db), "x", "y", true);
+        profiles::run_set(Some(&db), "default", "x", "y", true);
         // WHEN it is forgotten with confirmation
         // THEN the command reports success
         assert_eq!(run_forget(Some(&db), "x", true, true), exit_codes::SUCCESS);
