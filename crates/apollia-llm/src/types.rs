@@ -171,6 +171,38 @@ pub struct CompletionRequest {
     /// Strings that end generation when produced. `None` or an empty list sends
     /// no stop field.
     pub stop: Option<Vec<String>>,
+    /// Reasoning on or off, for a model whose chat template reads
+    /// `enable_thinking`. `None` (default) sends nothing and leaves the
+    /// template's own default.
+    pub thinking: Option<bool>,
+    /// The level of reasoning, for a model whose chat template reads
+    /// `reasoning_effort`. `None` (default) sends nothing and leaves the
+    /// template's own default.
+    pub reasoning_effort: Option<ReasoningEffort>,
+}
+
+/// A level of reasoning, the values a `reasoning_effort` template reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReasoningEffort {
+    /// Short reasoning, a faster answer.
+    Low,
+    /// The middle level.
+    Medium,
+    /// Long reasoning, a more thorough answer.
+    High,
+}
+
+impl ReasoningEffort {
+    /// The value the template variable receives.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+        }
+    }
 }
 
 /// Unified inference response returned by all backends.

@@ -18,9 +18,11 @@
 //! instead of failing on a folder `llama-server` cannot open.
 
 mod backend;
+mod capabilities;
 mod rows;
 
 pub use backend::LocalModelBackend;
+pub use capabilities::{model_capabilities, ModelCapabilities};
 pub use rows::{local_row_for, row_name};
 
 use std::future::Future;

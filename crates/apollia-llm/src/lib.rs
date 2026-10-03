@@ -58,7 +58,7 @@ pub use meta_orchestrator::{
 };
 
 pub use apollia_core::config::LlmRoutingConfig;
-pub use capabilities::{Capabilities, VisionEngine};
+pub use capabilities::{Capabilities, ReasoningProfile, VisionEngine};
 #[cfg(feature = "cloud")]
 pub use downloader::{
     DownloadError, DownloadId, DownloadManager, DownloadOutcome, DownloadProgress, DownloadRequest,
@@ -105,6 +105,6 @@ pub use token_budget::SessionBudgetTracker;
 pub use tool_helper::{StepBudgetView, ToolCallHelper, ToolInvoker};
 pub use types::{
     estimate_tool_specs_tokens, BackendInfo, CacheControl, ChatMessage, CompletionModel,
-    CompletionRequest, CompletionResponse, FinishReason, LlmError, MessageContent, Role,
-    StreamChunk, TokenUsage, ToolCall, ToolSpec,
+    CompletionRequest, CompletionResponse, FinishReason, LlmError, MessageContent, ReasoningEffort,
+    Role, StreamChunk, TokenUsage, ToolCall, ToolSpec,
 };

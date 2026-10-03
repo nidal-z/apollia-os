@@ -308,6 +308,10 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
             get(crate::api::routes_chat::session_reads::get_session_workspace::<B>),
         )
         .route(
+            "/api/v1/sessions/:id/model-capabilities",
+            get(crate::api::routes_chat::session_reads::get_session_model_capabilities::<B>),
+        )
+        .route(
             "/api/v1/sessions/plan-mode-default",
             get(plan::get_plan_mode_default::<B>),
         )

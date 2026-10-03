@@ -10860,6 +10860,59 @@
         }
       }
     },
+    "/api/v1/sessions/{id}/model-capabilities": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/model-capabilities`, what the\nmodel of a session can do.",
+        "description": "The model is the one the next message of the session would run on: the\nmodel of its declarative agent, else the backend the session prefers, else\nthe default model of the machine.",
+        "operationId": "get_session_model_capabilities",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The model of the session and what it can do",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionModelCapabilities"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem or backend repository unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{id}/pause": {
       "post": {
         "tags": [
@@ -20038,6 +20091,15 @@
           }
         }
       },
+      "ReasoningProfileDto": {
+        "type": "string",
+        "description": "The reasoning setting a model lets its caller fix.",
+        "enum": [
+          "none",
+          "toggle",
+          "levels"
+        ]
+      },
       "RejectPlanRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/sessions/:id/plan/reject`.",
@@ -20800,6 +20862,50 @@
               "null"
             ],
             "description": "RFC-3339 timestamp of the last update."
+          }
+        }
+      },
+      "SessionModelCapabilities": {
+        "type": "object",
+        "description": "Answer of `GET /api/v1/sessions/{id}/model-capabilities`.",
+        "required": [
+          "local",
+          "vision",
+          "image_formats"
+        ],
+        "properties": {
+          "image_formats": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The image formats its engine decodes, empty without vision."
+          },
+          "local": {
+            "type": "boolean",
+            "description": "Whether a local engine serves the model."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The backend or model the conversation runs on, the default model of\nthe machine when it names none; `null` when no model is configured."
+          },
+          "reasoning_profile": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReasoningProfileDto",
+                "description": "The reasoning setting the model offers; `null` when it is not known\n(a remote server, a model not indexed yet), in which case no setting is\noffered."
+              }
+            ]
+          },
+          "vision": {
+            "type": "boolean",
+            "description": "Whether the model reads images."
           }
         }
       },

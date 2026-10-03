@@ -485,11 +485,18 @@ fn merge(found: scan::FoundModel, id: String, before: Option<&IndexedModel>) -> 
     let unchanged = before
         .is_some_and(|b| b.size_bytes == found.size_bytes && b.modified_at == found.modified_at);
     let (category, parameters, template_caps) = match before {
-        Some(b) if unchanged && b.capabilities.is_some() => (
-            b.category,
-            b.parameters.clone(),
-            b.capabilities.clone().unwrap_or_default(),
-        ),
+        Some(b)
+            if unchanged
+                && b.capabilities
+                    .as_ref()
+                    .is_some_and(crate::capabilities::Capabilities::is_current) =>
+        {
+            (
+                b.category,
+                b.parameters.clone(),
+                b.capabilities.clone().unwrap_or_default(),
+            )
+        }
         _ => scan::read_header(&found),
     };
     let sha256 = before.filter(|_| unchanged).and_then(|b| b.sha256.clone());

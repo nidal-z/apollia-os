@@ -114,6 +114,10 @@ check_exit   "chat config get --json (runtime absent) → 2" 2 "$BIN" --socket "
 check_exit   "chat config set system-prompt (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat config set system-prompt "You are helpful."
 check_exit   "chat config set bogus-key"  1          "$BIN" --socket "$CHAT_OFF" chat config set bogus-key x
 check_exit   "chat config reset --confirm (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat config reset --confirm
+# What the model of a session can do is read from the runtime: with no
+# runtime, exit 2. The real read is covered by the runtime's route tests.
+check_exit   "chat capabilities (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1
+check_exit   "chat capabilities --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1 --json
 # Apollia is built in: uninstalling it is refused, exit 1.
 check_exit   "agent uninstall apollia:chat (built in) → 1" 1 "$BIN" agent uninstall apollia:chat --confirm
 check        "chat config permissions list (empty)"  "$BIN" chat config permissions list --db "$GDB"
