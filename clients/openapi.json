@@ -8474,6 +8474,37 @@
         }
       }
     },
+    "/api/v1/sessions/plan-mode-default": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/plan-mode-default`.",
+        "operationId": "get_plan_mode_default",
+        "responses": {
+          "200": {
+            "description": "The plan-mode state a new session starts in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanModeDefault"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/recent": {
       "get": {
         "tags": [
@@ -9170,6 +9201,309 @@
           },
           "404": {
             "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/plan": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/:id/plan`.",
+        "operationId": "get_session_plan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan, absent before the first one, and the session's plan phase",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatPlanSnapshot"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/plan-mode": {
+      "put": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PUT /api/v1/sessions/:id/plan-mode`.",
+        "operationId": "set_plan_mode",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPlanModeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plan mode set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/plan/approve": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/:id/plan/approve`.",
+        "operationId": "approve_plan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plan approved, execution resumes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The session is not awaiting approval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/plan/mutations": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/:id/plan/mutations`, oldest first.",
+        "operationId": "list_plan_mutations",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan mutations in the order they were recorded, removals included",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/plan/reject": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/:id/plan/reject`.",
+        "operationId": "reject_plan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plan rejected, the agent revises it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The session is not awaiting approval",
             "content": {
               "application/json": {
                 "schema": {
@@ -10285,7 +10619,7 @@
           "tasks"
         ],
         "summary": "Handler for `POST /api/v1/tasks/{id}/plan-decision`.",
-        "description": "Resolves the plan gate registered for the run, unblocking the engine that\npaused after plan generation. The path id is the run identifier (the task\nid on the orchestrated path).\n\n## HTTP codes\n- `200 OK`, decision recorded and the gate resolved\n- `400 Bad Request`, unknown `decision` value\n- `404 Not Found`, no gate pending for this run (unknown, resolved, expired)\n- `503 Service Unavailable`, the plan gate is not configured",
+        "description": "Resolves the plan gate registered for the run, unblocking the engine that\npaused after plan generation. The path id is the run identifier (the task\nid on the orchestrated path).\n\n## HTTP codes\n- `200 OK`, decision recorded and the gate resolved\n- `400 Bad Request`, unknown `decision` value, or `edited` without steps\n- `404 Not Found`, no gate pending for this run (unknown, resolved, expired)\n- `503 Service Unavailable`, the plan gate is not configured",
         "operationId": "submit_plan_decision",
         "parameters": [
           {
@@ -10320,7 +10654,7 @@
             }
           },
           "400": {
-            "description": "Unknown decision value",
+            "description": "Unknown decision value, or an edit without steps",
             "content": {
               "application/json": {
                 "schema": {
@@ -13177,6 +13511,26 @@
           "tool_name": {
             "type": "string",
             "description": "Tool that required approval."
+          }
+        }
+      },
+      "ChatPlanSnapshot": {
+        "type": "object",
+        "description": "Snapshot of a session's plan plus its current plan-mode phase.\n\nThe phase is the authoritative gate state: a persisted plan keeps its\n`awaiting_approval` status forever, but once approved the session moves to\n`executing` then `done`. The desktop hydrates the plan tab from `plan` and\ndecides whether to show the approval card from `phase`, never from the\nplan's own status.",
+        "required": [
+          "phase"
+        ],
+        "properties": {
+          "phase": {
+            "type": "string",
+            "description": "Session plan-mode phase: `discovery`, `drafting`, `awaiting_approval`,\n`executing`, or `done`."
+          },
+          "plan": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Current plan, or `None` when the session has produced none."
           }
         }
       },
@@ -16336,6 +16690,24 @@
           }
         }
       },
+      "PlanActionResponse": {
+        "type": "object",
+        "description": "Response body of the plan-mode writes.",
+        "required": [
+          "session_id",
+          "status"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Session the action applied to."
+          },
+          "status": {
+            "type": "string",
+            "description": "What was done: `plan_mode_on`, `plan_mode_off`, `approved` or `rejected`."
+          }
+        }
+      },
       "PlanCacheStatsResponse": {
         "type": "object",
         "description": "Response body for `GET /api/v1/plan-cache/stats`.",
@@ -16380,14 +16752,14 @@
       },
       "PlanDecisionRequest": {
         "type": "object",
-        "description": "Request body for `POST /api/v1/tasks/{id}/plan-decision`.\n\nThe operator approves the generated plan or rejects it with optional\nfeedback used to guide replanning.",
+        "description": "Request body for `POST /api/v1/tasks/{id}/plan-decision`.\n\nThe operator approves the generated plan, rejects it with optional\nfeedback used to guide replanning, or submits an edited plan.",
         "required": [
           "decision"
         ],
         "properties": {
           "decision": {
             "type": "string",
-            "description": "`\"approved\"` to execute the plan, `\"rejected\"` to replan."
+            "description": "`\"approved\"` to execute the plan, `\"rejected\"` to replan, `\"edited\"` to\nexecute `revised_steps` instead."
           },
           "feedback": {
             "type": [
@@ -16395,6 +16767,16 @@
               "null"
             ],
             "description": "Optional feedback injected into the next planning attempt on rejection."
+          },
+          "revised_steps": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object"
+            },
+            "description": "The edited plan, required with `\"edited\"`, validated by the engine\nbefore it runs."
           }
         }
       },
@@ -16408,11 +16790,24 @@
         "properties": {
           "decision": {
             "type": "string",
-            "description": "Decision applied (`\"approved\"` or `\"rejected\"`)."
+            "description": "Decision applied (`\"approved\"`, `\"rejected\"` or `\"edited\"`)."
           },
           "run_id": {
             "type": "string",
             "description": "Run identifier whose gate was resolved."
+          }
+        }
+      },
+      "PlanModeDefault": {
+        "type": "object",
+        "description": "Response body for `GET /api/v1/sessions/plan-mode-default`.",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether a new session starts in plan mode (`[chat] plan_mode_default`)."
           }
         }
       },
@@ -16631,6 +17026,19 @@
           "text": {
             "type": "string",
             "description": "The text."
+          }
+        }
+      },
+      "RejectPlanRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/sessions/:id/plan/reject`.",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Guidance the agent reads when it revises the plan."
           }
         }
       },
@@ -17424,6 +17832,19 @@
           "value": {
             "type": "object",
             "description": "The user's value: a string for `name` and `mission`, a tier name for\n`autonomy`, a list of strings for `examples`, `access` and `sources`."
+          }
+        }
+      },
+      "SetPlanModeRequest": {
+        "type": "object",
+        "description": "Request body for `PUT /api/v1/sessions/:id/plan-mode`.",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "`true` turns plan mode on (phase `discovery`), `false` turns it off."
           }
         }
       },

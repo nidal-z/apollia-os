@@ -2897,6 +2897,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/plan-mode-default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/sessions/plan-mode-default`. */
+        get: operations["get_plan_mode_default"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/recent": {
         parameters: {
             query?: never;
@@ -3105,6 +3122,91 @@ export interface paths {
         put?: never;
         /** Handler for `POST /api/v1/sessions/:id/pause`, pause the turn in flight. */
         post: operations["pause_session"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/sessions/:id/plan`. */
+        get: operations["get_session_plan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/plan-mode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Handler for `PUT /api/v1/sessions/:id/plan-mode`. */
+        put: operations["set_plan_mode"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/plan/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Handler for `POST /api/v1/sessions/:id/plan/approve`. */
+        post: operations["approve_plan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/plan/mutations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/sessions/:id/plan/mutations`, oldest first. */
+        get: operations["list_plan_mutations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/plan/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Handler for `POST /api/v1/sessions/:id/plan/reject`. */
+        post: operations["reject_plan"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3561,7 +3663,7 @@ export interface paths {
          *
          *     ## HTTP codes
          *     - `200 OK`, decision recorded and the gate resolved
-         *     - `400 Bad Request`, unknown `decision` value
+         *     - `400 Bad Request`, unknown `decision` value, or `edited` without steps
          *     - `404 Not Found`, no gate pending for this run (unknown, resolved, expired)
          *     - `503 Service Unavailable`, the plan gate is not configured
          */
@@ -4600,6 +4702,24 @@ export interface components {
             session_id: string;
             /** @description Tool that required approval. */
             tool_name: string;
+        };
+        /**
+         * @description Snapshot of a session's plan plus its current plan-mode phase.
+         *
+         *     The phase is the authoritative gate state: a persisted plan keeps its
+         *     `awaiting_approval` status forever, but once approved the session moves to
+         *     `executing` then `done`. The desktop hydrates the plan tab from `plan` and
+         *     decides whether to show the approval card from `phase`, never from the
+         *     plan's own status.
+         */
+        ChatPlanSnapshot: {
+            /**
+             * @description Session plan-mode phase: `discovery`, `drafting`, `awaiting_approval`,
+             *     `executing`, or `done`.
+             */
+            phase: string;
+            /** @description Current plan, or `None` when the session has produced none. */
+            plan?: Record<string, never> | null;
         };
         /** @description Request body for `POST /api/v1/llm/chat`. */
         ChatRequest: {
@@ -5948,6 +6068,13 @@ export interface components {
              */
             latency_ms?: number | null;
         };
+        /** @description Response body of the plan-mode writes. */
+        PlanActionResponse: {
+            /** @description Session the action applied to. */
+            session_id: string;
+            /** @description What was done: `plan_mode_on`, `plan_mode_off`, `approved` or `rejected`. */
+            status: string;
+        };
         /** @description Response body for `GET /api/v1/plan-cache/stats`. */
         PlanCacheStatsResponse: {
             /**
@@ -5973,21 +6100,34 @@ export interface components {
         /**
          * @description Request body for `POST /api/v1/tasks/{id}/plan-decision`.
          *
-         *     The operator approves the generated plan or rejects it with optional
-         *     feedback used to guide replanning.
+         *     The operator approves the generated plan, rejects it with optional
+         *     feedback used to guide replanning, or submits an edited plan.
          */
         PlanDecisionRequest: {
-            /** @description `"approved"` to execute the plan, `"rejected"` to replan. */
+            /**
+             * @description `"approved"` to execute the plan, `"rejected"` to replan, `"edited"` to
+             *     execute `revised_steps` instead.
+             */
             decision: string;
             /** @description Optional feedback injected into the next planning attempt on rejection. */
             feedback?: string | null;
+            /**
+             * @description The edited plan, required with `"edited"`, validated by the engine
+             *     before it runs.
+             */
+            revised_steps?: Record<string, never>[] | null;
         };
         /** @description Response body for `POST /api/v1/tasks/{id}/plan-decision`. */
         PlanDecisionResponse: {
-            /** @description Decision applied (`"approved"` or `"rejected"`). */
+            /** @description Decision applied (`"approved"`, `"rejected"` or `"edited"`). */
             decision: string;
             /** @description Run identifier whose gate was resolved. */
             run_id: string;
+        };
+        /** @description Response body for `GET /api/v1/sessions/plan-mode-default`. */
+        PlanModeDefault: {
+            /** @description Whether a new session starts in plan mode (`[chat] plan_mode_default`). */
+            enabled: boolean;
         };
         /** @description One preset. */
         PresetResponse: {
@@ -6080,6 +6220,11 @@ export interface components {
             source_url: string;
             /** @description The text. */
             text: string;
+        };
+        /** @description Request body for `POST /api/v1/sessions/:id/plan/reject`. */
+        RejectPlanRequest: {
+            /** @description Guidance the agent reads when it revises the plan. */
+            reason?: string | null;
         };
         /** @description Request body for `POST /api/v1/user-inputs/{id}/reject`. */
         RejectUserInputRequest: {
@@ -6472,6 +6617,11 @@ export interface components {
              *     `autonomy`, a list of strings for `examples`, `access` and `sources`.
              */
             value: Record<string, never>;
+        };
+        /** @description Request body for `PUT /api/v1/sessions/:id/plan-mode`. */
+        SetPlanModeRequest: {
+            /** @description `true` turns plan mode on (phase `discovery`), `false` turns it off. */
+            enabled: boolean;
         };
         /** @description Request body for `PUT /api/v1/profile/entries/{key}`. */
         SetProfileEntryBody: {
@@ -14103,6 +14253,35 @@ export interface operations {
             };
         };
     };
+    get_plan_mode_default: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plan-mode state a new session starts in */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanModeDefault"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     list_recent_sessions: {
         parameters: {
             query?: {
@@ -14658,6 +14837,237 @@ export interface operations {
             };
             /** @description Session not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_session_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plan, absent before the first one, and the session's plan phase */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatPlanSnapshot"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_plan_mode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetPlanModeRequest"];
+            };
+        };
+        responses: {
+            /** @description Plan mode set */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanActionResponse"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    approve_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Plan approved, execution resumes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanActionResponse"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The session is not awaiting approval */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_plan_mutations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plan mutations in the order they were recorded, removals included */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    reject_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Plan rejected, the agent revises it */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanActionResponse"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The session is not awaiting approval */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -15576,7 +15986,7 @@ export interface operations {
                     "application/json": components["schemas"]["PlanDecisionResponse"];
                 };
             };
-            /** @description Unknown decision value */
+            /** @description Unknown decision value, or an edit without steps */
             400: {
                 headers: {
                     [name: string]: unknown;

@@ -76,8 +76,9 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # configuration, the permission rules and the audit of the tool governance had
 # their routes, then at 116 once the accounts of the native connectors and
 # their Drive folder were served by the daemon, then at 110 once the OAuth
-# clients of the connectors were served by the daemon.
-EMBEDDED_ONLY_CEILING = 110
+# clients of the connectors were served by the daemon, then at 103 once the plan
+# mode had its routes.
+EMBEDDED_ONLY_CEILING = 103
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",
