@@ -15,7 +15,7 @@ use apollia_llm::ModelIndex;
 /// models directory.
 pub(super) fn for_model(model_path: &str) -> Option<String> {
     let home = apollia_core::paths::home_dir_or_temp();
-    let models_dir = apollia_core::paths::data_dir_under(home).join("models");
+    let models_dir = apollia_core::config::models_dir(&apollia_core::paths::data_dir_under(home));
     in_models_dir(&models_dir, Path::new(model_path)).map(|p| p.display().to_string())
 }
 

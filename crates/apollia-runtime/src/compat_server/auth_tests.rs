@@ -126,8 +126,10 @@ async fn test_a_token_in_x_api_key_opens_the_server() {
     // WHEN a client presents it in x-api-key, as Anthropic clients do
     let (status, body) = send(port, "POST", "/v1/messages", &[("x-api-key", token)]).await;
 
-    // THEN the request reaches the router
-    assert_eq!(status, 404, "{body}");
+    // THEN the request reaches the endpoint, which refuses the empty body in
+    // Anthropic's format rather than the token
+    assert_eq!(status, 400, "{body}");
+    assert_eq!(body["error"]["type"], "invalid_request_error", "{body}");
 }
 
 #[tokio::test]

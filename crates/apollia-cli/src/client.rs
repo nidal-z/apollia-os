@@ -230,6 +230,8 @@ mod integrations;
 mod packages;
 mod workflows;
 
+pub use agents::ExportedAgent;
+
 impl RuntimeClient {
     /// Create a new client targeting the given Unix socket path.
     pub fn new(socket_path: PathBuf) -> Self {
@@ -395,6 +397,17 @@ impl RuntimeClient {
         })
     }
 
+    /// Send a POST request with a JSON body and return the status, the
+    /// headers and the body as bytes, for an answer that is a file described
+    /// by its headers.
+    pub async fn post_for_file(
+        &self,
+        uri: &str,
+        body: &serde_json::Value,
+    ) -> Result<(u16, hyper::HeaderMap, Bytes), ClientError> {
+        self.request_parts("POST", uri, Some(body)).await
+    }
+
     /// Internal: send an HTTP request over Unix socket, the body kept as bytes.
     async fn request_bytes(
         &self,
@@ -402,6 +415,18 @@ impl RuntimeClient {
         uri: &str,
         body: Option<&serde_json::Value>,
     ) -> Result<(u16, Bytes), ClientError> {
+        let (status, _, body) = self.request_parts(method, uri, body).await?;
+        Ok((status, body))
+    }
+
+    /// Internal: send an HTTP request over Unix socket, the headers and the
+    /// body of the answer kept.
+    async fn request_parts(
+        &self,
+        method: &str,
+        uri: &str,
+        body: Option<&serde_json::Value>,
+    ) -> Result<(u16, hyper::HeaderMap, Bytes), ClientError> {
         let stream = connect_runtime(&self.socket_path).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound
                 || e.kind() == std::io::ErrorKind::ConnectionRefused
@@ -452,13 +477,14 @@ impl RuntimeClient {
             .map_err(|e| ClientError::Http(e.to_string()))?;
 
         let status = resp.status().as_u16();
+        let headers = resp.headers().clone();
         let body_bytes = resp
             .into_body()
             .collect()
             .await
             .map_err(|e| ClientError::Http(e.to_string()))?
             .to_bytes();
-        Ok((status, body_bytes))
+        Ok((status, headers, body_bytes))
     }
 }
 

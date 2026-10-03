@@ -464,6 +464,51 @@ fn the_server_section_and_the_mcp_bridge_switch_are_read() {
 }
 
 #[test]
+fn an_unknown_key_in_engines_is_refused() {
+    // GIVEN a typo in [engines]
+    let text = "[engines]\nlog_levle = \"info\"\n";
+    // WHEN the document is validated
+    // THEN it is refused, at line 2
+    let fault = unknown(text);
+    assert_eq!(
+        (fault.path.as_str(), fault.line),
+        ("engines.log_levle", 2),
+        "{fault}"
+    );
+}
+
+#[test]
+fn an_unknown_key_in_author_is_refused() {
+    // GIVEN a typo in [author]
+    let text = "[author]\nname = \"Ada\"\nmail = \"ada@example.org\"\n";
+    // WHEN the document is validated
+    // THEN it is refused, at line 3
+    let fault = unknown(text);
+    assert_eq!(
+        (fault.path.as_str(), fault.line),
+        ("author.mail", 3),
+        "{fault}"
+    );
+}
+
+#[test]
+fn the_sections_added_by_the_release_are_read_by_the_root() {
+    // GIVEN the engine log level, the author, the models folder, the update
+    // channel and the background service switch
+    let text = "[engines]\nlog_level = \"warning\"\n\n[author]\nname = \"Ada\"\n\n\
+[models]\ndir = \"~/models\"\n\n[desktop]\nupdate_channel = \"preview\"\n\
+background_service_allowed = false\n";
+    // WHEN the document is validated
+    let config = validate(text).expect("every section is accepted");
+    // THEN the root carries every value
+    assert_eq!(config.engines.log_level, super::EngineLogLevel::Warning);
+    assert_eq!(config.author.name, "Ada");
+    assert_eq!(config.models.dir, "~/models");
+    assert_eq!(config.desktop.update_channel, super::UpdateChannel::Preview);
+    assert!(!config.desktop.background_service_allowed);
+}
+
+#[test]
 fn an_unknown_key_in_a_pricing_override_is_refused() {
     // GIVEN a typo inside one [llm.pricing_overrides] entry
     let text = format!(

@@ -23,21 +23,32 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Select } from "$lib/components/ui/select";
-  import { Textarea } from "$lib/components/ui/textarea";
   import { Toggle } from "$lib/components/ui/toggle";
   import { Dialog } from "$lib/components/ui/dialog";
   import { DatePicker, TimePicker } from "$lib/components/ui/date-picker";
   import { FormField } from "$lib/components/ui/form-field";
   import CronBuilder from "./CronBuilder.svelte";
   import IntervalPicker from "./IntervalPicker.svelte";
+  import TriggerTargetField from "./TriggerTargetField.svelte";
+  import {
+    missingInputs,
+    suggestedTriggerId,
+    targetRequestFields,
+    type AutomationTarget,
+  } from "./triggerTarget";
 
   interface Props {
     open: boolean;
     onclose: () => void;
     oncreated: (id: string) => void;
+    /**
+     * The agent or workflow this automation starts, fixed when the dialog is
+     * opened from its sheet; `undefined` lets the user pick an agent.
+     */
+    target?: AutomationTarget;
   }
 
-  let { open, onclose, oncreated }: Props = $props();
+  let { open, onclose, oncreated, target }: Props = $props();
 
   type SourceType = "cron" | "interval" | "oneshot" | "file_watch" | "webhook";
 
@@ -65,6 +76,13 @@
   let enabled = $state(true);
   let onBusy = $state<"queue" | "drop">("queue");
   let inputTemplate = $state("");
+  let workflowInputs = $state<Record<string, string>>({});
+
+  /** What the automation starts: the fixed target, or the agent picked. */
+  const effectiveTarget = $derived<AutomationTarget | null>(
+    target ?? (selectedAgent ? { kind: "agent", name: selectedAgent } : null),
+  );
+
   let advancedOpen = $state(false);
 
   let cronSchedule = $state("");
@@ -85,16 +103,18 @@
   let submitting = $state(false);
   let submitError = $state<string | null>(null);
   let touched = $state(false);
+  const missing = $derived(
+    touched && effectiveTarget ? missingInputs(effectiveTarget, workflowInputs) : [],
+  );
 
   const TRIGGER_ID_PATTERN = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
 
-  // Auto-generate ID for operators when agent + source type are set
+  // Auto-generate the ID when the target and the source type are set, unless
+  // it was typed by hand. A dialog opened from a sheet proposes one in
+  // developer mode too: the target is known before anything is typed.
   $effect(() => {
-    if (!isBuilder && !idCustomized) {
-      if (selectedAgent && sourceType) {
-        const slug = selectedAgent.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-        triggerId = `${slug}-${sourceType.replace("_", "-")}`;
-      }
+    if ((!isBuilder || target) && !idCustomized && effectiveTarget && sourceType) {
+      triggerId = suggestedTriggerId(effectiveTarget.name, sourceType);
     }
   });
 
@@ -107,7 +127,7 @@
 
   const targetError = $derived.by(() => {
     if (!touched) return null;
-    if (!selectedAgent) return $t("triggers.field_target_required");
+    if (!effectiveTarget) return $t("triggers.field_target_required");
     return null;
   });
 
@@ -127,7 +147,8 @@
   const isValid = $derived(
     !!triggerId.trim() &&
     TRIGGER_ID_PATTERN.test(triggerId) &&
-    !!selectedAgent &&
+    !!effectiveTarget &&
+    missingInputs(effectiveTarget, workflowInputs).length === 0 &&
     !sourceError
   );
 
@@ -158,7 +179,7 @@
 
   async function handleSubmit(): Promise<void> {
     touched = true;
-    if (!isValid) return;
+    if (!isValid || !effectiveTarget) return;
 
     submitting = true;
     submitError = null;
@@ -168,11 +189,8 @@
         enabled,
         on_busy: onBusy,
         source: buildSource(),
-        agent: selectedAgent,
+        ...targetRequestFields(effectiveTarget, inputTemplate, workflowInputs),
       };
-      if (inputTemplate.trim()) {
-        definition.input_template = inputTemplate.trim();
-      }
 
       await createTrigger(definition);
       oncreated(triggerId.trim());
@@ -198,6 +216,9 @@
     enabled = true;
     onBusy = "queue";
     inputTemplate = "";
+    workflowInputs = Object.fromEntries(
+      (target?.kind === "workflow" ? target.fields : []).map((f) => [f.name, ""]),
+    );
     advancedOpen = false;
     cronSchedule = "";
     intervalEvery = "";
@@ -216,6 +237,7 @@
   }
 
   async function loadOptions(): Promise<void> {
+    if (target) return;
     try {
       agents = await listAgents();
     } catch {
@@ -231,26 +253,27 @@
   });
 </script>
 
-<Dialog open={open} onclose={onclose} size="md" title={$t("triggers.create_trigger")} data-testid="trigger-create-dialog">
+<Dialog
+  open={open}
+  onclose={onclose}
+  size="md"
+  title={target
+    ? $t("triggers.automate_title", { values: { name: target.name } })
+    : $t("triggers.create_trigger")}
+  data-testid="trigger-create-dialog"
+>
   <div class="space-y-5">
 
-    <!-- Target: Agent -->
-    <div>
-      <p class="mb-1.5 block text-caption font-medium text-muted-foreground">{$t("triggers.field_target")}</p>
-      <Select
-        bind:value={selectedAgent}
-        aria-label={$t("triggers.field_target_agent")}
-        data-testid="trigger-input-agent"
-      >
-        <option value="" disabled>- {$t("triggers.field_target_agent")} -</option>
-        {#each agents as agent}
-          <option value={agent.name}>{agent.name}</option>
-        {/each}
-      </Select>
-      {#if targetError}
-        <p class="mt-0.5 text-xs text-destructive" data-testid="trigger-target-error">{targetError}</p>
-      {/if}
-    </div>
+    <!-- Target: fixed from a sheet, or an agent picked here -->
+    <TriggerTargetField
+      {target}
+      {agents}
+      bind:selectedAgent
+      bind:message={inputTemplate}
+      bind:inputs={workflowInputs}
+      {targetError}
+      {missing}
+    />
 
     <!-- Source type: visual cards -->
     <div>
@@ -487,21 +510,6 @@
             </Select>
           </FormField>
 
-          <!-- Input template -->
-          <FormField
-            id="trigger-input-template"
-            label={$t("triggers.field_input_template")}
-            labelClass="text-caption font-normal mb-0"
-            optional
-          >
-            <Textarea
-              id="trigger-input-template"
-              rows={2}
-              placeholder={$t("triggers.field_input_template_placeholder")}
-              bind:value={inputTemplate}
-              data-testid="trigger-input-template-textarea"
-            />
-          </FormField>
         </div>
       {/if}
     </div>

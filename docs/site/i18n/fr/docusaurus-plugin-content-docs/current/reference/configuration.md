@@ -56,6 +56,12 @@ avertissement `config.key.retired`.
 | `[chat]` | Valeurs par défaut au niveau session du sous-système de chat (par exemple `plan_mode_default`). |
 | `[filesystem]` | Le journal réversible, et les chemins où un agent travaille sans demander (`trusted_paths`, voir plus bas). |
 | `[workflows]` | Le budget avec lequel démarre l'exécution d'un workflow, partagé par chaque agent et chaque workflow qu'elle lance. |
+| `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), et la règle appliquée à un fichier importé (`[models.import]`). |
+| `[desktop]` | Réglages de l'application de bureau que le moteur lit : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`. |
+| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`. |
+| `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`). |
+| `[author]` | Le nom d'éditeur des agents exportés depuis cette machine (`name`). |
+| `[ui]` | L'aperçu des liens de l'application de bureau, désactivé par défaut (`link_preview_enabled`). |
 
 L'application desktop lit une section supplémentaire, `[observability]`,
 documentée plus bas. Elle n'est pas modifiable depuis la CLI.

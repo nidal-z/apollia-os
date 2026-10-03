@@ -36,6 +36,7 @@ mod commands;
 )]
 mod embedded_docs;
 mod events;
+mod file_log;
 mod handlers;
 pub mod i18n;
 pub mod mcp;
@@ -50,7 +51,6 @@ use std::sync::Arc;
 
 use apollia_core::{PendingApprovals, ToolsConfig};
 use apollia_llm::LlmRouter;
-use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use apollia_runtime::coordinator::DynBackend;
 use apollia_runtime::embedded::{EmbeddedConfig, RuntimeHandle};
@@ -72,7 +72,8 @@ use bootstrap::{
 pub type SharedLlmRouter = Arc<std::sync::RwLock<Option<Arc<LlmRouter>>>>;
 
 fn main() {
-    // Initialize tracing so Rust logs appear in the terminal during development.
+    // Initialize tracing so Rust logs appear in the terminal during development
+    // and in the log file the settings open.
     // RUST_LOG controls verbosity (e.g. RUST_LOG=apollia=debug); defaults to info.
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("apollia=info,warn"));
@@ -84,14 +85,45 @@ fn main() {
         Ok(directive) => env_filter.add_directive(directive),
         Err(_) => env_filter,
     };
-    tracing_subscriber::fmt().with_env_filter(env_filter).init();
-
     let apollia_data_dir = {
         let home = apollia_core::paths::home_dir_or_temp()
             .display()
             .to_string();
         apollia_core::paths::data_dir_under(home)
     };
+    // The same traces go to the terminal and to `~/.apollia/logs/desktop.log`,
+    // rotated by size; a folder that cannot be opened leaves the terminal
+    // alone, and says so once the subscriber is up.
+    let logs_dir = file_log::logs_dir_under(&apollia_data_dir);
+    let (file_layer, file_error) = match file_log::RotatingFile::open(&logs_dir) {
+        Ok(file) => (
+            Some(
+                tracing_subscriber::fmt::layer()
+                    .with_ansi(false)
+                    .with_writer(std::sync::Mutex::new(file)),
+            ),
+            None,
+        ),
+        Err(error) => (None, Some(error)),
+    };
+    {
+        use tracing_subscriber::layer::SubscriberExt as _;
+        use tracing_subscriber::util::SubscriberInitExt as _;
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(tracing_subscriber::fmt::layer())
+            .with(file_layer)
+            .init();
+    }
+    if let Some(error) = file_error {
+        tracing::event!(
+            tracing::Level::WARN,
+            path = %logs_dir.display(),
+            error = %error,
+            detail = "the traces go to the terminal only",
+            "desktop.log_file.unavailable"
+        );
+    }
 
     // The port of the native API: the one a serving daemon recorded, else
     // `[api].port`, else the default.
@@ -102,8 +134,12 @@ fn main() {
 
     // Start, attach or refuse, before PyO3, any database or any listener of
     // the runtime. The claimed port is handed to the runtime below as is.
+    // When the runtime is installed as a service of the session, it is
+    // brought up first, so the decision finds it serving and attaches.
+    let runtime_addr = std::net::SocketAddr::from(([127, 0, 0, 1], runtime_port));
+    startup::service::bring_up(runtime_addr, &apollia_data_dir);
     let claimed_port = match startup::decide(
-        std::net::SocketAddr::from(([127, 0, 0, 1], runtime_port)),
+        runtime_addr,
         startup::read_token(&apollia_data_dir).as_deref(),
     ) {
         startup::StartupDecision::Launch(listener) => listener,
@@ -176,9 +212,6 @@ fn main() {
         Arc::new(std::sync::OnceLock::new());
     // Inter-agent mailbox, exposed as `ctx.mailbox` in Python agents.
     let mailbox_handle_lock: Arc<std::sync::OnceLock<AgentMailboxHandle>> =
-        Arc::new(std::sync::OnceLock::new());
-    // Global user memory, used by Chat Agent runner to build `ctx.user_context`.
-    let user_memory_lock: Arc<std::sync::OnceLock<Arc<std::sync::Mutex<UserMemoryRepository>>>> =
         Arc::new(std::sync::OnceLock::new());
     // Tools config (`[tools]` from apollia.toml) drives web_search/web_read
     // params and statically-disabled tools. Populated from RuntimeHandle.
@@ -271,7 +304,6 @@ fn main() {
                 agent_registry: agent_registry_lock.clone(),
                 task_router: task_router_lock.clone(),
                 mailbox_handle: mailbox_handle_lock.clone(),
-                user_memory: user_memory_lock.clone(),
                 tools_config: tools_config_lock.clone(),
                 trusted_paths: trusted_paths_lock.clone(),
             })),
@@ -342,7 +374,6 @@ fn main() {
             agent_registry: &agent_registry_lock,
             task_router: &task_router_lock,
             mailbox_handle: &mailbox_handle_lock,
-            user_memory: &user_memory_lock,
             tools_config: &tools_config_lock,
         },
     );

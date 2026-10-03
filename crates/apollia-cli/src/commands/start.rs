@@ -308,11 +308,6 @@ pub async fn run(
         Arc::new(std::sync::OnceLock::new());
     let router_lock: Arc<std::sync::OnceLock<TaskRouterHandle<DynBackend>>> =
         Arc::new(std::sync::OnceLock::new());
-    let user_memory_lock: Arc<
-        std::sync::OnceLock<
-            Option<Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
-        >,
-    > = Arc::new(std::sync::OnceLock::new());
     let pending_user_inputs_lock: Arc<std::sync::OnceLock<PendingUserInputs>> =
         Arc::new(std::sync::OnceLock::new());
     let mcp_handle_lock: Arc<
@@ -345,7 +340,6 @@ pub async fn run(
             llm_router: llm_router_lock.clone(),
             tool_registry: tool_registry_lock.clone(),
             audit_trail: audit_trail_lock.clone(),
-            user_memory: user_memory_lock.clone(),
             pending_user_inputs: pending_user_inputs_lock.clone(),
             agent_registry: registry_lock.clone(),
             task_router: router_lock.clone(),
@@ -375,7 +369,6 @@ pub async fn run(
     set_lock_if_some(&plan_gates_lock, handles.plan_gates.clone());
     set_lock_if_some(&plan_cache_lock, handles.plan_cache.clone());
     set_lock_if_some(&task_repository_lock, handles.task_repository.clone());
-    let _ = user_memory_lock.set(handles.user_memory.clone());
     // Cloned (not moved) so the ShutdownController still receives handles.mcp_handle.
     let _ = mcp_handle_lock.set(handles.mcp_handle.clone());
     set_lock_if_some(

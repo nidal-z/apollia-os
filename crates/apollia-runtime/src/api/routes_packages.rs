@@ -6,6 +6,8 @@
 //! - `GET    /api/v1/packages/trusted-keys`                   , list the trusted publisher keys
 //! - `POST   /api/v1/packages/trusted-keys`                   , import a publisher key
 //! - `DELETE /api/v1/packages/trusted-keys/{fingerprint}`     , remove a publisher key
+//! - `POST   /api/v1/packages/{name}/uninstall`               , uninstall a package
+//! - `POST   /api/v1/agents/installed/{name}/uninstall`       , uninstall an agent installed on its own
 //!
 //! The archive is named by its path on this machine: the runtime and its
 //! callers share the file system. Both package routes answer `503` without
@@ -32,6 +34,10 @@ use apollia_tools::{
     TrustedKeyOrigin, TrustedKeyRepository,
 };
 
+pub(crate) mod uninstall;
+
+pub use uninstall::UninstallRequest;
+
 use crate::api::server::AppState;
 use crate::connections::Connection;
 use crate::coordinator::ExecutionBackend;
@@ -54,7 +60,8 @@ pub struct PackageErrorBody {
     /// `publisher_not_trusted`, `downgrade`, `agent_taken`,
     /// `deps_confirmation_required`, `changes_confirmation_required`,
     /// `mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,
-    /// `policy_key`, `not_found`, `journal_unavailable`, `internal`.
+    /// `policy_key`, `not_found`, `built_in`, `owned_by_package`,
+    /// `journal_unavailable`, `internal`.
     pub code: String,
 }
 
@@ -146,6 +153,14 @@ pub fn package_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route(
             "/api/v1/packages/trusted-keys/:fingerprint",
             delete(remove_trusted_key::<B>),
+        )
+        .route(
+            "/api/v1/packages/:name/uninstall",
+            post(uninstall::uninstall_package::<B>),
+        )
+        .route(
+            "/api/v1/agents/installed/:name/uninstall",
+            post(uninstall::uninstall_agent::<B>),
         )
 }
 

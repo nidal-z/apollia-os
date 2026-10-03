@@ -9,6 +9,10 @@
 //!   MLX folder) as one download
 //! - [`cancel_model_download`]: cancels an in-progress download
 //! - [`delete_installed_model`]: removes an installed model, unless in use
+//! - [`get_models_dir`]: the models folder in force
+//!
+//! A request that carries no Hugging Face token uses the one stored by the
+//! General settings (`hf_token`).
 //!
 //! The import of a model from a disk lives in `model_import`.
 
@@ -157,7 +161,7 @@ pub(crate) async fn local_search(params: HfSearchParams) -> Result<serde_json::V
         .await
         .map_err(|e| format!("search inputs unavailable: {e}"))?;
 
-    let client = HfRegistryClient::new(params.hf_token);
+    let client = HfRegistryClient::new(super::hf_token::passed_or_stored(params.hf_token));
     let page = client
         .search_bounded(&search, &inputs.context(hardware.as_ref()))
         .await
@@ -193,7 +197,7 @@ pub(crate) async fn local_model(
 
     let hardware = tokio::task::spawn_blocking(detect_hardware).await.ok();
 
-    let client = HfRegistryClient::new(hf_token);
+    let client = HfRegistryClient::new(super::hf_token::passed_or_stored(hf_token));
     let mut card = client
         .get_model(&repo_id, hardware.as_ref(), Some(cache))
         .await
@@ -228,14 +232,21 @@ pub async fn start_model_download(
 ) -> Result<String, String> {
     use apollia_llm::DownloadRequest;
 
+    let mut request = request;
+    request.hf_token = super::hf_token::passed_or_stored(request.hf_token.take());
+    // A dictation file stays in the default folder; the models folder setting
+    // covers the language models, their projectors and the embedding models.
+    let pinned = pinned_digest(&request.url);
+    let index_dir = if pinned.is_some() {
+        apollia_core::config::default_models_dir(&data_dir())
+    } else {
+        models_dir()
+    };
     let dest_dir = request
         .dest_dir
         .as_deref()
         .map(expand_tilde)
-        .unwrap_or_else(|| {
-            let home = apollia_core::paths::home_dir_or_temp();
-            apollia_core::paths::data_dir_under(home).join("models")
-        });
+        .unwrap_or_else(|| index_dir.clone());
 
     // Ensure destination directory exists.
     tokio::fs::create_dir_all(&dest_dir)
@@ -247,7 +258,7 @@ pub async fn start_model_download(
     // repository is checked against the SHA-256 its tree publishes; when that
     // reference cannot be read, the download is refused rather than run
     // unverified.
-    let expected_sha256 = match (pinned_digest(&request.url), request.repo_id.as_deref()) {
+    let expected_sha256 = match (pinned, request.repo_id.as_deref()) {
         (Some(sha), _) => Some(sha),
         (None, Some(repo_id)) => {
             let path = hf_repo_path(&request.url, request.filename.as_deref());
@@ -281,10 +292,11 @@ pub async fn start_model_download(
                 .unwrap_or_default();
             let digest = progress.sha256.clone();
             let verified = progress.integrity_verified;
+            let index_dir = index_dir.clone();
             tauri::async_runtime::spawn_blocking(move || {
                 super::model_cards::copy_card_for_download(&path, repo.as_deref());
                 super::model_index::record_download(
-                    &models_dir(),
+                    &index_dir,
                     &path,
                     repo,
                     file,
@@ -325,6 +337,8 @@ pub async fn start_variant_download(
     manager: State<'_, SharedDownloadManager>,
     request: VariantDownloadRequest,
 ) -> Result<String, String> {
+    let mut request = request;
+    request.hf_token = super::hf_token::passed_or_stored(request.hf_token.take());
     let dest_dir = request
         .dest_dir
         .as_deref()
@@ -411,8 +425,19 @@ pub(super) fn home_dir() -> PathBuf {
     apollia_core::paths::home_dir_or_temp()
 }
 
+/// The models folder in force: `[models] dir` of `apollia.toml`, else
+/// `~/.apollia/models`.
 pub(super) fn models_dir() -> PathBuf {
-    apollia_core::paths::data_dir_under(home_dir()).join("models")
+    apollia_core::config::models_dir(&data_dir())
+}
+
+/// The models folder in force, as the General settings show it.
+///
+/// It reads the `apollia.toml` of the data directory on every call, never the
+/// runtime, so a folder chosen a moment ago is the one answered.
+#[tauri::command]
+pub async fn get_models_dir() -> Result<String, String> {
+    Ok(models_dir().display().to_string())
 }
 
 fn expand_tilde(raw: &str) -> PathBuf {

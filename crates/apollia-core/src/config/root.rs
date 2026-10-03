@@ -3,8 +3,9 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    ApiConfig, ChatConfig, DesktopConfig, FilesystemConfig, HitlConfig, HooksConfig, LlmConfig,
-    McpConfig, ModelsConfig, RuntimeConfig, ServerConfig, ToolsConfig, WorkflowsConfig,
+    ApiConfig, AuthorConfig, ChatConfig, DesktopConfig, EnginesConfig, FilesystemConfig,
+    HitlConfig, HooksConfig, LlmConfig, McpConfig, ModelsConfig, RuntimeConfig, ServerConfig,
+    ToolsConfig, WorkflowsConfig,
 };
 use crate::ObservabilityConfig;
 
@@ -49,7 +50,8 @@ pub struct ApolliaConfig {
     /// `[filesystem]`: the reversible journal and the trusted paths.
     #[serde(default)]
     pub filesystem: FilesystemConfig,
-    /// `[models]`: the signed index of model cards and the import rule.
+    /// `[models]`: the signed index of model cards, the models folder and the
+    /// import rule.
     #[serde(default)]
     pub models: ModelsConfig,
     /// `[workflows]`: the budget a workflow run starts with.
@@ -61,6 +63,12 @@ pub struct ApolliaConfig {
     /// `[server]`: the compatible server, its switch and its port.
     #[serde(default)]
     pub server: ServerConfig,
+    /// `[engines]`: the settings of the local inference engines.
+    #[serde(default)]
+    pub engines: EnginesConfig,
+    /// `[author]`: the publisher name of the agents exported from this machine.
+    #[serde(default)]
+    pub author: AuthorConfig,
     /// `[observability]`: truncation and capture of persisted run data.
     #[serde(default)]
     pub observability: ObservabilityConfig,

@@ -122,7 +122,7 @@ mod tests {
     /// server row.
     fn machine() -> Fixture {
         let dir = tempfile::tempdir().expect("tempdir");
-        let models = dir.path().join("models");
+        let models = apollia_core::config::default_models_dir(dir.path());
         std::fs::create_dir_all(&models).expect("mkdir");
         let qwen = models.join("qwen3.gguf");
         let toggle = Capabilities::from_chat_template(Some("{{ enable_thinking }}"))

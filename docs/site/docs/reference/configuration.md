@@ -56,6 +56,12 @@ still accepted, with a `config.key.retired` warning.
 | `[chat]` | Chat subsystem session-level defaults (for example `plan_mode_default`). |
 | `[filesystem]` | The reversible journal, and the paths an agent works in without being asked (`trusted_paths`, see below). |
 | `[workflows]` | The budget a workflow run starts with, shared by every agent and workflow it runs. |
+| `[models]` | The signed index of model cards, the models folder (`dir`), and the rule applied to an imported file (`[models.import]`). |
+| `[desktop]` | Settings of the desktop application that the engine reads: `developer_mode`, `update_channel` (`stable` or `preview`), `background_service_allowed`. |
+| `[server]` | The compatible server: `enabled`, `port`, `require_auth`. |
+| `[engines]` | Settings of the local inference engines (`log_level`). |
+| `[author]` | The publisher name of the agents exported from this machine (`name`). |
+| `[ui]` | The opt-in link preview of the desktop application (`link_preview_enabled`). |
 
 The desktop application reads one more section, `[observability]`, documented
 below. It is not settable from the CLI.

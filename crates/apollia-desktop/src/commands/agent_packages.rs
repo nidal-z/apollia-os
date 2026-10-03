@@ -22,6 +22,8 @@ use tauri::State;
 
 use crate::attached::{segment, RuntimeLink};
 
+pub mod uninstall;
+
 /// The installed packages.
 const INSTALLED: &str = "/api/v1/agent-packages/installed";
 
@@ -74,12 +76,6 @@ pub(crate) async fn install(
     )
 }
 
-/// Uninstalls the package `name`.
-pub(crate) async fn uninstall(link: &RuntimeLink, name: &str) -> Result<(), String> {
-    link.delete_json(&installed_path(name)).await?;
-    Ok(())
-}
-
 /// Dry run: parses `agent.toml` and validates the manifest without writing.
 #[tauri::command]
 pub async fn preview_agent_package(
@@ -123,14 +119,17 @@ pub async fn install_agent_package(
     install(link.inner(), &path, &trigger_configs, deps_confirmed).await
 }
 
-/// Uninstalls a package, its agents and their virtualenvs, best effort at
-/// each step.
+/// Uninstalls the package `name` and everything it installed, through the
+/// path the command line takes. The memory and the history of its agents are
+/// erased only when asked. Returns what was removed and kept.
 #[tauri::command]
 pub async fn uninstall_agent_package(
     link: State<'_, RuntimeLink>,
     name: String,
-) -> Result<(), String> {
-    uninstall(link.inner(), &name).await
+    clear_memory: Option<bool>,
+    clear_history: Option<bool>,
+) -> Result<Value, String> {
+    uninstall::package(link.inner(), &name, clear_memory, clear_history).await
 }
 
 #[cfg(test)]

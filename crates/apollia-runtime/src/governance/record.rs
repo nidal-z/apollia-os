@@ -94,7 +94,7 @@ pub enum GovernanceEvent {
         /// Agent whose override changed.
         agent_id: String,
         /// Overridden field (`name`, `mission`, `examples`, `access`,
-        /// `sources`).
+        /// `sources`, ...), or `model` for the model assigned to the agent.
         field: String,
         /// Whether the value was written or removed.
         change: OverrideChange,
@@ -142,6 +142,27 @@ pub enum GovernanceEvent {
         agent_id: String,
         /// Version that was removed.
         version: String,
+        /// Whether its memory was erased rather than kept.
+        #[serde(default)]
+        memory_cleared: bool,
+        /// Whether its history was erased rather than kept.
+        #[serde(default)]
+        history_cleared: bool,
+        /// Who uninstalled it.
+        actor: String,
+    },
+    /// A package was uninstalled: its agents, workflows, tools and the
+    /// connections it brought.
+    PackageUninstalled {
+        /// Uninstalled package.
+        package_id: String,
+        /// Version that was removed.
+        version: String,
+        /// Whether the memory of its agents was erased rather than kept.
+        memory_cleared: bool,
+        /// Whether the history of its agents and workflows was erased rather
+        /// than kept.
+        history_cleared: bool,
         /// Who uninstalled it.
         actor: String,
     },
@@ -157,7 +178,8 @@ impl GovernanceEvent {
             | GovernanceEvent::Uninstalled { agent_id, .. }
             | GovernanceEvent::OverrideChanged { agent_id, .. } => agent_id,
             GovernanceEvent::PackageInstalled { package_id, .. }
-            | GovernanceEvent::PackageUpdated { package_id, .. } => package_id,
+            | GovernanceEvent::PackageUpdated { package_id, .. }
+            | GovernanceEvent::PackageUninstalled { package_id, .. } => package_id,
         }
     }
 
@@ -166,7 +188,8 @@ impl GovernanceEvent {
     pub fn run_id(&self) -> String {
         match self {
             GovernanceEvent::PackageInstalled { package_id, .. }
-            | GovernanceEvent::PackageUpdated { package_id, .. } => package_run_id(package_id),
+            | GovernanceEvent::PackageUpdated { package_id, .. }
+            | GovernanceEvent::PackageUninstalled { package_id, .. } => package_run_id(package_id),
             other => governance_run_id(other.subject_id()),
         }
     }
@@ -181,6 +204,7 @@ impl GovernanceEvent {
             GovernanceEvent::OverrideChanged { .. } => JournalEntryKind::AgentOverrideChanged,
             GovernanceEvent::PackageInstalled { .. } => JournalEntryKind::PackageInstalled,
             GovernanceEvent::PackageUpdated { .. } => JournalEntryKind::PackageUpdated,
+            GovernanceEvent::PackageUninstalled { .. } => JournalEntryKind::PackageUninstalled,
         }
     }
 }
@@ -254,6 +278,8 @@ mod tests {
                 GovernanceEvent::Uninstalled {
                     agent_id: "a1".into(),
                     version: "1.1.0".into(),
+                    memory_cleared: false,
+                    history_cleared: true,
                     actor: "user".into(),
                 },
                 JournalEntryKind::AgentUninstalled,

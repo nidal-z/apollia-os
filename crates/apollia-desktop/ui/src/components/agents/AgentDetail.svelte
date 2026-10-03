@@ -10,7 +10,6 @@
   import { ExternalLink, Wrench, Tag, Cpu, Terminal, MessageSquare } from "lucide-svelte";
   import AgentActivity from "./AgentActivity.svelte";
   import AgentTriggers from "./AgentTriggers.svelte";
-  import AgentLlmInfo from "./AgentLlmInfo.svelte";
   import AgentMessagesPanel from "./AgentMessagesPanel.svelte";
   import { Card } from "$lib/components/ui/card";
   import { availability, statusLabel, type Availability } from "./agentStatus";
@@ -128,8 +127,8 @@
         </Card>
       {/if}
 
-      <!-- Tools -->
-      {#if allTools.length > 0}
+      <!-- Tools: raw identifiers, developer mode only -->
+      {#if $developerMode && allTools.length > 0}
         <Card class="rounded-lg overflow-hidden" data-testid="agent-detail-tools">
           <div class="flex items-center gap-2 px-4 pt-3.5 pb-2">
             <Wrench size={12} class="text-muted-foreground/50" />
@@ -159,11 +158,6 @@
       <!-- Triggers -->
       <Card class="rounded-lg px-4 py-3.5">
         <AgentTriggers agentName={agent.name} />
-      </Card>
-
-      <!-- LLM info -->
-      <Card class="rounded-lg px-4 py-3.5">
-        <AgentLlmInfo />
       </Card>
 
       <!-- Agent messages (A2A + builder mode only) -->
