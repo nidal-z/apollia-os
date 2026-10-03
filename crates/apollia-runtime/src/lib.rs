@@ -41,6 +41,7 @@ pub mod memory_view;
 pub mod oauth_clients;
 pub mod observability;
 pub mod on_demand;
+pub mod onboarding;
 pub mod package_tools;
 pub mod packages;
 pub mod perf_trace;

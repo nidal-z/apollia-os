@@ -84,8 +84,9 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # once the LLM engines were listed, tested and reloaded, and the cost alert
 # threshold read, through the daemon, then at 78 once the settings, the status
 # and the models of the dictation were served by the daemon, then at 73 once the
-# local AI could be installed at onboarding through the daemon.
-EMBEDDED_ONLY_CEILING = 73
+# local AI could be installed at onboarding through the daemon, then at 65 once
+# the onboarding had its routes.
+EMBEDDED_ONLY_CEILING = 65
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

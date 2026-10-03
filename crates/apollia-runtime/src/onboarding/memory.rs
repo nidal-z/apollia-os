@@ -1,11 +1,12 @@
 //! Where the onboarding state lives between two launches: the `onboarding_*`
 //! context keys of the user memory, read and written one typed value at a time,
-//! and the reset that empties them.
+//! the reset that empties them, and the onboarding agent's own memory under the
+//! memory directory, where its profile, its progress and its completion are
+//! kept.
 
-use std::sync::Arc;
+use std::path::Path;
 
 use apollia_memory::user_memory::UserMemoryRepository;
-use apollia_runtime::embedded::RuntimeHandle;
 
 use super::state::{OnboardingError, OnboardingPhase, OnboardingState, OnboardingStats};
 use super::ONBOARDING_TOPICS;
@@ -18,7 +19,7 @@ use super::ONBOARDING_TOPICS;
 ///
 /// Returns `OnboardingState::default()` when no persisted phase is found
 /// (first launch).
-pub(super) fn load_state_from_memory(
+pub fn load_state_from_memory(
     repo: &UserMemoryRepository,
 ) -> Result<OnboardingState, OnboardingError> {
     let phase_str = read_str(repo, "onboarding_phase")?;
@@ -26,7 +27,7 @@ pub(super) fn load_state_from_memory(
         return Ok(OnboardingState::default());
     };
 
-    let phase = OnboardingPhase::from_str(&phase_str).ok_or_else(|| {
+    let phase = OnboardingPhase::parse(&phase_str).ok_or_else(|| {
         OnboardingError::PersistenceError(format!("unrecognised persisted phase: {phase_str}"))
     })?;
 
@@ -78,7 +79,7 @@ pub(super) fn load_state_from_memory(
 ///
 /// All keys are stamped with the `__` prefix in storage so they stay hidden
 /// from the user profile listing.
-pub(super) fn persist_state(
+pub fn persist_state(
     repo: &UserMemoryRepository,
     state: &OnboardingState,
 ) -> Result<(), OnboardingError> {
@@ -156,11 +157,11 @@ fn write_str(repo: &UserMemoryRepository, key: &str, value: &str) -> Result<(), 
         .map_err(|e| OnboardingError::PersistenceError(e.to_string()))
 }
 
-pub(super) fn read_bool(repo: &UserMemoryRepository, key: &str) -> Result<bool, OnboardingError> {
+pub fn read_bool(repo: &UserMemoryRepository, key: &str) -> Result<bool, OnboardingError> {
     Ok(read_str(repo, key)?.map(|v| v == "true").unwrap_or(false))
 }
 
-pub(super) fn write_bool(
+pub fn write_bool(
     repo: &UserMemoryRepository,
     key: &str,
     value: bool,
@@ -189,19 +190,8 @@ fn write_u64(repo: &UserMemoryRepository, key: &str, value: u64) -> Result<(), O
 }
 
 // ---------------------------------------------------------------------------
-// Inner logic - legacy
+// The onboarding agent's memory
 // ---------------------------------------------------------------------------
-
-/// Acquires the `UserMemoryRepository` from the runtime handle.
-pub(super) fn get_repo(
-    state: &RuntimeHandle,
-) -> Result<Arc<std::sync::Mutex<UserMemoryRepository>>, OnboardingError> {
-    state
-        .user_memory
-        .as_ref()
-        .cloned()
-        .ok_or(OnboardingError::RepositoryNotInitialized)
-}
 
 /// Writes the active onboarding profile to the onboarding agent's semantic
 /// memory so the Python agent can read it via `ctx.memory.recall()` on its
@@ -211,10 +201,8 @@ pub(super) fn get_repo(
 /// `"onboarding.active_profile"`.  A missing or unwritable memory store is
 /// treated as a non-fatal degradation - the agent falls back to generic
 /// questioning without the profile section.
-pub(super) fn write_profile_to_agent_memory(profile: &str) {
-    let db_path = apollia_core::paths::data_dir_under(apollia_core::paths::home_dir_or_temp())
-        .join("memory")
-        .join("onboarding-agent.db");
+pub fn write_profile_to_agent_memory(memory_dir: &Path, profile: &str) {
+    let db_path = memory_dir.join("onboarding-agent.db");
 
     let Ok(store) = apollia_memory::store::MemoryStore::open(&db_path) else {
         tracing::warn!(
@@ -249,7 +237,7 @@ pub(super) fn write_profile_to_agent_memory(profile: &str) {
 ///   - Forgets every `user.*` and meta `onboarding.*` key in the agent's
 ///     semantic namespace (`onboarding.active_profile` is preserved - the
 ///     caller writes it just after this reset).
-pub(super) fn reset_onboarding_progress(repo: &UserMemoryRepository) {
+pub fn reset_onboarding_progress(repo: &UserMemoryRepository, memory_dir: &Path) {
     for topic in &ONBOARDING_TOPICS {
         let key = format!("onboarding_topic_{topic}");
         let _ = repo.forget(&key);
@@ -261,9 +249,6 @@ pub(super) fn reset_onboarding_progress(repo: &UserMemoryRepository) {
     // to clean the new file caused stale `onboarding.completed_at` to leak
     // into fresh sessions and trigger the wrap-up panel before the user
     // could answer a single question.
-    let memory_dir =
-        apollia_core::paths::data_dir_under(apollia_core::paths::home_dir_or_temp()).join("memory");
-
     let candidates: [(&str, &str); 2] = [
         ("onboarding.db", "onboarding"),
         ("onboarding-agent.db", "onboarding-agent"),
@@ -304,6 +289,82 @@ pub(super) fn reset_onboarding_progress(repo: &UserMemoryRepository) {
             }
         }
     }
+}
+
+/// Whether `onboarding.completed_at` exists in the onboarding agent's semantic
+/// memory under `memory_dir`. Read side of the finalization contract: whatever
+/// [`finalize_in`] writes must be found here.
+///
+/// Looks under both the current namespace (`onboarding`, since manifest
+/// v2.x) and the legacy one (`onboarding-agent`, kept for installs that ran an
+/// older agent).
+pub fn check_finalized_in(memory_dir: &Path) -> bool {
+    if !memory_dir.exists() {
+        return false;
+    }
+
+    // (db_filename, namespace_in_table) - the manifest namespace also names
+    // the SQLite file (see `MemoryManager::db_path`), but the semantic table
+    // carries a redundant namespace column we must filter on.
+    let candidates: [(&str, &str); 2] = [
+        ("onboarding.db", "onboarding"),
+        ("onboarding-agent.db", "onboarding-agent"),
+    ];
+
+    for (filename, namespace) in candidates {
+        let db_path = memory_dir.join(filename);
+        if !db_path.exists() {
+            continue;
+        }
+        let Ok(store) = apollia_memory::store::MemoryStore::open(&db_path) else {
+            continue;
+        };
+        let sem = apollia_memory::semantic::SemanticMemory::new(&store);
+        let Ok(entries) = sem.recall_all(namespace, None) else {
+            continue;
+        };
+        if entries.iter().any(|e| e.key == "onboarding.completed_at") {
+            return true;
+        }
+    }
+    false
+}
+
+/// Stamps `onboarding.completed_at` in the onboarding agent's semantic memory
+/// under `memory_dir`, plus `onboarding.finalized_by = "operator_skip"` so the
+/// audit trail distinguishes an operator skip from the agent's own wrap-up.
+///
+/// Writes the same store and key that [`check_finalized_in`] reads, in the
+/// current namespace (`onboarding`); `MemoryStore::open` creates and migrates
+/// the database when the agent has not opened it yet.
+///
+/// # Errors
+///
+/// [`OnboardingError::AgentMemory`] when the directory, the store or a key
+/// cannot be written.
+pub fn finalize_in(memory_dir: &Path) -> Result<(), OnboardingError> {
+    std::fs::create_dir_all(memory_dir)
+        .map_err(|e| OnboardingError::AgentMemory(format!("cannot create memory dir: {e}")))?;
+    let db_path = memory_dir.join("onboarding.db");
+    let store = apollia_memory::store::MemoryStore::open(&db_path)
+        .map_err(|e| OnboardingError::AgentMemory(format!("cannot open onboarding memory: {e}")))?;
+    let sem = apollia_memory::semantic::SemanticMemory::new(&store);
+    let now = chrono::Utc::now().to_rfc3339();
+    for (key, value) in [
+        ("onboarding.completed_at", now.as_str()),
+        ("onboarding.finalized_by", "operator_skip"),
+    ] {
+        sem.remember(apollia_memory::semantic::RememberInput {
+            namespace: "onboarding",
+            key,
+            value: &serde_json::Value::String(value.to_string()),
+            confidence: 1.0,
+            source: Some("onboarding"),
+            expires_at: None,
+        })
+        .map_err(|e| OnboardingError::AgentMemory(format!("cannot write {key}: {e}")))?;
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -390,5 +451,40 @@ mod graduation_tests {
         write_bool(&repo, "companion_enabled", false).expect("write false");
         // THEN it reads back as false
         assert!(!read_bool(&repo, "companion_enabled").expect("read false"));
+    }
+}
+
+#[cfg(test)]
+mod finalize_tests {
+    use super::*;
+
+    #[test]
+    fn test_finalize_writes_key_check_reads() {
+        // GIVEN an empty memory directory (fresh install, agent never ran)
+        let dir = tempfile::tempdir().expect("tempdir");
+
+        // WHEN the operator skip finalizes the chat
+        finalize_in(dir.path()).expect("finalize");
+
+        // THEN the wrap-up gate reads the finalization from the same store
+        assert!(check_finalized_in(dir.path()));
+        let store = apollia_memory::store::MemoryStore::open(&dir.path().join("onboarding.db"))
+            .expect("open");
+        let sem = apollia_memory::semantic::SemanticMemory::new(&store);
+        let entries = sem.recall_all("onboarding", None).expect("recall");
+        assert!(entries.iter().any(|e| e.key == "onboarding.completed_at"));
+        assert!(entries.iter().any(
+            |e| e.key == "onboarding.finalized_by" && e.value.as_str() == Some("operator_skip")
+        ));
+    }
+
+    #[test]
+    fn test_check_finalized_false_on_missing_db() {
+        // GIVEN an empty memory directory
+        let dir = tempfile::tempdir().expect("tempdir");
+
+        // WHEN checking finalization without any database
+        // THEN the gate stays closed
+        assert!(!check_finalized_in(dir.path()));
     }
 }

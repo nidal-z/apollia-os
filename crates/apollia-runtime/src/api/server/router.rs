@@ -119,6 +119,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         create_channel, delete_channel, get_events, list_channels, set_events, update_channel,
     };
     use crate::api::routes_oauth_clients::oauth_clients_router;
+    use crate::api::routes_onboarding::onboarding_router;
     use crate::api::routes_permissions::permissions_router;
     use crate::api::routes_plan_cache::{clear_plan_cache, get_plan_cache_stats};
     use crate::api::routes_profile::profile_router;
@@ -367,6 +368,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(profile_router::<B>())
         .merge(tool_credentials_router::<B>())
         .merge(local_ai_router::<B>())
+        .merge(onboarding_router::<B>())
         .merge(memory_maintenance_router::<B>())
         .merge(conversations_router::<B>())
         .merge(memory_router::<B>())
