@@ -51,9 +51,6 @@
     "exemptions": [
       "agent_detail.memory_link",
       "agent_detail.trigger_config_webhook",
-      "agents.chat_config.personality_hint",
-      "agents.chat_config.personality_placeholder",
-      "agents.chat_config.tools_empty",
       "agents.detail_empty_title",
       "agents.install.deps_auto_many",
       "agents.install.deps_auto_one",
@@ -272,9 +269,6 @@
     "exemptions": [
       "agent_detail.memory_link",
       "agent_detail.trigger_config_webhook",
-      "agents.chat_config.personality_hint",
-      "agents.chat_config.personality_placeholder",
-      "agents.chat_config.tools_empty",
       "agents.detail_empty_title",
       "agents.install.deps_auto_many",
       "agents.install.deps_auto_one",
