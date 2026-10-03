@@ -131,6 +131,7 @@ async fn build_app_state_with_repos(
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        governance: None,
         backend: MockBackend,
         llm_router: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         trigger_engine: Some(engine_handle),

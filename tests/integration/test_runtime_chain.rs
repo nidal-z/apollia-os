@@ -80,6 +80,7 @@ fn build_app_state() -> AppState<MockBackend> {
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        governance: None,
         backend: MockBackend,
         llm_router: empty_shared_llm_router(),
         trigger_engine: None,

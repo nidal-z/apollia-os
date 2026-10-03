@@ -310,6 +310,10 @@ impl ChatSessionManager {
                     info!("chat.composer.set");
                     self.composer = Some(composer);
                 }
+                ChatCommand::SetGovernance { governance } => {
+                    info!("chat.governance.set");
+                    self.governance = Some(governance);
+                }
                 ChatCommand::ResolveFsHitl {
                     request_id,
                     decision,
