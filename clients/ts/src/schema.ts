@@ -2768,6 +2768,9 @@ export interface paths {
          *     singleton row in `system.db` via an upsert.
          *
          *     Returns `200 OK` with the updated configuration.
+         *     Returns `400 Bad Request` for a language hint outside
+         *     [`STT_LANGUAGES`](crate::stt::STT_LANGUAGES), with the message the desktop
+         *     shows in both modes; nothing is persisted.
          *     Returns `503 Service Unavailable` when the config repository is unavailable.
          */
         put: operations["update_stt_config"];
@@ -2786,9 +2789,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * `GET /api/v1/stt/models`, list available `.bin` model files.
-         * @description Scans `~/.apollia/models/` for `.bin` files and returns their name,
-         *     path, and size. Returns an empty list if the directory does not exist.
+         * `GET /api/v1/stt/models`, list available model files.
+         * @description Scans `~/.apollia/models/` for the extensions in
+         *     [`MODEL_EXTENSIONS`](crate::stt::MODEL_EXTENSIONS) and returns their name,
+         *     path, and size, the list the desktop shows in both modes. Returns an empty
+         *     list if the directory does not exist.
          */
         get: operations["list_models"];
         put?: never;
@@ -12901,6 +12906,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Unsupported language hint */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
             };
             /** @description Database error */
             500: {

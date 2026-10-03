@@ -7981,7 +7981,7 @@
           "stt"
         ],
         "summary": "`PUT /api/v1/stt/config`, update the persisted STT configuration.",
-        "description": "Accepts a JSON body of [`SttConfigRow`] (fields with `#[serde(default)]` may\nbe omitted, missing fields receive their default values). Replaces the\nsingleton row in `system.db` via an upsert.\n\nReturns `200 OK` with the updated configuration.\nReturns `503 Service Unavailable` when the config repository is unavailable.",
+        "description": "Accepts a JSON body of [`SttConfigRow`] (fields with `#[serde(default)]` may\nbe omitted, missing fields receive their default values). Replaces the\nsingleton row in `system.db` via an upsert.\n\nReturns `200 OK` with the updated configuration.\nReturns `400 Bad Request` for a language hint outside\n[`STT_LANGUAGES`](crate::stt::STT_LANGUAGES), with the message the desktop\nshows in both modes; nothing is persisted.\nReturns `503 Service Unavailable` when the config repository is unavailable.",
         "operationId": "update_stt_config",
         "requestBody": {
           "description": "Updated STT configuration (SttConfigRow); fields with defaults may be omitted",
@@ -7997,6 +7997,16 @@
         "responses": {
           "200": {
             "description": "Updated STT configuration"
+          },
+          "400": {
+            "description": "Unsupported language hint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
           },
           "500": {
             "description": "Database error",
@@ -8026,8 +8036,8 @@
         "tags": [
           "stt"
         ],
-        "summary": "`GET /api/v1/stt/models`, list available `.bin` model files.",
-        "description": "Scans `~/.apollia/models/` for `.bin` files and returns their name,\npath, and size. Returns an empty list if the directory does not exist.",
+        "summary": "`GET /api/v1/stt/models`, list available model files.",
+        "description": "Scans `~/.apollia/models/` for the extensions in\n[`MODEL_EXTENSIONS`](crate::stt::MODEL_EXTENSIONS) and returns their name,\npath, and size, the list the desktop shows in both modes. Returns an empty\nlist if the directory does not exist.",
         "operationId": "list_models",
         "responses": {
           "200": {

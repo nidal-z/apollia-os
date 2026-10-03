@@ -143,6 +143,14 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "memory_export_namespace",
     "memory_import_namespace",
     "purge_memory",
+    // Dictation: its settings, the reload of its engine, its status and its
+    // model files, over `/api/v1/stt/*`. The microphones stay those of this
+    // machine.
+    "get_stt_config",
+    "get_stt_status",
+    "list_stt_models",
+    "reload_stt",
+    "update_stt_config",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no
