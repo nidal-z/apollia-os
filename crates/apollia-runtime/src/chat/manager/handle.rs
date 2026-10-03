@@ -15,6 +15,9 @@ pub struct ChatSessionManagerHandle {
     /// Shared lifecycle hook executor, exposed so the API can list the active
     /// handlers. `None` when no hooks are configured.
     pub(in crate::chat::manager) hook_executor: Option<Arc<HookExecutor>>,
+    /// Plan-mode state a new session starts in, the `[chat] plan_mode_default`
+    /// key of `apollia.toml` this manager was spawned with.
+    pub(in crate::chat::manager) plan_mode_default: bool,
 }
 
 impl ChatSessionManagerHandle {
@@ -35,6 +38,12 @@ impl ChatSessionManagerHandle {
             .as_ref()
             .map(|exec| exec.registry().list_all())
             .unwrap_or_default()
+    }
+
+    /// The plan-mode state a new session starts in, read from the
+    /// `[chat] plan_mode_default` key of `apollia.toml` at boot.
+    pub fn plan_mode_default(&self) -> bool {
+        self.plan_mode_default
     }
 }
 
@@ -197,6 +206,7 @@ impl ChatSessionManagerHandle {
             tx,
             pending_user_inputs,
             hook_executor: hook_executor_for_handle,
+            plan_mode_default,
         })
     }
 

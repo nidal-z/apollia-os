@@ -9,6 +9,8 @@
 //! - `POST   /api/v1/sessions/:id/authorize`  , resolve approval
 //! - `GET    /api/v1/sessions/:id/stream`     , SSE stream
 //! - `POST   /api/v1/sessions/:id/pause`      , pause the turn in flight
+//!
+//! The plan mode of a session lives in [`plan`].
 
 use std::convert::Infallible;
 
@@ -29,6 +31,7 @@ use crate::chat::types::{ChatMode, SessionStatus, ToolDecision};
 use crate::coordinator::ExecutionBackend;
 
 pub mod pause;
+pub mod plan;
 mod sse;
 pub mod user_inputs;
 
@@ -805,6 +808,15 @@ mod tests {
     }
 
     fn test_router_with_chat(dir: &tempfile::TempDir) -> axum::Router {
+        test_router_with_chat_plan_default(dir, false)
+    }
+
+    /// A router over a chat manager whose sessions start in plan mode when
+    /// `plan_mode_default` is set, its database `chat.db` under `dir`.
+    pub(super) fn test_router_with_chat_plan_default(
+        dir: &tempfile::TempDir,
+        plan_mode_default: bool,
+    ) -> axum::Router {
         let (event_tx, _) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_tx.clone());
         let router_handle: TaskRouterHandle<MockBackend> =
@@ -829,8 +841,8 @@ mod tests {
             None,
             apollia_mcp::session::LoadingMode::Eager,
             20,
-            None,  // no hooks in tests
-            false, // plan-mode default off in tests
+            None, // no hooks in tests
+            plan_mode_default,
         )
         .expect("spawn chat manager");
 

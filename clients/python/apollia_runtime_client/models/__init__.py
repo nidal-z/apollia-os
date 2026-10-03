@@ -48,6 +48,8 @@ from .brought_server_preview import BroughtServerPreview
 from .channel_delete_response import ChannelDeleteResponse
 from .channel_response import ChannelResponse
 from .channel_response_config import ChannelResponseConfig
+from .chat_plan_snapshot import ChatPlanSnapshot
+from .chat_plan_snapshot_plan_type_0 import ChatPlanSnapshotPlanType0
 from .chat_request import ChatRequest
 from .chat_request_schema_type_0 import ChatRequestSchemaType0
 from .chat_response import ChatResponse
@@ -123,6 +125,7 @@ from .item_preview import ItemPreview
 from .journal_anchor import JournalAnchor
 from .journal_break import JournalBreak
 from .journal_break_reason import JournalBreakReason
+from .list_plan_mutations_response_200_item import ListPlanMutationsResponse200Item
 from .llm_backend_response import LlmBackendResponse
 from .llm_backend_response_config_json import LlmBackendResponseConfigJson
 from .llm_backends_list_response import LlmBackendsListResponse
@@ -158,9 +161,14 @@ from .pending_approval_response_payload_type_0 import PendingApprovalResponsePay
 from .pending_user_input_view import PendingUserInputView
 from .ping_request import PingRequest
 from .ping_response import PingResponse
+from .plan_action_response import PlanActionResponse
 from .plan_cache_stats_response import PlanCacheStatsResponse
 from .plan_decision_request import PlanDecisionRequest
+from .plan_decision_request_revised_steps_type_0_item import (
+    PlanDecisionRequestRevisedStepsType0Item,
+)
 from .plan_decision_response import PlanDecisionResponse
+from .plan_mode_default import PlanModeDefault
 from .preset_response import PresetResponse
 from .preset_response_load import PresetResponseLoad
 from .preset_response_request import PresetResponseRequest
@@ -169,6 +177,7 @@ from .profile_entry_view import ProfileEntryView
 from .profile_reset import ProfileReset
 from .put_mcp_secret_body import PutMcpSecretBody
 from .readme_response import ReadmeResponse
+from .reject_plan_request import RejectPlanRequest
 from .reject_user_input_request import RejectUserInputRequest
 from .reload_response import ReloadResponse
 from .reload_router_response import ReloadRouterResponse
@@ -199,6 +208,7 @@ from .set_default_response import SetDefaultResponse
 from .set_events_request import SetEventsRequest
 from .set_override_request import SetOverrideRequest
 from .set_override_request_value import SetOverrideRequestValue
+from .set_plan_mode_request import SetPlanModeRequest
 from .set_profile_entry_body import SetProfileEntryBody
 from .shutdown_response import ShutdownResponse
 from .sidechain_row import SidechainRow
@@ -340,6 +350,8 @@ __all__ = (
     "ChannelDeleteResponse",
     "ChannelResponse",
     "ChannelResponseConfig",
+    "ChatPlanSnapshot",
+    "ChatPlanSnapshotPlanType0",
     "ChatRequest",
     "ChatRequestSchemaType0",
     "ChatResponse",
@@ -415,6 +427,7 @@ __all__ = (
     "JournalAnchor",
     "JournalBreak",
     "JournalBreakReason",
+    "ListPlanMutationsResponse200Item",
     "LlmBackendResponse",
     "LlmBackendResponseConfigJson",
     "LlmBackendsListResponse",
@@ -450,9 +463,12 @@ __all__ = (
     "PendingUserInputView",
     "PingRequest",
     "PingResponse",
+    "PlanActionResponse",
     "PlanCacheStatsResponse",
     "PlanDecisionRequest",
+    "PlanDecisionRequestRevisedStepsType0Item",
     "PlanDecisionResponse",
+    "PlanModeDefault",
     "PresetResponse",
     "PresetResponseLoad",
     "PresetResponseRequest",
@@ -461,6 +477,7 @@ __all__ = (
     "ProfileReset",
     "PutMcpSecretBody",
     "ReadmeResponse",
+    "RejectPlanRequest",
     "RejectUserInputRequest",
     "ReloadResponse",
     "ReloadRouterResponse",
@@ -489,6 +506,7 @@ __all__ = (
     "SetEventsRequest",
     "SetOverrideRequest",
     "SetOverrideRequestValue",
+    "SetPlanModeRequest",
     "SetProfileEntryBody",
     "ShutdownResponse",
     "SidechainRow",

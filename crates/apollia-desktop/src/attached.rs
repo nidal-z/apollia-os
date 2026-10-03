@@ -126,6 +126,15 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "start_variant_download",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
+    // Plan mode: the default, the switch, the plan and its history, the soft
+    // gate of a chat session and the gate of an orchestrated run.
+    "approve_plan",
+    "get_chat_plan",
+    "get_plan_mode_default",
+    "list_plan_mutations",
+    "reject_plan",
+    "set_plan_mode",
+    "submit_plan_decision",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no
