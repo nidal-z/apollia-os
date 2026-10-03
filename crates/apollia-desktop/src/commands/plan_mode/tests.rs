@@ -195,29 +195,62 @@ async fn test_each_gate_decision_is_posted_as_the_route_reads_it() {
 
 #[tokio::test]
 async fn test_a_refusal_of_the_daemon_is_shown_as_it_is() {
-    // GIVEN a daemon refusing an approval, a plan read and a gate decision
-    // with its own messages
+    // GIVEN a daemon refusing each of the seven plan commands with its own
+    // message, as its routes answer them
     let refusals = [
         (
+            "approve_plan",
             "POST",
             "/api/v1/sessions/s-1/plan/approve",
             409,
             "session s-1 is not awaiting approval (current phase: discovery)",
         ),
         (
+            "get_chat_plan",
             "GET",
             "/api/v1/sessions/ghost/plan",
             404,
             "session not found: ghost",
         ),
         (
+            "get_plan_mode_default",
+            "GET",
+            "/api/v1/sessions/plan-mode-default",
+            503,
+            "chat subsystem not available",
+        ),
+        (
+            "list_plan_mutations",
+            "GET",
+            "/api/v1/sessions/ghost/plan/mutations",
+            404,
+            "session not found: ghost",
+        ),
+        (
+            "reject_plan",
+            "POST",
+            "/api/v1/sessions/s-1/plan/reject",
+            409,
+            "session s-1 is not awaiting approval (current phase: discovery)",
+        ),
+        (
+            "set_plan_mode",
+            "PUT",
+            "/api/v1/sessions/ghost/plan-mode",
+            404,
+            "session not found: ghost",
+        ),
+        (
+            "submit_plan_decision",
             "POST",
             "/api/v1/tasks/run-9/plan-decision",
             404,
             "no pending plan gate for run run-9",
         ),
     ];
-    for (verb, route, status, message) in refusals {
+    let refused: Vec<&str> = refusals.iter().map(|refusal| refusal.0).collect();
+    assert_eq!(refused, PLAN_COMMANDS);
+    for (command, verb, route, status, message) in refusals {
         let (_server, client) = daemon(
             verb,
             route,
@@ -226,13 +259,22 @@ async fn test_a_refusal_of_the_daemon_is_shown_as_it_is() {
         )
         .await;
 
-        // WHEN the attached arm calls it
-        let error = match route {
-            "/api/v1/sessions/s-1/plan/approve" => approve(&client, "s-1").await.unwrap_err(),
-            "/api/v1/sessions/ghost/plan" => client
+        // WHEN the attached arm of the command calls it
+        let error = match command {
+            "approve_plan" => approve(&client, "s-1").await.unwrap_err(),
+            "get_chat_plan" => client
                 .get::<ChatPlanSnapshot>(&session_path("ghost", "plan"))
                 .await
                 .unwrap_err(),
+            "get_plan_mode_default" => plan_mode_default(&client).await.unwrap_err(),
+            "list_plan_mutations" => client
+                .get::<Vec<PlanMutation>>(&session_path("ghost", "plan/mutations"))
+                .await
+                .unwrap_err(),
+            "reject_plan" => reject(&client, "s-1", Some("too broad".to_owned()))
+                .await
+                .unwrap_err(),
+            "set_plan_mode" => put_plan_mode(&client, "ghost", true).await.unwrap_err(),
             _ => decide(&client, "run-9", PlanDecisionDto::Approve)
                 .await
                 .unwrap_err(),
@@ -241,8 +283,8 @@ async fn test_a_refusal_of_the_daemon_is_shown_as_it_is() {
         // THEN the interface shows the daemon's message, word for word
         assert!(
             matches!(&error, AttachedError::Refused { status: s, .. } if *s == status),
-            "{error:?}"
+            "{command}: {error:?}"
         );
-        assert_eq!(String::from(error), message);
+        assert_eq!(String::from(error), message, "{command}");
     }
 }
