@@ -29,14 +29,32 @@
     { route: "inbox"          as Route, Icon: ShieldCheck,     labelKey: "nav.sidebar.inbox",          badge: "approvals" },
     { route: "notifications"  as Route, Icon: Bell,            labelKey: "nav.sidebar.notifications",  badge: "none"      },
     { route: "memory"         as Route, Icon: Database,        labelKey: "nav.sidebar.memory",         badge: "none"      },
-    { route: "observability"  as Route, Icon: Activity,        labelKey: "nav.sidebar.observability",  badge: "none"      },
     { route: "llm"            as Route, Icon: Brain,           labelKey: "nav.sidebar.llm",            badge: "none"      },
-    { route: "transcriptions" as Route, Icon: Mic,             labelKey: "nav.sidebar.transcriptions", badge: "none", developer: true },
   ];
 
   /** The primary entries shown for a given developer mode. */
   export function visiblePrimaryNav(developerMode: boolean): PrimaryNavEntry[] {
     return PRIMARY_NAV.filter((entry) => developerMode || !entry.developer);
+  }
+
+  /** An entry of the developer group, below the secondary entries. */
+  export interface DeveloperNavEntry {
+    route: Route;
+    Icon: typeof LayoutDashboard;
+    labelKey: string;
+  }
+
+  // The technical screens, grouped apart from the everyday navigation. Their
+  // routes are the ones the router keeps out of reach with the mode off
+  // (`DEVELOPER_ROUTES`); a test holds the two lists equal.
+  export const DEVELOPER_NAV: readonly DeveloperNavEntry[] = [
+    { route: "transcriptions" as Route, Icon: Mic,      labelKey: "nav.sidebar.transcriptions" },
+    { route: "observability"  as Route, Icon: Activity, labelKey: "nav.sidebar.observability" },
+  ];
+
+  /** The developer group for a given developer mode: empty with the mode off. */
+  export function visibleDeveloperNav(developerMode: boolean): DeveloperNavEntry[] {
+    return developerMode ? [...DEVELOPER_NAV] : [];
   }
 </script>
 
@@ -59,6 +77,7 @@
   import { Plug, Settings, X, Plus, User } from "lucide-svelte";
 
   const primaryNav = $derived(visiblePrimaryNav($developerMode));
+  const developerNav = $derived(visibleDeveloperNav($developerMode));
 
   const SECONDARY_NAV = [
     { route: "integrations" as Route, Icon: Plug,     labelKey: "nav.sidebar.integrations" },
@@ -221,6 +240,34 @@
           </button>
         {/each}
       </div>
+
+      {#if developerNav.length > 0}
+        <div
+          class="border-t border-border/60 p-3 flex flex-col gap-0.5"
+          role="group"
+          aria-labelledby="sidebar-developer-group-title"
+          data-testid="sidebar-developer-group"
+        >
+          <span
+            id="sidebar-developer-group-title"
+            class="px-3 pb-1 text-overline font-semibold uppercase tracking-wide text-muted-foreground"
+          >{$t("nav.developer_group")}</span>
+          {#each developerNav as item (item.route)}
+            {@const isActive = $currentRoute === item.route}
+            {@const label = $t(item.labelKey)}
+            <button
+              type="button"
+              class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
+              onclick={() => navigate(item.route)}
+              aria-current={isActive ? "page" : undefined}
+              data-testid="nav-{item.route}"
+            >
+              <item.Icon size={17} strokeWidth={1.5} class="shrink-0" />
+              <span>{label}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
     </div>
   {/if}
 {:else}
@@ -303,6 +350,39 @@
         </span>
       </div>
     {/each}
+
+    <!-- Developer group (Transcriptions, Observability), mode on only -->
+    {#if developerNav.length > 0}
+      <div
+        class="mb-1 flex flex-col items-center border-t border-border pt-2"
+        role="group"
+        aria-label={$t("nav.developer_group")}
+        data-testid="sidebar-developer-group"
+      >
+        {#each developerNav as item (item.route)}
+          {@const isActive = $currentRoute === item.route}
+          {@const label = $t(item.labelKey)}
+          <div class="rail-item group relative mb-1">
+            <button
+              type="button"
+              class="relative flex h-10 w-10 items-center justify-center rounded-lg transition-all duration-fast {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground'}"
+              onclick={() => navigate(item.route)}
+              aria-current={isActive ? "page" : undefined}
+              aria-label={label}
+              data-testid="nav-{item.route}"
+            >
+              {#if isActive}
+                <span class="active-bar"></span>
+              {/if}
+              <item.Icon size={17} strokeWidth={1.5} />
+            </button>
+            <span class="tooltip pointer-events-none absolute left-full top-1/2 z-overlay ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
+              {label}
+            </span>
+          </div>
+        {/each}
+      </div>
+    {/if}
 
     <!-- User avatar -->
     <div class="mt-1">

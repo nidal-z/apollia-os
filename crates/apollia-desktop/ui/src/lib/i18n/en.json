@@ -194,6 +194,7 @@
     "open_sidebar": "Open navigation",
     "close_sidebar": "Close navigation",
     "sidebar_label": "Main navigation",
+    "developer_group": "Developer mode",
     "projects": "Projects",
     "sidebar": {
       "dashboard": "Home",
