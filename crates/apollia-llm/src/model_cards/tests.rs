@@ -268,6 +268,7 @@ mod network {
             url,
             mirror_url: mirror,
             enabled: true,
+            disabled_by_policy: false,
         }
     }
 

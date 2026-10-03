@@ -21,7 +21,8 @@
 //! addition of a connection, failing closed; [`ConnectionGovernance`] carries
 //! that call and the journal of connection events to the places that add,
 //! change or remove a connection. [`PolicyAdmission`] answers that call from
-//! the organisation policy read at boot.
+//! the organisation policy read at boot. [`InferenceGovernance`] answers, from
+//! the same policy, whether an inference server may be added or reached.
 //!
 //! [`access_upgrade`] runs, once at startup, the conversion of the rules
 //! persisted before standing consents, and journals every change it makes.
@@ -30,6 +31,7 @@ pub mod access_upgrade;
 mod admission;
 mod connection;
 mod contract;
+pub(crate) mod inference_policy;
 mod no_policy;
 mod package_policy;
 pub(crate) mod policy_admission;
@@ -45,6 +47,9 @@ pub use connection::{connection_run_id, ConnectionEvent, ConnectionGovernance, C
 pub use contract::{
     AccessCall, AccessDecision, DeclaredAccess, EffectiveAccess, GovernanceContract,
     GovernanceError, InstallSubject,
+};
+pub use inference_policy::{
+    InferenceGovernance, REMOTE_SERVER_DENIED_REASON, SERVER_NOT_ALLOWED_REASON,
 };
 pub use no_policy::NoPolicyGovernance;
 pub use package_policy::PackagePolicyGovernance;
