@@ -213,10 +213,14 @@ impl Supervisor {
             &reading,
         );
 
-        // Connections answer to governance: admitted before they are added,
-        // journaled when they change. No policy is deposited yet.
-        let connection_governance =
-            crate::governance::ConnectionGovernance::without_policy(audit_journal_handle.clone());
+        // Connections answer to governance: admitted by the organisation
+        // policy read above before they are added, journaled when they change.
+        let connection_governance = crate::governance::ConnectionGovernance::new(
+            Arc::new(crate::governance::PolicyAdmission::new(Arc::clone(
+                &org_policy,
+            ))),
+            audit_journal_handle.clone(),
+        );
 
         // Phase 9 (pos 10): APIServer
         info!("supervisor.api.starting");

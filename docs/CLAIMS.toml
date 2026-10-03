@@ -1107,17 +1107,18 @@ was to keep going locally without saying so.
 """
 
 [[claim]]
-id = "sovereignty-profile-gates-connecting-not-calling"
+id = "organisation-policy-gates-connecting-not-calling"
 scope = "public"
-symbol = "ensure_cloud_allowed"
+symbol = "PolicyAdmission"
 status = "wired"
-proof = "crates/apollia-desktop/src/commands/integrations.rs"
+proof = "crates/apollia-runtime/src/supervisor/boot.rs"
 evidence = ""
 note = """
-`local_only` was presented as a third filter on every tool call, alongside the
-manifest and the permission rules. It is checked when a cloud connection is
-opened, and not on calls through a connection that already exists. Read as a
-per-call filter it promises a containment the code does not provide.
+The cloud ban was presented as a third filter on every tool call, alongside the
+manifest and the permission rules, and later held by a profile value the
+renderer handed the command. It is a rule of the organisation policy, checked
+by the runtime when a connection is added, and not on calls through a
+connection that already exists.
 """
 
 [[claim]]
