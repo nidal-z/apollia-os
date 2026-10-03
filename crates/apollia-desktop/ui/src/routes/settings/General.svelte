@@ -1,13 +1,15 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { t, locale } from "svelte-i18n";
-  import { RefreshCw, Globe, FolderOpen, LifeBuoy, AlertTriangle, Lock } from "lucide-svelte";
+  import { RefreshCw, Globe, FolderOpen, LifeBuoy, AlertTriangle, Lock, SlidersHorizontal } from "lucide-svelte";
   import { systemInfoStore, settingsLoaders } from "$lib/stores/settings";
   import { setLocale } from "$lib/i18n";
   import { openExternalUrl } from "$lib/utils/externalLink";
   import { reportError } from "$lib/errors/reportError";
   import { Button } from "$lib/components/ui/button";
   import { Select } from "$lib/components/ui/select";
+  import { Toggle } from "$lib/components/ui/toggle";
+  import { openDownloadsOnStart, setOpenDownloadsOnStart } from "$lib/stores/downloads";
   import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
   import SettingsSection from "../../components/settings/SettingsSection.svelte";
   import SettingsFieldRow from "../../components/settings/SettingsFieldRow.svelte";
@@ -171,6 +173,31 @@
           <option value="fr">{$t("settings.language_fr")}</option>
           <option value="en">{$t("settings.language_en")}</option>
         </Select>
+      {/snippet}
+    </SettingsFieldRow>
+  </SettingsSection>
+
+  <!-- Behaviours -->
+  <SettingsSection
+    title={$t("settings.general.behaviours_title")}
+    bodyLayout="flush"
+    data-testid="general-behaviours"
+  >
+    {#snippet icon()}<SlidersHorizontal size={15} strokeWidth={1.75} />{/snippet}
+    <SettingsFieldRow
+      label={$t("settings.general.downloads_open_label")}
+      hint={$t("settings.general.downloads_open_hint")}
+      for="general-downloads-open"
+      border={false}
+    >
+      {#snippet control()}
+        <Toggle
+          id="general-downloads-open"
+          checked={$openDownloadsOnStart}
+          onchange={(next) => setOpenDownloadsOnStart(next)}
+          aria-label={$t("settings.general.downloads_open_label")}
+          data-testid="general-downloads-open-toggle"
+        />
       {/snippet}
     </SettingsFieldRow>
   </SettingsSection>
