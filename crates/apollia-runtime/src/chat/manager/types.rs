@@ -212,9 +212,10 @@ pub enum InjectError {
 /// `executing` then `done`. The desktop hydrates the plan tab from `plan` and
 /// decides whether to show the approval card from `phase`, never from the
 /// plan's own status.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct ChatPlanSnapshot {
     /// Current plan, or `None` when the session has produced none.
+    #[schema(value_type = Option<Object>)]
     pub plan: Option<Plan>,
     /// Session plan-mode phase: `discovery`, `drafting`, `awaiting_approval`,
     /// `executing`, or `done`.
