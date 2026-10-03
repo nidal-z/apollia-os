@@ -139,6 +139,9 @@ pub struct GgufHeaderFacts {
     pub chat_template_tools: bool,
     /// Whether the whole chat template opens a reasoning block.
     pub chat_template_reasoning: bool,
+    /// The reasoning variables the whole chat template reads.
+    #[serde(default)]
+    pub chat_template_reasoning_variables: crate::capabilities::TemplateReasoningVariables,
     /// `{arch}.block_count`, the number of transformer layers.
     pub block_count: Option<u64>,
     /// `{arch}.context_length`, the training context window.
@@ -653,6 +656,8 @@ fn read_pair(
             facts.has_chat_template = true;
             facts.chat_template_tools = crate::capabilities::template_handles_tools(&s);
             facts.chat_template_reasoning = crate::capabilities::template_handles_reasoning(&s);
+            facts.chat_template_reasoning_variables =
+                crate::capabilities::TemplateReasoningVariables::of(&s);
             facts.chat_template_excerpt = Some(excerpt(&s, CHAT_TEMPLATE_EXCERPT_BYTES));
         }
         (other, Scalar::Unsigned(n)) => {

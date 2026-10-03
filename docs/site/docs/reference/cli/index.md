@@ -153,6 +153,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os chat delete`↴](#apollia-os-chat-delete)
 * [`apollia-os chat rename`↴](#apollia-os-chat-rename)
 * [`apollia-os chat export`↴](#apollia-os-chat-export)
+* [`apollia-os chat capabilities`↴](#apollia-os-chat-capabilities)
 * [`apollia-os chat config`↴](#apollia-os-chat-config)
 * [`apollia-os chat config get`↴](#apollia-os-chat-config-get)
 * [`apollia-os chat config set`↴](#apollia-os-chat-config-set)
@@ -2467,6 +2468,7 @@ Without a subcommand: launches the REPL (resume with `--resume <id>`, or list re
 * `delete` - Delete a persisted chat session and all of its messages
 * `rename` - Set the user-defined title of a persisted chat session
 * `export` - Export a persisted chat session to a file
+* `capabilities` - Show what the model of a chat session can do: the reasoning setting it offers (none, on or off, or a level) and whether it reads images
 * `config` - Manage the Chat Libre configuration (system prompt, allowed tools, backend)
 
 ###### **Options:**
@@ -2530,6 +2532,20 @@ Export a persisted chat session to a file
   Possible values: `markdown`, `json`
 
 * `--db <PATH>` - Override the chat database path
+
+
+
+## `apollia-os chat capabilities`
+
+Show what the model of a chat session can do: the reasoning setting it offers (none, on or off, or a level) and whether it reads images.
+
+Reaches the runtime; exits 2 when it is not running.
+
+**Usage:** `apollia-os chat capabilities <SESSION_ID>`
+
+###### **Arguments:**
+
+* `<SESSION_ID>` - Session id
 
 
 

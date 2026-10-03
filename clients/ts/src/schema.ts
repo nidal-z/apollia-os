@@ -3857,6 +3857,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{id}/model-capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/{id}/model-capabilities`, what the
+         *     model of a session can do.
+         * @description The model is the one the next message of the session would run on: the
+         *     model of its declarative agent, else the backend the session prefers, else
+         *     the default model of the machine.
+         */
+        get: operations["get_session_model_capabilities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{id}/pause": {
         parameters: {
             query?: never;
@@ -7596,6 +7619,11 @@ export interface components {
             /** @description The text. */
             text: string;
         };
+        /**
+         * @description The reasoning setting a model lets its caller fix.
+         * @enum {string}
+         */
+        ReasoningProfileDto: "none" | "toggle" | "levels";
         /** @description Request body for `POST /api/v1/sessions/:id/plan/reject`. */
         RejectPlanRequest: {
             /** @description Guidance the agent reads when it revises the plan. */
@@ -7959,6 +7987,21 @@ export interface components {
             tool_stats: components["schemas"]["ToolStatEntry"][];
             /** @description RFC-3339 timestamp of the last update. */
             updated_at?: string | null;
+        };
+        /** @description Answer of `GET /api/v1/sessions/{id}/model-capabilities`. */
+        SessionModelCapabilities: {
+            /** @description The image formats its engine decodes, empty without vision. */
+            image_formats: string[];
+            /** @description Whether a local engine serves the model. */
+            local: boolean;
+            /**
+             * @description The backend or model the conversation runs on, the default model of
+             *     the machine when it names none; `null` when no model is configured.
+             */
+            model?: string | null;
+            reasoning_profile?: null | components["schemas"]["ReasoningProfileDto"];
+            /** @description Whether the model reads images. */
+            vision: boolean;
         };
         /** @description Answer of `GET /api/v1/sessions/{id}/workspace`. */
         SessionWorkspace: {
@@ -18000,6 +18043,47 @@ export interface operations {
                 };
             };
             /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_session_model_capabilities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The model of the session and what it can do */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionModelCapabilities"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem or backend repository unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;

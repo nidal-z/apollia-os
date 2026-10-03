@@ -18,10 +18,12 @@
 //! instead of failing on a folder `llama-server` cannot open.
 
 mod backend;
+mod capabilities;
 pub mod guardrails;
 mod rows;
 
 pub use backend::LocalModelBackend;
+pub use capabilities::{model_capabilities, ModelCapabilities};
 pub use guardrails::{GuardrailRefusal, LoadConsent};
 pub use rows::{local_row_for, row_name};
 

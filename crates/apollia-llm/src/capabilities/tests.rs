@@ -8,6 +8,10 @@ const QWEN3_TEMPLATE: &str = include_str!("fixtures/chat_template_qwen3_4b.jinja
 /// neither tools nor reasoning.
 const GEMMA3_TEMPLATE: &str = include_str!("fixtures/chat_template_gemma3_4b.jinja");
 
+/// The chat template of `openai/gpt-oss-20b` (`chat_template.jinja` of the
+/// repository), recorded on 2026-10-03: it reads `reasoning_effort`.
+const GPT_OSS_TEMPLATE: &str = include_str!("fixtures/chat_template_gpt_oss_20b.jinja");
+
 /// The `config.json` of `mlx-community/gemma-3-4b-it-4bit`, a multimodal MLX
 /// conversion, recorded on 2026-10-02.
 const GEMMA3_MLX_CONFIG: &str = include_str!("fixtures/config_mlx_gemma3_4b_4bit.json");
@@ -45,8 +49,9 @@ fn no_template_declares_nothing() {
     // WHEN its capabilities are read
     let caps = Capabilities::from_chat_template(None);
 
-    // THEN nothing is declared
-    assert_eq!(caps, Capabilities::default());
+    // THEN nothing is declared, and the model offers no reasoning setting
+    assert!(!caps.tools && !caps.reasoning && !caps.vision);
+    assert_eq!(caps.reasoning_profile, Some(ReasoningProfile::None));
 }
 
 #[test]
@@ -108,4 +113,80 @@ fn a_list_of_named_templates_yields_the_default_one() {
         chat_template_of_json(&text).as_deref(),
         Some("{{ messages }}")
     );
+}
+
+#[test]
+fn each_recorded_template_yields_its_reasoning_profile() {
+    // GIVEN three recorded chat templates: Qwen3 reads `enable_thinking`,
+    // gpt-oss reads `reasoning_effort`, Gemma 3 reads neither
+    // WHEN the capabilities of each are read
+    let qwen3 = Capabilities::from_chat_template(Some(QWEN3_TEMPLATE));
+    let gpt_oss = Capabilities::from_chat_template(Some(GPT_OSS_TEMPLATE));
+    let gemma3 = Capabilities::from_chat_template(Some(GEMMA3_TEMPLATE));
+
+    // THEN Qwen3 is a switch, gpt-oss a level, Gemma 3 offers no setting, and
+    // the earlier `reasoning` flag is unchanged beside the profile
+    assert_eq!(qwen3.reasoning_profile, Some(ReasoningProfile::Toggle));
+    assert_eq!(gpt_oss.reasoning_profile, Some(ReasoningProfile::Levels));
+    assert_eq!(gemma3.reasoning_profile, Some(ReasoningProfile::None));
+    assert!(qwen3.reasoning && gpt_oss.reasoning && !gemma3.reasoning);
+}
+
+#[test]
+fn a_reasoning_template_without_a_variable_offers_no_setting() {
+    // GIVEN a template that opens a reasoning block but reads neither variable
+    let template = "{{ '<think>' }}{% for m in messages %}{{ m.content }}{% endfor %}";
+
+    // WHEN its capabilities are read
+    let caps = Capabilities::from_chat_template(Some(template));
+
+    // THEN the model reasons, and no setting is offered: a variable the
+    // template never reads would change nothing
+    assert!(caps.reasoning);
+    assert_eq!(caps.reasoning_profile, Some(ReasoningProfile::None));
+}
+
+#[test]
+fn the_family_table_settles_what_the_template_leaves_open() {
+    // GIVEN a template reading both variables, and a model with no template
+    let both = "{% if enable_thinking %}{% endif %}{{ reasoning_effort }}";
+
+    // WHEN each is read for a gpt-oss model (as a GGUF architecture and as an
+    // MLX `model_type`), and for a family the table does not list
+    let gguf = Capabilities::from_chat_template_of_family(Some(both), Some("gpt-oss"));
+    let mlx = Capabilities::from_chat_template_of_family(None, Some("gpt_oss"));
+    let unlisted = Capabilities::from_chat_template_of_family(None, Some("llama"));
+
+    // THEN the table names gpt-oss a level model, and an unlisted family with
+    // no template offers no setting
+    assert_eq!(gguf.reasoning_profile, Some(ReasoningProfile::Levels));
+    assert_eq!(mlx.reasoning_profile, Some(ReasoningProfile::Levels));
+    assert_eq!(unlisted.reasoning_profile, Some(ReasoningProfile::None));
+    assert_eq!(family_profile("GPT_OSS"), Some(ReasoningProfile::Levels));
+}
+
+#[test]
+fn an_mlx_config_names_its_family() {
+    // GIVEN the recorded MLX configuration of Qwen3, and unreadable text
+    // WHEN their `model_type` is read
+    // THEN the family is named, and nothing is named for unreadable text
+    assert_eq!(
+        mlx_config_model_type(QWEN3_MLX_CONFIG).as_deref(),
+        Some("qwen3")
+    );
+    assert_eq!(mlx_config_model_type("not json"), None);
+}
+
+#[test]
+fn a_record_without_a_profile_is_not_current() {
+    // GIVEN a capability record written before the profile existed
+    let old: Capabilities =
+        serde_json::from_str(r#"{"tools":true,"reasoning":true,"vision":false}"#)
+            .expect("an older record still parses");
+
+    // WHEN it is checked against this build
+    // THEN it reads as stale, so the index reads the model again
+    assert_eq!(old.reasoning_profile, None);
+    assert!(!old.is_current());
+    assert!(Capabilities::from_chat_template(Some(QWEN3_TEMPLATE)).is_current());
 }

@@ -290,6 +290,7 @@ from .proposed_rule_view import ProposedRuleView
 from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
 from .readme_response import ReadmeResponse
+from .reasoning_profile_dto import ReasoningProfileDto
 from .reject_plan_request import RejectPlanRequest
 from .reject_user_input_request import RejectUserInputRequest
 from .reload_response import ReloadResponse
@@ -325,6 +326,7 @@ from .server_probe_error_response import ServerProbeErrorResponse
 from .server_response import ServerResponse
 from .servers_list_response import ServersListResponse
 from .session_metrics import SessionMetrics
+from .session_model_capabilities import SessionModelCapabilities
 from .session_workspace import SessionWorkspace
 from .set_agent_model_request import SetAgentModelRequest
 from .set_approval_body import SetApprovalBody
@@ -739,6 +741,7 @@ __all__ = (
     "PurgeMemoryBody",
     "PutMcpSecretBody",
     "ReadmeResponse",
+    "ReasoningProfileDto",
     "RejectPlanRequest",
     "RejectUserInputRequest",
     "ReloadResponse",
@@ -772,6 +775,7 @@ __all__ = (
     "ServerResponse",
     "ServersListResponse",
     "SessionMetrics",
+    "SessionModelCapabilities",
     "SessionWorkspace",
     "SetAgentModelRequest",
     "SetApprovalBody",

@@ -134,6 +134,24 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
+    /// What the model of a session can do, via
+    /// `GET /api/v1/sessions/:id/model-capabilities`.
+    pub async fn get_session_model_capabilities(
+        &self,
+        session_id: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .get(&format!("/api/v1/sessions/{session_id}/model-capabilities"))
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
     /// List recent sessions via `GET /api/v1/sessions/recent?limit=N`.
     pub async fn list_recent_chat_sessions(
         &self,
