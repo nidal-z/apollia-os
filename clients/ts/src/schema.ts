@@ -717,6 +717,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/batches/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/batches/{id}/export`: the result of a batch as a file.
+         * @description One row per item, in source order: the input columns of the item, then
+         *     its output, its status and the sources its answer cites. `xlsx` is a
+         *     workbook of one sheet, `csv` is UTF-8 with one header row, `json` is one
+         *     document with the batch and an object per item. The file is offered as
+         *     `batch-<id>.<format>`. A batch still running exports the items as they
+         *     stand.
+         */
+        get: operations["export_batch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/batches/{id}/pause": {
         parameters: {
             query?: never;
@@ -5872,6 +5897,11 @@ export interface components {
             /** @description List of global events. */
             events: string[];
         };
+        /**
+         * @description The format a batch is exported in.
+         * @enum {string}
+         */
+        ExportFormat: "xlsx" | "csv" | "json";
         /** @description Response for `POST /api/v1/triggers/:id/fire`. */
         FireResponse: {
             /** @description Identifier of the submitted task. */
@@ -9782,6 +9812,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BatchDetailView"];
+                };
+            };
+            /** @description No such batch */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
+    export_batch: {
+        parameters: {
+            query: {
+                /** @description `xlsx`, `csv` or `json`. */
+                format: components["schemas"]["ExportFormat"];
+            };
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The batch as an Excel workbook, CSV or JSON file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": number[];
+                    "text/csv": string;
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description A format other than xlsx, csv or json */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
                 };
             };
             /** @description No such batch */

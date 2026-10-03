@@ -1968,6 +1968,93 @@
         }
       }
     },
+    "/api/v1/batches/{id}/export": {
+      "get": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`GET /api/v1/batches/{id}/export`: the result of a batch as a file.",
+        "description": "One row per item, in source order: the input columns of the item, then\nits output, its status and the sources its answer cites. `xlsx` is a\nworkbook of one sheet, `csv` is UTF-8 with one header row, `json` is one\ndocument with the batch and an object per item. The file is offered as\n`batch-<id>.<format>`. A batch still running exports the items as they\nstand.",
+        "operationId": "export_batch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Batch id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "`xlsx`, `csv` or `json`.",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ExportFormat"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch as an Excel workbook, CSV or JSON file",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A format other than xlsx, csv or json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/batches/{id}/pause": {
       "post": {
         "tags": [
@@ -16271,6 +16358,15 @@
             "description": "List of global events."
           }
         }
+      },
+      "ExportFormat": {
+        "type": "string",
+        "description": "The format a batch is exported in.",
+        "enum": [
+          "xlsx",
+          "csv",
+          "json"
+        ]
       },
       "FireResponse": {
         "type": "object",
