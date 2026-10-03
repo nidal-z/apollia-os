@@ -2291,6 +2291,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mcp/bridge/call": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/mcp/bridge/call`: run an exposed item to its end. */
+        post: operations["call_bridge_tool"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp/bridge/tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/mcp/bridge/tools`: the exposed items, as MCP tools. */
+        get: operations["list_bridge_tools"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp/exposed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/mcp/exposed`: the agents and workflows marked exposed. */
+        get: operations["list_exposed"];
+        /**
+         * `PUT /api/v1/mcp/exposed`: mark an agent or a workflow exposed, or not.
+         * @description Exposing an item checks that it exists; withdrawing one does not, so an
+         *     item that has since been removed can still be withdrawn.
+         */
+        put: operations["set_exposed"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mcp/registry": {
         parameters: {
             query?: never;
@@ -3583,6 +3639,107 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/server": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/server`: whether the compatible server listens, its port, why
+         *     its last start failed, and how many of its tokens are in use.
+         */
+        get: operations["server_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/server/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/server/start`: opens the compatible server on its configured
+         *     port and writes `[server] enabled = true`.
+         */
+        post: operations["start_server"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/server/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/server/stop`: closes the compatible server and writes
+         *     `[server] enabled = false`. The native API keeps answering.
+         */
+        post: operations["stop_server"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/server/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/server/tokens`: every token, in use and revoked, oldest first. */
+        get: operations["list_server_tokens"];
+        put?: never;
+        /**
+         * `POST /api/v1/server/tokens`: creates a named token and answers its value,
+         *     the only time it is given.
+         */
+        post: operations["create_server_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/server/tokens/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/v1/server/tokens/{token}`: revokes a token by identifier or
+         *     by name. The row stays listed, marked revoked.
+         */
+        delete: operations["revoke_server_token"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5852,6 +6009,23 @@ export interface components {
             /** @description Identifier of the guide session just opened. */
             session_id: string;
         };
+        /** @description What the compatible server is doing. */
+        CompatServerStatus: {
+            /**
+             * Format: int64
+             * @description How many tokens of the server are in use (not revoked).
+             */
+            activeTokens: number;
+            /** @description Why the last start failed, cleared by the next successful start. */
+            lastError?: string | null;
+            /**
+             * Format: int32
+             * @description The port it listens on, or the configured port when it is stopped.
+             */
+            port: number;
+            /** @description Whether the listener is open. */
+            running: boolean;
+        };
         /** @description Body of `POST /api/v1/connectors/oauth/complete`. */
         CompleteConsentBody: {
             /** @description The authorization `code` the provider returned. */
@@ -6088,6 +6262,14 @@ export interface components {
             /** @description Unique name, pattern `^[a-z0-9_-]+$`. */
             name: string;
         };
+        /** @description Body of `POST /api/v1/server/tokens`. */
+        CreateServerTokenRequest: {
+            /**
+             * @description Who holds the token, usually the application it is for. At most 64
+             *     characters, not digits only, unique among the tokens in use.
+             */
+            name: string;
+        };
         /** @description Request body for `POST /api/v1/sessions`. */
         CreateSessionRequest: {
             /** @description Agent name (required when `mode == "agent"`). */
@@ -6115,6 +6297,11 @@ export interface components {
             on_busy?: string | null;
             /** @description Trigger source configuration. */
             source: components["schemas"]["TriggerSourceInput"];
+        };
+        /** @description Answer of `POST /api/v1/server/tokens`: the token and, this once, its value. */
+        CreatedServerTokenView: components["schemas"]["ServerTokenView"] & {
+            /** @description The value (`apo_` and 64 hexadecimal characters). Shown this once. */
+            value: string;
         };
         /**
          * @description A credential as listed: its owner, its key name and its dates, never its
@@ -6988,6 +7175,84 @@ export interface components {
             /** @description Receiving agent name. */
             to_agent: string;
         };
+        /** @description Body of `POST /api/v1/mcp/bridge/call`. */
+        McpBridgeCall: {
+            /**
+             * @description The arguments: `{"message": "..."}` for an agent, the inputs for a
+             *     workflow.
+             */
+            arguments?: Record<string, never>;
+            /** @description The tool, as `GET /api/v1/mcp/bridge/tools` names it. */
+            name: string;
+        };
+        /** @description The end of a bridge call. */
+        McpBridgeCallResult: {
+            /** @description `true` when the run failed or was stopped. */
+            isError: boolean;
+            /** @description The agent name, or `<package>/<workflow>`. */
+            itemId: string;
+            /** @description `agent` or `workflow`. */
+            kind: string;
+            /** @description `completed`, `failed` or `canceled`. */
+            status: string;
+            /**
+             * @description The answer of the agent, or what the workflow returned; the failure
+             *     when the run did not complete.
+             */
+            text: string;
+        };
+        /** @description Error body of the MCP bridge routes. */
+        McpBridgeErrorBody: {
+            /**
+             * @description Stable code: `bridge_disabled`, `unknown_tool`, `invalid_arguments`,
+             *     `invalid_kind`, `unknown_item`, `unavailable` or `internal`.
+             */
+            code: string;
+            /** @description What went wrong, in words a person can act on. */
+            error: string;
+        };
+        /** @description One tool of the bridge, an MCP tool descriptor. */
+        McpBridgeTool: {
+            /** @description What the agent or the workflow does. */
+            description: string;
+            /** @description JSON Schema of the arguments. */
+            inputSchema: Record<string, never>;
+            /** @description `agent__<id>` or `workflow__<package>_<workflow>`. */
+            name: string;
+        };
+        /** @description The tools the bridge serves. */
+        McpBridgeToolList: {
+            tools: components["schemas"]["McpBridgeTool"][];
+        };
+        /** @description One item marked exposed. */
+        McpExposedItem: {
+            /** @description The agent name, or `<package>/<workflow>`. */
+            itemId: string;
+            /** @description `agent` or `workflow`. */
+            kind: string;
+        };
+        /** @description The items marked exposed. */
+        McpExposedItemList: {
+            items: components["schemas"]["McpExposedItem"][];
+        };
+        /** @description The exposure flag of one item, as stored. */
+        McpExposedItemState: {
+            /** @description Whether the bridge serves the item. */
+            exposed: boolean;
+            /** @description The agent name, or `<package>/<workflow>`. */
+            itemId: string;
+            /** @description `agent` or `workflow`. */
+            kind: string;
+        };
+        /** @description Body of `PUT /api/v1/mcp/exposed`. */
+        McpExposure: {
+            /** @description Whether the bridge serves the item. */
+            exposed: boolean;
+            /** @description The agent name, or `<package>/<workflow>`. */
+            itemId: string;
+            /** @description `agent` or `workflow`. */
+            kind: string;
+        };
         /** @description Answer of `DELETE /api/v1/memory/namespaces/{namespace}/entries/{entry_id}`. */
         MemoryEntryDeleted: {
             /** @description Whether an entry had this identifier. */
@@ -7720,11 +7985,17 @@ export interface components {
             origin: components["schemas"]["AgentOriginDto"];
             /**
              * @description Fields whose value is the user's rather than the package's:
-             *     `name`, `mission`, `examples`, `access`, `sources`, `autonomy`.
+             *     `name`, `mission`, `examples`, `access`, `sources`, `autonomy`,
+             *     `profile`.
              */
             overridden: string[];
             /** @description Package the agent came with. */
             package?: string | null;
+            /**
+             * @description Identifier of the user profile designated for the agent; absent when
+             *     it runs with the default profile.
+             */
+            profile?: string | null;
             /** @description Sources checked. */
             sources: string[];
             /** @description Version of the definition. */
@@ -7906,6 +8177,26 @@ export interface components {
             /** @description Unique name, the first segment of `<server>/<model>`. */
             name: string;
         };
+        /** @description A token as the list shows it: never its value. */
+        ServerTokenView: {
+            /** @description When it was created, RFC 3339. */
+            createdAt: string;
+            /**
+             * Format: int64
+             * @description Identifier, usable to revoke it.
+             */
+            id: number;
+            /** @description The last four characters of the value. */
+            lastFour: string;
+            /** @description When it last opened the server, RFC 3339; absent if never. */
+            lastUsedAt?: string | null;
+            /** @description Name given at creation. */
+            name: string;
+            /** @description Whether it was revoked. */
+            revoked: boolean;
+            /** @description When it was revoked, RFC 3339. */
+            revokedAt?: string | null;
+        };
         /** @description Body of `GET /api/v1/llm/servers`. */
         ServersListResponse: {
             /** @description Every declared server, sorted by name. */
@@ -8075,7 +8366,7 @@ export interface components {
         SetOverrideRequest: {
             /**
              * @description The user's value: a string for `name` and `mission`, a tier name for
-             *     `autonomy`, a list of strings for `examples`, `access` and `sources`.
+             *     `autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`.
              */
             value: Record<string, never>;
         };
@@ -9384,7 +9675,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access, sources or autonomy */
+                /** @description name, mission, examples, access, sources, autonomy or profile */
                 field: string;
             };
             cookie?: never;
@@ -9440,7 +9731,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access, sources or autonomy */
+                /** @description name, mission, examples, access, sources, autonomy or profile */
                 field: string;
             };
             cookie?: never;
@@ -14197,6 +14488,15 @@ export interface operations {
                     "application/json": components["schemas"]["ServerResponse"];
                 };
             };
+            /** @description The organisation policy refuses this server; nothing was saved */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
             /** @description Invalid name or address */
             422: {
                 headers: {
@@ -14237,6 +14537,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TestServerResponse"];
+                };
+            };
+            /** @description The organisation policy refuses this server; nothing was sent to it, `kind` is `policy` */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerProbeErrorResponse"];
                 };
             };
             /** @description The address is not an HTTP URL */
@@ -14581,6 +14890,184 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    call_bridge_tool: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["McpBridgeCall"];
+            };
+        };
+        responses: {
+            /** @description The run ended; `isError` says whether it failed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeCallResult"];
+                };
+            };
+            /** @description The arguments do not fit the tool (`invalid_arguments`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description The bridge is turned off (`bridge_disabled`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description No exposed item carries this name (`unknown_tool`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description The agent executor or the workflow engine is not running (`unavailable`) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+        };
+    };
+    list_bridge_tools: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tools the bridge serves */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeToolList"];
+                };
+            };
+            /** @description The bridge is turned off (`bridge_disabled`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description A store could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+        };
+    };
+    list_exposed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The items marked exposed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpExposedItemList"];
+                };
+            };
+            /** @description agents.db could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+        };
+    };
+    set_exposed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["McpExposure"];
+            };
+        };
+        responses: {
+            /** @description The flag, as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpExposedItemState"];
+                };
+            };
+            /** @description The kind is neither `agent` nor `workflow` (`invalid_kind`), or the identifier is empty (`unknown_item`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description No agent or workflow by that identifier (`unknown_item`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
+            };
+            /** @description agents.db could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpBridgeErrorBody"];
+                };
             };
         };
     };
@@ -17336,6 +17823,268 @@ export interface operations {
             };
             /** @description Resilience layer mutex poisoned */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    server_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description State of the compatible server */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompatServerStatus"];
+                };
+            };
+            /** @description No compatible server in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    start_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The compatible server listens */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompatServerStatus"];
+                };
+            };
+            /** @description Another program holds the port */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The listener or the setting failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No compatible server in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    stop_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The compatible server is stopped */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompatServerStatus"];
+                };
+            };
+            /** @description The setting could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No compatible server in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_server_tokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tokens, without their values */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerTokenView"][];
+                };
+            };
+            /** @description The token store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No compatible server in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    create_server_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateServerTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description The token and its value, shown once */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedServerTokenView"];
+                };
+            };
+            /** @description The name is empty, too long or digits only */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description A token in use already carries the name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The token store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No compatible server in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    revoke_server_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifier (digits) or name of the token */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The token, revoked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerTokenView"];
+                };
+            };
+            /** @description No token matches */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The token store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No compatible server in this runtime */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

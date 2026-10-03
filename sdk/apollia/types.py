@@ -242,6 +242,13 @@ class Ctx(Protocol):
     secrets: SecretsInterface
     events: EventsInterface
     logger: Logger
+    #: The user profile resolved for this execution: the profile designated
+    #: for the agent, else the default one. ``None`` unless the profile source
+    #: is checked for the agent (package ``sources`` default, replaced by the
+    #: user's override); each read is recorded in the execution trace. Five
+    #: fields (``name``, ``role``, ``function``, ``tools``, ``preferences``)
+    #: and a free text (``free_text``); see
+    #: :class:`apollia.context.profile.ProfileInterface`.
     profile: ProfileInterface | None
     workspace: WorkspaceContext
     stt: SttInterface

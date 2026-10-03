@@ -29,7 +29,7 @@
    * and the sub-page manages persistence itself.
    *
    * Props:
-   *   route        required. The SettingsSubRoute this page owns.
+   *   route        required. The SettingsFormRoute this page owns.
    *   onSave       optional. Presence makes this an explicit-save page (footer +
    *                Cmd+S + nav guard). Persists and resolves true on success.
    *   onReset      optional. Reverts local edits.
@@ -51,12 +51,12 @@
     setRouteState,
     getRouteState,
   } from "$lib/stores/settingsDirty";
-  import type { SettingsSubRoute } from "$lib/stores/settings";
+  import type { SettingsFormRoute } from "$lib/stores/settings";
 
   type SaveFn = () => Promise<boolean>;
 
   interface Props {
-    route: SettingsSubRoute;
+    route: SettingsFormRoute;
     onSave?: SaveFn;
     onReset?: () => void;
     kicker?: string;

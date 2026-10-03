@@ -334,3 +334,84 @@ fn forgetting_and_resetting_a_field_empties_it() {
     assert!(repo.default_profile().unwrap().is_blank());
     assert!(repo.is_empty().unwrap());
 }
+
+#[test]
+fn deleting_the_default_profile_is_refused() {
+    // GIVEN the default profile and a second one
+    let (repo, _) = setup();
+    let default = repo.default_profile().unwrap();
+    repo.create_profile("Formateur").unwrap();
+
+    // WHEN the default profile is deleted
+    let err = repo.delete_profile(&default.id).unwrap_err();
+
+    // THEN the deletion is refused with a message naming the way out, and both profiles remain
+    assert!(matches!(err, UserMemoryError::DefaultProfile(_)));
+    assert!(err.to_string().contains("make another profile the default"));
+    assert_eq!(repo.list_profiles().unwrap().len(), 2);
+}
+
+#[test]
+fn deleting_another_profile_removes_it_and_its_designation_reads_as_default() {
+    // GIVEN a second profile that a caller designates
+    let (repo, _) = setup();
+    let default = repo.default_profile().unwrap();
+    let other = repo.create_profile("Formateur").unwrap();
+    assert_eq!(
+        repo.profile_or_default(Some(&other.id)).unwrap().id,
+        other.id
+    );
+
+    // WHEN that profile is deleted
+    repo.delete_profile(&other.id).unwrap();
+
+    // THEN it is gone, and the designation left behind reads as the default
+    assert!(repo.profile(&other.id).unwrap().is_none());
+    assert_eq!(
+        repo.profile_or_default(Some(&other.id)).unwrap().id,
+        default.id
+    );
+    assert_eq!(repo.profile_or_default(None).unwrap().id, default.id);
+    assert!(matches!(
+        repo.delete_profile(&other.id).unwrap_err(),
+        UserMemoryError::NotFound(_)
+    ));
+}
+
+#[test]
+fn a_field_written_by_identifier_lands_in_that_profile_only() {
+    // GIVEN the default profile and a second one
+    let (repo, _) = setup();
+    let default = repo.default_profile().unwrap();
+    let other = repo.create_profile("Responsable SI").unwrap();
+
+    // WHEN a field is written on the second, then a key outside the schema
+    repo.set_profile_field(&other.id, "role", Some("DSI"))
+        .unwrap();
+    let outside = repo.set_profile_field(&other.id, "monthly_budget", Some("10"));
+
+    // THEN the second carries it, the default does not, and the outside key is refused
+    let reread = repo.profile(&other.id).unwrap().unwrap();
+    assert_eq!(reread.role.as_deref(), Some("DSI"));
+    assert_eq!(repo.profile(&default.id).unwrap().unwrap().role, None);
+    assert!(matches!(outside, Err(UserMemoryError::InvalidKey(_))));
+    assert_eq!(
+        repo.get_in(&reread, "role").unwrap().map(|e| e.value),
+        Some("DSI".to_owned())
+    );
+}
+
+#[test]
+fn a_profile_is_renamed_and_an_empty_name_is_refused() {
+    // GIVEN a second profile
+    let (repo, _) = setup();
+    let other = repo.create_profile("Formateur").unwrap();
+
+    // WHEN it is renamed, then renamed to blanks
+    repo.rename_profile(&other.id, "  Formatrice ").unwrap();
+    let blank = repo.rename_profile(&other.id, "   ");
+
+    // THEN the trimmed name is kept and the blank one refused
+    assert_eq!(repo.profile(&other.id).unwrap().unwrap().name, "Formatrice");
+    assert!(matches!(blank, Err(UserMemoryError::InvalidKey(_))));
+}

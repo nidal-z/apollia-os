@@ -23,11 +23,9 @@ import { recentActionIds, touchRecentAction } from "$lib/stores/recentActionsSto
 import { recentSessions, touchRecentSession } from "$lib/stores/recentSessionsStore";
 import { navigateTo } from "$lib/stores/navigation";
 import { pendingChatSessionId } from "$lib/stores/chat";
-import {
-  SETTINGS_SUB_ROUTES,
-  goToSettingsSubRoute,
-  type SettingsSubRoute,
-} from "$lib/stores/settings";
+import { SETTINGS_SUB_ROUTES, type SettingsSubRoute } from "$lib/stores/settings";
+import { navigateToSettings } from "$lib/router";
+import { settingsSubRouteLabelKey } from "$lib/navigation/breadcrumbSegments";
 import type { PaletteAction } from "./actions";
 
 const _actions = writable<PaletteAction[]>([]);
@@ -46,7 +44,7 @@ function tr(key: string): string {
 }
 
 function settingsSubRouteLabel(route: SettingsSubRoute): string {
-  return tr(`settings.nav.${route}`);
+  return tr(settingsSubRouteLabelKey(route));
 }
 
 function actionToCommandItem(action: PaletteAction, group: string): CommandItem {
@@ -137,8 +135,7 @@ function buildSettingsGroup(): CommandPaletteGroup {
     keywords: ["settings", "preferences", sub],
     action: () => {
       touchRecentAction(`settings.${sub}`);
-      navigateTo("settings");
-      goToSettingsSubRoute(sub);
+      navigateToSettings(sub);
     },
   }));
   return { label, items };

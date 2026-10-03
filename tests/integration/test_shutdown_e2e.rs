@@ -185,6 +185,7 @@ async fn test_shutdown_drains_active_tasks() {
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        inference_governance: Default::default(),
         backend: MockBackend::slow(Duration::from_millis(300)),
         llm_router: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         trigger_engine: None,
@@ -219,6 +220,7 @@ async fn test_shutdown_drains_active_tasks() {
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -302,6 +304,7 @@ async fn test_shutdown_stops_all_agents() {
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        inference_governance: Default::default(),
         backend: MockBackend::slow(Duration::ZERO),
         llm_router: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         trigger_engine: None,
@@ -336,6 +339,7 @@ async fn test_shutdown_stops_all_agents() {
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -409,6 +413,7 @@ async fn test_shutdown_broadcasts_requested_event() {
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        inference_governance: Default::default(),
         backend: MockBackend::slow(Duration::ZERO),
         llm_router: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         trigger_engine: None,
@@ -443,6 +448,7 @@ async fn test_shutdown_broadcasts_requested_event() {
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -538,6 +544,7 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        inference_governance: Default::default(),
         backend: NeverBackend,
         llm_router: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         trigger_engine: None,
@@ -572,6 +579,7 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     };
     let api = APIServer::new(
         APIServerConfig {

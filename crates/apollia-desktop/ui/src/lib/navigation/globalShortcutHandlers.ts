@@ -14,6 +14,8 @@
  *  - `palette.open` (Cmd/Ctrl+K): the sole legacy owner was
  *    `$lib/keyboard/globalShortcuts`, removed in favour of this path.
  *  - `companion.focus` (Cmd/Ctrl+Shift+C): previously unhandled.
+ *  - `settings.engines` (Cmd/Ctrl+Shift+R) and `settings.hardware`
+ *    (Cmd/Ctrl+Shift+H): open the settings window on the System group.
  *
  * The remaining global chords stay on the surfaces that already own them and
  * are tracked as a follow-up (each requires editing that surface to drop its
@@ -29,6 +31,14 @@
 import { registerShortcutHandler } from "$lib/navigation/shortcutDispatcher";
 import { commandPaletteOpen } from "$lib/stores/commandPalette";
 import { companionStore } from "$lib/stores/companion";
+import { openSettingsWindow } from "$lib/stores/settingsWindow";
+import type { SettingsSubRoute } from "$lib/stores/settings";
+
+/** The System sections each have a chord that opens the settings on them. */
+export const SETTINGS_SECTION_SHORTCUTS: Readonly<Record<string, SettingsSubRoute>> = {
+  "settings.engines": "engines",
+  "settings.hardware": "hardware",
+};
 
 /**
  * Focus the Companion chat input once the panel has had a frame to render.
@@ -65,6 +75,15 @@ export function registerGlobalShortcutHandlers(): () => void {
         focusCompanionInput();
       },
     }),
+    ...Object.entries(SETTINGS_SECTION_SHORTCUTS).map(([id, section]) =>
+      registerShortcutHandler({
+        id,
+        allowInInput: true,
+        handler: () => {
+          openSettingsWindow(section);
+        },
+      }),
+    ),
   ];
 
   return () => {

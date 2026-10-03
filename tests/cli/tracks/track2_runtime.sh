@@ -72,6 +72,9 @@ check_exit    "mcp show removed server → 1"  1     "${Q[@]}" mcp show notes
 # spawn error (ENOENT), well before the 30s init timeout a bad-but-spawnable
 # command would hit; nothing is persisted on that path.
 check_exit    "mcp add (unspawnable command) → 1"  1 "${Q[@]}" mcp add e2e-ghost --command /nonexistent-mcp-server-binary
+# The seeded apollia.toml leaves `mcp.server_enabled` off, so the daemon
+# refuses the MCP bridge with a reason that names the setting.
+check_exit    "mcp server (bridge off) → 2"  2    bash -c "'${Q[0]}' ${Q[*]:1} mcp server </dev/null"
 skip          "mcp add (live server)" "needs a single-binary MCP server; a bad-but-spawnable command blocks 30s on init timeout (seeded servers cover show/test/restart/update/remove)"
 
 # ── tools / audit ───────────────────────────────────────────────────────────
@@ -296,6 +299,9 @@ check_content "agent set mission"                  "Answer in one line." "${Q[@]
 check_content "agent show carries the override"    "Answer in one line." "${Q[@]}" agent show apollia-chat
 check_exit    "agent reset without --confirm → 1"  1 "${Q[@]}" agent reset apollia-chat
 check         "agent reset --field mission"        "${Q[@]}" agent reset apollia-chat --field mission --confirm
+check_content "agent set sources profile"          "profile" "${Q[@]}" agent set apollia-chat sources profile
+check_content "agent show lists the profile source" "profile" "${Q[@]}" agent show apollia-chat
+check         "agent reset --field sources"        "${Q[@]}" agent reset apollia-chat --field sources --confirm
 check         "agent reset --confirm"              "${Q[@]}" agent reset apollia-chat --confirm
 check_exit    "agent set unknown agent → 1"        1 "${Q[@]}" agent set e2e-ghost-agent mission "x"
 # The settings of the chat are the overrides and the model of the Apollia

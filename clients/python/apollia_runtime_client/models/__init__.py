@@ -82,6 +82,7 @@ from .coaching_example import CoachingExample
 from .coaching_request import CoachingRequest
 from .companion_enabled import CompanionEnabled
 from .companion_session import CompanionSession
+from .compat_server_status import CompatServerStatus
 from .complete_consent_body import CompleteConsentBody
 from .complete_request import CompleteRequest
 from .complete_request_schema_type_0 import CompleteRequestSchemaType0
@@ -105,8 +106,10 @@ from .create_preset_request import CreatePresetRequest
 from .create_preset_request_load import CreatePresetRequestLoad
 from .create_preset_request_request import CreatePresetRequestRequest
 from .create_server_request import CreateServerRequest
+from .create_server_token_request import CreateServerTokenRequest
 from .create_session_request import CreateSessionRequest
 from .create_trigger_request import CreateTriggerRequest
+from .created_server_token_view import CreatedServerTokenView
 from .credential_entry_view import CredentialEntryView
 from .credential_test_view import CredentialTestView
 from .daily_cost_entry import DailyCostEntry
@@ -214,6 +217,17 @@ from .loaded_models_response import LoadedModelsResponse
 from .logs_response import LogsResponse
 from .logs_response_entries_item import LogsResponseEntriesItem
 from .mailbox_message_row import MailboxMessageRow
+from .mcp_bridge_call import McpBridgeCall
+from .mcp_bridge_call_arguments import McpBridgeCallArguments
+from .mcp_bridge_call_result import McpBridgeCallResult
+from .mcp_bridge_error_body import McpBridgeErrorBody
+from .mcp_bridge_tool import McpBridgeTool
+from .mcp_bridge_tool_input_schema import McpBridgeToolInputSchema
+from .mcp_bridge_tool_list import McpBridgeToolList
+from .mcp_exposed_item import McpExposedItem
+from .mcp_exposed_item_list import McpExposedItemList
+from .mcp_exposed_item_state import McpExposedItemState
+from .mcp_exposure import McpExposure
 from .memory_entry_deleted import MemoryEntryDeleted
 from .memory_entry_view import MemoryEntryView
 from .memory_imported import MemoryImported
@@ -324,6 +338,7 @@ from .server_model import ServerModel
 from .server_models_response import ServerModelsResponse
 from .server_probe_error_response import ServerProbeErrorResponse
 from .server_response import ServerResponse
+from .server_token_view import ServerTokenView
 from .servers_list_response import ServersListResponse
 from .session_metrics import SessionMetrics
 from .session_model_capabilities import SessionModelCapabilities
@@ -535,6 +550,7 @@ __all__ = (
     "CoachingRequest",
     "CompanionEnabled",
     "CompanionSession",
+    "CompatServerStatus",
     "CompleteConsentBody",
     "CompleteRequest",
     "CompleteRequestSchemaType0",
@@ -552,12 +568,14 @@ __all__ = (
     "CreateChannelRequest",
     "CreateChannelRequestConfig",
     "CreateCompanionSessionBody",
+    "CreatedServerTokenView",
     "CreateLlmBackendRequest",
     "CreateLlmBackendRequestConfigJson",
     "CreatePresetRequest",
     "CreatePresetRequestLoad",
     "CreatePresetRequestRequest",
     "CreateServerRequest",
+    "CreateServerTokenRequest",
     "CreateSessionRequest",
     "CreateTriggerRequest",
     "CredentialEntryView",
@@ -667,6 +685,17 @@ __all__ = (
     "LogsResponse",
     "LogsResponseEntriesItem",
     "MailboxMessageRow",
+    "McpBridgeCall",
+    "McpBridgeCallArguments",
+    "McpBridgeCallResult",
+    "McpBridgeErrorBody",
+    "McpBridgeTool",
+    "McpBridgeToolInputSchema",
+    "McpBridgeToolList",
+    "McpExposedItem",
+    "McpExposedItemList",
+    "McpExposedItemState",
+    "McpExposure",
     "MemoryEntryDeleted",
     "MemoryEntryView",
     "MemoryImported",
@@ -774,6 +803,7 @@ __all__ = (
     "ServerProbeErrorResponse",
     "ServerResponse",
     "ServersListResponse",
+    "ServerTokenView",
     "SessionMetrics",
     "SessionModelCapabilities",
     "SessionWorkspace",

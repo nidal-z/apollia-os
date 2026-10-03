@@ -28,6 +28,8 @@ endpoints. Most of the project's day-to-day Rust changes land here.
 | `TimeoutWatcher` | expiry of `input_required` tasks | no channel; a `tokio::time::interval` scan loop | n/a | `src/timeout_watcher.rs` |
 | `OnDemandBackend` | one per installed agent: builds its backend on the first task, drops it after `[runtime] agent_idle_unload_secs` without a call or when the agent is parked | mpsc | 64 | `src/on_demand.rs` |
 | `BatchActor` | progress of every running batch: starts items up to their concurrency, counts their ends, interrupts past the failure threshold, pauses, resumes, stops and retries a batch, records and withdraws its grants, publishes waiting items and the end of a batch, resumes running batches at start | two mpsc | 64 commands, 256 item ends | `src/batch/actor.rs` |
+| `CompatServerHandle` | the compatible server's listener: opens it at start when `[server] enabled` says so, starts and stops it on request and writes the switch, keeps the last start error, closes it on `ShutdownRequested` without touching the switch | mpsc | 64 | `src/compat_server/actor.rs` |
+| `ServerTokensHandle` | the tokens of the compatible server in `system.db`: creates one (`apo_` value answered once, only its SHA-256 kept), lists and revokes them, counts those in use, checks a presented token in constant time and stamps its last use; spawned by `CompatServerHandle`, stops when its handles drop | mpsc | 256 | `src/compat_server/tokens.rs` |
 | `WorkflowActor` | the workflow runs in progress and their cancellation tokens: launches a run after checking its inputs, stops one and answers once it ended, fails at start the runs a stopped process left running; each run reports its steps itself, to `hitl.db` and the bus | mpsc | 64 | `src/workflows/actor.rs` |
 
 Hosted from other crates, started by this one :
@@ -114,6 +116,25 @@ Rules :
   There is no `auth.toml`.
 - Error responses : `{"error": {"code": "...", "message": "...", "details": ...}}`,
   HTTP status reflecting the error class.
+
+Exemption, the compatible endpoints. The compatible server is a second
+listener on its own port (`[server] port`, 7772 by default), separate from the
+native API above, and the paths it serves are not Apollia's: they follow the
+OpenAI and Anthropic formats, so they live under `/v1/...`, use those APIs'
+`snake_case` field names, and answer errors in the OpenAI envelope
+`{"error": {"message", "type", "code"}}`, except a `401` on the Anthropic
+endpoint (`/v1/messages`), which answers in Anthropic's. Their authentication is
+not the native API's: with `[server] require_auth`, a request presents a token
+of the server (`apo_...`, `Authorization: Bearer` or `x-api-key`), and the
+internal token never opens them. None of the rules of this section
+applies to them. They live in `src/compat_server/`, never in `src/api/` and
+never under `/api/v1/`, so `scripts/check_openapi_routes.py` does not read them
+and `clients/openapi.json` does not declare them. Their contract is the public
+page `docs/site/docs/reference/compatible-endpoints.md`, and
+`scripts/check_compat_routes.py` holds every path the module's router serves
+against that page's table, in both languages. Only the routes that start, stop and
+read the server, and those that create, list and revoke its tokens, live in the
+native API (`src/api/routes_server.rs`, `/api/v1/server`), under its rules.
 
 Adding a route :
 1. Define the request/response types in the same `routes_*.rs` file.
@@ -220,10 +241,9 @@ syntax follows SQLite's FTS5 (`tag:value`, `+required`, `-excluded`).
 ## 6. Configuration
 
 Runtime config : `apollia.toml`, resolved as an explicit `--config` override,
-then an `apollia.toml` in the working directory, then
-`$XDG_CONFIG_HOME/apollia/apollia.toml` (or
-`~/.config/apollia/apollia.toml`). It is not under `~/.apollia/`, which holds
-the data files. Parsed via `serde` into the
+otherwise `apollia_core::paths::config_file()`, that is
+`~/.apollia/apollia.toml`, the one file every surface reads. The working
+directory and `~/.config/apollia/` are never read. Parsed via `serde` into the
 `RuntimeConfig` struct (`crates/apollia-core/src/config/runtime.rs`).
 
 There is no `SIGHUP` handler. What reloads does so through an explicit

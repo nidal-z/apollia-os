@@ -25,13 +25,13 @@
   }
 
   function goShortcuts() {
-    navigateToSettings("shortcuts");
+    navigateToSettings("chat");
     close();
   }
 
   function goDangerResetOnboarding() {
-    navigateToSettings("danger");
-    // The Danger page listens to ?focus=… to scroll + focus the card.
+    navigateToSettings("appearance");
+    // The onboarding reminders sit under Appearance; the row carries the anchor.
     // We can't set query string mid-app, so we rely on an inline anchor:
     // scroll happens via hash after sub-route mounts.
     setTimeout(() => {
@@ -43,12 +43,12 @@
   }
 
   function goHelp() {
-    navigateToSettings("help");
+    navigateToSettings("general");
     close();
   }
 
   function goAbout() {
-    navigateToSettings("about");
+    navigateToSettings("general");
     close();
   }
 

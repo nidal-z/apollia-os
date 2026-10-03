@@ -20,6 +20,37 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
+    // ─── MCP bridge ───────────────────────────────────────────────────────────
+
+    /// The tools the MCP bridge serves via `GET /api/v1/mcp/bridge/tools`.
+    pub async fn mcp_bridge_tools(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get("/api/v1/mcp/bridge/tools").await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Run an exposed item to its end via `POST /api/v1/mcp/bridge/call`.
+    pub async fn mcp_bridge_call(
+        &self,
+        name: &str,
+        arguments: &serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let body = serde_json::json!({ "name": name, "arguments": arguments });
+        let resp = self.post("/api/v1/mcp/bridge/call", Some(&body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
     /// Get MCP server details via `GET /api/v1/mcp/servers/{name}`.
     pub async fn get_mcp_server_detail(
         &self,

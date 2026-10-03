@@ -1,33 +1,21 @@
-<script lang="ts" context="module">
-  export const meta = {
-    title: "settings.nav.danger",
-    icon: "alert-triangle",
-    group: "settings.nav.cluster_danger",
-    cluster: "danger",
-  } as const;
-</script>
-
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { t } from "svelte-i18n";
-  import { AlertTriangle, RefreshCcw, Brain, FileText, Trash2, Ban } from "lucide-svelte";
+  import { AlertTriangle, Brain, FileText, Trash2, Ban } from "lucide-svelte";
   import { cn } from "$lib/utils";
   import { Button } from "$lib/components/ui/button";
   import { addToast } from "$lib/components/ui/toast";
   import { reportError } from "$lib/errors/reportError";
-  import { onboardingStore, onboardingModalOpen } from "$lib/stores/onboarding";
+  import { consumeSettingsFocus } from "$lib/stores/settingsWindow";
   import {
-    resetOnboarding,
     clearAllMemories,
     clearLogs,
     factoryReset,
     appRestart,
   } from "$lib/ipc/danger";
-  import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
-  import DestructiveActionDialog from "../../components/settings/DestructiveActionDialog.svelte";
+  import DestructiveActionDialog from "./DestructiveActionDialog.svelte";
 
   type ActionId =
-    | "reset-onboarding"
     | "clear-memories"
     | "clear-logs"
     | "factory-reset";
@@ -36,7 +24,7 @@
     id: ActionId;
     /** i18n stem segment under `settings.danger` (underscored). */
     key: string;
-    icon: typeof RefreshCcw;
+    icon: typeof Brain;
     /** Word the operator must type to unlock the confirm button. */
     confirmWord: string;
     irreversible: boolean;
@@ -51,25 +39,6 @@
 
   let openAction = $state<ActionId | null>(null);
   let loading = $state(false);
-
-  async function runResetOnboarding(): Promise<void> {
-    loading = true;
-    try {
-      await resetOnboarding();
-      // Reload the now-empty state so derived stores (badges, etc.) catch up.
-      await onboardingStore.refreshState();
-      // Open the onboarding modal immediately, no restart required.
-      onboardingModalOpen.set(true);
-      addToast($t("settings.danger.reset_onboarding.success"), "success", {
-        "data-testid": "danger-reset-onboarding-toast",
-      });
-      openAction = null;
-    } catch (err) {
-      reportError(err, { surface: "toast" });
-    } finally {
-      loading = false;
-    }
-  }
 
   async function runClearMemories(): Promise<void> {
     loading = true;
@@ -126,17 +95,17 @@
   }
 
   const ACTIONS: DangerAction[] = [
-    { id: "reset-onboarding", key: "reset_onboarding", icon: RefreshCcw, confirmWord: "RESET", irreversible: false, critical: false, warning: false, lockMs: 0, run: runResetOnboarding },
     { id: "clear-memories", key: "clear_memories", icon: Brain, confirmWord: "DELETE", irreversible: true, critical: false, warning: false, lockMs: 0, run: runClearMemories },
     { id: "clear-logs", key: "clear_logs", icon: FileText, confirmWord: "DELETE", irreversible: false, critical: false, warning: false, lockMs: 0, run: runClearLogs },
     { id: "factory-reset", key: "factory_reset", icon: Trash2, confirmWord: "FACTORY RESET", irreversible: true, critical: true, warning: true, lockMs: 3000, run: runFactoryReset },
   ];
 
-  // Anchor scroll (?focus=reset-onboarding from UserMenu).
+  // Direct access to one action: the palette opens General with the action's
+  // id as focus target; `?focus=<action id>` in the address does the same.
   onMount(async () => {
     await tick();
-    const params = new URLSearchParams(window.location.search);
-    const focus = params.get("focus");
+    const focus =
+      consumeSettingsFocus() ?? new URLSearchParams(window.location.search).get("focus");
     if (focus) {
       const el = document.getElementById(focus);
       el?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -192,7 +161,7 @@
   </article>
 {/snippet}
 
-<SettingsSubPage route="danger" data-testid="danger-section">
+<div class="flex flex-col gap-4" data-testid="danger-section">
   <div
     class="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/5 px-4 py-3"
     role="note"
@@ -215,7 +184,7 @@
       {@render card(action)}
     {/if}
   {/each}
-</SettingsSubPage>
+</div>
 
 {#each ACTIONS as action (action.id)}
   <DestructiveActionDialog
