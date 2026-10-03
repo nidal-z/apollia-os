@@ -18,40 +18,32 @@ use apollia_runtime::router::TaskRouterHandle;
 use apollia_tools::tools::ask_user::PendingUserInputs;
 use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 
-/// Searches for `apollia.toml` in priority order and applies all parsable sections
-/// (llm, triggers, notifications) to the provided `EmbeddedConfig`.
+/// Reads `~/.apollia/apollia.toml` and applies all parsable sections (llm,
+/// triggers, notifications) to the provided `EmbeddedConfig`.
 ///
-/// Search order (first match wins):
-///   1. `~/.apollia/apollia.toml` : canonical desktop config (the same file
-///      `crate::commands::config` reads/writes and `sync_to_toml` mirrors backends to)
-///   2. `./apollia.toml`          : CWD (useful when running from workspace root)
-///
-/// The legacy XDG location `~/.config/apollia/apollia.toml` is deliberately NOT
-/// searched. It is not the desktop's canonical config path, yet a stale copy
-/// left there on a developer machine would be resolved on a clean profile
-/// (after `rm -rf ~/.apollia`) and its `[[llm.backends]]` entries would be
-/// silently imported into a fresh `system.db` by the supervisor's
-/// TOML-to-`system.db` migration, resurrecting a backend the user never
-/// configured. `system.db` is the source of truth for LLM backends; a clean
-/// install must start with none.
+/// It is the one file every surface reads and writes (the CLI, the daemon,
+/// `crate::commands::config`, and `sync_to_toml` which mirrors backends to
+/// it). The working directory is not searched: an agent package keeps its
+/// manifest under the same name. The former XDG location
+/// `~/.config/apollia/apollia.toml` is not searched either: a stale copy left
+/// there would be resolved on a clean profile (after `rm -rf ~/.apollia`) and
+/// its `[[llm.backends]]` entries silently imported into a fresh `system.db`
+/// by the supervisor's TOML-to-`system.db` migration, resurrecting a backend
+/// the user never configured.
 ///
 /// Returns the config unchanged if no file is found.
 pub(crate) fn load_toml_config(config: EmbeddedConfig) -> EmbeddedConfig {
-    let candidates = [
-        apollia_core::paths::data_dir().map(|d| d.join("apollia.toml")),
-        std::env::current_dir().ok().map(|d| d.join("apollia.toml")),
-    ];
-
-    for maybe_path in candidates.into_iter().flatten() {
-        if maybe_path.exists() {
-            if let Ok(content) = std::fs::read_to_string(&maybe_path) {
-                let mut updated = config.apply_toml(&content);
-                updated.config_path = Some(maybe_path);
-                return updated;
-            }
+    let Some(path) = apollia_core::paths::config_file().filter(|p| p.exists()) else {
+        return config;
+    };
+    match std::fs::read_to_string(&path) {
+        Ok(content) => {
+            let mut updated = config.apply_toml(&content);
+            updated.config_path = Some(path);
+            updated
         }
+        Err(_) => config,
     }
-    config
 }
 
 /// Point the embedded Python interpreter at the bundled `python-build-standalone`

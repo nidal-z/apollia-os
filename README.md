@@ -281,7 +281,7 @@ goes through the permission engine and lands in the audit journal.
 
 ## Configuration
 
-Configuration lives in `~/.config/apollia/apollia.toml`, and every key is also
+Configuration lives in `~/.apollia/apollia.toml`, and every key is also
 reachable from `apollia-os config`. Nothing is required to start: the defaults
 run a local model against a local workspace.
 

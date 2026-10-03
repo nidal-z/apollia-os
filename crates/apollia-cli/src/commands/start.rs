@@ -125,7 +125,14 @@ fn open_secret_store(data_dir: &Path) -> Option<Arc<std::sync::Mutex<ToolCredent
 /// Returns `Ok(true)` when shutdown was triggered by SIGINT (Ctrl+C), so the
 /// caller can exit with code 5 to distinguish voluntary interruption from
 /// success (0) or error (1–4).
-pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, StartError> {
+///
+/// `config` is the configuration file named by `--config`; without it the
+/// runtime reads `~/.apollia/apollia.toml`.
+pub async fn run(
+    socket: Option<PathBuf>,
+    port: Option<u16>,
+    config: Option<PathBuf>,
+) -> Result<bool, StartError> {
     let start = Instant::now();
     let socket_path = socket.unwrap_or_else(default_socket_path);
     let tcp_port = port.unwrap_or(DEFAULT_TCP_PORT);
@@ -149,34 +156,9 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
 
     // Load apollia.toml if found. Agents, triggers, pipelines, notifications, and stt
     // are loaded from SQLite by the Supervisor; only static sections are parsed here.
-    let (loaded_config, config_path) = load_start_config()?;
-    let (
-        llm_config,
-        api_file_config,
-        runtime_file_config,
-        hitl_file_config,
-        tools_file_config,
-        mcp_file_config,
-        hooks_file_config,
-        chat_file_config,
-        filesystem_file_config,
-        workflows_file_config,
-    ) = match loaded_config {
-        Some(cfg) => (
-            cfg.llm,
-            cfg.api,
-            cfg.runtime,
-            cfg.hitl,
-            cfg.tools,
-            cfg.mcp,
-            cfg.hooks,
-            cfg.chat,
-            cfg.filesystem,
-            cfg.workflows,
-        ),
-        None => (None, None, None, None, None, None, None, None, None, None),
-    };
-
+    let (loaded_config, config_path) = load_start_config(config.as_deref())?;
+    let file_config = loaded_config.unwrap_or_default();
+    let llm_config = file_config.llm;
     let llm_label = llm_config
         .as_ref()
         .map(|l| format!("backend \"{}\"", l.default))
@@ -225,7 +207,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     };
 
     // Resolve [api] section (absent = all defaults).
-    let api_cfg = api_file_config.unwrap_or_default();
+    let api_cfg = file_config.api;
     let bind_addr = api_cfg.bind.clone();
 
     // Load or generate the API token when require_token = true.
@@ -241,14 +223,14 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     };
 
     // Start all actors via Supervisor (ordered, with timeout + rollback)
-    let runtime_config = runtime_file_config.unwrap_or_default();
+    let runtime_config = file_config.runtime;
     let agent_idle_unload = std::time::Duration::from_secs(runtime_config.agent_idle_unload_secs);
-    let hitl_config = hitl_file_config.unwrap_or_default();
-    let tools_config = tools_file_config.unwrap_or_default();
-    let mcp_config = mcp_file_config.unwrap_or_default();
-    let hooks_config = hooks_file_config.unwrap_or_default();
-    let chat_config = chat_file_config.unwrap_or_default();
-    let filesystem_config = filesystem_file_config.unwrap_or_default();
+    let hitl_config = file_config.hitl;
+    let tools_config = file_config.tools;
+    let mcp_config = file_config.mcp;
+    let hooks_config = file_config.hooks;
+    let chat_config = file_config.chat;
+    let filesystem_config = file_config.filesystem;
     let config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: socket_path.clone(),
@@ -287,7 +269,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         plan_mode_default: chat_config.plan_mode_default,
         chat_default_workspace: chat_config.default_workspace.clone(),
         chat_tool_turn_temperature: chat_config.tool_turn_temperature,
-        workflows_config: workflows_file_config.unwrap_or_default(),
+        workflows_config: file_config.workflows,
         filesystem_trusted_paths: filesystem_config.resolved_trusted_paths(),
     };
     let supervisor = Supervisor::new(config);

@@ -35,6 +35,7 @@ pub enum McpToolLoading {
 /// and workflows to an MCP client. Every field has a sane default via
 /// [`Default`].
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct McpConfig {
     /// Validity duration of MCP HITL approvals, in hours.
     ///
