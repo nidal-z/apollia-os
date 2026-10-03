@@ -22,6 +22,9 @@
 //! - [`ServerConfig`]: `[server]`, the compatible server, a second listener
 //!   of the runtime on its own port, switched off by default; its two keys
 //!   are named settings too.
+//! - [`EnginesConfig`]: `[engines]`, the settings of the local inference
+//!   engines, the engine log level first; named settings, read when a model
+//!   loads.
 //!
 //! `[llm]` is another, whose type lives in `apollia-llm`.
 //!
@@ -39,6 +42,7 @@ mod api;
 mod autonomy;
 mod chat;
 mod desktop;
+mod engines;
 mod filesystem;
 mod filesystem_risk;
 mod hitl;
@@ -71,7 +75,8 @@ pub use autonomy::{
     AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, AutonomyLevelParseError, GatePolicy,
 };
 pub use chat::ChatConfig;
-pub use desktop::DesktopConfig;
+pub use desktop::{DesktopConfig, UpdateChannel};
+pub use engines::{EngineLogLevel, EnginesConfig, ENGINE_LOG_LEVELS};
 pub use filesystem::{FilesystemConfig, JournalConfig};
 pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
@@ -87,7 +92,7 @@ pub use runtime::RuntimeConfig;
 pub use server::{ServerConfig, DEFAULT_COMPAT_SERVER_PORT};
 pub use settings::{
     check_imposed_setting, resolve_setting, resolve_setting_in, write_setting, PolicySettings,
-    ResolvedSetting, SettingError, SettingSource,
+    ResolvedSetting, SettingError, SettingSource, GUARDRAIL_LEVELS,
 };
 pub use tools::ToolsConfig;
 pub use triggers::TriggersConfig;

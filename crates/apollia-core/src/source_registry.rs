@@ -5,7 +5,7 @@
 //! folder. Each row names its kind, a label, an optional group, what it points
 //! at (a folder connection, a file path, a mail connection, a memory space),
 //! the state of its index and when it was added. The table is created by
-//! `system_db::migrate_v6`.
+//! `system_db::migrate_v7`.
 //!
 //! The `sources` list of an agent (package default, then the user's override)
 //! holds identifiers of this registry, or one of the two kinds that point at

@@ -21,10 +21,12 @@
 
 use axum::Json;
 use serde::Serialize;
-use utoipa::openapi::schema::{KnownFormat, ObjectBuilder, Schema, SchemaFormat, Type};
 use utoipa::openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme};
-use utoipa::openapi::RefOr;
 use utoipa::{Modify, OpenApi, ToSchema};
+
+mod bodies;
+
+pub use bodies::{RawWebhookBody, TranscribeForm};
 
 /// Name of the single security scheme the contract declares.
 ///
@@ -76,61 +78,6 @@ pub struct ApiErrorBody {
     /// Human-readable error description.
     pub error: String,
 }
-
-/// Request body of `POST /api/v1/stt/transcribe`: a multipart form.
-///
-/// The handler reads the parts off axum's `Multipart` stream, so no Rust type
-/// carries the form and the schema is written by hand. Without one, the Python
-/// generator skips the operation and the client offers no way to call it.
-pub enum TranscribeForm {}
-
-impl utoipa::PartialSchema for TranscribeForm {
-    fn schema() -> RefOr<Schema> {
-        ObjectBuilder::new()
-            .property(
-                "audio",
-                ObjectBuilder::new()
-                    .schema_type(Type::String)
-                    .format(Some(SchemaFormat::KnownFormat(KnownFormat::Binary)))
-                    .description(Some("WAV audio file")),
-            )
-            .required("audio")
-            .property(
-                "language",
-                ObjectBuilder::new()
-                    .schema_type(Type::String)
-                    .description(Some("Language hint, an ISO 639-1 code")),
-            )
-            .property(
-                "source",
-                ObjectBuilder::new()
-                    .schema_type(Type::String)
-                    .enum_values(Some(["api", "file", "hotkey"]))
-                    .description(Some(
-                        "What the audio is, the tag the history shows: api (default), file or hotkey",
-                    )),
-            )
-            .into()
-    }
-}
-
-impl ToSchema for TranscribeForm {}
-
-/// Request body of `POST /webhooks/{id}`: the raw bytes the HMAC is computed on.
-///
-/// The handler takes `Bytes`, which carries no schema of its own.
-pub enum RawWebhookBody {}
-
-impl utoipa::PartialSchema for RawWebhookBody {
-    fn schema() -> RefOr<Schema> {
-        ObjectBuilder::new()
-            .schema_type(Type::String)
-            .format(Some(SchemaFormat::KnownFormat(KnownFormat::Binary)))
-            .into()
-    }
-}
-
-impl ToSchema for RawWebhookBody {}
 
 /// The generated OpenAPI document for the `/api/v1` driving contract.
 ///
@@ -422,6 +369,9 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_server::server_status,
         crate::api::routes_server::start_server,
         crate::api::routes_server::stop_server,
+        crate::api::routes_server::tokens::list_server_tokens,
+        crate::api::routes_server::tokens::create_server_token,
+        crate::api::routes_server::tokens::revoke_server_token,
         crate::api::routes_sources::list_sources,
         crate::api::routes_sources::create_source,
         crate::api::routes_sources::delete_source,
@@ -736,6 +686,9 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_app_lifecycle::MemoryWiped,
         crate::api::routes_app_lifecycle::DirectoryRemoved,
         crate::compat_server::CompatServerStatus,
+        crate::api::routes_server::tokens::CreateServerTokenRequest,
+        crate::api::routes_server::tokens::ServerTokenView,
+        crate::api::routes_server::tokens::CreatedServerTokenView,
         crate::memory_view::MemoryEntryView,
         crate::memory_view::MemorySearchResultView,
         crate::memory_view::InjectedMemoryEntryView,

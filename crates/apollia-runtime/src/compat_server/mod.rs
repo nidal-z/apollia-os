@@ -15,19 +15,29 @@
 //! stopping it writes `enabled`, so a runtime that restarts opens the listener
 //! again if it was open.
 //!
+//! When `[server] require_auth` is on, every request must present a token of
+//! the server (`apo_...`), created, listed and revoked through the native API
+//! and kept by [`ServerTokensHandle`] as a SHA-256 in `system.db`; the
+//! internal token of the desktop never opens this server.
+//!
 //! [`CompatServerHandle`] is the actor that owns the listener. The routes it
 //! serves are assembled by [`compat_router`]; every path that router mounts is
 //! listed on the public page of compatible endpoints, which
 //! `scripts/check_compat_routes.py` holds.
 
 mod actor;
+mod auth;
 mod router;
+mod tokens;
 
+#[cfg(test)]
+mod auth_tests;
 #[cfg(test)]
 pub(crate) mod tests;
 
 pub use actor::{CompatServerHandle, CompatServerStatus};
 pub use router::compat_router;
+pub use tokens::{CreatedServerToken, ServerTokensError, ServerTokensHandle, SERVER_TOKEN_PREFIX};
 
 use apollia_core::config::SettingError;
 
@@ -57,6 +67,9 @@ pub enum CompatServerError {
         #[from]
         source: SettingError,
     },
+    /// The tokens of the server could not be counted.
+    #[error(transparent)]
+    Tokens(#[from] ServerTokensError),
     /// The actor that owns the listener has stopped.
     #[error("the compatible server has stopped with the runtime")]
     ActorGone,

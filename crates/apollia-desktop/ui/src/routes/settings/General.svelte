@@ -1,13 +1,15 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { t, locale } from "svelte-i18n";
-  import { RefreshCw, Globe, FolderOpen, LifeBuoy, AlertTriangle } from "lucide-svelte";
+  import { RefreshCw, Globe, FolderOpen, LifeBuoy, AlertTriangle, Lock, SlidersHorizontal } from "lucide-svelte";
   import { systemInfoStore, settingsLoaders } from "$lib/stores/settings";
   import { setLocale } from "$lib/i18n";
   import { openExternalUrl } from "$lib/utils/externalLink";
   import { reportError } from "$lib/errors/reportError";
   import { Button } from "$lib/components/ui/button";
   import { Select } from "$lib/components/ui/select";
+  import { Toggle } from "$lib/components/ui/toggle";
+  import { openDownloadsOnStart, setOpenDownloadsOnStart } from "$lib/stores/downloads";
   import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
   import SettingsSection from "../../components/settings/SettingsSection.svelte";
   import SettingsFieldRow from "../../components/settings/SettingsFieldRow.svelte";
@@ -16,6 +18,19 @@
   import AboutBlock from "../../components/settings/about/AboutBlock.svelte";
   import HelpBlock from "../../components/settings/help/HelpBlock.svelte";
   import DangerZone from "../../components/settings/DangerZone.svelte";
+  import { developerMode } from "$lib/stores/developerMode";
+  import { openLogsDir } from "$lib/ipc/app";
+  import { addToast } from "$lib/components/ui/toast";
+  import {
+    UPDATE_CHANNELS,
+    hydrateUpdateChannel,
+    isUpdateChannel,
+    setUpdateChannel,
+    updateChannel,
+    updateChannelSelectState,
+    updateChannelSource,
+    type UpdateChannel,
+  } from "$lib/stores/updateChannel";
 
   const ISSUES_URL = "https://github.com/Apollia-OS/apollia-os/issues/new";
 
@@ -24,20 +39,36 @@
   // "~/.apollia": the two differ as soon as the process runs under another HOME.
   const dataDir = $derived($systemInfoStore.data?.data_dir ?? null);
 
-  // The channel is inferred from the version string's prerelease tag (the part
-  // after the first "-"), never fabricated: no tag means a stable build.
-  const channelLabel = $derived.by(() => {
-    if (!version) return undefined;
-    return version.includes("-")
+  // The channel is the setting in force, never guessed from the version string.
+  const channelLabel = $derived(
+    $updateChannel === "preview"
       ? $t("settings.about.channel_prerelease")
-      : $t("settings.about.channel_stable");
-  });
+      : $t("settings.about.channel_stable"),
+  );
+  const channelSelect = $derived(updateChannelSelectState($updateChannelSource));
+
+  const CHANNEL_LABEL_KEYS: Record<UpdateChannel, string> = {
+    stable: "settings.general.channel_stable",
+    preview: "settings.general.channel_preview",
+  };
+
+  function selectChannel(value: string): void {
+    if (isUpdateChannel(value)) void setUpdateChannel(value);
+  }
 
   const currentLang = $derived($locale?.startsWith("fr") ? "fr" : "en");
 
   function selectLocale(value: string) {
     locale.set(value);
     setLocale(value);
+  }
+
+  async function openLogs(): Promise<void> {
+    try {
+      await openLogsDir();
+    } catch {
+      addToast($t("settings.general.logs_failed"), "error");
+    }
   }
 
   async function reportProblem(): Promise<void> {
@@ -50,6 +81,7 @@
 
   onMount(() => {
     void settingsLoaders.systemInfo();
+    void hydrateUpdateChannel();
   });
 </script>
 
@@ -76,9 +108,44 @@
         {/if}
       {/snippet}
     </SettingsFieldRow>
-    <div class="py-3">
-      <UpdateCheckPanel variant="bare" />
-    </div>
+    <SettingsFieldRow
+      label={$t("settings.general.channel_label")}
+      hint={$t("settings.general.channel_hint")}
+      for="general-update-channel"
+      border={false}
+      data-testid="general-update-channel"
+    >
+      {#snippet control()}
+        <div class="flex flex-col items-end gap-1">
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <UpdateCheckPanel variant="bare" />
+            <Select
+              id="general-update-channel"
+              size="sm"
+              value={$updateChannel}
+              disabled={channelSelect.disabled}
+              onchange={(e) => selectChannel(e.currentTarget.value)}
+              aria-label={$t("settings.general.channel_label")}
+              data-testid="update-channel-select"
+            >
+              {#each UPDATE_CHANNELS as channel (channel)}
+                <option value={channel}>{$t(CHANNEL_LABEL_KEYS[channel])}</option>
+              {/each}
+            </Select>
+          </div>
+          {#if channelSelect.locked}
+            <p
+              class="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+              title={$t("settings.policy_locked_hint")}
+              data-testid="update-channel-policy"
+            >
+              <Lock class="h-3 w-3" aria-hidden="true" />
+              {$t("settings.policy_locked")}
+            </p>
+          {/if}
+        </div>
+      {/snippet}
+    </SettingsFieldRow>
   </SettingsSection>
 
   <!-- Interface -->
@@ -110,6 +177,31 @@
     </SettingsFieldRow>
   </SettingsSection>
 
+  <!-- Behaviours -->
+  <SettingsSection
+    title={$t("settings.general.behaviours_title")}
+    bodyLayout="flush"
+    data-testid="general-behaviours"
+  >
+    {#snippet icon()}<SlidersHorizontal size={15} strokeWidth={1.75} />{/snippet}
+    <SettingsFieldRow
+      label={$t("settings.general.downloads_open_label")}
+      hint={$t("settings.general.downloads_open_hint")}
+      for="general-downloads-open"
+      border={false}
+    >
+      {#snippet control()}
+        <Toggle
+          id="general-downloads-open"
+          checked={$openDownloadsOnStart}
+          onchange={(next) => setOpenDownloadsOnStart(next)}
+          aria-label={$t("settings.general.downloads_open_label")}
+          data-testid="general-downloads-open-toggle"
+        />
+      {/snippet}
+    </SettingsFieldRow>
+  </SettingsSection>
+
   <!-- Application -->
   <SettingsSection
     title={$t("settings.general.application_title")}
@@ -117,6 +209,19 @@
     data-testid="general-application"
   >
     {#snippet icon()}<FolderOpen size={15} strokeWidth={1.75} />{/snippet}
+    {#if $developerMode}
+      <SettingsFieldRow
+        label={$t("settings.general.logs_label")}
+        hint={$t("settings.general.logs_hint")}
+        data-testid="general-logs"
+      >
+        {#snippet control()}
+          <Button variant="outline" size="sm" onclick={openLogs} data-testid="general-open-logs">
+            {$t("settings.general.logs_button")}
+          </Button>
+        {/snippet}
+      </SettingsFieldRow>
+    {/if}
     <SettingsFieldRow
       label={$t("settings.about.kv_data_dir")}
       hint={$t("settings.about.data_desc")}

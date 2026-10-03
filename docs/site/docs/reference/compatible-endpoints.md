@@ -21,13 +21,14 @@ touches the runtime or the desktop.
 
 ## Off by default
 
-The server listens only once someone turns it on. Two keys of `apollia.toml`
+The server listens only once someone turns it on. Three keys of `apollia.toml`
 hold its state:
 
 ```toml
 [server]
-enabled = false   # whether the compatible server listens
-port = 7772       # its TCP port, on 127.0.0.1; never the native API's 7771
+enabled = false        # whether the compatible server listens
+port = 7772            # its TCP port, on 127.0.0.1; never the native API's 7771
+require_auth = false   # whether every request must present a token
 ```
 
 It listens on the loopback interface, `127.0.0.1`, so only the applications of
@@ -39,7 +40,7 @@ Three routes of the native API drive it while the runtime runs:
 
 | Route | Effect |
 |---|---|
-| `GET /api/v1/server` | Whether it listens, its port, and why its last start failed |
+| `GET /api/v1/server` | Whether it listens, its port, why its last start failed, and how many tokens are in use |
 | `POST /api/v1/server/start` | Opens it on the configured port and writes `enabled = true` |
 | `POST /api/v1/server/stop` | Closes it and writes `enabled = false`; the native API keeps answering |
 
@@ -49,9 +50,37 @@ another program already holds the port, the start is refused with a readable
 "port in use" error (HTTP 409 on the start route), and the runtime goes on
 without the compatible server.
 
+## Tokens
+
+With `require_auth = true`, every request must present a token of the server.
+Each application gets its own, named after it, so one can be withdrawn without
+touching the others. The token the desktop uses to reach its runtime is not one
+of them and never opens the compatible server; a server token never opens the
+native API.
+
+| Route | Effect |
+|---|---|
+| `POST /api/v1/server/tokens` | Creates a token from its `name` and answers its value, `apo_` followed by 64 hexadecimal characters. The value is shown this once and kept nowhere |
+| `GET /api/v1/server/tokens` | Lists every token: name, last four characters, creation, last use, revocation. Never the value |
+| `DELETE /api/v1/server/tokens/{token}` | Revokes a token by identifier or by name; it stays listed, marked revoked |
+
+Only the SHA-256 of a value is stored, in `system.db`. A client sends its token
+the way its own API expects, either header works:
+
+```text
+Authorization: Bearer apo_...   # OpenAI clients
+x-api-key: apo_...              # Anthropic clients
+```
+
+A request without a token in use, or with a revoked one, answers `401` in the
+format of the endpoint it called. Each success stamps the token's last use. The
+setting is read when the server opens: stop and start it to apply a change.
+
 ## Errors
 
-Every error follows the OpenAI envelope, whatever the endpoint:
+Every error follows the OpenAI envelope, except a `401` on the Anthropic
+endpoint (`/v1/messages`), which follows Anthropic's
+(`{"type": "error", "error": {"type": "authentication_error", "message"}}`):
 
 ```json
 {

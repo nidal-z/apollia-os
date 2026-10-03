@@ -15,6 +15,7 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 use super::router::{compat_router, serve};
+use super::tokens::ServerTokensHandle;
 use super::CompatServerError;
 use crate::eventbus::EventBusSender;
 
@@ -24,6 +25,7 @@ const COMMAND_CAPACITY: usize = 64;
 
 const ENABLED_KEY: &str = "server.enabled";
 const PORT_KEY: &str = "server.port";
+const REQUIRE_AUTH_KEY: &str = "server.require_auth";
 
 /// What the compatible server is doing.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, utoipa::ToSchema)]
@@ -35,6 +37,8 @@ pub struct CompatServerStatus {
     pub port: u16,
     /// Why the last start failed, cleared by the next successful start.
     pub last_error: Option<String>,
+    /// How many tokens of the server are in use (not revoked).
+    pub active_tokens: u64,
 }
 
 type Reply<T> = oneshot::Sender<Result<T, CompatServerError>>;
@@ -49,43 +53,63 @@ enum Command {
 #[derive(Debug, Clone)]
 pub struct CompatServerHandle {
     tx: mpsc::Sender<Command>,
+    tokens: ServerTokensHandle,
 }
 
 impl CompatServerHandle {
     /// Spawns the actor and returns its handle.
     ///
-    /// `settings_path` is the `apollia.toml` holding the `[server]` section.
+    /// `settings_path` is the `apollia.toml` holding the `[server]` section,
+    /// `system_db` the `system.db` holding the server's tokens.
     /// When it turns the server on, the actor opens the listener before it
     /// answers its first command; a failure to open it is logged and kept as
     /// the last error, and the runtime goes on without the server. The actor
     /// stops, closing the listener and leaving the setting as it is, when the
     /// bus carries [`RuntimeEvent::ShutdownRequested`] or every handle is
     /// dropped.
-    pub fn spawn(settings_path: PathBuf, bus: &EventBusSender) -> Self {
+    pub fn spawn(settings_path: PathBuf, system_db: PathBuf, bus: &EventBusSender) -> Self {
         let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
         let events = apollia_core::events::subscribe_resilient(bus, "compat_server");
+        let tokens = ServerTokensHandle::spawn(system_db);
         let actor = CompatServerActor {
             settings_path,
+            tokens: tokens.clone(),
             running: None,
             last_error: None,
         };
         tokio::spawn(actor.run(rx, events));
-        Self { tx }
+        Self { tx, tokens }
     }
 
-    /// Whether the server listens, on which port, and why its last start
-    /// failed.
+    /// The tokens of the server: create, list, revoke.
+    pub fn tokens(&self) -> &ServerTokensHandle {
+        &self.tokens
+    }
+
+    /// Fills the count of tokens in use, which the token actor holds.
+    async fn with_tokens(
+        &self,
+        mut status: CompatServerStatus,
+    ) -> Result<CompatServerStatus, CompatServerError> {
+        status.active_tokens = self.tokens.active_count().await?;
+        Ok(status)
+    }
+
+    /// Whether the server listens, on which port, why its last start failed,
+    /// and how many of its tokens are in use.
     ///
     /// # Errors
     ///
-    /// [`CompatServerError::ActorGone`] once the runtime has stopped.
+    /// [`CompatServerError::ActorGone`] once the runtime has stopped,
+    /// [`CompatServerError::Tokens`] when the tokens cannot be counted.
     pub async fn status(&self) -> Result<CompatServerStatus, CompatServerError> {
         let (reply, rx) = oneshot::channel();
         self.tx
             .send(Command::Status(reply))
             .await
             .map_err(|_| CompatServerError::ActorGone)?;
-        rx.await.map_err(|_| CompatServerError::ActorGone)
+        let status = rx.await.map_err(|_| CompatServerError::ActorGone)?;
+        self.with_tokens(status).await
     }
 
     /// Opens the listener on the configured port and writes
@@ -121,7 +145,8 @@ impl CompatServerHandle {
             .send(command(reply))
             .await
             .map_err(|_| CompatServerError::ActorGone)?;
-        rx.await.map_err(|_| CompatServerError::ActorGone)?
+        let status = rx.await.map_err(|_| CompatServerError::ActorGone)??;
+        self.with_tokens(status).await
     }
 }
 
@@ -134,6 +159,7 @@ struct Running {
 
 struct CompatServerActor {
     settings_path: PathBuf,
+    tokens: ServerTokensHandle,
     running: Option<Running>,
     last_error: Option<String>,
 }
@@ -205,6 +231,7 @@ impl CompatServerActor {
             running: self.running.is_some(),
             port,
             last_error: self.last_error.clone(),
+            active_tokens: 0,
         }
     }
 
@@ -230,9 +257,18 @@ impl CompatServerActor {
     }
 
     /// Binds the configured port on the loopback interface and spawns the
-    /// accept loop.
+    /// accept loop, behind the token check when `[server] require_auth` asks
+    /// for it.
     async fn open(&mut self) -> Result<(), CompatServerError> {
         let port = self.configured_port()?;
+        let require_auth = resolve_setting(
+            &self.settings_path,
+            REQUIRE_AUTH_KEY,
+            &PolicySettings::none(),
+        )?
+        .value
+            == Value::Bool(true);
+        let tokens = require_auth.then(|| self.tokens.clone());
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, port))
             .await
             .map_err(|source| match source.kind() {
@@ -240,10 +276,15 @@ impl CompatServerActor {
                 _ => CompatServerError::Bind { port, source },
             })?;
         let cancel = CancellationToken::new();
-        let task = tokio::spawn(serve(listener, compat_router(), cancel.clone()));
+        let task = tokio::spawn(serve(listener, compat_router(tokens), cancel.clone()));
         self.running = Some(Running { port, cancel, task });
         self.last_error = None;
-        tracing::event!(tracing::Level::INFO, port = port, "compat_server.listening");
+        tracing::event!(
+            tracing::Level::INFO,
+            port = port,
+            require_auth = require_auth,
+            "compat_server.listening"
+        );
         Ok(())
     }
 

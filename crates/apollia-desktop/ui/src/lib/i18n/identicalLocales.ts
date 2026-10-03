@@ -91,7 +91,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
 export const IDENTICAL_BY_DECISION: string[] = [
   "a11y.actions_menu", // Actions
   "agent_detail.execution_mode_direct", // Direct
-  "agent_detail.llm_backend", // Backend
   "agent_detail.messages_title", // Messages
   "agent_detail.tags_title", // Tags
   "agents.agents_word", // agents
@@ -208,6 +207,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.developer.mcp.kind_agent", // Agent
   "settings.developer.mcp.kind_workflow", // Workflow
   "settings.general.application_title", // Application
+  "settings.general.channel_stable", // Stable
   "settings.general.interface_title", // Interface
   "settings.llm_backend.provider_local", // local
   "settings.llm_dialog.field_endpoint", // Endpoint

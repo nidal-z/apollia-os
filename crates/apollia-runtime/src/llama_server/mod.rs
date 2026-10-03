@@ -24,6 +24,7 @@ mod guard;
 mod load_settings;
 mod loaded;
 mod locate;
+mod log_level;
 mod ngl;
 mod parallel;
 mod projector;
@@ -237,6 +238,8 @@ pub struct LlamaServerSupervisor {
     /// `apollia.toml`, whose `[llm.guardrails]` is read at every launch.
     /// `None` holds every launch to the default level.
     config_file: Option<PathBuf>,
+    /// The guardrail settings the organisation policy fixes, over the file.
+    imposed: apollia_core::config::PolicySettings,
 }
 
 impl LlamaServerSupervisor {
@@ -253,6 +256,7 @@ impl LlamaServerSupervisor {
         system_db: Option<PathBuf>,
         events: Option<EventBusSender>,
         config_file: Option<PathBuf>,
+        imposed: apollia_core::config::PolicySettings,
     ) -> Result<Arc<Self>, LlamaServerError> {
         let bin_path = locate_llama_server_binary()?;
         // The reported window must be the one the server will actually launch
@@ -277,6 +281,7 @@ impl LlamaServerSupervisor {
             events,
             embedding: Mutex::new(None),
             config_file,
+            imposed,
         }))
     }
 
@@ -466,6 +471,7 @@ impl LlamaServerSupervisor {
             events: None,
             embedding: Mutex::new(None),
             config_file: None,
+            imposed: apollia_core::config::PolicySettings::none(),
         }
     }
 
@@ -495,6 +501,7 @@ impl LlamaServerSupervisor {
             events: None,
             embedding: Mutex::new(None),
             config_file: None,
+            imposed: apollia_core::config::PolicySettings::none(),
         })
     }
 
@@ -763,6 +770,7 @@ mod test_support {
             events: None,
             embedding: Mutex::new(None),
             config_file: None,
+            imposed: apollia_core::config::PolicySettings::none(),
         }
     }
 

@@ -171,7 +171,8 @@ mod tests {
         // WHEN the store opens it
         let store = EmbeddingDefaultStore::open(&path).unwrap();
 
-        // THEN the file is at the current version, the table answers, and the row is kept
+        // THEN the file is at the current version, the table answers, and the
+        // row is kept
         assert_eq!(store.get().unwrap(), None);
         let version: i64 = store
             .conn
