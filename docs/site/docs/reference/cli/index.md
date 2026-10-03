@@ -1766,7 +1766,7 @@ First-run helper: configure a local LLM in one step.
 
    It selects nothing today. The local engine offloads according to the llama-server build it ships with and to `APOLLIA_LLAMA_N_GPU_LAYERS`, and reads no device field.
 * `--system-db <PATH>` - Override the system database path (default: `~/.apollia/system.db`)
-* `--models-dir <DIR>` - Override the models directory (default: `~/.apollia/models/`)
+* `--models-dir <DIR>` - Override the models directory. Without it, `[models] dir` of `apollia.toml`, else `~/.apollia/models/`
 
 
 

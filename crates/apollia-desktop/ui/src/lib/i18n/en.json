@@ -2662,10 +2662,7 @@
         "delete_title": "Delete model?",
         "delete_message": "Permanently delete ''{name}'' from disk? This cannot be undone.",
         "deleted_toast": "Model ''{name}'' deleted",
-        "help": "Files present in your local models directory.",
-        "dest_dir_default": "New downloads go to ~/.apollia/models",
-        "dest_dir_custom": "New downloads go to {path}",
-        "dest_dir_change": "Change…"
+        "help": "Files present in your local models directory."
       },
       "hardware": {
         "label": "Your hardware",
@@ -2687,12 +2684,10 @@
         "failed_toast": "Download failed. Free up space or check your connection, then retry."
       },
       "token": {
-        "label": "HuggingFace token (gated models)",
-        "description": "This model requires accepting its license on HuggingFace. Generate a token at",
-        "done": "Done",
         "title_button": "Configure HuggingFace token",
         "set": "Token set",
-        "btn": "Token"
+        "btn": "Token",
+        "needed": "This model is gated: save a Hugging Face token in Settings > General, then start the download again."
       },
       "search": {
         "placeholder": "Search GGUF models (e.g. qwen3, llama3, mistral)…",
@@ -3174,7 +3169,23 @@
       "report_hint": "Opens the reporting page in your browser. Your diagnostics stay on this machine unless you attach them.",
       "behaviours_title": "Behaviour",
       "downloads_open_label": "Open the downloads panel when a download starts",
-      "downloads_open_hint": "The panel opens under the downloads icon of the top bar."
+      "downloads_open_hint": "The panel opens under the downloads icon of the top bar.",
+      "models_title": "Models",
+      "models_dir_label": "Models folder",
+      "models_dir_hint": "Where models are downloaded and looked up. Changing the folder does not move the models already downloaded.",
+      "models_dir_change": "Change",
+      "models_dir_unknown": "Unknown folder",
+      "models_dir_changed_toast": "Models folder changed. The models already downloaded stay in the previous folder.",
+      "hf_token_label": "Hugging Face token",
+      "hf_token_hint": "Needed to download a gated model. Kept in the secret store of this computer.",
+      "hf_token_link": "Create a token on the Hugging Face tokens page",
+      "hf_token_show": "Show",
+      "hf_token_hide": "Hide",
+      "hf_token_save": "Save",
+      "hf_token_clear": "Clear",
+      "hf_token_unsaved": "Token typed, not saved yet",
+      "hf_token_saved_toast": "Hugging Face token saved.",
+      "hf_token_cleared_toast": "Hugging Face token cleared."
     },
     "chat": {
       "subtitle": "How conversations behave, and the keyboard shortcuts.",

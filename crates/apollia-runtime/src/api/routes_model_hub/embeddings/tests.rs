@@ -87,7 +87,7 @@ async fn without_a_size_the_route_counts_the_largest_installed_language_model() 
     // GIVEN a data directory whose models are two language models and one
     // embeddings model, the embeddings one the largest
     let tmp = tempfile::tempdir().expect("tempdir");
-    let models = tmp.path().join("models");
+    let models = apollia_core::config::default_models_dir(tmp.path());
     std::fs::create_dir_all(&models).expect("models dir");
     std::fs::write(models.join("small.gguf"), gguf("llama", None, 100)).expect("write");
     std::fs::write(models.join("large.gguf"), gguf("qwen3", None, 4000)).expect("write");
