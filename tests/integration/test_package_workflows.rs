@@ -19,7 +19,9 @@ use std::sync::{Arc, Mutex};
 use apollia_aip::package_tools::workflows::PackageWorkflows;
 use apollia_core::{RuntimeEvent, StepBudgetConfig};
 use apollia_runtime::agents::task::Nesting;
-use apollia_runtime::workflows::{AgentRunner, BoxFuture, WorkflowError, WorkflowHandle};
+use apollia_runtime::workflows::{
+    AgentRunner, BoxFuture, InputErrorCode, WorkflowError, WorkflowHandle,
+};
 use apollia_tools::{InstalledPackage, PackageItemKind, PackageRepository, TaskRepository};
 use pyo3::prelude::*;
 use serde_json::json;
@@ -27,13 +29,15 @@ use tokio::sync::broadcast;
 
 /// The module of `books`: `close` asks an agent, files the answer through the
 /// workflow `file`, then notifies; with `hold`, its first step waits an hour
-/// and writes how the wait ended.
+/// and writes how the wait ended. `remind` reads the file it is given and
+/// hands its date to `stamp`, which returns the weekday and the date.
 const FLOWS_MODULE: &str = r#"
 import asyncio
+import datetime
 import pathlib
 from typing import NotRequired, TypedDict
 
-from apollia import WorkflowCtx, workflow
+from apollia import FileInput, LongText, WorkflowCtx, workflow
 
 MARKER = pathlib.Path(__MARKER__)
 
@@ -69,6 +73,30 @@ async def close(ctx: WorkflowCtx, inputs: Close) -> dict:
 async def file(ctx: WorkflowCtx, inputs: File) -> dict:
     async with ctx.step("write"):
         return {"chars": len(inputs["text"])}
+
+
+class Remind(TypedDict):
+    invoice: FileInput
+    due: datetime.date
+    note: NotRequired[LongText]
+
+
+class Stamp(TypedDict):
+    day: datetime.date
+
+
+@workflow("remind", "Remind an invoice.", inputs=Remind, steps=["read"], action="read")
+async def remind(ctx: WorkflowCtx, inputs: Remind) -> dict:
+    async with ctx.step("read"):
+        text = pathlib.Path(inputs["invoice"]).read_text()
+        stamped = await ctx.workflows.run("stamp", {"day": inputs["due"]})
+    return {"invoice": text, "stamped": stamped, "note": inputs.get("note", "")}
+
+
+@workflow("stamp", "Stamp a day.", inputs=Stamp, steps=["stamp"], action="read")
+async def stamp(ctx: WorkflowCtx, inputs: Stamp) -> dict:
+    async with ctx.step("stamp"):
+        return {"weekday": inputs["day"].isoweekday(), "day": inputs["day"]}
 "#;
 
 /// `apollia.toml` of `books`, as `python -m apollia describe` writes it.
@@ -94,6 +122,22 @@ description = "File a text."
 action = "write_or_delete"
 steps = ["write"]
 inputs = { type = "object", properties = { text = { type = "string" } }, required = ["text"], additionalProperties = false }
+
+[[workflows]]
+name = "remind"
+module = "flows.py"
+description = "Remind an invoice."
+action = "read"
+steps = ["read"]
+inputs = { type = "object", properties = { invoice = { type = "string", format = "file-path" }, due = { type = "string", format = "date" }, note = { type = "string", format = "long-text" } }, required = ["due", "invoice"], additionalProperties = false, x-order = ["invoice", "due", "note"] }
+
+[[workflows]]
+name = "stamp"
+module = "flows.py"
+description = "Stamp a day."
+action = "read"
+steps = ["stamp"]
+inputs = { type = "object", properties = { day = { type = "string", format = "date" } }, required = ["day"], additionalProperties = false, x-order = ["day"] }
 "#;
 
 /// Answers every agent with `answer to <message>`, and remembers each call.
@@ -143,7 +187,7 @@ fn use_tree_sdk() {
     .expect("sys.path accepts the SDK");
 }
 
-/// The package `books` stored with its two workflows linked, and the engine
+/// The package `books` stored with its four workflows linked, and the engine
 /// attached to them.
 async fn fixture() -> Fixture {
     use_tree_sdk();
@@ -168,14 +212,17 @@ async fn fixture() -> Fixture {
             updated_at: "2026-10-02T00:00:00Z".into(),
         })
         .expect("save the package");
-    for workflow in ["close", "file"] {
+    for workflow in ["close", "file", "remind", "stamp"] {
         packages
             .link_item("books", PackageItemKind::Workflow, workflow)
             .expect("link the workflow");
     }
     let workflows =
         PackageWorkflows::read(&packages, dir.path().join("venvs")).expect("read the workflows");
-    assert_eq!(workflows.ids(), vec!["books/close", "books/file"]);
+    assert_eq!(
+        workflows.ids(),
+        vec!["books/close", "books/file", "books/remind", "books/stamp"]
+    );
 
     let repository = Arc::new(
         TaskRepository::open(&dir.path().join("hitl.db"))
@@ -341,6 +388,91 @@ async fn package_workflow_inputs_are_checked_against_the_manifest_schema() {
     let history = fx
         .engine
         .history("books/close", 10)
+        .await
+        .expect("read the history");
+    assert!(history.is_empty());
+}
+
+// GIVEN the stored package, whose `remind` takes a file, a date and a long
+//       text, and hands the date to the workflow `stamp`
+// WHEN it runs on a file that exists and a day of the calendar
+// THEN the Python body read the file at the path it was given, received the
+//      date as a `date` (its weekday was computed), handed it on and got it
+//      back written `YYYY-MM-DD`
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_package_workflow_reads_its_file_and_its_date_inputs() {
+    // GIVEN
+    let fx = fixture().await;
+    let invoice = fx.dir.path().join("f-12.txt");
+    std::fs::write(&invoice, "invoice 12").expect("write the invoice");
+
+    // WHEN
+    let run = fx
+        .engine
+        .run_to_end(
+            "books/remind",
+            json!({
+                "invoice": invoice.to_string_lossy(),
+                "due": "2026-10-03",
+                "note": "Hello,\nplease pay."
+            }),
+        )
+        .await
+        .expect("the run ends");
+
+    // THEN
+    assert_eq!(run.status, "completed", "{:?}", run.error);
+    assert_eq!(
+        run.output,
+        Some(json!({
+            "invoice": "invoice 12",
+            "stamped": {"weekday": 6, "day": "2026-10-03"},
+            "note": "Hello,\nplease pay."
+        }))
+    );
+}
+
+// GIVEN the stored package and a folder holding no `missing.pdf`
+// WHEN `remind` is launched on a day that does not exist, then on that file
+// THEN both launches are refused with their code, before any run
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_malformed_date_and_an_absent_file_never_start_a_package_workflow() {
+    // GIVEN
+    let fx = fixture().await;
+    let invoice = fx.dir.path().join("f-12.txt");
+    std::fs::write(&invoice, "invoice 12").expect("write the invoice");
+    let absent = fx.dir.path().join("missing.pdf");
+
+    // WHEN
+    let date = fx
+        .engine
+        .launch(
+            "books/remind",
+            json!({"invoice": invoice.to_string_lossy(), "due": "2026-02-30"}),
+        )
+        .await
+        .expect_err("February has no 30th");
+    let file = fx
+        .engine
+        .launch(
+            "books/remind",
+            json!({"invoice": absent.to_string_lossy(), "due": "2026-10-03"}),
+        )
+        .await
+        .expect_err("the file is absent");
+
+    // THEN
+    assert!(matches!(
+        date,
+        WorkflowError::InvalidInput(ref e) if e.code == InputErrorCode::MalformedDate
+    ));
+    assert!(matches!(
+        file,
+        WorkflowError::InvalidInput(ref e) if e.code == InputErrorCode::MissingFile
+    ));
+    let history = fx
+        .engine
+        .history("books/remind", 10)
         .await
         .expect("read the history");
     assert!(history.is_empty());

@@ -14,9 +14,8 @@
     "stt-test-start and stt-test-stop are played on the settings SttTestCard through the harness: start_tour_recording resolves null (Result<(), String> in commands/stt.rs:976-990, so the real command would open a cpal capture, flow.rs:182-233, and needs an engine the placeholder ggml-base.bin cannot load), which flips recording and swaps the button's testid to stt-test-stop (SttTestCard.svelte:190); stop_tour_recording is rejected with a string, which the catch of toggle (SttTestCard.svelte:128-131) turns into an error toast and a return to stt-test-start, the only scripted end of course since stt-transcribed and stt-dictation-failed are Tauri events no stub can emit (stt-test-result and stt-test-failure stay unreachable). toggle awaits ensureMicPermission first (SttTestCard.svelte:121), a WebView getUserMedia that never throws and whose result is ignored; App.svelte:85-91 already primes it at boot because the seed enables STT, and wry 0.55.1 grants the WebView side (wry_web_view_ui_delegate.rs:126-136), so the click adds no prompt the boot did not already raise."
   ],
   "dynamicTestids": [
-    "settings-nav-stt",
-    "sidebar-mode-option-builder",
-    "sidebar-mode-option-operator"
+    "settings-nav-developer",
+    "settings-nav-stt"
   ],
   "steps": [
     {
@@ -30,17 +29,26 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-operator"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
@@ -657,17 +665,26 @@
       "label": "18-transcribe-file-boundary"
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-builder"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
     },
     {
       "kind": "sleep",
@@ -718,21 +735,39 @@
       "label": "20-transcriptions-builder"
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-operator"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
       "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "transcriptions"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "transcriptions-page",
+      "timeoutMs": 15000
     },
     {
       "kind": "screenshot",

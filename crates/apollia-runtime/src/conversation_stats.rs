@@ -18,7 +18,7 @@ const PROFILE_SECTIONS: [&str; 5] = [
     "Section: identity",
     "Section: work",
     "Section: preferences",
-    "Section: constraints",
+    "Section: notes",
     "Section: other",
 ];
 

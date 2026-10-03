@@ -19,7 +19,8 @@
     "help-hero-cta is played under a plugin:opener|open_url stub resolving null: the anchor's onclick is handleExternalLinkClick (HelpHero.svelte:54, externalLink.ts:98-105), which preventDefaults and hands https://docs.apollia.fr/... to the opener, so the webview stays on the help page (help-hero-cta and help-section asserted after the click). `aria-disabled` follows navigator.onLine (Help.svelte:38-50) and only removes pointer events; the runner's el.click() is programmatic, so the handler runs online or offline. No in-app state changes on that click, so the block can assert nothing beyond the page staying mounted.",
     "shortcuts-search is a plain bind:value filter (Shortcuts.svelte:41-55, 85-92): a no-match query renders shortcuts-empty (:99-104), an empty query restores the groups; local state, nothing persisted, the page is not nav-guarded.",
     "update-install-btn is played twice under stubs, both after a remount. Happy path: check_for_update resolves available true with new_version 99.0.0 (update-available-label contains 99.0.0, update-changelog rendered), install_update resolves null, and the phase moves downloading -> installed (UpdateCheckPanel.svelte:110-126): installed renders no testid of its own, so it is proven by the three waitGone (update-install-btn, update-download-progress, update-check-btn), the only phase reachable from runInstall that renders none of them; error would keep update-check-btn as retry. The real install_update would replace the binary and restart the app before the report lands (commands/updates.rs:172), which is why it is never let through. Error path: install_update rejects a string, humanize keeps it as detail (lib/errors/humanize.ts:251-263) and update-error-banner contains it. listen(\"update-download-progress\") still reaches the real event plugin; nothing emits on it.",
-    "open_config_in_editor is stubbed: the real command hands the file to the host's editor, which takes the focus and made the capture that follows fail. An automaton run opens no other application."
+    "open_config_in_editor is stubbed: the real command hands the file to the host's editor, which takes the focus and made the capture that follows fail. An automaton run opens no other application.",
+    "The developer mode is one switch in Settings > Developer (developer-mode-toggle, developer-mode-on, developer-mode-off), written to [desktop] developer_mode of the seeded apollia.toml; every book turns it on and off there, never per screen."
   ],
   "dynamicTestids": [
     "config-file-card-copy-oria",
@@ -35,13 +36,12 @@
     "help-link-shortcuts",
     "language-en",
     "language-fr",
-    "mode-builder",
-    "mode-operator",
     "observability-toggle-debug_log_prompt",
     "settings-nav-about",
     "settings-nav-appearance",
     "settings-nav-configuration",
     "settings-nav-danger",
+    "settings-nav-developer",
     "settings-nav-help",
     "settings-nav-integrations",
     "settings-nav-llm",
@@ -53,8 +53,6 @@
     "settings-nav-stt",
     "settings-nav-system",
     "settings-nav-tools",
-    "sidebar-mode-option-builder",
-    "sidebar-mode-option-operator",
     "theme-dark",
     "theme-light",
     "theme-system"
@@ -71,17 +69,26 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-operator"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
@@ -432,11 +439,6 @@
     },
     {
       "kind": "waitFor",
-      "testid": "mode-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
       "testid": "plan-mode-default-toggle",
       "timeoutMs": 4000
     },
@@ -498,7 +500,16 @@
     },
     {
       "kind": "click",
-      "testid": "mode-builder"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
     },
     {
       "kind": "sleep",
@@ -506,15 +517,24 @@
     },
     {
       "kind": "screenshot",
-      "label": "19-mode-builder"
+      "label": "19-developer-mode-on"
     },
     {
       "kind": "click",
-      "testid": "mode-operator"
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
       "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-appearance"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "theme-toggle",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
@@ -1174,17 +1194,26 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-builder"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
     },
     {
       "kind": "sleep",
@@ -1367,21 +1396,48 @@
       "label": "49-builder-nav-danger"
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-operator"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
       "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-danger"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "danger-section",
+      "timeoutMs": 6000
     },
     {
       "kind": "screenshot",

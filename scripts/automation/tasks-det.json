@@ -9,8 +9,7 @@
     "The stub is armed right after a real refresh click, so the two refreshes overlap: measured on 2026-09-06, the real one resolved after the rejected one and its success overwrote the error state (four red runs). Tasks.svelte refresh() now sequences its calls and drops a stale result, which this block proves."
   ],
   "dynamicTestids": [
-    "sidebar-mode-option-builder",
-    "sidebar-mode-option-operator",
+    "settings-nav-developer",
     "task-detail-tab-output",
     "task-detail-tab-overview",
     "task-detail-tab-technical",
@@ -37,17 +36,26 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-operator"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
@@ -710,17 +718,26 @@
       "timeoutMs": 2500
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-builder"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
     },
     {
       "kind": "sleep",
@@ -775,21 +792,39 @@
       "label": "15-task-technical-builder"
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-operator"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
       "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "tasks"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-page",
+      "timeoutMs": 15000
     },
     {
       "kind": "screenshot",

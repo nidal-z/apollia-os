@@ -106,6 +106,9 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os model show`↴](#apollia-os-model-show)
 * [`apollia-os model hardware`↴](#apollia-os-model-hardware)
 * [`apollia-os model recommend`↴](#apollia-os-model-recommend)
+* [`apollia-os model embeddings`↴](#apollia-os-model-embeddings)
+* [`apollia-os model embeddings show`↴](#apollia-os-model-embeddings-show)
+* [`apollia-os model embeddings set-default`↴](#apollia-os-model-embeddings-set-default)
 * [`apollia-os model delete`↴](#apollia-os-model-delete)
 * [`apollia-os trigger`↴](#apollia-os-trigger)
 * [`apollia-os trigger list`↴](#apollia-os-trigger-list)
@@ -150,6 +153,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os chat delete`↴](#apollia-os-chat-delete)
 * [`apollia-os chat rename`↴](#apollia-os-chat-rename)
 * [`apollia-os chat export`↴](#apollia-os-chat-export)
+* [`apollia-os chat capabilities`↴](#apollia-os-chat-capabilities)
 * [`apollia-os chat config`↴](#apollia-os-chat-config)
 * [`apollia-os chat config get`↴](#apollia-os-chat-config-get)
 * [`apollia-os chat config set`↴](#apollia-os-chat-config-set)
@@ -215,6 +219,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os batch retry`↴](#apollia-os-batch-retry)
 * [`apollia-os batch export`↴](#apollia-os-batch-export)
 * [`apollia-os workflow`↴](#apollia-os-workflow)
+* [`apollia-os workflow show`↴](#apollia-os-workflow-show)
 * [`apollia-os workflow run`↴](#apollia-os-workflow-run)
 * [`apollia-os workflow status`↴](#apollia-os-workflow-status)
 * [`apollia-os workflow logs`↴](#apollia-os-workflow-logs)
@@ -332,7 +337,7 @@ Apollia OS CLI binary (apollia-os)
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
 * `batch` - Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry, export)
-* `workflow` - Run the workflows of installed packages (run, status, logs, cancel)
+* `workflow` - Run the workflows of installed packages (show, run, status, logs, cancel)
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
 * `plan` - Plan domain management (cache: stats, clear, evict)
 * `service` - Run the runtime as a service of your session (install, uninstall, status)
@@ -1773,6 +1778,7 @@ Local model file management
 * `show` - Fetch metadata + file list for a HuggingFace model
 * `hardware` - Report the runtime's detected hardware profile (RAM, CPU, GPU)
 * `recommend` - Rank the models this machine should run
+* `embeddings` - The embeddings model search by meaning uses
 * `delete` - Remove a local model file from `~/.apollia/models/`
 
 
@@ -1837,6 +1843,39 @@ Rank the models this machine should run
 * `--n-ctx <N_CTX>` - Context window the memory estimate is sized against, in tokens.
 
    Defaults to what the runtime launches with. Lower it to see the larger models that then fit.
+
+
+
+## `apollia-os model embeddings`
+
+The embeddings model search by meaning uses
+
+**Usage:** `apollia-os model embeddings <COMMAND>`
+
+###### **Subcommands:**
+
+* `show` - Show the default embeddings model, and whether its file is installed
+* `set-default` - Set the default embeddings model, by its registry identifier
+
+
+
+## `apollia-os model embeddings show`
+
+Show the default embeddings model, and whether its file is installed
+
+**Usage:** `apollia-os model embeddings show`
+
+
+
+## `apollia-os model embeddings set-default`
+
+Set the default embeddings model, by its registry identifier
+
+**Usage:** `apollia-os model embeddings set-default <MODEL>`
+
+###### **Arguments:**
+
+* `<MODEL>` - Identifier of an embeddings entry of the registry, as `GET /api/v1/llm/embeddings` lists them (for example `multilingual-e5-small`)
 
 
 
@@ -2430,6 +2469,7 @@ Without a subcommand: launches the REPL (resume with `--resume <id>`, or list re
 * `delete` - Delete a persisted chat session and all of its messages
 * `rename` - Set the user-defined title of a persisted chat session
 * `export` - Export a persisted chat session to a file
+* `capabilities` - Show what the model of a chat session can do: the reasoning setting it offers (none, on or off, or a level) and whether it reads images
 * `config` - Manage the Chat Libre configuration (system prompt, allowed tools, backend)
 
 ###### **Options:**
@@ -2493,6 +2533,20 @@ Export a persisted chat session to a file
   Possible values: `markdown`, `json`
 
 * `--db <PATH>` - Override the chat database path
+
+
+
+## `apollia-os chat capabilities`
+
+Show what the model of a chat session can do: the reasoning setting it offers (none, on or off, or a level) and whether it reads images.
+
+Reaches the runtime; exits 2 when it is not running.
+
+**Usage:** `apollia-os chat capabilities <SESSION_ID>`
+
+###### **Arguments:**
+
+* `<SESSION_ID>` - Session id
 
 
 
@@ -3488,16 +3542,29 @@ Export the result of a batch to a file: one row per item, its input columns, its
 
 ## `apollia-os workflow`
 
-Run the workflows of installed packages (run, status, logs, cancel)
+Run the workflows of installed packages (show, run, status, logs, cancel)
 
 **Usage:** `apollia-os workflow <COMMAND>`
 
 ###### **Subcommands:**
 
+* `show` - Show a workflow: what it does, its steps, and each input with its type
 * `run` - Run a workflow, in the runtime
 * `status` - Show a run: its status, its result and each of its steps
 * `logs` - The runs of a workflow, newest first
 * `cancel` - Stop a run: its step in progress is interrupted, the next ones never start
+
+
+
+## `apollia-os workflow show`
+
+Show a workflow: what it does, its steps, and each input with its type
+
+**Usage:** `apollia-os workflow show <WORKFLOW>`
+
+###### **Arguments:**
+
+* `<WORKFLOW>` - The workflow, `<package>/<workflow>`
 
 
 
@@ -3513,7 +3580,7 @@ Run a workflow, in the runtime
 
 ###### **Options:**
 
-* `--input <KEY=VALUE>` - An input, as `key=value`; repeatable. A value is read as the type the workflow declares for it
+* `--input <KEY=VALUE>` - An input, as `key=value`; repeatable. A value is read as the type the workflow declares for it: a date as `YYYY-MM-DD`, a file as its absolute path
 * `--wait` - Follow the run to its end; exit 3 when it fails or is stopped
 
 

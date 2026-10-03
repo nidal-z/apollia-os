@@ -49,34 +49,34 @@ liability.
 
 ## 1. The sovereignty boundary
 
-Two operator-controlled profiles :
-
-| Profile | Behavior |
-|---|---|
-| `local_only` | no outbound network calls to LLM/MCP cloud, OAuth disabled, only local backends (llama-cpp, Ollama) allowed |
-| `cloud_allowed` | cloud LLMs (Anthropic, OpenAI, Vertex) and OAuth-backed connectors enabled |
+Forbidding the cloud is a rule of the organisation policy, checked in Rust by
+the runtime. There is no per-user sovereignty switch that gates a call.
 
 State :
-- The setting is **read-only in the v0.1.0 UI**. Neither
-  `crates/apollia-desktop/ui/src/routes/Connections.svelte` nor
-  `crates/apollia-desktop/ui/src/routes/settings/Integrations.svelte` carries
-  the value: `resolveSovereignty()` in
-  `crates/apollia-desktop/ui/src/lib/ipc/connections.ts` reads
-  `constraints.sovereignty` from the user profile and maps anything that is not
-  an explicitly cloud-permitting entry to `local_only`.
-- **Enforcement is wired for OAuth only.** `ensure_cloud_allowed` in
-  `crates/apollia-desktop/src/commands/integrations.rs` returns
-  `IntegrationsError::SovereigntyBlocked` before an OAuth flow starts on a
-  `local_only` profile. Nothing gates an LLM or MCP call the same way. Treat
-  data residency as that one gate plus operator-configured permission rules and
-  HITL, not as an automatic profile switch across every outbound path.
-- An operator profile UI switch and a real enforcement gate are planned
-  post-v0.1.0.
+- The runtime reads the signed organisation policy once at boot
+  (`read_org_policy` in `crates/apollia-runtime/src/supervisor/boot.rs`) and
+  hands the verdict to `PolicyAdmission`
+  (`crates/apollia-runtime/src/governance/policy_admission.rs`), the connection
+  admission every place that adds a connection calls.
+- `connections.remote = "deny"` refuses every connection that sends data off
+  the machine. A native Google or Microsoft account is refused when its consent
+  starts, on both paths: the desktop command `oauth_start_flow` and the route
+  `POST /api/v1/connectors/oauth/start` (403), and again before its code is
+  exchanged. The desktop surfaces the refusal as `refused_by_policy`.
+- Without a policy the user is free: every connection is admitted. A policy that
+  is present but refused (rights, key, signature, schema) cannot be read, and
+  the admission fails closed.
+- The decision never comes from the renderer. A value a caller hands the
+  runtime is not a gate, since any caller can choose it.
+- `inference.remote_endpoints = "deny"` is parsed but gates no inference call
+  yet. Treat the inference path as governed by permission rules and HITL only.
 
 Rules :
+- A new place that adds a connection calls the connection admission before it
+  stores anything, and stops on a refusal.
 - A new external call site should route through the chat approval gate (HITL) so
-  the operator can deny it. Do not claim the sovereignty profile blocks the call
-  automatically until the enforcement gate lands.
+  the operator can deny it. Do not claim the policy blocks a call outside the
+  connection admission until a check is wired there.
 
 ---
 
@@ -123,7 +123,8 @@ with singleflight to prevent concurrent refresh races.
 Lifecycle :
 
 ```
-oauth_start_flow(provider, scopes, sovereignty)
+oauth_start_flow(provider, scopes)
+   -> connection admission (organisation policy)
    -> browser
 oauth_complete_flow(state, code)
    -> SecretStore.write(refresh_token)
@@ -287,8 +288,8 @@ Residual (not yet mitigated) : the check is name-level only, so DNS rebinding
 (host resolves public at check-time, private at connect-time) and a redirect
 host that rebinds between the policy check and the socket connect are not
 closed. That requires a custom resolver that pins the resolved IP for the
-connection. Profile gating (`local_only`) is not yet enforced here (see
-section 1). And because agent code is unsandboxed, an agent can open a raw
+connection. The organisation policy is not checked here (see section 1).
+And because agent code is unsandboxed, an agent can open a raw
 socket directly, bypassing the guard; it protects tool-mediated fetches, not
 the agent process. Tool child processes on Linux share the host network
 namespace (no `--net` isolation yet).

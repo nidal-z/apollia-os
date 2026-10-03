@@ -15,6 +15,9 @@ Supported annotations:
 - ``Literal[...]`` → ``{"enum": [...]}`` with inferred ``type``
 - ``Any`` / missing annotation → ``{}`` (any-type)
 - ``Annotated[T, "description"]`` → schema of ``T`` with ``description``
+- ``datetime.date`` → ``{"type": "string", "format": "date"}``
+- ``Annotated[str, InputFormat(f)]`` (``LongText``, ``FileInput``) →
+  ``{"type": "string", "format": f}``
 - dataclasses / TypedDict / NamedTuple → object schemas
 
 Strictness:
@@ -28,6 +31,7 @@ Strictness:
 """
 
 import dataclasses
+import datetime
 import difflib
 import inspect
 import typing
@@ -39,6 +43,7 @@ from types import UnionType as _UnionType
 from typing import Annotated, Any, Literal, Union, get_args, get_origin
 
 from apollia.errors import PayloadError, SchemaError
+from apollia.types import DATE_FORMAT, InputFormat
 
 __all__ = [
     "EXCLUDED_PARAM_NAMES",
@@ -117,6 +122,10 @@ def _scalar_schema(tp: object) -> dict[str, Any] | None:
         return {"type": "number"}
     if tp is bytes:
         return {"type": "string", "format": "byte"}
+    # Identity, not issubclass: a ``datetime.datetime`` is a ``date`` too, and
+    # it is not a day.
+    if tp is datetime.date:
+        return {"type": "string", "format": DATE_FORMAT}
     return None
 
 
@@ -267,7 +276,14 @@ def _schema_for_annotated(annotation: object) -> dict[str, Any] | None:
         return None
     inner_ann = annotated_args[0]
     descriptions = [m for m in annotated_args[1:] if isinstance(m, str) and m]
+    formats = [m.format for m in annotated_args[1:] if isinstance(m, InputFormat)]
     inner_schema = annotation_to_schema(inner_ann)
+    if formats:
+        if inner_schema.get("type") != "string":
+            raise SchemaError(
+                f"InputFormat({formats[-1]!r}) marks a text input; {inner_ann!r} is not str"
+            )
+        inner_schema = {**inner_schema, "format": formats[-1]}
     if not descriptions:
         return inner_schema
     merged = dict(inner_schema)

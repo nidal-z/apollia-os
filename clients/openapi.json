@@ -3240,6 +3240,16 @@
               }
             }
           },
+          "403": {
+            "description": "Refused by the connection admission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Too many consents pending",
             "content": {
@@ -4843,6 +4853,16 @@
               }
             }
           },
+          "409": {
+            "description": "A local model the load guardrail refused; confirm the load to go ahead",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuardrailRefusedBody"
+                }
+              }
+            }
+          },
           "503": {
             "description": "No router configured or backend call failed",
             "content": {
@@ -4891,6 +4911,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A local model the load guardrail refused; confirm the load to go ahead",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuardrailRefusedBody"
                 }
               }
             }
@@ -5217,6 +5247,86 @@
           },
           "500": {
             "description": "The shipped registry table is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/embeddings/default": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/embeddings/default`",
+        "operationId": "get_embedding_default",
+        "responses": {
+          "200": {
+            "description": "The default embeddings model, absent when none is chosen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingDefaultResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "system.db could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`PUT /api/v1/llm/embeddings/default`",
+        "operationId": "set_embedding_default",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetEmbeddingDefaultBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The default embeddings model, as now set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingDefaultResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an embeddings model of the registry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "system.db could not be written",
             "content": {
               "application/json": {
                 "schema": {
@@ -9237,7 +9347,7 @@
             }
           },
           "403": {
-            "description": "A signed package is required",
+            "description": "A signed package is required, or the organisation policy does not trust its publisher",
             "content": {
               "application/json": {
                 "schema": {
@@ -9365,7 +9475,7 @@
         "tags": [
           "packages"
         ],
-        "summary": "`GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts.",
+        "summary": "`GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts,\nand those the organisation policy trusts, of origin `policy`.",
         "operationId": "list_trusted_keys",
         "responses": {
           "200": {
@@ -9464,6 +9574,16 @@
         "responses": {
           "200": {
             "description": "The key is removed"
+          },
+          "403": {
+            "description": "The organisation policy trusts the key; only the policy removes it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
           },
           "404": {
             "description": "No such key",
@@ -10980,6 +11100,59 @@
           },
           "503": {
             "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/model-capabilities": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/model-capabilities`, what the\nmodel of a session can do.",
+        "description": "The model is the one the next message of the session would run on: the\nmodel of its declarative agent, else the backend the session prefers, else\nthe default model of the machine.",
+        "operationId": "get_session_model_capabilities",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The model of the session and what it can do",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionModelCapabilities"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem or backend repository unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -14096,6 +14269,67 @@
         }
       }
     },
+    "/api/v1/workflows/{package}/{workflow}": {
+      "get": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "`GET /api/v1/workflows/{package}/{workflow}`: a workflow, its steps and\nthe fields of its inputs.",
+        "operationId": "get_workflow",
+        "parameters": [
+          {
+            "name": "package",
+            "in": "path",
+            "description": "Package that declares the workflow",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workflow",
+            "in": "path",
+            "description": "Workflow name in the package",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workflow and the fields of its inputs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No installed workflow by that name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Workflow engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/workflows/{package}/{workflow}/runs": {
       "get": {
         "tags": [
@@ -14206,7 +14440,7 @@
             }
           },
           "400": {
-            "description": "An input does not fit the schema; `field` names it",
+            "description": "An input does not fit the schema; `field` names it and `code` says why",
             "content": {
               "application/json": {
                 "schema": {
@@ -17280,6 +17514,33 @@
           }
         }
       },
+      "EmbeddingDefaultResponse": {
+        "type": "object",
+        "description": "The default embeddings model, and whether this machine has its file.",
+        "required": [
+          "installed"
+        ],
+        "properties": {
+          "installed": {
+            "type": "boolean",
+            "description": "Whether the file of that entry is in the model index."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the registry entry; absent when none is chosen, and\nsearch then uses keywords alone."
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Path of that file, when installed."
+          }
+        }
+      },
       "EmbeddingModelsResponse": {
         "type": "object",
         "description": "The embeddings category of the registry, and the entry for this machine.",
@@ -17779,6 +18040,57 @@
           }
         }
       },
+      "GuardrailLevel": {
+        "type": "string",
+        "description": "How strictly a launch is held to the machine's memory.",
+        "enum": [
+          "disabled",
+          "lenient",
+          "balanced",
+          "strict",
+          "ceiling"
+        ]
+      },
+      "GuardrailRefusedBody": {
+        "type": "object",
+        "description": "Body of an API answer to a launch the guardrail refused.\n\n`error` is the English sentence; `code` and the figures let an interface\nwrite its own, in its own language.",
+        "required": [
+          "error",
+          "code",
+          "model",
+          "level",
+          "estimatedGb",
+          "budgetGb"
+        ],
+        "properties": {
+          "budgetGb": {
+            "type": "number",
+            "format": "double",
+            "description": "The limit the level holds to, in gigabytes."
+          },
+          "code": {
+            "type": "string",
+            "description": "Always `guardrail_refused`."
+          },
+          "error": {
+            "type": "string",
+            "description": "Human-readable description, in English."
+          },
+          "estimatedGb": {
+            "type": "number",
+            "format": "double",
+            "description": "The estimated footprint, in gigabytes."
+          },
+          "level": {
+            "$ref": "#/components/schemas/GuardrailLevel",
+            "description": "The level that refused it."
+          },
+          "model": {
+            "type": "string",
+            "description": "The model whose launch was refused."
+          }
+        }
+      },
       "HardwareResponse": {
         "type": "object",
         "required": [
@@ -18035,6 +18347,89 @@
           }
         }
       },
+      "InputErrorCode": {
+        "type": "string",
+        "description": "Why an input was refused, as a caller matches it.",
+        "enum": [
+          "not_an_object",
+          "required",
+          "unknown",
+          "null",
+          "wrong_type",
+          "not_a_choice",
+          "malformed_date",
+          "missing_file"
+        ]
+      },
+      "InputField": {
+        "type": "object",
+        "description": "One input of a workflow, as its launch form shows it.",
+        "required": [
+          "name",
+          "kind",
+          "required",
+          "nullable"
+        ],
+        "properties": {
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The values a choice, or each item of a list of choices, may take, as\ntext: a launch reads each back as the type the input declares."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the input is, as the workflow describes it."
+          },
+          "itemKind": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/InputKind",
+                "description": "The kind of each item of a list."
+              }
+            ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/InputKind",
+            "description": "The field to show."
+          },
+          "name": {
+            "type": "string",
+            "description": "The input's name, the key of the inputs object."
+          },
+          "nullable": {
+            "type": "boolean",
+            "description": "`true` when the input accepts null."
+          },
+          "required": {
+            "type": "boolean",
+            "description": "`true` when a launch without it is refused."
+          }
+        }
+      },
+      "InputKind": {
+        "type": "string",
+        "description": "The field a form shows for an input.",
+        "enum": [
+          "text",
+          "long_text",
+          "file",
+          "date",
+          "integer",
+          "number",
+          "boolean",
+          "choice",
+          "list",
+          "other"
+        ]
+      },
       "InstallAgentRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/agents/installed`.",
@@ -18105,6 +18500,26 @@
                 "enum": [
                   "signature_required"
                 ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Governance requires a signed package, the organisation policy names the\npublishers it trusts, and the key that signed this one is not among\nthem.",
+            "required": [
+              "fingerprint",
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "publisher_not_trusted"
+                ]
+              },
+              "fingerprint": {
+                "type": "string",
+                "description": "Fingerprint of the signing key."
               }
             }
           },
@@ -18633,6 +19048,8 @@
         "type": "object",
         "description": "One resident model.",
         "required": [
+          "engine",
+          "kind",
           "model",
           "modelPath",
           "port",
@@ -18647,6 +19064,14 @@
             "type": "integer",
             "description": "Requests being answered right now. An unload is refused above zero.",
             "minimum": 0
+          },
+          "engine": {
+            "$ref": "#/components/schemas/EngineName",
+            "description": "The engine serving the model, chosen by its format: `llama-server` for\nGGUF, `vllm-mlx` for MLX."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ModelKind",
+            "description": "What the model serves: `chat`, or `embeddings` for the instance that\nserves search by meaning, which does not count against `maxLoaded`."
           },
           "lastUsedAt": {
             "type": "string",
@@ -19001,6 +19426,14 @@
             "minimum": 0
           }
         }
+      },
+      "ModelKind": {
+        "type": "string",
+        "description": "What a resident model serves.",
+        "enum": [
+          "chat",
+          "embeddings"
+        ]
       },
       "ModelSourceDto": {
         "type": "string",
@@ -19460,7 +19893,7 @@
         "properties": {
           "code": {
             "type": "string",
-            "description": "Stable code: `archive`, `invalid_signature`, `signature_required`,\n`downgrade`, `agent_taken`, `deps_confirmation_required`,\n`changes_confirmation_required`, `mcp_unavailable`, `mcp_server`,\n`environment`, `invalid_key`, `not_found`, `journal_unavailable`,\n`internal`."
+            "description": "Stable code: `archive`, `invalid_signature`, `signature_required`,\n`publisher_not_trusted`, `downgrade`, `agent_taken`,\n`deps_confirmation_required`, `changes_confirmation_required`,\n`mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,\n`policy_key`, `not_found`, `journal_unavailable`, `internal`."
           },
           "error": {
             "type": "string",
@@ -20264,6 +20697,15 @@
           }
         }
       },
+      "ReasoningProfileDto": {
+        "type": "string",
+        "description": "The reasoning setting a model lets its caller fix.",
+        "enum": [
+          "none",
+          "toggle",
+          "levels"
+        ]
+      },
       "RejectPlanRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/sessions/:id/plan/reject`.",
@@ -21029,6 +21471,50 @@
           }
         }
       },
+      "SessionModelCapabilities": {
+        "type": "object",
+        "description": "Answer of `GET /api/v1/sessions/{id}/model-capabilities`.",
+        "required": [
+          "local",
+          "vision",
+          "image_formats"
+        ],
+        "properties": {
+          "image_formats": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The image formats its engine decodes, empty without vision."
+          },
+          "local": {
+            "type": "boolean",
+            "description": "Whether a local engine serves the model."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The backend or model the conversation runs on, the default model of\nthe machine when it names none; `null` when no model is configured."
+          },
+          "reasoning_profile": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReasoningProfileDto",
+                "description": "The reasoning setting the model offers; `null` when it is not known\n(a remote server, a model not indexed yet), in which case no setting is\noffered."
+              }
+            ]
+          },
+          "vision": {
+            "type": "boolean",
+            "description": "Whether the model reads images."
+          }
+        }
+      },
       "SessionWorkspace": {
         "type": "object",
         "description": "Answer of `GET /api/v1/sessions/{id}/workspace`.",
@@ -21103,7 +21589,7 @@
         "properties": {
           "model_id": {
             "type": "string",
-            "description": "`local`: the name of a local engine backend. `server`: `<server>/<model>`\nof a declared server, or the name of a server backend."
+            "description": "`local`: the name of a local engine backend, or the identifier of a\nlanguage model of the model index, which gets its backend row.\n`server`: `<server>/<model>` of a declared server, or the name of a\nserver backend."
           },
           "model_source": {
             "$ref": "#/components/schemas/ModelSourceDto",
@@ -21134,6 +21620,19 @@
           "folder_path": {
             "type": "string",
             "description": "Folder path under My Drive, `Documents/Apollia` for instance. Empty\nmeans the root of My Drive."
+          }
+        }
+      },
+      "SetEmbeddingDefaultBody": {
+        "type": "object",
+        "description": "Body of `PUT /api/v1/llm/embeddings/default`.",
+        "required": [
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Identifier of an embeddings entry of the registry."
           }
         }
       },
@@ -22694,7 +23193,7 @@
           },
           "publicKey": {
             "type": "string",
-            "description": "The public key, 64 hexadecimal characters."
+            "description": "The public key, 64 hexadecimal characters; empty for a key the\norganisation policy names by its fingerprint only."
           }
         }
       },
@@ -23258,6 +23757,17 @@
           "error"
         ],
         "properties": {
+          "code": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/InputErrorCode",
+                "description": "Why the input was refused, when one was."
+              }
+            ]
+          },
           "error": {
             "type": "string",
             "description": "What went wrong."
@@ -23461,6 +23971,44 @@
           "status": {
             "type": "string",
             "description": "`pending`, `running`, `completed`, `failed`, `canceled` or\n`not_started`."
+          }
+        }
+      },
+      "WorkflowView": {
+        "type": "object",
+        "description": "A workflow as its package declares it, with the fields of its inputs.",
+        "required": [
+          "workflowId",
+          "version",
+          "description",
+          "steps",
+          "inputs"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InputField"
+            },
+            "description": "One field per input, in the order the workflow declares them, each\nwith the kind of field a launch form shows for it."
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The declared steps, in order."
+          },
+          "version": {
+            "type": "string",
+            "description": "The version of the package that declares it."
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "`<package>/<workflow>`."
           }
         }
       }

@@ -3,7 +3,7 @@ import {
   formatTauriError,
   isMissingClientError,
   isMissingSecretError,
-  isSovereigntyBlocked,
+  isRefusedByPolicy,
 } from "./errors";
 
 /** Identity translator: asserts on the key rather than on localized copy. */
@@ -98,15 +98,23 @@ describe("formatTauriError", () => {
   });
 });
 
-describe("isSovereigntyBlocked", () => {
-  it("recognises the sovereignty refusal and nothing else", () => {
-    // GIVEN the refusal the command returns under a local-only profile, and
-    // two other shapes. The two others are the control: a helper answering
-    // true on any error would offer to allow cloud for a missing client id.
+describe("isRefusedByPolicy", () => {
+  it("recognises the policy refusal and nothing else", () => {
+    // GIVEN the refusal the command returns under a policy that denies remote
+    // connections, and two other shapes as the control
     // WHEN each is classified
-    // THEN only the sovereignty refusal is recognised
-    expect(isSovereigntyBlocked({ kind: "sovereignty_blocked" })).toBe(true);
-    expect(isSovereigntyBlocked({ kind: "oauth_client_not_configured" })).toBe(false);
-    expect(isSovereigntyBlocked("network down")).toBe(false);
+    // THEN only the policy refusal is recognised
+    expect(isRefusedByPolicy({ kind: "refused_by_policy", detail: "denied" })).toBe(true);
+    expect(isRefusedByPolicy({ kind: "oauth_client_not_configured" })).toBe(false);
+    expect(isRefusedByPolicy("network down")).toBe(false);
+  });
+
+  it("formats the policy refusal with its catalogue key", () => {
+    // GIVEN a policy refusal carrying the runtime's English reason
+    const err = { kind: "refused_by_policy", detail: "refused by the organisation policy" };
+    // WHEN it is formatted
+    const text = formatTauriError(err, echo);
+    // THEN the localized key is used, not the raw reason
+    expect(text).toBe("connections.error_refused_by_policy");
   });
 });

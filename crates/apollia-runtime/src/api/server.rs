@@ -317,6 +317,8 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// binary is absent or in unit tests. The reload path rebuilds the router
     /// with local `LlamaCpp` backends wired through this supervisor.
     pub llama_server_supervisor: Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
+    /// The `vllm-mlx` processes serving MLX models, when this machine runs them.
+    pub mlx_engine: Option<Arc<crate::mlx_engine::MlxEngineSupervisor>>,
 
     /// Opens the secret store the LLM routes seal backend and server keys
     /// into. [`crate::inference_servers::default_store_opener`] in production.
@@ -372,6 +374,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             resilience_layer: self.resilience_layer.clone(),
             runner_proxy: self.runner_proxy.clone(),
             llama_server_supervisor: self.llama_server_supervisor.clone(),
+            mlx_engine: self.mlx_engine.clone(),
             secret_store: Arc::clone(&self.secret_store),
             batches: self.batches.clone(),
             workflows: self.workflows.clone(),
@@ -816,6 +819,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,

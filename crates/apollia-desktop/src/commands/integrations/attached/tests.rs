@@ -146,3 +146,27 @@ async fn test_a_refusal_of_the_daemon_reaches_the_interface_in_its_own_words() {
         .collect();
     assert_eq!(texts, reasons);
 }
+
+#[tokio::test]
+async fn test_a_policy_refusal_of_the_daemon_keeps_its_kind() {
+    // GIVEN a daemon whose connection admission refuses the consent
+    let (_server, client) = daemon(vec![(
+        "POST",
+        START,
+        403,
+        json!({ "error": "refused by the organisation policy" }),
+    )])
+    .await;
+
+    // WHEN the attached arm of the start command runs
+    let err = start_consent(&client, "google", &[], LOOPBACK)
+        .await
+        .unwrap_err();
+
+    // THEN the interface receives a policy refusal, not a generic one
+    assert!(
+        matches!(&err, IntegrationsError::RefusedByPolicy(reason)
+            if reason == "refused by the organisation policy"),
+        "{err:?}"
+    );
+}

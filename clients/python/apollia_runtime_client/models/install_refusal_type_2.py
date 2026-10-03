@@ -13,33 +13,30 @@ T = TypeVar("T", bound="InstallRefusalType2")
 
 @_attrs_define
 class InstallRefusalType2:
-    """The incoming version is older than the installed one.
+    """Governance requires a signed package, the organisation policy names the
+    publishers it trusts, and the key that signed this one is not among
+    them.
 
-    Attributes:
-        code (InstallRefusalType2Code):
-        incoming (str): Incoming version.
-        installed (str): Installed version.
+        Attributes:
+            code (InstallRefusalType2Code):
+            fingerprint (str): Fingerprint of the signing key.
     """
 
     code: InstallRefusalType2Code
-    incoming: str
-    installed: str
+    fingerprint: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         code = self.code.value
 
-        incoming = self.incoming
-
-        installed = self.installed
+        fingerprint = self.fingerprint
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
                 "code": code,
-                "incoming": incoming,
-                "installed": installed,
+                "fingerprint": fingerprint,
             }
         )
 
@@ -50,14 +47,11 @@ class InstallRefusalType2:
         d = dict(src_dict)
         code = InstallRefusalType2Code(d.pop("code"))
 
-        incoming = d.pop("incoming")
-
-        installed = d.pop("installed")
+        fingerprint = d.pop("fingerprint")
 
         install_refusal_type_2 = cls(
             code=code,
-            incoming=incoming,
-            installed=installed,
+            fingerprint=fingerprint,
         )
 
         install_refusal_type_2.additional_properties = d

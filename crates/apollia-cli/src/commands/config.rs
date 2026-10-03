@@ -270,6 +270,28 @@ fn toml_value_to_json(v: &toml::Value) -> serde_json::Value {
 // ─── set ─────────────────────────────────────────────────────────────────────
 
 fn run_set(key: &str, value_str: &str, file: Option<&Path>, json: bool) -> i32 {
+    let location = apollia_permissions::policy_location();
+    let policy = apollia_permissions::load_policy(&location.dir, location.owner);
+    run_set_under(key, value_str, file, json, &policy.imposed_settings())
+}
+
+/// `config set` against the settings `policy` fixes: a key the organisation
+/// policy imposes is refused before the file is opened, and the file is left
+/// as it was.
+fn run_set_under(
+    key: &str,
+    value_str: &str,
+    file: Option<&Path>,
+    json: bool,
+    policy: &apollia_core::config::PolicySettings,
+) -> i32 {
+    if policy.locks(key) {
+        emit_error(
+            format!("'{key}' is fixed by the organisation policy and cannot be changed"),
+            json,
+        );
+        return exit_codes::GENERAL_ERROR;
+    }
     let path = resolve_path(file);
     if let Some(parent) = path.parent() {
         if !parent.exists() {
@@ -906,6 +928,31 @@ mod tests {
         assert!(written.contains("developer_mode = true"), "{written}");
         let typed = crate::config::validate_apollia_toml_str(&written).unwrap();
         assert!(typed.desktop.unwrap().developer_mode);
+    }
+
+    #[test]
+    fn run_set_refuses_a_key_the_policy_fixes() {
+        // GIVEN a file where the user turned developer mode on, and a policy
+        // fixing it off
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        std::fs::write(&path, "[desktop]\ndeveloper_mode = true\n").unwrap();
+        let policy = apollia_core::config::PolicySettings::none()
+            .impose("desktop.developer_mode", serde_json::json!(false));
+        // WHEN the command sets it
+        let code = run_set_under(
+            "desktop.developer_mode",
+            "false",
+            Some(&path),
+            true,
+            &policy,
+        );
+        // THEN it fails and the file is left as it was
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "[desktop]\ndeveloper_mode = true\n"
+        );
     }
 
     #[test]

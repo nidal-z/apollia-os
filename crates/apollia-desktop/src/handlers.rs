@@ -108,6 +108,8 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::config::get_observability_config,
         commands::config::set_observability_config,
         commands::config::open_config_in_editor,
+        commands::config::settings::get_resolved_setting,
+        commands::config::settings::set_setting,
         commands::config::lifecycle::reset_onboarding,
         commands::config::lifecycle::clear_all_memories,
         commands::config::lifecycle::clear_logs,

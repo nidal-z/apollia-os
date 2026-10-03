@@ -1697,6 +1697,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/embeddings/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/embeddings/default` */
+        get: operations["get_embedding_default"];
+        /** `PUT /api/v1/llm/embeddings/default` */
+        put: operations["set_embedding_default"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/hardware": {
         parameters: {
             query?: never;
@@ -3285,7 +3303,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** `GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts. */
+        /**
+         * `GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts,
+         *     and those the organisation policy trusts, of origin `policy`.
+         */
         get: operations["list_trusted_keys"];
         put?: never;
         /**
@@ -3828,6 +3849,29 @@ export interface paths {
          * @description Zero-filled when no exchange has completed yet, as in the embedded desktop.
          */
         get: operations["get_session_metrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/model-capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/{id}/model-capabilities`, what the
+         *     model of a session can do.
+         * @description The model is the one the next message of the session would run on: the
+         *     model of its declarative agent, else the backend the session prefers, else
+         *     the default model of the machine.
+         */
+        get: operations["get_session_model_capabilities"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4892,6 +4936,26 @@ export interface paths {
          *     ended, `canceled`, its remaining steps `not_started`.
          */
         post: operations["cancel_workflow_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workflows/{package}/{workflow}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/workflows/{package}/{workflow}`: a workflow, its steps and
+         *     the fields of its inputs.
+         */
+        get: operations["get_workflow"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6208,6 +6272,18 @@ export interface components {
              */
             folder_path?: string | null;
         };
+        /** @description The default embeddings model, and whether this machine has its file. */
+        EmbeddingDefaultResponse: {
+            /** @description Whether the file of that entry is in the model index. */
+            installed: boolean;
+            /**
+             * @description Identifier of the registry entry; absent when none is chosen, and
+             *     search then uses keywords alone.
+             */
+            model?: string | null;
+            /** @description Path of that file, when installed. */
+            path?: string | null;
+        };
         /** @description The embeddings category of the registry, and the entry for this machine. */
         EmbeddingModelsResponse: {
             /** @description The machine the recommendation was made for. */
@@ -6401,6 +6477,37 @@ export interface components {
             /** @description ISO 8601 timestamp. */
             timestamp: string;
         };
+        /**
+         * @description How strictly a launch is held to the machine's memory.
+         * @enum {string}
+         */
+        GuardrailLevel: "disabled" | "lenient" | "balanced" | "strict" | "ceiling";
+        /**
+         * @description Body of an API answer to a launch the guardrail refused.
+         *
+         *     `error` is the English sentence; `code` and the figures let an interface
+         *     write its own, in its own language.
+         */
+        GuardrailRefusedBody: {
+            /**
+             * Format: double
+             * @description The limit the level holds to, in gigabytes.
+             */
+            budgetGb: number;
+            /** @description Always `guardrail_refused`. */
+            code: string;
+            /** @description Human-readable description, in English. */
+            error: string;
+            /**
+             * Format: double
+             * @description The estimated footprint, in gigabytes.
+             */
+            estimatedGb: number;
+            /** @description The level that refused it. */
+            level: components["schemas"]["GuardrailLevel"];
+            /** @description The model whose launch was refused. */
+            model: string;
+        };
         HardwareResponse: {
             accelerator: Record<string, never>;
             /** Format: double */
@@ -6525,6 +6632,35 @@ export interface components {
              */
             relevance_score: number;
         };
+        /**
+         * @description Why an input was refused, as a caller matches it.
+         * @enum {string}
+         */
+        InputErrorCode: "not_an_object" | "required" | "unknown" | "null" | "wrong_type" | "not_a_choice" | "malformed_date" | "missing_file";
+        /** @description One input of a workflow, as its launch form shows it. */
+        InputField: {
+            /**
+             * @description The values a choice, or each item of a list of choices, may take, as
+             *     text: a launch reads each back as the type the input declares.
+             */
+            choices?: string[];
+            /** @description What the input is, as the workflow describes it. */
+            description?: string | null;
+            itemKind?: null | components["schemas"]["InputKind"];
+            /** @description The field to show. */
+            kind: components["schemas"]["InputKind"];
+            /** @description The input's name, the key of the inputs object. */
+            name: string;
+            /** @description `true` when the input accepts null. */
+            nullable: boolean;
+            /** @description `true` when a launch without it is refused. */
+            required: boolean;
+        };
+        /**
+         * @description The field a form shows for an input.
+         * @enum {string}
+         */
+        InputKind: "text" | "long_text" | "file" | "date" | "integer" | "number" | "boolean" | "choice" | "list" | "other";
         /** @description Request body for `POST /api/v1/agents/installed`. */
         InstallAgentRequest: {
             /** @description Path of the Python module on this machine. */
@@ -6548,6 +6684,11 @@ export interface components {
         } | {
             /** @enum {string} */
             code: "signature_required";
+        } | {
+            /** @enum {string} */
+            code: "publisher_not_trusted";
+            /** @description Fingerprint of the signing key. */
+            fingerprint: string;
         } | {
             /** @enum {string} */
             code: "downgrade";
@@ -6775,6 +6916,16 @@ export interface components {
         LoadedModelDto: {
             /** @description Requests being answered right now. An unload is refused above zero. */
             activeRequests: number;
+            /**
+             * @description The engine serving the model, chosen by its format: `llama-server` for
+             *     GGUF, `vllm-mlx` for MLX.
+             */
+            engine: components["schemas"]["EngineName"];
+            /**
+             * @description What the model serves: `chat`, or `embeddings` for the instance that
+             *     serves search by meaning, which does not count against `maxLoaded`.
+             */
+            kind: components["schemas"]["ModelKind"];
             /** @description When a request last used the model, RFC 3339. */
             lastUsedAt: string;
             /** @description When the model finished loading, RFC 3339. */
@@ -6944,6 +7095,11 @@ export interface components {
              */
             size_bytes: number;
         };
+        /**
+         * @description What a resident model serves.
+         * @enum {string}
+         */
+        ModelKind: "chat" | "embeddings";
         /**
          * @description Where a model runs.
          * @enum {string}
@@ -7147,10 +7303,10 @@ export interface components {
         PackageErrorBody: {
             /**
              * @description Stable code: `archive`, `invalid_signature`, `signature_required`,
-             *     `downgrade`, `agent_taken`, `deps_confirmation_required`,
-             *     `changes_confirmation_required`, `mcp_unavailable`, `mcp_server`,
-             *     `environment`, `invalid_key`, `not_found`, `journal_unavailable`,
-             *     `internal`.
+             *     `publisher_not_trusted`, `downgrade`, `agent_taken`,
+             *     `deps_confirmation_required`, `changes_confirmation_required`,
+             *     `mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,
+             *     `policy_key`, `not_found`, `journal_unavailable`, `internal`.
              */
             code: string;
             /** @description Human-readable description. */
@@ -7463,6 +7619,11 @@ export interface components {
             /** @description The text. */
             text: string;
         };
+        /**
+         * @description The reasoning setting a model lets its caller fix.
+         * @enum {string}
+         */
+        ReasoningProfileDto: "none" | "toggle" | "levels";
         /** @description Request body for `POST /api/v1/sessions/:id/plan/reject`. */
         RejectPlanRequest: {
             /** @description Guidance the agent reads when it revises the plan. */
@@ -7827,6 +7988,21 @@ export interface components {
             /** @description RFC-3339 timestamp of the last update. */
             updated_at?: string | null;
         };
+        /** @description Answer of `GET /api/v1/sessions/{id}/model-capabilities`. */
+        SessionModelCapabilities: {
+            /** @description The image formats its engine decodes, empty without vision. */
+            image_formats: string[];
+            /** @description Whether a local engine serves the model. */
+            local: boolean;
+            /**
+             * @description The backend or model the conversation runs on, the default model of
+             *     the machine when it names none; `null` when no model is configured.
+             */
+            model?: string | null;
+            reasoning_profile?: null | components["schemas"]["ReasoningProfileDto"];
+            /** @description Whether the model reads images. */
+            vision: boolean;
+        };
         /** @description Answer of `GET /api/v1/sessions/{id}/workspace`. */
         SessionWorkspace: {
             /**
@@ -7863,8 +8039,10 @@ export interface components {
         /** @description Body of `PUT /api/v1/llm/default-model`. */
         SetDefaultModelRequest: {
             /**
-             * @description `local`: the name of a local engine backend. `server`: `<server>/<model>`
-             *     of a declared server, or the name of a server backend.
+             * @description `local`: the name of a local engine backend, or the identifier of a
+             *     language model of the model index, which gets its backend row.
+             *     `server`: `<server>/<model>` of a declared server, or the name of a
+             *     server backend.
              */
             model_id: string;
             /** @description Where the model runs. */
@@ -7882,6 +8060,11 @@ export interface components {
              *     means the root of My Drive.
              */
             folder_path: string;
+        };
+        /** @description Body of `PUT /api/v1/llm/embeddings/default`. */
+        SetEmbeddingDefaultBody: {
+            /** @description Identifier of an embeddings entry of the registry. */
+            model: string;
         };
         /** @description Request body for `PUT /api/v1/notifications/events`. */
         SetEventsRequest: {
@@ -8548,7 +8731,10 @@ export interface components {
             label: string;
             /** @description Who put the key there: `user` or `policy`. */
             origin: string;
-            /** @description The public key, 64 hexadecimal characters. */
+            /**
+             * @description The public key, 64 hexadecimal characters; empty for a key the
+             *     organisation policy names by its fingerprint only.
+             */
             publicKey: string;
         };
         /** @description One model call of a turn. */
@@ -8791,6 +8977,7 @@ export interface components {
         };
         /** @description Error body of the workflow routes. */
         WorkflowErrorResponse: {
+            code?: null | components["schemas"]["InputErrorCode"];
             /** @description What went wrong. */
             error: string;
             /** @description The input at fault, when an input was refused. */
@@ -8867,6 +9054,21 @@ export interface components {
              *     `not_started`.
              */
             status: string;
+        };
+        /** @description A workflow as its package declares it, with the fields of its inputs. */
+        WorkflowView: {
+            description: string;
+            /**
+             * @description One field per input, in the order the workflow declares them, each
+             *     with the kind of field a launch form shows for it.
+             */
+            inputs: components["schemas"]["InputField"][];
+            /** @description The declared steps, in order. */
+            steps: string[];
+            /** @description The version of the package that declares it. */
+            version: string;
+            /** @description `<package>/<workflow>`. */
+            workflowId: string;
         };
     };
     responses: never;
@@ -11441,6 +11643,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
+            /** @description Refused by the connection admission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
             /** @description Too many consents pending */
             429: {
                 headers: {
@@ -12759,6 +12970,15 @@ export interface operations {
                     "application/json": components["schemas"]["ChatResponse"];
                 };
             };
+            /** @description A local model the load guardrail refused; confirm the load to go ahead */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuardrailRefusedBody"];
+                };
+            };
             /** @description No router configured or backend call failed */
             503: {
                 headers: {
@@ -12799,6 +13019,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description A local model the load guardrail refused; confirm the load to go ahead */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuardrailRefusedBody"];
                 };
             };
             /** @description No router configured or backend call failed */
@@ -13057,6 +13286,77 @@ export interface operations {
                 };
             };
             /** @description The shipped registry table is invalid */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_embedding_default: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The default embeddings model, absent when none is chosen */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmbeddingDefaultResponse"];
+                };
+            };
+            /** @description system.db could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_embedding_default: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetEmbeddingDefaultBody"];
+            };
+        };
+        responses: {
+            /** @description The default embeddings model, as now set */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmbeddingDefaultResponse"];
+                };
+            };
+            /** @description Not an embeddings model of the registry */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description system.db could not be written */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -16307,7 +16607,7 @@ export interface operations {
                     "application/json": components["schemas"]["PackageErrorBody"];
                 };
             };
-            /** @description A signed package is required */
+            /** @description A signed package is required, or the organisation policy does not trust its publisher */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16503,6 +16803,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description The organisation policy trusts the key; only the policy removes it */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
             };
             /** @description No such key */
             404: {
@@ -17734,6 +18043,47 @@ export interface operations {
                 };
             };
             /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_session_model_capabilities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The model of the session and what it can do */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionModelCapabilities"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem or backend repository unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -20190,6 +20540,49 @@ export interface operations {
             };
         };
     };
+    get_workflow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package that declares the workflow */
+                package: string;
+                /** @description Workflow name in the package */
+                workflow: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The workflow and the fields of its inputs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowView"];
+                };
+            };
+            /** @description No installed workflow by that name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+            /** @description Workflow engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+        };
+    };
     list_workflow_runs: {
         parameters: {
             query?: {
@@ -20254,7 +20647,7 @@ export interface operations {
                     "application/json": components["schemas"]["WorkflowRunView"];
                 };
             };
-            /** @description An input does not fit the schema; `field` names it */
+            /** @description An input does not fit the schema; `field` names it and `code` says why */
             400: {
                 headers: {
                     [name: string]: unknown;

@@ -35,6 +35,7 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "dashboard.headline_greeting", // {greeting}.
   "hitl.fs.preview_mode_label", // {before} → {after}
   "inbox.activity.filter.llm", // LLM
+  "llm.loaded.engine_mlx", // MLX
   "notifications.field_headers_placeholder", // {"Authorization": "Bearer ..."}
   "notifications.field_url_placeholder", // https://hooks.example.com/notify
   "observability.timeline_window_30min", // 30 min
@@ -120,7 +121,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "chat.export.meta_session", // Session
   "chat.export.role_assistant", // Assistant
   "chat.journal.agent", // Agent
-  "chat.journal_mode_builder", // Builder
   "chat.legend_messages", // Messages
   "chat.mode_auto", // Auto
   "chat.planMode.phaseLabel", // Phase
@@ -208,7 +208,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.credential.absent", // Absent
   "settings.llm_backend.provider_local", // local
   "settings.llm_dialog.field_endpoint", // Endpoint
-  "settings.mode_builder", // Builder
   "settings.model_hub.detail.param_max_tokens", // max tokens
   "settings.model_hub.detail.param_temperature", // temperature
   "settings.model_hub.filters.type_base", // Base
@@ -233,7 +232,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.stt_microphone", // Microphone
   "settings.system_version", // Version
   "settings.tool_config.field.timeout_secs", // Timeout (s)
-  "sidebar.mode.builder.label", // Builder
   "tasks.col_agent", // Agent
   "tasks.tab_trace", // Trace
   "tools.body.content_type_label", // Type

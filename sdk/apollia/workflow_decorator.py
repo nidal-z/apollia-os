@@ -12,25 +12,47 @@ decorator did not declare.
 Run by the runtime, each step is reported as it opens, closes or raises: it is
 recorded with its run and published on the event bus. Run under a
 ``MockContext``, the steps report nothing.
+
+Each input is one of the fields the launch form knows: text (``str``), long
+text (:data:`apollia.LongText`), a file (:data:`apollia.FileInput`, received as
+the absolute path of the file), a date (``datetime.date``, received as a
+``date``), a number (``int``, ``float``), yes or no (``bool``), a choice
+(``Literal[...]``) or a list of text or numbers. Any other type is refused when
+the module is imported. The schema lists the inputs in the order the
+``TypedDict`` declares them under ``x-order``, the order the form follows.
 """
 
 import asyncio
+import datetime
 import functools
 import inspect
+import typing
 from collections.abc import AsyncIterator, Callable, Coroutine
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, Final, Protocol, TypeVar, is_typeddict
+from typing import Any, Final, Protocol, TypeVar, get_args, get_origin, is_typeddict
 
 from apollia._internal.inference import annotation_to_schema
-from apollia.errors import AgentConfigError
+from apollia.errors import AgentConfigError, PayloadError, SchemaError
 from apollia.tool_decorator import check_action, check_async, check_description, check_name
-from apollia.types import Ctx
+from apollia.types import DATE_FORMAT, FILE_PATH_FORMAT, LONG_TEXT_FORMAT, Ctx
 
-__all__ = ["WORKFLOW_ATTR", "WorkflowCtx", "WorkflowSpec", "workflow"]
+__all__ = ["INPUT_ORDER_KEY", "WORKFLOW_ATTR", "WorkflowCtx", "WorkflowSpec", "workflow"]
 
 #: Attribute the decorator stamps on the returned function.
 WORKFLOW_ATTR: Final = "__apollia_workflow__"
+
+#: Key of the input schema that lists the inputs in their declared order.
+INPUT_ORDER_KEY: Final = "x-order"
+
+#: The input types a workflow may declare, as the refusal of another one names them.
+_SUPPORTED_INPUTS: Final = (
+    "text (str), long text (apollia.LongText), a file (apollia.FileInput), "
+    "a date (datetime.date), a number (int, float), yes or no (bool), "
+    "a choice (Literal[...]) or a list (list[str], list[int], list[float])"
+)
+
+_TEXT_FORMATS: Final = frozenset({None, DATE_FORMAT, LONG_TEXT_FORMAT, FILE_PATH_FORMAT})
 
 R = TypeVar("R")
 
@@ -124,6 +146,80 @@ def _check_steps(name: str, steps: object) -> tuple[str, ...]:
     return tuple(seen)
 
 
+def _is_form_field(schema: dict[str, Any]) -> bool:
+    """``True`` when ``schema`` is one of the fields the launch form knows."""
+    if "enum" in schema:
+        return True
+    kind = schema.get("type")
+    if kind == "string":
+        return schema.get("format") in _TEXT_FORMATS
+    if kind in ("integer", "number", "boolean"):
+        return True
+    if kind == "array":
+        items = schema.get("items")
+        if not isinstance(items, dict):
+            return False
+        if "enum" in items:
+            return True
+        if items.get("type") == "string":
+            return "format" not in items
+        return items.get("type") in ("integer", "number")
+    return False
+
+
+def _input_schema(name: str, inputs: type) -> tuple[dict[str, Any], tuple[str, ...]]:
+    """The schema of ``inputs`` and the names of its date inputs.
+
+    Raises:
+        AgentConfigError: when an input is of a type the launch form does not
+            know, naming the input and the types it may take.
+    """
+    try:
+        hints = typing.get_type_hints(inputs, include_extras=True)
+    except (NameError, TypeError) as exc:
+        raise AgentConfigError(f"@workflow {name!r}: the inputs cannot be read: {exc}") from exc
+    dates: list[str] = []
+    for field_name, annotation in hints.items():
+        if getattr(get_origin(annotation), "_name", None) in ("Required", "NotRequired"):
+            annotation = get_args(annotation)[0]
+        try:
+            field_schema = annotation_to_schema(annotation)
+        except SchemaError as exc:
+            raise AgentConfigError(
+                f"@workflow {name!r}: input {field_name!r} has an unsupported type "
+                f"({annotation!r}); a workflow input is {_SUPPORTED_INPUTS}"
+            ) from exc
+        if not _is_form_field(field_schema):
+            raise AgentConfigError(
+                f"@workflow {name!r}: input {field_name!r} has an unsupported type "
+                f"({annotation!r}); a workflow input is {_SUPPORTED_INPUTS}"
+            )
+        if field_schema.get("format") == DATE_FORMAT:
+            dates.append(field_name)
+    schema = annotation_to_schema(inputs)
+    schema[INPUT_ORDER_KEY] = list(hints)
+    return schema, tuple(dates)
+
+
+def _read_dates(name: str, dates: tuple[str, ...], inputs: object) -> object:
+    """``inputs`` with each date input given as ``YYYY-MM-DD`` read as a ``date``."""
+    if not dates or not isinstance(inputs, dict):
+        return inputs
+    read = dict(inputs)
+    for field_name in dates:
+        value = read.get(field_name)
+        if not isinstance(value, str):
+            continue
+        try:
+            read[field_name] = datetime.date.fromisoformat(value)
+        except ValueError as exc:
+            raise PayloadError(
+                f"@workflow {name!r}: input {field_name!r} is not a date (YYYY-MM-DD): {value!r}",
+                field=field_name,
+            ) from exc
+    return read
+
+
 def _check_signature(name: str, fn: Callable[..., Any]) -> None:
     parameters = list(inspect.signature(fn).parameters.values())
     positional = (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
@@ -168,17 +264,18 @@ def workflow(
     Args:
         name: Identifier, ``[a-z0-9_-]+``, unique in the package.
         description: What the workflow does, shown on its card.
-        inputs: A ``TypedDict``; its schema is the workflow's input form.
+        inputs: A ``TypedDict``; its schema is the workflow's input form, and
+            each of its inputs one of the types listed in the module docstring.
         steps: Step names, in order, unique, as the card shows them.
         action: The most sensitive action family the workflow performs, one of
             :data:`apollia.tool_decorator.ACTION_FAMILIES`.
 
     Raises:
         AgentConfigError: on an invalid name, an empty description, an unknown
-            family, ``inputs`` that is not a ``TypedDict``, an empty or
+            family, ``inputs`` that is not a ``TypedDict`` or that declares an
+            input of a type the launch form does not know, an empty or
             duplicated step list, or a function that is not
             ``async def (ctx, inputs)`` or is already a workflow.
-        SchemaError: when a field of ``inputs`` cannot become a schema.
     """
     checked_name = check_name("@workflow", name)
     checked_description = check_description("@workflow", checked_name, description)
@@ -186,13 +283,14 @@ def workflow(
     if not is_typeddict(inputs):
         raise AgentConfigError(f"@workflow {checked_name!r}: inputs must be a TypedDict class")
     checked_steps = _check_steps(checked_name, steps)
+    input_schema, dates = _input_schema(checked_name, inputs)
     spec = WorkflowSpec(
         name=checked_name,
         description=checked_description,
         action=checked_action,
         steps=checked_steps,
         inputs=inputs,
-        input_schema=annotation_to_schema(inputs),
+        input_schema=input_schema,
     )
 
     def decorator(
@@ -209,7 +307,9 @@ def workflow(
         async def run(ctx: object, workflow_inputs: object) -> R:
             if isinstance(ctx, _StepContext):
                 ctx = ctx._apollia_inner
-            return await fn(_StepContext(ctx, spec), workflow_inputs)
+            return await fn(
+                _StepContext(ctx, spec), _read_dates(checked_name, dates, workflow_inputs)
+            )
 
         setattr(run, WORKFLOW_ATTR, spec)
         return run

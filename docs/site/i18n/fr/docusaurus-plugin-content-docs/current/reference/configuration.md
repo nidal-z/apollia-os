@@ -372,6 +372,37 @@ affiche encore certaines. Un interrupteur qui ressemble à un contrôle de
 confidentialité et ne fait rien est pire qu'un interrupteur absent, donc tant
 qu'elles ne sont pas implémentées ou retirées, ce tableau fait foi.
 
+## Garde-fous de chargement (`[llm.guardrails]`)
+
+Avant le lancement d'un modèle local, sa mémoire est estimée avec la fenêtre de
+contexte et le nombre de requêtes parallèles avec lesquels il tournerait
+vraiment, puis jugée face à ce poste : il tient, il pourrait tenir (partagé entre
+une carte graphique et la mémoire système), ou il est trop gros. Le niveau décide
+de ce qui est lancé.
+
+```toml
+[llm.guardrails]
+level = "balanced"   # disabled, lenient, balanced, strict ou ceiling
+ceiling_gb = 12.0    # lu par le niveau ceiling seulement
+```
+
+| Niveau | Lance |
+| --- | --- |
+| `disabled` | tous les modèles, sans estimation |
+| `lenient` | tous les modèles, avec un avertissement au journal au-delà de « pourrait tenir » |
+| `balanced` | jusqu'à « pourrait tenir ». Le défaut |
+| `strict` | seulement un modèle qui tient |
+| `ceiling` | un modèle estimé à `ceiling_gb` gigaoctets ou moins |
+
+La section est relue à chaque lancement : un changement vaut pour le prochain
+modèle chargé, sans redémarrage. Un modèle déjà chargé n'est pas arrêté. Un refus
+donne l'estimation et la limite : `POST /api/v1/llm/chat` et
+`POST /api/v1/llm/complete` y répondent par le statut 409, le code
+`guardrail_refused`, le niveau, `estimatedGb` et `budgetGb`. Une section illisible, un niveau inconnu ou un
+niveau `ceiling` sans `ceiling_gb` positif valent `balanced` : une faute de
+frappe ne coupe jamais le garde-fou. Un modèle dont l'empreinte ne peut pas être
+estimée est lancé.
+
 ## Dictée (`system.db`, pas `apollia.toml`)
 
 La dictée vocale n'a pas de section `apollia.toml`. Ses dix réglages vivent
