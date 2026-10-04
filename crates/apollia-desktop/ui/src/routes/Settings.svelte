@@ -53,7 +53,6 @@
     "model-hub": () => import("./settings/ModelHub.svelte"),
     tools: () => import("./settings/Tools.svelte"),
     permissions: () => import("./settings/Permissions.svelte"),
-    integrations: () => import("./settings/Integrations.svelte"),
   };
 
   const cache = new Map<SettingsSubRoute, Component>();
@@ -273,7 +272,6 @@
     "model-hub": "settings.model_hub.subtitle",
     tools: "settings.tools_page.subtitle",
     permissions: "settings.permissions.subtitle",
-    integrations: "settings.integrations.subtitle",
   };
 
   const ROUTE_META = new Map<SettingsSubRoute, { titleKey: string; kickerKey: string }>();

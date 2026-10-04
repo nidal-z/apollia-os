@@ -1,8 +1,8 @@
 <script lang="ts">
   /**
-   * OauthCredentialRow - one OAuth client credential inside an
-   * OauthProviderCard. "public" mode (client_id) echoes the value and shows its
-   * resolution source; empty save clears the override. "secret" mode
+   * OauthCredentialRow - one OAuth client credential on the page of a
+   * connection (NativeClientSection). "public" mode (client_id) echoes the
+   * value and shows its resolution source; empty save clears the override. "secret" mode
    * (client_secret / api_key) is write-only: never echoed, reveal toggle on
    * edit, save requires a value, removal via explicit Delete. Errors are
    * humanized (raw behind a Disclosure); the draft clears on success or cancel.
