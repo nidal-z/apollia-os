@@ -191,7 +191,6 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::onboarding::check_onboarding_finalized,
         commands::onboarding::finalize_onboarding_chat,
         commands::onboarding::advance_onboarding_phase,
-        commands::onboarding::set_onboarding_profile,
         commands::onboarding::trigger_onboarding,
         commands::onboarding::resume_onboarding,
         commands::onboarding::dismiss_onboarding,

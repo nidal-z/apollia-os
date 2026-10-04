@@ -1,5 +1,5 @@
 //! The onboarding over HTTP, under `/api/v1/onboarding`: its state, the move
-//! to the next phase, the profile, the conversation with the onboarding agent
+//! to the next phase, the conversation with the onboarding agent
 //! (started, resumed, dismissed) and the completion that agent records.
 //!
 //! The onboarding had no route: only the desktop running the runtime in its
@@ -9,7 +9,7 @@
 
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::{get, post, put};
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
@@ -24,15 +24,8 @@ type ApiError = (StatusCode, Json<ApiErrorBody>);
 /// Request body for `POST /api/v1/onboarding/phase`.
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct AdvancePhaseBody {
-    /// The phase to move to, in its snake_case name (`profile_choice`...).
+    /// The phase to move to, in its snake_case name (`ai_setup`...).
     pub phase: String,
-}
-
-/// Request body for `PUT /api/v1/onboarding/profile`.
-#[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
-pub struct OnboardingProfileBody {
-    /// `operator` or `builder`.
-    pub profile: String,
 }
 
 /// Request body for `POST /api/v1/onboarding/sessions`.
@@ -41,9 +34,6 @@ pub struct TriggerOnboardingBody {
     /// One topic to run again; absent for a full onboarding.
     #[serde(default)]
     pub topic: Option<String>,
-    /// The profile the agent adapts its questions to, when one was chosen.
-    #[serde(default)]
-    pub profile: Option<String>,
 }
 
 /// Answer of `POST /api/v1/onboarding/dismiss`.
@@ -68,10 +58,6 @@ pub fn onboarding_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route(
             "/api/v1/onboarding/phase",
             post(advance_onboarding_phase::<B>),
-        )
-        .route(
-            "/api/v1/onboarding/profile",
-            put(set_onboarding_profile::<B>),
         )
         .route("/api/v1/onboarding/sessions", post(trigger_onboarding::<B>))
         .route("/api/v1/onboarding/resume", post(resume_onboarding::<B>))
@@ -101,9 +87,9 @@ fn refusal(error: OnboardingError) -> ApiError {
             StatusCode::SERVICE_UNAVAILABLE
         }
         OnboardingError::AgentNotInstalled => StatusCode::NOT_FOUND,
-        OnboardingError::InvalidTopic(_)
-        | OnboardingError::InvalidProfile(_)
-        | OnboardingError::UnknownPhase(_) => StatusCode::BAD_REQUEST,
+        OnboardingError::InvalidTopic(_) | OnboardingError::UnknownPhase(_) => {
+            StatusCode::BAD_REQUEST
+        }
         OnboardingError::InvalidTransition { .. } => StatusCode::CONFLICT,
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     };
@@ -161,29 +147,6 @@ pub(crate) async fn advance_onboarding_phase<B: ExecutionBackend + Clone>(
         .map_err(refusal)
 }
 
-/// `PUT /api/v1/onboarding/profile`: records the profile chosen.
-#[utoipa::path(
-    put,
-    path = "/api/v1/onboarding/profile",
-    tag = "onboarding",
-    request_body = OnboardingProfileBody,
-    responses(
-        (status = 200, description = "The state with its profile", body = OnboardingState),
-        (status = 400, description = "Neither operator nor builder", body = ApiErrorBody),
-        (status = 503, description = "The user memory did not open", body = ApiErrorBody),
-    )
-)]
-pub(crate) async fn set_onboarding_profile<B: ExecutionBackend + Clone>(
-    State(state): State<AppState<B>>,
-    Json(body): Json<OnboardingProfileBody>,
-) -> Result<Json<OnboardingState>, ApiError> {
-    onboarding(&state)
-        .set_profile(body.profile)
-        .await
-        .map(Json)
-        .map_err(refusal)
-}
-
 /// `POST /api/v1/onboarding/sessions`: opens a conversation with the
 /// onboarding agent, for the whole onboarding or one topic.
 #[utoipa::path(
@@ -193,7 +156,7 @@ pub(crate) async fn set_onboarding_profile<B: ExecutionBackend + Clone>(
     request_body = TriggerOnboardingBody,
     responses(
         (status = 200, description = "The conversation opened", body = TriggerResult),
-        (status = 400, description = "Unknown topic or profile", body = ApiErrorBody),
+        (status = 400, description = "Unknown topic", body = ApiErrorBody),
         (status = 404, description = "The onboarding agent is not installed", body = ApiErrorBody),
         (status = 503, description = "The chat did not start", body = ApiErrorBody),
     )
@@ -203,7 +166,7 @@ pub(crate) async fn trigger_onboarding<B: ExecutionBackend + Clone>(
     Json(body): Json<TriggerOnboardingBody>,
 ) -> Result<Json<TriggerResult>, ApiError> {
     onboarding(&state)
-        .trigger(body.topic, body.profile, false)
+        .trigger(body.topic, false)
         .await
         .map(Json)
         .map_err(refusal)
@@ -225,7 +188,7 @@ pub(crate) async fn resume_onboarding<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Result<Json<TriggerResult>, ApiError> {
     onboarding(&state)
-        .trigger(None, None, true)
+        .trigger(None, true)
         .await
         .map(Json)
         .map_err(refusal)

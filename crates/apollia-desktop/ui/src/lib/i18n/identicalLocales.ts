@@ -170,7 +170,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "observability.task_timeline_fact_backend", // Backend
   "onboarding.ai_setup.backends_count", // {count, plural, one {# backend} other {# backends}}
   "onboarding.ai_setup.gated", // gated
-  "onboarding.profile_selector.builder_title", // Builder
   "onboarding_stt.mic_label", // Microphone
   "onboarding_welcome.feature_local_title", // Local-first
   "packages.preview.content.kind_agent", // Agent

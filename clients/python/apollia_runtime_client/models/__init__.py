@@ -301,7 +301,6 @@ from .onboarding_dismissed import OnboardingDismissed
 from .onboarding_finalized import OnboardingFinalized
 from .onboarding_marked import OnboardingMarked
 from .onboarding_phase import OnboardingPhase
-from .onboarding_profile_body import OnboardingProfileBody
 from .onboarding_reset import OnboardingReset
 from .onboarding_state import OnboardingState
 from .onboarding_stats import OnboardingStats
@@ -850,7 +849,6 @@ __all__ = (
     "OnboardingFinalized",
     "OnboardingMarked",
     "OnboardingPhase",
-    "OnboardingProfileBody",
     "OnboardingReset",
     "OnboardingState",
     "OnboardingStats",

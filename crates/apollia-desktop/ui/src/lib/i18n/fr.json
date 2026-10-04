@@ -3337,24 +3337,6 @@
       "recommend_measured_on_gpu": "Mesuré sur {cpu} avec {ram} Go de RAM, et {gpu} avec {vram} Go de mémoire vidéo",
       "recommend_measured_on_unified": "Mesuré sur {chip} avec {ram} Go de mémoire unifiée",
       "reason_trained_context": "Entraîné sur {tokens}k tokens : tourne à {tokens}k au lieu des {asked}k choisis"
-    },
-    "profile_selector": {
-      "title": "Comment vas-tu utiliser Apollia ?",
-      "subtitle": "Choisis le profil qui te ressemble. Tu pourras le changer dans les paramètres.",
-      "operator_title": "Opérateur",
-      "operator_desc": "Tu veux des agents qui exécutent des tâches concrètes pour toi - emails, veille, synthèses, automatisations.",
-      "operator_bullet_1": "Interface simplifiée",
-      "operator_bullet_2": "Validation explicite des actions sensibles",
-      "operator_bullet_3": "Agents prêts à l'emploi",
-      "operator_examples": "Ex : PM, RSE, Support, Direction",
-      "builder_desc": "Tu veux concevoir, debugger et observer des agents. Plus de contrôle, plus de visibilité, plus d'autonomie.",
-      "builder_bullet_1": "Observabilité complète (timeline, traces, coûts)",
-      "builder_bullet_2": "SDK Python + outils MCP",
-      "builder_bullet_3": "Permissions granulaires par agent",
-      "builder_examples": "Ex : Dev, Data, Infra, IA",
-      "back": "← Retour",
-      "both": "Je suis les deux → mode Builder",
-      "builder_title": "Builder"
     }
   },
   "agent_detail": {
@@ -3823,7 +3805,6 @@
     "skip_later": "Configurer plus tard",
     "skip_optional": "Passer les questions optionnelles",
     "step_welcome": "Accueil",
-    "step_profile": "Profil",
     "step_models": "Modèles",
     "step_calibration": "Calibrage"
   },

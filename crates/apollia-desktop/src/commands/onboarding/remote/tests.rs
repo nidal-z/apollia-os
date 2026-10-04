@@ -6,10 +6,9 @@ use crate::attached::{gate, LinkMode, ROUTED_COMMANDS};
 
 const TOKEN: &str = "token-of-this-installation";
 
-const COMMANDS: [&str; 8] = [
+const COMMANDS: [&str; 7] = [
     "get_onboarding_state",
     "advance_onboarding_phase",
-    "set_onboarding_profile",
     "trigger_onboarding",
     "resume_onboarding",
     "dismiss_onboarding",
@@ -21,7 +20,6 @@ fn state_json(phase: &str) -> serde_json::Value {
     serde_json::to_value(OnboardingState {
         phase: apollia_runtime::onboarding::state::OnboardingPhase::parse(phase)
             .expect("known phase"),
-        profile: Some("operator".to_owned()),
         ..OnboardingState::default()
     })
     .expect("state serializes")
@@ -43,19 +41,13 @@ async fn test_each_onboarding_command_reaches_its_daemon_route_with_the_token() 
         (
             "POST",
             "/api/v1/onboarding/phase",
-            Some(serde_json::json!({ "phase": "profile_choice" })),
-            state_json("profile_choice"),
-        ),
-        (
-            "PUT",
-            "/api/v1/onboarding/profile",
-            Some(serde_json::json!({ "profile": "operator" })),
-            state_json("profile_choice"),
+            Some(serde_json::json!({ "phase": "ai_setup" })),
+            state_json("ai_setup"),
         ),
         (
             "POST",
             "/api/v1/onboarding/sessions",
-            Some(serde_json::json!({ "topic": null, "profile": "operator" })),
+            Some(serde_json::json!({ "topic": null })),
             trigger_json("full"),
         ),
         (
@@ -99,11 +91,8 @@ async fn test_each_onboarding_command_reaches_its_daemon_route_with_the_token() 
 
     // WHEN the attached arm of each command runs
     let read = state(&client).await.unwrap();
-    let advanced = advance(&client, "profile_choice").await.unwrap();
-    let chosen = set_profile(&client, "operator").await.unwrap();
-    let started = trigger(&client, None, Some("operator".to_owned()))
-        .await
-        .unwrap();
+    let advanced = advance(&client, "ai_setup").await.unwrap();
+    let started = trigger(&client, None).await.unwrap();
     let resumed = resume(&client).await.unwrap();
     dismiss(&client).await.unwrap();
     finalize(&client).await.unwrap();
@@ -112,8 +101,7 @@ async fn test_each_onboarding_command_reaches_its_daemon_route_with_the_token() 
     // THEN each reached its own route once (the mocks verify it on drop), and
     // the answers read as the onboarding screens draw them
     assert_eq!(read.phase.as_str(), "welcome");
-    assert_eq!(advanced.phase.as_str(), "profile_choice");
-    assert_eq!(chosen.profile.as_deref(), Some("operator"));
+    assert_eq!(advanced.phase.as_str(), "ai_setup");
     assert_eq!(started.mode, "full");
     assert_eq!(started.session_id, "s-full");
     assert_eq!(resumed.mode, "resume");
@@ -151,12 +139,6 @@ async fn test_an_onboarding_refused_by_the_daemon_shows_its_own_message() {
             "UserMemory database not initialized",
         ),
         (
-            "PUT",
-            "/api/v1/onboarding/profile",
-            400,
-            "invalid profile: hacker, expected 'operator' or 'builder'",
-        ),
-        (
             "POST",
             "/api/v1/onboarding/dismiss",
             503,
@@ -189,10 +171,9 @@ async fn test_an_onboarding_refused_by_the_daemon_shows_its_own_message() {
 
     // WHEN the attached arm of each command runs against those refusals
     let advanced = advance(&client, "done").await;
-    let started = trigger(&client, None, None).await;
+    let started = trigger(&client, None).await;
     let resumed = resume(&client).await;
     let read = state(&client).await;
-    let chosen = set_profile(&client, "hacker").await;
     let dismissed = dismiss(&client).await;
     let finalized = finalize(&client).await;
     let checked = is_finalized(&client).await;
@@ -202,10 +183,6 @@ async fn test_an_onboarding_refused_by_the_daemon_shows_its_own_message() {
     assert_eq!(started.unwrap_err(), "onboarding-agent is not installed.");
     assert_eq!(resumed.unwrap_err(), "onboarding-agent is not installed.");
     assert_eq!(read.unwrap_err(), "UserMemory database not initialized");
-    assert_eq!(
-        chosen.unwrap_err(),
-        "invalid profile: hacker, expected 'operator' or 'builder'"
-    );
     assert_eq!(
         dismissed.unwrap_err(),
         "UserMemory database not initialized"
@@ -219,7 +196,7 @@ async fn test_an_onboarding_refused_by_the_daemon_shows_its_own_message() {
 
 #[test]
 fn test_the_onboarding_commands_are_routed_and_pass_the_gate_attached() {
-    // GIVEN the eight commands of the onboarding
+    // GIVEN the seven commands of the onboarding
     // WHEN each is gated while attached
     // THEN each is routed, none is refused
     for command in COMMANDS {
