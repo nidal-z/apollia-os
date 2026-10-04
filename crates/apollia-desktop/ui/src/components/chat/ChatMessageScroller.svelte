@@ -12,12 +12,13 @@
   import { MessageSquare, Link } from "lucide-svelte";
   import { Spinner } from "$lib/components/ui/progress";
   import { Button } from "$lib/components/ui/button";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { contextDrawerOpen } from "$lib/stores/chatLayout";
   import MessageGroup from "./MessageGroup.svelte";
   import StreamingMessage from "./StreamingMessage.svelte";
   import A2ADelegationCard from "./A2ADelegationCard.svelte";
   import ApprovalCard from "./ApprovalCard.svelte";
+  import OperatorApprovalCard from "./OperatorApprovalCard.svelte";
   import AskUserCard from "./AskUserCard.svelte";
   import ChatPlanHost from "./ChatPlanHost.svelte";
   import ScrollToBottomButton from "./ScrollToBottomButton.svelte";
@@ -25,6 +26,7 @@
   import type { A2ADelegation } from "./useA2ADelegation.svelte";
   import type { ConversationScroll } from "./useConversationScroll.svelte";
   import type { LiveToolCall } from "./liveToolChain";
+  import { liveApprovalCall } from "./liveApprovalCall";
 
   interface Props {
     sessionId: string;
@@ -114,7 +116,7 @@
           {onregenerate}
           {onedit}
         />
-        {#if $uiMode === "builder" && hasCrossSessionRefs && isSingleCrossSession}
+        {#if $developerMode && hasCrossSessionRefs && isSingleCrossSession}
           <div
             class="absolute -top-1 -right-1 flex items-center gap-1 rounded-full leading-none bg-secondary/20 px-2 py-0.5"
             data-testid="cross-session-badge"
@@ -159,13 +161,22 @@
                mount a fresh card, never inheriting the previous card's busy
                (greyed) state. -->
           {#key pendingApproval.toolCallId}
-            <ApprovalCard
-              sessionId={pendingApproval.sessionId}
-              messageId={pendingApproval.messageId}
-              toolCallId={pendingApproval.toolCallId}
-              toolName={pendingApproval.toolName}
-              inputPreview={pendingApproval.inputPreview}
-            />
+            {#if $developerMode}
+              <ApprovalCard
+                sessionId={pendingApproval.sessionId}
+                messageId={pendingApproval.messageId}
+                toolCallId={pendingApproval.toolCallId}
+                toolName={pendingApproval.toolName}
+                inputPreview={pendingApproval.inputPreview}
+              />
+            {:else}
+              <OperatorApprovalCard
+                sessionId={pendingApproval.sessionId}
+                messageId={pendingApproval.messageId}
+                toolCallId={pendingApproval.toolCallId}
+                toolCall={liveApprovalCall(pendingApproval.toolName, pendingApproval.inputPreview)}
+              />
+            {/if}
           {/key}
         </div>
         <Button variant="ghost" size="sm"

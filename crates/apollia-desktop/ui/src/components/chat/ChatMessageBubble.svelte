@@ -3,7 +3,7 @@
   import { t, locale } from "svelte-i18n";
   import { Copy, Check, RefreshCw, Pencil } from "lucide-svelte";
   import type { ChatMessageView } from "$lib/types";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import MessageRenderer from "./MessageRenderer.svelte";
   import type { Citation } from "$lib/chat/confidenceParser";
   import ReasoningSequence from "./ReasoningSequence.svelte";
@@ -44,7 +44,7 @@
   }: Props = $props();
 
   const isUser = $derived(message.role === "user");
-  const isOperator = $derived($uiMode === "operator");
+  const isOperator = $derived(!$developerMode);
 
   const formattedTime = $derived.by(() => {
     const date = new Date(message.created_at);

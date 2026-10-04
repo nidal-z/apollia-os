@@ -91,7 +91,7 @@
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "approval-card-",
+      "testidPrefix": "operator-approval-",
       "nth": 0,
       "timeoutMs": 8000
     },
@@ -105,7 +105,7 @@
     },
     {
       "kind": "click",
-      "testidPrefix": "approval-refuse-",
+      "testidPrefix": "operator-approval-refuse-",
       "nth": 0,
       "timeoutMs": 8000
     },
@@ -258,13 +258,13 @@
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "approval-card-",
+      "testidPrefix": "operator-approval-",
       "nth": 0,
       "timeoutMs": 8000
     },
     {
       "kind": "click",
-      "testidPrefix": "approval-refuse-",
+      "testidPrefix": "operator-approval-refuse-",
       "nth": 0,
       "timeoutMs": 8000
     },

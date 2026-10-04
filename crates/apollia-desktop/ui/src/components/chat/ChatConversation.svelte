@@ -15,7 +15,7 @@
     getPendingChatApprovalForSession,
     getPendingUserInputForSession, removePendingUserInput,
   } from "$lib/stores/chat";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { planModeDefault } from "$lib/stores/planModeSetting";
   import { setPlanMode } from "$lib/ipc/planMode";
   import type {
@@ -223,7 +223,7 @@
 
   /** Reasoning skin for the live timeline (mirrors the finalized sequence). */
   const liveSkin = $derived<"builder" | "operator">(
-    $uiMode === "builder" ? "builder" : "operator",
+    $developerMode ? "builder" : "operator",
   );
 
   // The live chain is rendered in invocation order (no dedup): each tool call
@@ -733,7 +733,7 @@
       <NextStepsPanel
         scopeKey={sessionEndScope}
         context="session_end"
-        mode={$uiMode === "builder" ? "builder" : "operator"}
+        mode={$developerMode ? "builder" : "operator"}
         facts={nextStepsFacts}
         title={$t("next_steps.session_title")}
       />
