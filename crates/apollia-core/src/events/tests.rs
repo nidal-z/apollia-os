@@ -299,7 +299,6 @@ fn test_all_variants_exist_and_clone() {
             topic: None,
         },
         RuntimeEvent::OnboardingCompleted {
-            profile: "operator".into(),
             duration_sec: 1200,
             actions_count: 18,
         },

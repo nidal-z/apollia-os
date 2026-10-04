@@ -3218,24 +3218,6 @@
       "recommend_measured_on_gpu": "Measured on {cpu} with {ram} GB of RAM, and {gpu} with {vram} GB of video memory",
       "recommend_measured_on_unified": "Measured on {chip} with {ram} GB of unified memory",
       "reason_trained_context": "Trained on {tokens}k tokens: runs at {tokens}k instead of the {asked}k chosen"
-    },
-    "profile_selector": {
-      "title": "How will you use Apollia?",
-      "subtitle": "Choose the profile that fits you. You can change it later in settings.",
-      "operator_title": "Operator",
-      "operator_desc": "You want agents that carry out concrete tasks for you - emails, monitoring, summaries, automations.",
-      "operator_bullet_1": "Simplified interface",
-      "operator_bullet_2": "Explicit validation of sensitive actions",
-      "operator_bullet_3": "Ready-to-use agents",
-      "operator_examples": "e.g.: PM, CSR, Support, Management",
-      "builder_desc": "You want to design, debug and observe agents. More control, more visibility, more autonomy.",
-      "builder_bullet_1": "Full observability (timeline, traces, costs)",
-      "builder_bullet_2": "Python SDK + MCP tools",
-      "builder_bullet_3": "Granular per-agent permissions",
-      "builder_examples": "e.g.: Dev, Data, Infra, AI",
-      "back": "← Back",
-      "both": "I'm both → Builder mode",
-      "builder_title": "Builder"
     }
   },
   "agent_detail": {
@@ -3674,7 +3656,6 @@
     "skip_later": "Configure later",
     "skip_optional": "Skip the optional questions",
     "step_welcome": "Welcome",
-    "step_profile": "Profile",
     "step_models": "Models",
     "step_calibration": "Calibration"
   },

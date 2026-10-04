@@ -241,14 +241,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_transcriptions",
     "transcribe_file",
     // The onboarding, over `/api/v1/onboarding`: its state and phases, the
-    // profile chosen, the conversation with its agent and its completion.
+    // conversation with its agent and its completion.
     "advance_onboarding_phase",
     "check_onboarding_finalized",
     "dismiss_onboarding",
     "finalize_onboarding_chat",
     "get_onboarding_state",
     "resume_onboarding",
-    "set_onboarding_profile",
     "trigger_onboarding",
     // Resets and erasures, over `/api/v1/onboarding/*`, `/api/v1/memory/wipe`,
     // `/api/v1/logs/clear` and `/api/v1/factory-reset`. The flag, the memory,

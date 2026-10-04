@@ -10573,57 +10573,6 @@
         }
       }
     },
-    "/api/v1/onboarding/profile": {
-      "put": {
-        "tags": [
-          "onboarding"
-        ],
-        "summary": "`PUT /api/v1/onboarding/profile`: records the profile chosen.",
-        "operationId": "set_onboarding_profile",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OnboardingProfileBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "The state with its profile",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OnboardingState"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Neither operator nor builder",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "The user memory did not open",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/onboarding/reset": {
       "post": {
         "tags": [
@@ -10725,7 +10674,7 @@
             }
           },
           "400": {
-            "description": "Unknown topic or profile",
+            "description": "Unknown topic",
             "content": {
               "application/json": {
                 "schema": {
@@ -17635,7 +17584,7 @@
         "properties": {
           "phase": {
             "type": "string",
-            "description": "The phase to move to, in its snake_case name (`profile_choice`...)."
+            "description": "The phase to move to, in its snake_case name (`ai_setup`...)."
           }
         }
       },
@@ -23687,29 +23636,15 @@
       },
       "OnboardingPhase": {
         "type": "string",
-        "description": "The seven ordered phases of the onboarding flow.",
+        "description": "The six ordered phases of the onboarding flow.",
         "enum": [
           "welcome",
-          "profile_choice",
           "ai_setup",
           "acquaintance",
           "guided_tour",
           "graduation",
           "done"
         ]
-      },
-      "OnboardingProfileBody": {
-        "type": "object",
-        "description": "Request body for `PUT /api/v1/onboarding/profile`.",
-        "required": [
-          "profile"
-        ],
-        "properties": {
-          "profile": {
-            "type": "string",
-            "description": "`operator` or `builder`."
-          }
-        }
       },
       "OnboardingReset": {
         "type": "object",
@@ -23770,13 +23705,6 @@
             "$ref": "#/components/schemas/OnboardingPhase",
             "description": "Current phase of the onboarding flow."
           },
-          "profile": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Chosen user profile (`\"operator\"` or `\"builder\"`); set during ProfileChoice."
-          },
           "skipped": {
             "type": "boolean",
             "description": "`true` if the user explicitly skipped the onboarding."
@@ -23786,7 +23714,7 @@
               "string",
               "null"
             ],
-            "description": "ISO 8601 timestamp of the first phase transition (Welcome → ProfileChoice)."
+            "description": "ISO 8601 timestamp of the first phase transition (Welcome to AiSetup)."
           },
           "stats": {
             "$ref": "#/components/schemas/OnboardingStats",
@@ -27786,13 +27714,6 @@
         "type": "object",
         "description": "Request body for `POST /api/v1/onboarding/sessions`.",
         "properties": {
-          "profile": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The profile the agent adapts its questions to, when one was chosen."
-          },
           "topic": {
             "type": [
               "string",
@@ -29035,7 +28956,7 @@
     },
     {
       "name": "onboarding",
-      "description": "The onboarding: its phases, its profile and its conversation"
+      "description": "The onboarding: its phases and its conversation"
     },
     {
       "name": "artifacts",
