@@ -372,15 +372,6 @@
     },
     {
       "kind": "click",
-      "testid": "nav-memory"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
       "testid": "nav-integrations"
     },
     {
@@ -423,6 +414,11 @@
     {
       "kind": "waitGone",
       "testid": "nav-observability",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-memory",
       "timeoutMs": 4000
     },
     {
@@ -701,6 +697,11 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "waitFor",
+      "testid": "nav-memory",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "screenshot",
       "label": "12-sidebar-developer-entries"
     },
@@ -742,6 +743,19 @@
     {
       "kind": "screenshot",
       "label": "14b-nav-observability-developer"
+    },
+    {
+      "kind": "click",
+      "testid": "nav-memory"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "14c-nav-memory-developer"
     },
     {
       "kind": "click",
@@ -817,6 +831,11 @@
     {
       "kind": "waitGone",
       "testid": "nav-observability",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-memory",
       "timeoutMs": 4000
     },
     {
@@ -9171,12 +9190,71 @@
     },
     {
       "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-memory",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-mode-off-memory-unreachable (the router lands on the default route)"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "memory"
+    },
+    {
+      "kind": "waitFor",
       "testid": "memory-page",
       "timeoutMs": 15000
     },
     {
+      "kind": "waitFor",
+      "testid": "sidebar-developer-group",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "nav-memory",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "screenshot",
-      "label": "01-memory-operator"
+      "label": "01b-memory-developer-mode"
     },
     {
       "kind": "waitFor",
@@ -9855,60 +9933,6 @@
     },
     {
       "kind": "click",
-      "testid": "developer-mode-on"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "goto",
-      "route": "memory"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "memory-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "screenshot",
-      "label": "13-memory-builder"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "namespace-sidebar",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "namespace-sidebar-item-",
-      "nth": 0,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "14-namespace-sidebar-builder"
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
       "testid": "developer-mode-off"
     },
     {
@@ -9921,12 +9945,22 @@
     },
     {
       "kind": "waitFor",
-      "testid": "memory-page",
+      "testid": "dashboard-page",
       "timeoutMs": 15000
     },
     {
+      "kind": "waitGone",
+      "testid": "memory-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-memory",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "screenshot",
-      "label": "15-back-operator"
+      "label": "15-back-mode-off-redirected"
     },
     {
       "kind": "screenshot",
