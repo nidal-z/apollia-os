@@ -10624,6 +10624,43 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "fill",
+      "testid": "catalogue-search",
+      "text": "notion",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-entry-com.notion/mcp",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "catalogue-search",
+      "text": "",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-explore-all",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-entry-io.apollia/seed-stub",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-back-to-selection",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-explore-all",
+      "timeoutMs": 8000
+    },
+    {
       "kind": "waitFor",
       "testid": "catalogue-list",
       "timeoutMs": 8000
@@ -11243,7 +11280,7 @@
     },
     {
       "kind": "click",
-      "testid": "catalogue-filter-official",
+      "testid": "catalogue-filter-community",
       "timeoutMs": 3000
     },
     {
@@ -11352,7 +11389,7 @@
     },
     {
       "kind": "click",
-      "testid": "catalogue-filter-official",
+      "testid": "catalogue-filter-community",
       "timeoutMs": 3000
     },
     {
@@ -11438,6 +11475,11 @@
       "kind": "click",
       "testid": "catalogue-tab-discover",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-explore-all",
+      "timeoutMs": 8000
     },
     {
       "kind": "click",
@@ -11542,6 +11584,11 @@
       "kind": "click",
       "testid": "catalogue-tab-discover",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-explore-all",
+      "timeoutMs": 8000
     },
     {
       "kind": "click",
@@ -11655,6 +11702,11 @@
       "kind": "click",
       "testid": "catalogue-tab-discover",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-explore-all",
+      "timeoutMs": 8000
     },
     {
       "kind": "click",
@@ -11832,6 +11884,11 @@
       "kind": "click",
       "testid": "catalogue-tab-discover",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-explore-all",
+      "timeoutMs": 8000
     },
     {
       "kind": "click",
