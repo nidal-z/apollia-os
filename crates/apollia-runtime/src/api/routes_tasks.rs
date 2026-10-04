@@ -14,7 +14,11 @@ use crate::coordinator::ExecutionBackend;
 use crate::router::SubmitError;
 
 mod declarative;
+/// The A2A delegation tree of a task.
+pub mod delegation;
 mod pause;
+/// The hard deletion of a stored task.
+pub mod record;
 /// The task list an operator reads, history included.
 pub mod summaries;
 pub use pause::ResumeErrorBody;

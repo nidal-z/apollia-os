@@ -321,6 +321,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agents/installed/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Handler for `PUT /api/v1/agents/installed/{name}`.
+         * @description Validates the new module, replaces the installed one, records the new
+         *     version, and cycles the runtime instance when there is one. The cycle is the
+         *     point of the route: the interpreter holds the module it imported at start
+         *     time, so without the stop and the start the window would report a new
+         *     version while the old one keeps answering. Emits
+         *     `RuntimeEvent::AgentInstalled` once the runtime has settled.
+         */
+        put: operations["update_agent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agents/installed/{name}/uninstall": {
         parameters: {
             query?: never;
@@ -5087,6 +5112,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tasks/{id}/delegation-tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/tasks/{id}/delegation-tree`.
+         * @description A task with no recorded delegation answers its root with no children.
+         */
+        get: operations["get_delegation_tree"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tasks/{id}/plan-decision": {
         parameters: {
             query?: never;
@@ -5110,6 +5155,23 @@ export interface paths {
          */
         post: operations["submit_plan_decision"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}/record": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Handler for `DELETE /api/v1/tasks/{id}/record`. */
+        delete: operations["delete_task_record"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6964,6 +7026,19 @@ export interface components {
              * @description Delegation timeout in seconds (default: 120).
              */
             timeout_secs?: number | null;
+        };
+        /** @description One node of the delegation tree. */
+        DelegationTreeNode: {
+            /** @description Agent identifier (runtime UUID, or name if resolution fails). */
+            agent_id: string;
+            /** @description Human-readable agent name. */
+            agent_name: string;
+            /** @description Child delegations (A2A subtasks). */
+            children: components["schemas"]["DelegationTreeNode"][];
+            /** @description ISO 8601 start timestamp (None for the root if unknown). */
+            started_at?: string | null;
+            /** @description Current status: `submitted`, `working`, `completed`, `failed`, `running`, etc. */
+            status: string;
         };
         /** @description Response body for `DELETE /api/v1/llm/backends/:name`. */
         DeleteBackendResponse: {
@@ -9875,6 +9950,14 @@ export interface components {
             /** @description All tasks matching the optional filter. */
             tasks: components["schemas"]["TaskListItem"][];
         };
+        /** @description Response to a deletion. */
+        TaskRecordDeleted: {
+            /**
+             * @description `true` when a record was removed, `false` when no stored task matched
+             *     (already gone, or never persisted).
+             */
+            deleted: boolean;
+        };
         /** @description Response body for task operations. */
         TaskResponse: {
             /** @description Error message (present when failed). */
@@ -10359,6 +10442,29 @@ export interface components {
              *     context windows.
              */
             stopped: number;
+        };
+        /** @description Request body for `PUT /api/v1/agents/installed/{name}`. */
+        UpdateAgentRequest: {
+            /** @description Path of the new Python module on this machine. */
+            path: string;
+        };
+        /**
+         * @description Response to an agent update.
+         *
+         *     Distinct from the install answer because an update has an outcome an
+         *     install cannot have: a runtime instance that had to be cycled.
+         */
+        UpdateAgentResponse: {
+            /** @description Install path on disk. */
+            install_path: string;
+            /** @description Unique name of the updated agent. */
+            name: string;
+            /** @description Raw cause when the stop or the start failed, `None` otherwise. */
+            restart_error?: string | null;
+            /** @description One of the [`restart_outcome`] constants. */
+            restart_outcome: string;
+            /** @description Semver version read from the new module's manifest. */
+            version: string;
         };
         /** @description The fields of an artifact a change may replace; an absent one is kept. */
         UpdateArtifactRequest: {
@@ -11485,6 +11591,60 @@ export interface operations {
                 };
             };
             /** @description The install cannot be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    update_agent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Name of the installed agent */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description Agent updated, with what happened to its running instance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateAgentResponse"];
+                };
+            };
+            /** @description File absent or module refused */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No installed agent of that name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The update cannot be written */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -22878,6 +23038,47 @@ export interface operations {
             };
         };
     };
+    get_delegation_tree: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Parent task id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The task and its delegations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DelegationTreeNode"];
+                };
+            };
+            /** @description The delegations cannot be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Sidechain logging not initialized */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     submit_plan_decision: {
         parameters: {
             query?: never;
@@ -22922,6 +23123,47 @@ export interface operations {
                 };
             };
             /** @description Plan gate not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_task_record: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Task id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether a stored record was removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskRecordDeleted"];
+                };
+            };
+            /** @description The task store refused the deletion */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Task persistence is not available */
             503: {
                 headers: {
                     [name: string]: unknown;

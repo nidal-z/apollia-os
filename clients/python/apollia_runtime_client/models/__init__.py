@@ -128,6 +128,7 @@ from .daily_costs_response import DailyCostsResponse
 from .default_model_response import DefaultModelResponse
 from .delegate_request import DelegateRequest
 from .delegate_request_input import DelegateRequestInput
+from .delegation_tree_node import DelegationTreeNode
 from .delete_backend_response import DeleteBackendResponse
 from .delete_preset_response import DeletePresetResponse
 from .delete_response import DeleteResponse
@@ -437,6 +438,7 @@ from .system_info import SystemInfo
 from .task_list_item import TaskListItem
 from .task_list_item_payload_type_0 import TaskListItemPayloadType0
 from .task_list_response import TaskListResponse
+from .task_record_deleted import TaskRecordDeleted
 from .task_response import TaskResponse
 from .task_response_result_type_0 import TaskResponseResultType0
 from .task_response_token_budget_type_0 import TaskResponseTokenBudgetType0
@@ -498,6 +500,8 @@ from .uninstall_report import UninstallReport
 from .uninstall_request import UninstallRequest
 from .unload_model_request import UnloadModelRequest
 from .unload_model_response import UnloadModelResponse
+from .update_agent_request import UpdateAgentRequest
+from .update_agent_response import UpdateAgentResponse
 from .update_artifact_request import UpdateArtifactRequest
 from .update_channel_request import UpdateChannelRequest
 from .update_channel_request_config_type_0 import UpdateChannelRequestConfigType0
@@ -657,6 +661,7 @@ __all__ = (
     "DefaultModelResponse",
     "DelegateRequest",
     "DelegateRequestInput",
+    "DelegationTreeNode",
     "DeleteBackendResponse",
     "DeletedArtifact",
     "DeletedCredential",
@@ -962,6 +967,7 @@ __all__ = (
     "TaskListItem",
     "TaskListItemPayloadType0",
     "TaskListResponse",
+    "TaskRecordDeleted",
     "TaskResponse",
     "TaskResponseResultType0",
     "TaskResponseTokenBudgetType0",
@@ -1019,6 +1025,8 @@ __all__ = (
     "UninstallRequest",
     "UnloadModelRequest",
     "UnloadModelResponse",
+    "UpdateAgentRequest",
+    "UpdateAgentResponse",
     "UpdateArtifactRequest",
     "UpdateChannelRequest",
     "UpdateChannelRequestConfigType0",

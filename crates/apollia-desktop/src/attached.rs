@@ -64,11 +64,18 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "install_agent",
     "list_agents",
     "uninstall_agent",
+    // Agents: the update, restart included, over
+    // `PUT /api/v1/agents/installed/{name}`.
+    "update_agent",
     // Tasks: the list, the launch, the detail, the cancellation.
     "cancel_task",
     "get_task_timeline",
     "list_tasks",
     "submit_task",
+    // Tasks: the deletion of a stored record and the delegation tree, over
+    // `/api/v1/tasks/{id}/record` and `/api/v1/tasks/{id}/delegation-tree`.
+    "delete_task",
+    "get_delegation_tree",
     // Approvals: the pending and resolved ones, and the decision that resumes
     // the task.
     "list_pending_approvals",
