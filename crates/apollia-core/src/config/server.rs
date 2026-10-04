@@ -39,6 +39,11 @@ pub struct ServerConfig {
     /// applies a change.
     #[serde(default)]
     pub require_auth: bool,
+    /// Whether a web page of another origin may call the server: when on,
+    /// the server answers browser preflights and marks every answer with the
+    /// allowed origin. Off by default, and read each time the server starts.
+    #[serde(default)]
+    pub cors: bool,
     /// Whether the compatible server listens on every interface, so the other
     /// devices of the local network reach it, rather than on the loopback
     /// interface alone. Off by default, and independent of `require_auth`:
@@ -55,6 +60,7 @@ impl Default for ServerConfig {
             enabled: false,
             port: DEFAULT_COMPAT_SERVER_PORT,
             require_auth: false,
+            cors: false,
             serve_on_lan: false,
         }
     }
@@ -92,7 +98,22 @@ mod tests {
         // WHEN the server section is read
         let server = ServerConfig::from_toml_str(content).unwrap();
 
-        // THEN the server is off, on port 7772
+        // THEN the server is off, on port 7772, without cross-origin answers
+        assert!(!server.enabled);
+        assert_eq!(server.port, 7772);
+        assert!(!server.cors);
+    }
+
+    #[test]
+    fn test_server_config_reads_cors() {
+        // GIVEN a [server] section turning cross-origin answers on
+        let content = "[server]\ncors = true\n";
+
+        // WHEN it is read
+        let server = ServerConfig::from_toml_str(content).unwrap();
+
+        // THEN cors is on and the other keys keep their defaults
+        assert!(server.cors);
         assert!(!server.enabled);
         assert_eq!(server.port, 7772);
         assert!(!server.require_auth);

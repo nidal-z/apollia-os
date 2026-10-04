@@ -104,7 +104,7 @@ avertissement `config.key.retired`.
 | `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), et la règle appliquée à un fichier importé (`[models.import]`). |
 | `[observability]` | Capture et rétention des traces, documentées plus bas. |
 | `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
-| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`. |
+| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`, `cors`, `serve_on_lan`. |
 | `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`). |
 | `[author]` | Le nom d'éditeur des agents exportés depuis cette machine (`name`). |
 
@@ -299,6 +299,7 @@ Le serveur compatible, qui répond aux formats OpenAI et Anthropic sur l'interfa
 | `server.enabled` | booléen | `false` | Démarrer le serveur compatible (formats OpenAI et Anthropic) avec le moteur. La politique de l'organisation peut l'imposer. |
 | `server.port` | entier | `7772` | Port TCP du serveur compatible. La politique de l'organisation peut l'imposer. |
 | `server.require_auth` | booléen | `false` | Exiger un jeton du serveur compatible à chaque requête ; lu à l'ouverture de l'écoute. La politique de l'organisation peut l'imposer. |
+| `server.cors` | booléen | `false` | Laisser une page web d'une autre origine appeler le serveur compatible ; lu à chaque démarrage du serveur. La politique de l'organisation peut l'imposer. |
 | `server.serve_on_lan` | booléen | `false` | Ouvrir le serveur compatible au réseau local, sur toutes les interfaces ; l'API native reste sur l'interface de boucle locale. Lu à l'ouverture de l'écoute. La politique de l'organisation peut l'imposer. |
 
 ### `[engines]`
