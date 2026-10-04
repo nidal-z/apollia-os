@@ -53,6 +53,7 @@ pub mod trace;
 pub mod triggers;
 pub mod updates;
 pub mod user_memory;
+pub mod workflows;
 
 /// Process-wide lock for tests that read or write the home-directory env vars.
 ///

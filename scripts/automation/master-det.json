@@ -129,9 +129,6 @@
     "observability-tab-plan-cache",
     "observability-tab-timeline",
     "observability-toggle-debug_log_prompt",
-    "package-detail-tab-agents",
-    "package-detail-tab-overview",
-    "package-detail-tab-triggers",
     "period-14d",
     "period-30d",
     "period-365d",
@@ -3886,9 +3883,41 @@
       "testid": "apollia-chat-pinned"
     },
     {
-      "kind": "waitFor",
-      "testidPrefix": "package-list-row",
-      "timeoutMs": 4000
+      "kind": "expect",
+      "testid": "agents-column"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflows-column"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-row-chat",
+      "nth": 0
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": null,
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "agents-install-apo-button",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitGone",
+      "testid": "package-preview-dialog",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:dialog|open"
     },
     {
       "kind": "fill",
@@ -4017,6 +4046,16 @@
     },
     {
       "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testidPrefix": "agent-list-row",
       "timeoutMs": 2500,
       "nth": 0
@@ -4081,6 +4120,16 @@
     },
     {
       "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testidPrefix": "agent-list-row",
       "nth": 1,
       "timeoutMs": 2500
@@ -4094,6 +4143,16 @@
       "kind": "waitGone",
       "testid": "agent-uninstall-confirm",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -4114,6 +4173,16 @@
     {
       "kind": "screenshot",
       "label": "05e-agent-uninstall-disarmed (changing agent retires the armed confirm)"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -4216,6 +4285,16 @@
     },
     {
       "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testidPrefix": "agent-list-row",
       "nth": 0,
       "timeoutMs": 2500
@@ -4257,6 +4336,16 @@
       "kind": "waitFor",
       "testid": "agent-detail-activity",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -4304,6 +4393,16 @@
     },
     {
       "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testidPrefix": "agent-list-row",
       "nth": 2,
       "timeoutMs": 2500
@@ -4322,6 +4421,16 @@
       "kind": "waitFor",
       "testid": "agent-sheet-mission",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -4350,98 +4459,8 @@
     },
     {
       "kind": "click",
-      "testid": "package-list-row",
+      "testid": "agent-sheet-back",
       "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tab-content",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-package-overview"
-    },
-    {
-      "kind": "click",
-      "testid": "package-detail-tab-agents",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tab-content",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "11-package-agents"
-    },
-    {
-      "kind": "click",
-      "testid": "package-detail-tab-triggers",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tab-content",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "12-package-triggers"
-    },
-    {
-      "kind": "click",
-      "testid": "package-detail-tab-overview",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "resizeWindow",
-      "width": 900,
-      "height": 800
-    },
-    {
-      "kind": "waitFor",
-      "testid": "split-open-sidebar",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12b-agents-narrow-list-folded"
-    },
-    {
-      "kind": "click",
-      "testid": "split-open-sidebar",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "split-sidebar-backdrop",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12c-agents-narrow-drawer-open"
-    },
-    {
-      "kind": "click",
-      "testid": "split-sidebar-backdrop",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitGone",
-      "testid": "split-sidebar-backdrop",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "resizeWindow",
-      "width": 1280,
-      "height": 800
-    },
-    {
-      "kind": "waitGone",
-      "testid": "split-open-sidebar",
-      "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
@@ -4808,39 +4827,6 @@
       "label": "13k-install-package-closed"
     },
     {
-      "kind": "stubInvoke",
-      "command": "plugin:dialog|open",
-      "resolve": "${HOME}/.apollia/fixtures/missing-agent.py",
-      "once": true
-    },
-    {
-      "kind": "click",
-      "testid": "agents-install-button",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-install-error",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "agent-install-error-details",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 200
-    },
-    {
-      "kind": "screenshot",
-      "label": "13l-agent-install-error-details (picker answered with a path that does not exist)"
-    },
-    {
-      "kind": "clearStubs",
-      "command": "plugin:dialog|open"
-    },
-    {
       "kind": "click",
       "testidPrefix": "agent-list-row",
       "timeoutMs": 2500,
@@ -4881,6 +4867,16 @@
     {
       "kind": "screenshot",
       "label": "16-agent-activity-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",

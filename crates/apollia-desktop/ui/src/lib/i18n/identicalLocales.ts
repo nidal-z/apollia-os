@@ -37,6 +37,10 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "dashboard.headline_greeting", // {greeting}.
   "dev.connections.custom_transport_http", // Streamable HTTP (MCP 2025-11-25)
   "dev.connections.custom_transport_sse", // SSE (legacy 2024-11-05)
+  "dev.workflows.depth", // depth
+  "dev.workflows.parent_run", // parent_run_id
+  "dev.workflows.run_id", // run_id
+  "dev.workflows.workflow_id", // workflow_id
   "inbox.activity.filter.llm", // LLM
   "llm.loaded.engine_mlx", // MLX
   "notifications.field_headers_placeholder", // {"Authorization": "Bearer ..."}
@@ -90,18 +94,17 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "agent_detail.execution_mode_direct", // Direct
   "agent_detail.messages_title", // Messages
   "agent_detail.tags_title", // Tags
-  "agents.agents_word", // agents
+  "agents.column_agents", // Agents
+  "agents.column_workflows", // Workflows
   "agents.install.done_agents_many", // {n} agents
   "agents.install.done_agents_one", // {n} agent
   "agents.install.done_triggers_many", // {n} triggers
   "agents.install.done_triggers_one", // {n} trigger
   "agents.install.endpoint", // Endpoint
   "agents.install.section_agents", // Agents ({n})
+  "agents.kicker_agent", // Agent
   "agents.logs", // Logs
-  "agents.page_title", // Assistants
-  "agents.tab_agents", // Agents
-  "agents.tab_triggers", // Triggers
-  "agents.triggers_word", // triggers
+  "agents.title", // Agents
   "automations.status.active", // Active
   "automations.target_prefix", // Assistant
   "automations.wizard.step_agent", // Assistant
@@ -247,6 +250,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "triggers.field_target_agent", // Agent
   "triggers.interval_unit_minutes", // minutes
   "triggers.workflow_label", // Workflow
+  "workflows.kicker", // Workflow
 ];
 
 /** The two lists together, as the guard reads them. */

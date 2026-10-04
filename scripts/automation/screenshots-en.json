@@ -29,9 +29,6 @@
     "observability-tab-audit-trail",
     "observability-tab-llm-costs",
     "observability-tab-timeline",
-    "package-detail-tab-agents",
-    "package-detail-tab-overview",
-    "package-detail-tab-triggers",
     "period-7d",
     "profile-menu-reset",
     "settings-nav-appearance",
@@ -1112,6 +1109,12 @@
       "timeoutMs": 8000
     },
     {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
       "kind": "waitFor",
       "testid": "agent-sheet",
       "timeoutMs": 8000
@@ -1130,6 +1133,16 @@
       "label": "agents-installer-un-agent-1"
     },
     {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 8000
+    },
+    {
       "kind": "waitFor",
       "testid": "apollia-chat-pinned",
       "timeoutMs": 6000
@@ -1140,83 +1153,12 @@
       "timeoutMs": 8000
     },
     {
-      "kind": "waitFor",
-      "testidPrefix": "package-list-row",
-      "timeoutMs": 8000
-    },
-    {
       "kind": "sleep",
       "ms": 600
     },
     {
       "kind": "screenshot",
       "label": "agents-demarrer-un-agent-1"
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "package-list-row",
-      "nth": 0,
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tabbar",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tab-content",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "package-detail-tab-agents",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tab-content",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "agents-demarrer-un-agent-2"
-    },
-    {
-      "kind": "click",
-      "testid": "package-detail-tab-triggers",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tab-content",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "agents-demarrer-un-agent-2bis"
-    },
-    {
-      "kind": "click",
-      "testid": "package-detail-tab-overview",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tab-content",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
     },
     {
       "kind": "click",

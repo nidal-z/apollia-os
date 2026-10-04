@@ -9,7 +9,7 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 
-const COMMAND_ALLOWLIST = new Set(["create_trigger", "install_agent"]);
+const COMMAND_ALLOWLIST = new Set(["create_trigger"]);
 
 /**
  * Run a card's command when the allowlist names it.
