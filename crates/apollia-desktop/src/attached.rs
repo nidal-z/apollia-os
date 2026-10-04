@@ -90,9 +90,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // Models: the inference servers, the loaded models, the costs.
     "create_llm_backend",
     "delete_llm_backend",
-    "get_llm_cost_stats",
     "list_loaded_models",
     "set_default_llm_backend",
+    // The AI screen: the default model and the embeddings model of search.
+    "set_default_model",
+    "set_embeddings_default",
     "unload_loaded_model",
     "update_llm_backend",
     // MCP servers and the curated catalogue.
@@ -319,6 +321,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // Models: the removal of an installed model, refused while a backend or
     // the dictation engine of the runtime uses it.
     "delete_installed_model",
+    // Models: the pin of an installed model, written to the index of the
+    // models folder, which the daemon shares since it listens on this machine.
+    "set_installed_model_pinned",
     // LLM engines: the list, the test, the reload. The last ping of each
     // engine stays in this window's memory, which [`run`] manages in both
     // modes.
@@ -445,6 +450,10 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "reveal_session_path",
         "shows a file in the file manager of this machine, the session folder read from the runtime",
+    ),
+    (
+        "reveal_installed_model",
+        "shows a model of the models folder of this machine in its file manager",
     ),
     (
         "start_model_download",

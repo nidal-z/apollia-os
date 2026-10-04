@@ -2,6 +2,14 @@
   "name": "master-det (per-page deterministic suite, one boot, no model) [SCAN cap=3000ms]",
   "stopOnError": false,
   "dynamicTestids": [
+    "ai-category-all",
+    "ai-category-draft",
+    "ai-model-menu-copy_id",
+    "ai-model-menu-copy_path",
+    "ai-model-menu-delete",
+    "ai-model-menu-pin",
+    "ai-model-menu-reveal",
+    "ai-model-menu-source",
     "arg-input-0",
     "automation-delete-automation-probe-trigger",
     "automation-delete-seed-trigger-daily-digest",
@@ -15459,28 +15467,126 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "screenshot",
-      "label": "01-llm-operator"
-    },
-    {
       "kind": "waitFor",
-      "testid": "llm-grid",
+      "testid": "ai-categories",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "llm-backend-card",
+      "testid": "ai-loaded-section",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-row",
       "nth": 0,
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "llm-backend-badge",
+      "testid": "ai-model-format",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-installed-total",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "02-llm-operator-cards"
+      "label": "01-ai-screen"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-category-draft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-category-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-ai-drafts-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-category-all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-filter-input",
+      "text": "no-model-has-this-name",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-category-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-filter-input",
+      "text": "",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-row",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-model-menu-btn",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-menu",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-reveal"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-pin"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-copy_id"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-copy_path"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-source"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-delete"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-ai-actions-menu"
+    },
+    {
+      "kind": "press",
+      "key": "Escape",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-model-menu",
+      "timeoutMs": 3000
     },
     {
       "kind": "goto",
@@ -15520,52 +15626,20 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "screenshot",
-      "label": "03-llm-builder"
-    },
-    {
       "kind": "waitFor",
-      "testid": "llm-grid",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "llm-backend-card",
+      "testid": "ai-model-row",
       "nth": 0,
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "llm-backend-type-badge",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-backend-badge",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-backend-ping-btn",
+      "testid": "ai-model-format",
+      "nth": 0,
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "04-llm-builder-cards-ping-boundary"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-stats-table",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-stats-total-row",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-llm-builder-stats"
+      "label": "04-ai-screen-developer-mode"
     },
     {
       "kind": "goto",
@@ -16209,39 +16283,6 @@
     {
       "kind": "screenshot",
       "label": "13-back-operator"
-    },
-    {
-      "kind": "goto",
-      "route": "llm"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "llm-add-backend-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-dialog-name",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12-llm-route-add-dialog"
-    },
-    {
-      "kind": "click",
-      "testid": "llm-dialog-cancel",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "llm-dialog-name",
-      "timeoutMs": 3000
     },
     {
       "kind": "screenshot",

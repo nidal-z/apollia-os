@@ -11,6 +11,14 @@
     "llm-backend-ping-btn is played in the settings list through a stubbed IPC: handlePing -> pingLlmBackend -> ping_llm_backend (LlmBackendCard.svelte:75-97, ipc/llm.ts:21-23) sends a real completion through the router with no handler-side timeout, and nth 0 is gpu-server, an OpenAI-compatible server on a port that refuses, so the real outcome is an error and only the stub can show a success. The block after 07-settings-cards-controls stubs the command twice, once each: a resolve shaped like PingResult (commands/llm.rs:98-107, available:true latency_ms:42) renders llm-ping-result with llm.ping_ok, asserted by 'Ping OK (42ms)', which is the same string in both locales; then a reject with a raw string lands in the catch and is rendered verbatim as pingError on the same anchor. The card clears the feedback after FEEDBACK_MS (5 s, :41), so the assertions sit right after each click. The command is cleared afterwards; nothing is written. On the llm page (04-llm-builder-cards-ping-boundary) the button is still only asserted."
   ],
   "dynamicTestids": [
+    "ai-category-all",
+    "ai-category-draft",
+    "ai-model-menu-copy_id",
+    "ai-model-menu-copy_path",
+    "ai-model-menu-delete",
+    "ai-model-menu-pin",
+    "ai-model-menu-reveal",
+    "ai-model-menu-source",
     "settings-nav-developer",
     "settings-nav-llm"
   ],
@@ -66,28 +74,123 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "screenshot",
-      "label": "01-llm-operator"
-    },
-    {
       "kind": "waitFor",
-      "testid": "llm-grid",
+      "testid": "ai-categories",
       "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "llm-backend-card",
+      "testid": "ai-loaded-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-row",
       "nth": 0,
-      "timeoutMs": 6000
+      "timeoutMs": 8000
     },
     {
       "kind": "waitFor",
-      "testid": "llm-backend-badge",
+      "testid": "ai-model-format",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-installed-total",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "02-llm-operator-cards"
+      "label": "01-ai-screen"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-category-draft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-category-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-ai-drafts-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-category-all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-filter-input",
+      "text": "no-model-has-this-name"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-category-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-filter-input",
+      "text": ""
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-row",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-model-menu-btn",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-menu",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-reveal"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-pin"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-copy_id"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-copy_path"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-source"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-delete"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-ai-actions-menu"
+    },
+    {
+      "kind": "press",
+      "key": "Escape"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-model-menu",
+      "timeoutMs": 3000
     },
     {
       "kind": "goto",
@@ -125,52 +228,20 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "screenshot",
-      "label": "03-llm-builder"
-    },
-    {
       "kind": "waitFor",
-      "testid": "llm-grid",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "llm-backend-card",
+      "testid": "ai-model-row",
       "nth": 0,
-      "timeoutMs": 6000
+      "timeoutMs": 8000
     },
     {
       "kind": "waitFor",
-      "testid": "llm-backend-type-badge",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-backend-badge",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-backend-ping-btn",
+      "testid": "ai-model-format",
+      "nth": 0,
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "04-llm-builder-cards-ping-boundary"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-stats-table",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-stats-total-row",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-llm-builder-stats"
+      "label": "04-ai-screen-developer-mode"
     },
     {
       "kind": "goto",
@@ -790,39 +861,6 @@
     {
       "kind": "screenshot",
       "label": "13-back-operator"
-    },
-    {
-      "kind": "goto",
-      "route": "llm"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "llm-add-backend-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-dialog-name",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12-llm-route-add-dialog"
-    },
-    {
-      "kind": "click",
-      "testid": "llm-dialog-cancel",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "llm-dialog-name",
-      "timeoutMs": 4000
     }
   ]
 }

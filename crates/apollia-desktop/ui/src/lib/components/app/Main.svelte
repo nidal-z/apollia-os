@@ -13,7 +13,7 @@
   import Agents from "../../../routes/Agents.svelte";
   import Tasks from "../../../routes/Tasks.svelte";
   import Inbox from "../../../routes/Inbox.svelte";
-  import Llm from "../../../routes/Llm.svelte";
+  import Ai from "../../../routes/Ai.svelte";
   import Automations from "../../../routes/Automations.svelte";
   import Memory from "../../../routes/Memory.svelte";
   import Notifications from "../../../routes/Notifications.svelte";
@@ -86,7 +86,7 @@
           {:else if shownRoute === "inbox"}
             <Inbox />
           {:else if shownRoute === "llm"}
-            <Llm />
+            <Ai />
           {:else if shownRoute === "automations"}
             <Automations />
           {:else if shownRoute === "memory"}

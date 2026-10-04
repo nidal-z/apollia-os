@@ -112,6 +112,7 @@ impl Instance {
             loaded_at: self.loaded_at,
             last_used_at: self.last_used_at,
             active_requests: self.in_flight.load(Ordering::Acquire),
+            footprint_gb: self.footprint_gb,
         }
     }
 }

@@ -19,6 +19,7 @@
  * identifier, a code fragment, or a placeholder the runtime fills.
  */
 export const IDENTICAL_BY_NATURE: string[] = [
+  "ai.installed.group", // {label} · {count}
   "connections.capabilities.group_gdocs", // Google Docs
   "connections.capabilities.group_gdrive", // Google Drive
   "connections.capabilities.group_gforms", // Google Forms
@@ -37,7 +38,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "dev.connections.custom_transport_sse", // SSE (legacy 2024-11-05)
   "hitl.fs.preview_mode_label", // {before} → {after}
   "inbox.activity.filter.llm", // LLM
-  "llm.loaded.engine_mlx", // MLX
   "notifications.field_headers_placeholder", // {"Authorization": "Bearer ..."}
   "notifications.field_url_placeholder", // https://hooks.example.com/notify
   "observability.timeline_window_30min", // 30 min
@@ -80,6 +80,10 @@ export const IDENTICAL_BY_NATURE: string[] = [
  * keeps ("Backend", "Endpoint", "Builder", "Chat").
  */
 export const IDENTICAL_BY_DECISION: string[] = [
+  "ai.capability.vision.label", // Vision
+  "ai.category.embeddings", // Embeddings
+  "ai.installed.col_actions", // Actions
+  "ai.kind.embeddings", // Embeddings
   "a11y.actions_menu", // Actions
   "agent_adjust.grant_group_agents", // Agents
   "agent_adjust.grant_group_workflows", // Workflows
@@ -144,9 +148,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "inbox.row.type_trigger", // trigger
   "integrations.wizard.local_loopback_badge", // Local
   "llm.ping_ok", // Ping OK ({latency}ms)
-  "llm.table.backend", // Backend
-  "llm.table.tokens", // Tokens
-  "llm.table.total", // Total
   "memory.meta_expiration", // Expiration
   "memory.meta_namespace", // Namespace
   "memory.meta_type", // Type

@@ -176,7 +176,7 @@
     "agents": "Agents",
     "tasks": "My work",
     "inbox": "Inbox",
-    "llm": "LLM models",
+    "llm": "AI",
     "automations": "Automations",
     "memory": "Memory",
     "notifications": "Notifications",
@@ -199,7 +199,7 @@
       "notifications": "Notifications",
       "memory": "Memory",
       "observability": "Observability",
-      "llm": "LLM models",
+      "llm": "AI",
       "transcriptions": "Transcriptions",
       "integrations": "Connections",
       "settings": "Settings"
@@ -1180,18 +1180,6 @@
     }
   },
   "llm": {
-    "title": "LLM Backends",
-    "title_operator": "LLM models",
-    "subtitle": "AI models powering your assistants",
-    "empty_title": "No LLM backend configured",
-    "empty_subtitle": "Edit apollia.toml to add a backend.",
-    "empty_operator": "No AI model configured",
-    "empty_operator_hint": "Add a model in apollia.toml or ask your administrator.",
-    "open_settings": "Open settings",
-    "session_stats_title": "Session Statistics (7 days)",
-    "loading_stats": "Loading statistics...",
-    "no_calls": "No LLM calls recorded in the last 7 days.",
-    "no_calls_operator": "No activity recorded yet.",
     "model": "Model",
     "ping_ok": "Ping OK ({latency}ms)",
     "ping_failed": "Ping failed",
@@ -1201,27 +1189,7 @@
     "status_error": "Error",
     "free_local": "Free (runs on your machine)",
     "pay_per_use": "Pay per use",
-    "used_today": "Used {count} times over the last {days} days, {cost} spent",
-    "table": {
-      "backend": "Backend",
-      "model": "Model",
-      "calls": "Calls",
-      "tokens": "Tokens",
-      "cost_usd": "Cost USD",
-      "total": "Total"
-    },
-    "default_set_toast": "''{name}'' set as the default model",
-    "details": "Details",
-    "loaded": {
-      "title": "Loaded in memory",
-      "empty": "No model is loaded in memory.",
-      "since": "Loaded at {time}",
-      "in_use": "Answering",
-      "engine_mlx": "MLX",
-      "unload": "Unload",
-      "unloaded_toast": "{name} unloaded, its memory is free.",
-      "in_use_error": "{name} is in use: a response is in progress. Try again once it finishes."
-    }
+    "details": "Details"
   },
   "automations": {
     "title": "Automations",
@@ -4379,6 +4347,127 @@
       "wizard": {
         "node_downloading": "Downloading a required component: Node.js"
       }
+    }
+  },
+  "ai": {
+    "column_title": "Models on this computer",
+    "categories_label": "Model categories",
+    "category": {
+      "all": "All",
+      "language": "Language models",
+      "embeddings": "Embeddings",
+      "dictation": "Dictation",
+      "draft": "Draft models"
+    },
+    "kind": {
+      "language": "Language model",
+      "language_explanation": "This model answers in conversations and does the work of the agents.",
+      "embeddings": "Embeddings",
+      "embeddings_explanation": "This model searches your sources and the memory by meaning. It does not converse."
+    },
+    "format_explanation": "The file format of the model. Apollia picks the engine that runs it from this: you have nothing to set.",
+    "loaded": {
+      "title": "Loaded",
+      "summary": "{count, plural, one {# model in memory, {size} GB} other {# models in memory, {size} GB}}",
+      "empty": "No model is loaded. A model loads the first time it is asked a question.",
+      "no_engine": "This computer runs no model by itself.",
+      "error": "The list of loaded models could not be read.",
+      "ready": "Ready",
+      "ready_explanation": "The model is in memory and answers without waiting to load.",
+      "answering": "Answering",
+      "answering_explanation": "The model is answering right now; it cannot be unloaded before its answer ends.",
+      "memory": "{size} GB in memory",
+      "since": "loaded {when}",
+      "unload": "Unload",
+      "unloaded_toast": "{name} unloaded, its memory is free.",
+      "in_use_error": "{name} is in use: a response is in progress. Try again once it finishes."
+    },
+    "installed": {
+      "title": "On this computer",
+      "filter_placeholder": "Filter models…",
+      "filter_label": "Filter models",
+      "import": "Import a file",
+      "discover": "Discover models",
+      "col_params": "Parameters",
+      "col_name": "Name",
+      "col_size": "Size",
+      "col_modified": "Modified",
+      "col_actions": "Actions",
+      "params_billions": "{n}B",
+      "params_millions": "{n}M",
+      "params_explanation": "The number of parameters of the model, in billions (B) or millions (M). The larger it is, the more capable the model, and the more memory it needs.",
+      "size": "{size} GB",
+      "group": "{label} · {count}",
+      "footer": "{count, plural, one {You have # model, taking up {size} GB.} other {You have # models, taking up {size} GB.}}",
+      "folder_label": "Models folder",
+      "pinned_explanation": "Pinned to top: this model stays first in its category.",
+      "empty_title": "No model on this computer",
+      "empty_hint": "Discover a model suited to your computer, or import a model file you already have.",
+      "empty_language": "No language model on this computer. Discover one to converse and to put your agents to work.",
+      "empty_embeddings": "No embeddings model on this computer. Without one, search goes by words alone.",
+      "empty_dictation": "No dictation model on this computer.",
+      "empty_draft": "A draft model is a small model of the same family as a larger one, which speeds up its answers. None is installed.",
+      "no_match": "No model matches “{query}”.",
+      "error": "The list of models on this computer could not be read.",
+      "import_title": "Import a model file"
+    },
+    "badge": {
+      "default": "Default",
+      "default_explanation": "The model conversations and agents answer with when no other is chosen.",
+      "search": "For search",
+      "search_explanation": "The model that searches your sources and the memory by meaning.",
+      "loaded": "Loaded",
+      "loaded_explanation": "This model is in memory right now.",
+      "unverified": "Unverified origin",
+      "unverified_explanation": "This file matches no published fingerprint: Apollia cannot vouch for where it comes from."
+    },
+    "capability": {
+      "vision": {
+        "label": "Vision",
+        "explanation": "This model can read images."
+      },
+      "tools": {
+        "label": "Tools",
+        "explanation": "This model has been trained to use tools."
+      },
+      "reasoning": {
+        "label": "Reasoning",
+        "explanation": "This model can think before it answers."
+      }
+    },
+    "menu": {
+      "more": "More actions on {name}",
+      "reveal_mac": "Show in Finder",
+      "reveal_windows": "Show in Explorer",
+      "reveal_linux": "Show in file manager",
+      "pin": "Pin to top",
+      "unpin": "Unpin from top",
+      "copy_id": "Copy identifier",
+      "copy_path": "Copy path",
+      "source": "View source",
+      "source_none": "This model was imported from a file: its page of origin is not known.",
+      "use_default": "Use by default",
+      "use_search": "Use for search",
+      "delete": "Delete"
+    },
+    "toast": {
+      "copied_id": "Identifier copied.",
+      "copied_path": "Path copied.",
+      "copy_failed": "The copy could not be made.",
+      "default_set": "{name} now answers by default.",
+      "search_set": "{name} now serves search. The sources and the memory are being indexed again.",
+      "deleted": "{name} deleted.",
+      "imported": "{name} imported."
+    },
+    "search_dialog": {
+      "title": "Use {name} for search?",
+      "message": "The sources and the memory will be indexed again with this model. While that runs, search by meaning may be incomplete.",
+      "confirm": "Use and index again"
+    },
+    "delete_dialog": {
+      "title": "Delete {name}?",
+      "message": "The file is removed from this computer. You will have to download or import it again to use it.",
+      "confirm": "Delete"
     }
   }
 }
