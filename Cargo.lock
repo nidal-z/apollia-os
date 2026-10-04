@@ -734,6 +734,7 @@ dependencies = [
  "apollia-core",
  "apollia-llm",
  "calamine",
+ "chrono",
  "csv",
  "pdf_oxide",
  "quick-xml 0.41.0",
