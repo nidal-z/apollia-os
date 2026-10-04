@@ -456,6 +456,14 @@ en 0.1.11 dans le fichier de verrouillage : sa version 0.1.12 ne compile plus
 sous `pdf_oxide` 0.3.78 ; mettre l'une ou l'autre à jour est donc une décision et
 non un rafraîchissement.
 
+Une crate de cette pile de polices porte un avis : `ttf-parser` 0.25.1, dont
+seul `pdf_oxide` se sert pour lire les polices qu'un document embarque, est
+signalée non maintenue (RUSTSEC-2026-0192). Aucune faille n'y est connue et
+aucune version plus récente n'existe vers laquelle monter : l'avis est donc
+exempté dans `deny.toml`, daté du 2026-10-04, avec cette raison à côté, et il
+est revu à la prochaine version mineure. L'exemption tombe quand `pdf_oxide`
+abandonne `ttf-parser` ou qu'une version maintenue en paraît.
+
 Une boîte mail se connecte en IMAP avec un mot de passe d'application : tout
 fournisseur est joignable, Gmail compris, sans client OAuth et sans relais. Le
 client est `async-imap` (MIT ou Apache-2.0), sur le runtime Tokio, au-dessus de
