@@ -1158,27 +1158,9 @@
   "approvals": {
     "rejecting": "Rejet...",
     "unknown_agent": "Agent inconnu",
-    "risk": {
-      "low": "Faible",
-      "medium": "Modéré",
-      "high": "Élevé",
-      "critical": "Critique"
-    },
     "timer": {
       "waiting_since": "Agent en attente depuis {elapsed}",
       "remaining": "· {remaining} restant"
-    },
-    "scope": {
-      "open_disclosure": "Changer la portée du « toujours accepter »",
-      "current": "Portée : {scope}",
-      "this_tool": "Cet outil uniquement",
-      "this_tool_desc": "Approuve cet outil précis jusqu'à la fin de la session.",
-      "this_session": "Cette session",
-      "this_session_desc": "Approuve les actions similaires jusqu'à la fin de cette session.",
-      "this_agent": "Cet agent",
-      "this_agent_desc": "Approuve les actions similaires chaque fois que cet agent s'exécute.",
-      "global": "Globalement",
-      "global_desc": "Approuve les actions similaires partout sur cette machine."
     }
   },
   "llm": {
@@ -4053,42 +4035,6 @@
     "note_retry": "Apollia réessaiera au prochain démarrage.",
     "understood": "J’ai compris"
   },
-  "hitl": {
-    "impact": {
-      "low": "Impact faible",
-      "medium": "Impact modéré",
-      "high": "Impact élevé",
-      "critical": "Impact critique"
-    },
-    "fs": {
-      "title": "Opération fichier nécessite une approbation",
-      "subtitle": "L'assistant souhaite effectuer l'action suivante sur votre système de fichiers.",
-      "op_write": "Écriture",
-      "op_delete": "Suppression",
-      "op_chmod": "Changement de permissions",
-      "op_read": "Lecture",
-      "path_label": "Chemin",
-      "preview_diff": "Modifications",
-      "preview_content": "Contenu du fichier",
-      "preview_mode": "Changement de permissions",
-      "preview_before": "Avant",
-      "preview_after": "Après",
-      "preview_truncated": "Aperçu tronqué",
-      "preview_size": "{size} octets",
-      "preview_mode_label": "{before} → {after}",
-      "approve": "Approuver",
-      "deny": "Refuser",
-      "always_allow_session": "Toujours autoriser cette session",
-      "always_allow_desc": "Cela ignorera l'approbation pour toutes les opérations {op} au niveau de risque {level} pour le reste de la session.",
-      "critical_confirm_word": "CONFIRMER",
-      "critical_confirm_label": "Tapez {word} pour continuer",
-      "reject_reason_label": "Motif (partagé avec l'agent)",
-      "reject_reason_placeholder": "Expliquez pourquoi vous refusez…",
-      "deny_confirm": "Confirmer le refus",
-      "always_allow_confirm": "Confirmer « toujours autoriser »",
-      "auto_denied": "Opération refusée automatiquement après 5 minutes sans réponse."
-    }
-  },
   "empty_states": {
     "agents": {
       "title": "Votre premier assistant n'attend qu'une installation",
@@ -4182,9 +4128,9 @@
   "approval": {
     "action": {
       "allow": "Autoriser",
-      "allow_once": "Autoriser une fois",
       "refuse": "Refuser",
-      "always_allow": "Toujours autoriser"
+      "once": "Une fois",
+      "always_for_agent": "Toujours pour cet agent"
     },
     "risk": {
       "low": "faible",
@@ -4195,15 +4141,8 @@
     "risk_label": "risque {level}",
     "cost_estimate": "Coût estimé : {cost}",
     "expires_in": "expire dans {expires}",
-    "scope": {
-      "session_title": "Pour cette session",
-      "session_desc": "Jusqu'à la fermeture de ce chat.",
-      "agent_title": "Toujours pour cet assistant",
-      "agent_desc": "L'assistant courant ne demandera plus.",
-      "agent_desc_apollia": "Apollia Chat (ou l'agent courant) ne demandera plus.",
-      "global_title": "Toujours, partout",
-      "global_desc": "Tous les assistants, tous les projets."
-    }
+    "always_hint": "« Toujours pour cet agent » le laisse refaire ce type d'action sans vous redemander.",
+    "refuse_reason_placeholder": "Raison du refus (facultative), transmise à l'agent"
   },
   "stt_failure": {
     "no_microphone": "Aucun microphone n'a été détecté. Branchez-en un, puis réessayez.",

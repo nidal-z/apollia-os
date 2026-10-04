@@ -104,15 +104,10 @@
       "label": "controle-approuver-ou-refuser-une-action-1"
     },
     {
-      "kind": "click",
-      "testidPrefix": "operator-approval-refuse-",
+      "kind": "fill",
+      "testidPrefix": "operator-approval-reason-",
       "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-reject-dialog",
-      "timeoutMs": 8000
+      "text": "Out of the allowed perimeter for this documentation capture."
     },
     {
       "kind": "sleep",
@@ -123,13 +118,9 @@
       "label": "controle-approuver-ou-refuser-une-action-3"
     },
     {
-      "kind": "fill",
-      "testid": "inbox-reject-reason",
-      "text": "Out of the allowed perimeter for this documentation capture."
-    },
-    {
       "kind": "click",
-      "testid": "inbox-reject-confirm",
+      "testidPrefix": "operator-approval-refuse-",
+      "nth": 0,
       "timeoutMs": 8000
     },
     {
@@ -188,7 +179,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "hitl-always-toggle",
+      "testid": "hitl-always",
       "timeoutMs": 8000
     },
     {
@@ -211,7 +202,7 @@
     },
     {
       "kind": "waitGone",
-      "testid": "hitl-always-toggle",
+      "testid": "hitl-always",
       "timeoutMs": 5000
     },
     {
@@ -263,24 +254,15 @@
       "timeoutMs": 8000
     },
     {
-      "kind": "click",
-      "testidPrefix": "operator-approval-refuse-",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-reject-dialog",
-      "timeoutMs": 8000
-    },
-    {
       "kind": "fill",
-      "testid": "inbox-reject-reason",
+      "testidPrefix": "operator-approval-reason-",
+      "nth": 0,
       "text": "Out of the allowed perimeter for this documentation capture."
     },
     {
       "kind": "click",
-      "testid": "inbox-reject-confirm",
+      "testidPrefix": "operator-approval-refuse-",
+      "nth": 0,
       "timeoutMs": 8000
     },
     {

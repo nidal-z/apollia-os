@@ -438,26 +438,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/approvals/filesystem/{request_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * `POST /api/v1/approvals/filesystem/{request_id}`: answers a request to
-         *     touch a file, which resumes the turn waiting on it.
-         */
-        post: operations["respond_filesystem_approval"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/approvals/pending": {
         parameters: {
             query?: never;
@@ -6381,11 +6361,6 @@ export interface components {
              */
             reason?: string | null;
             /**
-             * @description Always-accept scope. Only honoured when `decision == "always_accept"`.
-             *     Defaults to [`crate::chat::AlwaysAcceptScope::ThisSession`].
-             */
-            scope?: string | null;
-            /**
              * @description Unique id of the tool call being resolved. Correlates with the
              *     `approval_required` event so the same tool invoked twice in one turn
              *     resolves the right pending slot. Defaults to the tool name for legacy
@@ -7476,37 +7451,6 @@ export interface components {
         ForkSessionRequest: {
             /** @description Number of messages to copy from the parent (None = all). */
             up_to_index?: number | null;
-        };
-        /**
-         * @description The user's answer to a request to touch a file, as the approval card sends
-         *     it. The `decision` discriminant is snake_case; the breadth of an "always
-         *     allow" is a separate `scope`, so earlier builds that sent only `op` and
-         *     `level` keep working.
-         */
-        FsHitlDecisionBody: {
-            /** @enum {string} */
-            decision: "approve";
-        } | {
-            /** @enum {string} */
-            decision: "deny";
-            /** @description Free-text reason entered by the user. */
-            reason?: string | null;
-        } | {
-            /** @enum {string} */
-            decision: "always_allow";
-            /** @description Risk level (`medium`, `high`...). */
-            level: string;
-            /** @description Filesystem operation (`write`, `delete`...). */
-            op: string;
-            /** @description Breadth of the rule; absent means this session only. */
-            scope?: string | null;
-        } | {
-            /** @enum {string} */
-            decision: "always_allow_session";
-            /** @description Risk level. */
-            level: string;
-            /** @description Filesystem operation. */
-            op: string;
         };
         /** @description Request body for `POST /api/v1/sessions/{id}/title/generate`. */
         GenerateTitleBody: {
@@ -9520,11 +9464,6 @@ export interface components {
             task_id: string;
             /** Format: int64 */
             wait_duration_ms?: number | null;
-        };
-        /** @description Answer of `POST /api/v1/approvals/filesystem/{request_id}`. */
-        ResolvedFilesystemApproval: {
-            /** @description The request answered. */
-            request_id: string;
         };
         /**
          * @description Error body of `POST /api/v1/tasks/{id}/resume`.
@@ -12215,51 +12154,6 @@ export interface operations {
                 };
             };
             /** @description Mailbox not available */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
-    respond_filesystem_approval: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Id of the pending request */
-                request_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FsHitlDecisionBody"];
-            };
-        };
-        responses: {
-            /** @description The request is answered */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResolvedFilesystemApproval"];
-                };
-            };
-            /** @description No pending request has this id */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description Chat subsystem unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;

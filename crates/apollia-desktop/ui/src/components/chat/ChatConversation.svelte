@@ -53,7 +53,6 @@
   import { refreshSessionMetrics } from "$lib/stores/chatMetrics";
   import InjectedMemorySheet from "../memory/InjectedMemorySheet.svelte";
   import { latestTurnId } from "$lib/stores/thinking";
-  import HitlFilesystemModal from "./HitlFilesystemModal.svelte";
   import ChatConversationHeader from "./ChatConversationHeader.svelte";
   import NextStepsPanel from "../common/NextStepsPanel.svelte";
   import { sessionScope } from "$lib/stores/nextSteps";
@@ -510,7 +509,7 @@
 
     // Attachments v1: inline small payloads as fenced blocks, reference larger
     // files by absolute path. The backend sees a single user message - the
-    // authoritative tool-side ingestion happens via the filesystem HITL flow.
+    // authoritative tool-side ingestion happens through the file tools.
     // The composer refuses anything that fits neither form, so the rendering
     // below is total and never emits a tag without content nor path.
     const payload = composeUserPayload(content, attachments);
@@ -763,5 +762,3 @@
   onupdated={() => void refreshSession()}
 />
 {/if}
-
-<HitlFilesystemModal {sessionId} />

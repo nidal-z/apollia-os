@@ -510,14 +510,13 @@ fn test_a_window_command_runs_attached_and_carries_its_reason() {
 // ── Permissions ──────────────────────────────────────────────────────────
 
 #[test]
-fn test_the_proposed_rules_and_the_file_answers_pass_the_gate_attached() {
-    // GIVEN the commands of the proposed rules and of the file requests
+fn test_the_proposed_rules_pass_the_gate_attached() {
+    // GIVEN the commands of the proposed rules
     let commands = [
         "list_proposed_permission_rules",
         "apply_proposed_permission_rule",
         "dismiss_proposed_permission_rule",
         "add_permission_prefix_rule",
-        "respond_hitl_filesystem",
     ];
 
     // WHEN each is gated while attached

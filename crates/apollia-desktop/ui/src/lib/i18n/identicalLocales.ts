@@ -35,7 +35,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "dashboard.headline_greeting", // {greeting}.
   "dev.connections.custom_transport_http", // Streamable HTTP (MCP 2025-11-25)
   "dev.connections.custom_transport_sse", // SSE (legacy 2024-11-05)
-  "hitl.fs.preview_mode_label", // {before} → {after}
   "inbox.activity.filter.llm", // LLM
   "llm.loaded.engine_mlx", // MLX
   "notifications.field_headers_placeholder", // {"Authorization": "Bearer ..."}

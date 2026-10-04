@@ -30,7 +30,6 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::hitl::list_resolved_approvals,
         commands::hitl::resume_task,
         commands::hitl::add_permission_prefix_rule,
-        commands::hitl::respond_hitl_filesystem,
         commands::integrations::oauth_start_flow,
         commands::integrations::oauth_complete_flow,
         commands::integrations::oauth_disconnect,

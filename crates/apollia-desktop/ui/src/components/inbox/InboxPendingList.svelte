@@ -9,7 +9,6 @@
   import { t } from "svelte-i18n";
   import { SectionTitle, ListPanel, InboxRow, HITLCard } from "$lib/components/operator";
   import { listNavigation } from "$lib/components/operator/listNavigation";
-  import type { AlwaysScope } from "$lib/components/operator/HITLCard.svelte";
   import { listFlip, rowOut } from "$lib/design/listMotion";
   import { ContextMenu } from "$lib/components/ui/context-menu";
   import AskUserForm from "./AskUserForm.svelte";
@@ -35,7 +34,7 @@
     onToggleExpand: (item: InboxItem) => void;
     onApprove: (item: InboxItem) => void;
     onReject: (item: InboxItem) => void;
-    onAlwaysAccept: (item: InboxItem, scope: AlwaysScope) => void;
+    onAlwaysAccept: (item: InboxItem) => void;
     onRespondAskUser: (item: InboxItem, answers: AskUserAnswer[]) => void;
     onRejectAskUser: (item: InboxItem, reason: string) => void;
     onOpenChat: (sessionId: string) => void;
@@ -186,7 +185,7 @@
                         params={item.kind === "task" ? (item.risk?.consequences ?? []) : []}
                         onApprove={() => onApprove(item)}
                         onReject={() => onReject(item)}
-                        onAlwaysAccept={isChatToolItem(item) ? (s) => onAlwaysAccept(item, s) : undefined}
+                        onAlwaysAccept={isChatToolItem(item) ? () => onAlwaysAccept(item) : undefined}
                       />
                     </div>
                   {/if}

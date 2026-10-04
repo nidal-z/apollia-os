@@ -1452,68 +1452,6 @@
         }
       }
     },
-    "/api/v1/approvals/filesystem/{request_id}": {
-      "post": {
-        "tags": [
-          "governance"
-        ],
-        "summary": "`POST /api/v1/approvals/filesystem/{request_id}`: answers a request to\ntouch a file, which resumes the turn waiting on it.",
-        "operationId": "respond_filesystem_approval",
-        "parameters": [
-          {
-            "name": "request_id",
-            "in": "path",
-            "description": "Id of the pending request",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FsHitlDecisionBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "The request is answered",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResolvedFilesystemApproval"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No pending request has this id",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Chat subsystem unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/approvals/pending": {
       "get": {
         "tags": [
@@ -18759,13 +18697,6 @@
             ],
             "description": "Free-form rejection reason shared with the agent. Only honoured when\n`decision == \"refuse\"`."
           },
-          "scope": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Always-accept scope. Only honoured when `decision == \"always_accept\"`.\nDefaults to [`crate::chat::AlwaysAcceptScope::ThisSession`]."
-          },
           "tool_call_id": {
             "type": [
               "string",
@@ -21328,105 +21259,6 @@
             "minimum": 0
           }
         }
-      },
-      "FsHitlDecisionBody": {
-        "oneOf": [
-          {
-            "type": "object",
-            "description": "The user approves this operation.",
-            "required": [
-              "decision"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "approve"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "description": "The user denies; the operation is cancelled and `reason`, when given,\nreaches the agent.",
-            "required": [
-              "decision"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "deny"
-                ]
-              },
-              "reason": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "description": "Free-text reason entered by the user."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "description": "The user approves and installs an \"always allow\" rule.",
-            "required": [
-              "op",
-              "level",
-              "decision"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "always_allow"
-                ]
-              },
-              "level": {
-                "type": "string",
-                "description": "Risk level (`medium`, `high`...)."
-              },
-              "op": {
-                "type": "string",
-                "description": "Filesystem operation (`write`, `delete`...)."
-              },
-              "scope": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "description": "Breadth of the rule; absent means this session only."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "description": "Legacy form of `always_allow` with the session scope.",
-            "required": [
-              "op",
-              "level",
-              "decision"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "always_allow_session"
-                ]
-              },
-              "level": {
-                "type": "string",
-                "description": "Risk level."
-              },
-              "op": {
-                "type": "string",
-                "description": "Filesystem operation."
-              }
-            }
-          }
-        ],
-        "description": "The user's answer to a request to touch a file, as the approval card sends\nit. The `decision` discriminant is snake_case; the breadth of an \"always\nallow\" is a separate `scope`, so earlier builds that sent only `op` and\n`level` keep working."
       },
       "GenerateTitleBody": {
         "type": "object",
@@ -25863,19 +25695,6 @@
               "null"
             ],
             "format": "int64"
-          }
-        }
-      },
-      "ResolvedFilesystemApproval": {
-        "type": "object",
-        "description": "Answer of `POST /api/v1/approvals/filesystem/{request_id}`.",
-        "required": [
-          "request_id"
-        ],
-        "properties": {
-          "request_id": {
-            "type": "string",
-            "description": "The request answered."
           }
         }
       },

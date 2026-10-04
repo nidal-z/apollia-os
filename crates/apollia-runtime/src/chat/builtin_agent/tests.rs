@@ -1029,7 +1029,7 @@ async fn test_tool_call_hitl_always_accept() {
         let approvals = approvals.clone();
         async move {
             poll_until(std::time::Duration::from_secs(5), || {
-                approvals.resolve(&key, ToolDecision::always_accept_default())
+                approvals.resolve(&key, ToolDecision::AlwaysAccept)
             })
             .await;
         }

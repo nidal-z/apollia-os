@@ -4,7 +4,6 @@
 //! as the type the embedded command returns.
 
 use apollia_runtime::a2a::SkillListing;
-use apollia_runtime::chat::AlwaysAcceptScope;
 use serde::{Deserialize, Serialize};
 
 use super::{A2ASkillView, ResolvedChatApproval};
@@ -18,7 +17,6 @@ pub(crate) struct AuthorizeBody {
     pub(crate) tool_name: String,
     pub(crate) decision: String,
     pub(crate) reason: Option<String>,
-    pub(crate) scope: Option<AlwaysAcceptScope>,
 }
 
 /// Runs the user turn answered by `message_id` again.

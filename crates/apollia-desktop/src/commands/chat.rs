@@ -392,12 +392,11 @@ pub async fn pause_chat_session(
 /// Resolves a pending tool approval in a chat session.
 ///
 /// `reason` is forwarded to the agent when `decision == "refuse"` so it can
-/// adapt its plan; it is ignored for `accept`. `scope` is only meaningful for
-/// `always_accept` and defaults to [`AlwaysAcceptScope::ThisSession`] - the
-/// safest sticky option (cf. `ApprovalCardV2`).
+/// adapt its next step; it is ignored otherwise. `always_accept` takes no
+/// scope: it grants the asking agent the action family of the tool.
 #[tauri::command]
-// Tauri command: the session/message/tool identifiers plus the decision, reason
-// and scope exceed 5 by design; they map one-to-one onto the IPC call.
+// Tauri command: the session/message/tool identifiers plus the decision and
+// reason exceed 5 by design; they map one-to-one onto the IPC call.
 // REASON: Tauri command: each parameter is one invoke key or injected State; a struct would change the IPC contract.
 #[allow(clippy::too_many_arguments)]
 pub async fn authorize_chat_tool(
@@ -408,9 +407,8 @@ pub async fn authorize_chat_tool(
     tool_name: String,
     decision: String,
     reason: Option<String>,
-    scope: Option<apollia_runtime::chat::AlwaysAcceptScope>,
 ) -> Result<(), String> {
-    let tool_decision = parse_tool_decision(&decision, reason.clone(), scope)?;
+    let tool_decision = parse_tool_decision(&decision, reason.clone())?;
 
     // Fall back to the tool name when the caller omits the id (matches the
     // pre-correlation key), so single-approval turns keep resolving.
@@ -424,7 +422,6 @@ pub async fn authorize_chat_tool(
                 tool_name,
                 decision,
                 reason,
-                scope,
             };
             return Ok(remote::authorize(remote, &session_id, &body).await?);
         }
@@ -586,18 +583,11 @@ fn parse_session_status(s: &str) -> Result<SessionStatus, String> {
     })
 }
 
-fn parse_tool_decision(
-    s: &str,
-    reason: Option<String>,
-    scope: Option<apollia_runtime::chat::AlwaysAcceptScope>,
-) -> Result<ToolDecision, String> {
-    use apollia_runtime::chat::AlwaysAcceptScope;
+fn parse_tool_decision(s: &str, reason: Option<String>) -> Result<ToolDecision, String> {
     match s {
         "accept" => Ok(ToolDecision::Accept),
         "refuse" => Ok(ToolDecision::Refuse { reason }),
-        "always_accept" => Ok(ToolDecision::AlwaysAccept {
-            scope: scope.unwrap_or_else(AlwaysAcceptScope::safe_default),
-        }),
+        "always_accept" => Ok(ToolDecision::AlwaysAccept),
         _ => Err(format!(
             "invalid tool decision: '{s}' (expected 'accept', 'refuse', or 'always_accept')"
         )),
@@ -761,49 +751,33 @@ mod tests {
 
     #[test]
     fn test_parse_tool_decision_valid() {
-        use apollia_runtime::chat::AlwaysAcceptScope;
         // GIVEN the three decision names an approval card can send
-        // WHEN each is parsed with neither reason nor scope
-        // THEN accept and refuse come back bare, and always-accept defaults to this session only
+        // WHEN each is parsed without a reason
+        // THEN each comes back as its decision, always-accept with no scope to pick
         assert_eq!(
-            parse_tool_decision("accept", None, None).unwrap(),
+            parse_tool_decision("accept", None).unwrap(),
             ToolDecision::Accept
         );
         assert_eq!(
-            parse_tool_decision("refuse", None, None).unwrap(),
+            parse_tool_decision("refuse", None).unwrap(),
             ToolDecision::Refuse { reason: None }
         );
         assert_eq!(
-            parse_tool_decision("always_accept", None, None).unwrap(),
-            ToolDecision::AlwaysAccept {
-                scope: AlwaysAcceptScope::ThisSession
-            }
+            parse_tool_decision("always_accept", None).unwrap(),
+            ToolDecision::AlwaysAccept
         );
     }
 
     #[test]
-    fn test_parse_tool_decision_carries_reason_and_scope() {
-        use apollia_runtime::chat::AlwaysAcceptScope;
+    fn test_parse_tool_decision_carries_the_reason() {
         // GIVEN operator rejects with a typed reason
         // WHEN the decision is parsed
-        let d = parse_tool_decision("refuse", Some("out of scope".into()), None).unwrap();
+        let d = parse_tool_decision("refuse", Some("out of scope".into())).unwrap();
         // THEN the reason travels with it
         assert_eq!(
             d,
             ToolDecision::Refuse {
                 reason: Some("out of scope".into())
-            }
-        );
-
-        // GIVEN operator picks a project-wide always-accept
-        // WHEN the decision is parsed
-        let d = parse_tool_decision("always_accept", None, Some(AlwaysAcceptScope::ThisProject))
-            .unwrap();
-        // THEN the wider scope travels with it rather than being narrowed to the session
-        assert_eq!(
-            d,
-            ToolDecision::AlwaysAccept {
-                scope: AlwaysAcceptScope::ThisProject
             }
         );
     }
@@ -812,7 +786,7 @@ mod tests {
     fn test_parse_tool_decision_invalid() {
         // GIVEN a decision name that does not exist
         // WHEN it is parsed
-        let result = parse_tool_decision("maybe", None, None);
+        let result = parse_tool_decision("maybe", None);
         // THEN the call is rejected rather than read as a refusal
         assert!(result.is_err());
     }

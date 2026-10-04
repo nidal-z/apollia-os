@@ -1158,27 +1158,9 @@
   "approvals": {
     "rejecting": "Rejecting...",
     "unknown_agent": "Unknown agent",
-    "risk": {
-      "low": "Low",
-      "medium": "Medium",
-      "high": "High",
-      "critical": "Critical"
-    },
     "timer": {
       "waiting_since": "Agent waiting since {elapsed}",
       "remaining": "· {remaining} left"
-    },
-    "scope": {
-      "open_disclosure": "Change scope for always-accept",
-      "current": "Scope: {scope}",
-      "this_tool": "Only this tool",
-      "this_tool_desc": "Approve this specific tool for the rest of the session.",
-      "this_session": "This session",
-      "this_session_desc": "Approve matching actions until this chat session ends.",
-      "this_agent": "This agent",
-      "this_agent_desc": "Approve matching actions whenever this agent runs.",
-      "global": "Globally",
-      "global_desc": "Approve matching actions everywhere on this machine."
     }
   },
   "llm": {
@@ -4053,42 +4035,6 @@
     "note_retry": "Apollia will try again at the next start.",
     "understood": "Got it"
   },
-  "hitl": {
-    "impact": {
-      "low": "Low impact",
-      "medium": "Medium impact",
-      "high": "High impact",
-      "critical": "Critical impact"
-    },
-    "fs": {
-      "title": "File operation requires approval",
-      "subtitle": "The assistant wants to perform the following action on your filesystem.",
-      "op_write": "Write",
-      "op_delete": "Delete",
-      "op_chmod": "Change permissions",
-      "op_read": "Read",
-      "path_label": "Path",
-      "preview_diff": "Changes",
-      "preview_content": "File content",
-      "preview_mode": "Permission change",
-      "preview_before": "Before",
-      "preview_after": "After",
-      "preview_truncated": "Preview truncated",
-      "preview_size": "{size} bytes",
-      "preview_mode_label": "{before} → {after}",
-      "approve": "Approve",
-      "deny": "Deny",
-      "always_allow_session": "Always allow this session",
-      "always_allow_desc": "This will skip approval for all {op} operations at {level} risk level for the rest of the session.",
-      "critical_confirm_word": "CONFIRM",
-      "critical_confirm_label": "Type {word} to proceed",
-      "reject_reason_label": "Reason (shared with the agent)",
-      "reject_reason_placeholder": "Explain why you are refusing…",
-      "deny_confirm": "Confirm deny",
-      "always_allow_confirm": "Confirm always allow",
-      "auto_denied": "Operation auto-denied after 5 minutes without a response."
-    }
-  },
   "empty_states": {
     "agents": {
       "title": "Your first assistant is one install away",
@@ -4182,9 +4128,9 @@
   "approval": {
     "action": {
       "allow": "Allow",
-      "allow_once": "Allow once",
       "refuse": "Refuse",
-      "always_allow": "Always allow"
+      "once": "Once",
+      "always_for_agent": "Always for this agent"
     },
     "risk": {
       "low": "low",
@@ -4195,15 +4141,8 @@
     "risk_label": "{level} risk",
     "cost_estimate": "Estimated cost: {cost}",
     "expires_in": "expires in {expires}",
-    "scope": {
-      "session_title": "For this session",
-      "session_desc": "Until this chat is closed.",
-      "agent_title": "Always for this assistant",
-      "agent_desc": "The current assistant will no longer ask.",
-      "agent_desc_apollia": "Apollia Chat (or the current agent) will no longer ask.",
-      "global_title": "Always, everywhere",
-      "global_desc": "All assistants, all projects."
-    }
+    "always_hint": "\"Always for this agent\" lets it repeat this kind of action without asking you again.",
+    "refuse_reason_placeholder": "Reason for refusing (optional), passed to the agent"
   },
   "stt_failure": {
     "no_microphone": "No microphone was detected. Plug one in, then try again.",
