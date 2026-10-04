@@ -242,6 +242,7 @@ from .item_preview import ItemPreview
 from .journal_anchor import JournalAnchor
 from .journal_break import JournalBreak
 from .journal_break_reason import JournalBreakReason
+from .journal_export_format import JournalExportFormat
 from .journal_nature import JournalNature
 from .journal_outcome import JournalOutcome
 from .journal_summary import JournalSummary
@@ -818,6 +819,7 @@ __all__ = (
     "JournalAnchor",
     "JournalBreak",
     "JournalBreakReason",
+    "JournalExportFormat",
     "JournalNature",
     "JournalOutcome",
     "JournalSummary",

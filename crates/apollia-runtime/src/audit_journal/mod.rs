@@ -14,6 +14,7 @@ pub mod anchor;
 pub mod detail;
 pub mod entry;
 pub mod error;
+pub mod export;
 pub mod filter;
 pub mod handle;
 pub mod hash;
@@ -27,6 +28,10 @@ pub mod verify;
 pub use detail::{entry_detail, JournalEntryDetail, ToolCallDetail};
 pub use entry::{JournalEntry, JournalEntryDraft, JournalEntryKind, PlanMutationSnapshot};
 pub use error::AuditJournalError;
+pub use export::{
+    exported_entries, write_export, ExportedDetail, ExportedEntry, JournalExportError,
+    JournalExportFormat,
+};
 pub use filter::{JournalCriteria, JournalFilter, JournalFilterError};
 pub use handle::AuditJournalHandle;
 pub use hash::{compute_entry_hash, compute_global_hash, SENTINEL_PREV_HASH};

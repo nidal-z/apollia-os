@@ -641,6 +641,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/audit/export`: the journal as a file, narrowed by the filters
+         *     of `GET /api/v1/audit/journal`.
+         * @description Every entry that passes the filters is in the file, newest first: the
+         *     export is not paged. Each entry is its summary (when, who, what, on what,
+         *     with which result) and its place in the chain (run, sequence, kind, hash),
+         *     without content. With `detail=true` each entry also holds its payload and,
+         *     for a tool call, its arguments and its output. `csv` is UTF-8 with one
+         *     header row, `json` is one document with the entries. The file is offered
+         *     as `journal.<format>`, and the export is recorded in the journal. 400 on a
+         *     format or a filter value that cannot be read, 503 when the journal is not
+         *     configured.
+         */
+        get: operations["export_audit_journal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit/journal": {
         parameters: {
             query?: never;
@@ -8194,6 +8223,11 @@ export interface components {
          */
         JournalBreakReason: "global_seq_gap" | "global_prev_hash_mismatch" | "global_hash_mismatch" | "global_signature_invalid" | "unknown_signing_key" | "per_run_broken";
         /**
+         * @description A file format the journal is exported in.
+         * @enum {string}
+         */
+        JournalExportFormat: "csv" | "json";
+        /**
          * @description What kind of fact an entry records.
          * @enum {string}
          */
@@ -12957,6 +12991,71 @@ export interface operations {
                 };
             };
             /** @description Audit journal not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    export_audit_journal: {
+        parameters: {
+            query: {
+                /** @description `csv` or `json`. */
+                format: components["schemas"]["JournalExportFormat"];
+                /**
+                 * @description `true` to add, to each entry, its payload and the arguments and output
+                 *     of its tool call. Those may hold personal data. Defaults to `false`.
+                 */
+                detail?: boolean;
+                /**
+                 * @description Comma-separated agent names. When set, the export holds the entries
+                 *     that name one of those agents and the runs of their tasks.
+                 */
+                agents?: string;
+                /** @description Comma-separated action families (`read`, `write_or_delete`, ...). */
+                family?: string;
+                /** @description Comma-separated natures: `action`, `access_change`, `policy`, `system`. */
+                nature?: string;
+                /** @description Comma-separated results: `success`, `failure`, `refused`. */
+                result?: string;
+                /**
+                 * @description Start of the period, included: a day (`YYYY-MM-DD`, UTC) or an RFC 3339
+                 *     instant.
+                 */
+                since?: string;
+                /** @description End of the period, excluded: a day or an RFC 3339 instant. */
+                until?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The filtered journal as a CSV or JSON file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description A format or a filter value that cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal not configured, or `agents` given with no task repository to resolve them */
             503: {
                 headers: {
                     [name: string]: unknown;

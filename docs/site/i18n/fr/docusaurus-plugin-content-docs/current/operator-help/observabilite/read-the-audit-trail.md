@@ -56,7 +56,7 @@ prouver qu'il n'a pas été modifié.
 ```sh
 apollia-os audit list --limit 200        # consulter
 apollia-os audit stats                   # compter
-apollia-os audit export --output audit.json --limit 100000
+apollia-os audit export --format csv --output journal.csv
 apollia-os audit verify                  # vérifier toute la chaîne
 apollia-os audit verify <RUN_ID>         # vérifier une exécution
 apollia-os audit anchor                  # imprimer l'ancre de tête
