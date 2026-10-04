@@ -43,9 +43,6 @@ export function resetDeterministicUiState(): void {
     // layout.ts persists the drawer state whenever the viewport is sm, which
     // a resizeWindow block reaches.
     "apollia.ui.sidebarState_sm",
-    // McpDisclaimerDialog.svelte / WizardStepDisclaimer.svelte.
-    "apollia-mcp-disclaimer-accepted",
-    "apollia-mcp-disclaimer-version",
     // companion.ts: a keyboard nudge of the panel would leak its position.
     "companionGeometry",
     // agentInstallPrefs.ts: settings-det toggles it, the install deps step reads it.
