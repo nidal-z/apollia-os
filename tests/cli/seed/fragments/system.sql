@@ -96,3 +96,10 @@ INSERT INTO stt_config (id, enabled, model_path, hotkey, clipboard_mode, clipboa
    'en',
    'toggle',
    '2026-07-01T00:00:00Z');
+
+-- The checkout, a folder connection the Apollia agent is granted
+-- (fragments/agents.sql), so the chat's file tools reach it and a relative path
+-- lands there. The file tools reach the folders granted to an agent and
+-- nothing else; this row replaces the former `[chat] default_workspace`.
+INSERT INTO folder_connections (id, path, label, added_at)
+VALUES ('seed-checkout', '__APOLLIA_SEED_WORKSPACE__', 'checkout', '2026-07-01T00:00:00Z');

@@ -277,57 +277,29 @@ impl ChatSessionManager {
 }
 
 impl ChatSessionManager {
-    /// Resolve a session's project id to its workspace path, if any.
-    pub(in crate::chat::manager) fn resolve_project_workspace(
-        &self,
-        project_id: Option<&str>,
-    ) -> Option<std::path::PathBuf> {
-        let pid = project_id?;
-        let repo = self.project_repo.as_ref()?;
-        repo.get_project(pid)
-            .ok()
-            .and_then(|d| d.workspace_path.map(std::path::PathBuf::from))
-    }
-
-    /// Resolve the effective working directory for a session.
+    /// Resolve the effective working directory for a session: the folder its
+    /// relative paths land in, the first folder granted to its agent (the
+    /// Apollia agent for a free chat). A project the session belongs to does
+    /// not decide it. Kept synchronous (SQLite reads only, no await) so the
+    /// actor loop never holds a connection borrow across a suspension point.
     ///
-    /// Mirrors [`resolve_workspace_path`] applied per message: the project's
-    /// `workspace_path` when the session is linked to a project, otherwise the
-    /// operator-configured `[chat] default_workspace`, then `~/.apollia`. Kept
-    /// synchronous (SQLite fallback lookup only, no await) so the actor loop
-    /// never holds a connection borrow across a suspension point.
-    ///
-    /// Returns `None` for an unknown session, or a free chat with neither a
-    /// configured default workspace nor an existing `~/.apollia`.
+    /// Returns `None` for an unknown session, or an agent granted no folder.
     pub(in crate::chat::manager) fn handle_resolve_session_workspace(
         &self,
         session_id: &str,
     ) -> Option<std::path::PathBuf> {
-        // Resolve the session's project link in-memory first, then fall back to
-        // SQLite. An unknown session yields `None` so the caller reveals the
-        // raw path best-effort instead of a wrong location.
-        let project_id: Option<String> = if let Some(session) = self.sessions.get(session_id) {
-            session.project_id.clone()
+        let agent: Option<String> = if let Some(session) = self.sessions.get(session_id) {
+            session.agent_name.clone()
         } else {
             match self.repository.get_session(session_id) {
-                Ok(Some(row)) => row.project_id,
+                Ok(Some(row)) => row.agent_name,
                 _ => return None,
             }
         };
-
-        match project_id {
-            Some(pid) => self.resolve_project_workspace(Some(&pid)),
-            None => {
-                let default_workspace = self
-                    .chat_tools_config
-                    .as_ref()
-                    .and_then(|c| c.default_workspace.clone());
-                if let Some(p) = default_workspace.filter(|p| p.is_dir()) {
-                    return Some(p);
-                }
-                apollia_core::paths::data_dir().filter(|p| p.is_dir())
-            }
-        }
+        super::apollia_agent::granted_folder_anchor(
+            self.governance_db_path.as_deref(),
+            agent.as_deref(),
+        )
     }
 
     /// List sessions with optional status filter.

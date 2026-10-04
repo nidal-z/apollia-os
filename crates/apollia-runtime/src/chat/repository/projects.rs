@@ -71,4 +71,17 @@ impl ChatSessionRepository {
             .map_err(|e| ChatError::InternalError(format!("orphan_project_sessions: {e}")))?;
         Ok(count)
     }
+
+    /// Unlink every session from its project, and answer how many were.
+    ///
+    /// Each session keeps its mode and its agent: a free session stays the
+    /// Apollia agent's, a session with an agent stays with that agent.
+    pub fn detach_all_projects(&self) -> Result<usize, ChatError> {
+        self.conn
+            .execute(
+                "UPDATE chat_sessions SET project_id = NULL WHERE project_id IS NOT NULL",
+                [],
+            )
+            .map_err(|e| ChatError::InternalError(format!("detach_all_projects: {e}")))
+    }
 }

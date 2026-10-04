@@ -339,7 +339,7 @@ fn test_a_stored_folder_is_listed_last_as_a_local_folder_connection() {
     assert!(folder
         .tools
         .iter()
-        .any(|t| t.id == "file_read" && t.prechecked));
+        .any(|t| t.id == "conn:folder:f1/file_read" && t.prechecked));
     assert_eq!(folder_id_of(&folder.id), Some("f1"));
     assert_eq!(folder_id_of("mcp:files"), None);
 }

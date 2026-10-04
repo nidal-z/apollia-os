@@ -14415,6 +14415,47 @@
         }
       }
     },
+    "/api/v1/sources/project-migration": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "`GET /api/v1/sources/project-migration`: what the migration of the former\nprojects carried over, and what it listed instead.",
+        "operationId": "project_migration_report",
+        "responses": {
+          "200": {
+            "description": "The report of the last run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationReport"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No migration of projects has run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The report cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sources/{id}": {
       "delete": {
         "tags": [
@@ -21753,6 +21794,30 @@
           }
         }
       },
+      "IssueItem": {
+        "type": "string",
+        "description": "What an issue is about.",
+        "enum": [
+          "store",
+          "document",
+          "instructions",
+          "agent",
+          "folder",
+          "memory",
+          "conversations"
+        ]
+      },
+      "IssueReason": {
+        "type": "string",
+        "description": "Why an item was not carried over.",
+        "enum": [
+          "missing",
+          "unreadable",
+          "wrong_kind",
+          "agent_not_installed",
+          "failed"
+        ]
+      },
       "ItemPreview": {
         "type": "object",
         "description": "One Python tool of the package.",
@@ -22581,6 +22646,28 @@
           }
         }
       },
+      "MemoryMerge": {
+        "type": "object",
+        "description": "A memory space of a project merged into the space of the same name.",
+        "properties": {
+          "entriesAdded": {
+            "type": "integer",
+            "description": "Entries this run added; 0 when they were already there.",
+            "default": 0,
+            "minimum": 0
+          },
+          "from": {
+            "type": "string",
+            "description": "The space of the project, `<project id>:<space>`.",
+            "default": ""
+          },
+          "into": {
+            "type": "string",
+            "description": "The space it was merged into.",
+            "default": ""
+          }
+        }
+      },
       "MemoryRemoved": {
         "type": "object",
         "description": "Answer of the clear and purge routes.",
@@ -22669,6 +22756,121 @@
             "description": "Role of the message sender."
           }
         }
+      },
+      "MigrationIssue": {
+        "type": "object",
+        "description": "One item the migration did not carry over.",
+        "properties": {
+          "blocking": {
+            "type": "boolean",
+            "description": "Whether the issue keeps the migration partial. A missing document is\nlisted and does not: running again would not bring it back.",
+            "default": false
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The underlying error, when there is one.",
+            "default": null
+          },
+          "item": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IssueItem",
+                "description": "What the issue is about."
+              }
+            ],
+            "default": "store"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the project, if the issue belongs to one.",
+            "default": null
+          },
+          "projectName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the project, if the issue belongs to one.",
+            "default": null
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IssueReason",
+                "description": "Why it was not carried over."
+              }
+            ],
+            "default": "failed"
+          },
+          "subject": {
+            "type": "string",
+            "description": "The path, agent or space concerned.",
+            "default": ""
+          }
+        }
+      },
+      "MigrationReport": {
+        "type": "object",
+        "description": "The report of a run of the migration.",
+        "properties": {
+          "conversationsDetached": {
+            "type": "integer",
+            "description": "Conversations detached from a project by this run.",
+            "default": 0,
+            "minimum": 0
+          },
+          "formatVersion": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Version of this format.",
+            "default": 0,
+            "minimum": 0
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationIssue"
+            },
+            "description": "What was not carried over.",
+            "default": []
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectOutcome"
+            },
+            "description": "One entry per project found.",
+            "default": []
+          },
+          "ranAt": {
+            "type": "string",
+            "description": "When the run ended, RFC 3339 in UTC.",
+            "default": ""
+          },
+          "status": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MigrationStatus",
+                "description": "Where the run ended."
+              }
+            ],
+            "default": "partial"
+          }
+        }
+      },
+      "MigrationStatus": {
+        "type": "string",
+        "description": "Where a run of the migration ended.",
+        "enum": [
+          "complete",
+          "partial"
+        ]
       },
       "ModelCardsResponse": {
         "type": "object",
@@ -24177,6 +24379,62 @@
               "null"
             ],
             "description": "New display name."
+          }
+        }
+      },
+      "ProjectOutcome": {
+        "type": "object",
+        "description": "What the migration did for one project.",
+        "properties": {
+          "agentsChecked": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Agents its sources are checked for.",
+            "default": []
+          },
+          "documentSources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Identifiers of the sources made of its documents.",
+            "default": []
+          },
+          "folderConnection": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the folder connection made of its working folder.",
+            "default": null
+          },
+          "id": {
+            "type": "string",
+            "description": "Identifier of the project.",
+            "default": ""
+          },
+          "instructionsSource": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the source made of its instructions, if it had any.",
+            "default": null
+          },
+          "memory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryMerge"
+            },
+            "description": "Its memory spaces, merged.",
+            "default": []
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the project, which is also the group of its sources.",
+            "default": ""
           }
         }
       },

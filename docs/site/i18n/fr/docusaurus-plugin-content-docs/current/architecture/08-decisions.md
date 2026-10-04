@@ -103,6 +103,20 @@ mémoire. Les outils de fichiers sont confinés à une racine résolue : le chem
 est canonisé puis revérifié contre la racine après résolution, donc un lien
 symbolique ne permet pas d'en sortir.
 
+La racine des outils de fichiers d'un agent est l'union des dossiers accordés à
+cet agent, agent de conversation intégré compris, sur le chemin de la
+conversation comme sur celui des tâches. Un dossier du poste est une connexion,
+choisie au sélecteur du système, et ses outils s'accordent à un agent un par
+un : les outils de lecture atteignent tous les dossiers qui lui sont accordés,
+les outils d'écriture seulement ceux accordés pour écrire. Le premier dossier
+accordé, par date d'ajout, sert d'ancre à un chemin relatif. Un agent sans
+dossier accordé a des outils de fichiers qui refusent avec un message disant
+comment en accorder un. Rien d'autre n'est une racine : ni le dossier
+personnel, ni le dossier de données, ni le volume, ni le dossier d'un projet.
+Les anciennes clés `[filesystem] trusted_paths` et `[chat] default_workspace`
+sont retirées ; les dossiers qu'elles nommaient, dossier personnel excepté, ont
+été ajoutés une fois comme connexions, accordées à aucun agent.
+
 Le confinement n'est pas uniforme selon les plateformes, et la différence n'est
 pas cosmétique. Sous Linux, l'exécution shell tourne sous espaces de noms PID et
 mount. Sous macOS le confinement est plus faible. Sous Windows il n'y en a pas.

@@ -221,6 +221,8 @@ from .install_report import InstallReport
 from .installed_agent_view import InstalledAgentView
 from .invoke_request import InvokeRequest
 from .invoke_request_input import InvokeRequestInput
+from .issue_item import IssueItem
+from .issue_reason import IssueReason
 from .item_preview import ItemPreview
 from .journal_anchor import JournalAnchor
 from .journal_break import JournalBreak
@@ -260,10 +262,14 @@ from .memory_entry_deleted import MemoryEntryDeleted
 from .memory_entry_view import MemoryEntryView
 from .memory_estimate_dto import MemoryEstimateDto
 from .memory_imported import MemoryImported
+from .memory_merge import MemoryMerge
 from .memory_removed import MemoryRemoved
 from .memory_search_result_view import MemorySearchResultView
 from .memory_wiped import MemoryWiped
 from .message_dto import MessageDto
+from .migration_issue import MigrationIssue
+from .migration_report import MigrationReport
+from .migration_status import MigrationStatus
 from .model_cards_response import ModelCardsResponse
 from .model_cards_response_cards_item import ModelCardsResponseCardsItem
 from .model_cards_response_publishers import ModelCardsResponsePublishers
@@ -339,6 +345,7 @@ from .profile_reset import ProfileReset
 from .profile_summary_view import ProfileSummaryView
 from .profile_update import ProfileUpdate
 from .profile_update_fields import ProfileUpdateFields
+from .project_outcome import ProjectOutcome
 from .proposed_rule_view import ProposedRuleView
 from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
@@ -746,6 +753,8 @@ __all__ = (
     "InstallReport",
     "InvokeRequest",
     "InvokeRequestInput",
+    "IssueItem",
+    "IssueReason",
     "ItemPreview",
     "JournalAnchor",
     "JournalBreak",
@@ -785,10 +794,14 @@ __all__ = (
     "MemoryEntryView",
     "MemoryEstimateDto",
     "MemoryImported",
+    "MemoryMerge",
     "MemoryRemoved",
     "MemorySearchResultView",
     "MemoryWiped",
     "MessageDto",
+    "MigrationIssue",
+    "MigrationReport",
+    "MigrationStatus",
     "ModelCardsResponse",
     "ModelCardsResponseCardsItem",
     "ModelCardsResponsePublishers",
@@ -862,6 +875,7 @@ __all__ = (
     "ProfileSummaryView",
     "ProfileUpdate",
     "ProfileUpdateFields",
+    "ProjectOutcome",
     "ProposedRuleView",
     "PurgeMemoryBody",
     "PutMcpSecretBody",

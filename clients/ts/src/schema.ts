@@ -4808,6 +4808,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sources/project-migration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/sources/project-migration`: what the migration of the former
+         *     projects carried over, and what it listed instead.
+         */
+        get: operations["project_migration_report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sources/{id}": {
         parameters: {
             query?: never;
@@ -7673,6 +7693,16 @@ export interface components {
              */
             timeout_secs?: number | null;
         };
+        /**
+         * @description What an issue is about.
+         * @enum {string}
+         */
+        IssueItem: "store" | "document" | "instructions" | "agent" | "folder" | "memory" | "conversations";
+        /**
+         * @description Why an item was not carried over.
+         * @enum {string}
+         */
+        IssueReason: "missing" | "unreadable" | "wrong_kind" | "agent_not_installed" | "failed";
         /** @description One Python tool of the package. */
         ItemPreview: {
             /** @description What it does. */
@@ -8064,6 +8094,24 @@ export interface components {
             /** @description How many entries went in. */
             imported: number;
         };
+        /** @description A memory space of a project merged into the space of the same name. */
+        MemoryMerge: {
+            /**
+             * @description Entries this run added; 0 when they were already there.
+             * @default 0
+             */
+            entriesAdded: number;
+            /**
+             * @description The space of the project, `<project id>:<space>`.
+             * @default
+             */
+            from: string;
+            /**
+             * @description The space it was merged into.
+             * @default
+             */
+            into: string;
+        };
         /** @description Answer of the clear and purge routes. */
         MemoryRemoved: {
             /**
@@ -8109,6 +8157,75 @@ export interface components {
             /** @description Role of the message sender. */
             role: string;
         };
+        /** @description One item the migration did not carry over. */
+        MigrationIssue: {
+            /**
+             * @description Whether the issue keeps the migration partial. A missing document is
+             *     listed and does not: running again would not bring it back.
+             * @default false
+             */
+            blocking: boolean;
+            /**
+             * @description The underlying error, when there is one.
+             * @default null
+             */
+            detail: string | null;
+            /** @default store */
+            item: components["schemas"]["IssueItem"];
+            /**
+             * @description Identifier of the project, if the issue belongs to one.
+             * @default null
+             */
+            projectId: string | null;
+            /**
+             * @description Name of the project, if the issue belongs to one.
+             * @default null
+             */
+            projectName: string | null;
+            /** @default failed */
+            reason: components["schemas"]["IssueReason"];
+            /**
+             * @description The path, agent or space concerned.
+             * @default
+             */
+            subject: string;
+        };
+        /** @description The report of a run of the migration. */
+        MigrationReport: {
+            /**
+             * @description Conversations detached from a project by this run.
+             * @default 0
+             */
+            conversationsDetached: number;
+            /**
+             * Format: int32
+             * @description Version of this format.
+             * @default 0
+             */
+            formatVersion: number;
+            /**
+             * @description What was not carried over.
+             * @default []
+             */
+            issues: components["schemas"]["MigrationIssue"][];
+            /**
+             * @description One entry per project found.
+             * @default []
+             */
+            projects: components["schemas"]["ProjectOutcome"][];
+            /**
+             * @description When the run ended, RFC 3339 in UTC.
+             * @default
+             */
+            ranAt: string;
+            /** @default partial */
+            status: components["schemas"]["MigrationStatus"];
+        };
+        /**
+         * @description Where a run of the migration ended.
+         * @enum {string}
+         */
+        MigrationStatus: "complete" | "partial";
         /** @description The catalogue's cards, or why there are none. */
         ModelCardsResponse: {
             /** @description Every card, in the asked language. */
@@ -8769,6 +8886,44 @@ export interface components {
             };
             /** @description New display name. */
             name?: string | null;
+        };
+        /** @description What the migration did for one project. */
+        ProjectOutcome: {
+            /**
+             * @description Agents its sources are checked for.
+             * @default []
+             */
+            agentsChecked: string[];
+            /**
+             * @description Identifiers of the sources made of its documents.
+             * @default []
+             */
+            documentSources: string[];
+            /**
+             * @description Identifier of the folder connection made of its working folder.
+             * @default null
+             */
+            folderConnection: string | null;
+            /**
+             * @description Identifier of the project.
+             * @default
+             */
+            id: string;
+            /**
+             * @description Identifier of the source made of its instructions, if it had any.
+             * @default null
+             */
+            instructionsSource: string | null;
+            /**
+             * @description Its memory spaces, merged.
+             * @default []
+             */
+            memory: components["schemas"]["MemoryMerge"][];
+            /**
+             * @description Name of the project, which is also the group of its sources.
+             * @default
+             */
+            name: string;
         };
         /** @description One proposed permission rule, as the approval card draws it. */
         ProposedRuleView: {
@@ -22206,6 +22361,44 @@ export interface operations {
             };
             /** @description Not a workbook or a CSV file, protected, damaged, or a sheet or row the file lacks */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    project_migration_report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report of the last run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MigrationReport"];
+                };
+            };
+            /** @description No migration of projects has run */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The report cannot be read */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

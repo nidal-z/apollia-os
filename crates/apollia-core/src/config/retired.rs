@@ -244,7 +244,7 @@ link_preview_enabled = true
         assert_eq!(
             reported,
             vec![
-                "filesystem.journal",
+                "filesystem",
                 "llm.cost_alert_threshold_usd",
                 "llm.observability.log_cost",
                 "llm.observability.log_latency",
@@ -255,5 +255,32 @@ link_preview_enabled = true
                 "ui",
             ]
         );
+    }
+
+    #[test]
+    fn the_former_folder_keys_load_and_are_reported_as_ignored() {
+        // GIVEN a file written before the folders became connections
+        let text = "[chat]\ndefault_workspace = \"/srv/work\"\nplan_mode_default = true\n\n\
+                    [filesystem]\ntrusted_paths = [\"~\", \"/srv/data\"]\n";
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let recorder = Recorder(Arc::clone(&events));
+
+        // WHEN the file is validated
+        let result = tracing::subscriber::with_default(recorder, || crate::config::validate(text));
+
+        // THEN it loads, the live chat key keeps its value, and both former
+        // keys are reported once as ignored
+        let config = result.expect("a former key never refuses the file");
+        assert!(config.chat.plan_mode_default);
+        let events = events.lock().unwrap();
+        let mut reported: Vec<&str> = events
+            .iter()
+            .filter(|(level, fields)| {
+                *level == Level::WARN && field(fields, "message") == Some("config.key.retired")
+            })
+            .filter_map(|(_, fields)| field(fields, "key"))
+            .collect();
+        reported.sort_unstable();
+        assert_eq!(reported, vec!["chat.default_workspace", "filesystem"]);
     }
 }

@@ -42,9 +42,9 @@ check_exit "update refuses while the lock is held" 1 bash -c "/usr/bin/touch \"\
 
 # ── A.2 config (seeded apollia.toml) ────────────────────────────────────────
 section "A.2 config"
-check_grep   "config show has seeded [chat] workspace" "default_workspace" "$BIN" config show
+check_grep   "config show has seeded [chat] temperature" "tool_turn_temperature" "$BIN" config show
 check_json   "config show --json"                       "$BIN" config show --json
-check        "config get chat.default_workspace"        "$BIN" config get chat.default_workspace
+check        "config get chat.tool_turn_temperature"    "$BIN" config get chat.tool_turn_temperature
 check_json   "config get --json"                        "$BIN" config get --json
 # Mutations on a throwaway config file (never touch the seeded one).
 SCFG="$SCRATCH/apollia.toml"
@@ -481,6 +481,10 @@ check_exit   "source list (off) → 2"           2     "$BIN" --socket "$OFFSOCK
 check_exit   "source create (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source create --kind folder --label Contracts --reference conn-contracts
 check_exit   "source delete (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source delete src-absent --confirm
 check_exit   "source delete without --confirm → 1" 1 "$BIN" --socket "$OFFSOCK" source delete src-absent
+# The report of the migration of the former projects is read from the daemon:
+# daemon off it refuses with 2, in human and in --json mode.
+check_exit   "source report (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source report
+check_exit   "source report --json (off) → 2"  2     "$BIN" --socket "$OFFSOCK" --json source report
 # The preview of a workbook or a CSV file is read by the daemon: daemon off it
 # refuses with 2, in human and in --json mode; a file that is not there is
 # refused with 1 before any call.
