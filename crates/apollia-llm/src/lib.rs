@@ -32,6 +32,7 @@ pub mod meta_orchestrator;
 pub mod model_cards;
 pub mod model_defaults;
 pub mod model_index;
+pub mod ocr_data;
 pub mod pricing;
 pub mod reasoning_markers;
 pub mod recommend;

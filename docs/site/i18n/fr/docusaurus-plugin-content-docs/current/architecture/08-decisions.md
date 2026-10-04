@@ -489,6 +489,53 @@ coupées ; `zip` était déjà une dépendance directe. Ce que ces crates ne cou
 pas est à notre charge : la structure des deux formats, lue ici jusqu'à leur
 texte seulement.
 
+Les pages scannées et les images sont lues par reconnaissance optique de
+caractères, avec un moteur compilé dans le binaire. Une page de document PDF
+qui ne trace aucun texte et qui est une image unique est prise telle que le
+document l'embarque, sans rendu de la page, puis reconnue ; les fichiers
+`.png`, `.jpg` et `.tiff` d'une source sont lus de la même façon. Le moteur est
+Tesseract, sur Leptonica, tous deux compilés depuis leurs sources par
+`tesseract-rs` (MIT ; Tesseract est sous Apache-2.0, Leptonica sous
+BSD-2-Clause) et liés statiquement : le poste qui exécute Apollia n'installe
+rien, et le binaire ne dépend d'aucune bibliothèque Tesseract ou Leptonica.
+Leptonica est compilée sans ses codecs d'image, les images sont donc décodées
+en Rust par `image` (MIT ou Apache-2.0), avec ses seuls décodeurs PNG, JPEG et
+TIFF. Le texte reconnu vit dans l'index de la source et nulle part ailleurs :
+aucun fichier n'est écrit à côté des documents.
+
+Le moteur lit avec un fichier de données par langue. Le français et l'anglais,
+tirés du jeu `tessdata_fast` (Apache-2.0), sont des entrées du registre des
+modèles, chacune épinglée par son SHA-256. Ils sont obtenus la première fois
+qu'une source contient une page scannée, une fois par exécution, par le
+téléchargeur qui contrôle chaque modèle contre son empreinte ; un poste sans
+réseau prend les mêmes fichiers sur un disque par l'import de modèle, qui
+n'accepte un fichier de données de langue que si son empreinte est épinglée.
+Un fichier dont l'empreinte n'est pas épinglée n'est jamais remis au moteur.
+Tant que les données manquent, chaque page en attente est listée dans l'état de
+sa source comme en attente de reconnaissance, et elle est lue dès qu'elles
+arrivent ; une page sans texte qui n'est pas une image unique est listée comme
+non lue. Aucun moteur de rendu n'est livré : `hayro` et PDFium, ceux qui ont
+été pesés, restent dehors tant que les documents n'en montrent pas le besoin.
+
+Le coût est nommé : la chaîne C++ entre dans la compilation. Compiler le moteur
+demande cmake, un compilateur C++ et le réseau, prend une à deux minutes (83
+secondes sur macOS Apple Silicon, 133 secondes sur Linux x64 sous émulation),
+et ajoute 2,8 Mo au binaire sur macOS et 4,4 Mo sur Linux. Le script de
+compilation de `tesseract-rs` télécharge les sources de Tesseract 5.5.2 et de
+Leptonica 1.87.0 depuis GitHub sans en contrôler l'empreinte, les garde avec
+les bibliothèques compilées dans un dossier du répertoire personnel plutôt que
+sous `target/`, et y pose deux fichiers de langue que le produit ne lit pas. La
+reconnaissance est donc derrière la fonctionnalité `ocr`, désactivée par
+défaut : une compilation de tous les jours n'en compile rien, et une
+compilation qui livre la reconnaissance l'active. `tesseract-rs` est épinglée à 0.4.0, puisqu'une version change les
+sources qu'elle va chercher ; trois crates entrent dans le fichier de
+verrouillage, `tesseract-rs` elle-même et `aws-lc-rs` avec `aws-lc-sys`, que
+le client HTTP de son script de compilation apporte et qui ne s'exécutent qu'à
+la compilation. `image` était déjà compilée pour le lecteur PDF et n'en ajoute
+aucune. La compilation statique est mesurée sur macOS et sur Linux ; elle ne
+l'est pas sur Windows, où la fonctionnalité reste désactivée tant qu'elle ne
+l'est pas.
+
 Les résultats d'un lot sont écrits dans le tableau qu'il a lu, par défaut dans
 une copie posée à côté de l'original, `<nom> (résultats AAAA-MM-JJ).xlsx`,
 nommée dans la langue de l'interface, si bien que l'original est lu et jamais

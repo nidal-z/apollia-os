@@ -197,6 +197,15 @@ impl DownloadManager {
         }
     }
 
+    /// A manager over `client`, for a test that serves files on the loopback.
+    #[cfg(test)]
+    pub(crate) fn with_client(client: reqwest::Client) -> Self {
+        Self {
+            client,
+            active: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
     /// Start a download in the background.
     ///
     /// Returns the `DownloadId` immediately. Progress is reported via

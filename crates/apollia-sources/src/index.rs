@@ -18,7 +18,10 @@
 //!   than mixing them;
 //! - `skipped_files`: the files of the source left out of the index, the ones
 //!   over the size cap and the ones no reader could open, so the state of the
-//!   source can name them.
+//!   source can name them;
+//! - `unread_pages`: the pages of an indexed document that hold no text and
+//!   were not read, the ones waiting for optical character recognition and
+//!   the ones it cannot read, so the state of the source can name them too.
 //!
 //! Searching it is [`SourceIndex::search`], in the `search` submodule.
 
@@ -39,9 +42,9 @@ pub use search::{
 };
 
 /// Version of the index schema; equals the length of the migration list.
-pub const INDEX_SCHEMA_VERSION: u32 = 2;
+pub const INDEX_SCHEMA_VERSION: u32 = 3;
 
-const INDEX_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2];
+const INDEX_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2, migrate_v3];
 
 /// Name of the index store in schema errors.
 const STORE_NAME: &str = "source index";
@@ -153,6 +156,46 @@ pub struct SkippedFile {
     pub reason: SkipReason,
 }
 
+/// Why a page of a document holds no text in the index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UnreadReason {
+    /// A scanned page or a picture, on a machine where optical character
+    /// recognition is not available: it is read once it is.
+    OcrUnavailable,
+    /// A page without text that recognition cannot read: it is not a single
+    /// picture, or the engine failed on it.
+    NotRead,
+}
+
+impl UnreadReason {
+    fn as_str(self) -> &'static str {
+        match self {
+            UnreadReason::OcrUnavailable => "ocr_unavailable",
+            UnreadReason::NotRead => "not_read",
+        }
+    }
+
+    fn parse(raw: &str) -> Self {
+        if raw == "ocr_unavailable" {
+            UnreadReason::OcrUnavailable
+        } else {
+            UnreadReason::NotRead
+        }
+    }
+}
+
+/// A page of an indexed document that was not read, and why.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct UnreadPage {
+    /// Path of the document.
+    pub path: String,
+    /// Page number, from 1; a picture file is its page 1.
+    pub page: u32,
+    /// Why it was not read.
+    pub reason: UnreadReason,
+}
+
 /// The vectors of a document's chunks, one per chunk, in chunk order.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ChunkVectors {
@@ -214,6 +257,18 @@ fn migrate_v2(conn: &Connection) -> Result<(), rusqlite::Error> {
             path       TEXT PRIMARY KEY CHECK (length(path) > 0),
             size_bytes INTEGER NOT NULL,
             reason     TEXT NOT NULL CHECK (reason IN ('too_large', 'unreadable'))
+        );",
+    )
+}
+
+/// v3: the pages of an indexed document that were not read, gone with it.
+fn migrate_v3(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS unread_pages (
+            document_id INTEGER NOT NULL REFERENCES documents (id) ON DELETE CASCADE,
+            page        INTEGER NOT NULL,
+            reason      TEXT NOT NULL CHECK (reason IN ('ocr_unavailable', 'not_read')),
+            PRIMARY KEY (document_id, page)
         );",
     )
 }
@@ -546,6 +601,53 @@ impl SourceIndex {
             .conn
             .execute("DELETE FROM skipped_files WHERE path = ?1", params![path])?;
         Ok(changed > 0)
+    }
+
+    /// Records the pages of the document at `path` that were not read, in
+    /// place of any earlier record. They leave the index with the document.
+    ///
+    /// # Errors
+    /// [`IndexError::Db`] on any SQLite failure.
+    pub fn set_unread_pages(
+        &mut self,
+        path: &str,
+        pages: &[(u32, UnreadReason)],
+    ) -> Result<(), IndexError> {
+        let tx = self.conn.transaction()?;
+        tx.execute(
+            "DELETE FROM unread_pages
+             WHERE document_id IN (SELECT id FROM documents WHERE path = ?1)",
+            params![path],
+        )?;
+        for (page, reason) in pages {
+            tx.execute(
+                "INSERT OR REPLACE INTO unread_pages (document_id, page, reason)
+                 SELECT id, ?2, ?3 FROM documents WHERE path = ?1",
+                params![path, page, reason.as_str()],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// The pages that were not read, by path then page.
+    ///
+    /// # Errors
+    /// [`IndexError::Db`] on any SQLite failure.
+    pub fn unread_pages(&self) -> Result<Vec<UnreadPage>, IndexError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT d.path, u.page, u.reason FROM unread_pages u
+             JOIN documents d ON d.id = u.document_id
+             ORDER BY d.path, u.page",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(UnreadPage {
+                path: row.get(0)?,
+                page: row.get(1)?,
+                reason: UnreadReason::parse(&row.get::<_, String>(2)?),
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
     /// Checks `given` against the chunks and the stored model, and encodes

@@ -2,15 +2,21 @@
 //!
 //! The format follows the extension, in any case: workbooks, CSV files, PDF,
 //! Word and PowerPoint documents go through their readers, plain text files
-//! are read as text. Any other file is not indexed and is not reported: a
-//! folder holds pictures, archives and programs no reader is meant for.
+//! are read as text. The pages of a PDF document that hold no text, and the
+//! pictures of the source (`.png`, `.jpg`, `.tiff`), go to optical character
+//! recognition; a page it does not read is reported with the reason. Any
+//! other file is not indexed and is not reported: a folder holds archives and
+//! programs no reader is meant for.
 
 use std::path::Path;
 
 use crate::chunk::Section;
+use crate::index::UnreadReason;
+use crate::ocr::Ocr;
 use crate::reader::{
-    read_csv, read_pdf, read_presentation, read_word, read_workbook, ReadError, Sheet,
-    PRESENTATION_EXTENSIONS, WORD_EXTENSIONS, WORKBOOK_EXTENSIONS,
+    read_csv, read_pdf_scanned, read_picture, read_presentation, read_word, read_workbook,
+    PageText, ReadError, Sheet, PICTURE_EXTENSIONS, PRESENTATION_EXTENSIONS, WORD_EXTENSIONS,
+    WORKBOOK_EXTENSIONS,
 };
 
 /// Extensions read as plain text, lower case.
@@ -29,7 +35,38 @@ enum Format {
     Pdf,
     Word,
     Presentation,
+    Picture,
     Text,
+}
+
+/// What a file gives the index: the sections that were read, and the pages
+/// that were not.
+#[derive(Debug, Default)]
+pub struct Extracted {
+    /// The sections read, in the order of the document.
+    pub sections: Vec<Section>,
+    /// The pages without text that were not read, each with the reason.
+    pub unread: Vec<(u32, UnreadReason)>,
+}
+
+impl Extracted {
+    fn of(sections: Vec<Section>) -> Self {
+        Self {
+            sections,
+            unread: Vec::new(),
+        }
+    }
+
+    /// Files one page: its text among the sections, or its number among the
+    /// pages not read. A page that holds nothing is neither.
+    fn page(&mut self, page: u32, text: PageText) {
+        match text {
+            PageText::Text(text) => self.sections.push(Section::Page { page, text }),
+            PageText::OcrUnavailable => self.unread.push((page, UnreadReason::OcrUnavailable)),
+            PageText::NotRead => self.unread.push((page, UnreadReason::NotRead)),
+            PageText::WithoutText => {}
+        }
+    }
 }
 
 fn format_of(path: &Path) -> Option<Format> {
@@ -45,6 +82,8 @@ fn format_of(path: &Path) -> Option<Format> {
         Some(Format::Word)
     } else if PRESENTATION_EXTENSIONS.contains(&ext) {
         Some(Format::Presentation)
+    } else if PICTURE_EXTENSIONS.contains(&ext) {
+        Some(Format::Picture)
     } else if TEXT_EXTENSIONS.contains(&ext) {
         Some(Format::Text)
     } else {
@@ -80,35 +119,37 @@ fn sheet_section(sheet: &Sheet) -> Section {
     }
 }
 
-/// The sections of the file at `path`, read by the reader of its format;
-/// `None` for a file of a format the index does not read.
+/// The sections of the file at `path`, read by the reader of its format, its
+/// scanned pages and pictures by `ocr`; `None` for a file of a format the
+/// index does not read.
 ///
 /// # Errors
 /// The [`ReadError`] of the reader; for a text file, [`ReadError::Io`] when
 /// it cannot be read. A text file that is not UTF-8 is read with its invalid
 /// bytes replaced.
-pub fn sections_of(path: &Path) -> Result<Option<Vec<Section>>, ReadError> {
+pub fn sections_of(path: &Path, ocr: &Ocr) -> Result<Option<Extracted>, ReadError> {
     let Some(format) = format_of(path) else {
         return Ok(None);
     };
     let sections = match format {
+        Format::Pdf => {
+            let mut extracted = Extracted::default();
+            for page in read_pdf_scanned(path, ocr)?.pages {
+                extracted.page(page.number, page.text);
+            }
+            return Ok(Some(extracted));
+        }
+        Format::Picture => {
+            let mut extracted = Extracted::default();
+            extracted.page(1, read_picture(path, ocr)?);
+            return Ok(Some(extracted));
+        }
         Format::Workbook => read_workbook(path)?
             .sheets
             .iter()
             .map(sheet_section)
             .collect(),
         Format::Delimited => vec![sheet_section(&read_csv(path)?.sheet)],
-        Format::Pdf => read_pdf(path)?
-            .pages
-            .into_iter()
-            .filter_map(|page| {
-                let text = page.text.as_text()?.to_owned();
-                Some(Section::Page {
-                    page: page.number,
-                    text,
-                })
-            })
-            .collect(),
         Format::Word => {
             let segments: Vec<String> = read_word(path)?
                 .segments
@@ -145,5 +186,5 @@ pub fn sections_of(path: &Path) -> Result<Option<Vec<Section>>, ReadError> {
             }]
         }
     };
-    Ok(Some(sections))
+    Ok(Some(Extracted::of(sections)))
 }

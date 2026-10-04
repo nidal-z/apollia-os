@@ -20,7 +20,7 @@ use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::checked::{checked_sources, CheckedSource};
-use crate::index::{IndexError, SkippedFile, SourceIndex};
+use crate::index::{IndexError, SkippedFile, SourceIndex, UnreadPage};
 use crate::indexer::{IndexerCommand, IndexerHandle, PassageEmbedder, SWEEP_INTERVAL};
 use crate::search::{search_sources, SourcesQuery, SourcesSearchOutcome};
 
@@ -80,6 +80,10 @@ pub struct IndexStatus {
     pub chunks: u64,
     /// Files left out: over the size cap, or unreadable.
     pub skipped: Vec<SkippedFile>,
+    /// Pages of indexed documents that were not read: scanned pages and
+    /// pictures waiting for optical character recognition, and pages it
+    /// cannot read.
+    pub unread_pages: Vec<UnreadPage>,
 }
 
 /// The indexer's way back to the registry. Weak, so the registry stops when
@@ -400,12 +404,12 @@ fn index_status(
         .ok_or_else(|| SourceRegistryError::NotFound(id.to_owned()))?;
     let data_dir = data_dir.ok_or(SourcesError::NoDataDirectory)?;
     let path = crate::index::index_path(data_dir, id)?;
-    let (documents, chunks, skipped) = if path.exists() {
+    let (documents, chunks, skipped, unread_pages) = if path.exists() {
         let index = SourceIndex::open_at(&path, id)?;
         let (documents, chunks) = index.counts()?;
-        (documents, chunks, index.skipped()?)
+        (documents, chunks, index.skipped()?, index.unread_pages()?)
     } else {
-        (0, 0, Vec::new())
+        (0, 0, Vec::new(), Vec::new())
     };
     Ok(IndexStatus {
         source: source.id,
@@ -413,6 +417,7 @@ fn index_status(
         documents,
         chunks,
         skipped,
+        unread_pages,
     })
 }
 

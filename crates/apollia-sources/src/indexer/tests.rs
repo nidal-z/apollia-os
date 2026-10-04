@@ -7,8 +7,10 @@ use apollia_core::source_registry::NewSource;
 use tokio::sync::{Notify, Semaphore};
 
 use super::*;
-use crate::index::SkipReason;
+use crate::index::{index_path, SkipReason};
 use crate::SourceRegistryHandle;
+
+mod recognition;
 
 /// An embedder that never leaves the process: an eight-dimension vector
 /// counted from the bytes of each text, the model named by the test, every
@@ -173,7 +175,7 @@ fn bump(path: &Path) {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_a_folder_source_is_indexed_in_the_background_from_indexing_to_ready() {
     // GIVEN a folder holding a text file, a CSV file, a workbook, a PDF, a
-    // Word document, a presentation and a picture no reader opens, and an
+    // Word document, a presentation and an archive no reader opens, and an
     // indexer whose embedder waits to be let through
     let world = World::new();
     world.write("notes.txt", "The lease of the Lyon office runs until 2027.");
@@ -186,7 +188,7 @@ async fn test_a_folder_source_is_indexed_in_the_background_from_indexing_to_read
     ] {
         std::fs::copy(fixture(from), world.root().join(to)).unwrap();
     }
-    std::fs::write(world.root().join("photo.png"), [0x89, b'P', b'N', b'G']).unwrap();
+    std::fs::write(world.root().join("backup.zip"), b"PK\x03\x04").unwrap();
     let stub = Stub::new("e5-small");
     stub.gated.store(true, Ordering::SeqCst);
     world.start(&stub).await;
@@ -200,7 +202,7 @@ async fn test_a_folder_source_is_indexed_in_the_background_from_indexing_to_read
     world.refresh().await;
 
     // THEN the index is built in the background: `indexing` while it reads,
-    // `ready` once done, every readable format indexed, the picture ignored
+    // `ready` once done, every readable format indexed, the archive ignored
     let status = world.registry.index_status(&id).await.unwrap();
     let names: BTreeSet<String> = world
         .documents(&id)
