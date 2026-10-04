@@ -1,7 +1,7 @@
-//! The onboarding as every surface drives it: the seven-phase machine kept in
-//! the user memory, the profile chosen on its second screen, the conversation
-//! with the onboarding agent that starts, resumes or is dismissed, and the
-//! completion that agent records in its own memory.
+//! The onboarding as every surface drives it: the six-phase machine kept in
+//! the user memory, the conversation with the onboarding agent that starts,
+//! resumes or is dismissed, and the completion that agent records in its own
+//! memory.
 //!
 //! The desktop running the runtime in its own process calls [`Onboarding`]
 //! directly; a client of the daemon reaches the same functions through
@@ -22,18 +22,15 @@ pub mod state;
 
 use memory::{
     check_finalized_in, finalize_in, load_state_from_memory, persist_state,
-    reset_onboarding_progress, write_profile_to_agent_memory,
+    reset_onboarding_progress,
 };
-use state::{validate_profile, OnboardingError, OnboardingPhase, OnboardingState, TriggerResult};
+use state::{OnboardingError, OnboardingPhase, OnboardingState, TriggerResult};
 
 /// The five onboarding topics that define a complete (legacy) onboarding.
 pub const ONBOARDING_TOPICS: [&str; 5] = ["identity", "preferences", "tools", "domain", "agents"];
 
 /// Name of the agent used for onboarding conversations.
 pub const ONBOARDING_AGENT_NAME: &str = "onboarding-agent";
-
-/// Valid user profiles for the onboarding flow.
-pub const VALID_PROFILES: [&str; 2] = ["operator", "builder"];
 
 /// What the onboarding reads and writes, borrowed from the runtime for one
 /// operation. The repository lock is the one `user_memory.db` was opened
@@ -73,7 +70,7 @@ impl Onboarding<'_> {
     ///
     /// # Errors
     ///
-    /// [`OnboardingError::UnknownPhase`] for a name outside the seven,
+    /// [`OnboardingError::UnknownPhase`] for a name outside the six,
     /// [`OnboardingError::InvalidTransition`] for a phase out of sequence.
     pub async fn advance(&self, target_phase: &str) -> Result<OnboardingState, OnboardingError> {
         let target = OnboardingPhase::parse(target_phase)
@@ -95,12 +92,7 @@ impl Onboarding<'_> {
             apply_phase_transition(&repo, &mut onboarding, &target);
             persist_state(&repo, &onboarding)?;
             if target == OnboardingPhase::Done {
-                let profile = onboarding
-                    .profile
-                    .clone()
-                    .unwrap_or_else(|| "unknown".to_string());
                 let _ = events.send(apollia_core::RuntimeEvent::OnboardingCompleted {
-                    profile,
                     duration_sec: onboarding.stats.total_time_sec,
                     actions_count: onboarding.stats.actions_completed,
                 });
@@ -115,39 +107,18 @@ impl Onboarding<'_> {
         .await
     }
 
-    /// Records the profile chosen on the second screen.
-    ///
-    /// # Errors
-    ///
-    /// [`OnboardingError::InvalidProfile`] outside `operator` and `builder`.
-    pub async fn set_profile(&self, profile: String) -> Result<OnboardingState, OnboardingError> {
-        validate_profile(&profile)?;
-        let repo = self.repo()?;
-        blocking(move || {
-            let repo = lock(&repo)?;
-            let mut onboarding = load_state_from_memory(&repo)?;
-            onboarding.profile = Some(profile.clone());
-            persist_state(&repo, &onboarding)?;
-            tracing::event!(tracing::Level::INFO, profile = %profile, "onboarding.profile.set");
-            Ok(onboarding)
-        })
-        .await
-    }
-
     /// Opens a conversation with the onboarding agent: a full run (`topic`
     /// `None`), one topic again, or, with `resume`, the enrichment of a
     /// profile already collected, which keeps what the agent learnt.
     ///
     /// # Errors
     ///
-    /// [`OnboardingError::InvalidTopic`], [`OnboardingError::InvalidProfile`],
-    /// [`OnboardingError::ChatNotAvailable`],
+    /// [`OnboardingError::InvalidTopic`], [`OnboardingError::ChatNotAvailable`],
     /// [`OnboardingError::AgentNotInstalled`], or
     /// [`OnboardingError::SessionCreationFailed`].
     pub async fn trigger(
         &self,
         topic: Option<String>,
-        profile: Option<String>,
         resume: bool,
     ) -> Result<TriggerResult, OnboardingError> {
         if let Some(ref t) = topic {
@@ -173,12 +144,6 @@ impl Onboarding<'_> {
             }
         }
 
-        if let Some(ref p) = profile {
-            validate_profile(p)?;
-            write_profile_to_agent_memory(&self.memory_dir, p);
-            tracing::event!(tracing::Level::INFO, profile = %p, "onboarding.profile.injected");
-        }
-
         // The onboarding agent is a declarative agent: its mission is the
         // system prompt and its tool records the profile, both read when each
         // message is sent, so the session carries no prompt of its own.
@@ -196,7 +161,7 @@ impl Onboarding<'_> {
                 agent_name: Some(ONBOARDING_AGENT_NAME.to_string()),
                 system_prompt: None,
                 tools: Vec::new(),
-                project_id: None,
+                model: None,
             })
             .await
             .map_err(|e| match e {

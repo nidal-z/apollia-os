@@ -31,6 +31,7 @@ pub mod last_loaded_model;
 pub mod llm_backend;
 pub mod manifest;
 pub mod mcp_health;
+pub mod model_pins;
 pub mod model_preset;
 #[cfg(feature = "net")]
 pub mod net;
@@ -66,18 +67,18 @@ pub use budget::StepBudgetConfig;
 pub use config::{
     validate_bounds, A2AConfig, ApiConfig, AutonomyConfig, AutonomyLevel, AutonomyLevelConfig,
     AutonomyLevelParseError, BashValidatorConfig, BraveBackendConfig, CeilingAction, ChatConfig,
-    ConfigError, DesktopConfig, DuckDuckGoBackendConfig, FilesystemRiskConfig, GatePolicy,
-    HitlConfig, HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig,
-    HybridRoutingConfig, LlmRoutingConfig, McpConfig, McpToolLoading, ModelsConfig, ORIAConfig,
-    RegistryConfig, RuntimeConfig, ServerConfig, ToolsConfig, TriggersConfig, WebReadConfig,
-    WebSearchBackend, WebSearchConfig, WorkflowsConfig,
+    ConfigError, DesktopConfig, DuckDuckGoBackendConfig, GatePolicy, HitlConfig, HookEventKind,
+    HookHandlerConfig, HookHandlerKind, HooksConfig, HybridRoutingConfig, LlmRoutingConfig,
+    McpConfig, McpToolLoading, ModelsConfig, ORIAConfig, RegistryConfig, RuntimeConfig,
+    ServerConfig, ToolsConfig, TriggersConfig, WebReadConfig, WebSearchBackend, WebSearchConfig,
+    WorkflowsConfig,
 };
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
 pub use decision_point::{ConsideredAlternative, DecisionKind, DecisionPoint};
 pub use embedding_default::{EmbeddingDefaultError, EmbeddingDefaultStore};
 pub use error_analysis::{ErrorAnalysis, ErrorCategory};
 pub use events::{
-    resilient, subscribe_resilient, AgentId, EventBusSender, FilesystemPreview, Received,
+    resilient, subscribe_resilient, AgentId, EventBusSender, ModelUnloadReason, Received,
     ResilientReceiver, RunId, RuntimeEvent, TaskId, ToolCallRationale,
 };
 pub use folder_connection::{FolderConnection, FolderConnectionError, FolderConnectionStore};

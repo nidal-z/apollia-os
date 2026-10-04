@@ -424,6 +424,14 @@ did not hold, among them a font stack (`skrifa`, `read-fonts`, `write-fonts`,
 0.1.12 release no longer compiles under `pdf_oxide` 0.3.78, so an update of
 either is a decision rather than a refresh.
 
+One crate of that font stack carries an advisory: `ttf-parser` 0.25.1, which
+`pdf_oxide` alone uses to parse the fonts a document embeds, is flagged
+unmaintained (RUSTSEC-2026-0192). No vulnerability is known in it and no newer
+release exists to move to, so the advisory is exempted in `deny.toml`, dated
+2026-10-04, with that reason beside it, and it is revisited at the next minor
+release. It lifts when `pdf_oxide` drops `ttf-parser` or a maintained release
+of it appears.
+
 Word documents and PowerPoint presentations are read in Rust, by code of our
 own over two crates: `zip`, the one that opens the package archive (see
 [Package archive](#package-archive)), opens the file, and `quick-xml` (MIT), a

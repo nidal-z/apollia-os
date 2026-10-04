@@ -47,12 +47,6 @@ pub struct AIPTask {
     /// full ID such as `"chart.bar"` (not just the suffix).
     #[serde(default)]
     pub skill_id: Option<String>,
-    /// Identifier of the project this task belongs to.
-    ///
-    /// `None` for standalone sessions. Used by the runtime to prefix the
-    /// agent's effective memory namespace: `"{project_id}:{memory_namespace}"`.
-    #[serde(default)]
-    pub project_id: Option<String>,
     /// Multi-modal task input.
     pub input: AIPInput,
     /// History of previous exchanges within this context.
@@ -195,6 +189,26 @@ mod tests {
         // THEN run_options defaults to empty
         assert_eq!(task.run_options.plan_gate, None);
         assert_eq!(task.run_options.autonomy_level, None);
+    }
+
+    #[test]
+    fn test_a_task_written_with_a_project_carries_none() {
+        // GIVEN a task JSON written when a task could belong to a project
+        let value = json!({
+            "task_id": "t1",
+            "context_id": "c1",
+            "project_id": "proj_abc123",
+            "input": { "parts": [] },
+            "history": [],
+            "timeout_seconds": null
+        });
+        // WHEN it is read, then written back
+        let task: AIPTask = serde_json::from_value(value).expect("old task must deserialize");
+        let written = serde_json::to_value(&task).expect("task must serialize");
+        // THEN the project is dropped: nothing can prefix a memory namespace
+        // with it any more
+        assert!(written.get("project_id").is_none(), "{written}");
+        assert_eq!(task.context_id, "c1");
     }
 
     #[test]

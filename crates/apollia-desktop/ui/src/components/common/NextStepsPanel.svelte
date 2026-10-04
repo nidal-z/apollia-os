@@ -51,7 +51,6 @@
   const ROUTE_ALLOWLIST: Record<string, { route: Route }> = {
     "/dashboard": { route: "dashboard" },
     "/agents": { route: "agents" },
-    "/projects": { route: "projects" },
     "/tasks": { route: "tasks" },
     "/chat": { route: "chat" },
     "/automations": { route: "automations" },
@@ -63,7 +62,6 @@
     "/memory": { route: "memory" },
     "/memory?new": { route: "memory" },
     "/observability": { route: "observability" },
-    "/notifications": { route: "notifications" },
     "/settings": { route: "settings" },
   };
 

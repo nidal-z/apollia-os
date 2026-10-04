@@ -14,10 +14,11 @@
 //! an audit journal: an installation is never left unrecorded, and the
 //! preview reads the same governance the installation does.
 //!
-//! Each route reads the `[packages]` section of the organisation policy, from
-//! the folder and through the reader the runtime reads it with at startup:
-//! `require_signature` answers the signature question, and the
-//! `trusted_publishers` are laid over the keyring, read only.
+//! The governance of the runtime answers the signature question from the
+//! `require_signature` of the organisation policy read at startup. Each route
+//! reads the `trusted_publishers` of the same section, from the folder and
+//! through the reader the runtime reads it with at startup, and lays them over
+//! the keyring, read only.
 
 use std::path::PathBuf;
 
@@ -41,7 +42,7 @@ pub use uninstall::UninstallRequest;
 use crate::api::server::AppState;
 use crate::connections::Connection;
 use crate::coordinator::ExecutionBackend;
-use crate::governance::PackagePolicyGovernance;
+use crate::governance::GovernanceHandle;
 use crate::packages::{
     commit, prepare, preview, CommitTargets, InstallOptions, InstallRefusal, InstallReport,
     McpServerAdder, PackageError, PackageOrigin, PackagePreview, PreviewSources,
@@ -167,7 +168,7 @@ pub fn package_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
 /// The stores a preview and an installation read, owned so that the work on
 /// the archive runs off the async runtime.
 struct Stores {
-    governance: PackagePolicyGovernance,
+    governance: GovernanceHandle,
     packages: PackageRepository,
     agents: AgentRepository,
     trusted_keys: TrustedKeyRepository,
@@ -200,13 +201,17 @@ async fn gather<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
     archive: &std::path::Path,
 ) -> Result<Stores, ApiError> {
-    let journal = state.audit_journal.clone().ok_or_else(|| {
-        api_err(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "journal_unavailable",
-            "audit journal not available: a package is not installed without its record",
-        )
-    })?;
+    let governance = state
+        .governance
+        .clone()
+        .filter(GovernanceHandle::journaled)
+        .ok_or_else(|| {
+            api_err(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "journal_unavailable",
+                "audit journal not available: a package is not installed without its record",
+            )
+        })?;
     let db = agents_db(state);
     let policy = packages_policy();
     let packages = PackageRepository::open(&db).map_err(internal)?;
@@ -244,7 +249,7 @@ async fn gather<B: ExecutionBackend + Clone>(
         None => Vec::new(),
     };
     Ok(Stores {
-        governance: PackagePolicyGovernance::new(journal, &policy),
+        governance,
         packages,
         agents,
         trusted_keys,

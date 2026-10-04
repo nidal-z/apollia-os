@@ -688,7 +688,7 @@
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-card-"
+      "testidPrefix": "operator-approval-"
     },
     {
       "kind": "expect",
@@ -699,55 +699,33 @@
       "label": "01-critical-approval-card"
     },
     {
-      "kind": "click",
-      "testidPrefix": "approval-always-toggle-"
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "approval-scope-menu-",
-      "timeoutMs": 8000
+      "kind": "expect",
+      "testidPrefix": "operator-approval-accept-"
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-scope-session-"
+      "testidPrefix": "operator-approval-always-"
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-scope-agent-"
-    },
-    {
-      "kind": "expect",
-      "testidPrefix": "approval-scope-project-"
-    },
-    {
-      "kind": "expect",
-      "testidPrefix": "approval-scope-global-"
+      "testidPrefix": "operator-approval-reason-"
     },
     {
       "kind": "screenshot",
-      "label": "02-approval-scope-menu"
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "approval-refuse-"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-reject-dialog",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "screenshot",
-      "label": "03-approval-reject-dialog"
+      "label": "02-approval-three-answers"
     },
     {
       "kind": "fill",
-      "testid": "inbox-reject-reason",
+      "testidPrefix": "operator-approval-reason-",
       "text": "Refused during the automation coverage run."
     },
     {
+      "kind": "screenshot",
+      "label": "03-approval-refuse-reason-typed"
+    },
+    {
       "kind": "click",
-      "testid": "inbox-reject-confirm"
+      "testidPrefix": "operator-approval-refuse-"
     },
     {
       "kind": "waitGone",
@@ -769,23 +747,23 @@
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "approval-card-",
+      "testidPrefix": "operator-approval-",
       "nth": 0,
       "timeoutMs": 6000
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-accept-",
+      "testidPrefix": "operator-approval-accept-",
       "nth": 0
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-refuse-",
+      "testidPrefix": "operator-approval-refuse-",
       "nth": 0
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-always-toggle-",
+      "testidPrefix": "operator-approval-always-",
       "nth": 0
     },
     {
@@ -794,7 +772,7 @@
     },
     {
       "kind": "click",
-      "testidPrefix": "approval-accept-",
+      "testidPrefix": "operator-approval-accept-",
       "nth": 0,
       "timeoutMs": 6000
     },

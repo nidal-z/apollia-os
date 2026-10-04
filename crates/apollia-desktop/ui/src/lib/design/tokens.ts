@@ -133,6 +133,10 @@ export const zLayer = {
   overlay: "var(--z-overlay)",
   /** Tooltips, above everything that can carry one. */
   tooltip: "var(--z-tooltip)",
+  /** The onboarding veil, above the whole application. */
+  onboarding: "var(--z-onboarding)",
+  /** The top bar and the detail sidebar while the onboarding veil is shown. */
+  onboardingAbove: "var(--z-onboarding-above)",
 } as const;
 
 export const tokens = {

@@ -3,7 +3,8 @@
 //! Each item runs unattended: the accesses of the agent that are not
 //! sensitive, and the sensitive ones granted to it (for this batch or for
 //! good), run without asking; the first other access the agent reaches for
-//! stops the item, which then waits for a decision.
+//! stops the item, which then waits for a decision. An item the user allowed
+//! to execute code once runs again with one call of that tool let through.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -11,7 +12,7 @@ use std::sync::Arc;
 
 use apollia_core::paths::DataFile;
 use apollia_permissions::{ConsentFamily, ConsentScope, FamilyConsentStore};
-use apollia_tools::ResolvedAgent;
+use apollia_tools::{ActionFamily, ResolvedAgent};
 
 use super::access::{classify, known_tools, sensitive, BatchAccess, KnownTool};
 use super::write_back::SOURCE_WRITE_ACCESS;
@@ -19,7 +20,7 @@ use super::{item_message, ItemEnd, ItemRunner, ItemStatus, StartedItem};
 use crate::agents::task::{resolve_runnable, AgentTaskLauncher};
 use crate::coordinator::ExecutionBackend;
 use crate::governance::{
-    AccessCall, AccessChange, AccessDecision, GovernanceContract, GovernanceEvent,
+    AccessCall, AccessChange, AccessDecision, DecisionReason, GovernanceContract, GovernanceEvent,
 };
 
 /// Who records a consent given for a batch.
@@ -189,9 +190,13 @@ impl<B: ExecutionBackend> ItemRunner for AgentItemRunner<B> {
         batch_id: &str,
         agent: &str,
         input: &serde_json::Value,
+        once: Option<&str>,
     ) -> Result<StartedItem, String> {
         let resolved = self.resolve(agent).await?;
-        let authorized = self.authorized(&resolved, batch_id).await?;
+        let mut authorized = self.authorized(&resolved, batch_id).await?;
+        if let Some(access) = once {
+            authorized.push(crate::governance::once_grant(access));
+        }
         let (task_id, outcome) = self
             .launcher
             .launch_unattended(&resolved, input, item_message(input), authorized)
@@ -249,15 +254,31 @@ pub(crate) fn decide_original_write(
     location: &str,
 ) -> Result<(), String> {
     let governance = governance.ok_or_else(|| NO_GOVERNANCE.to_string())?;
-    match governance.decide(&AccessCall {
+    let decision = governance.decide(&AccessCall {
         agent_id: agent,
         access_id: SOURCE_WRITE_ACCESS,
         argument: Some(location),
-    }) {
-        AccessDecision::Allowed | AccessDecision::AskUser => Ok(()),
-        AccessDecision::DeniedByPolicy { reason } => Err(format!(
-            "writing into the original file is refused by the policy: {reason}"
-        )),
+        family: ActionFamily::WriteOrDelete,
+        unattended: false,
+        granted_for_run: true,
+    });
+    match decision {
+        AccessDecision::Allowed { .. }
+        | AccessDecision::AskUser { .. }
+        | AccessDecision::Pending { .. } => Ok(()),
+        AccessDecision::Denied { reason } => Err(match reason {
+            DecisionReason::Policy { detail } => {
+                format!("writing into the original file is refused by the policy: {detail}")
+            }
+            DecisionReason::Rule { rule_id } => {
+                format!("writing into the original file is refused by rule {rule_id}")
+            }
+            DecisionReason::FailClosed
+            | DecisionReason::Consent
+            | DecisionReason::NoConsentNeeded => {
+                "writing into the original file is refused: governance cannot be read".to_string()
+            }
+        }),
     }
 }
 

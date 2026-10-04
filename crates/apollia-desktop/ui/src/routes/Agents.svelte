@@ -13,7 +13,9 @@
   import { agents } from "$lib/stores/agents";
   import { connectionStatus } from "$lib/stores/sse";
   import { navigateTo } from "$lib/stores/navigation";
+  import { declareGuideSubscreen } from "$lib/stores/guideContext";
   import { pendingChatSessionId } from "$lib/stores/chat";
+  import { PACKAGE_INSTALLED_EVENT, openPackagePreview } from "$lib/stores/packagePreview";
   import {
     agentPackages,
     getPackageDetail,
@@ -83,6 +85,16 @@
     };
   });
 
+  $effect(() => {
+    const refresh = () => {
+      refreshPackages();
+    };
+    window.addEventListener(PACKAGE_INSTALLED_EVENT, refresh);
+    return () => {
+      window.removeEventListener(PACKAGE_INSTALLED_EVENT, refresh);
+    };
+  });
+
   // Assistants only; workers stay accessible via the package section.
   const allAssistants = $derived($agents.filter((a) => a.agent_type !== "worker"));
 
@@ -111,6 +123,15 @@
       ? null
       : ($agents.find((a) => a.name === selectedName) ?? null),
   );
+  // The open agent is the sub-screen the guide explains, and it names it.
+  $effect(() => {
+    if (!selected) return;
+    return declareGuideSubscreen("agents.fiche", {
+      id: selected.id ?? selected.name,
+      name: selected.name,
+    });
+  });
+
   const selectedPackage = $derived(
     selectedPackageName === null
       ? null
@@ -192,6 +213,20 @@
       installError = reportError(err, { surface: "inline" });
     } finally {
       installingAgent = false;
+    }
+  }
+
+  // A `.apo` file opens its preview, mounted above every screen; the package
+  // is installed from there, and the list refreshes on its installed event.
+  async function pickPackageFile(): Promise<void> {
+    try {
+      const path = await openDialog({
+        filters: [{ name: "Apollia", extensions: ["apo"] }],
+        multiple: false,
+      });
+      if (typeof path === "string") openPackagePreview(path);
+    } catch (err) {
+      reportError(err, { surface: "toast" });
     }
   }
 
@@ -297,6 +332,7 @@
         onSelectApolliaChat={selectApolliaChat}
         onInstallAgent={pickAndInstallAgent}
         onInstallPackage={() => (installPackageOpen = true)}
+        onInstallPackageFile={pickPackageFile}
         onOpenLogs={openLogs}
         onOpenSettings={openSettings}
         onRequestUninstallAgent={requestUninstallAgent}

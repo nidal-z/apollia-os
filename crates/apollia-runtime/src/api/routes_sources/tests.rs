@@ -11,8 +11,9 @@ use crate::audit_journal::AuditJournalHandle;
 
 const KEY: &[u8] = b"sources-routes-journal-key-00001";
 
-/// A runtime on `dir` with the source registry, and with a signed journal and
-/// one stored agent, `veille`, declaring no source, when `agent` is set.
+/// A runtime on `dir` with the source registry, and with a signed journal, the
+/// governance that records through it, and one stored agent, `veille`,
+/// declaring no source, when `agent` is set.
 async fn state(dir: &tempfile::TempDir, agent: bool) -> AppState<MockBackend> {
     let mut state = app_state(
         Arc::new(StemLoader { refusal: None }),
@@ -34,11 +35,15 @@ async fn state(dir: &tempfile::TempDir, agent: bool) -> AppState<MockBackend> {
                 updated_at: "2026-10-03T00:00:00Z".into(),
             })
             .unwrap();
-        state.audit_journal = Some(
+        let journal =
             AuditJournalHandle::open_with_key_bytes(&dir.path().join("journal.db"), KEY.to_vec())
                 .await
-                .unwrap(),
-        );
+                .unwrap();
+        state.governance = Some(crate::governance::GovernanceHandle::detached(
+            crate::governance::GovernanceState::default(),
+            Some(journal.clone()),
+        ));
+        state.audit_journal = Some(journal);
     }
     state
 }
@@ -254,4 +259,129 @@ async fn test_the_project_migration_report_is_read_over_http() {
     assert_eq!(body["formatVersion"], 1);
     assert_eq!(body["projects"][0]["name"], "Dossier Durand");
     assert_eq!(body["ranAt"], written.ran_at);
+}
+
+#[tokio::test]
+async fn test_the_code_folder_is_offered_on_a_folder_only_in_developer_mode() {
+    // GIVEN a runtime with the source registry
+    let dir = tempfile::tempdir().unwrap();
+    let state = state(&dir, false).await;
+
+    // WHEN the kinds offered on a folder connection are asked with the
+    // developer mode absent, off, then on
+    let (absent_status, absent) =
+        call(state.clone(), "GET", "/api/v1/sources/folder-kinds", None).await;
+    let (off_status, off) = call(
+        state.clone(),
+        "GET",
+        "/api/v1/sources/folder-kinds?developerMode=false",
+        None,
+    )
+    .await;
+    let (on_status, on) = call(
+        state,
+        "GET",
+        "/api/v1/sources/folder-kinds?developerMode=true",
+        None,
+    )
+    .await;
+
+    // THEN the code folder is offered only when the mode is on
+    assert_eq!(absent_status, StatusCode::OK, "{absent}");
+    assert_eq!(absent, json!(["folder"]));
+    assert_eq!(off_status, StatusCode::OK, "{off}");
+    assert_eq!(off, json!(["folder"]));
+    assert_eq!(on_status, StatusCode::OK, "{on}");
+    assert_eq!(on, json!(["folder", "code_folder"]));
+}
+
+#[tokio::test]
+async fn test_a_code_folder_is_added_whatever_the_mode_but_never_without_its_connection() {
+    // GIVEN a runtime with the source registry; the route knows no mode
+    let dir = tempfile::tempdir().unwrap();
+    let state = state(&dir, false).await;
+
+    // WHEN a code folder is added without a reference, then on a folder connection
+    let (bare_status, bare) = call(
+        state.clone(),
+        "POST",
+        "/api/v1/sources",
+        Some(json!({ "kind": "code_folder", "label": "apollia" })),
+    )
+    .await;
+    let (status, created) = call(
+        state,
+        "POST",
+        "/api/v1/sources",
+        Some(json!({ "kind": "code_folder", "label": "apollia", "reference": "fc-1" })),
+    )
+    .await;
+
+    // THEN the bare one is refused and the other is stored as a code folder
+    assert_eq!(bare_status, StatusCode::UNPROCESSABLE_ENTITY, "{bare}");
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["kind"], "code_folder");
+    assert_eq!(created["reference"], "fc-1");
+}
+
+#[tokio::test]
+async fn test_the_index_of_a_source_answers_its_state_counts_and_skipped_files() {
+    // GIVEN a runtime with a folder source whose index holds one document
+    // and left one file out for its size
+    let dir = tempfile::tempdir().unwrap();
+    let state = state(&dir, false).await;
+    let (_, created) = call(
+        state.clone(),
+        "POST",
+        "/api/v1/sources",
+        Some(json!({ "kind": "folder", "label": "Archives", "reference": "conn-archives" })),
+    )
+    .await;
+    let id = created["id"].as_str().unwrap().to_owned();
+    let mut index = apollia_sources::index::SourceIndex::open(dir.path(), &id).unwrap();
+    index
+        .upsert_document(
+            &apollia_sources::index::DocumentRecord {
+                path: "/docs/a.txt".into(),
+                fingerprint: "f".into(),
+                modified_at: "2026-10-04T00:00:00Z".into(),
+            },
+            &[apollia_sources::chunk::Chunk {
+                text: "Minutes of the meeting".into(),
+                location: apollia_sources::chunk::Location::Lines { first: 1, last: 1 },
+            }],
+            None,
+        )
+        .unwrap();
+    index
+        .record_skipped(&apollia_sources::index::SkippedFile {
+            path: "/docs/archive.zip.txt".into(),
+            size_bytes: 60 * 1024 * 1024,
+            reason: apollia_sources::index::SkipReason::TooLarge,
+        })
+        .unwrap();
+    drop(index);
+
+    // WHEN its index is read, and the index of an unknown source
+    let (status, body) = call(
+        state.clone(),
+        "GET",
+        &format!("/api/v1/sources/{id}/index"),
+        None,
+    )
+    .await;
+    let (unknown, _) = call(state, "GET", "/api/v1/sources/src-absent/index", None).await;
+
+    // THEN the state, the counts and the file left out are answered, and the
+    // unknown source is not found
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["id"], id.as_str());
+    assert_eq!(body["indexState"], "absent");
+    assert_eq!(body["documents"], 1);
+    assert_eq!(body["chunks"], 1);
+    assert_eq!(
+        body["skipped"],
+        json!([{ "path": "/docs/archive.zip.txt", "sizeBytes": 62914560, "reason": "too_large" }])
+    );
+    assert_eq!(unknown, StatusCode::NOT_FOUND);
 }

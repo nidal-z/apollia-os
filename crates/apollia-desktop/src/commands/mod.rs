@@ -40,9 +40,11 @@ pub(crate) mod model_index;
 pub mod notifications;
 pub mod observability;
 pub mod onboarding;
+pub mod org_policy;
+pub mod package_files;
 pub mod permissions_proposals;
 pub mod plan_mode;
-pub mod projects;
+pub mod project_migration;
 pub mod recommend;
 pub mod stt;
 pub mod tasks;
@@ -56,11 +58,10 @@ pub mod user_memory;
 /// Process-wide lock for tests that read or write the home-directory env vars.
 ///
 /// `HOME` and `USERPROFILE` are process globals, and the test harness runs the
-/// whole binary's tests on a shared thread pool. Three modules touch them:
-/// `projects` fakes a home to probe project suggestions, `chat` fakes one to
-/// expand `~`, and `config` reads the resolved data directory back out. Without
-/// a common lock the third sees whichever value the first two happened to leave
-/// behind, and the failure depends on scheduling order, which the repository
+/// whole binary's tests on a shared thread pool. Several modules touch them:
+/// `chat` fakes a home to expand `~`, `model_hub` fakes one too, and `config`
+/// reads the resolved data directory back out. Without a common lock one sees
+/// whichever value another happened to leave behind, and the failure depends on scheduling order, which the repository
 /// rules forbid outright.
 ///
 /// Every site that sets or reads those variables takes this guard for the whole

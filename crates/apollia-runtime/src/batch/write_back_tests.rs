@@ -15,7 +15,7 @@ use super::runner::{decide_original_write, journal_original_write};
 use super::tests::{repository, spawn, wait_state, Scripted, WAIT};
 use super::*;
 use crate::governance::{
-    governance_run_id, AccessCall, AccessDecision, DeclaredAccess, EffectiveAccess,
+    governance_run_id, AccessCall, AccessDecision, DecisionReason, DeclaredAccess, EffectiveAccess,
     GovernanceContract, GovernanceError, GovernanceEvent, InstallSubject, NoPolicyGovernance,
 };
 use crate::test_support::collect_events_until;
@@ -235,6 +235,47 @@ async fn test_on_request_the_original_is_written_after_its_backup() {
     let backup = seen.backups[0].file_name().unwrap().to_string_lossy();
     assert!(backup.starts_with("requests.backup-"), "{backup}");
     assert_eq!(seen.writes, expected_writes());
+}
+
+// GIVEN a batch written into the original with its grant, ended with a failure
+// WHEN its failed item is run again
+// THEN the grant to write into the original is still held by the batch, and
+//      the answers are written into the original again at its second end
+#[tokio::test]
+async fn test_a_batch_run_again_keeps_its_grant_to_write_the_original() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let repo = repository(&dir).await;
+    let seen = Arc::new(Mutex::new(Seen::default()));
+    let runner = Arc::new(Scripted::default());
+    let (handle, bus) = spawn(
+        repo.clone(),
+        recorded_registry(Behaviour::default(), seen.clone()),
+        runner.clone(),
+    );
+    let mut events = bus.subscribe();
+    let batch = handle
+        .launch(writing_launch(
+            Some(WriteDestination::Original),
+            &[SOURCE_WRITE_ACCESS],
+        ))
+        .await
+        .unwrap();
+    wait_end(&mut events, &batch.batch_id).await;
+
+    // WHEN
+    handle
+        .control(&batch.batch_id, BatchControl::Retry(BatchRetry::default()))
+        .await
+        .unwrap();
+    wait_end(&mut events, &batch.batch_id).await;
+
+    // THEN
+    let row = wait_state(&repo, &batch.batch_id, "completed").await;
+    assert_eq!(row.grants, vec![SOURCE_WRITE_ACCESS.to_string()]);
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.backups.len(), 2);
+    assert_eq!(seen.writes, [expected_writes(), expected_writes()].concat());
 }
 
 // GIVEN a source whose backup fails, asked for the original with its grant
@@ -466,8 +507,10 @@ impl GovernanceContract for Refusing {
     }
 
     fn decide(&self, call: &AccessCall<'_>) -> AccessDecision {
-        AccessDecision::DeniedByPolicy {
-            reason: format!("{} is not allowed here", call.access_id),
+        AccessDecision::Denied {
+            reason: DecisionReason::Policy {
+                detail: format!("{} is not allowed here", call.access_id),
+            },
         }
     }
 

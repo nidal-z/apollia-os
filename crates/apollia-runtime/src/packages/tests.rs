@@ -45,7 +45,9 @@ impl GovernanceContract for TestGovernance {
     }
 
     fn decide(&self, _call: &AccessCall<'_>) -> AccessDecision {
-        AccessDecision::Allowed
+        AccessDecision::Allowed {
+            reason: crate::governance::DecisionReason::NoConsentNeeded,
+        }
     }
 
     fn signature_required(&self, _subject: &InstallSubject<'_>) -> bool {
@@ -296,6 +298,36 @@ fn test_preview_names_a_trusted_publisher_by_its_keyring_label() {
         Some(key.public_key().fingerprint())
     );
     assert!(preview.notices.is_empty());
+}
+
+#[test]
+fn test_preview_gives_the_family_of_each_access_and_the_key_to_trust() {
+    // GIVEN a package signed by a key absent from the keyring, whose agent is
+    // granted its own tool `lookup` and the unknown `web_search`
+    let env = Env::new();
+    let key = SigningKeyPair::from_seed(&[9u8; 32]);
+    let apo = archive(
+        env.data_dir(),
+        "signed.apo",
+        &manifest("1.0.0", &["web_search"], ""),
+        Some(&key),
+    );
+
+    // WHEN it is previewed
+    let preview = preview(&apo, &env.sources()).unwrap();
+
+    // THEN the package tool reads under its declared family, the unknown one
+    // as unclassified, and the public key that signed is offered to trust
+    let access = &preview.agents[0].access;
+    assert_eq!(access[0].access_id, "pkg:crm/lookup");
+    assert_eq!(access[0].family, "read");
+    assert_eq!(access[1].access_id, "web_search");
+    assert_eq!(access[1].family, "unclassified");
+    assert_eq!(
+        preview.signature.public_key,
+        Some(key.public_key().to_hex())
+    );
+    assert!(!preview.signature.trusted);
 }
 
 #[test]

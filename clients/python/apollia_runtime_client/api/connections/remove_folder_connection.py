@@ -8,18 +8,27 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.connection import Connection
 from ...models.folder_error_body import FolderErrorBody
-from ...types import Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     id: str,
+    *,
+    confirm: bool | Unset = UNSET,
 ) -> dict[str, Any]:
+
+    params: dict[str, Any] = {}
+
+    params["confirm"] = confirm
+
+    params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
     _kwargs: dict[str, Any] = {
         "method": "delete",
         "url": "/api/v1/connections/folders/{id}".format(
             id=quote(str(id), safe=""),
         ),
+        "params": params,
     }
 
     return _kwargs
@@ -37,6 +46,11 @@ def _parse_response(
         response_404 = FolderErrorBody.from_dict(response.json())
 
         return response_404
+
+    if response.status_code == 409:
+        response_409 = FolderErrorBody.from_dict(response.json())
+
+        return response_409
 
     if response.status_code == 500:
         response_500 = FolderErrorBody.from_dict(response.json())
@@ -64,11 +78,13 @@ def sync_detailed(
     id: str,
     *,
     client: AuthenticatedClient | Client,
+    confirm: bool | Unset = UNSET,
 ) -> Response[Connection | FolderErrorBody]:
     """`DELETE /api/v1/connections/folders/{id}`: remove a folder connection.
 
     Args:
         id (str):
+        confirm (bool | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -80,6 +96,7 @@ def sync_detailed(
 
     kwargs = _get_kwargs(
         id=id,
+        confirm=confirm,
     )
 
     response = client.get_httpx_client().request(
@@ -93,11 +110,13 @@ def sync(
     id: str,
     *,
     client: AuthenticatedClient | Client,
+    confirm: bool | Unset = UNSET,
 ) -> Connection | FolderErrorBody | None:
     """`DELETE /api/v1/connections/folders/{id}`: remove a folder connection.
 
     Args:
         id (str):
+        confirm (bool | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -110,6 +129,7 @@ def sync(
     return sync_detailed(
         id=id,
         client=client,
+        confirm=confirm,
     ).parsed
 
 
@@ -117,11 +137,13 @@ async def asyncio_detailed(
     id: str,
     *,
     client: AuthenticatedClient | Client,
+    confirm: bool | Unset = UNSET,
 ) -> Response[Connection | FolderErrorBody]:
     """`DELETE /api/v1/connections/folders/{id}`: remove a folder connection.
 
     Args:
         id (str):
+        confirm (bool | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -133,6 +155,7 @@ async def asyncio_detailed(
 
     kwargs = _get_kwargs(
         id=id,
+        confirm=confirm,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -144,11 +167,13 @@ async def asyncio(
     id: str,
     *,
     client: AuthenticatedClient | Client,
+    confirm: bool | Unset = UNSET,
 ) -> Connection | FolderErrorBody | None:
     """`DELETE /api/v1/connections/folders/{id}`: remove a folder connection.
 
     Args:
         id (str):
+        confirm (bool | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -162,5 +187,6 @@ async def asyncio(
         await asyncio_detailed(
             id=id,
             client=client,
+            confirm=confirm,
         )
     ).parsed

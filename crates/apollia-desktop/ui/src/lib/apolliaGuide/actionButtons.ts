@@ -89,7 +89,6 @@ export function parseApolliaActions(content: string): {
 const ROUTE_ALLOWLIST: Record<string, Route> = {
   "/dashboard": "dashboard",
   "/agents": "agents",
-  "/projects": "projects",
   "/tasks": "tasks",
   "/chat": "chat",
   "/automations": "automations",
@@ -99,7 +98,6 @@ const ROUTE_ALLOWLIST: Record<string, Route> = {
   "/triggers": "automations",
   "/memory": "memory",
   "/observability": "observability",
-  "/notifications": "notifications",
   "/settings": "settings",
 };
 

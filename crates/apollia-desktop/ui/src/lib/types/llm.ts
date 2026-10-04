@@ -42,7 +42,8 @@ export interface LoadedModel {
 export interface LoadedModelsResponse {
   /** `false` means no local engine on this host, not merely nothing loaded. */
   engineAvailable: boolean;
-  maxLoaded: number;
+  /** Explicit ceiling on resident models; `null` when the load guardrail decides. */
+  maxLoaded: number | null;
   /** Most recently used first. */
   models: LoadedModel[];
 }

@@ -124,10 +124,14 @@ function altMatches(alt: string, event: KeyboardEvent): boolean {
   return keyEquals(key, event);
 }
 
-/** Whether the event matches a catalog combo string (handles "X / Y" forms). */
+/**
+ * Whether the event matches a catalog combo string (handles "X / Y" forms).
+ * Alternatives are separated by a slash between spaces, so the slash of a
+ * chord such as "⌘+/" stays its key.
+ */
 function comboMatchesEvent(combo: string, event: KeyboardEvent): boolean {
   return combo
-    .split("/")
+    .split(/\s+\/\s+/)
     .map((part) => part.trim())
     .filter(Boolean)
     .some((alt) => altMatches(alt, event));

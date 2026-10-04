@@ -5,9 +5,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use apollia_aip::bridge::AIPBridge;
-use apollia_aip::context::{
-    effective_memory_namespace, DispatcherExecutor, RuntimeContext, ToolProxy, ToolProxyConfig,
-};
+use apollia_aip::context::{DispatcherExecutor, RuntimeContext, ToolProxy, ToolProxyConfig};
 use apollia_aip::memory::MemoryInterface;
 use apollia_core::{AIPResult, AIPTask, AgentManifest, TaskStatus};
 use apollia_llm::{LlmRouter, ObservabilityConfig, StepBudgetView, ToolCallHelper};
@@ -22,7 +20,7 @@ use apollia_tools::{
 use pyo3::prelude::*;
 
 use super::engine::direct_path_budget;
-use super::llm_glue::{file_tool_access, merge_disabled, NoopToolInvoker, RouterModel};
+use super::llm_glue::{file_tool_access, NoopToolInvoker, RouterModel};
 use super::open_secret_store;
 
 // ─────────────────────────────────────────────────────────────
@@ -62,12 +60,117 @@ pub(super) struct AIPChatAgentRunner {
     /// Base data directory (e.g. `~/.apollia/`).
     pub(super) data_dir: PathBuf,
     /// Operator-supplied tools configuration loaded from `apollia.toml`.
-    /// Drives `disabled` tools and `web_search` / `web_read` parameters.
-    pub(super) tools_config: apollia_core::ToolsConfig,
+    /// Drives `disabled` tools and `web_search` / `web_read` parameters; read
+    /// at each run so a saved change applies to the next one.
+    pub(super) tools_config: apollia_runtime::config_reload::Live<apollia_core::ToolsConfig>,
     /// MCP client manager handle, populated after `supervisor.start()` so the
     /// chat-agent dispatcher can route `mcp:<server>/<tool>` invocations.
     pub(super) mcp_handle:
         Arc<std::sync::OnceLock<Option<apollia_mcp::manager::McpClientManagerHandle>>>,
+    /// The governance actor, populated after `supervisor.start()`: the tools it
+    /// disabled, and whether it fails closed.
+    pub(super) governance: Arc<std::sync::OnceLock<apollia_runtime::governance::GovernanceHandle>>,
+}
+
+impl AIPChatAgentRunner {
+    /// The governed [`ToolProxy`] of a chat-agent turn: the dispatcher without
+    /// the tools governance disabled, refusing every sensitive call while
+    /// governance fails closed. `None` before the runtime is ready (no tool
+    /// registry or audit trail).
+    pub(super) async fn build_tool_proxy(
+        &self,
+        agent_name: &str,
+        manifest: &AgentManifest,
+        task: &AIPTask,
+        a2a_invoker: Option<&Arc<apollia_runtime::a2a::A2AInvoker>>,
+    ) -> Option<ToolProxy> {
+        let registry = self.tool_registry.get().cloned()?;
+        let audit = self.audit_trail.get().cloned()?;
+        let allowed_tools = apollia_tools::GrantedAccess::new(
+            Some(apollia_core::paths::DataFile::Agents.path(&self.data_dir)),
+            manifest,
+        )
+        .current();
+        // An access to a connector tool without its account names the single
+        // connected account, or nothing.
+        let allowed_tools =
+            apollia_runtime::connectors_bridge::resolve_connector_access(agent_name, allowed_tools)
+                .await;
+        // The folders granted to the agent are the roots of its file tools.
+        let (allowed_tools, folders) = file_tool_access(allowed_tools, &self.data_dir);
+
+        // The tools governance disabled stay off, and a governance that cannot
+        // read what it decides from refuses every sensitive call: an
+        // unreadable database never re-enables a tool.
+        let tools_config = self.tools_config.get();
+        let gate = apollia_runtime::governance::tool_gate(
+            self.governance.get(),
+            &self.data_dir,
+            &tools_config.disabled,
+        );
+        let brave_api_key = load_governance_snapshot(&self.data_dir)
+            .ok()
+            .and_then(|snapshot| snapshot.brave_api_key);
+        // Inject one MCP executor per registered tool so `ctx.tools.call("mcp:...")`
+        // routes through the MCP client manager instead of returning UnknownTool,
+        // gated like the task path, plus the SaaS connector executors.
+        let mcp_handle = self.mcp_handle.get().cloned().flatten();
+        let mut extra_executors =
+            task_tool_executors(&mcp_handle, task, manifest.tools_requiring_approval.clone()).await;
+        // A code folder checked for the agent grants `code_context`.
+        let code_context =
+            apollia_runtime::agents::sources::code_context_for(&self.data_dir, agent_name);
+        let allowed_tools =
+            apollia_tools::granted_with_code_folders(allowed_tools, code_context.is_some());
+        if let Some(tool) = code_context {
+            extra_executors.push(Box::new(tool));
+        }
+        let dispatcher = Arc::new(build_dispatcher_with(
+            &NativeDispatcherConfig {
+                sandbox_roots: folders.read,
+                write_roots: folders.write,
+                agent_id: agent_name.to_string(),
+                venv_base_dir: self.data_dir.join("venvs"),
+                memory_namespace: manifest.memory_namespace.clone(),
+                memory_shared_namespaces: Vec::new(),
+                memory_base_dir: self.data_dir.join("memory"),
+                http_allowlist: None,
+                pending_user_inputs: self.pending_user_inputs.get().cloned(),
+                session_id: None,
+                disabled_tools: gate.disabled_tools,
+                brave_api_key,
+                web_search_config: tools_config.web_search.clone(),
+                web_read_config: tools_config.web_read.clone(),
+                python_interpreter: tools_config.python_interpreter.clone(),
+                max_output_chars: tools_config.max_output_chars,
+                // `memory_search` only when the agent's memory is checked.
+                sources: apollia_tools::SourceAccess::memory_only(
+                    apollia_tools::memory_is_checked(&self.data_dir, agent_name),
+                ),
+            },
+            extra_executors,
+        ));
+
+        let proxy = ToolProxy::new(ToolProxyConfig {
+            registry,
+            audit,
+            executor: Arc::new(DispatcherExecutor::new(dispatcher)),
+            allowed_tools,
+            agent_id: agent_name.to_string(),
+            task_id: task.task_id.clone(),
+            run_id: task.run_id.clone(),
+        })
+        .with_fail_closed(gate.fail_closed);
+        // tool_call_* instrumentation.
+        let proxy = match self.event_bus.get() {
+            Some(bus) => proxy.with_event_bus(bus.clone()),
+            None => proxy,
+        };
+        Some(match a2a_invoker {
+            Some(invoker) => proxy.with_a2a(Arc::clone(invoker), 0, None),
+            None => proxy,
+        })
+    }
 }
 
 #[async_trait::async_trait]
@@ -93,8 +196,6 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             .cloned()
             .ok_or("event bus not initialized - chat agent called before runtime ready")?;
         let llm_router = self.llm_router.get().cloned().flatten();
-        let tool_registry = self.tool_registry.get().cloned();
-        let audit_trail = self.audit_trail.get().cloned();
 
         // Build RuntimeContext components
         let router_for_helper = llm_router
@@ -105,55 +206,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             Arc::new(NoopToolInvoker),
         ));
 
-        let allowed_tools = apollia_tools::GrantedAccess::new(
-            Some(apollia_core::paths::DataFile::Agents.path(&self.data_dir)),
-            &manifest,
-        )
-        .current();
-        // The folders granted to the agent are the roots of its file tools.
-        let (allowed_tools, folders) = file_tool_access(allowed_tools, &self.data_dir);
-
         let memory_base_dir = self.data_dir.join("memory");
-        let snapshot = load_governance_snapshot(&self.data_dir).unwrap_or_else(|e| {
-            tracing::warn!(
-                error = %e,
-                detail = "every tool is enabled",
-                "tools.governance.unavailable"
-            );
-            Default::default()
-        });
-        let disabled_tools = merge_disabled(&self.tools_config.disabled, snapshot.disabled_tools);
-        // Inject one MCP executor per registered tool so `ctx.tools.call("mcp:...")`
-        // routes through the MCP client manager instead of returning UnknownTool,
-        // gated like the task path, plus the SaaS connector executors.
-        let mcp_handle = self.mcp_handle.get().cloned().flatten();
-        let extra_executors = task_tool_executors(
-            &mcp_handle,
-            &task,
-            manifest.tools_requiring_approval.clone(),
-        )
-        .await;
-        let dispatcher = Arc::new(build_dispatcher_with(
-            &NativeDispatcherConfig {
-                sandbox_roots: folders.read,
-                write_roots: folders.write,
-                agent_id: agent_name.to_string(),
-                venv_base_dir: self.data_dir.join("venvs"),
-                memory_namespace: manifest.memory_namespace.clone(),
-                memory_shared_namespaces: Vec::new(),
-                memory_base_dir: memory_base_dir.clone(),
-                http_allowlist: None,
-                pending_user_inputs: self.pending_user_inputs.get().cloned(),
-                session_id: None,
-                disabled_tools,
-                brave_api_key: snapshot.brave_api_key,
-                web_search_config: self.tools_config.web_search.clone(),
-                web_read_config: self.tools_config.web_read.clone(),
-                python_interpreter: self.tools_config.python_interpreter.clone(),
-                max_output_chars: self.tools_config.max_output_chars,
-            },
-            extra_executors,
-        ));
 
         // Build A2A delegate + invoker so chat-agent Python agents can call
         // `ctx.a2a_invoke(...)` and `ctx.tools.invoke("a2a:<skill>")` on parity
@@ -182,45 +235,20 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             }
         };
 
-        // An access to a connector tool without its account names the single
-        // connected account, or nothing.
-        let allowed_tools =
-            apollia_runtime::connectors_bridge::resolve_connector_access(agent_name, allowed_tools)
-                .await;
-
         // Direct-path budget (principle #7): a Chat Agent turn on the CLI daemon
         // runs under the same runtime ceiling the desktop already applies to its
         // own chat-agent turns. The view is shared into ctx.tools and ctx.llm, so
         // the agent's tool and LLM calls are counted against a real budget.
         let budget_view = Arc::new(chat_agent_budget_view(&manifest));
+        let tool_proxy = self
+            .build_tool_proxy(agent_name, &manifest, &task, a2a_invoker.as_ref())
+            .await
+            // Direct-path budget: count and cap the agent's tool calls.
+            .map(|proxy| proxy.with_budget(Arc::clone(&budget_view)));
 
-        let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref()) {
-            (Some(registry), Some(audit)) => {
-                let proxy = ToolProxy::new(ToolProxyConfig {
-                    registry: registry.clone(),
-                    audit: audit.clone(),
-                    executor: Arc::new(DispatcherExecutor::new(dispatcher)),
-                    allowed_tools,
-                    agent_id: agent_name.to_string(),
-                    task_id: task.task_id.clone(),
-                    run_id: task.run_id.clone(),
-                })
-                // tool_call_* instrumentation.
-                .with_event_bus(event_bus.clone())
-                // Direct-path budget: count and cap the agent's tool calls.
-                .with_budget(Arc::clone(&budget_view));
-                let proxy = if let Some(ref invoker) = a2a_invoker {
-                    proxy.with_a2a(Arc::clone(invoker), 0, None)
-                } else {
-                    proxy
-                };
-                Some(proxy)
-            }
-            _ => None,
-        };
         let memory_interface: Option<MemoryInterface> =
             manifest.memory_namespace.as_deref().and_then(|ns| {
-                let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
+                let eff_ns = ns.to_owned();
                 let mut manager =
                     MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
                 // `manifest.memory_config.auto_purge` promises a purge pass when

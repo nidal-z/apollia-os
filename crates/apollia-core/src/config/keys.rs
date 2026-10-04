@@ -120,6 +120,7 @@ pub const KEYS: &[ConfigKey] = &[
     withdrawn("llm.runner", "the engine is chosen from the detected hardware; remove the section"),
     locked(key("llm.guardrails.level", Enum(&["disabled", "lenient", "balanced", "strict", "ceiling"]), Some("\"balanced\""), Reloadable, "How strictly a local model launch is held to the machine's memory; an unknown level holds to balanced.")),
     locked(key("llm.guardrails.ceiling_gb", Float, None, Reloadable, "Largest estimate, in gigabytes, the ceiling level launches.")),
+    locked(key("llm.residency.idle_unload_minutes", Integer, Some("60"), Reloadable, "Minutes without a request after which a local model nothing holds is unloaded; 0 never unloads.")),
     withdrawn("llm.vertex", "the Google Vertex AI client was removed; declare an OpenAI-compatible server instead"),
     // [api]
     key("api.bind", KeyType::String, Some("\"127.0.0.1\""), Restart, "Address the daemon's TCP listener binds to."),
@@ -184,6 +185,11 @@ pub const KEYS: &[ConfigKey] = &[
     locked(key("server.enabled", Boolean, Some("false"), Restart, "Start the compatible server (OpenAI and Anthropic formats) with the engine.")),
     locked(key("server.port", Integer, Some("7772"), Restart, "TCP port of the compatible server.")),
     locked(key("server.require_auth", Boolean, Some("false"), Restart, "Require a token of the compatible server on every request; read when the listener opens.")),
+    locked(key("server.cors", Boolean, Some("false"), Restart, "Let a web page of another origin call the compatible server; read each time the server starts.")),
+    locked(key("server.jit_loading", Boolean, Some("true"), Reloadable, "Let a request to the compatible server load the model of this machine it names.")),
+    locked(key("server.jit_auto_unload", Boolean, Some("true"), Reloadable, "Unload the models the compatible server loaded after their own idle delay rather than the general one.")),
+    locked(key("server.jit_idle_ttl_minutes", Integer, Some("60"), Reloadable, "Minutes without a request after which a model the compatible server loaded is unloaded; 0 keeps it loaded.")),
+    locked(key("server.jit_keep_last_only", Boolean, Some("true"), Reloadable, "When the compatible server loads a model, unload the other models it loaded that nothing holds.")),
     locked(key("server.serve_on_lan", Boolean, Some("false"), Restart, "Open the compatible server to the local network, on every interface; the native API stays on the loopback interface. Read when the listener opens.")),
     // [engines]
     locked(key("engines.log_level", Enum(&["error", "warning", "info", "debug"]), Some("\"debug\""), Reloadable, "Log level of the local engine, applied when a model is next loaded.")),

@@ -20,11 +20,10 @@ signal arrives: the agent asks to close (``close=True``), or every optional
 key is collected. The meta keys are then written in strict order, the last
 one being what the desktop watches:
 
-  1. onboarding.profile_type        (operator | builder)
-  2. onboarding.version             (ONBOARDING_VERSION)
-  3. onboarding.suggested_agents    (JSON list)
-  4. onboarding.proposed_rules      (JSON list, the permission rules proposed)
-  5. onboarding.completed_at        (ISO 8601, LAST, the desktop signal)
+  1. onboarding.version             (ONBOARDING_VERSION)
+  2. onboarding.suggested_agents    (JSON list)
+  3. onboarding.proposed_rules      (JSON list, the permission rules proposed)
+  4. onboarding.completed_at        (ISO 8601, LAST, the desktop signal)
 
 ``user.*`` keys go to the user profile through ``ctx.profile``; the meta keys
 go to the memory of the onboarding (``ctx.memory``). The host grants both to
@@ -376,21 +375,17 @@ _RSE_KEYWORDS: tuple[str, ...] = (
 )
 
 
-def infer_profile_type(role: str | None) -> str:
-    """Return ``operator`` or ``builder``; an empty role reads as operator."""
+def is_technical_role(role: str | None) -> bool:
+    """Whether ``role`` names a technical job; an empty role does not."""
     if not role:
-        return "operator"
+        return False
     low = role.lower()
-    if any(kw in low for kw in _TECH_KEYWORDS):
-        return "builder"
-    return "operator"
+    return any(kw in low for kw in _TECH_KEYWORDS)
 
 
 def suggested_agents_for(role: str | None) -> list[str]:
     """The agents suggested at closure when the agent names none."""
-    agents = (
-        ["veille-ia", "email-triage"] if infer_profile_type(role) == "builder" else ["email-triage"]
-    )
+    agents = ["veille-ia", "email-triage"] if is_technical_role(role) else ["email-triage"]
     if role and any(kw in role.lower() for kw in _RSE_KEYWORDS):
         agents.append("veille-rse")
     return agents
@@ -482,11 +477,9 @@ async def _completed(ctx: Ctx) -> bool:
         return False
 
 
-async def _finalize(ctx: Ctx, profile_type: str, suggested: list[str]) -> None:
+async def _finalize(ctx: Ctx, suggested: list[str]) -> None:
     """Write the meta keys in strict order, ``completed_at`` last."""
     role = await _profile_value(ctx, "user.role")
-    kind = profile_type if profile_type in {"operator", "builder"} else infer_profile_type(role)
-    await _remember(ctx, "onboarding.profile_type", kind)
     await _remember(ctx, "onboarding.version", ONBOARDING_VERSION)
     agents = suggested if suggested else suggested_agents_for(role)
     await _remember(ctx, "onboarding.suggested_agents", json.dumps(agents))
@@ -551,10 +544,6 @@ async def propose_profile(
         bool,
         "True when the person asked to stop or the conversation is over.",
     ] = False,
-    profile_type: Annotated[
-        str,
-        "operator or builder, when you can tell; empty otherwise.",
-    ] = "",
     suggested_agents: Annotated[
         list[str] | None,
         "Agent identifiers to suggest at closure; leave out to let the tool choose.",
@@ -581,7 +570,7 @@ async def propose_profile(
     optional_left = [key for key in TIER2_KEYS if not await _profile_value(ctx, key)]
     completed = await _completed(ctx)
     if not completed and not missing and (close or not optional_left):
-        await _finalize(ctx, profile_type.strip().lower(), list(suggested_agents or []))
+        await _finalize(ctx, list(suggested_agents or []))
         completed = True
 
     return {

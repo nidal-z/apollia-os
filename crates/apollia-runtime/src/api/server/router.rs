@@ -79,6 +79,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_a2a::{
         delegate, get_task_sidechains, invoke_by_skill, list_a2a_agents, list_a2a_skills,
     };
+    use crate::api::routes_agents::installed::lifecycle::update_agent;
     use crate::api::routes_agents::installed::{install_agent, list_installed_agents};
     use crate::api::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
     use crate::api::routes_app_lifecycle::app_lifecycle_router;
@@ -135,6 +136,8 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_stt::{
         delete_transcription, list_models, list_transcriptions, stt_status, transcribe_audio,
     };
+    use crate::api::routes_tasks::delegation::get_delegation_tree;
+    use crate::api::routes_tasks::record::delete_task_record;
     use crate::api::routes_tasks::summaries::list_task_summaries;
     use crate::api::routes_tasks::{
         cancel_task, get_task, list_tasks, resume_task, submit_plan_decision, submit_task,
@@ -175,6 +178,14 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
             post(submit_plan_decision::<B>),
         )
         .route("/api/v1/tasks/:id/review", post(post_review::<B>))
+        .route(
+            "/api/v1/tasks/:id/record",
+            axum::routing::delete(delete_task_record::<B>),
+        )
+        .route(
+            "/api/v1/tasks/:id/delegation-tree",
+            get(get_delegation_tree::<B>),
+        )
         // Timeline route (legacy, deprecation candidate)
         .route("/api/v1/tasks/:id/timeline", get(get_task_timeline::<B>))
         // Event-sourced trace
@@ -200,6 +211,10 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route(
             "/api/v1/agents/installed",
             get(list_installed_agents::<B>).post(install_agent::<B>),
+        )
+        .route(
+            "/api/v1/agents/installed/:name",
+            axum::routing::put(update_agent::<B>),
         )
         .route(
             "/api/v1/agents/:id",
@@ -232,6 +247,15 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route(
             "/api/v1/approvals/resolved",
             get(list_resolved_approvals::<B>),
+        )
+        // Every decision waiting for the user, answered from one place
+        .route(
+            "/api/v1/pending-decisions",
+            get(crate::api::routes_pending::list_pending_decisions::<B>),
+        )
+        .route(
+            "/api/v1/pending-decisions/decide",
+            post(crate::api::routes_pending::decide_pending::<B>),
         )
         // Trigger routes (reload + status + CRUD)
         .route(
@@ -286,7 +310,12 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
                 .patch(update_session::<B>)
                 .delete(close_session::<B>),
         )
-        .route("/api/v1/sessions/:id/messages", post(send_message::<B>))
+        .route(
+            "/api/v1/sessions/:id/messages",
+            post(send_message::<B>).layer(axum::extract::DefaultBodyLimit::max(
+                crate::chat::images::max_message_body_bytes(),
+            )),
+        )
         .route(
             "/api/v1/sessions/:id/messages/:message_id/regenerate",
             post(turns::regenerate_response::<B>),
@@ -312,6 +341,10 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route(
             "/api/v1/sessions/:id/model-capabilities",
             get(crate::api::routes_chat::session_reads::get_session_model_capabilities::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/images/:file",
+            get(crate::api::routes_chat::session_reads::get_session_image::<B>),
         )
         .route(
             "/api/v1/sessions/plan-mode-default",
@@ -388,6 +421,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(conversations_router::<B>())
         .merge(memory_router::<B>())
         .merge(permissions_router::<B>())
+        .merge(crate::api::routes_policy::policy_router::<B>())
         .merge(tool_governance_router::<B>())
         .merge(oauth_clients_router::<B>())
         .merge(crate::api::routes_observability::observability_router::<B>())

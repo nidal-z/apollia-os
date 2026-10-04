@@ -1,10 +1,12 @@
 //! The configuration a model would be launched with, and the load guardrail
-//! held against it before anything resident is stopped to make room.
+//! held against it, the resident models counted, before anything resident is
+//! stopped to make room.
 
 use std::path::Path;
 
 use crate::local_engine::guardrails::{self, GuardrailPolicy, LoadEstimate};
 use crate::local_engine::{GuardrailRefusal, LoadConsent};
+use crate::residency::room::{plan_room, Room};
 
 use super::config::env_getter;
 use super::load_settings::{self, LoadSettings};
@@ -54,33 +56,50 @@ impl LlamaServerSupervisor {
         )
     }
 
-    /// Hold the launch of `config` to the guardrail in force now.
+    /// Hold the launch of `config` to the guardrail in force now, and return
+    /// the footprint it was judged at, in gigabytes.
     ///
     /// The policy is read from `apollia.toml` at every call, and the footprint
-    /// is sized with the window and slot count `config` launches with.
+    /// is sized with the window and slot count `config` launches with. The
+    /// models already resident count against the budget: when the sum is
+    /// refused, the resident models nothing holds are stopped, least recently
+    /// used first and only as many as needed, before the launch is refused.
     pub(super) async fn admit(
         &self,
         config: &LlamaServerConfig,
         consent: LoadConsent,
-    ) -> Result<(), GuardrailRefusal> {
+    ) -> Result<Option<f64>, GuardrailRefusal> {
         let config_file = self.config_file.clone();
         let imposed = self.imposed.clone();
         let model_path = config.model_path.clone();
         let shape = ngl::runtime_shape(config);
-        let judged = tokio::task::spawn_blocking(move || {
+        let sized = tokio::task::spawn_blocking(move || {
             let policy = GuardrailPolicy::read_under(config_file.as_deref(), &imposed);
             if policy.level == guardrails::GuardrailLevel::Disabled {
-                return Ok(());
+                return (policy, None);
             }
             let path = Path::new(&model_path);
             let estimate = std::fs::metadata(path).ok().map(|meta| {
                 LoadEstimate::gguf(path, meta.len(), &shape, &apollia_llm::hardware::detect())
             });
-            guardrails::enforce(&policy, estimate.as_ref(), consent, &model_path)
+            (policy, estimate)
         })
         .await;
         // A panicked estimate is no estimate: the launch goes ahead, as for an
         // unreadable file.
-        judged.unwrap_or(Ok(()))
+        let Ok((policy, estimate)) = sized else {
+            return Ok(None);
+        };
+        let Some(estimate) = estimate else {
+            guardrails::enforce(&policy, None, consent, &config.model_path)?;
+            return Ok(None);
+        };
+        let residents = self.residents_beside(&config.model_path).await;
+        let (room, judged) = plan_room(&policy, &estimate, &residents);
+        if let Room::Evict(models) = &room {
+            self.make_room(models).await;
+        }
+        guardrails::enforce(&policy, Some(&judged), consent, &config.model_path)?;
+        Ok(Some(estimate.total_gb))
     }
 }

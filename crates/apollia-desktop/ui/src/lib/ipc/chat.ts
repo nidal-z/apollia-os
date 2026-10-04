@@ -8,8 +8,9 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  ChatImageData,
+  ChatModelCapabilities,
   ChatSessionDetail,
-  ChatSessionSummary,
   ConversationStatsView,
   UpdateSessionRequest,
 } from "$lib/types";
@@ -19,19 +20,31 @@ export function getChatSession(sessionId: string): Promise<ChatSessionDetail> {
   return invoke<ChatSessionDetail>("get_chat_session", { sessionId });
 }
 
-/** Every stored chat session, newest first. */
-export function listChatSessions(): Promise<ChatSessionSummary[]> {
-  return invoke<ChatSessionSummary[]>("list_chat_sessions");
-}
-
 /** Interrupt the in-flight generation of a session. */
 export function pauseChatSession(sessionId: string): Promise<void> {
   return invoke<void>("pause_chat_session", { sessionId });
 }
 
-/** Send a user message; resolves with the created message id. */
-export function sendChatMessage(sessionId: string, content: string): Promise<string> {
-  return invoke<string>("send_chat_message", { sessionId, content });
+/**
+ * Send a user message; resolves with the created message id. `images` travel
+ * after the text, for a model that reads images.
+ */
+export function sendChatMessage(
+  sessionId: string,
+  content: string,
+  images: ChatImageData[] = [],
+): Promise<string> {
+  return invoke<string>("send_chat_message", { sessionId, content, images });
+}
+
+/** What the model of a conversation can do: images and their formats. */
+export function getChatModelCapabilities(sessionId: string): Promise<ChatModelCapabilities> {
+  return invoke<ChatModelCapabilities>("get_chat_model_capabilities", { sessionId });
+}
+
+/** One stored image of a conversation, by the file name its message lists. */
+export function readChatImage(sessionId: string, file: string): Promise<ChatImageData> {
+  return invoke<ChatImageData>("read_chat_image", { sessionId, file });
 }
 
 /** Regenerate the assistant answer that follows `messageId`. */
@@ -72,14 +85,6 @@ export function renameChatSession(sessionId: string, title: string): Promise<voi
 /** Delete a session and its messages. */
 export function deleteChatSession(sessionId: string): Promise<void> {
   return invoke<void>("delete_chat_session", { sessionId });
-}
-
-/** Attach a session to a project, or detach it with `projectId: null`. */
-export function linkChatToProject(
-  sessionId: string,
-  projectId: string | null,
-): Promise<void> {
-  return invoke<void>("link_chat_to_project", { sessionId, projectId });
 }
 
 /** Update the per-session config (system prompt, tools, backend). */

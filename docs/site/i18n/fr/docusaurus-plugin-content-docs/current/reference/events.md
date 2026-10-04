@@ -108,7 +108,6 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 | Variante | Charge utile |
 |---|---|
 | `BatchItemAwaitingApproval` | champs nommés |
-| `HitlFilesystemRequired` | champs nommés |
 | `PermissionRequired` | champs nommés |
 | `TaskApprovalTimeout` | champs nommés |
 | `TaskInputRequired` | champs nommés |
@@ -220,6 +219,7 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 |---|---|
 | `AllReady` | aucune |
 | `ConfigInvalid` | champs nommés |
+| `ConfigReloaded` | champs nommés |
 | `ContextCompacted` | champs nommés |
 | `FileModifiedSinceRead` | champs nommés |
 | `McpServerHealthChanged` | champs nommés |

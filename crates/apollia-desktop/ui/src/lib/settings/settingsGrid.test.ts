@@ -46,8 +46,9 @@ describe("settings navigation column", () => {
     // WHEN its groups and entries are listed
     const layout = SETTINGS_NAV.map((g) => [g.labelKey, g.entries.map((e) => e.key)]);
 
-    // THEN Settings comes first, Developer closes its use-ranked part, the
-    // sections leaving the settings follow, and System holds Engines and Hardware
+    // THEN Settings comes first, Notifications sits just before Developer, which
+    // closes its use-ranked part, the sections leaving the settings follow, and
+    // System holds Engines and Hardware
     expect(layout).toEqual([
       [
         "settings.nav.cluster_settings",
@@ -58,7 +59,9 @@ describe("settings navigation column", () => {
           "chat",
           "stt",
           "model-defaults",
+          "notifications",
           "developer",
+          "configuration",
           "llm",
           "model-hub",
           "tools",
@@ -76,7 +79,7 @@ describe("settings navigation column", () => {
     // WHEN they are compared to the store and to the former sections
     // THEN they are exactly the sub-routes, and none of the former ones
     expect([...keys].sort()).toEqual([...SETTINGS_SUB_ROUTES].sort());
-    for (const gone of ["about", "help", "danger", "shortcuts", "observability", "configuration", "system"]) {
+    for (const gone of ["about", "help", "danger", "shortcuts", "observability", "system"]) {
       expect(keys as string[]).not.toContain(gone);
     }
   });
@@ -92,6 +95,32 @@ describe("settings navigation column", () => {
     for (const key of labels) {
       expect(typeof lookup(tree, key), `${key} in ${locale}`).toBe("string");
     }
+  });
+});
+
+describe("Notifications, a section of the settings", () => {
+  it("is a section of the Settings group, just before Developer, and no longer a screen", () => {
+    // GIVEN the Settings group of the column and the application routes
+    const settings = SETTINGS_NAV[0].entries.map((e) => e.key);
+    const navigation = source("lib/stores/navigation.ts");
+
+    // WHEN the place of Notifications is read
+    const at = settings.indexOf("notifications");
+
+    // THEN it comes right after the model defaults and right before Developer
+    expect(settings[at - 1]).toBe("model-defaults");
+    expect(settings[at + 1]).toBe("developer");
+    // and the Route union no longer holds a notifications screen
+    expect(navigation).not.toMatch(/\| "notifications"/);
+  });
+
+  it("mounts its section from the settings shell", () => {
+    // GIVEN the settings shell
+    const shell = source("routes/Settings.svelte");
+
+    // WHEN its section loaders are read
+    // THEN Notifications loads the section under routes/settings/
+    expect(shell).toContain('notifications: () => import("./settings/Notifications.svelte")');
   });
 });
 
@@ -193,7 +222,7 @@ describe("Appearance, Chat, Developer and Observability", () => {
 
     // WHEN its controls are located
     // THEN the theme and the reminders reset are there, the language and plan mode are not
-    positions(text, ["THEME_OPTIONS", 'data-testid="reset-onboarding-btn"', "resetOnboarding()"]);
+    positions(text, ["THEME_OPTIONS", 'data-testid="reset-onboarding-btn"', "{#each REMINDERS"]);
     expect(text).not.toContain("LANGUAGE_OPTIONS");
     expect(text).not.toContain("planModeDefault");
   });
@@ -207,19 +236,14 @@ describe("Appearance, Chat, Developer and Observability", () => {
     positions(text, ["planModeDefault.set(next)", 'data-testid="plan-mode-default-toggle"', "<ShortcutCatalog"]);
   });
 
-  it("Developer shows the read-only configuration only while the mode is on", () => {
+  it("Developer no longer carries the configuration, which has its own section", () => {
     // GIVEN the Developer source
     const text = source("routes/settings/Developer.svelte");
 
-    // WHEN the configuration mount is located
-    const guard = text.indexOf("{#if $developerMode}");
-    const mount = text.indexOf("<ConfigurationReadOnly");
-    const close = text.indexOf("{/if}", mount);
-
-    // THEN it sits inside the developer mode condition
-    expect(guard).toBeGreaterThan(-1);
-    expect(mount).toBeGreaterThan(guard);
-    expect(close).toBeGreaterThan(mount);
+    // WHEN the former read-only view is searched
+    // THEN it is gone: the editor of the file lives in Settings > Configuration
+    expect(text).not.toContain("ConfigurationReadOnly");
+    expect(text).not.toContain("settings.nav.configuration");
   });
 
   it("the capture and retention policy lives in the Observability screen", () => {

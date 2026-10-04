@@ -2,10 +2,10 @@
   "name": "settings-det (settings shell + General/Appearance/Chat/Developer/Engines/Hardware, capture policy tab, update panel, operator + builder, unsaved-guard, fast-fail on data-dependent)",
   "stopOnError": false,
   "notes": [
-    "Code-verified against routes/Settings.svelte + lib/settings/settingsNav.ts + settings/{General,Appearance,ChatSettings,Developer,Engines,System}.svelte + components/settings/{ConfigurationReadOnly,DangerZone,ConfigFileCard,UnsavedChangesDialog,UnsavedChangesBadge,SettingsToggle}.svelte + components/settings/{about/AboutBlock,about/AboutBuildSection,help/HelpBlock}.svelte + components/observability/CapturePolicyPanel.svelte.",
-    "14 nav keys from SETTINGS_NAV, in two groups: Settings (general, appearance, profile, chat, stt, model-defaults, developer, then llm, model-hub, tools, permissions, integrations until they leave the settings) and System (engines, hardware). The column is identical in both modes. About, Help and the danger zone live in General; the shortcut catalogue and plan mode in Chat; the read-only configuration in Developer, mode on only; the former System page in Hardware; the build facts and the diagnostic copy in Engines; the capture and retention policy in the capture tab of the Observability screen, developer mode only, where the settings unsaved badge does not exist (the footer reset still restores the form).",
+    "Code-verified against routes/Settings.svelte + lib/settings/settingsNav.ts + settings/{General,Appearance,ChatSettings,Developer,Engines,System}.svelte + components/settings/{config/ConfigEditor,DangerZone,config/ConfigCodeArea,UnsavedChangesDialog,UnsavedChangesBadge,SettingsToggle}.svelte + components/settings/{about/AboutBlock,system/EngineList,system/HardwareCard,help/HelpBlock}.svelte + components/observability/CapturePolicyPanel.svelte.",
+    "14 nav keys from SETTINGS_NAV, in two groups: Settings (general, appearance, profile, chat, stt, model-defaults, developer, then llm, model-hub, tools, permissions, integrations until they leave the settings) and System (engines, hardware). The column is identical in both modes. About, Help and the danger zone live in General; the shortcut catalogue and plan mode in Chat; the editor of apollia.toml in its own Configuration entry after Developer, mode on only; the former System page in Hardware; the engine list with the stated versions and the diagnostic copy in Engines; the processor, memory and GPU in Hardware, whose paths, CLI, automatic install and Python interpreter are developer mode only; the capture and retention policy in the capture tab of the Observability screen, developer mode only, where the settings unsaved badge does not exist (the footer reset still restores the form).",
     "plan-mode-default-toggle and auto-install-python-deps-toggle ARE the <button role=switch> (Toggle.svelte spreads data-testid onto it), NOT <input> wrappers. They are clicked directly; setChecked would also work, click keeps the two-way boundary explicit.",
-    "Configuration.svelte passes defaultExpanded={i === 0}, so the FIRST card (runtime) is already open on arrival: its copy button is asserted directly, and the expand interaction is exercised on the second card (oria) instead. Exact testids are used rather than the config-file-card- prefix, because an expanded card also renders config-file-card-copy/reveal/entries/raw-{section}, which the prefix would match ahead of the next card.",
+    "Settings > Configuration is the editor of apollia.toml, an entry of the column after Developer that exists only with the developer mode on (settingsNav.ts developerOnly, routes/settings/Configuration.svelte). The book turns the mode on, opens it, waits for the first numbered line (config-editor-gutter-1) and copies the path; it types nothing, so the seeded file is never written.",
     "stt-trigger and stt-language-select are native <select> (Select.svelte) with static options (toggle/push-to-talk; the STT_LANGUAGES codes). Both are exercised via selectOption in the STT save branch, then saved through the unsaved dialog. The language values (de discarded, es saved) stay distinct from the one stt-det.json picks later, so each script still produces a real change.",
     "UpdateCheckPanel (rendered once, inside General.svelte, variant bare) is an external-update boundary only when unstubbed: the first click on update-check-btn (28-update-checker-boundary) reaches the real GitHub endpoint of tauri.conf.json and lands on whatever the host's connectivity gives. Every other phase is reached by stubbing check_for_update (commands/updates.rs UpdateCheckResult: available, current_version, new_version, release_notes, channel_unavailable) after a remount (hardware then general, so the panel starts idle whatever the boundary click left). The stub imitates a backend type and drifts silently if that struct changes.",
     "Danger cards are screenshot-only; no reset btn or confirm dialog is triggered (real resets live in destructive.json). The onboarding reset sits in Appearance now.",
@@ -13,18 +13,15 @@
     "about-copy-data-dir is asserted, not about-data-dir-unknown. They are the two arms of one #if on SystemInfo.data_dir, the runner has no either/or step, and the seeded HOME always resolves, so the unknown arm is unreachable under this harness. It stays covered by the Rust test test_system_info_reports_the_resolved_data_directory.",
     "The three external help cards (docs, community, report) and about-link-github / about-link-report are asserted with expect/waitFor and never clicked: they hand off to the system browser, which the runner cannot come back from. help-link-shortcuts is the one card that navigates in-app, so it is the one that is clicked.",
     "observability-toggle-debug_log_prompt is the one sensitive flag (Observability.svelte:79-81): clicking it while off opens the ConfirmDialog observability-sensitive-confirm instead of flipping (requestToggle :157-165, the {#key} nonce snaps the Toggle back). The block after 13b plays both composed buttons (ConfirmDialog.svelte:42/50): cancel leaves cfg untouched (:175-179), confirm sets debug_log_prompt = true in memory (:169-173) and dirties the explicit-save form, which settings-subpage-reset restores (handleReset :152-155) so apollia.toml is never written and the nav guard stays quiet.",
-    "observability-open-editor is a boundary click played LAST in the book: openConfigInEditor -> open_config_in_editor (commands/config.rs:248-267) creates the seeded apollia.toml only when missing (the seed ships it) then open::that(path), which launches the host's default .toml handler. Nothing in the seed HOME changes and the route stays clean, but a stray editor window stays open on the host and may take focus: a clipboard write in a later section can then land on an error toast instead of the clipboard, which is why the click sits at the very end.",
+    "observability-open-editor opens the settings window on Settings > Configuration (openSettingsWindow), where the capture policy keys live in the editor of apollia.toml; the developer mode is on on that screen, so the editor renders. No other application opens.",
     "update-releases-link is played under stubs: check_for_update resolves channel_unavailable true, which is phase no_channel (UpdateCheckPanel.svelte:102, :164-176), and plugin:opener|open_url resolves null so the click (openExternalUrl -> openUrl, externalLink.ts:35-46) never launches the host browser. Nothing in-app changes after that click by design, so the block asserts the phase before it (update-no-channel-label, the link itself) and that the panel is untouched after it (link and update-check-btn still rendered); the stub is what keeps the click harmless, not what proves it.",
     "help-hero-cta is played under a plugin:opener|open_url stub resolving null: the anchor's onclick is handleExternalLinkClick (HelpHero.svelte:54, externalLink.ts:98-105), which preventDefaults and hands https://docs.apollia.fr/... to the opener, so the webview stays on the help page (help-hero-cta and help-section asserted after the click). `aria-disabled` follows navigator.onLine (Help.svelte:38-50) and only removes pointer events; the runner's el.click() is programmatic, so the handler runs online or offline. No in-app state changes on that click, so the block can assert nothing beyond the page staying mounted.",
     "shortcuts-search is a plain bind:value filter (Shortcuts.svelte:41-55, 85-92): a no-match query renders shortcuts-empty (:99-104), an empty query restores the groups; local state, nothing persisted, the page is not nav-guarded.",
     "update-install-btn is played twice under stubs, both after a remount. Happy path: check_for_update resolves available true with new_version 99.0.0 (update-available-label contains 99.0.0, update-changelog rendered), install_update resolves null, and the phase moves downloading -> installed (UpdateCheckPanel.svelte:110-126): installed renders no testid of its own, so it is proven by the three waitGone (update-install-btn, update-download-progress, update-check-btn), the only phase reachable from runInstall that renders none of them; error would keep update-check-btn as retry. The real install_update would replace the binary and restart the app before the report lands (commands/updates.rs:172), which is why it is never let through. Error path: install_update rejects a string, humanize keeps it as detail (lib/errors/humanize.ts:251-263) and update-error-banner contains it. listen(\"update-download-progress\") still reaches the real event plugin; nothing emits on it.",
-    "open_config_in_editor is stubbed: the real command hands the file to the host's editor, which takes the focus and made the capture that follows fail. An automaton run opens no other application.",
     "The developer mode is one switch in Settings > Developer (developer-mode-toggle, developer-mode-on, developer-mode-off), written to [desktop] developer_mode of the seeded apollia.toml; every book turns it on and off there, never per screen."
   ],
   "dynamicTestids": [
-    "config-file-card-copy-oria",
-    "config-file-card-copy-runtime",
-    "config-file-card-oria",
+    "config-editor-gutter-1",
     "danger-card-clear-logs",
     "danger-card-clear-memories",
     "danger-card-factory-reset",
@@ -36,6 +33,7 @@
     "observability-toggle-debug_log_prompt",
     "settings-nav-appearance",
     "settings-nav-chat",
+    "settings-nav-configuration",
     "settings-nav-developer",
     "settings-nav-engines",
     "settings-nav-engines-shortcut",
@@ -715,27 +713,32 @@
       "ms": 800
     },
     {
+      "kind": "click",
+      "testid": "settings-nav-configuration",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "waitFor",
       "testid": "configuration-subpage",
       "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "settings-operational-redirect-banner",
+      "testid": "config-editor",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "config-editor-gutter-1",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "22-configuration"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "config-file-card-copy-runtime",
-      "timeoutMs": 4000
+      "label": "22-configuration-editor"
     },
     {
       "kind": "click",
-      "testid": "config-file-card-copy-runtime",
+      "testid": "config-editor-copy-path",
       "timeoutMs": 4000
     },
     {
@@ -744,33 +747,16 @@
     },
     {
       "kind": "screenshot",
-      "label": "23-config-file-card-copied"
+      "label": "23-config-editor-path-copied"
     },
     {
       "kind": "click",
-      "testid": "config-file-card-oria",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
+      "testid": "settings-nav-developer"
     },
     {
       "kind": "waitFor",
-      "testid": "config-file-card-copy-oria",
+      "testid": "developer-mode-toggle",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "23b-config-file-card-expanded"
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-off"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
     },
     {
       "kind": "click",
@@ -780,6 +766,11 @@
       "kind": "waitFor",
       "testid": "system-info-section",
       "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hardware-processor",
+      "timeoutMs": 20000
     },
     {
       "kind": "screenshot",
@@ -848,6 +839,23 @@
     {
       "kind": "screenshot",
       "label": "27-agent-install-section"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
     },
     {
       "kind": "click",
@@ -1810,6 +1818,11 @@
       "timeoutMs": 6000
     },
     {
+      "kind": "waitFor",
+      "testid": "engines-list",
+      "timeoutMs": 20000
+    },
+    {
       "kind": "click",
       "testid": "about-copy-diagnostics",
       "timeoutMs": 4000
@@ -1821,51 +1834,6 @@
     {
       "kind": "screenshot",
       "label": "56-about-diagnostic-copied"
-    },
-    {
-      "kind": "click",
-      "testid": "about-copy-version",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 250
-    },
-    {
-      "kind": "click",
-      "testid": "about-copy-platform",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 250
-    },
-    {
-      "kind": "click",
-      "testid": "about-copy-python",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 250
-    },
-    {
-      "kind": "click",
-      "testid": "about-copy-engine",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 250
-    },
-    {
-      "kind": "click",
-      "testid": "about-copy-stt",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 250
     },
     {
       "kind": "click",
@@ -1930,12 +1898,6 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "stubInvoke",
-      "command": "open_config_in_editor",
-      "resolve": null,
-      "once": true
-    },
-    {
       "kind": "click",
       "testid": "observability-open-editor",
       "timeoutMs": 4000
@@ -1945,12 +1907,13 @@
       "ms": 800
     },
     {
-      "kind": "screenshot",
-      "label": "58-observability-open-editor (the host handler is answered by a stub: an automaton opens no other application)"
+      "kind": "waitFor",
+      "testid": "config-editor",
+      "timeoutMs": 8000
     },
     {
-      "kind": "clearStubs",
-      "command": "open_config_in_editor"
+      "kind": "screenshot",
+      "label": "58-observability-open-editor (the editor of the file opens in the settings window)"
     },
     {
       "kind": "goto",

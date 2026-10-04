@@ -184,7 +184,7 @@ everything else through, which is how the switch reaches the builder.
 
 | DB / files | Rows | Unblocks |
 |---|---|---|
-| projects.db | 2 projects + 3 providers + 1 doc | project rows, settings fields, provider cards |
+| projects.db | 2 projects + 3 providers + 1 doc | the former projects, migrated into sources at the first boot of the runtime, which then removes the file |
 | triggers_def.db + triggers.db | 4 triggers (active x2, paused x2) + history; + `seed-trigger-planner` under `APOLLIA_SEED_PLANNER=1` | automation rows, filters, delete/history; the run-now that opens the plan gate |
 | governance.db | 4 permission rules (all scopes) + 5 audit + 1 credential | permissions count/list/audit/revoke-all, brave credential |
 | chat.db | 4 sessions + messages + 3 tool auths + 1 plan | session list, session-auths, plan tab |
@@ -212,8 +212,7 @@ fully-green `report.json`. Supporting changes:
   observability filters); `press {key, meta/ctrl/shift/alt}` dispatches keystrokes
   (Escape to close sheets, palette).
 - App testids added so previously-unreachable flows are drivable:
-  `projects-new-project-btn`, `project-delete-confirm`/`provider-delete-confirm`
-  (ConfirmDialog `data-testid`), `automations-new-btn`, and `command-item-{action-id}`
+  `automations-new-btn`, and `command-item-{action-id}`
   (which makes the companion/coach reachable via the palette `command-item-companion.toggle`).
 - `setChecked` is role-aware (native input OR `<button role=checkbox/switch>`).
 

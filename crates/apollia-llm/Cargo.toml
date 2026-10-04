@@ -13,7 +13,7 @@ default = ["cloud"]
 # shared types (CompletionModel, LlmRouter, etc.).
 
 # HTTP backends (OpenAI-compatible, Ollama)
-cloud            = ["dep:async-openai", "dep:reqwest"]
+cloud            = ["dep:async-openai", "dep:reqwest", "dep:base64"]
 
 [dependencies]
 apollia-core   = { workspace = true, features = ["net"] }
@@ -31,6 +31,8 @@ uuid           = { workspace = true }
 # cloud backends [feature = "cloud"]
 async-openai   = { workspace = true, optional = true }
 reqwest        = { workspace = true, optional = true }
+# Images of a user message travel as `data:` URLs [feature = "cloud"]
+base64         = { workspace = true, optional = true }
 tokio-util     = { workspace = true }
 chrono         = { workspace = true }
 # MetaLlmOrchestrator

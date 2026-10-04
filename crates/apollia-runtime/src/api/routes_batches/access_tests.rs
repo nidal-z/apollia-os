@@ -144,18 +144,29 @@ async fn fixture() -> Fixture {
     );
     let mut state = test_app_state_no_llm();
     let events = state.event_sender.subscribe();
+    // The registry describes the sending tool, as the runtime's does once the
+    // account is connected: governance reads its family from it. Its schema is
+    // opened so the scripted call is not turned back as malformed.
+    let registry = ToolRegistryHandle::start();
+    for mut descriptor in crate::connectors_bridge::connector_descriptors_for(&[(
+        apollia_auth::ConnectorProvider::Google,
+        vec!["ada@example.com".to_owned()],
+    )]) {
+        if descriptor.name == tool {
+            descriptor.input_schema = json!({ "type": "object" });
+            registry.register(descriptor).await.unwrap();
+        }
+    }
     let chat = ChatSessionManagerHandle::spawn(
         &dir.path().join("chat.db"),
         Some(Arc::new(LlmRouter::with_backends(backends, "reaching"))),
-        ToolRegistryHandle::start(),
+        registry,
         Arc::new(StubAgentLoader),
         None,
         state.event_sender.clone(),
         StepBudgetConfig::default(),
         None,
         state.registry_handle.clone(),
-        None,
-        None,
         None,
         None,
         None,

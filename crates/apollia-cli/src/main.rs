@@ -39,7 +39,6 @@ use commands::notify::NotifyCommand;
 use commands::package::PackageCommand;
 use commands::permissions::PermissionsCommand;
 use commands::policy::PolicyCommand;
-use commands::project::ProjectCommand;
 use commands::resilience::ResilienceCommand;
 use commands::source::SourceCommand;
 use commands::stt::SttCommand;
@@ -335,6 +334,9 @@ enum Commands {
     /// Automated code or plan review via the apollia-review agent.
     Review(commands::review::ReviewArgs),
 
+    /// The decisions waiting for you (pending).
+    Approvals(commands::approvals::ApprovalsArgs),
+
     /// Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry, export).
     Batch {
         /// Batch subcommand.
@@ -427,16 +429,6 @@ enum Commands {
         /// Profile subcommand.
         #[command(subcommand)]
         command: UserMemoryCommand,
-    },
-
-    /// Project management (list, create, show, update, delete, agents, templates).
-    ///
-    /// Operates locally on `~/.apollia/projects.db`; the runtime does not need
-    /// to be running.
-    Project {
-        /// Project subcommand.
-        #[command(subcommand)]
-        command: ProjectCommand,
     },
 
     /// Print the event-sourced trace of a task.
@@ -618,29 +610,11 @@ async fn run_run(dispatch: RunDispatch) -> i32 {
     .await
 }
 
-/// Run the embedded MCP server, mapping its result to an exit code.
 /// Print a "did you mean" hint when an unknown top-level command is typed.
 fn maybe_suggest_command(err: &clap::Error) {
-    use clap::error::ErrorKind;
-    if !matches!(
-        err.kind(),
-        ErrorKind::InvalidSubcommand | ErrorKind::UnknownArgument
-    ) {
-        return;
-    }
-    // First positional argument after the binary name.
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let Some(bad) = args.iter().find(|a| !a.starts_with('-')) else {
-        return;
-    };
     let cmd = Cli::command();
     let names: Vec<&str> = cmd.get_subcommands().map(clap::Command::get_name).collect();
-    if names.contains(&bad.as_str()) {
-        return;
-    }
-    if let Some(sugg) = commands::suggest::nearest(bad, &names, 3) {
-        eprintln!("apollia-os: unknown command `{bad}`. Did you mean `{sugg}`?");
-    }
+    commands::suggest::hint_unknown_command(err, &names);
 }
 
 fn main() {
@@ -749,6 +723,7 @@ fn main() {
             }
             Commands::Policy { command } => commands::policy::run(&command, json),
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
+            Commands::Approvals(args) => commands::approvals::run(&args, cli.socket, json).await,
             Commands::Batch { command } => commands::batch::run(&command, cli.socket, json).await,
             Commands::Workflow { command } => {
                 commands::workflow::run(&command, cli.socket, json).await
@@ -765,7 +740,6 @@ fn main() {
             Commands::Connector { command } => commands::connector::run(&command, json).await,
             Commands::Config { command } => commands::config::run(&command, json),
             Commands::Profile { command } => commands::user_memory::run(&command, json),
-            Commands::Project { command } => commands::project::run(&command, json),
             Commands::Trace { task_id, format } => {
                 let format_json = format == "json";
                 commands::trace::run(&task_id, format_json, cli.socket, json).await

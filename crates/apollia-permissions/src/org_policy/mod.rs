@@ -24,6 +24,7 @@
 mod authoring;
 mod ownership;
 pub mod schema;
+mod view;
 
 #[cfg(test)]
 mod authoring_tests;
@@ -46,6 +47,7 @@ pub use schema::{
     JournalExportPolicy, JournalPolicy, OrgPolicy, PackagesPolicy, PolicyFamily, PolicySchemaError,
     POLICY_SCHEMA_VERSION,
 };
+pub use view::PolicyView;
 
 /// The setting of the model import rule that `inference.require_model_hash`
 /// fixes: a model whose digest matches no known one is refused.
@@ -162,6 +164,9 @@ pub struct ValidPolicy {
     pub policy: OrgPolicy,
     /// Fingerprint of `org.pub`, the key that signed.
     pub key_fingerprint: String,
+    /// SHA-256 of `policy.toml`, 64 lowercase hexadecimal characters: what
+    /// tells one deposited policy from the next.
+    pub policy_digest: String,
     /// Publisher name declared in `SIGNATURE`.
     pub publisher: String,
     /// When the organisation signed the policy, as `signed_at` declares it in
@@ -330,8 +335,9 @@ fn verify_contents(dir: &Path) -> PolicyVerdict {
             ),
         );
     }
+    let digest = sha256(&policy_bytes);
     let mut list = DigestList::new();
-    if let Err(e) = list.insert(POLICY_FILE, sha256(&policy_bytes)) {
+    if let Err(e) = list.insert(POLICY_FILE, digest) {
         return invalid(PolicyInvalidReason::Signature, e.to_string());
     }
     if signature.verify(&list, &public_key) != Verdict::Valid {
@@ -359,6 +365,7 @@ fn verify_contents(dir: &Path) -> PolicyVerdict {
         signed_at: policy.signed_at,
         policy,
         key_fingerprint: public_key.fingerprint(),
+        policy_digest: digest.iter().map(|b| format!("{b:02x}")).collect(),
         publisher: signature.publisher().to_owned(),
     }))
 }

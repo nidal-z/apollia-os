@@ -64,6 +64,8 @@ export type ReasoningItem =
   | (ReasoningItemBase & {
       kind: "thinking";
       content: string;
+      /** How long the fragment took, when it was measured. */
+      duration_ms?: number | null;
     })
   | (ReasoningItemBase & {
       kind: "rationale";
@@ -361,20 +363,6 @@ export function buildLiveSequence(
 }
 
 /**
- * Number of reasoning captions (thinking / rationale fragments) an assistant
- * turn produced. Feeds the activity strip summary so the collapsed strip can
- * announce how many thoughts it hides.
- */
-export function reasoningFragmentCount(
-  message: Pick<ChatMessageView, "id" | "tool_calls" | "metadata">,
-  content?: string,
-): number {
-  return buildReasoningSequence(message, content).filter(
-    (i) => i.kind === "thinking" || i.kind === "rationale",
-  ).length;
-}
-
-/**
  * A single web source shown as a compact card at the end of an assistant turn.
  *
  * Sources are recovered from the finalized `web_search` / `web_read` tool calls
@@ -461,24 +449,6 @@ export function extractSources(
   }
 
   return out;
-}
-
-/**
- * Total wall-clock time attributable to a turn's tool calls, in milliseconds.
- *
- * Sums `duration_ms` across every call that reported one. Returns 0 when no
- * call carried a duration, letting the caller omit the figure gracefully.
- */
-export function sumToolDurationMs(
-  toolCalls: ToolCallView[] | null | undefined,
-): number {
-  let total = 0;
-  for (const call of toolCalls ?? []) {
-    if (typeof call.duration_ms === "number" && call.duration_ms > 0) {
-      total += call.duration_ms;
-    }
-  }
-  return total;
 }
 
 /** Hard threshold above which the full item list collapses by default. */

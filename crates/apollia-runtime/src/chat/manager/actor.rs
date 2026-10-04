@@ -4,13 +4,14 @@ impl ChatSessionManager {
     /// Process incoming commands until Shutdown or channel close.
     pub(in crate::chat::manager) async fn run(mut self, mut rx: mpsc::Receiver<ChatCommand>) {
         while let Some(cmd) = rx.recv().await {
+            self.apply_config_changes();
             match cmd {
                 ChatCommand::CreateSession {
                     mode,
                     agent_name,
                     system_prompt,
                     tools,
-                    project_id,
+                    model,
                     reply,
                 } => {
                     let result = self
@@ -19,7 +20,7 @@ impl ChatSessionManager {
                             agent_name,
                             system_prompt,
                             tools,
-                            project_id,
+                            model,
                         })
                         .await;
                     let _ = reply.send(result);
@@ -27,9 +28,10 @@ impl ChatSessionManager {
                 ChatCommand::SendMessage {
                     session_id,
                     content,
+                    images,
                     reply,
                 } => {
-                    let result = self.handle_send_message(&session_id, &content);
+                    let result = self.handle_send_message(&session_id, &content, images);
                     let _ = reply.send(result);
                 }
                 ChatCommand::ResolveTool {
@@ -183,18 +185,13 @@ impl ChatSessionManager {
                 }
                 ChatCommand::UpdateSession {
                     session_id,
-                    system_prompt,
-                    available_tools,
-                    llm_backend,
+                    update,
                     reply,
                 } => {
-                    let result = self.handle_update_session(
-                        &session_id,
-                        system_prompt.as_deref(),
-                        available_tools.as_deref(),
-                        llm_backend.as_ref(),
-                    );
-                    let _ = reply.send(result);
+                    let _ = reply.send(self.handle_update_session(&session_id, update));
+                }
+                ChatCommand::ReleaseProfile { profile_id, reply } => {
+                    let _ = reply.send(self.handle_release_profile(&profile_id));
                 }
                 ChatCommand::RegenerateResponse {
                     session_id,
@@ -255,22 +252,6 @@ impl ChatSessionManager {
                     let result = self.handle_list_children(&session_id);
                     let _ = reply.send(result);
                 }
-                ChatCommand::LinkSessionToProject {
-                    session_id,
-                    project_id,
-                    reply,
-                } => {
-                    let result =
-                        self.handle_link_session_to_project(&session_id, project_id.as_deref());
-                    let _ = reply.send(result);
-                }
-                ChatCommand::ListSessionsByProject { project_id, reply } => {
-                    let result = self.handle_list_sessions_by_project(&project_id);
-                    let _ = reply.send(result);
-                }
-                ChatCommand::OrphanProjectSessions { project_id } => {
-                    self.handle_orphan_project_sessions(&project_id);
-                }
                 ChatCommand::ListSessionAuthorizations { reply } => {
                     let _ = reply.send(self.handle_list_session_authorizations());
                 }
@@ -306,16 +287,17 @@ impl ChatSessionManager {
                     info!("chat.package_tools.set");
                     self.package_tools = Some(host);
                 }
+                ChatCommand::FollowConfig { feed } => {
+                    info!("chat.config.followed");
+                    self.config_feed = Some(feed);
+                }
                 ChatCommand::SetComposer { composer } => {
                     info!("chat.composer.set");
                     self.composer = Some(composer);
                 }
-                ChatCommand::ResolveFsHitl {
-                    request_id,
-                    decision,
-                    reply,
-                } => {
-                    let _ = reply.send(self.handle_resolve_fs_hitl(&request_id, decision));
+                ChatCommand::SetGovernance { governance } => {
+                    info!("chat.governance.set");
+                    self.governance = Some(governance);
                 }
                 ChatCommand::ListApprovalHistory { limit, days, reply } => {
                     let result = self.repository.list_tool_approval_history(limit, days);

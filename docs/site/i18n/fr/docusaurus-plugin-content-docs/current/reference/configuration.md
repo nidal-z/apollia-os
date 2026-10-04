@@ -63,6 +63,22 @@ son chemin, son type, sa valeur par défaut, sa documentation, sa classe de
 rechargement, si la politique de l'organisation peut l'imposer, et si elle est
 retirée.
 
+## Changements pendant que le moteur tourne
+
+Le moteur suit son fichier. Un texte enregistré par `PUT /api/v1/config`, ou le
+fichier modifié sur le disque par tout autre moyen, est relu une fois qu'il est
+resté inchangé un instant. Un texte valide est appliqué : une clé de classe de
+rechargement `Reloadable` prend effet sans redémarrage, au prochain usage du
+réglage (la prochaine conversation, le prochain échange, la prochaine exécution
+d'un agent, le prochain passage sur les tâches en attente). Une clé de classe
+`Restart` garde son ancienne valeur jusqu'au prochain démarrage du moteur ;
+`GET /api/v1/config` la liste sous `pendingRestart`, avec sa ligne, et la liste
+est vide après un démarrage. Un texte invalide ne change rien : la dernière
+configuration valide reste en vigueur, la route de lecture rend les fautes à
+leur ligne, et un événement `ConfigInvalid` est publié. Chaque application publie
+un événement `ConfigReloaded` avec les sections appliquées et les clés en attente
+de redémarrage.
+
 ## Sections
 
 Le fichier est lu strictement, par la même validation partout. Une clé
@@ -88,7 +104,7 @@ avertissement `config.key.retired`.
 | `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), et la règle appliquée à un fichier importé (`[models.import]`). |
 | `[observability]` | Capture et rétention des traces, documentées plus bas. |
 | `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
-| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`. |
+| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`, `cors`, et le chargement à la demande : `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`. |
 | `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`). |
 | `[author]` | Le nom d'éditeur des agents exportés depuis cette machine (`name`). |
 
@@ -153,6 +169,7 @@ Backends LLM, routage, et le runner de transcription. Le fichier par défaut lai
 | `llm.routing` | table | non définie | Backends qui répondent aux requêtes précises et rapides, et le plafond du routage hybride. |
 | `llm.guardrails.level` | l'une de disabled, lenient, balanced, strict, ceiling | `"balanced"` | Sévérité avec laquelle le lancement d'un modèle local est tenu à la mémoire de la machine ; un niveau inconnu vaut balanced. La politique de l'organisation peut l'imposer. |
 | `llm.guardrails.ceiling_gb` | décimal | non définie | Plus grande estimation, en gigaoctets, que le niveau ceiling lance. La politique de l'organisation peut l'imposer. |
+| `llm.residency.idle_unload_minutes` | entier | `60` | Minutes sans requête au bout desquelles un modèle local que rien ne retient est déchargé ; 0 ne décharge jamais. La politique de l'organisation peut l'imposer. |
 
 ### `[api]`
 
@@ -282,6 +299,11 @@ Le serveur compatible, qui répond aux formats OpenAI et Anthropic sur l'interfa
 | `server.enabled` | booléen | `false` | Démarrer le serveur compatible (formats OpenAI et Anthropic) avec le moteur. La politique de l'organisation peut l'imposer. |
 | `server.port` | entier | `7772` | Port TCP du serveur compatible. La politique de l'organisation peut l'imposer. |
 | `server.require_auth` | booléen | `false` | Exiger un jeton du serveur compatible à chaque requête ; lu à l'ouverture de l'écoute. La politique de l'organisation peut l'imposer. |
+| `server.cors` | booléen | `false` | Laisser une page web d'une autre origine appeler le serveur compatible ; lu à chaque démarrage du serveur. La politique de l'organisation peut l'imposer. |
+| `server.jit_loading` | booléen | `true` | Laisser une requête au serveur compatible charger le modèle de cette machine qu'elle nomme. La politique de l'organisation peut l'imposer. |
+| `server.jit_auto_unload` | booléen | `true` | Décharger les modèles que le serveur compatible a chargés après leur propre délai d'inactivité plutôt que le délai général. La politique de l'organisation peut l'imposer. |
+| `server.jit_idle_ttl_minutes` | entier | `60` | Minutes sans requête après lesquelles un modèle chargé par le serveur compatible est déchargé ; 0 le garde chargé. La politique de l'organisation peut l'imposer. |
+| `server.jit_keep_last_only` | booléen | `true` | Quand le serveur compatible charge un modèle, décharger les autres modèles qu'il a chargés et que rien ne retient. La politique de l'organisation peut l'imposer. |
 | `server.serve_on_lan` | booléen | `false` | Ouvrir le serveur compatible au réseau local, sur toutes les interfaces ; l'API native reste sur l'interface de boucle locale. Lu à l'ouverture de l'écoute. La politique de l'organisation peut l'imposer. |
 
 ### `[engines]`
@@ -519,6 +541,43 @@ donne l'estimation et la limite : `POST /api/v1/llm/chat` et
 niveau `ceiling` sans `ceiling_gb` positif valent `balanced` : une faute de
 frappe ne coupe jamais le garde-fou. Un modèle dont l'empreinte ne peut pas être
 estimée est lancé.
+
+Plusieurs modèles peuvent rester chargés ensemble, autant que le garde-fou en
+admet : un modèle est jugé avec l'empreinte des modèles déjà chargés ajoutée à
+la sienne. Quand cette somme est refusée, les modèles chargés que rien ne
+retient (aucune conversation ouverte, aucune épingle, aucune réponse en cours)
+sont déchargés, le moins récemment utilisé d'abord et seulement autant qu'il le
+faut ; quand même cela ne suffirait pas, rien n'est déchargé et le chargement
+est refusé.
+
+## Résidence des modèles (`[llm.residency]`)
+
+Un modèle local que rien n'utilise rend sa mémoire de lui-même.
+
+```toml
+[llm.residency]
+idle_unload_minutes = 60   # 0 garde chargé un modèle inutilisé
+```
+
+| Règle | Décharge |
+| --- | --- |
+| Délai d'inactivité | un modèle qu'aucune requête n'a utilisé depuis `idle_unload_minutes`, vérifié toutes les trente secondes |
+| Dernière conversation fermée | un modèle aussitôt, quand la dernière conversation ouverte qui l'utilise se ferme |
+
+Un modèle que l'utilisateur a épinglé n'est déchargé par aucune des deux règles,
+et un modèle qui sert une réponse n'est jamais déchargé. L'épingle est gardée
+dans `system.db` et survit à un redémarrage. La clé est relue à chaque
+vérification : un changement s'applique sans redémarrage. Une interface dit
+quelles conversations sont ouvertes avec `POST /api/v1/llm/leases` et
+`POST /api/v1/llm/leases/release`, et épingle un modèle avec
+`PUT /api/v1/llm/pins`. Quand le flux d'événements qu'elle a ouvert avec
+`GET /api/v1/events?client=<id>` se termine, les conversations de ce client
+comptent comme fermées. Chaque déchargement est publié sur le bus d'événements
+sous `LlmModelUnloaded`, avec sa raison : `idle`, `last_conversation`,
+`requested`, `make_room`, ou `server_replaced` quand le serveur compatible a
+chargé un autre modèle. Les modèles que le serveur compatible a chargés suivent
+leur propre délai, réglé sous `[server]` (voir la référence des points d'accès
+compatibles).
 
 ## Dictée (`system.db`, pas `apollia.toml`)
 

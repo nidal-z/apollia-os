@@ -43,15 +43,24 @@ impl Fixture {
             .sources
     }
 
-    fn session_projects(&self) -> Vec<(String, Option<String>, Option<String>)> {
+    /// Each conversation with its agent, and whether the chat database still
+    /// has a project column.
+    fn session_projects(&self) -> (Vec<(String, Option<String>)>, bool) {
         let conn = rusqlite::Connection::open(DataFile::Chat.path(self.data_dir())).unwrap();
         let mut stmt = conn
-            .prepare("SELECT id, agent_name, project_id FROM chat_sessions ORDER BY id")
+            .prepare("SELECT id, agent_name FROM chat_sessions ORDER BY id")
             .unwrap();
-        stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        let sessions = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
             .unwrap()
             .collect::<Result<_, _>>()
+            .unwrap();
+        let has_column = conn
+            .prepare("SELECT 1 FROM pragma_table_info('chat_sessions') WHERE name = 'project_id'")
             .unwrap()
+            .exists([])
+            .unwrap();
+        (sessions, has_column)
     }
 
     fn memory_semantic(&self, namespace: &str) -> usize {
@@ -86,7 +95,8 @@ fn memory_export(namespace: &str, ids: &[&str]) -> MemoryExport {
 
 /// The project has two readable documents, one gone, instructions, the
 /// installed agent `veille` and the uninstalled `ancien`, its working folder,
-/// one memory space, and two conversations: a free one and one with `veille`.
+/// one memory space, and two conversations: a free one and one with `veille`,
+/// in a chat database written before the project column was dropped.
 fn fixture() -> Fixture {
     let data = tempfile::tempdir().unwrap();
     let files = tempfile::tempdir().unwrap();
@@ -151,6 +161,12 @@ fn fixture() -> Fixture {
 
     drop(ChatSessionRepository::open(&DataFile::Chat.path(fx.data_dir())).unwrap());
     let conn = rusqlite::Connection::open(DataFile::Chat.path(fx.data_dir())).unwrap();
+    conn.execute_batch(
+        "ALTER TABLE chat_sessions ADD COLUMN project_id TEXT;
+         CREATE INDEX idx_chat_sessions_project ON chat_sessions(project_id);
+         PRAGMA user_version = 14;",
+    )
+    .unwrap();
     conn.execute(
         "INSERT INTO chat_sessions (id, mode, agent_name, created_at, project_id) VALUES
          ('s-libre', 'libre', NULL, '2026-10-04T00:00:00Z', ?1),
@@ -258,14 +274,17 @@ fn test_conversations_lose_their_project_and_keep_their_agent() {
     // WHEN the migration runs
     let report = migrate(fx.data_dir());
 
-    // THEN neither has a project; the free one stays Apollia's, the other
-    // stays with `veille`
+    // THEN neither has a project, the column is gone; the free one stays
+    // Apollia's, the other stays with `veille`
     assert_eq!(
         fx.session_projects(),
-        vec![
-            ("s-agent".to_owned(), Some("veille".to_owned()), None),
-            ("s-libre".to_owned(), None, None),
-        ]
+        (
+            vec![
+                ("s-agent".to_owned(), Some("veille".to_owned())),
+                ("s-libre".to_owned(), None),
+            ],
+            false
+        )
     );
     assert_eq!(report.conversations_detached, 2);
 }
@@ -393,7 +412,7 @@ fn test_an_unreadable_document_is_listed() {
 }
 
 #[test]
-fn test_a_partial_run_keeps_projects_db_and_a_second_run_completes_it() {
+fn test_a_partial_run_keeps_projects_db_and_a_complete_one_removes_it() {
     // GIVEN a chat database that cannot be opened
     let fx = fixture();
     let chat = DataFile::Chat.path(fx.data_dir());
@@ -409,7 +428,7 @@ fn test_a_partial_run_keeps_projects_db_and_a_second_run_completes_it() {
     let second = run_if_needed(fx.data_dir()).unwrap();
 
     // THEN the first is partial, written, and leaves projects.db; the second
-    // completes without adding a source twice
+    // completes without adding a source twice, and removes projects.db
     assert_eq!(first.status, MigrationStatus::Partial);
     assert!(first
         .issues
@@ -419,7 +438,42 @@ fn test_a_partial_run_keeps_projects_db_and_a_second_run_completes_it() {
     assert_eq!(read_back, first);
     assert_eq!(second.status, MigrationStatus::Complete);
     assert_eq!(fx.sources().len(), sources_after_first);
-    assert!(DataFile::Projects.path(fx.data_dir()).exists());
+    assert!(!DataFile::Projects.path(fx.data_dir()).exists());
+}
+
+#[test]
+fn test_a_complete_run_with_a_missing_document_removes_projects_db() {
+    // GIVEN a project one document of which no longer exists
+    let fx = fixture();
+
+    // WHEN the migration runs at boot
+    let report = run_if_needed(fx.data_dir()).unwrap();
+
+    // THEN the run is complete, lists the document, keeps the report on disk
+    // and removes projects.db
+    assert_eq!(report.status, MigrationStatus::Complete);
+    assert!(report
+        .issues
+        .iter()
+        .any(|i| i.item == IssueItem::Document && i.reason == IssueReason::Missing));
+    assert_eq!(read_report(fx.data_dir()).unwrap(), Some(report));
+    assert!(!DataFile::Projects.path(fx.data_dir()).exists());
+}
+
+#[test]
+fn test_a_complete_report_left_with_projects_db_removes_it_at_the_next_boot() {
+    // GIVEN a complete report written while projects.db could not be removed
+    let fx = fixture();
+    let report = migrate(fx.data_dir());
+    assert_eq!(report.status, MigrationStatus::Complete);
+    write_report(fx.data_dir(), &report).unwrap();
+
+    // WHEN the runtime boots again
+    let again = run_if_needed(fx.data_dir());
+
+    // THEN the report is not replayed and projects.db is gone
+    assert_eq!(again, Some(report));
+    assert!(!DataFile::Projects.path(fx.data_dir()).exists());
 }
 
 #[test]
@@ -472,10 +526,12 @@ fn test_a_complete_migration_is_not_replayed() {
         .unwrap();
 
     // WHEN the runtime boots again
-    let again = run_if_needed(fx.data_dir()).unwrap();
+    let again = run_if_needed(fx.data_dir());
 
-    // THEN the report is the first one and the source stays removed
-    assert_eq!(again, first);
+    // THEN nothing runs, the report on disk is the first one and the source
+    // stays removed
+    assert!(again.is_none());
+    assert_eq!(read_report(fx.data_dir()).unwrap(), Some(first));
     assert!(fx.sources().iter().all(|s| s.id != removed));
 }
 
@@ -523,5 +579,136 @@ fn test_two_projects_of_the_same_name_keep_their_instructions_apart() {
             "Always address the client formally.".to_owned(),
             "Another instruction.".to_owned()
         ]
+    );
+}
+
+/// Adds to the project of `fx` an enabled provider of each kind it had.
+fn with_providers(fx: &Fixture, kinds: &[&str]) {
+    let projects = ProjectRepository::open(&DataFile::Projects.path(fx.data_dir())).unwrap();
+    for (priority, kind) in kinds.iter().enumerate() {
+        let path = (*kind == "script").then(|| fx.file("context.sh"));
+        projects
+            .set_provider(
+                None,
+                &fx.project_id,
+                *kind,
+                format!("my {kind}"),
+                "{}",
+                path,
+                true,
+                u8::try_from(priority).unwrap(),
+            )
+            .unwrap();
+    }
+}
+
+#[test]
+fn test_a_project_reading_its_code_gets_a_code_folder_on_its_working_folder() {
+    // GIVEN a project whose working folder fed the git, rules and tree
+    // providers, and a script and a style provider beside them
+    let fx = fixture();
+    with_providers(&fx, &["git", "rules", "tree", "script", "style"]);
+
+    // WHEN the migration runs
+    let report = migrate(fx.data_dir());
+
+    // THEN one code folder source points at the folder connection of the
+    // working folder, checked for Apollia and the linked agent
+    let outcome = &report.projects[0];
+    let code: Vec<_> = fx
+        .sources()
+        .into_iter()
+        .filter(|s| s.kind == SourceKind::CodeFolder)
+        .collect();
+    assert_eq!(code.len(), 1);
+    assert_eq!(code[0].reference, outcome.folder_connection);
+    assert_eq!(code[0].group.as_deref(), Some("Dossier Durand"));
+    assert_eq!(outcome.code_folder_source, Some(code[0].id.clone()));
+    assert!(fx.checked_by(APOLLIA_AGENT_ID).contains(&code[0].id));
+    assert!(fx.checked_by("veille").contains(&code[0].id));
+
+    // AND the script and the style are listed, never dropped, without
+    // keeping the migration partial
+    let providers: Vec<_> = report
+        .issues
+        .iter()
+        .filter(|i| i.item == IssueItem::Provider)
+        .collect();
+    assert_eq!(providers.len(), 2, "{providers:?}");
+    assert!(providers
+        .iter()
+        .all(|i| i.reason == IssueReason::NotCarriedOver && !i.blocking));
+    assert!(providers.iter().any(|i| i.subject == "my script (script)"));
+    assert!(providers.iter().any(|i| i.subject == "my style (style)"));
+    assert_eq!(report.status, MigrationStatus::Complete);
+}
+
+#[test]
+fn test_a_project_without_code_providers_gets_no_code_folder() {
+    // GIVEN a project with a working folder and no provider
+    let fx = fixture();
+
+    // WHEN the migration runs
+    let report = migrate(fx.data_dir());
+
+    // THEN its folder is a connection and nothing more
+    assert!(report.projects[0].folder_connection.is_some());
+    assert_eq!(report.projects[0].code_folder_source, None);
+    assert!(fx
+        .sources()
+        .iter()
+        .all(|s| s.kind != SourceKind::CodeFolder));
+}
+
+#[test]
+fn test_a_code_provider_without_a_working_folder_is_listed() {
+    // GIVEN a project with a git provider and no working folder
+    let fx = fixture();
+    let projects = ProjectRepository::open(&DataFile::Projects.path(fx.data_dir())).unwrap();
+    let bare = projects
+        .create_project("No folder", None, None, None)
+        .unwrap();
+    projects
+        .set_provider(None, &bare, "git", "git", "{}", None, true, 0)
+        .unwrap();
+
+    // WHEN the migration runs
+    let report = migrate(fx.data_dir());
+
+    // THEN the provider is listed for that project and no code folder is made
+    let listed: Vec<_> = report
+        .issues
+        .iter()
+        .filter(|i| i.project_id.as_deref() == Some(bare.as_str()))
+        .collect();
+    assert_eq!(listed.len(), 1, "{listed:?}");
+    assert_eq!(listed[0].item, IssueItem::Provider);
+    assert_eq!(listed[0].reason, IssueReason::NotCarriedOver);
+    assert!(fx
+        .sources()
+        .iter()
+        .all(|s| s.kind != SourceKind::CodeFolder));
+}
+
+#[test]
+fn test_a_second_run_keeps_a_single_code_folder() {
+    // GIVEN a project reading its code, migrated once
+    let fx = fixture();
+    with_providers(&fx, &["git"]);
+    let first = migrate(fx.data_dir());
+
+    // WHEN the migration runs again
+    let second = migrate(fx.data_dir());
+
+    // THEN the same code folder source is found, not a second one
+    let code = fx
+        .sources()
+        .into_iter()
+        .filter(|s| s.kind == SourceKind::CodeFolder)
+        .count();
+    assert_eq!(code, 1);
+    assert_eq!(
+        second.projects[0].code_folder_source,
+        first.projects[0].code_folder_source
     );
 }

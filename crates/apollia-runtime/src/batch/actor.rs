@@ -50,6 +50,9 @@ pub(super) struct BatchActor<R: ItemRunner> {
     sources: Arc<SourceRegistry>,
     pub(super) runner: Arc<R>,
     pub(super) active: HashMap<String, Active>,
+    /// The access each item answered "once" may call one time on its next
+    /// run, by batch and rank; spent when the item starts.
+    pub(super) once: HashMap<(String, u64), String>,
     event_bus: EventBusSender,
 }
 
@@ -70,6 +73,7 @@ impl<R: ItemRunner> BatchActor<R> {
             sources,
             runner,
             active: HashMap::new(),
+            once: HashMap::new(),
             event_bus,
         }
     }
@@ -337,7 +341,12 @@ impl<R: ItemRunner> BatchActor<R> {
         rank: u64,
         input: &serde_json::Value,
     ) {
-        match self.runner.start(batch_id, agent, input).await {
+        let once = self.once.remove(&(batch_id.to_string(), rank));
+        match self
+            .runner
+            .start(batch_id, agent, input, once.as_deref())
+            .await
+        {
             Ok(started) => {
                 if let Err(e) = self
                     .repository
@@ -406,9 +415,15 @@ impl<R: ItemRunner> BatchActor<R> {
                     access: access.clone(),
                 });
         }
+        // An item that waits is recorded with the access it reached for, in
+        // the one form the list of decisions reads back.
+        let output = match &end.awaiting {
+            Some(access) if end.status == ItemStatus::Awaiting => super::awaiting_output(access),
+            _ => end.output.clone(),
+        };
         let counted = self
             .repository
-            .finish_batch_item(batch_id, rank, end.status.as_str(), &end.output)
+            .finish_batch_item(batch_id, rank, end.status.as_str(), &output)
             .await;
         match counted {
             Ok(batch) if batch.failed > u64::from(batch.max_failures) => {

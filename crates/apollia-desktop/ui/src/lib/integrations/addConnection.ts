@@ -24,7 +24,7 @@ import type { McpConnectionTestResponse, McpServerConfigInput } from "$lib/types
 export type { NodeRuntimeState };
 
 /** The refusals the connection admission gives, by code. */
-export type RefusalCode = "remote_denied" | "policy_unreadable";
+export type RefusalCode = "remote_denied" | "policy_denied" | "policy_unreadable";
 
 /** Who a refusal comes from: the policy of the organisation, or the person's own permissions. */
 export type RefusalAuthority = "organisation" | "permissions";
@@ -44,6 +44,14 @@ export const REMOTE_DENIED_REASON =
   // i18n-ignore: runtime reason matched verbatim, never shown to the user
   "refused by the organisation policy: connections to online services are not allowed";
 
+/**
+ * Start of every reason the organisation policy gives, the runtime's
+ * `POLICY_REFUSAL_PREFIX`: a connection the policy denies or leaves out of
+ * its allowed list.
+ */
+// i18n-ignore: runtime reason prefix matched verbatim, never shown to the user
+export const POLICY_REFUSAL_PREFIX = "refused by the organisation policy";
+
 /** Start of the reason the admission gives when the deposited policy cannot be read. */
 // i18n-ignore: runtime reason prefix matched verbatim, never shown to the user
 const POLICY_UNREADABLE_PREFIX = "the connection policy could not be read";
@@ -56,6 +64,10 @@ export const REFUSAL_TEXT_KEYS: Record<RefusalCode, { title: string; body: strin
   remote_denied: {
     title: "connections.refusal.organisation_title",
     body: "connections.refusal.remote_denied",
+  },
+  policy_denied: {
+    title: "connections.refusal.organisation_title",
+    body: "connections.refusal.policy_denied",
   },
   policy_unreadable: {
     title: "connections.refusal.organisation_title",
@@ -70,6 +82,9 @@ export function refusalOf(message: string): Refusal | null {
   }
   if (message.startsWith(POLICY_UNREADABLE_PREFIX)) {
     return { code: "policy_unreadable", by: "organisation", reason: message };
+  }
+  if (message.startsWith(POLICY_REFUSAL_PREFIX)) {
+    return { code: "policy_denied", by: "organisation", reason: message };
   }
   return null;
 }

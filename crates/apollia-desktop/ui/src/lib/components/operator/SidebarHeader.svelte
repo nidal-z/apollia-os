@@ -4,7 +4,7 @@
    *
    * A title (+ optional count) with right-aligned actions, followed by an
    * optional search row and an optional filters row. Unifies the per-screen
-   * sidebar tops (Memory, Projects, Connections, Agents, Tasks split) that
+   * sidebar tops (Memory, Connections, Agents, Tasks split) that
    * each used to roll their own layout.
    */
   import type { Snippet } from "svelte";

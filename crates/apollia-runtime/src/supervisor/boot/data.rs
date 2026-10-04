@@ -1,15 +1,14 @@
 //! Data at boot: the execution trace and its observers, the trigger
 //! definitions, and the stores the API server and the agents share (tasks,
-//! user memory, notifications, plan cache, mailbox, projects).
+//! user memory, notifications, plan cache, mailbox, and the migration of the
+//! former projects).
 
 use crate::supervisor::*;
 
 use crate::supervisor::bootstrap::{
     load_trigger_definitions, seed_default_desktop_channel_if_needed,
 };
-use crate::supervisor::persistence::{
-    open_plan_cache, open_project_repository, open_task_repository, open_user_memory,
-};
+use crate::supervisor::persistence::{open_plan_cache, open_task_repository, open_user_memory};
 
 /// The trigger definitions read at boot and the repository they come from.
 pub(super) struct TriggerDefinitions {
@@ -30,7 +29,6 @@ pub(super) struct Stores {
     pub(super) plan_cache:
         Option<Arc<std::sync::Mutex<apollia_oria::plan_cache::PlanCacheRepository>>>,
     pub(super) mailbox_handle: crate::mailbox::AgentMailboxHandle,
-    pub(super) project_repository: Option<Arc<apollia_tools::ProjectRepository>>,
 }
 
 impl Supervisor {
@@ -38,12 +36,14 @@ impl Supervisor {
     pub(super) async fn spawn_trace_observers(
         &self,
         event_sender: &EventBusSender,
+        config_feed: &crate::config_reload::ConfigFeed,
     ) -> Arc<std::sync::Mutex<apollia_oria::ResilienceLayer>> {
         // Phase 4c: EventPersistor, an append-only log of the agent execution
         // trace (AgentLog, plus thoughts, tool_call_*, llm_call_*, etc.). If the
         // open fails, the runtime continues without persistence (logs still go
         // to `tracing`).
-        self.spawn_event_persistor(event_sender).await;
+        self.spawn_event_persistor(event_sender, &config_feed.observability)
+            .await;
 
         // Phase 4d: shared ResilienceLayer + event subscriber.
         //
@@ -192,13 +192,9 @@ impl Supervisor {
         // Phase 13: UserMemoryRepository was promoted above (before notifications)
         // to support the seed bootstrap of the default desktop channel.
 
-        // Phase 13a: the former projects become sources, before the project
-        // repository opens (and creates) projects.db and before the chat
+        // Phase 13a: the former projects become sources, before the chat
         // manager loads the sessions it detaches.
         crate::project_migration::run_at_boot(&self.config.data_dir).await;
-
-        // Phase 13b: ProjectRepository, SQLite projects.db.
-        let project_repository = open_project_repository(&self.config.data_dir);
 
         Ok(Stores {
             task_repository,
@@ -210,7 +206,6 @@ impl Supervisor {
             notification_engine,
             plan_cache,
             mailbox_handle,
-            project_repository,
         })
     }
 }

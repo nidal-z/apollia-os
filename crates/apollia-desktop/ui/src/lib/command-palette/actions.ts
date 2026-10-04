@@ -25,7 +25,6 @@ import {
   Activity,
   Settings as SettingsIcon,
   Mic,
-  FolderOpen,
   Plus,
   Moon,
   Terminal,
@@ -35,6 +34,7 @@ import {
   ToggleRight,
   Keyboard,
   Info,
+  Landmark,
 } from "lucide-svelte";
 // NOSONAR typescript:S1874 - Svelte 4 ComponentType retained for lucide-svelte compat
 import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
@@ -122,7 +122,6 @@ export function buildPaletteActions(): PaletteAction[] {
     // ── Pages ─────────────────────────────────────────────────────
     nav("nav.dashboard", "dashboard", "nav.dashboard", LayoutDashboard, ["home"]),
     nav("nav.agents", "agents", "nav.agents", Bot, ["assistants", "bots"]),
-    nav("nav.projects", "projects", "nav.projects", FolderOpen, ["project", "workspaces"]),
     nav("nav.tasks", "tasks", "nav.tasks", ListChecks, ["tasks", "activity"]),
     nav("nav.chat", "chat", "nav.chat", MessageSquare, ["chat", "conversation"]),
     nav("nav.inbox", "inbox", "nav.inbox", ShieldCheck, ["inbox", "approvals", "hitl"]),
@@ -131,8 +130,8 @@ export function buildPaletteActions(): PaletteAction[] {
     nav("nav.automations", "automations", "nav.automations", Timer, ["automations", "triggers", "cron"]),
     nav("nav.memory", "memory", "nav.memory", Database, ["memory", "recall"], true),
     nav("nav.transcriptions", "transcriptions", "nav.transcriptions", Mic, ["stt", "speech"], true),
-    nav("nav.notifications", "notifications", "nav.notifications", Bell, ["notifications"]),
     nav("nav.observability", "observability", "nav.observability", Activity, ["observability", "metrics"], true),
+    nav("nav.policy", "policy", "nav.policy", Landmark, ["policy", "politique", "organisation", "organization"]),
     nav("nav.settings", "settings", "nav.settings", SettingsIcon, ["settings", "preferences"]),
 
     // ── Create / run actions ──────────────────────────────────────
@@ -193,7 +192,7 @@ export function buildPaletteActions(): PaletteAction[] {
     {
       id: "companion.toggle",
       label: tr("commandPalette.actions.toggleCompanion"),
-      keywords: ["companion", "panel", "toggle"],
+      keywords: ["companion", "guide", "help", "aide", "panel", "toggle"],
       icon: PanelRightOpen,
       kind: "actions",
       execute: () => companionStore.toggleCompanion(),
@@ -226,6 +225,16 @@ export function buildPaletteActions(): PaletteAction[] {
       kind: "settings",
       execute: () => {
         navigateToSettings("chat");
+      },
+    },
+    {
+      id: "settings.notifications.open",
+      label: tr("settings.nav.notifications"),
+      keywords: ["notifications", "channels", "alerts", "canaux", "alertes"],
+      icon: Bell,
+      kind: "settings",
+      execute: () => {
+        navigateToSettings("notifications");
       },
     },
     {

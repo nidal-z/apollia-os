@@ -9,14 +9,21 @@
  *   - Cache the Meta-LLM response in-memory per scope. Global is refreshed
  *     at most every 12h; session panels are one-shot (refreshed on user
  *     request or when a new close event fires).
- *   - Persist dismissed card ids in `localStorage` for 24h so a card the
- *     user actively dismissed does not come back on the next mount.
+ *   - Persist dismissed card ids for 24h, as the `next_steps` reminder of
+ *     the reminders registry (`$lib/reminders/registry`), so a card the
+ *     user actively dismissed does not come back on the next mount, and
+ *     Settings > Appearance can bring every dismissed card back.
  *   - Persist inline thumbs-up / thumbs-down feedback per card id (local
  *     only - never uploaded).
  */
 
 import { writable, get, derived, type Readable } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
+import {
+  readReminderState,
+  writeReminderState,
+  clearReminderState,
+} from "$lib/reminders/storage";
 
 // ────────────────────────── Types (mirror backend) ──────────────────────────
 
@@ -67,7 +74,8 @@ type Feedback = "useful" | "not_useful";
 
 // ─────────────────────────── Persistence helpers ───────────────────────────
 
-const DISMISS_KEY = "apollia.next_steps.dismissed";
+/** Id of the dismissed cards in the reminders registry. */
+export const NEXT_STEPS_REMINDER_ID = "next_steps";
 const FEEDBACK_KEY = "apollia.next_steps.feedback";
 const DISMISS_TTL_MS = 24 * 3600 * 1000;
 
@@ -77,33 +85,22 @@ type DismissMap = Record<string, number>;
 type FeedbackMap = Record<string, Feedback>;
 
 function readDismissMap(): DismissMap {
-  if (typeof localStorage === "undefined") return {};
-  try {
-    const raw = localStorage.getItem(DISMISS_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as DismissMap;
-    const now = Date.now();
-    let changed = false;
-    for (const key of Object.keys(parsed)) {
-      if (parsed[key] <= now) {
-        delete parsed[key];
-        changed = true;
-      }
+  const parsed = readReminderState<DismissMap>(NEXT_STEPS_REMINDER_ID);
+  if (!parsed || typeof parsed !== "object") return {};
+  const now = Date.now();
+  let changed = false;
+  for (const key of Object.keys(parsed)) {
+    if (parsed[key] <= now) {
+      delete parsed[key];
+      changed = true;
     }
-    if (changed) localStorage.setItem(DISMISS_KEY, JSON.stringify(parsed));
-    return parsed;
-  } catch {
-    return {};
   }
+  if (changed) writeDismissMap(parsed);
+  return parsed;
 }
 
 function writeDismissMap(map: DismissMap): void {
-  if (typeof localStorage === "undefined") return;
-  try {
-    localStorage.setItem(DISMISS_KEY, JSON.stringify(map));
-  } catch {
-    /* quota exceeded - ignore */
-  }
+  writeReminderState(NEXT_STEPS_REMINDER_ID, map);
 }
 
 function readFeedbackMap(): FeedbackMap {
@@ -216,6 +213,19 @@ function createStore() {
     });
   }
 
+  /** Whether at least one card is currently dismissed (expired ones dropped). */
+  function hasDismissed(): boolean {
+    const live = readDismissMap();
+    dismissed.set(live);
+    return Object.keys(live).length > 0;
+  }
+
+  /** Bring every dismissed card back. */
+  function clearDismissed(): void {
+    clearReminderState(NEXT_STEPS_REMINDER_ID);
+    dismissed.set({});
+  }
+
   function setFeedback(cardId: string, value: Feedback) {
     feedback.update((m) => {
       const next = { ...m, [cardId]: value };
@@ -254,6 +264,8 @@ function createStore() {
     },
     visible,
     dismiss,
+    hasDismissed,
+    clearDismissed,
     setFeedback,
     feedbackFor,
     peekScope,

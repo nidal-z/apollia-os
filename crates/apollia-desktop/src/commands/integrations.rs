@@ -785,6 +785,7 @@ mod tests {
                 signed_at: policy.signed_at,
                 policy,
                 key_fingerprint: "00".into(),
+                policy_digest: "00".into(),
                 publisher: "it".into(),
             }));
         ConnectionGovernance::new(

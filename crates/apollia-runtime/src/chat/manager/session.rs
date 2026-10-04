@@ -1,28 +1,6 @@
 use super::*;
 
 impl ChatSessionManager {
-    /// Clear the `project_id` of cached sessions after their project is deleted.
-    pub(in crate::chat::manager) fn handle_orphan_project_sessions(&mut self, project_id: &str) {
-        match self.repository.orphan_project_sessions(project_id) {
-            Ok(count) => {
-                if count > 0 {
-                    info!(project_id = %project_id, count, "chat.sessions.orphaned");
-                    // Also update in-memory cache
-                    for session in self.sessions.values_mut() {
-                        if session.project_id.as_deref() == Some(project_id) {
-                            session.project_id = None;
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                warn!(project_id = %project_id, error = %e, "chat.sessions.orphan.failed");
-            }
-        }
-    }
-}
-
-impl ChatSessionManager {
     /// Build a cross-session context block from past session summaries.
     ///
     /// Returns `None` if the first message is too short (trivial greeting)
@@ -120,8 +98,11 @@ impl ChatSessionManager {
             agent_name,
             system_prompt,
             tools,
-            project_id,
+            model,
         } = params;
+        let model = model
+            .map(|name| name.trim().to_owned())
+            .filter(|name| !name.is_empty());
         let declarative = match (&mode, agent_name.as_deref()) {
             (ChatMode::Agent, Some(name)) => {
                 super::declarative::declarative_agent(self.governance_db_path.as_deref(), name)
@@ -157,7 +138,6 @@ impl ChatSessionManager {
         // Silent fallback when the DB is absent / empty / unreadable: legacy behavior.
         let LibreSessionDefaults {
             llm_backend: libre_llm_backend,
-            pre_authorized,
         } = apply_libre_overrides(
             mode == ChatMode::Libre,
             &mut prompt,
@@ -172,8 +152,7 @@ impl ChatSessionManager {
             &prompt,
             &resolved_tools,
             &now,
-            None,
-            project_id.as_deref(),
+            model.as_deref(),
         )?;
 
         // A new session inherits the runtime-level plan-mode default. When it is
@@ -199,27 +178,31 @@ impl ChatSessionManager {
             system_prompt: prompt,
             status: SessionStatus::Active,
             history: Vec::new(),
-            authorized_tools: pre_authorized,
+            authorized_tools: std::collections::HashSet::new(),
             available_tools: resolved_tools,
             created_at: now.clone(),
             active_exchange: None,
-            llm_backend: libre_llm_backend,
+            llm_backend: model.clone().or(libre_llm_backend),
             title: None,
             parent_session_id: None,
             fork_depth: 0,
-            project_id,
-            force_project_context_inject: false,
-            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
-                std::collections::HashSet::new(),
-            )),
             // Plan mode is seeded from the runtime-level default; the per-session
             // toggle overrides it afterwards.
             plan_mode,
             plan_phase,
+            profile_id: None,
         };
 
         let info = session_to_info(&session);
         self.sessions.insert(session_id.clone(), session);
+        if let Some(model) = model.as_deref() {
+            tracing::event!(
+                tracing::Level::INFO,
+                session_id = %session_id,
+                model = %model,
+                "chat.session.model.chosen"
+            );
+        }
 
         // Emit event
         let _ = self.event_bus.send(RuntimeEvent::ChatSessionCreated {
@@ -235,9 +218,7 @@ impl ChatSessionManager {
     pub(in crate::chat::manager) fn handle_update_session(
         &mut self,
         session_id: &str,
-        system_prompt: Option<&str>,
-        available_tools: Option<&[String]>,
-        llm_backend: Option<&Option<String>>,
+        update: SessionConfigUpdate,
     ) -> Result<(), ChatError> {
         let session = self
             .sessions
@@ -253,34 +234,47 @@ impl ChatSessionManager {
         }
 
         // Persist to SQLite
-        self.repository.update_session_config(
-            session_id,
-            system_prompt,
-            available_tools,
-            llm_backend.map(|b| b.as_deref()),
-        )?;
+        self.repository.update_session_config(session_id, &update)?;
 
         // Update in-memory session
-        if let Some(prompt) = system_prompt {
-            session.system_prompt = prompt.to_string();
+        if let Some(prompt) = update.system_prompt {
+            session.system_prompt = prompt;
         }
-        if let Some(tools) = available_tools {
-            session.available_tools = tools.to_vec();
+        if let Some(tools) = update.available_tools {
+            session.available_tools = tools;
         }
-        if let Some(backend) = llm_backend {
-            session.llm_backend = backend.clone();
+        if let Some(backend) = update.llm_backend {
+            session.llm_backend = backend;
+        }
+        if let Some(profile) = update.profile_id {
+            session.profile_id = profile;
         }
 
         info!(session_id = %session_id, "chat.session.config.updated");
         Ok(())
+    }
+
+    /// Empty the profile of every session designating `profile_id`, in
+    /// `chat.db` and in memory; returns how many sessions designated it.
+    pub(in crate::chat::manager) fn handle_release_profile(
+        &mut self,
+        profile_id: &str,
+    ) -> Result<usize, ChatError> {
+        let released = self.repository.release_profile(profile_id)?;
+        for session in self.sessions.values_mut() {
+            if session.profile_id.as_deref() == Some(profile_id) {
+                session.profile_id = None;
+            }
+        }
+        info!(profile_id = %profile_id, released, "chat.session.profile.released");
+        Ok(released)
     }
 }
 
 impl ChatSessionManager {
     /// Resolve the effective working directory for a session: the folder its
     /// relative paths land in, the first folder granted to its agent (the
-    /// Apollia agent for a free chat). A project the session belongs to does
-    /// not decide it. Kept synchronous (SQLite reads only, no await) so the
+    /// Apollia agent for a free chat). Kept synchronous (SQLite reads only, no await) so the
     /// actor loop never holds a connection borrow across a suspension point.
     ///
     /// Returns `None` for an unknown session, or an agent granted no folder.
@@ -321,7 +315,6 @@ impl ChatSessionManager {
                         status,
                         created_at: row.created_at,
                         title: row.title,
-                        project_id: row.project_id,
                     })
                 })
                 .collect(),
@@ -445,13 +438,9 @@ impl ChatSessionManager {
             title: row.title,
             parent_session_id: row.parent_session_id,
             fork_depth: row.fork_depth,
-            project_id: row.project_id,
-            force_project_context_inject: false,
-            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
-                std::collections::HashSet::new(),
-            )),
             plan_mode,
             plan_phase,
+            profile_id: row.profile_id,
         };
 
         Some(SessionDetail {
@@ -690,64 +679,11 @@ impl ChatSessionManager {
                         status,
                         created_at: row.created_at,
                         title: row.title,
-                        project_id: row.project_id,
                     })
                 })
                 .collect(),
             Err(e) => {
                 error!(parent_id = %parent_id, error = %e, "chat.session.children.list.failed");
-                Vec::new()
-            }
-        }
-    }
-
-    /// Link or unlink a session to a project.
-    pub(in crate::chat::manager) fn handle_link_session_to_project(
-        &mut self,
-        session_id: &str,
-        project_id: Option<&str>,
-    ) -> Result<(), ChatError> {
-        self.repository
-            .set_session_project(session_id, project_id)?;
-
-        // Update in-memory cache and flag the next user message so the
-        // project-context provider re-runs (the initial-injection path is
-        // gated on `is_first_message`, which is false for already-active
-        // sessions).
-        if let Some(session) = self.sessions.get_mut(session_id) {
-            let new_pid = project_id.map(|s| s.to_string());
-            if session.project_id != new_pid {
-                session.force_project_context_inject = new_pid.is_some();
-            }
-            session.project_id = new_pid;
-        }
-        Ok(())
-    }
-
-    /// List sessions belonging to a specific project.
-    pub(in crate::chat::manager) fn handle_list_sessions_by_project(
-        &self,
-        project_id: &str,
-    ) -> Vec<SessionInfo> {
-        match self.repository.list_sessions_by_project(project_id) {
-            Ok(rows) => rows
-                .into_iter()
-                .filter_map(|row| {
-                    let mode = ChatMode::from_sql(&row.mode)?;
-                    let status = SessionStatus::from_sql(&row.status)?;
-                    Some(SessionInfo {
-                        id: row.id,
-                        mode,
-                        agent_name: row.agent_name,
-                        status,
-                        created_at: row.created_at,
-                        title: row.title,
-                        project_id: row.project_id,
-                    })
-                })
-                .collect(),
-            Err(e) => {
-                error!(project_id = %project_id, error = %e, "chat.sessions.list.failed");
                 Vec::new()
             }
         }

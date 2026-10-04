@@ -14,7 +14,7 @@ use std::time::Duration;
 use apollia_core::{HitlConfig, ObservabilityConfig, PendingApprovals, RuntimeConfig};
 use apollia_llm::LlmRouter;
 use apollia_notifications::NotificationEngineHandle;
-use apollia_tools::{AgentRepository, AuditTrailHandle, ProjectRepository, TaskRepository};
+use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository};
 
 use crate::api::routes_agents::{AgentBackendFactory, AgentLoader, StubAgentLoader};
 use crate::api::{APIServerConfig, APIServerHandle};
@@ -59,6 +59,8 @@ pub struct RuntimeHandle {
     /// Admission policy and journal of connection events. The desktop admits
     /// and journals a native account through it, the HTTP routes the rest.
     pub connection_governance: crate::governance::ConnectionGovernance,
+    /// The governance actor every tool call is decided by.
+    pub governance: crate::governance::GovernanceHandle,
     /// The audit journal, through which the desktop records the packages its
     /// binary ships when it installs them. `None` when it could not be opened.
     pub audit_journal: Option<crate::audit_journal::AuditJournalHandle>,
@@ -113,10 +115,6 @@ pub struct RuntimeHandle {
     ///
     /// Separate connection for read operations. Holds `None` when STT is disabled.
     pub stt_repository: crate::api::server::SharedSttRepository,
-    /// Project repository, manages per-project workspace contexts.
-    ///
-    /// `Some` when `projects.db` opened successfully on startup.
-    pub project_repository: Option<Arc<ProjectRepository>>,
     /// Handle to the MCP client manager.
     ///
     /// `Some` when the supervisor started the manager (always in v0.1.1+
@@ -156,6 +154,11 @@ pub struct RuntimeHandle {
     /// The runtime is the single source of truth for this default; the desktop
     /// reads it to seed its own per-user preference rather than inventing one.
     pub plan_mode_default: bool,
+
+    /// The live sections of the configuration, for the consumers the host
+    /// builds once the runtime is up: the agent runners read `[tools]` from
+    /// them at each run.
+    pub config_feed: crate::config_reload::ConfigFeed,
 
     /// Temperature applied to a chat turn that advertises tools, read from the
     /// `[chat] tool_turn_temperature` key of `apollia.toml` at boot. `None`
@@ -550,6 +553,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         plan_mode_default: config.chat_config.plan_mode_default,
         chat_tool_turn_temperature,
         workflows_config: config.workflows_config,
+        config_channels: None,
     };
 
     let supervisor = Supervisor::new(supervisor_config);
@@ -579,6 +583,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         trigger_engine: handles.trigger_engine,
         audit_trail: handles.audit_trail,
         connection_governance: handles.connection_governance,
+        governance: handles.governance,
         audit_journal: handles.audit_journal,
         task_repository: handles.task_repository,
         pending_approvals: handles.pending_approvals,
@@ -592,7 +597,6 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         user_memory: handles.user_memory,
         stt_engine: handles.stt_engine,
         stt_repository: handles.stt_repository,
-        project_repository: handles.project_repository,
         mcp_handle: handles.mcp_handle,
         tools_config,
         api_port: tcp_port.unwrap_or(0),
@@ -602,6 +606,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         org_policy: handles.org_policy,
         plan_mode_default,
         chat_tool_turn_temperature,
+        config_feed: handles.config_feed,
     })
 }
 

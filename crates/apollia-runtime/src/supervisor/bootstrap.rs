@@ -1,6 +1,52 @@
 use super::*;
 use apollia_core::events::{subscribe_resilient, ResilientReceiver};
 
+/// Create and supervise the two local engines, embedded llama-server and MLX,
+/// then share between them the leases and pins that keep a model loaded.
+///
+/// llama-server is created lazily: it locates the binary but does not launch a
+/// process until a model is requested, and is `None` when the binary is
+/// absent. MLX exists only on a Mac with Apple Silicon whose build carries it;
+/// an MLX model elsewhere is refused with its reason by the router. Both read
+/// `[llm.guardrails]` from `guardrails_file` at every launch, under the
+/// settings `org_policy` fixes.
+pub(in crate::supervisor) fn start_local_engines(
+    system_db_path: &std::path::Path,
+    guardrails_file: std::path::PathBuf,
+    event_sender: &EventBusSender,
+    org_policy: &apollia_permissions::PolicyVerdict,
+) -> (
+    Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
+    Option<Arc<crate::mlx_engine::MlxEngineSupervisor>>,
+) {
+    let llama = crate::llama_server::LlamaServerSupervisor::new(
+        crate::llama_server::LlamaServerConfig::default(),
+        Some(system_db_path.to_path_buf()),
+        Some(event_sender.clone()),
+        Some(guardrails_file.clone()),
+        org_policy.imposed_settings(),
+    )
+    .ok();
+    if let Some(supervisor) = &llama {
+        Arc::clone(supervisor).spawn_supervision();
+    }
+    let mlx = crate::mlx_engine::MlxEngineSupervisor::for_this_machine(
+        Some(guardrails_file.clone()),
+        org_policy.imposed_settings(),
+    );
+    if let Some(engine) = &mlx {
+        Arc::clone(engine).spawn_supervision();
+    }
+    crate::residency::start_residency(
+        system_db_path.to_path_buf(),
+        guardrails_file,
+        event_sender.clone(),
+        llama.as_ref(),
+        mlx.as_ref(),
+    );
+    (llama, mlx)
+}
+
 /// Detect the GPU and spawn the sidecar runner for the local LLM and STT
 /// backends. Returns `None` (logged) when the runner cannot start; cloud
 /// backends keep working without it.

@@ -86,8 +86,6 @@ fn spawn_test_manager_with_plan_default(
         None, // no user memory in basic tests
         registry_handle,
         None, // no A2A invoker in basic tests
-        None, // no project context in basic tests
-        None, // no project repo in basic tests
         None, // no mcp handle in basic tests
         None, // no chat tools config in basic tests
         LoadingMode::Eager,
@@ -109,7 +107,7 @@ fn libre_session_params() -> CreateSessionParams {
         agent_name: None,
         system_prompt: None,
         tools: vec![],
-        project_id: None,
+        model: None,
     }
 }
 
@@ -126,7 +124,7 @@ async fn test_create_session_libre() {
             agent_name: None,
             system_prompt: None,
             tools: vec!["bash_executor".into()],
-            project_id: None,
+            model: None,
         })
         .await
         .expect("create_session");
@@ -152,7 +150,7 @@ async fn test_create_session_agent_without_name() {
             agent_name: None,
             system_prompt: None,
             tools: vec![],
-            project_id: None,
+            model: None,
         })
         .await;
 
@@ -279,8 +277,6 @@ async fn test_close_session() {
         None,
         None,
         None,
-        None,
-        None,
         LoadingMode::Eager,
         20,
         None,  // no hooks in tests
@@ -378,7 +374,6 @@ async fn test_resolve_tool_approval() {
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: pending,
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -389,8 +384,6 @@ async fn test_resolve_tool_approval() {
         enrichment_extractor: None,
         tx,
         a2a_invoker: None,
-        project_context: None,
-        project_repo: None,
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
         todo_handle: None,
@@ -398,10 +391,14 @@ async fn test_resolve_tool_approval() {
         hook_executor: None,
         package_tools: None,
         composer: None,
+        governance: None,
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
+        config_feed: None,
+        plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
+        hook_executor_tx: tokio::sync::watch::Sender::new(None),
     };
 
     // Insert a dummy session so the lookup succeeds
@@ -420,13 +417,9 @@ async fn test_resolve_tool_approval() {
         title: None,
         parent_session_id: None,
         fork_depth: 0,
-        project_id: None,
-        force_project_context_inject: false,
-        fs_allow_rules: std::sync::Arc::new(
-            std::sync::Mutex::new(std::collections::HashSet::new()),
-        ),
         plan_mode: false,
         plan_phase: PlanPhase::Done,
+        profile_id: None,
     };
     manager.sessions.insert("sess-1".into(), session);
 
@@ -443,7 +436,7 @@ async fn test_resolve_tool_approval() {
 }
 
 #[tokio::test]
-async fn test_always_accept_not_honored_for_code_executor() {
+async fn test_always_accept_grants_no_tool_by_name() {
     // GIVEN a manager with pending approvals for a code executor and a normal tool
     let dir = tempfile::tempdir().expect("tempdir");
     let db_path = dir.path().join("chat.db");
@@ -466,7 +459,6 @@ async fn test_always_accept_not_honored_for_code_executor() {
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: pending,
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -477,8 +469,6 @@ async fn test_always_accept_not_honored_for_code_executor() {
         enrichment_extractor: None,
         tx,
         a2a_invoker: None,
-        project_context: None,
-        project_repo: None,
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
         todo_handle: None,
@@ -486,10 +476,14 @@ async fn test_always_accept_not_honored_for_code_executor() {
         hook_executor: None,
         package_tools: None,
         composer: None,
+        governance: None,
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
+        config_feed: None,
+        plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
+        hook_executor_tx: tokio::sync::watch::Sender::new(None),
     };
 
     let session = ChatSession {
@@ -507,19 +501,13 @@ async fn test_always_accept_not_honored_for_code_executor() {
         title: None,
         parent_session_id: None,
         fork_depth: 0,
-        project_id: None,
-        force_project_context_inject: false,
-        fs_allow_rules: std::sync::Arc::new(
-            std::sync::Mutex::new(std::collections::HashSet::new()),
-        ),
         plan_mode: false,
         plan_phase: PlanPhase::Done,
+        profile_id: None,
     };
     manager.sessions.insert("sess-1".into(), session);
 
-    let always = ToolDecision::AlwaysAccept {
-        scope: crate::chat::AlwaysAcceptScope::ThisSession,
-    };
+    let always = ToolDecision::AlwaysAccept;
 
     // WHEN "always accept" resolves for the code executor
     manager
@@ -540,10 +528,16 @@ async fn test_always_accept_not_honored_for_code_executor() {
     assert!(rx_bash.await.expect("bash decision").is_always_accept());
     assert!(rx_web.await.expect("web decision").is_always_accept());
 
-    // AND the code executor is NOT blanket-authorized, while the normal tool is
+    // AND neither tool is authorized by name, in the session or in chat.db:
+    // the run that asked turns "always" into a standing consent of its agent
+    // for the family of the tool
     let session = manager.sessions.get("sess-1").expect("session");
-    assert!(!session.authorized_tools.contains("bash_executor"));
-    assert!(session.authorized_tools.contains("web_read"));
+    assert!(session.authorized_tools.is_empty());
+    assert!(manager
+        .repository
+        .get_authorized_tools("sess-1")
+        .expect("read authorized tools")
+        .is_empty());
 }
 
 #[tokio::test]
@@ -611,7 +605,7 @@ async fn test_cross_session_context_substantive_message() {
         ),
     ] {
         repository
-            .create_session(id, &ChatMode::Libre, None, "", &[], ts, None, None)
+            .create_session(id, &ChatMode::Libre, None, "", &[], ts, None)
             .expect("create");
         repository.close_session(id, ts).expect("close");
         repository.update_summary(id, summary).expect("summary");
@@ -628,7 +622,6 @@ async fn test_cross_session_context_substantive_message() {
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: PendingChatApprovals::new(),
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -639,8 +632,6 @@ async fn test_cross_session_context_substantive_message() {
         enrichment_extractor: None,
         tx,
         a2a_invoker: None,
-        project_context: None,
-        project_repo: None,
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
         todo_handle: None,
@@ -648,10 +639,14 @@ async fn test_cross_session_context_substantive_message() {
         hook_executor: None,
         package_tools: None,
         composer: None,
+        governance: None,
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
+        config_feed: None,
+        plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
+        hook_executor_tx: tokio::sync::watch::Sender::new(None),
     };
 
     // WHEN building cross-session context with a substantive first message
@@ -684,7 +679,6 @@ async fn test_cross_session_context_trivial_message() {
             &[],
             "2026-03-20T10:00:00Z",
             None,
-            None,
         )
         .expect("create");
     repository
@@ -705,7 +699,6 @@ async fn test_cross_session_context_trivial_message() {
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: PendingChatApprovals::new(),
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -716,8 +709,6 @@ async fn test_cross_session_context_trivial_message() {
         enrichment_extractor: None,
         tx,
         a2a_invoker: None,
-        project_context: None,
-        project_repo: None,
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
         todo_handle: None,
@@ -725,10 +716,14 @@ async fn test_cross_session_context_trivial_message() {
         hook_executor: None,
         package_tools: None,
         composer: None,
+        governance: None,
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
+        config_feed: None,
+        plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
+        hook_executor_tx: tokio::sync::watch::Sender::new(None),
     };
 
     // WHEN building cross-session context with a trivial message
@@ -760,7 +755,6 @@ async fn test_cross_session_context_no_relevant_sessions() {
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: PendingChatApprovals::new(),
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -771,8 +765,6 @@ async fn test_cross_session_context_no_relevant_sessions() {
         enrichment_extractor: None,
         tx,
         a2a_invoker: None,
-        project_context: None,
-        project_repo: None,
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
         todo_handle: None,
@@ -780,10 +772,14 @@ async fn test_cross_session_context_no_relevant_sessions() {
         hook_executor: None,
         package_tools: None,
         composer: None,
+        governance: None,
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
+        config_feed: None,
+        plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
+        hook_executor_tx: tokio::sync::watch::Sender::new(None),
     };
 
     // WHEN building cross-session context with a substantive message but no past sessions
@@ -939,7 +935,6 @@ pub(super) fn manager_with_session_in_phase(
             &["bash".to_string()],
             "2026-03-20T10:00:00Z",
             None,
-            None,
         )
         .expect("create row");
     repository
@@ -958,7 +953,6 @@ pub(super) fn manager_with_session_in_phase(
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: PendingChatApprovals::new(),
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -969,8 +963,6 @@ pub(super) fn manager_with_session_in_phase(
         enrichment_extractor: None,
         tx,
         a2a_invoker: None,
-        project_context: None,
-        project_repo: None,
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
         todo_handle: None,
@@ -978,10 +970,14 @@ pub(super) fn manager_with_session_in_phase(
         hook_executor: None,
         package_tools: None,
         composer: None,
+        governance: None,
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
+        config_feed: None,
+        plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
+        hook_executor_tx: tokio::sync::watch::Sender::new(None),
     };
     let session = ChatSession {
         id: "sess-1".into(),
@@ -998,13 +994,9 @@ pub(super) fn manager_with_session_in_phase(
         title: None,
         parent_session_id: None,
         fork_depth: 0,
-        project_id: None,
-        force_project_context_inject: false,
-        fs_allow_rules: std::sync::Arc::new(
-            std::sync::Mutex::new(std::collections::HashSet::new()),
-        ),
         plan_mode: true,
         plan_phase: phase,
+        profile_id: None,
     };
     manager.sessions.insert("sess-1".into(), session);
     (manager, event_rx)
@@ -1201,6 +1193,7 @@ async fn test_message_during_awaiting_starts_revision_turn() {
         .handle_send_message(
             "sess-1",
             "Please plan the work: audit the repo, fix the tests, then open a PR",
+            Vec::new(),
         )
         .expect("send ok");
 
@@ -1533,7 +1526,7 @@ async fn test_create_session_agent_invalid_agent() {
             agent_name: Some("nonexistent".into()),
             system_prompt: None,
             tools: vec![],
-            project_id: None,
+            model: None,
         })
         .await;
 
@@ -1642,7 +1635,7 @@ async fn test_companion_send_without_llm_resets_status_to_active() {
     }
 
     // WHEN a message is sent and the dispatch fails
-    let result = manager.handle_send_message("sess-1", "hello");
+    let result = manager.handle_send_message("sess-1", "hello", Vec::new());
 
     // THEN the error surfaces AND the session is reset to Active (not stuck
     // Processing), with the active exchange cleared
@@ -1756,52 +1749,4 @@ async fn test_approve_plan_emits_executing_phase_changed() {
 
     // THEN a phase-changed event announces the Executing phase
     assert_eq!(next_phase_event(&mut rx).as_deref(), Some("executing"));
-}
-
-#[test]
-fn test_agent_scoped_prefix_rule_does_not_seed_the_name_set() {
-    use apollia_permissions::{PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction};
-
-    // GIVEN one agent-scoped allow rule carrying an arg_prefix and one
-    // name-only, both for the chat agent
-    let dir = tempfile::tempdir().expect("tempdir");
-    let db = dir.path().join("governance.db");
-    let mut engine = PrefixRuleEngine::new(&db).expect("open engine");
-    engine
-        .add_rule(&PrefixRule {
-            tool_name: "file_read".to_string(),
-            arg_prefix: Some("/tmp/safe".to_string()),
-            action: RuleAction::Allow,
-            scope: PermissionScope::Agent,
-            agent_id: Some(APOLLIA_CHAT_AGENT_ID.to_string()),
-            ..PrefixRule::default()
-        })
-        .expect("seed prefixed rule");
-    engine
-        .add_rule(&PrefixRule {
-            tool_name: "web_search".to_string(),
-            arg_prefix: None,
-            action: RuleAction::Allow,
-            scope: PermissionScope::Agent,
-            agent_id: Some(APOLLIA_CHAT_AGENT_ID.to_string()),
-            ..PrefixRule::default()
-        })
-        .expect("seed name-only rule");
-
-    // WHEN the chat overrides are seeded from the store
-    let mut out = ChatLibreOverrides::default();
-    super::libre::apply_chat_prefix_allow_rules(&mut out, &db);
-
-    // THEN the prefixed rule does not authorize the whole tool name (it is
-    // evaluated per invocation instead), while the name-only rule does
-    assert!(
-        !out.pre_authorized_tools.contains("file_read"),
-        "a prefixed rule must not widen into a tool-wide authorization: {:?}",
-        out.pre_authorized_tools
-    );
-    assert!(
-        out.pre_authorized_tools.contains("web_search"),
-        "{:?}",
-        out.pre_authorized_tools
-    );
 }

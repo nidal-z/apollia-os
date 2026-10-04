@@ -9,7 +9,7 @@
     sessionId: string;
     /** Display name for the assistant side - falls back to a generic label. */
     agentName?: string | null;
-    /** "compact" propagates to bubbles for embedded contexts. */
+    /** Thread density from Settings > Appearance; "compact" propagates to bubbles. */
     variant?: "default" | "compact";
     /** True while a turn is generating - disables regenerate/edit in bubbles. */
     busy?: boolean;
@@ -52,14 +52,14 @@
   data-testid="chat-message-group-{group.key}"
 >
   {#if showHeader}
-    <div class="flex items-center gap-2 mb-3 px-0.5">
+    <div class="flex items-center gap-2 {variant === 'compact' ? 'mb-1.5' : 'mb-3'} px-0.5">
       <Avatar name={displayName} size="xs" ring={false} />
       <span class="text-body-sm font-semibold text-foreground">{displayName}</span>
       <span class="text-caption-lg tabular-nums text-muted-foreground/50">{headerTime}</span>
     </div>
   {/if}
 
-  <div class="w-full flex flex-col items-start space-y-2">
+  <div class="w-full flex flex-col items-start {variant === 'compact' ? 'space-y-1' : 'space-y-2'}">
     {#each group.messages as msg (msg.id)}
       <ChatMessageBubble
         message={msg}

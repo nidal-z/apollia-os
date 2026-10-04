@@ -20,7 +20,7 @@
   } from "$lib/chat/rewriteInput";
   import { addToast } from "$lib/components/ui/toast";
   import { chatInputAppend } from "$lib/stores/artifacts";
-  import type { PendingAttachment } from "$lib/chat/attachments";
+  import type { ImageSupport, PendingAttachment } from "$lib/chat/attachments";
   import { createComposerAttachments } from "./useComposerAttachments.svelte";
   import { createComposerDictation } from "./useComposerDictation.svelte";
   import { createComposerRateLimit } from "./useComposerRateLimit.svelte";
@@ -68,6 +68,8 @@
     onplantoggle?: () => void;
     /** Disables the Plan toggle (e.g. closed session). */
     planDisabled?: boolean;
+    /** What the model of the conversation does with images; `null` unknown. */
+    imageSupport?: ImageSupport | null;
   }
 
   let {
@@ -82,6 +84,7 @@
     planMode = false,
     onplantoggle,
     planDisabled = false,
+    imageSupport = null,
   }: Props = $props();
 
   const DEFAULT_SUGGESTION_KEYS = [
@@ -103,7 +106,7 @@
 
   let value = $state("");
   const dictation = createComposerDictation();
-  const attachments = createComposerAttachments();
+  const attachments = createComposerAttachments(() => imageSupport);
   const rateLimit = createComposerRateLimit();
   let focused = $state(false);
 

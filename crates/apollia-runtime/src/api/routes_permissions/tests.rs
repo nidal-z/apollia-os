@@ -1,17 +1,11 @@
 use std::sync::Arc;
 
-use apollia_core::StepBudgetConfig;
-use apollia_llm::LlmRouter;
-use apollia_mcp::session::LoadingMode;
-use apollia_tools::ToolRegistryHandle;
 use axum::http::StatusCode;
 use serde_json::json;
 use tempfile::TempDir;
 
 use crate::api::server::AppState;
 use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
-use crate::chat::manager::ChatSessionManagerHandle;
-use crate::chat::{AlwaysAcceptScope, FsHitlDecision};
 use crate::permission_rules::seed_proposals;
 
 fn state(dir: &TempDir) -> AppState<MockBackend> {
@@ -19,33 +13,6 @@ fn state(dir: &TempDir) -> AppState<MockBackend> {
         Arc::new(StemLoader { refusal: None }),
         dir.path().to_path_buf(),
     )
-}
-
-fn with_chat(dir: &TempDir) -> (AppState<MockBackend>, ChatSessionManagerHandle) {
-    let mut state = state(dir);
-    let chat = ChatSessionManagerHandle::spawn(
-        &dir.path().join("chat.db"),
-        Some(Arc::new(LlmRouter::empty())),
-        ToolRegistryHandle::start(),
-        Arc::new(StemLoader { refusal: None }),
-        None,
-        state.event_sender.clone(),
-        StepBudgetConfig::default(),
-        None,
-        state.registry_handle.clone(),
-        None,
-        None,
-        None,
-        None,
-        None,
-        LoadingMode::Eager,
-        20,
-        None,
-        false,
-    )
-    .unwrap();
-    state.chat_manager = Some(chat.clone());
-    (state, chat)
 }
 
 #[tokio::test]
@@ -209,95 +176,20 @@ async fn test_a_rule_scoped_to_a_project_is_refused_over_http() {
 }
 
 #[tokio::test]
-async fn test_a_pending_file_request_is_answered_over_http() {
-    // GIVEN a turn waiting on a request to write a file
-    let dir = TempDir::new().unwrap();
-    let (state, chat) = with_chat(&dir);
-    let waiting = chat.pending_fs_approvals().register("req-1".to_owned());
-
-    // WHEN a client answers "always allow" for the project
-    let (status, body) = call(
-        state,
-        "POST",
-        "/api/v1/approvals/filesystem/req-1",
-        Some(json!({
-            "decision": "always_allow",
-            "op": "write",
-            "level": "high",
-            "scope": "this_project"
-        })),
-    )
-    .await;
-
-    // THEN the route answers and the turn receives that decision
-    assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(body["request_id"], "req-1");
-    match waiting.await.unwrap() {
-        FsHitlDecision::AlwaysAllow { scope, op, level } => {
-            assert_eq!(scope, AlwaysAcceptScope::ThisProject);
-            assert_eq!(op, "write");
-            assert_eq!(level, "high");
-        }
-        other => panic!("expected AlwaysAllow, got {other:?}"),
-    }
-}
-
-#[tokio::test]
-async fn test_an_answer_to_an_unknown_file_request_is_refused_over_http() {
-    // GIVEN a chat with no pending file request
-    let dir = TempDir::new().unwrap();
-    let (state, _chat) = with_chat(&dir);
-
-    // WHEN a client answers a request id nobody waits on
-    let (status, body) = call(
-        state,
-        "POST",
-        "/api/v1/approvals/filesystem/gone",
-        Some(json!({"decision": "deny", "reason": "not safe"})),
-    )
-    .await;
-
-    // THEN it is a 404 naming the request
-    assert_eq!(status, StatusCode::NOT_FOUND);
-    assert!(body["error"].as_str().unwrap().contains("'gone'"), "{body}");
-}
-
-#[tokio::test]
-async fn test_an_answer_without_a_chat_is_unavailable() {
-    // GIVEN a daemon whose chat subsystem did not start
+async fn test_no_route_answers_a_file_request_any_more() {
+    // GIVEN the daemon routes, where a write is consented to on the card of
+    //       its family like any other tool
     let dir = TempDir::new().unwrap();
 
-    // WHEN a client answers a file request
-    let (status, body) = call(
+    // WHEN a client posts the answer the separate file prompt used to take
+    let (status, _body) = call(
         state(&dir),
         "POST",
         "/api/v1/approvals/filesystem/req-1",
-        Some(json!({"decision": "approve"})),
+        Some(json!({ "decision": "approve" })),
     )
     .await;
 
-    // THEN it is a 503 with the embedded words
-    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
-    assert_eq!(body["error"], "chat subsystem not available");
-}
-
-#[test]
-fn test_the_legacy_session_answer_reads_as_always_allow_for_the_session() {
-    // GIVEN the discriminant older frontends still send
-    let body: super::FsHitlDecisionBody = serde_json::from_value(
-        json!({"decision": "always_allow_session", "op": "delete", "level": "medium"}),
-    )
-    .unwrap();
-
-    // WHEN it becomes the decision the chat manager resolves
-    let decision = body.into_decision();
-
-    // THEN it is an always-allow for this session
-    assert!(matches!(
-        decision,
-        FsHitlDecision::AlwaysAllow {
-            scope: AlwaysAcceptScope::ThisSession,
-            ..
-        }
-    ));
+    // THEN nothing is there to receive it
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }

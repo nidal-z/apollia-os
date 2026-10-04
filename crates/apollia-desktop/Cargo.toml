@@ -29,7 +29,6 @@ apollia-stt      = { workspace = true, default-features = false }
 apollia-core     = { workspace = true, features = ["net"] }
 apollia-memory   = { workspace = true }
 apollia-tools        = { workspace = true }
-apollia-workspace    = { workspace = true }
 apollia-permissions  = { workspace = true }
 apollia-aip      = { workspace = true }
 apollia-oria     = { workspace = true }
@@ -46,7 +45,6 @@ tokio            = { workspace = true }
 hyper            = { workspace = true }
 hyper-util       = { workspace = true }
 http-body-util   = { workspace = true }
-toml             = { workspace = true }
 open             = { workspace = true }
 thiserror        = { workspace = true }
 tracing          = { workspace = true }

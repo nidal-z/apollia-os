@@ -2,7 +2,7 @@
   /**
    * DetailHeader - canonical header for the detail pane of split screens.
    *
-   * Split screens (Connections, Projects, Agents, Tasks split, Memory) carry
+   * Split screens (Connections, Agents, Tasks split, Memory) carry
    * their screen identity in the topbar breadcrumb, so the detail pane uses this
    * header instead of a full-width PageHeader: a leading visual, a title with
    * inline badges, a one-line meta, and right-aligned actions. A TabBar usually

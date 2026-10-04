@@ -228,6 +228,25 @@ fn test_the_server_keys_resolve_to_their_defaults() {
 }
 
 #[test]
+fn test_server_cors_is_a_setting_off_by_default_and_writable() {
+    // GIVEN a file without a [server] section
+    let (_dir, path) = config_with("[desktop]\ndeveloper_mode = true\n");
+    let before = resolve_setting(&path, "server.cors", &PolicySettings::none()).unwrap();
+
+    // WHEN cross-origin answers are switched on
+    write_setting(&path, "server.cors", json!(true), &PolicySettings::none()).unwrap();
+
+    // THEN the key was off from the defaults, and now reads on from the user
+    assert_eq!(before.value, json!(false));
+    assert_eq!(before.source, SettingSource::Default);
+    let after = resolve_setting(&path, "server.cors", &PolicySettings::none()).unwrap();
+    assert_eq!(after.value, json!(true));
+    assert_eq!(after.source, SettingSource::User);
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(ServerConfig::from_toml_str(&written).unwrap().cors);
+}
+
+#[test]
 fn test_writing_server_enabled_keeps_the_rest_of_the_file() {
     // GIVEN a file carrying a comment and the desktop section
     let (_dir, path) = config_with("# mine\n[desktop]\ndeveloper_mode = true\n");
@@ -403,6 +422,38 @@ fn test_the_mcp_bridge_switch_written_on_resolves_on_from_the_user() {
     let written = std::fs::read_to_string(&path).unwrap();
     assert!(written.contains("[mcp]"), "{written}");
     assert_eq!(resolved.value, json!(true));
+    assert_eq!(resolved.source, SettingSource::User);
+}
+
+// ── The idle unload delay ────────────────────────────────────────────────
+
+#[test]
+fn test_the_idle_unload_delay_is_a_named_setting_of_an_hour_by_default() {
+    // GIVEN a file with an [llm] section that says nothing of residency
+    let (_dir, path) = config_with("[llm]\ndefault = \"local\"\n");
+
+    // WHEN the delay is resolved
+    let resolved = resolve_setting(&path, IDLE_UNLOAD_KEY, &PolicySettings::none()).unwrap();
+
+    // THEN it is known, sixty minutes, and comes from the default
+    assert_eq!(resolved.value, json!(60));
+    assert_eq!(resolved.source, SettingSource::Default);
+}
+
+#[test]
+fn test_the_idle_unload_delay_written_to_never_resolves_from_the_user() {
+    // GIVEN an empty file
+    let (_dir, path) = config_with("");
+
+    // WHEN the delay is written to zero, never, then resolved
+    write_setting(&path, IDLE_UNLOAD_KEY, json!(0), &PolicySettings::none()).unwrap();
+    let resolved = resolve_setting(&path, IDLE_UNLOAD_KEY, &PolicySettings::none()).unwrap();
+
+    // THEN the file carries it under [llm.residency], and it resolves from
+    //      the user
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(written.contains("[llm.residency]"), "{written}");
+    assert_eq!(resolved.value, json!(0));
     assert_eq!(resolved.source, SettingSource::User);
 }
 

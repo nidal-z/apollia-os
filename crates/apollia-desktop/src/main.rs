@@ -41,7 +41,6 @@ mod handlers;
 pub mod i18n;
 pub mod mcp;
 mod process_job;
-mod project_context;
 mod startup;
 pub mod stt;
 mod token_coalescer;
@@ -203,6 +202,10 @@ fn main() {
     // McpToolExecutor per registered MCP tool into the agent's dispatcher.
     let mcp_handle_lock: Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>> =
         Arc::new(std::sync::OnceLock::new());
+    // The governance actor, so a run's dispatcher leaves out the tools it
+    // disabled and refuses what is sensitive while it fails closed.
+    let governance_lock: Arc<std::sync::OnceLock<apollia_runtime::governance::GovernanceHandle>> =
+        Arc::new(std::sync::OnceLock::new());
     // Agent registry + task router, required to build A2A delegate/invoker so
     // task-mode (triggers) and chat-agent flows can call `ctx.a2a_invoke(...)`
     // and discover virtual `a2a:*` tools, on parity with Chat Libre.
@@ -215,8 +218,9 @@ fn main() {
         Arc::new(std::sync::OnceLock::new());
     // Tools config (`[tools]` from apollia.toml) drives web_search/web_read
     // params and statically-disabled tools. Populated from RuntimeHandle.
-    let tools_config_lock: Arc<std::sync::OnceLock<ToolsConfig>> =
-        Arc::new(std::sync::OnceLock::new());
+    let tools_config_lock: Arc<
+        std::sync::OnceLock<apollia_runtime::config_reload::Live<ToolsConfig>>,
+    > = Arc::new(std::sync::OnceLock::new());
     // Plan-gate registry, forwarded to per-agent engines so the desktop UI can
     // resolve a pending plan gate via submit_plan_decision.
     let plan_gates_lock: Arc<std::sync::OnceLock<Arc<apollia_oria::PendingPlanGates>>> =
@@ -238,6 +242,7 @@ fn main() {
             pending_approvals: pending_approvals_lock.clone(),
             task_repository: task_repository_lock.clone(),
             mcp_handle: mcp_handle_lock.clone(),
+            governance: governance_lock.clone(),
             agent_registry: agent_registry_lock.clone(),
             task_router: task_router_lock.clone(),
             mailbox_handle: mailbox_handle_lock.clone(),
@@ -298,6 +303,7 @@ fn main() {
                 task_repository: task_repository_lock.clone(),
                 pending_user_inputs: pending_user_inputs_lock.clone(),
                 mcp_handle: mcp_handle_lock.clone(),
+                governance: governance_lock.clone(),
                 agent_registry: agent_registry_lock.clone(),
                 task_router: task_router_lock.clone(),
                 mailbox_handle: mailbox_handle_lock.clone(),
@@ -367,6 +373,7 @@ fn main() {
             task_repository: &task_repository_lock,
             pending_user_inputs: &pending_user_inputs_lock,
             mcp_handle: &mcp_handle_lock,
+            governance: &governance_lock,
             agent_registry: &agent_registry_lock,
             task_router: &task_router_lock,
             mailbox_handle: &mailbox_handle_lock,
@@ -382,9 +389,9 @@ fn main() {
         let registry = runtime_handle.tool_registry_handle.clone();
         let chat = runtime_handle.chat_manager.clone();
         let workflows = runtime_handle.workflows.clone();
-        let journal = runtime_handle.audit_journal.clone();
+        let governance = runtime_handle.governance.clone();
         worker.spawn(async move {
-            bundled_packages::install_bundled_packages(&data_dir, journal).await;
+            bundled_packages::install_bundled_packages(&data_dir, governance).await;
             apollia_aip::package_tools::attach(
                 &data_dir,
                 &registry,

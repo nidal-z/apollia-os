@@ -141,6 +141,11 @@ pub async fn run(
     // Read before the port check, since `[api].port` names the port to check.
     let (loaded_config, config_path) = load_start_config(config.as_deref())?;
     let file_config = loaded_config.unwrap_or_default();
+    // The live sections of the configuration: the agent runners built below
+    // read [tools] from them at each run, and the runtime
+    // sends a saved change on them.
+    let config_channels = apollia_runtime::config_reload::ConfigChannels::new(&file_config);
+    let config_feed = config_channels.feed();
     let tcp_port = resolve_tcp_port(port, &file_config.api);
 
     // Detect an already-running runtime before attempting to bind, so the user
@@ -272,6 +277,7 @@ pub async fn run(
         plan_mode_default: chat_config.plan_mode_default,
         chat_tool_turn_temperature: chat_config.tool_turn_temperature,
         workflows_config: file_config.workflows,
+        config_channels: Some(config_channels),
     };
     let supervisor = Supervisor::new(config);
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(AIPAgentLoader);
@@ -307,6 +313,8 @@ pub async fn run(
         Arc::new(std::sync::OnceLock::new());
     let pending_user_inputs_lock: Arc<std::sync::OnceLock<PendingUserInputs>> =
         Arc::new(std::sync::OnceLock::new());
+    let governance_lock: Arc<std::sync::OnceLock<apollia_runtime::governance::GovernanceHandle>> =
+        Arc::new(std::sync::OnceLock::new());
     let mcp_handle_lock: Arc<
         std::sync::OnceLock<Option<apollia_mcp::manager::McpClientManagerHandle>>,
     > = Arc::new(std::sync::OnceLock::new());
@@ -322,9 +330,10 @@ pub async fn run(
         task_repository: task_repository_lock.clone(),
         registry: registry_lock.clone(),
         router: router_lock.clone(),
-        tools_config: tools_config.clone(),
+        tools_config: config_feed.tools.clone(),
         data_dir: data_dir_for_chat.clone(),
         mcp_handle: mcp_handle_lock.clone(),
+        governance: governance_lock.clone(),
     });
     // Keep a handle for the post-supervisor rewire pass.
     let factory_for_rewire = factory.clone();
@@ -340,8 +349,9 @@ pub async fn run(
             agent_registry: registry_lock.clone(),
             task_router: router_lock.clone(),
             data_dir: data_dir_for_chat,
-            tools_config,
+            tools_config: config_feed.tools.clone(),
             mcp_handle: mcp_handle_lock.clone(),
+            governance: governance_lock.clone(),
         }));
 
     let handles = supervisor
@@ -366,6 +376,7 @@ pub async fn run(
     set_lock_if_some(&task_repository_lock, handles.task_repository.clone());
     // Cloned (not moved) so the ShutdownController still receives handles.mcp_handle.
     let _ = mcp_handle_lock.set(handles.mcp_handle.clone());
+    let _ = governance_lock.set(handles.governance.clone());
     set_lock_if_some(
         &pending_user_inputs_lock,
         handles
@@ -489,6 +500,9 @@ pub async fn run(
 
     Ok(interrupted)
 }
+#[cfg(test)]
+mod fail_closed_tests;
+
 #[cfg(test)]
 mod tests {
     use super::engine::{direct_path_budget, wire_engine_with_llm, AIPProductionBackend};
@@ -775,13 +789,14 @@ agent = A()
             memory_base_dir: tmp.clone(),
             user_memory_write: false,
             a2a_invoker: None,
-            tools_config: apollia_core::ToolsConfig::default(),
+            tools_config: apollia_core::ToolsConfig::default().into(),
             datasources_declared: vec![],
             templates_declared: vec![],
             agent_dir: Some(tmp.clone()),
             secrets_declared: vec![],
             secrets_data_dir: None,
             mcp_handle: None,
+            governance: None,
         };
 
         let task = AIPTask {

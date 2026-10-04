@@ -102,6 +102,42 @@ pub enum JournalEntryKind {
     /// A folder of this machine was added as a connection. The payload is a
     /// [`crate::governance::ConnectionRecord`].
     FolderAdded,
+    /// The user answered a consent prompt: once, always, or refuse. The payload is a
+    /// [`crate::governance::GovernanceRecord`]; it never carries the call's argument.
+    ConsentAnswered,
+    /// A standing consent ("always") was withdrawn. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    AlwaysWithdrawn,
+    /// The organisation policy refused a call. The payload is a
+    /// [`crate::governance::GovernanceRecord`]; it never carries the call's argument.
+    PolicyRefused,
+    /// A fine rule refused a call. The payload is a
+    /// [`crate::governance::GovernanceRecord`]; it never carries the call's argument.
+    RuleRefused,
+    /// A fine rule was added. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    RuleAdded,
+    /// A fine rule was removed. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    RuleRemoved,
+    /// A family was granted to an agent for one batch run. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    BatchAccessGranted,
+    /// The organisation policy was applied at startup. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    PolicyApplied,
+    /// The policy applied at startup differs from the one applied before. The
+    /// payload is a [`crate::governance::GovernanceRecord`].
+    PolicyChanged,
+    /// A deposited policy was refused at startup. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    PolicyUnreadable,
+    /// Governance entered fail-closed: it refuses what is sensitive. The
+    /// payload is a [`crate::governance::GovernanceRecord`].
+    FailClosedTriggered,
+    /// The journal was exported. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    JournalExported,
     /// A run-scoped event with no explicit mapping; `raw_kind` keeps the
     /// original variant name so coverage stays auditable.
     Unknown {
@@ -148,6 +184,18 @@ impl JournalEntryKind {
             JournalEntryKind::AccountConnected => "account_connected",
             JournalEntryKind::AccountDisconnected => "account_disconnected",
             JournalEntryKind::FolderAdded => "folder_added",
+            JournalEntryKind::ConsentAnswered => "consent_answered",
+            JournalEntryKind::AlwaysWithdrawn => "always_withdrawn",
+            JournalEntryKind::PolicyRefused => "policy_refused",
+            JournalEntryKind::RuleRefused => "rule_refused",
+            JournalEntryKind::RuleAdded => "rule_added",
+            JournalEntryKind::RuleRemoved => "rule_removed",
+            JournalEntryKind::BatchAccessGranted => "batch_access_granted",
+            JournalEntryKind::PolicyApplied => "policy_applied",
+            JournalEntryKind::PolicyChanged => "policy_changed",
+            JournalEntryKind::PolicyUnreadable => "policy_unreadable",
+            JournalEntryKind::FailClosedTriggered => "fail_closed_triggered",
+            JournalEntryKind::JournalExported => "journal_exported",
             JournalEntryKind::Unknown { raw_kind } => raw_kind,
         }
     }
@@ -188,6 +236,18 @@ impl JournalEntryKind {
             "account_connected" => JournalEntryKind::AccountConnected,
             "account_disconnected" => JournalEntryKind::AccountDisconnected,
             "folder_added" => JournalEntryKind::FolderAdded,
+            "consent_answered" => JournalEntryKind::ConsentAnswered,
+            "always_withdrawn" => JournalEntryKind::AlwaysWithdrawn,
+            "policy_refused" => JournalEntryKind::PolicyRefused,
+            "rule_refused" => JournalEntryKind::RuleRefused,
+            "rule_added" => JournalEntryKind::RuleAdded,
+            "rule_removed" => JournalEntryKind::RuleRemoved,
+            "batch_access_granted" => JournalEntryKind::BatchAccessGranted,
+            "policy_applied" => JournalEntryKind::PolicyApplied,
+            "policy_changed" => JournalEntryKind::PolicyChanged,
+            "policy_unreadable" => JournalEntryKind::PolicyUnreadable,
+            "fail_closed_triggered" => JournalEntryKind::FailClosedTriggered,
+            "journal_exported" => JournalEntryKind::JournalExported,
             other => JournalEntryKind::Unknown {
                 raw_kind: other.to_string(),
             },
@@ -397,6 +457,38 @@ mod tests {
                 "account_disconnected",
             ),
             (JournalEntryKind::FolderAdded, "folder_added"),
+        ];
+        for (kind, expected) in cases {
+            // WHEN converting to its tag and back
+            let tag = kind.tag().to_string();
+            let back = JournalEntryKind::from_tag(&tag);
+            // THEN the tag is stable and the round trip is identity
+            assert_eq!(tag, expected);
+            assert_eq!(back, kind);
+        }
+    }
+
+    // The kinds of consents, refusals, rules, batches and policy round-trip
+    // through their stable tags.
+    #[test]
+    fn test_decision_and_policy_kinds_tags_round_trip() {
+        // GIVEN the kinds and their expected tags
+        let cases = [
+            (JournalEntryKind::ConsentAnswered, "consent_answered"),
+            (JournalEntryKind::AlwaysWithdrawn, "always_withdrawn"),
+            (JournalEntryKind::PolicyRefused, "policy_refused"),
+            (JournalEntryKind::RuleRefused, "rule_refused"),
+            (JournalEntryKind::RuleAdded, "rule_added"),
+            (JournalEntryKind::RuleRemoved, "rule_removed"),
+            (JournalEntryKind::BatchAccessGranted, "batch_access_granted"),
+            (JournalEntryKind::PolicyApplied, "policy_applied"),
+            (JournalEntryKind::PolicyChanged, "policy_changed"),
+            (JournalEntryKind::PolicyUnreadable, "policy_unreadable"),
+            (
+                JournalEntryKind::FailClosedTriggered,
+                "fail_closed_triggered",
+            ),
+            (JournalEntryKind::JournalExported, "journal_exported"),
         ];
         for (kind, expected) in cases {
             // WHEN converting to its tag and back

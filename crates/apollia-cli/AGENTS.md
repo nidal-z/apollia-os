@@ -13,7 +13,7 @@ releases.
 ## 1. Command shape
 
 Every command is `apollia-os <noun> <verb> [args]`, except the bare-verb
-whitelist below. The tree carries 207 leaves today; read it with
+whitelist below. The tree carries 243 leaves today; read it with
 `apollia-os --help` recursively, never from memory.
 
 **Verb taxonomy.** Every leaf's last token belongs to one of the categories
@@ -26,11 +26,11 @@ the same commit as the command.
 |---|---|
 | entity | `show`, `create`, `delete`, `list`, `rename`, `edit` |
 | config | `get`, `set`, `raw-config`, `set-default` |
-| relationship | `add`, `remove`, `link` |
+| relationship | `add`, `remove` |
 | lifecycle | `install`, `uninstall`, `enable`, `disable`, `start`, `stop`, `restart`, `reset`, `reload`, `update`, `revoke`, `login`, `logout`, `setup`, `init`, `resume`, `cancel`, `pause` |
 | maintenance | `clear`, `evict`, `purge`, `repair`, `forget` |
-| report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `resolved`, `approvals`, `messages`, `skills`, `chats`, `accounts`, `accesses`, `capabilities`, `hardware`, `recommend`, `schema`, `keys`, `anchor`, `inspect`, `preview`, `trace`, `version`, `digest` |
-| action | `run`, `build`, `keygen`, `sign`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `retry`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `seed-builtins`, `set-approval`, `revoke-approval`, `list-pending`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
+| report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `resolved`, `approvals`, `messages`, `skills`, `accounts`, `accesses`, `capabilities`, `hardware`, `recommend`, `schema`, `keys`, `anchor`, `inspect`, `preview`, `trace`, `version`, `digest` |
+| action | `run`, `build`, `keygen`, `sign`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `retry`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `set-approval`, `revoke-approval`, `list-pending`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
 | interchange | `export`, `import` |
 
 **One verb per intent.** `show` is the only entity-detail read (it absorbed
@@ -40,8 +40,8 @@ purpose, verified against real usage:
 
 - `get` / `set` are config key/value pairs (`config`, `chat config`,
   `tools config`, `notify events`), not entity reads.
-- `add` / `remove` attach and detach a relationship, git-style (`mcp add`,
-  `project agents add`); they do not create or delete an entity.
+- `add` / `remove` attach and detach a relationship, git-style (`mcp add`);
+  they do not create or delete an entity.
 - `clear` and `evict` are distinct in `plan cache`: wipe all against purge by
   age.
 
@@ -67,6 +67,13 @@ smoke sweep and the `--json` probe may drive, since a load reaches the real
 session whatever `HOME` says.
 
 If you add a new noun, document it here and in `docs/site/docs/reference/cli/`.
+
+**`approvals`** (`pending`) lists, from the runtime, every decision a run
+waits on: the tool consents of the conversations and of the runs outside any
+conversation, the paused tasks, the batch items waiting for an access, and the
+questions agents asked. Each item names the answers it takes (`once`,
+`always`, `refuse`, or `answer` for a question); they are given through
+`POST /api/v1/pending-decisions/decide`. With no runtime it exits 2.
 
 **`batch`** (`run`, `status`, `list`, `accesses`, `pause`, `resume`, `stop`,
 `retry`, `export`) runs a stored agent without code on every item of a source, in the

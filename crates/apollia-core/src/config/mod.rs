@@ -21,15 +21,17 @@
 //!   [`resolve_setting`] and written by [`write_setting`], which refuses a key
 //!   the organization policy locks.
 //! - [`ServerConfig`]: `[server]`, the compatible server, a second listener
-//!   of the runtime on its own port, switched off by default; its two keys
-//!   are named settings too.
+//!   of the runtime on its own port, switched off by default, and how it
+//!   loads and unloads models on demand; its keys are named settings too.
 //! - [`EnginesConfig`]: `[engines]`, the settings of the local inference
 //!   engines, the engine log level first; named settings, read when a model
 //!   loads.
 //! - [`AuthorConfig`]: `[author]`, the publisher name of the agents exported
 //!   from this machine.
 //! - [`LlmConfig`]: `[llm]`, the backends declared in the file, routing and
-//!   the prompt debug log; `apollia-llm` re-exports its shapes.
+//!   the prompt debug log; `apollia-llm` re-exports its shapes. Its `[llm.residency]`
+//!   subsection, [`LlmResidencyConfig`], is a named setting resolved by
+//!   [`resolve_setting`].
 //!
 //! [`default_file_text`] renders the registry as the `apollia.toml` written on a
 //! first start, every key commented at its default under its documentation,
@@ -57,11 +59,11 @@ mod chat;
 mod default_file;
 mod desktop;
 mod engines;
-mod filesystem_risk;
 mod hitl;
 mod hooks;
 pub mod keys;
 mod llm;
+mod llm_residency;
 mod llm_section;
 mod mcp;
 mod models;
@@ -106,10 +108,10 @@ pub use chat::ChatConfig;
 pub use default_file::{default_file_text, write_default_file_if_absent};
 pub use desktop::{DesktopConfig, UpdateChannel};
 pub use engines::{EngineLogLevel, EnginesConfig, ENGINE_LOG_LEVELS};
-pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
 pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig};
+pub use llm_residency::{LlmResidencyConfig, DEFAULT_IDLE_UNLOAD_MINUTES, IDLE_UNLOAD_KEY};
 pub use llm_section::{
     infer_api_provider_from_url, LlmApiBackendEntry, LlmBackendEntry, LlmBackendKind, LlmConfig,
     LlmGuardrailsConfig, LlmObservabilityConfig,
@@ -125,7 +127,10 @@ pub use registry::RegistryConfig;
 pub(crate) use retired::warn_retired_keys;
 pub use root::ApolliaConfig;
 pub use runtime::RuntimeConfig;
-pub use server::{ServerConfig, DEFAULT_COMPAT_SERVER_PORT};
+pub use server::{
+    ServerConfig, DEFAULT_COMPAT_SERVER_PORT, DEFAULT_JIT_IDLE_TTL_MINUTES, JIT_AUTO_UNLOAD_KEY,
+    JIT_IDLE_TTL_KEY, JIT_KEEP_LAST_ONLY_KEY, JIT_LOADING_KEY,
+};
 pub use settings::{
     check_imposed_setting, resolve_setting, resolve_setting_in, write_setting, PolicySettings,
     ResolvedSetting, SettingError, SettingSource, GUARDRAIL_LEVELS,
