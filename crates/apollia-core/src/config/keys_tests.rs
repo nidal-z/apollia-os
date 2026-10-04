@@ -133,6 +133,8 @@ fn every_section_carries_the_reload_class_of_the_measured_table() {
         ("author", ReloadClass::Reloadable),
         // Read again at every model launch, unlike the rest of `[llm]`.
         ("llm.guardrails", ReloadClass::Reloadable),
+        // Read again at every sweep of the loaded models.
+        ("llm.residency", ReloadClass::Reloadable),
     ];
 
     // WHEN every live key of those sections is read, against its longest
@@ -219,6 +221,7 @@ fn the_named_settings_are_lockable() {
         vec![
             "llm.guardrails.level",
             "llm.guardrails.ceiling_gb",
+            "llm.residency.idle_unload_minutes",
             "mcp.approval_ttl_hours",
             "mcp.tool_loading",
             "mcp.tool_search_limit",

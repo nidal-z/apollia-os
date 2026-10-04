@@ -3,7 +3,7 @@
 
 use crate::supervisor::*;
 
-use crate::supervisor::bootstrap::spawn_runner_supervisor;
+use crate::supervisor::bootstrap::{spawn_runner_supervisor, start_local_engines};
 
 /// The inference engines and the router built over them.
 pub(super) struct Inference {
@@ -71,26 +71,8 @@ impl Supervisor {
                 .data_dir
                 .join(apollia_core::paths::CONFIG_FILE_NAME)
         });
-        let llama_server_supervisor = crate::llama_server::LlamaServerSupervisor::new(
-            crate::llama_server::LlamaServerConfig::default(),
-            Some(system_db_path.clone()),
-            Some(event_sender.clone()),
-            Some(guardrails_file.clone()),
-            org_policy.imposed_settings(),
-        )
-        .ok();
-        if let Some(supervisor) = &llama_server_supervisor {
-            Arc::clone(supervisor).spawn_supervision();
-        }
-        // The MLX engine, on a Mac with Apple Silicon whose build carries it.
-        // An MLX model elsewhere is refused with its reason by the router.
-        let mlx_engine = crate::mlx_engine::MlxEngineSupervisor::for_this_machine(
-            Some(guardrails_file),
-            org_policy.imposed_settings(),
-        );
-        if let Some(engine) = &mlx_engine {
-            Arc::clone(engine).spawn_supervision();
-        }
+        let (llama_server_supervisor, mlx_engine) =
+            start_local_engines(&system_db_path, guardrails_file, event_sender, org_policy);
 
         // Phase 4 (pos 5): LlmRouter + LlmBackendRepository, loads backends from system.db
         let (llm_router, llm_backend_repo) = self

@@ -11,7 +11,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use super::{LlmRoutingConfig, LlmRunnerConfig};
+use super::{LlmResidencyConfig, LlmRoutingConfig, LlmRunnerConfig};
 use crate::{LlmBackendConfig, LlmProvider};
 
 /// LLM configuration deserialized from the `[llm]` section of `apollia.toml`.
@@ -60,6 +60,10 @@ pub struct LlmConfig {
     /// Load guardrails of a local model (`[llm.guardrails]` section).
     #[serde(default)]
     pub guardrails: LlmGuardrailsConfig,
+    /// How long an unused local model stays loaded (`[llm.residency]`
+    /// section).
+    #[serde(default)]
+    pub residency: LlmResidencyConfig,
 }
 
 /// The `[llm.guardrails]` section: how strictly a local model launch is held
@@ -110,6 +114,7 @@ impl LlmConfig {
             cost_alert_threshold_usd: None,
             runner: LlmRunnerConfig::default(),
             guardrails: LlmGuardrailsConfig::default(),
+            residency: LlmResidencyConfig::default(),
         }
     }
 

@@ -406,6 +406,38 @@ fn test_the_mcp_bridge_switch_written_on_resolves_on_from_the_user() {
     assert_eq!(resolved.source, SettingSource::User);
 }
 
+// ── The idle unload delay ────────────────────────────────────────────────
+
+#[test]
+fn test_the_idle_unload_delay_is_a_named_setting_of_an_hour_by_default() {
+    // GIVEN a file with an [llm] section that says nothing of residency
+    let (_dir, path) = config_with("[llm]\ndefault = \"local\"\n");
+
+    // WHEN the delay is resolved
+    let resolved = resolve_setting(&path, IDLE_UNLOAD_KEY, &PolicySettings::none()).unwrap();
+
+    // THEN it is known, sixty minutes, and comes from the default
+    assert_eq!(resolved.value, json!(60));
+    assert_eq!(resolved.source, SettingSource::Default);
+}
+
+#[test]
+fn test_the_idle_unload_delay_written_to_never_resolves_from_the_user() {
+    // GIVEN an empty file
+    let (_dir, path) = config_with("");
+
+    // WHEN the delay is written to zero, never, then resolved
+    write_setting(&path, IDLE_UNLOAD_KEY, json!(0), &PolicySettings::none()).unwrap();
+    let resolved = resolve_setting(&path, IDLE_UNLOAD_KEY, &PolicySettings::none()).unwrap();
+
+    // THEN the file carries it under [llm.residency], and it resolves from
+    //      the user
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(written.contains("[llm.residency]"), "{written}");
+    assert_eq!(resolved.value, json!(0));
+    assert_eq!(resolved.source, SettingSource::User);
+}
+
 #[test]
 fn test_the_update_channel_resolves_to_stable_by_default() {
     // GIVEN a file that does not name the update channel

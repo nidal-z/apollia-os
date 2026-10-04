@@ -30,7 +30,8 @@ pub struct LoadedModelDto {
     /// GGUF, `vllm-mlx` for MLX.
     pub engine: Engine,
     /// What the model serves: `chat`, or `embeddings` for the instance that
-    /// serves search by meaning, which does not count against `maxLoaded`.
+    /// serves search by meaning, which counts neither against `maxLoaded` nor
+    /// against the memory the guardrail weighs.
     pub kind: ModelKind,
     /// Display name, the model file name without its extension.
     pub model: String,
@@ -79,8 +80,10 @@ pub struct LoadedModelsResponse {
     /// Whether a local engine exists on this host. `false` means nothing can
     /// ever be loaded, not merely that nothing is.
     pub engine_available: bool,
-    /// How many models may stay resident at once; `0` without an engine.
-    pub max_loaded: usize,
+    /// The explicit ceiling on resident models (`APOLLIA_LLAMA_MAX_LOADED`);
+    /// `null` when the load guardrail alone decides how many stay loaded, and
+    /// without an engine.
+    pub max_loaded: Option<usize>,
     /// The resident models, most recently used first.
     pub models: Vec<LoadedModelDto>,
 }
@@ -132,19 +135,25 @@ pub async fn list_loaded_models<B: ExecutionBackend + Clone>(
     if llama.is_none() && mlx.is_none() {
         return Json(LoadedModelsResponse {
             engine_available: false,
-            max_loaded: 0,
+            max_loaded: None,
             models: Vec::new(),
         });
     }
     let mut loaded = Vec::new();
-    let mut max_loaded = 0;
+    // A ceiling holds only when every engine present sets one: an engine
+    // without one admits whatever the load guardrail admits.
+    let mut max_loaded = Some(0_usize);
     if let Some(engine) = llama {
         loaded.extend(LocalEngine::loaded_models(engine).await);
-        max_loaded += LocalEngine::max_loaded(engine);
+        max_loaded = max_loaded
+            .zip(LocalEngine::max_loaded(engine))
+            .map(|(a, b)| a + b);
     }
     if let Some(engine) = mlx {
         loaded.extend(LocalEngine::loaded_models(engine).await);
-        max_loaded += LocalEngine::max_loaded(engine);
+        max_loaded = max_loaded
+            .zip(LocalEngine::max_loaded(engine))
+            .map(|(a, b)| a + b);
     }
     loaded.sort_by_key(|m| std::cmp::Reverse(m.last_used_at));
     Json(LoadedModelsResponse {
@@ -154,7 +163,8 @@ pub async fn list_loaded_models<B: ExecutionBackend + Clone>(
     })
 }
 
-/// Unload `model_path` from whichever engine serves it.
+/// Unload `model_path` from whichever engine serves it, and announce it as
+/// asked by the user. Returns the processes stopped.
 async fn unload_from_engines(
     llama: Option<&crate::llama_server::LlamaServerSupervisor>,
     mlx: Option<&crate::mlx_engine::MlxEngineSupervisor>,
@@ -163,11 +173,22 @@ async fn unload_from_engines(
     let mut outcome = Err(UnloadError::NotLoaded {
         model_path: model_path.to_owned(),
     });
-    if let Some(engine) = llama {
-        outcome = LocalEngine::unload_model(engine, model_path).await;
+    let mut engine = Engine::LlamaServer;
+    if let Some(llama) = llama {
+        outcome = LocalEngine::unload_model(llama, model_path).await;
     }
-    if let (Err(UnloadError::NotLoaded { .. }), Some(engine)) = (&outcome, mlx) {
-        outcome = LocalEngine::unload_model(engine, model_path).await;
+    if let (Err(UnloadError::NotLoaded { .. }), Some(mlx)) = (&outcome, mlx) {
+        engine = Engine::VllmMlx;
+        outcome = LocalEngine::unload_model(mlx, model_path).await;
+    }
+    if outcome.is_ok() {
+        if let Some(residency) = (crate::residency::Engines { llama, mlx }).residency() {
+            residency.announce_unloaded(
+                engine.as_str(),
+                model_path,
+                apollia_core::ModelUnloadReason::Requested,
+            );
+        }
     }
     outcome
 }
@@ -379,8 +400,9 @@ mod tests {
         .await;
         let (_, after) = send(router, Method::GET, "/api/v1/llm/loaded-models", "").await;
 
-        // THEN both are listed, each naming its engine, the ceiling counts
-        // both engines, and the MLX model unloads like a GGUF one
+        // THEN both are listed, each naming its engine, no fixed ceiling holds
+        // since the MLX engine sets none, and the MLX model unloads like a GGUF
+        // one
         let listed: serde_json::Value = serde_json::from_slice(&listed).expect("json");
         let models = listed["models"].as_array().expect("models");
         let engine_of = |path: &str| {
@@ -398,7 +420,7 @@ mod tests {
             engine_of("/models/qwen-mlx"),
             Some(serde_json::json!("vllm-mlx"))
         );
-        assert_eq!(listed["maxLoaded"], 2);
+        assert_eq!(listed["maxLoaded"], serde_json::Value::Null);
         assert_eq!(status, StatusCode::OK);
         assert!(mlx.loaded_models().await.is_empty());
         let after: serde_json::Value = serde_json::from_slice(&after).expect("json");

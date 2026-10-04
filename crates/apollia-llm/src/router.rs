@@ -729,6 +729,7 @@ mod tests {
             cost_alert_threshold_usd: None,
             runner: Default::default(),
             guardrails: Default::default(),
+            residency: Default::default(),
         };
 
         // WHEN
@@ -973,6 +974,7 @@ mod tests {
             cost_alert_threshold_usd: None,
             runner: Default::default(),
             guardrails: Default::default(),
+            residency: Default::default(),
         };
 
         // WHEN

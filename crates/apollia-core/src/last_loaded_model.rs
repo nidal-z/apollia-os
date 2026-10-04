@@ -182,13 +182,17 @@ mod tests {
         // WHEN the repository opens it
         let repo = LlmBackendRepository::open(&path).unwrap();
 
-        // THEN the file is at version seven, the table answers, and the row is kept
+        // THEN the file is at the current version, the table answers, and the
+        //      row is kept
         assert_eq!(repo.last_loaded_model().unwrap(), None);
         let conn = repo.conn.borrow();
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 7);
+        assert_eq!(
+            version,
+            i64::from(crate::system_db::SYSTEM_DB_SCHEMA_VERSION)
+        );
         let kept: String = conn
             .query_row("SELECT model_id FROM embedding_default", [], |row| {
                 row.get(0)

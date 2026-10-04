@@ -37,6 +37,7 @@ pub mod costs;
 pub mod load;
 pub mod loaded;
 pub mod presets;
+pub mod residency;
 pub mod servers;
 pub mod turn_calls;
 
@@ -584,6 +585,7 @@ pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .merge(load::load_routes::<B>())
         .merge(servers::server_routes::<B>())
         .merge(presets::preset_routes::<B>())
+        .merge(residency::residency_routes::<B>())
 }
 
 // ─────────────────────────────────────────────

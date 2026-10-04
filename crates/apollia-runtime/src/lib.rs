@@ -60,6 +60,7 @@ pub mod projects;
 pub mod recommendation;
 pub mod registry;
 pub mod replay;
+pub mod residency;
 pub mod router;
 pub mod runner_supervisor;
 pub mod service;
