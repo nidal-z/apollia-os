@@ -251,6 +251,7 @@ impl FileRead {
             tags: vec!["file".to_string(), "read".to_string()],
             family: crate::descriptor::ActionFamily::Read,
             family_source: crate::descriptor::FamilySource::Builtin,
+            target_arg: Some("path".to_string()),
             is_read_only: true,
             risk_score: 0,
             approval_risk_level: None,

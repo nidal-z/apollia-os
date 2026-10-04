@@ -73,6 +73,10 @@ async fn test_each_tool_is_published_with_the_family_its_hints_give() {
     assert_eq!(ping.family, ActionFamily::Unclassified);
     assert_eq!(ping.family_source, FamilySource::Unsourced);
     assert!(!ping.is_read_only);
+    // AND no MCP tool designates a target argument
+    for tool in [&lookup, &purge, &ping] {
+        assert_eq!(tool.target_arg, None, "{}", tool.name);
+    }
 
     manager.shutdown().await;
 }

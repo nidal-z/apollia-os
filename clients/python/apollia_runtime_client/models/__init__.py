@@ -44,6 +44,8 @@ from .applied_proposal import AppliedProposal
 from .artifact import Artifact
 from .audit_entry_dto import AuditEntryDto
 from .audit_event_response import AuditEventResponse
+from .audit_journal_entry_detail_response import AuditJournalEntryDetailResponse
+from .audit_journal_entry_detail_response_entry import AuditJournalEntryDetailResponseEntry
 from .audit_journal_page_response import AuditJournalPageResponse
 from .audit_journal_page_response_entries_item import AuditJournalPageResponseEntriesItem
 from .audit_journal_response import AuditJournalResponse
@@ -232,6 +234,9 @@ from .item_preview import ItemPreview
 from .journal_anchor import JournalAnchor
 from .journal_break import JournalBreak
 from .journal_break_reason import JournalBreakReason
+from .journal_nature import JournalNature
+from .journal_outcome import JournalOutcome
+from .journal_summary import JournalSummary
 from .last_loaded_model_response import LastLoadedModelResponse
 from .last_loaded_model_response_load import LastLoadedModelResponseLoad
 from .lease_response import LeaseResponse
@@ -488,6 +493,9 @@ from .timeline_response import TimelineResponse
 from .todo_read_response import TodoReadResponse
 from .todo_read_response_items_item import TodoReadResponseItemsItem
 from .token_usage_response import TokenUsageResponse
+from .tool_call_detail import ToolCallDetail
+from .tool_call_detail_arguments_type_0 import ToolCallDetailArgumentsType0
+from .tool_call_detail_output_type_0 import ToolCallDetailOutputType0
 from .tool_config_body import ToolConfigBody
 from .tool_config_body_config_type_0 import ToolConfigBodyConfigType0
 from .tool_enabled_body import ToolEnabledBody
@@ -598,6 +606,8 @@ __all__ = (
     "Artifact",
     "AuditEntryDto",
     "AuditEventResponse",
+    "AuditJournalEntryDetailResponse",
+    "AuditJournalEntryDetailResponseEntry",
     "AuditJournalPageResponse",
     "AuditJournalPageResponseEntriesItem",
     "AuditJournalResponse",
@@ -786,6 +796,9 @@ __all__ = (
     "JournalAnchor",
     "JournalBreak",
     "JournalBreakReason",
+    "JournalNature",
+    "JournalOutcome",
+    "JournalSummary",
     "LastLoadedModelResponse",
     "LastLoadedModelResponseLoad",
     "LeaseResponse",
@@ -1038,6 +1051,9 @@ __all__ = (
     "TodoReadResponse",
     "TodoReadResponseItemsItem",
     "TokenUsageResponse",
+    "ToolCallDetail",
+    "ToolCallDetailArgumentsType0",
+    "ToolCallDetailOutputType0",
     "ToolConfigBody",
     "ToolConfigBodyConfigType0",
     "ToolEnabledBody",

@@ -220,6 +220,7 @@ mod tests {
             tags: vec![],
             family: crate::descriptor::ActionFamily::ExecuteCode,
             family_source: crate::descriptor::FamilySource::Builtin,
+            target_arg: None,
             is_read_only: false,
             risk_score: 8,
             approval_risk_level: None,

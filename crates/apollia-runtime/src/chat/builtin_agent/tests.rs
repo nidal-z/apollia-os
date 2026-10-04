@@ -1316,9 +1316,9 @@ async fn test_events_emitted_in_order() {
         .await
         .expect("should succeed");
 
-    // THEN events are: ResponseStarted (tool iteration), ToolCallStarted,
-    // ToolCallCompleted, ResponseStarted (text iteration), Token("Done"),
-    // ResponseCompleted
+    // THEN events are: ResponseStarted (tool iteration), ToolCallStarted and
+    // its journal twin, ToolCallCompleted and its journal twin, ResponseStarted
+    // (text iteration), Token("Done"), ResponseCompleted
     let mut event_names = Vec::new();
     while let Ok(evt) = event_rx.try_recv() {
         let name = match evt {
@@ -1326,6 +1326,8 @@ async fn test_events_emitted_in_order() {
             RuntimeEvent::ChatToken { .. } => "Token",
             RuntimeEvent::ChatToolCallStarted { .. } => "ToolCallStarted",
             RuntimeEvent::ChatToolCallCompleted { .. } => "ToolCallCompleted",
+            RuntimeEvent::ToolCallStarted { .. } => "JournalCallStarted",
+            RuntimeEvent::ToolCallCompleted { .. } => "JournalCallCompleted",
             RuntimeEvent::ChatResponseCompleted { .. } => "ResponseCompleted",
             RuntimeEvent::LlmCallCompleted { .. } => continue,
             RuntimeEvent::LlmResponseCaptured { .. } => continue,
@@ -1340,7 +1342,9 @@ async fn test_events_emitted_in_order() {
         vec![
             "ResponseStarted",
             "ToolCallStarted",
+            "JournalCallStarted",
             "ToolCallCompleted",
+            "JournalCallCompleted",
             "ResponseStarted",
             "Token",
             "ResponseCompleted"
@@ -2212,6 +2216,7 @@ fn mcp_descriptor(full_name: &str) -> apollia_tools::descriptor::ToolDescriptor 
         tags: vec!["mcp".to_string()],
         family: apollia_tools::ActionFamily::WriteOrDelete,
         family_source: apollia_tools::FamilySource::Unsourced,
+        target_arg: None,
         is_read_only: false,
         risk_score: 3,
         approval_risk_level: None,

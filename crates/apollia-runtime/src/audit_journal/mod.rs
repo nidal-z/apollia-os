@@ -11,22 +11,28 @@
 
 pub mod actor;
 pub mod anchor;
+pub mod detail;
 pub mod entry;
 pub mod error;
+pub mod filter;
 pub mod handle;
 pub mod hash;
 #[cfg(any(test, kani))]
 mod proofs;
 pub mod signer;
 pub mod subscriber;
+pub mod summary;
 pub mod verify;
 
+pub use detail::{entry_detail, JournalEntryDetail, ToolCallDetail};
 pub use entry::{JournalEntry, JournalEntryDraft, JournalEntryKind, PlanMutationSnapshot};
 pub use error::AuditJournalError;
+pub use filter::{JournalCriteria, JournalFilter, JournalFilterError};
 pub use handle::AuditJournalHandle;
 pub use hash::{compute_entry_hash, compute_global_hash, SENTINEL_PREV_HASH};
 pub use signer::{HmacSigner, JournalSigner, SignerError, SignerUnavailablePolicy};
 pub use subscriber::AuditJournalSubscriber;
+pub use summary::{summarize, JournalLine, JournalNature, JournalOutcome, JournalSummary};
 pub use verify::{
     BrokenLink, BrokenLinkReason, JournalAnchor, JournalBreak, JournalBreakReason,
     VerifyChainReport, VerifyJournalReport,
@@ -451,9 +457,10 @@ mod tests {
         tokio::fs::remove_file(&path).await.ok();
     }
 
-    // A page narrowed to some runs holds theirs only, still newest first
+    // A page narrowed to the runs of some agents holds theirs only, still
+    // newest first, and counts matching entries
     #[tokio::test]
-    async fn test_query_page_of_runs_keeps_only_those_runs() {
+    async fn test_query_lines_keeps_the_runs_of_the_agents_and_pages_them() {
         // GIVEN entries of three runs, interleaved
         let (handle, path) = open_temp().await;
         for run in ["run-a", "run-b", "run-c", "run-a", "run-b"] {
@@ -463,16 +470,25 @@ mod tests {
                 serde_json::json!({}),
             ));
         }
+        let of = |runs: &[&str]| JournalFilter {
+            agents: vec!["some-agent".into()],
+            agent_runs: runs.iter().map(|r| (*r).to_owned()).collect(),
+            ..JournalFilter::default()
+        };
 
-        // WHEN a page is read for run-a and run-c, and for no run at all
-        let page = handle
-            .query_page_of_runs(vec!["run-a".into(), "run-c".into()], 10, 0)
-            .await;
-        let none = handle.query_page_of_runs(Vec::new(), 10, 0).await;
+        // WHEN the lines are read for the agents whose runs are run-a and
+        // run-c, then page by page, then for agents with no run at all
+        let page = handle.query_lines(of(&["run-a", "run-c"]), 10, 0).await;
+        let second = handle.query_lines(of(&["run-a", "run-c"]), 1, 1).await;
+        let none = handle.query_lines(of(&[]), 10, 0).await;
 
-        // THEN run-b is absent, the order is the global one, and no run is no entry
-        let runs: Vec<&str> = page.iter().map(|e| e.run_id.as_str()).collect();
+        // THEN run-b is absent, the order is the global one, the offset counts
+        // matching entries, and no run is no entry
+        let runs: Vec<&str> = page.iter().map(|l| l.entry.run_id.as_str()).collect();
         assert_eq!(runs, vec!["run-a", "run-c", "run-a"]);
+        assert_eq!(second.len(), 1);
+        assert_eq!(second[0].entry.run_id, "run-c");
+        assert_eq!(second[0].summary.what, "Tool call started");
         assert!(none.is_empty());
         handle.shutdown().await;
         tokio::fs::remove_file(&path).await.ok();

@@ -1241,7 +1241,7 @@ List recent audit events (default)
 
 Browse the hash-chained journal across every run, newest first.
 
-Unlike `audit list` (the tool-invocation trail) and `audit show RUN` (one run), this reads the chained journal without needing a run id up front, so the audited register is reachable by browsing.
+Unlike `audit list` (the tool-invocation trail) and `audit show RUN` (one run), this reads the chained journal without needing a run id up front, so the audited register is reachable by browsing. Each entry is printed as its summary: when, who, what, on what, with which result, and never the content of a call. The filters add up, and `--limit` and `--offset` count the entries that pass them.
 
 **Usage:** `apollia-os audit journal [OPTIONS]`
 
@@ -1253,7 +1253,12 @@ Unlike `audit list` (the tool-invocation trail) and `audit show RUN` (one run), 
 * `--offset <OFFSET>` - Number of entries to skip, newest first. Page through with it
 
   Default value: `0`
-* `--agent <AGENT>` - Keep the runs of this agent's tasks only. Repeat it for several agents
+* `--agent <AGENT>` - Keep what names this agent, and the runs of its tasks. Repeat it for several agents
+* `--family <FAMILY>` - Keep this action family: read, read_personal, write_or_delete, send_external, execute_code. Repeat it for several
+* `--nature <NATURE>` - Keep this nature: action, access_change, policy, system. Repeat it for several
+* `--result <RESULT>` - Keep this result: success, failure, refused. Repeat it for several
+* `--since <DATE>` - Start of the period, included: YYYY-MM-DD (UTC) or an RFC 3339 instant
+* `--until <DATE>` - End of the period, excluded: YYYY-MM-DD (UTC) or an RFC 3339 instant
 
 
 

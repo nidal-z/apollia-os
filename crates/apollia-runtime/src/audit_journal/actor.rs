@@ -13,8 +13,10 @@ use serde_json::Value;
 use crate::audit_journal::anchor::{self, GlobalHead, GlobalLink};
 use crate::audit_journal::entry::{JournalEntry, JournalEntryDraft, JournalEntryKind};
 use crate::audit_journal::error::AuditJournalError;
+use crate::audit_journal::filter::JournalFilter;
 use crate::audit_journal::hash::{compute_entry_hash, compute_global_hash, SENTINEL_PREV_HASH};
 use crate::audit_journal::signer::JournalSigner;
+use crate::audit_journal::summary::JournalLine;
 use crate::audit_journal::verify::{
     verify_entries, verify_journal, JournalAnchor, VerifyChainReport, VerifyJournalReport,
 };
@@ -118,13 +120,19 @@ pub(crate) enum JournalMessage {
         run_id: String,
         reply: tokio::sync::oneshot::Sender<Vec<JournalEntry>>,
     },
-    /// Return a page of entries across every run, newest global position first,
-    /// or across the listed runs only when `runs` is set.
+    /// Return a page of entries across every run, newest global position first.
     QueryPage {
         limit: usize,
         offset: usize,
-        runs: Option<Vec<String>>,
         reply: tokio::sync::oneshot::Sender<Vec<JournalEntry>>,
+    },
+    /// Return a page of the entries that pass `filter`, each with its summary,
+    /// newest global position first.
+    QueryLines {
+        filter: Box<JournalFilter>,
+        limit: usize,
+        offset: usize,
+        reply: tokio::sync::oneshot::Sender<Vec<JournalLine>>,
     },
     /// Return the last hash of a run, if any.
     LastHash {
@@ -239,13 +247,19 @@ impl JournalActor {
                 JournalMessage::QueryPage {
                     limit,
                     offset,
-                    runs,
                     reply,
                 } => {
-                    let rows = self
-                        .query_page(limit, offset, runs.as_deref())
-                        .unwrap_or_default();
+                    let rows = self.query_page(limit, offset).unwrap_or_default();
                     let _ = reply.send(rows);
+                }
+                JournalMessage::QueryLines {
+                    filter,
+                    limit,
+                    offset,
+                    reply,
+                } => {
+                    let lines = self.query_lines(&filter, limit, offset).unwrap_or_default();
+                    let _ = reply.send(lines);
                 }
                 JournalMessage::LastHash { run_id, reply } => {
                     let _ = reply.send(self.last_hash(&run_id));
@@ -559,40 +573,77 @@ impl JournalActor {
     /// `global_seq`. SQLite sorts NULLs last under `DESC`, so they land at the
     /// tail rather than disappearing: a listing that silently dropped rows would
     /// be worse than one that orders them by a fallback key.
-    ///
-    /// `runs` narrows the page to those runs, passed as one JSON array so the
-    /// statement does not grow with the number of runs.
     fn query_page(
         &self,
         limit: usize,
         offset: usize,
-        runs: Option<&[String]>,
     ) -> Result<Vec<JournalEntry>, AuditJournalError> {
-        let runs_json = match runs {
-            Some(runs) => Some(
-                serde_json::to_string(runs)
-                    .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?,
-            ),
-            None => None,
-        };
         let mut stmt = self
             .conn
             .prepare(
                 "SELECT seq, run_id, ts, kind, payload, prev_hash, hash, signature, signing_key_id \
                  FROM audit_journal_entries \
-                 WHERE ?3 IS NULL OR run_id IN (SELECT value FROM json_each(?3)) \
                  ORDER BY global_seq DESC, run_id ASC, seq DESC \
                  LIMIT ?1 OFFSET ?2",
             )
             .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;
         let rows = stmt
-            .query_map(
-                rusqlite::params![limit as i64, offset as i64, runs_json],
-                row_to_entry,
-            )
+            .query_map(rusqlite::params![limit as i64, offset as i64], row_to_entry)
             .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
             .map_err(|e| AuditJournalError::Sqlite(e.to_string()))
+    }
+
+    /// Read one page of the entries that pass `filter`, each with its summary,
+    /// in the order of [`Self::query_page`].
+    ///
+    /// The filter is applied here, row by row, so `limit` and `offset` count
+    /// matching entries. A row whose kind or date already rules it out is
+    /// dropped before its payload is parsed, and the walk stops once the page
+    /// is full.
+    fn query_lines(
+        &self,
+        filter: &JournalFilter,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<JournalLine>, AuditJournalError> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT seq, run_id, ts, kind, payload, prev_hash, hash, signature, signing_key_id \
+                 FROM audit_journal_entries \
+                 ORDER BY global_seq DESC, run_id ASC, seq DESC",
+            )
+            .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;
+        let mut rows = stmt
+            .query([])
+            .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;
+        let mut lines = Vec::new();
+        let mut skipped = 0;
+        while lines.len() < limit {
+            let Some(row) = rows
+                .next()
+                .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?
+            else {
+                break;
+            };
+            let sqlite = |e: rusqlite::Error| AuditJournalError::Sqlite(e.to_string());
+            let ts: String = row.get(2).map_err(sqlite)?;
+            let kind: String = row.get(3).map_err(sqlite)?;
+            if !filter.admits(&JournalEntryKind::from_tag(&kind), &ts) {
+                continue;
+            }
+            let line = JournalLine::of(row_to_entry(row).map_err(sqlite)?);
+            if !filter.matches(&line.entry, &line.summary) {
+                continue;
+            }
+            if skipped < offset {
+                skipped += 1;
+                continue;
+            }
+            lines.push(line);
+        }
+        Ok(lines)
     }
 
     /// Read all entries of a run, ordered by ascending `seq`.

@@ -1507,6 +1507,20 @@ pub enum RuntimeEvent {
         /// Run this call belongs to, when emitted within a correlated run.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         run_id: Option<RunId>,
+        /// Identifier of the call within its run: the identifier the model gave
+        /// the call when there is one, the `event_id` otherwise. It is what
+        /// joins this record to the captured arguments and output of the call.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tool_call_id: Option<String>,
+        /// Action family of the tool, under its wire name (`read`,
+        /// `write_or_delete`, ...). `None` when the emitter does not know it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        family: Option<String>,
+        /// What the call acts on: the value of the one argument the tool
+        /// designates as its target, an address reduced to its host. Never a
+        /// content. `None` for a tool that designates none.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        target: Option<String>,
     },
     /// The tool finished its execution.
     ///
@@ -1534,6 +1548,16 @@ pub enum RuntimeEvent {
         /// Run this call belongs to, when emitted within a correlated run.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         run_id: Option<RunId>,
+        /// Identifier of the call within its run, the one its
+        /// `ToolCallStarted` carries.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tool_call_id: Option<String>,
+        /// Action family of the tool, as on the `ToolCallStarted`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        family: Option<String>,
+        /// What the call acted on, as on the `ToolCallStarted`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        target: Option<String>,
     },
     /// The tool was denied (manifest, permission rule, HITL).
     ///
