@@ -4,10 +4,9 @@
    * Onboarding step 4 - Agent chat.
    *
    * Final step of the onboarding flow. Spawns an `onboarding-agent` chat
-   * session and renders the conversation in the modal. The agent first
-   * collects the four mandatory facts (`user.name`, `user.role`,
-   * `user.agents.hitl`, `user.constraints.sovereignty`), then runs an optional
-   * profile enrichment (Tier 2). It writes `onboarding.completed_at` at
+   * session and renders the conversation in the modal. The agent collects
+   * the fields of the default profile (name, role, function, tools,
+   * preferences, free text), all optional. It writes `onboarding.completed_at` at
    * closure, which the supervisor turns into the `OnboardingCompleted` runtime
    * event (handled by the parent modal). The user can end early via the
    * explicit "finish" button, which nudges the agent to close.

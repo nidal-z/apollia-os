@@ -2,7 +2,7 @@
 
 // ─── User Profile ───────────────────────────────────────────────────
 
-/** A single profile entry returned by get_profile. */
+/** A single fact retained in a profile. */
 export interface ProfileEntryView {
   key: string;
   value: string;
@@ -11,20 +11,6 @@ export interface ProfileEntryView {
   created_at: string;
   updated_at: string;
   in_schema: boolean;
-}
-
-/** Aggregated user profile returned by get_profile. */
-export interface UserProfileView {
-  schema_entries: ProfileEntryView[];
-  extras: ProfileEntryView[];
-  entries: ProfileEntryView[];
-  last_updated_at: string | null;
-}
-
-/** Request payload for set_profile_entry. */
-export interface SetProfileEntryRequest {
-  key: string;
-  value: string;
 }
 
 /** Statistics for a single chat conversation session. */

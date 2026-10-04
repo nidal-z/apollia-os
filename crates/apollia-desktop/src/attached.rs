@@ -162,11 +162,16 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // The export of an agent from its sheet: the runtime builds and signs the
     // archive, this process writes the file the user chose.
     "export_agent",
-    // The user profile, over `/api/v1/profile`.
-    "delete_profile_entry",
-    "get_profile",
-    "reset_user_profile",
-    "set_profile_entry",
+    // The user profiles and their facts, over `/api/v1/profiles`.
+    "create_profile",
+    "delete_profile",
+    "delete_profile_fact",
+    "get_profile_by_id",
+    "list_profiles",
+    "reset_profile",
+    "set_default_profile",
+    "set_profile_fact",
+    "update_profile",
     // The credentials of the native tools, over `/api/v1/tool-credentials`.
     "governance_delete_credential",
     "governance_list_credentials",

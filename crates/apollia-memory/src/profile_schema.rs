@@ -126,8 +126,8 @@ pub const PROFILE_SCHEMA: &[ProfileField] = &[
     },
     ProfileField {
         key: FREE_TEXT_KEY,
-        label_fr: "Texte libre",
-        label_en: "Free text",
+        label_fr: "Ce que vos agents doivent savoir",
+        label_en: "What your agents should know",
         help_fr: "Tout ce que vous voulez que les agents sachent de vous.",
         help_en: "Anything you want agents to know about you.",
         section: ProfileSection::Notes,
@@ -155,8 +155,6 @@ pub fn canonical_keys() -> Vec<&'static str> {
 }
 
 /// Returns the profile fields a form draws, in display order.
-// TEST-ONLY: the profile form reads this list once it stops carrying its own
-// copy of the schema; until then only the schema tests call it.
 pub fn profile_fields() -> &'static [ProfileField] {
     PROFILE_SCHEMA
 }

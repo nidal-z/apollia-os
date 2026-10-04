@@ -3704,6 +3704,101 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/profiles`: every profile, the default first. */
+        get: operations["list_profiles"];
+        put?: never;
+        /** `POST /api/v1/profiles`: creates a profile with empty fields. */
+        post: operations["create_profile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profiles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/profiles/{id}`: one profile, its fields and its facts. */
+        get: operations["get_profile_by_id"];
+        put?: never;
+        post?: never;
+        /** `DELETE /api/v1/profiles/{id}`: deletes a profile and its facts. */
+        delete: operations["delete_profile"];
+        options?: never;
+        head?: never;
+        /** `PATCH /api/v1/profiles/{id}`: renames a profile and writes its fields. */
+        patch: operations["update_profile"];
+        trace?: never;
+    };
+    "/api/v1/profiles/{id}/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/profiles/{id}/default`: makes a profile the default. */
+        post: operations["set_default_profile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profiles/{id}/facts/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /api/v1/profiles/{id}/facts/{key}`: retains a fact in a profile, as
+         *     written by the user.
+         */
+        put: operations["set_profile_fact"];
+        post?: never;
+        /** `DELETE /api/v1/profiles/{id}/facts/{key}`: forgets a fact of a profile. */
+        delete: operations["delete_profile_fact"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profiles/{id}/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/profiles/{id}/reset`: empties a profile and deletes its
+         *     facts.
+         */
+        post: operations["reset_profile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{id}/sessions": {
         parameters: {
             query?: never;
@@ -6413,6 +6508,11 @@ export interface components {
             /** @description Request settings. Unknown fields, a system prompt among them, are refused. */
             request?: Record<string, never>;
         };
+        /** @description Request body for `POST /api/v1/profiles`. */
+        CreateProfileBody: {
+            /** @description Display name of the new profile. */
+            name: string;
+        };
         /** @description Body of `POST /api/v1/llm/servers`. */
         CreateServerRequest: {
             /** @description Key, when the server asks for one. Written to the secret store. */
@@ -6574,6 +6674,11 @@ export interface components {
         /** @description Answer of `DELETE /api/v1/llm/installed-models`. */
         DeletedInstalledModel: {
             /** @description The path removed, as it was asked for. */
+            deleted: string;
+        };
+        /** @description Answer of `DELETE /api/v1/profiles/{id}`. */
+        DeletedProfile: {
+            /** @description The identifier removed, as the request named it. */
             deleted: string;
         };
         /** @description Answer of `DELETE /api/v1/profile/entries/{key}`. */
@@ -8124,6 +8229,15 @@ export interface components {
             /** @description Presets, sorted by model then name. */
             presets: components["schemas"]["PresetResponse"][];
         };
+        /** @description One profile in full: its summary, its fields in schema order, its facts. */
+        ProfileDetailView: {
+            /** @description The facts retained about the user in this profile. */
+            facts: components["schemas"]["ProfileEntryView"][];
+            /** @description Every field of the schema, filled or not. */
+            fields: components["schemas"]["ProfileFieldView"][];
+            /** @description The profile as the list shows it. */
+            profile: components["schemas"]["ProfileSummaryView"];
+        };
         /** @description One profile entry, as the profile page draws it. */
         ProfileEntryView: {
             /** @description ISO 8601 creation timestamp. */
@@ -8139,10 +8253,54 @@ export interface components {
             /** @description Provenance tag (`onboarding`, `user`, `agent:<name>`). */
             written_by: string;
         };
+        /** @description One field of a profile, with what a form needs to draw it. */
+        ProfileFieldView: {
+            /** @description English help or example. */
+            help_en: string;
+            /** @description French help or example. */
+            help_fr: string;
+            /** @description Storage key of the field. */
+            key: string;
+            /** @description English label. */
+            label_en: string;
+            /** @description French label. */
+            label_fr: string;
+            /** @description `true` when the field takes several lines. */
+            long_text: boolean;
+            /** @description Current value, empty when the field is not filled. */
+            value: string;
+        };
         /** @description Answer of `POST /api/v1/profile/reset`. */
         ProfileReset: {
             /** @description How many entries were removed. */
             removed: number;
+        };
+        /** @description One profile in the list of the profile screen. */
+        ProfileSummaryView: {
+            /** @description ISO 8601 creation timestamp. */
+            created_at: string;
+            /** @description A line that tells the profile apart: its role, else its function. */
+            detail?: string | null;
+            /** @description Stable identifier. */
+            id: string;
+            /** @description `true` for the one default profile. */
+            is_default: boolean;
+            /** @description Display name of the profile. */
+            name: string;
+            /** @description ISO 8601 last-update timestamp. */
+            updated_at: string;
+        };
+        /**
+         * @description A change to a profile: a new name, new field values, or both. An empty
+         *     value empties its field.
+         */
+        ProfileUpdate: {
+            /** @description New values, by field key. */
+            fields?: {
+                [key: string]: string;
+            };
+            /** @description New display name. */
+            name?: string | null;
         };
         /** @description One proposed permission rule, as the approval card draws it. */
         ProposedRuleView: {
@@ -18525,6 +18683,403 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProfileReset"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_profiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The profiles */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileSummaryView"][];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    create_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateProfileBody"];
+            };
+        };
+        responses: {
+            /** @description The profile created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileSummaryView"];
+                };
+            };
+            /** @description Empty name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_profile_by_id: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile identifier, or `default` */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The profile in full */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileDetailView"];
+                };
+            };
+            /** @description No profile has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The profile is gone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedProfile"];
+                };
+            };
+            /** @description No profile has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The default profile cannot be deleted */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    update_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile identifier, or `default` */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileUpdate"];
+            };
+        };
+        responses: {
+            /** @description The profile in full */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileDetailView"];
+                };
+            };
+            /** @description Empty name or key outside the schema */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No profile has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_default_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The new default profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileSummaryView"];
+                };
+            };
+            /** @description No profile has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_profile_fact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile identifier, or `default` */
+                id: string;
+                /** @description Key of the fact */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetProfileEntryBody"];
+            };
+        };
+        responses: {
+            /** @description The fact as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileEntryView"];
+                };
+            };
+            /** @description Empty, reserved or schema key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No profile has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_profile_fact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile identifier, or `default` */
+                id: string;
+                /** @description Key of the fact */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The fact is gone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedProfileEntry"];
+                };
+            };
+            /** @description No such profile or fact */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    reset_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile identifier, or `default` */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many entries were removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileReset"];
+                };
+            };
+            /** @description No profile has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
             /** @description The profile store did not open */

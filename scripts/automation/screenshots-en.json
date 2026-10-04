@@ -43,7 +43,8 @@
     "settings-nav-permissions",
     "settings-nav-profile",
     "settings-nav-stt",
-    "trigger-logs-filter-all"
+    "trigger-logs-filter-all",
+    "profile-menu-reset"
   ],
   "steps": [
     {
@@ -329,11 +330,17 @@
     },
     {
       "kind": "click",
-      "testid": "profile-reset-button"
+      "testid": "profile-row-menu",
+      "nth": 0
+    },
+    {
+      "kind": "click",
+      "testid": "profile-menu-reset",
+      "timeoutMs": 5000
     },
     {
       "kind": "waitFor",
-      "testid": "profile-reset-confirm",
+      "testid": "profile-reset-dialog",
       "timeoutMs": 5000
     },
     {
