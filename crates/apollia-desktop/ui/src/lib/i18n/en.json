@@ -2925,8 +2925,13 @@
       "preview_active_now": "Active now",
       "reminders_title": "Onboarding reminders",
       "reminders_reset_label": "Reset onboarding reminders",
-      "reminders_reset_hint": "The welcome flow and the discovery tips show again. No data is deleted.",
-      "reminders_reset_button": "Reset",
+      "reminders_reset_hint": "Every reminder below shows again, and the get-to-know-you conversation starts over. No data is deleted.",
+      "reminders_reset_button": "Reset all",
+      "reminders": {
+        "onboarding": "Get to know each other",
+        "next_steps": "Next-step suggestions",
+        "reset_one": "Reset \"{name}\""
+      },
       "chat_style_title": "Chat style",
       "font_size_label": "Font size",
       "font_size_hint": "Applies to chat messages.",

@@ -221,7 +221,7 @@ describe("Appearance, Chat, Developer and Observability", () => {
 
     // WHEN its controls are located
     // THEN the theme and the reminders reset are there, the language and plan mode are not
-    positions(text, ["THEME_OPTIONS", 'data-testid="reset-onboarding-btn"', "resetOnboarding()"]);
+    positions(text, ["THEME_OPTIONS", 'data-testid="reset-onboarding-btn"', "{#each REMINDERS"]);
     expect(text).not.toContain("LANGUAGE_OPTIONS");
     expect(text).not.toContain("planModeDefault");
   });
