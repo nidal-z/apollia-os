@@ -258,3 +258,36 @@ fn test_without_the_flag_or_the_key_the_port_is_7771() {
     // THEN the default
     assert_eq!(port, 7771);
 }
+
+#[test]
+fn the_daemon_reads_its_startup_timeout_from_the_file() {
+    // GIVEN a file setting [runtime] startup_timeout_secs, and no file at all
+    let set = crate::config::validate_apollia_toml_str("[runtime]\nstartup_timeout_secs = 42\n")
+        .expect("a valid file");
+    let absent = crate::config::ApolliaConfig::default();
+
+    // WHEN the daemon reads its settings
+    let from_file = super::daemon_file_settings(&set);
+    let from_defaults = super::daemon_file_settings(&absent);
+
+    // THEN the file's value is used, and the documented default otherwise,
+    // not the ten seconds the daemon used to hard-code
+    assert_eq!(from_file.startup_timeout_secs, 42);
+    assert_eq!(from_defaults.startup_timeout_secs, 300);
+}
+
+#[test]
+fn the_daemon_reads_the_observability_section_from_the_file() {
+    // GIVEN a file setting two keys of [observability]
+    let set = crate::config::validate_apollia_toml_str(
+        "[observability]\nretention_days = 7\ncapture_thoughts = false\n",
+    )
+    .expect("a valid file");
+
+    // WHEN the daemon reads its settings
+    let settings = super::daemon_file_settings(&set);
+
+    // THEN they are the file's, not the defaults
+    assert_eq!(settings.observability.retention_days, 7);
+    assert!(!settings.observability.capture_thoughts);
+}

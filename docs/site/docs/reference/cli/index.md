@@ -1628,17 +1628,9 @@ Send a direct prompt to an LLM backend and print the response
 
 ## `apollia-os llm costs`
 
-Display aggregated usage and costs (tokens and estimated cost per backend).
+Display aggregated usage and costs (tokens and estimated cost per backend)
 
-Without flags, prints the cost table. Use `--get-threshold` to print `[llm] cost_alert_threshold_usd` from `apollia.toml`, or `--threshold N` to set it.
-
-**Usage:** `apollia-os llm costs [OPTIONS]`
-
-###### **Options:**
-
-* `--get-threshold` - Read the cost alert threshold from `apollia.toml` instead of the cost table
-* `--threshold <USD>` - Set the cost alert threshold (USD). Writes `[llm] cost_alert_threshold_usd = N` to `apollia.toml`. Pass `0` or a negative value to clear the threshold
-* `--config <PATH>` - Optional `apollia.toml` path override. Without it, the same file the runtime loads at startup: `~/.apollia/apollia.toml`
+**Usage:** `apollia-os llm costs`
 
 
 

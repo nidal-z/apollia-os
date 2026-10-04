@@ -1179,17 +1179,6 @@
     },
     "default_set_toast": "''{name}'' set as the default model",
     "details": "Details",
-    "cost_threshold": {
-      "title": "Cost alert threshold",
-      "value": "{spend} of {threshold}",
-      "meter_label": "Share of the threshold used",
-      "basis": "Busiest day of the last {days} days ({date}), compared against the threshold the runtime alerts on.",
-      "no_spend": "No spend recorded over the last {days} days.",
-      "exceeded_badge": "Over threshold",
-      "near_badge": "Close to threshold",
-      "exceeded_note": "{spend} spent on {date} is above the {threshold} alert threshold.",
-      "unset": "No cost alert threshold is set: add cost_alert_threshold_usd to the [llm] section of apollia.toml to be warned when spending climbs."
-    },
     "loaded": {
       "title": "Loaded in memory",
       "empty": "No model is loaded in memory.",

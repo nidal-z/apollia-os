@@ -385,7 +385,6 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-runtime/src/mlx_engine/tests.rs": 5,
     "crates/apollia-runtime/src/perf_trace.rs": 2,
     "crates/apollia-runtime/src/router.rs": 2,
-    "crates/apollia-runtime/src/runner_supervisor/gpu_detection.rs": 1,
     "crates/apollia-runtime/src/session_metrics.rs": 1,
     "crates/apollia-runtime/src/supervisor/tests.rs": 21,
     "crates/apollia-runtime/src/test_support.rs": 4,

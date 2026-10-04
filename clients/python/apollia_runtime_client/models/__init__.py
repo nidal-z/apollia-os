@@ -94,7 +94,6 @@ from .connection_state import ConnectionState
 from .connection_tool import ConnectionTool
 from .connector_account_response import ConnectorAccountResponse
 from .conversation_stats_view import ConversationStatsView
-from .cost_alert_threshold_response import CostAlertThresholdResponse
 from .cost_summary_row import CostSummaryRow
 from .costs_response import CostsResponse
 from .counted_language_model import CountedLanguageModel
@@ -589,7 +588,6 @@ __all__ = (
     "ConnectionTool",
     "ConnectorAccountResponse",
     "ConversationStatsView",
-    "CostAlertThresholdResponse",
     "CostsResponse",
     "CostSummaryRow",
     "CountedLanguageModel",

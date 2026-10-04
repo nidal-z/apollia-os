@@ -160,6 +160,7 @@ pub async fn run(
 
     let home = apollia_core::paths::home_dir_or_temp();
 
+    let daemon_settings = bootstrap::daemon_file_settings(&file_config);
     let llm_config = file_config.llm;
     let llm_label = llm_config
         .as_ref()
@@ -244,13 +245,13 @@ pub async fn run(
             tls_cert_path: api_cfg.tls_cert.clone(),
             tls_key_path: api_cfg.tls_key.clone(),
         },
-        startup_timeout_secs: 10,
+        startup_timeout_secs: daemon_settings.startup_timeout_secs,
         llm_config,
         config_path,
         runtime_config,
         hitl_config,
         data_dir,
-        obs_config: apollia_core::ObservabilityConfig::default(),
+        obs_config: daemon_settings.observability,
         agent_repository,
         package_repository,
         bundled_agents_path: {

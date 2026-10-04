@@ -51,7 +51,6 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::llm::set_default_llm_backend,
         commands::llm::ping_llm_backend,
         commands::llm::get_llm_cost_stats,
-        commands::llm::get_cost_alert_threshold,
         commands::llm::reload_llm,
         commands::llm::reload_llm_from_db,
         commands::llm_loaded::list_loaded_models,

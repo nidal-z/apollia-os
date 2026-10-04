@@ -1179,17 +1179,6 @@
     },
     "default_set_toast": "''{name}'' défini comme modèle par défaut",
     "details": "Détails",
-    "cost_threshold": {
-      "title": "Seuil d'alerte de coût",
-      "value": "{spend} sur {threshold}",
-      "meter_label": "Part du seuil utilisée",
-      "basis": "Journée la plus chargée des {days} derniers jours ({date}), comparée au seuil d'alerte du runtime.",
-      "no_spend": "Aucune dépense enregistrée sur les {days} derniers jours.",
-      "exceeded_badge": "Seuil dépassé",
-      "near_badge": "Proche du seuil",
-      "exceeded_note": "{spend} dépensés le {date} dépassent le seuil d'alerte de {threshold}.",
-      "unset": "Aucun seuil d'alerte de coût n'est défini : ajoutez cost_alert_threshold_usd dans la section [llm] d'apollia.toml pour être averti quand la dépense grimpe."
-    },
     "loaded": {
       "title": "Chargés en mémoire",
       "empty": "Aucun modèle n'est chargé en mémoire.",
