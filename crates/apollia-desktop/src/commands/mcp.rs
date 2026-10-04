@@ -9,6 +9,7 @@ use apollia_mcp::config::McpServerConfig;
 use apollia_mcp::manager::{
     McpConnectionTestResult, McpResourceSummary, McpServerDetail, McpServerStatus, ProbeSpec,
 };
+use apollia_runtime::governance::{ConnectionEvent, ConnectionGovernance};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -69,11 +70,20 @@ pub async fn get_mcp_server_detail(
 /// own virtualenv, and the persisted command names that venv's entry point;
 /// an npm server declared as `npx <package>` is installed into its own
 /// directory, and the persisted command runs its entry point on Node.js.
+///
+/// `warning_accepted` says the person accepted the warning shown before the
+/// addition; it is journaled first, whatever the addition answers after.
 #[tauri::command]
 pub async fn add_mcp_server(
     state: State<'_, RuntimeLink>,
     config: McpServerConfig,
+    warning_accepted: Option<bool>,
 ) -> Result<McpServerStatus, String> {
+    if warning_accepted == Some(true) {
+        if let RuntimeLink::Embedded(runtime) = state.inner() {
+            record_warning_accepted(&runtime.connection_governance, &config.name);
+        }
+    }
     let config = install_local_server(&state, config).await?;
     let body =
         serde_json::to_value(&config).map_err(|e| format!("failed to serialize config: {e}"))?;
@@ -232,6 +242,30 @@ async fn install_local_server(
     python_server::prepare(config, &enrichments, &installer)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// Who the connection journal names for a change made from this window.
+const DESKTOP_ACTOR: &str = "desktop";
+
+/// Journal that the warning shown before adding the server `name` was
+/// accepted. The connection is named as the connection list names it.
+fn record_warning_accepted(governance: &ConnectionGovernance, name: &str) {
+    governance.record_or_warn(&ConnectionEvent::WarningAccepted {
+        connection_id: format!("mcp:{name}"),
+        actor: DESKTOP_ACTOR.to_owned(),
+    });
+}
+
+/// Where Node.js stands in the engine store: absent, downloading with the
+/// bytes received, ready, or failed with its reason.
+///
+/// Delegates to `GET /api/v1/engines/nodejs`. The window reads it while an
+/// addition that needs Node.js waits for its download, to show the progress.
+#[tauri::command]
+pub async fn node_runtime_state(
+    state: State<'_, RuntimeLink>,
+) -> Result<serde_json::Value, String> {
+    state.get_json("/api/v1/engines/nodejs").await
 }
 
 /// Longest wait for the engine store to download Node.js.
@@ -410,4 +444,40 @@ pub(crate) async fn remove_mcp_secret(
     link.delete_json(&mcp_secret_path(server_name, env_var))
         .await
         .map(|_| ())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Accepting the warning before an addition is journaled on the connection.
+    #[tokio::test]
+    async fn test_accepted_warning_is_journaled_on_the_connection() {
+        // GIVEN governance over a journal
+        let dir = tempfile::TempDir::new().unwrap();
+        let journal = apollia_runtime::audit_journal::AuditJournalHandle::open(
+            &dir.path().join("journal.db"),
+        )
+        .await
+        .unwrap();
+        let governance = ConnectionGovernance::without_policy(Some(journal.clone()));
+
+        // WHEN the warning shown before adding the server `notion` is accepted
+        record_warning_accepted(&governance, "notion");
+
+        // THEN the connection's run holds one acceptance, by the desktop
+        let entries = journal
+            .query_run(&apollia_runtime::governance::connection_run_id(
+                "mcp:notion",
+            ))
+            .await;
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0].kind,
+            apollia_runtime::audit_journal::JournalEntryKind::ConnectionWarningAccepted
+        );
+        assert_eq!(entries[0].payload["event"], "warning_accepted");
+        assert_eq!(entries[0].payload["actor"], "desktop");
+        journal.shutdown().await;
+    }
 }
