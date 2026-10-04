@@ -33,6 +33,7 @@ pub struct JournalFilter {
 
 /// A filter value the journal cannot read.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
 pub enum JournalFilterError {
     /// The nature is none of the known ones.
     #[error("unknown nature '{0}': expected action, access_change, policy or system")]
