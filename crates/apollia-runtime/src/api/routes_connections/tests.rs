@@ -119,6 +119,7 @@ async fn router(dir: &TempDir) -> Router {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
     Router::new().route(
         "/api/v1/connections",

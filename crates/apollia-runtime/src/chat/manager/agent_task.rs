@@ -85,11 +85,6 @@ impl ChatSessionManager {
             pending_fs: self.pending_fs_approvals.clone(),
             fs_allow_rules: Arc::new(std::sync::Mutex::new(HashSet::new())),
             risk_config: apollia_core::FilesystemRiskConfig::default(),
-            trusted_paths: self
-                .chat_tools_config
-                .as_ref()
-                .map(|c| c.trusted_paths.clone())
-                .unwrap_or_default(),
         };
         let wiring = AgentTaskWiring {
             llm_router,
@@ -175,7 +170,19 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         depth,
         unattended,
     } = run;
-    spec.granted_tools = access.tools(&wiring.tool_registry).await;
+    let mut package_tools =
+        super::package_executors(&wiring.package_tools, &spec.agent_id, &cancel);
+    let tools = super::code_context::with_code_context(
+        wiring.chat_tools_config.as_deref(),
+        &spec.agent_id,
+        access.tools(&wiring.tool_registry).await,
+        &mut package_tools,
+    )
+    .await;
+    // The folders granted to the agent are the roots of its file tools.
+    let (granted, folders) =
+        super::dispatcher::granted_folders(tools, wiring.chat_tools_config.as_deref());
+    spec.granted_tools = granted;
     let mcp_index: Vec<ToolIndexSnapshot> = match (wiring.mcp_loading, &wiring.mcp_handle) {
         (LoadingMode::Deferred, Some(handle)) => handle.get_tool_index().await,
         _ => Vec::new(),
@@ -191,7 +198,10 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         mcp_index,
         &disabled,
     );
-    spec.granted_tools = granted;
+    let sources =
+        super::sources::source_access(wiring.chat_tools_config.as_deref(), &spec.agent_id).await;
+    spec.granted_tools = super::sources::offered(granted, &sources);
+    let memory_namespace = super::sources::memory_namespace(&spec.agent_id, &task_id);
     let tool_turn_temperature = wiring
         .chat_tools_config
         .as_ref()
@@ -199,8 +209,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
 
     let resolved = super::libre::build_session_invoker(
         WorkspaceResolutionParams {
-            project_id: None,
-            project_repo: None,
+            folders,
             hitl: Some(wiring.hitl),
             pending_user_inputs: Some(wiring.pending_user_inputs),
             mcp_handle: wiring.mcp_handle,
@@ -209,7 +218,9 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
             mcp_loading: wiring.mcp_loading,
             mcp_index: mcp_index.clone(),
             tool_search_limit: wiring.tool_search_limit,
-            package_tools: super::package_executors(&wiring.package_tools, &spec.agent_id, &cancel),
+            package_tools,
+            sources,
+            memory_namespace,
         },
         &wiring.a2a_invoker,
         wiring.hook_executor.clone(),

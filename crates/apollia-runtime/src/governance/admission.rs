@@ -126,18 +126,16 @@ impl AdmissionRequest {
         }
     }
 
-    /// The request describing the folder at `path`: on this machine, chosen by
-    /// the user, its tools those of the native file tools.
-    ///
-    /// TEST-ONLY: the folder connection is not built yet; its addition, before
-    /// anything is stored, is the production caller this is published for.
+    /// The request describing the folder at `path`: on this machine, Apollia's
+    /// own code (the selection, as a mailbox is), and `families`, those of the
+    /// native file tools it brings.
     #[must_use]
     pub fn for_folder(path: &str, families: Vec<ActionFamily>) -> Self {
         Self {
             kind: ConnectionKind::Folder,
             name: path.to_owned(),
             remote: false,
-            provenance: Provenance::Custom,
+            provenance: Provenance::Selection,
             families: distinct(families),
             identifiers: native_identifier("folder"),
         }
@@ -394,7 +392,7 @@ mod tests {
         assert_eq!(req.identifiers, vec!["native:google".to_owned()]);
     }
 
-    // A folder is local, chosen by the user, each family once.
+    // A folder is local, Apollia's own code, each family once.
     #[test]
     fn test_request_for_a_folder() {
         // GIVEN a folder whose file tools read and write
@@ -405,10 +403,11 @@ mod tests {
         ];
         // WHEN the admission request is built
         let req = AdmissionRequest::for_folder("/Users/ada/Documents", families);
-        // THEN it is a local folder connection with two families
+        // THEN it is a local folder connection of the selection with two
+        // families
         assert_eq!(req.kind, ConnectionKind::Folder);
         assert!(!req.remote);
-        assert_eq!(req.provenance, Provenance::Custom);
+        assert_eq!(req.provenance, Provenance::Selection);
         assert_eq!(
             req.families,
             vec![ActionFamily::Read, ActionFamily::WriteOrDelete]

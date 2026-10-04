@@ -111,6 +111,7 @@ impl Supervisor {
             batches: owned.batches,
             workflows: executors.workflows.clone(),
             compat_server: Some(owned.compat_server),
+            source_registry: inference.source_registry.clone(),
         }
     }
 }

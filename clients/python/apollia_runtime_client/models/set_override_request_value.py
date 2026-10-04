@@ -13,6 +13,7 @@ T = TypeVar("T", bound="SetOverrideRequestValue")
 class SetOverrideRequestValue:
     """The user's value: a string for `name` and `mission`, a tier name for
     `autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`.
+    A `sources` entry is a source identifier of `GET /api/v1/sources`, `profile` or `memory`.
 
     """
 

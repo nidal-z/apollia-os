@@ -5,8 +5,10 @@
 //! model of each agent ([`crate::model_preset`]), the STT configuration
 //! ([`crate::stt_config`]), the default embeddings model
 //! ([`crate::embedding_default`]), the tokens of the compatible server
-//! ([`crate::server_token`]), and the last local model loaded by hand
-//! ([`crate::last_loaded_model`]).
+//! ([`crate::server_token`]), the last local model loaded by hand
+//! ([`crate::last_loaded_model`]), the registry of sources
+//! ([`crate::source_registry`]), and the folders added as connections
+//! ([`crate::folder_connection`]).
 //! `PRAGMA user_version` belongs to the database file, not to a table, so the
 //! stores share one migration list: whichever opens first brings the whole
 //! file to the current version, and both refuse a file written by a newer
@@ -18,14 +20,23 @@ use crate::inference_server::{openai_api_base, DEFAULT_OLLAMA_ADDRESS};
 use crate::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `system.db`.
-pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 7;
+pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 10;
 
 /// Numbered migration steps of `system.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`SYSTEM_DB_SCHEMA_VERSION`].
 pub(crate) const SYSTEM_DB_MIGRATIONS: &[Migration] = &[
-    migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5, migrate_v6, migrate_v7,
+    migrate_v1,
+    migrate_v2,
+    migrate_v3,
+    migrate_v4,
+    migrate_v5,
+    migrate_v6,
+    migrate_v7,
+    migrate_v8,
+    migrate_v9,
+    migrate_v10,
 ];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
@@ -466,6 +477,29 @@ pub(crate) fn migrate_v7(conn: &Connection) -> Result<(), rusqlite::Error> {
     ))
 }
 
+/// v8: the registry of sources, what an agent may consult once checked.
+///
+/// The kinds and index states are held by `CHECK`, and so is the rule that a
+/// folder, a file or a mailbox names what it points at. The statement is
+/// idempotent, so a replay changes nothing.
+pub(crate) fn migrate_v8(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS sources (
+            id          TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+            kind        TEXT NOT NULL CHECK (kind IN
+                ('folder', 'file', 'mail', 'profile', 'memory', 'code_folder')),
+            label       TEXT NOT NULL CHECK (length(trim(label)) > 0),
+            group_name  TEXT,
+            reference   TEXT,
+            index_state TEXT NOT NULL DEFAULT 'absent' CHECK (index_state IN
+                ('absent', 'indexing', 'ready', 'error', 'keywords_only')),
+            added_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            CHECK (kind NOT IN ('folder', 'file', 'mail')
+                   OR length(trim(coalesce(reference, ''))) > 0)
+        );",
+    )
+}
+
 /// Keys a preset may never carry, in either settings column.
 pub(crate) const SYSTEM_PROMPT_KEYS: &[&str] = &["system_prompt", "system", "system_message"];
 
@@ -479,6 +513,32 @@ fn no_system_prompt_check() -> String {
         }
     }
     terms.join(" AND ")
+}
+
+/// v9: the folders of this machine added as connections.
+///
+/// One row per folder, keyed by its canonical path so the same folder is
+/// never added twice under two spellings.
+pub(crate) fn migrate_v9(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS folder_connections (
+            id       TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+            path     TEXT NOT NULL UNIQUE CHECK (length(trim(path)) > 0),
+            label    TEXT NOT NULL CHECK (length(trim(label)) > 0),
+            added_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );",
+    )
+}
+
+/// v10: the settings of `apollia.toml` already imported into this file, so a
+/// one-time import never runs twice.
+pub(crate) fn migrate_v10(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS settings_imports (
+            key         TEXT PRIMARY KEY CHECK (length(trim(key)) > 0),
+            imported_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );",
+    )
 }
 
 #[cfg(test)]

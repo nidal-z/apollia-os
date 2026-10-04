@@ -161,7 +161,7 @@ export interface PressStep extends Target {
  *  one armed across a turn. */
 export interface StubInvokeStep {
   kind: "stubInvoke";
-  /** Tauri command name, e.g. `list_projects` or `plugin:dialog|open`. */
+  /** Tauri command name, e.g. `list_agents` or `plugin:dialog|open`. */
   command: string;
   /** Resolve with this value (JSON `null` is a legal value: a cancelled picker). */
   resolve?: unknown;

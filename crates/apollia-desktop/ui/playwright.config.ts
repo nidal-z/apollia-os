@@ -45,6 +45,11 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
     {
+      name: "connections",
+      testDir: "./tests/connections",
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
       name: "responsive",
       testDir: "./tests/responsive",
       use: { ...devices["Desktop Chrome"] },

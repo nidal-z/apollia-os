@@ -1,7 +1,8 @@
 <script lang="ts">
   import { Clock, Database, Cog, MoreHorizontal, Trash2, Eye, Copy, Check, X, Sparkles } from "lucide-svelte";
   import { t, locale } from "svelte-i18n";
-  import type { MemoryEntry } from "$lib/types";
+  import type { MemoryEntry, MemoryEmbeddings } from "$lib/types";
+  import { embeddingsLabel } from "./embeddingsLabel";
   import { developerMode } from "$lib/stores/developerMode";
   import { Button } from "$lib/components/ui/button";
   import { ActionMenu } from "$lib/components/ui/action-menu";
@@ -15,12 +16,19 @@
     searching?: boolean;
     /** Relevance normalised 0..1 for the bar (reuses the chat `.tb-mbar` idiom). */
     relevance?: number;
+    /** The embeddings model the memory searches with, `null` until read. */
+    embeddings?: MemoryEmbeddings | null;
     onclick?: () => void;
     oncopy?: () => void;
     ondelete?: () => void;
   }
 
-  let { entry, selected = false, searching = false, relevance, onclick, oncopy, ondelete }: Props = $props();
+  let { entry, selected = false, searching = false, relevance, embeddings = null, onclick, oncopy, ondelete }: Props = $props();
+
+  const embeddingsText = $derived.by(() => {
+    const label = embeddingsLabel(entry.entry_type, embeddings);
+    return "values" in label ? $t(label.key, { values: label.values }) : $t(label.key);
+  });
 
   const typeLabel = $derived(
     entry.entry_type === "episodic"
@@ -175,7 +183,7 @@
         </dl>
         <div class="mt-1.5 inline-flex items-center gap-1 text-overline font-normal italic tracking-normal text-muted-foreground/80">
           <Sparkles size={11} class="text-primary" />
-          {entry.entry_type === "episodic" ? $t("memory.embeddings.none") : $t("memory.embeddings.vector")}
+          {embeddingsText}
         </div>
       {/if}
 

@@ -22,7 +22,7 @@ ARGS = _parser.parse_args()
 SCRIPTS = "scripts/automation"
 # section order (from the section-NN markers), name maps to <name>-det.json
 ORDER = [
-    "nav-det", "dashboard-det", "chat-det", "agents-det", "projects-det",
+    "nav-det", "dashboard-det", "chat-det", "agents-det",
     "tasks-det", "automations-det", "inbox-det", "notifications-det",
     "memory-det", "connections-det", "observability-det", "coach-det",
     "settings-det", "profile-det", "llm-det", "model-hub-det", "stt-det",

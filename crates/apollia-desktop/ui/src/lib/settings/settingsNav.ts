@@ -3,8 +3,9 @@
  * architecture. "Settings" holds what a user adjusts, "System" what the
  * machine runs on. Developer comes last of its group: it is the switch a
  * business user never has to touch. The sections that leave the settings for
- * their own screens (LLM backends, Model Hub, Tools, Permissions, OAuth
- * integrations) follow it until they move.
+ * their own screens (LLM backends, Model Hub, Tools, Permissions) follow it
+ * until they move; the OAuth integrations already live on the Connections
+ * screen, on the page of each connection.
  */
 import {
   Settings2,
@@ -20,7 +21,6 @@ import {
   Download,
   Wrench,
   ShieldCheck,
-  PlugZap,
 } from "lucide-svelte";
 import type { SettingsSubRoute } from "$lib/stores/settings";
 
@@ -52,7 +52,6 @@ export const SETTINGS_NAV: SettingsNavCluster[] = [
       { key: "model-hub", labelKey: "settings.nav.model_hub", icon: Download },
       { key: "tools", labelKey: "settings.nav.tools", icon: Wrench },
       { key: "permissions", labelKey: "settings.nav.permissions", icon: ShieldCheck },
-      { key: "integrations", labelKey: "settings.nav.integrations", icon: PlugZap },
     ],
   },
   {

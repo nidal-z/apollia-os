@@ -754,6 +754,41 @@ mod tests {
         assert_eq!(servers[0].server.name, "cached-offline");
     }
 
+    // ── a cache younger than fifteen minutes answers without the network ──
+
+    #[tokio::test]
+    async fn test_a_fresh_cache_answers_without_a_request() {
+        // GIVEN a cache file written just now
+        let tmp = TempDir::new().unwrap();
+        let cached_servers = vec![make_server_json("cached-fresh")];
+        std::fs::write(
+            tmp.path().join("mcp-registry.json"),
+            serde_json::to_string(&cached_servers).unwrap(),
+        )
+        .unwrap();
+
+        // AND a registry that must not be asked anything
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(single_page_response(&["net"])))
+            .expect(0)
+            .mount(&mock_server)
+            .await;
+        let client = McpRegistryClient::with_base_url(tmp.path(), mock_server.uri()).unwrap();
+
+        // WHEN the full list is asked for
+        let servers = client.fetch_servers(None).await.unwrap();
+
+        // THEN the cached list is returned and the registry received no request
+        assert_eq!(servers.len(), 1);
+        assert_eq!(servers[0].server.name, "cached-fresh");
+        assert!(mock_server
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .is_empty());
+    }
+
     // ── offline with no cache returns Offline error ───────────────────
 
     #[tokio::test]

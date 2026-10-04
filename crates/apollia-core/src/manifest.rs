@@ -87,9 +87,7 @@ pub struct AgentManifest {
     pub mailbox_allowlist: Option<Vec<String>>,
     /// Primary memory namespace of the agent.
     ///
-    /// Declared statically in the Python manifest. When the agent runs in a
-    /// project context, the runtime prefixes it automatically with the
-    /// `project_id`: effective namespace = `"{project_id}:{memory_namespace}"`.
+    /// Declared statically in the Python manifest, and used as it is.
     ///
     /// If `None`, the agent has no access to persistent memory.
     #[serde(default)]

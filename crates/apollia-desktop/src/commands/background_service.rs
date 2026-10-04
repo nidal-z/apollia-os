@@ -131,28 +131,28 @@ fn authorization() -> (bool, SettingSource) {
     }
 }
 
-/// Whether nothing accepts a connection on the runtime port any more.
-async fn port_released() -> bool {
-    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], crate::startup::RUNTIME_PORT));
+/// Whether nothing accepts a connection on the runtime `port` any more.
+async fn port_released(port: u16) -> bool {
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
     !matches!(
         tokio::time::timeout(RELEASE_POLL, tokio::net::TcpStream::connect(addr)).await,
         Ok(Ok(_))
     )
 }
 
-/// Waits, bounded, for the stopped daemon to release the runtime port,
+/// Waits, bounded, for the stopped daemon to release the runtime `port`,
 /// without holding a thread of the pool between two looks.
-async fn wait_for_release() {
+async fn wait_for_release(port: u16) {
     let deadline = tokio::time::Instant::now() + RELEASE_TIMEOUT;
     while tokio::time::Instant::now() < deadline {
-        if port_released().await {
+        if port_released(port).await {
             return;
         }
         tokio::time::sleep(RELEASE_POLL).await;
     }
     tracing::event!(
         tracing::Level::WARN,
-        port = crate::startup::RUNTIME_PORT,
+        port,
         "desktop.background_service.port_still_held"
     );
 }
@@ -188,6 +188,9 @@ pub async fn set_background_service(app: tauri::AppHandle, on: bool) -> Result<(
     let embedded = app
         .try_state::<apollia_runtime::embedded::RuntimeHandle>()
         .is_some();
+    let api_port = app
+        .try_state::<crate::startup::ApiPort>()
+        .map_or(apollia_core::config::DEFAULT_API_PORT, |port| port.0);
     let (relaunch, released) =
         tauri::async_runtime::spawn_blocking(move || -> Result<(bool, bool), String> {
             let target = ServiceTarget::current().map_err(|e| e.to_string())?;
@@ -210,7 +213,7 @@ pub async fn set_background_service(app: tauri::AppHandle, on: bool) -> Result<(
         .await
         .map_err(|e| e.to_string())??;
     if released {
-        wait_for_release().await;
+        wait_for_release(api_port).await;
     }
     if relaunch {
         app.request_restart();

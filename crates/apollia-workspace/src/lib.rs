@@ -39,7 +39,7 @@ pub mod providers;
 pub mod style;
 pub mod tree;
 
-pub use assembler::{ProjectRuntime, ProviderEntry};
+pub use assembler::ProjectRuntime;
 pub use commands::{CommandLoader, LoadedCommand};
 pub use config::{GitProviderConfig, RulesProviderConfig, RuntimeConfig, StyleProviderConfig};
 pub use providers::{GitProvider, RulesProvider, ScriptProvider, StyleProvider, TreeProvider};

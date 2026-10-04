@@ -294,9 +294,9 @@ BILINGUAL_DATA = (
 FRENCH_DATA: dict[str, int] = {
     # locale: the French half of a bilingual surface
     "crates/apollia-desktop/src/i18n.rs": 16,
-    "crates/apollia-desktop/ui/src/lib/i18n/identicalLocales.ts": 4,
+    "crates/apollia-desktop/ui/src/lib/i18n/identicalLocales.ts": 3,
     "crates/apollia-desktop/ui/src/components/settings/stt/SttEssentialSection.svelte": 2,
-    "crates/apollia-memory/src/profile_schema.rs": 9,
+    "crates/apollia-memory/src/profile_schema.rs": 10,
     "crates/apollia-memory/src/user_memory/persona.rs": 1,
     "scripts/check_release_artifacts.py": 1,
     # parser: French words the code matches on, or folds
@@ -313,7 +313,6 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-cli/src/commands/chat_stream.rs": 3,
     "crates/apollia-cli/src/commands/chat_stream/classify.rs": 1,
     "crates/apollia-cli/src/commands/run.rs": 2,
-    "crates/apollia-desktop/ui/src/components/settings/profile/profileForm.ts": 1,
     "crates/apollia-desktop/ui/src/lib/command-palette/actions.ts": 1,
     "crates/apollia-desktop/ui/tests/settings/hotkey-capture.spec.ts": 1,
     "crates/apollia-llm/src/meta/parse_automation.rs": 30,
@@ -351,6 +350,7 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-desktop/ui/src/lib/i18n/i18n-locale-switch.test.ts": 1,
     "crates/apollia-desktop/ui/src/lib/utils/slugify.test.ts": 3,
     "crates/apollia-llm/tests/interval_junction.rs": 3,
+    "crates/apollia-sources/tests/pdf_reader.rs": 3,
     "crates/apollia-mcp/src/sanitize.rs": 1,
     "crates/apollia-notifications/src/channels/webhook.rs": 2,
     "crates/apollia-runtime/src/api/routes_timeline.rs": 1,

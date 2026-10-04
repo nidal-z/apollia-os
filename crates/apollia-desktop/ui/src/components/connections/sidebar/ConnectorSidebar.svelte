@@ -2,94 +2,77 @@
   /**
    * ConnectorSidebar - the split-screen sidebar for Connections.
    *
-   * SidebarHeader (search + status FilterChipBar) over two sections: native
-   * Apollia connectors, then installed MCP servers sorted by status. Owns its
+   * SidebarHeader (search + status FilterChipBar) over one list: every
+   * connection the loader answers, whatever its kind, in its order, then the
+   * built-in tools, the source of tools Apollia ships. Owns its
    * own search + status-filter state; selection is driven by the orchestrator.
    */
   import { t } from "svelte-i18n";
-  import { Plus, Search } from "lucide-svelte";
-  import { SidebarHeader, FilterChipBar, ErrorBanner } from "$lib/components/operator";
+  import { Plus, Search, Wrench } from "lucide-svelte";
+  import { SidebarHeader, FilterChipBar, ErrorBanner, ListRow } from "$lib/components/operator";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import { listNavigation } from "$lib/components/operator/listNavigation";
-  import { statusOf, sortServers } from "$lib/connections/status";
-  import type { Connection, McpServerStatusView, ConnectorEnrichmentView } from "$lib/types";
-  import type {
-    NativeConnectorCard,
-    Selection,
-    StatusFilter,
-    McpRowAction,
-  } from "../shared/types";
-  import type { ProviderId } from "$lib/connections/capabilities";
-  import NativeConnectorRow from "./NativeConnectorRow.svelte";
-  import McpServerRow from "./McpServerRow.svelte";
+  import {
+    isSelected,
+    rowMatches,
+    type ConnectionRow,
+    type RowSelection,
+  } from "$lib/connections/connectionRows";
+  import type { BuiltinToolsCount, StatusFilter, McpRowAction } from "../shared/types";
+  import ConnectionListRow from "./ConnectionListRow.svelte";
+  import ConnectorTile from "../shared/ConnectorTile.svelte";
   import ForbiddenConnectionRows from "./ForbiddenConnectionRows.svelte";
+  import type { Connection } from "$lib/types";
 
   interface Props {
-    nativeConnectors: NativeConnectorCard[];
-    accountCountFor: (id: ProviderId) => number;
-    /** Whether a native provider still lacks usable OAuth credentials. */
-    needsSetupFor?: (id: ProviderId) => boolean;
-    servers: McpServerStatusView[];
+    rows: ConnectionRow[];
     /** Connections the organisation policy forbade at the last start. */
     forbidden?: Connection[];
-    enrichmentMap: Map<string, ConnectorEnrichmentView>;
-    selection: Selection;
+    selection: RowSelection | null;
     loading: boolean;
     loadError: string | null;
-    onselect: (sel: Selection) => void;
+    onselect: (sel: RowSelection) => void;
     onopencatalogue: () => void;
     oncontext: (name: string, action: McpRowAction) => void;
+    builtinTools: BuiltinToolsCount;
   }
 
   let {
-    nativeConnectors,
-    accountCountFor,
-    needsSetupFor,
-    servers,
+    rows,
     forbidden = [],
-    enrichmentMap,
     selection,
     loading,
     loadError,
     onselect,
     onopencatalogue,
     oncontext,
+    builtinTools,
   }: Props = $props();
 
   let sidebarFilter = $state("");
   let statusFilter = $state<StatusFilter>("all");
 
-  function resolveEnrichment(server: McpServerStatusView): ConnectorEnrichmentView | null {
-    if (!server.package) return null;
-    return enrichmentMap.get(server.package) ?? null;
-  }
+  const countOf = (status: StatusFilter): number => rows.filter((r) => r.status === status).length;
 
-  const activeCount = $derived(servers.filter((s) => statusOf(s) === "active").length);
-  const attentionCount = $derived(servers.filter((s) => statusOf(s) === "attention").length);
-  const errorCount = $derived(servers.filter((s) => statusOf(s) === "error").length);
-  const idleCount = $derived(servers.filter((s) => statusOf(s) === "idle").length);
-
-  const filteredByStatus = $derived(
-    statusFilter === "all" ? servers : servers.filter((s) => statusOf(s) === statusFilter),
+  const visibleRows = $derived(
+    rows
+      .filter((r) => statusFilter === "all" || r.status === statusFilter)
+      .filter((r) => rowMatches(r, sidebarFilter)),
   );
-  const sorted = $derived(sortServers(filteredByStatus));
 
-  const visibleServers = $derived.by(() => {
-    const q = sidebarFilter.trim().toLowerCase();
-    if (q === "") return sorted;
-    return sorted.filter((s) => {
-      const label = resolveEnrichment(s)?.operator_label ?? s.name;
-      return label.toLowerCase().includes(q) || s.name.toLowerCase().includes(q);
-    });
-  });
+  const builtinLabel = $derived($t("connections.builtin_name"));
+  const builtinVisible = $derived(
+    statusFilter === "all" &&
+      (sidebarFilter.trim() === "" ||
+        builtinLabel.toLowerCase().includes(sidebarFilter.trim().toLowerCase())),
+  );
+  const builtinSelected = $derived(selection?.kind === "builtin");
 </script>
 
 <SidebarHeader
-  title={$t("connections.sidebar_my_connectors", {
-    values: { count: servers.length + nativeConnectors.length },
-  })}
+  title={$t("connections.sidebar_my_connectors", { values: { count: rows.length } })}
 >
   {#snippet search()}
     <div class="flex items-center gap-2 rounded-md border border-border bg-surface-1 px-2 py-1.5">
@@ -108,11 +91,11 @@
     <FilterChipBar
       size="compact"
       chips={[
-        { key: "all", label: $t("connections.status_chip_all"), color: "hsl(var(--muted-foreground))", count: servers.length },
-        { key: "active", label: $t("connections.status_chip_active"), color: "hsl(var(--success))", count: activeCount, glowWhenActive: true },
-        { key: "attention", label: $t("connections.status_chip_attention"), color: "hsl(var(--warning))", count: attentionCount },
-        { key: "error", label: $t("connections.status_chip_error"), color: "hsl(var(--destructive))", count: errorCount },
-        { key: "idle", label: $t("connections.status_chip_idle"), color: "hsl(var(--muted-foreground))", count: idleCount },
+        { key: "all", label: $t("connections.status_chip_all"), color: "hsl(var(--muted-foreground))", count: rows.length },
+        { key: "active", label: $t("connections.status_chip_active"), color: "hsl(var(--success))", count: countOf("active"), glowWhenActive: true },
+        { key: "attention", label: $t("connections.status_chip_attention"), color: "hsl(var(--warning))", count: countOf("attention") },
+        { key: "error", label: $t("connections.status_chip_error"), color: "hsl(var(--destructive))", count: countOf("error") },
+        { key: "idle", label: $t("connections.status_chip_idle"), color: "hsl(var(--muted-foreground))", count: countOf("idle") },
       ]}
       activeKey={statusFilter}
       onchange={(key) => (statusFilter = key as StatusFilter)}
@@ -127,23 +110,7 @@
     <ErrorBanner message={loadError} class="mx-1.5 my-2" data-testid="connections-error" />
   {/if}
 
-  <div class="section-meta mb-1.5 mt-1 px-2 text-overline">
-    {$t("connections.sidebar_native_section")}
-  </div>
-  {#each nativeConnectors as connector (connector.id)}
-    <NativeConnectorRow
-      {connector}
-      accountCount={accountCountFor(connector.id)}
-      needsSetup={needsSetupFor?.(connector.id) ?? false}
-      selected={selection?.kind === "native" && selection.provider === connector.id}
-      onselect={() => onselect({ kind: "native", provider: connector.id })}
-    />
-  {/each}
-
-  <div class="section-meta mb-1.5 mt-4 px-2 text-overline">
-    {$t("connections.sidebar_mcp_section", { values: { count: sorted.length } })}
-  </div>
-  {#if loading && servers.length === 0}
+  {#if loading && rows.length === 0}
     {#each Array(4) as _, i (i)}
       <div class="flex items-center gap-2.5 px-2.5 py-2.5">
         <Skeleton class="h-8 w-0.5 rounded-sm" />
@@ -153,25 +120,58 @@
         </div>
       </div>
     {/each}
-  {:else if visibleServers.length === 0}
-    <p class="px-2 py-3 text-caption text-muted-foreground/70">
-      {servers.length === 0
+  {:else if visibleRows.length === 0 && !builtinVisible}
+    <p class="px-2 py-3 text-caption text-muted-foreground/70" data-testid="connections-sidebar-empty">
+      {rows.length === 0
         ? $t("connections.sidebar_no_servers")
         : sidebarFilter
           ? $t("connections.sidebar_no_results")
           : $t("connections.sidebar_no_servers_status")}
     </p>
   {:else}
-    {#each visibleServers as server (server.name)}
-      <McpServerRow
-        {server}
-        label={resolveEnrichment(server)?.operator_label ?? server.name}
-        status={statusOf(server)}
-        selected={selection?.kind === "mcp" && selection.name === server.name}
-        onselect={() => onselect({ kind: "mcp", name: server.name })}
-        oncontext={(action) => oncontext(server.name, action)}
+    {#each visibleRows as row (row.key)}
+      <ConnectionListRow
+        {row}
+        selected={isSelected(row, selection)}
+        onselect={() => onselect(row.selection)}
+        oncontext={row.selection.kind === "mcp"
+          ? (action) => oncontext(row.selection.kind === "mcp" ? row.selection.name : row.key, action)
+          : undefined}
       />
     {/each}
+  {/if}
+
+  {#if builtinVisible}
+    <section class="mt-3" data-testid="connections-builtin-section">
+      <h3 class="px-2.5 pb-1 text-overline font-semibold uppercase text-muted-foreground">
+        {$t("connections.builtin_section")}
+      </h3>
+      <ListRow
+        variant="nav"
+        state={builtinSelected ? "active" : "default"}
+        align="stretch"
+        class="text-left"
+        onclick={() => onselect({ kind: "builtin" })}
+        data-testid="connections-builtin-tools"
+      >
+        <ConnectorTile size="sm" accent="hsl(var(--primary))">
+          {#snippet icon()}<Wrench size={13} />{/snippet}
+        </ConnectorTile>
+        <div class="min-w-0 flex-1">
+          <span
+            class="block truncate text-label-md text-foreground"
+            style:font-weight={builtinSelected ? 600 : 500}
+          >
+            {builtinLabel}
+          </span>
+          <span class="mt-0.5 block truncate text-caption text-muted-foreground" data-testid="connections-builtin-count">
+            {$t("connections.builtin_count", {
+              values: { active: builtinTools.active, total: builtinTools.total },
+            })}
+          </span>
+        </div>
+      </ListRow>
+    </section>
   {/if}
 
   <ForbiddenConnectionRows connections={forbidden} />
@@ -186,6 +186,6 @@
     data-testid="connections-open-catalogue"
   >
     {#snippet icon()}<Plus size={12} />{/snippet}
-    {$t("connections.add_connector")}
+    {$t("connections.add_connection")}
   </Button>
 </div>

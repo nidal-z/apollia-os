@@ -271,6 +271,8 @@ export interface Connection {
   kind: ConnectionKind;
   label: string;
   account: string | null;
+  /** Folder of this machine the connection opens, for a folder. */
+  path?: string;
   provenance: ConnectionProvenance;
   /** Sends data off this machine; computed by the runtime. */
   remote: boolean;

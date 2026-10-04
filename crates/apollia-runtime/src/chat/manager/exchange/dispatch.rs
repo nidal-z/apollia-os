@@ -26,19 +26,6 @@ impl ChatSessionManager {
         }
         {
             let llm_router = self.llm_router.clone().ok_or(ChatError::NoLlmConfigured)?;
-            // Read and consume the late-link injection flag, it triggers a
-            // single re-injection of the project context on the next message
-            // after a session was linked to a project mid-conversation.
-            let force_inject_project_context = {
-                let s_mut = self
-                    .sessions
-                    .get_mut(session_id)
-                    .ok_or_else(|| ChatError::InternalError("session vanished".into()))?;
-                let v = s_mut.force_project_context_inject;
-                s_mut.force_project_context_inject = false;
-                v
-            };
-
             // Fresh cooperative pause token for this turn. A clone is threaded into
             // the ReAct loop; `pause_session` cancels the copy stored here so the
             // loop stops at its next checkpoint. The session starts Running.
@@ -75,10 +62,8 @@ impl ChatSessionManager {
                 None => session.llm_backend.clone(),
             };
             // A declarative agent is isolated as the companion is: no
-            // principle 6 injection, no project context, no prefix rule of
-            // Apollia.
+            // principle 6 injection, no prefix rule of Apollia.
             let is_companion = session.mode == ChatMode::Companion || declarative.is_some();
-            let inject_project_context = is_first_message || force_inject_project_context;
             // The principle 6 injections gathered here (user memory, and the
             // past sessions block on the first message) are made by the
             // executor for the Apollia agent only. Companion sessions are
@@ -94,7 +79,6 @@ impl ChatSessionManager {
                     } else {
                         None
                     },
-                    project: None,
                 }
             };
             let system_prompt = match &declarative {
@@ -146,11 +130,7 @@ impl ChatSessionManager {
             let stored_summary = self.repository.get_summary(session_id).unwrap_or(None);
             let llm_for_summarize = self.llm_router.clone();
 
-            // Capture project context and repo for async injection in spawned task.
             // The invoker is created per-session inside the task.
-            let project_ctx = self.project_context.clone();
-            let session_project_id = session.project_id.clone();
-            let project_repo_for_session = self.project_repo.clone();
             let a2a_for_agent = self.a2a_invoker.clone();
             let tool_registry = self.tool_registry.clone();
             let event_bus = self.event_bus.clone();
@@ -170,11 +150,6 @@ impl ChatSessionManager {
                 pending_fs: self.pending_fs_approvals.clone(),
                 fs_allow_rules: std::sync::Arc::clone(&session.fs_allow_rules),
                 risk_config: apollia_core::FilesystemRiskConfig::default(),
-                trusted_paths: self
-                    .chat_tools_config
-                    .as_ref()
-                    .map(|c| c.trusted_paths.clone())
-                    .unwrap_or_default(),
             };
 
             tokio::spawn(run_libre_exchange(LibreExchangeParams {
@@ -191,14 +166,9 @@ impl ChatSessionManager {
                 available_tools,
                 authorized_tools,
                 system_prompt,
-                inject_project_context,
-                is_companion,
                 context_window_size,
                 stored_summary,
                 llm_for_summarize,
-                project_ctx,
-                session_project_id,
-                project_repo_for_session,
                 pending_user_inputs_for_session,
                 mcp_handle_for_session,
                 package_tools,

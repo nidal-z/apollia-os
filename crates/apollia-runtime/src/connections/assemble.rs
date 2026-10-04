@@ -7,6 +7,7 @@ use std::collections::HashSet;
 
 use apollia_auth::ConnectorProvider;
 use apollia_connectors::imap::{providers::provider_for_email, ImapAccount};
+use apollia_core::FolderConnection;
 use apollia_core::McpHealth;
 use apollia_mcp::config::McpServerConfig;
 use apollia_mcp::manager::McpServerStatus;
@@ -38,6 +39,8 @@ pub struct ConnectionSources {
     pub imap_accounts: Vec<ImapAccount>,
     /// Connections the organisation policy forbade at boot, by identifier.
     pub forbidden: HashSet<String>,
+    /// Folders of this machine added as connections.
+    pub folders: Vec<FolderConnection>,
 }
 
 /// Assemble every connection: native accounts first, then mailboxes, then MCP
@@ -60,7 +63,7 @@ pub fn assemble(sources: &ConnectionSources) -> Vec<Connection> {
             .iter()
             .map(|config| mcp_connection(config, sources)),
     );
-    out.extend(folder_connections());
+    out.extend(folder_connections(&sources.folders));
     for connection in &mut out {
         if sources.forbidden.contains(&connection.id) {
             connection.state = ConnectionState::ForbiddenByPolicy;
@@ -80,6 +83,7 @@ fn native_connection(provider: ConnectorProvider, account: &str) -> Connection {
         kind: ConnectionKind::Native,
         label: provider_label(provider).to_owned(),
         account: Some(account.to_owned()),
+        path: None,
         provenance,
         remote: true,
         official,
@@ -102,6 +106,7 @@ fn imap_connection(account: &ImapAccount) -> Connection {
         kind: ConnectionKind::Imap,
         label,
         account: Some(account.email.clone()),
+        path: None,
         provenance,
         remote: is_remote_host(&account.host),
         official,
@@ -136,6 +141,7 @@ fn mcp_connection(config: &McpServerConfig, sources: &ConnectionSources) -> Conn
         kind: ConnectionKind::Mcp,
         label: config.name.clone(),
         account: None,
+        path: None,
         provenance,
         remote: is_remote(&config.transport, config.url.as_deref()),
         official,

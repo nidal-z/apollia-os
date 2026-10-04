@@ -6,7 +6,6 @@
   import { developerMode } from "$lib/stores/developerMode";
   import { getLlmCostStats } from "$lib/ipc/llm";
   import { DataTable, type Column } from "$lib/components/ui/data-table";
-  import LlmCostThreshold from "./LlmCostThreshold.svelte";
 
   const REFRESH_INTERVAL_MS = 30_000;
   /** Trailing window every figure on this block is aggregated over. */
@@ -89,16 +88,14 @@
       {isOperator ? $t('llm.no_calls_operator') : $t('llm.no_calls')}
     </p>
   {:else if isOperator}
-    <!-- Operator mode: the ceiling, then a single summary line -->
-    <LlmCostThreshold windowDays={WINDOW_DAYS} />
+    <!-- Operator mode: a single summary line -->
     <p class="text-sm text-muted-foreground">
       {$t('llm.used_today', {
         values: { count: totalCalls, days: WINDOW_DAYS, cost: formatCost(totalCost) },
       })}
     </p>
   {:else}
-    <!-- Builder mode: the ceiling, then the full table -->
-    <LlmCostThreshold windowDays={WINDOW_DAYS} />
+    <!-- Builder mode: the full table -->
     <div data-testid="llm-stats-table">
       <div class="overflow-x-auto">
         <DataTable

@@ -15,7 +15,7 @@ sidebar_position: 2
 
 ## How are permissions created?
 
-Rules appear automatically when an agent requests access to a tool and you choose a persisted scope in the approval card (for example: *This project* or *Everywhere*). Chat rules (*Chat* scope) are created through the **"Always allow"** button in the free chat. You can also create one by hand, with the **Add rule** button at the top of the Rules section, which is how you authorise something before an agent ever asks for it.
+Rules appear automatically when an agent requests access to a tool and you choose a persisted scope in the approval card (for example: *Always for this assistant* or *Always, everywhere*). Chat rules (*Chat* scope) are created through the **"Always allow"** button in the free chat. You can also create one by hand, with the **Add rule** button at the top of the Rules section, which is how you authorise something before an agent ever asks for it.
 
 ## Review the active permissions
 

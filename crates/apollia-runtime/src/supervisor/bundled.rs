@@ -179,7 +179,7 @@ pub(in crate::supervisor) fn validate_installed_packages(
 
 /// Returns descriptors for native tools bundled with `apollia-tools`.
 ///
-/// Registers all 12 active native tools in the order: existing tools first,
+/// Registers all 14 active native tools in the order: existing tools first,
 /// then new atomic tools grouped by category.
 pub(in crate::supervisor) fn native_tool_descriptors() -> Vec<apollia_tools::ToolDescriptor> {
     // `mut` is used only when at least one web-* feature is active; allow the
@@ -196,9 +196,11 @@ pub(in crate::supervisor) fn native_tool_descriptors() -> Vec<apollia_tools::Too
         apollia_tools::tools::file_grep::FileGrep::descriptor(),
         apollia_tools::tools::http_fetch::HttpFetch::descriptor(),
         apollia_tools::tools::memory_search::MemorySearchTool::descriptor(),
+        apollia_tools::tools::source_search::SourceSearchTool::descriptor(),
         apollia_tools::tools::notebook_read::NotebookRead::descriptor(),
         apollia_tools::tools::notebook_edit::NotebookEdit::descriptor(),
         apollia_tools::tools::ask_user::AskUser::descriptor(),
+        apollia_tools::CodeContext::descriptor(),
     ];
 
     // Web tools are always advertised in the catalogue (so the UI and agent
@@ -248,6 +250,7 @@ mod tests {
             "mcp_resources_list",
             "mcp_resources_read",
             "notebook_read",
+            "source_search",
         ];
         #[cfg(feature = "web-read")]
         expected.push("web_read");

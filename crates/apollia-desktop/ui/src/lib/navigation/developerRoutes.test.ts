@@ -22,7 +22,7 @@ import { currentRoute } from "$lib/stores/navigation";
 import { buildPaletteActions } from "$lib/command-palette/actions";
 
 describe("developerRoutes - the router keeps the developer screens out of reach", () => {
-  test.each(["observability", "transcriptions"] as const)(
+  test.each(["observability", "transcriptions", "memory"] as const)(
     "with the developer mode off, %s resolves to the default route",
     (route) => {
       // GIVEN the developer mode off
@@ -36,7 +36,7 @@ describe("developerRoutes - the router keeps the developer screens out of reach"
     },
   );
 
-  test.each(["observability", "transcriptions"] as const)(
+  test.each(["observability", "transcriptions", "memory"] as const)(
     "with the developer mode on, %s resolves to itself",
     (route) => {
       // GIVEN the developer mode on

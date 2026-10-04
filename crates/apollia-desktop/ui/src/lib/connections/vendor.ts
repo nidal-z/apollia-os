@@ -100,10 +100,11 @@ export function isInstalled(
   return entry.is_installed || installedNameFor(entry, installedNames, installedByPackage) !== null;
 }
 
-/** Whether an entry carries an "official" trust level. */
+/**
+ * Whether an entry is badged official: a selection entry marked verified
+ * official, or a registry entry the desktop found published by the editor of
+ * its service. Everything else, `community_verified` included, is community.
+ */
 export function isOfficial(entry: RegistryServerView): boolean {
-  return (
-    entry.trust_level === "verified_official" ||
-    entry.trust_level === "community_verified"
-  );
+  return entry.trust_level === "verified_official";
 }

@@ -117,6 +117,7 @@ fn build_app_state() -> AppState<MockBackend> {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     }
 }
 

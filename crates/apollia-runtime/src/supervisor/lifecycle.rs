@@ -134,13 +134,16 @@ impl Supervisor {
         } else {
             self.config.api_config.bind_addr.clone()
         };
-        // When TCP is disabled (Unix-socket-only host), fall back to the nominal
+        // When TCP is disabled (Unix-socket-only host), fall back to the default
         // port for the callback URL string; webhook callbacks are only reachable
         // when a TCP listener is actually bound.
         let api_base_url = format!(
             "http://{}:{}",
             connect_addr,
-            self.config.api_config.tcp_port.unwrap_or(7771)
+            self.config
+                .api_config
+                .tcp_port
+                .unwrap_or(apollia_core::config::DEFAULT_API_PORT)
         );
         let engine = NotificationEngine::new(
             notif_config.clone(),
@@ -374,10 +377,18 @@ impl Supervisor {
         }
     }
 
-    /// Propagate the `[llm.routing]` TOML section onto the freshly built router
-    /// and log the ready backends. `system.db` does not store routing.
-    fn finalize_llm_router(&self, mut router: LlmRouter) -> LlmRouter {
+    /// Propagate the `[llm.routing]` and `[llm.observability]` TOML sections
+    /// onto the freshly built router and log the ready backends. `system.db`
+    /// stores neither.
+    pub(in crate::supervisor) fn finalize_llm_router(&self, mut router: LlmRouter) -> LlmRouter {
         if let Some(llm_cfg) = self.config.llm_config.as_ref() {
+            router = router.with_observability(llm_cfg.observability.clone());
+            if llm_cfg.observability.debug_log_prompt {
+                tracing::info!(
+                    detail = "every prompt is logged at trace level",
+                    "llm.observability.debug_log_prompt.on"
+                );
+            }
             if let Some(routing) = llm_cfg.routing.as_ref() {
                 router = router.with_routing(routing.clone());
                 tracing::info!(

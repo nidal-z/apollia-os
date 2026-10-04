@@ -70,17 +70,30 @@ describe("Sidebar - primary entries and the developer mode", () => {
     expect(shown).not.toContain("transcriptions");
   });
 
-  test("with the developer mode on, the developer group carries Transcriptions then Observability", () => {
+  test("with the developer mode on, the developer group carries Transcriptions, Observability, then Memory", () => {
     // GIVEN the developer mode on
     const developerMode = true;
 
     // WHEN the sidebar computes its developer group
     const group = developerRoutes(developerMode);
 
-    // THEN it holds the two technical screens, in that order, and exactly the
+    // THEN it holds the three technical screens, in that order, and exactly the
     // routes the router keeps out of reach with the mode off
-    expect(group).toEqual(["transcriptions", "observability"]);
+    expect(group).toEqual(["transcriptions", "observability", "memory"]);
     expect(group).toEqual([...DEVELOPER_ROUTES]);
+  });
+
+  test("the Memory screen is never a primary entry, mode off or on", () => {
+    // GIVEN the developer mode off, then on
+    // WHEN the sidebar computes its primary entries
+    const off = routes(false);
+    const on = routes(true);
+
+    // THEN the Memory screen is among neither: it only lives in the developer
+    // group, and with the mode off it is nowhere in the sidebar
+    expect(off).not.toContain("memory");
+    expect(on).not.toContain("memory");
+    expect(developerRoutes(false)).not.toContain("memory");
   });
 
   test("the developer group holds no developer server entry", () => {
@@ -106,7 +119,7 @@ describe("Sidebar - primary entries and the developer mode", () => {
 });
 
 describe("Sidebar - the rendered developer group", () => {
-  test("with the developer mode off, the group and its two entries are absent", async () => {
+  test("with the developer mode off, the group and its three entries are absent", async () => {
     // GIVEN the developer mode off
     // WHEN the sidebar is rendered
     const html = await renderSidebar(false);
@@ -116,6 +129,7 @@ describe("Sidebar - the rendered developer group", () => {
     expect(html).not.toContain('data-testid="sidebar-developer-group"');
     expect(html).not.toContain('data-testid="nav-observability"');
     expect(html).not.toContain('data-testid="nav-transcriptions"');
+    expect(html).not.toContain('data-testid="nav-memory"');
   });
 
   test("with the developer mode on, the group follows the secondary entries", async () => {
@@ -124,7 +138,7 @@ describe("Sidebar - the rendered developer group", () => {
     const html = await renderSidebar(true);
 
     // THEN the group comes after Connections and Settings, and holds
-    // Transcriptions then Observability
+    // Transcriptions, Observability, then Memory
     const settings = html.indexOf('data-testid="nav-settings"');
     const group = html.indexOf('data-testid="sidebar-developer-group"');
     const transcriptions = html.indexOf('data-testid="nav-transcriptions"');
@@ -133,6 +147,7 @@ describe("Sidebar - the rendered developer group", () => {
     expect(group).toBeGreaterThan(settings);
     expect(transcriptions).toBeGreaterThan(group);
     expect(observability).toBeGreaterThan(transcriptions);
+    expect(html.indexOf('data-testid="nav-memory"')).toBeGreaterThan(observability);
     expect(html).toContain('aria-label="Developer mode"');
   });
 });

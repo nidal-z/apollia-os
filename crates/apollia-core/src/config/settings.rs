@@ -20,7 +20,6 @@
 //! [`PolicySettings::none`] and every write goes through.
 
 use std::collections::BTreeMap;
-use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
@@ -94,6 +93,11 @@ impl PolicySettings {
     /// Whether the policy locks `key`.
     pub fn locks(&self, key: &str) -> bool {
         self.imposed.contains_key(key)
+    }
+
+    /// Every imposed key with its value, in key order.
+    pub(crate) fn imposed_keys(&self) -> impl Iterator<Item = (&str, &Value)> {
+        self.imposed.iter().map(|(k, v)| (k.as_str(), v))
     }
 }
 
@@ -251,7 +255,7 @@ pub fn check_imposed_setting(key: &str, value: &Value) -> Result<(), SettingErro
 }
 
 /// Reads `path`, an absent file reading as an empty document.
-fn read_config(path: &Path) -> Result<String, SettingError> {
+pub(crate) fn read_config(path: &Path) -> Result<String, SettingError> {
     match std::fs::read_to_string(path) {
         Ok(content) => Ok(content),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
@@ -339,7 +343,7 @@ pub fn resolve_setting(
 }
 
 /// Converts a JSON scalar or array into a TOML value.
-fn to_toml(key: &str, value: &Value) -> Result<toml_edit::Value, SettingError> {
+pub(crate) fn to_toml(key: &str, value: &Value) -> Result<toml_edit::Value, SettingError> {
     let invalid = || SettingError::InvalidValue {
         key: key.to_owned(),
         reason: format!("{value} has no TOML form"),
@@ -364,7 +368,7 @@ fn to_toml(key: &str, value: &Value) -> Result<toml_edit::Value, SettingError> {
 
 /// Sets `key` to `value` in `document`, creating the section header when the
 /// file has none, and leaving every other line as written.
-fn set_in_document(
+pub(crate) fn set_in_document(
     document: &mut toml_edit::DocumentMut,
     key: &str,
     value: toml_edit::Value,
@@ -390,25 +394,13 @@ fn set_in_document(
                 reason: format!("'{segment}' is not a table in the file"),
             })?;
     }
+    let mut value = value;
+    // A value replaced keeps the spacing and the trailing comment of its line.
+    if let Some(old) = table.get(leaf).and_then(toml_edit::Item::as_value) {
+        *value.decor_mut() = old.decor().clone();
+    }
     table.insert(leaf, toml_edit::Item::Value(value));
     Ok(())
-}
-
-/// Writes `content` to `path` through a sibling file renamed over it, so a
-/// reader never sees half a file.
-fn write_atomically(path: &Path, content: &str) -> Result<(), SettingError> {
-    let failed = |source| SettingError::Write {
-        path: path.to_path_buf(),
-        source,
-    };
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(failed)?;
-    }
-    let staging = path.with_extension("toml.writing");
-    let mut file = std::fs::File::create(&staging).map_err(failed)?;
-    file.write_all(content.as_bytes()).map_err(failed)?;
-    file.sync_all().map_err(failed)?;
-    std::fs::rename(&staging, path).map_err(failed)
 }
 
 /// Writes the setting `key` to the `apollia.toml` at `path`, keeping the
@@ -440,24 +432,33 @@ pub fn write_setting(
         });
     }
     check_type(key, &value, &default)?;
-    let content = read_config(path)?;
-    let mut document: toml_edit::DocumentMut =
-        content
-            .parse()
-            .map_err(|e: toml_edit::TomlError| SettingError::Parse {
-                path: path.to_path_buf(),
-                reason: e.message().to_owned(),
-            })?;
-    set_in_document(&mut document, key, to_toml(key, &value)?)?;
-    let written = document.to_string();
-    let invalid = |e: toml::de::Error| SettingError::InvalidValue {
-        key: key.to_owned(),
-        reason: e.message().to_owned(),
-    };
-    DesktopConfig::from_toml_str(&written).map_err(invalid)?;
-    ServerConfig::from_toml_str(&written).map_err(invalid)?;
-    EnginesConfig::from_toml_str(&written).map_err(invalid)?;
-    write_atomically(path, &written)?;
+    super::writer::update_config(
+        path,
+        super::writer::ConfigEdit::Keys(vec![super::writer::KeyChange::set(key, value.clone())]),
+        policy,
+    )
+    .map_err(|e| match e {
+        super::writer::ConfigWriteError::Read { path, source } => {
+            SettingError::Read { path, source }
+        }
+        super::writer::ConfigWriteError::Invalid {
+            key: None,
+            diagnostics,
+        } => SettingError::Parse {
+            path: path.to_path_buf(),
+            reason: diagnostics
+                .first()
+                .map(|d| d.message.clone())
+                .unwrap_or_default(),
+        },
+        super::writer::ConfigWriteError::Write { path, source } => {
+            SettingError::Write { path, source }
+        }
+        other => SettingError::InvalidValue {
+            key: key.to_owned(),
+            reason: other.to_string(),
+        },
+    })?;
     tracing::event!(tracing::Level::INFO, key = %key, "config.setting.written");
     Ok(ResolvedSetting {
         key: key.to_owned(),

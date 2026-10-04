@@ -95,6 +95,19 @@ memory search. File tools are confined to a resolved root: the path is
 canonicalized and re-checked against the root after resolution, so a symlink
 cannot walk out of it.
 
+The root of an agent's file tools is the union of the folders granted to that
+agent, the built-in chat agent included, on the chat path and on the task path
+alike. A folder of the machine is a connection, chosen with the system picker,
+and its tools are granted to an agent one by one: the reading tools reach every
+folder granted to it, the writing tools only those granted for writing. The
+first folder granted, by the date it was added, anchors a relative path. An
+agent with no folder granted has file tools that refuse with a message saying
+how to grant one. Nothing else is a root: not the home folder, not the data
+directory, not the volume, not the folder of a project. The former
+`[filesystem] trusted_paths` and `[chat] default_workspace` keys are withdrawn;
+the folders they named, the home folder excepted, were added once as
+connections, granted to no agent.
+
 Confinement is not uniform across platforms, and the difference is not
 cosmetic. On Linux, shell execution runs under PID and mount namespaces. On
 macOS the confinement is weaker. On Windows there is none. This is stated
@@ -366,6 +379,59 @@ The asymmetry is deliberate, and it is stated where an operator meets it.
 
 ## Documents and sources {#documents-and-sources}
 
+Workbooks and CSV files are read in Rust, without the embedded Python
+interpreter. `calamine` (MIT) reads `.xlsx`, `.xlsm`, `.xlsb`, `.xls` and
+`.ods`; `csv` (MIT or Unlicense) reads CSV files, with the separator detected
+among the comma, the semicolon and the tabulation. Both are pure Rust, read
+only, link no system library and open no connection. Each cell is read as text
+with its sheet, row and column: a number without a zero fraction, a date in
+ISO 8601, a formula by the value the file last computed for it (no formula is
+evaluated), an error by its code. A workbook protected by a password, or
+damaged, is a typed error, never a crash. A CSV file that is not UTF-8 is read
+with its invalid bytes replaced, and the result says so: no encoding is
+guessed.
+
+The cost is named: `calamine` depends on `zip` 8 while the workspace carries
+`zip` 4 for the package archive and the batch export, so two major versions of
+`zip` enter every build, with five small crates under `calamine` (`atoi_simd`,
+`codepage`, `debug_unsafe`, `fast-float2`, `typed-path`) and `csv-core` under
+`csv`. `calamine` is pinned to 0.36.1, so that a new release, and the version of
+`zip` it brings, is a decision rather than an update.
+
+The text of a PDF document is extracted in Rust by `pdf_oxide` (MIT or
+Apache-2.0), page by page, each page with its number. It is pure Rust, reads
+only, links no system library and opens no connection; its default features are
+off, so neither its colour-profile engine nor its rendering, OCR or signature
+modules enter the build, and only `legacy-crypto` is kept, so that a document
+locked with an owner password alone still opens. A page that draws no letter
+and no digit is marked as a page without text, the page that optical character
+recognition has to read. A document that needs a password to be opened, or a
+damaged one, is a typed error, and a defect of the parser on a malformed file
+is caught and reported as a damaged file, never a crash. It was measured before
+it was adopted, on twenty real French documents published under the Licence
+Ouverte (contract documents and terms of use, budgets and price lists,
+methodological reports), with five accented witness phrases per document taken
+from an independent extractor: nineteen documents of twenty yield all five
+phrases with every accent intact; the twentieth loses one phrase whose words a
+table cell spreads over two lines. The corpus is versioned with the tests that
+read it, and PDFium, the native fallback considered, is not shipped.
+
+The cost is named: `pdf_oxide` brings fifty-three crate versions the lock file
+did not hold, among them a font stack (`skrifa`, `read-fonts`, `write-fonts`,
+`ttf-parser`, `subsetter`), a layout engine (`taffy`) and second majors of
+`quick-xml`, `brotli`, `sha2` and `aes`. `pdf_oxide` is pinned to 0.3.78, and
+`office_oxide`, which it depends on, is held at 0.1.11 in the lock file: its
+0.1.12 release no longer compiles under `pdf_oxide` 0.3.78, so an update of
+either is a decision rather than a refresh.
+
+One crate of that font stack carries an advisory: `ttf-parser` 0.25.1, which
+`pdf_oxide` alone uses to parse the fonts a document embeds, is flagged
+unmaintained (RUSTSEC-2026-0192). No vulnerability is known in it and no newer
+release exists to move to, so the advisory is exempted in `deny.toml`, dated
+2026-10-04, with that reason beside it, and it is revisited at the next minor
+release. It lifts when `pdf_oxide` drops `ttf-parser` or a maintained release
+of it appears.
+
 A mailbox connects over IMAP with an application password, so any provider is
 reachable, Gmail included, without an OAuth client and without a relay. The
 client is `async-imap` (MIT or Apache-2.0), on the Tokio runtime, over the
@@ -449,14 +515,48 @@ The HTTP API listens on a Unix socket and on a TCP port; the daemon binds both o
 every start, and the port number is the only thing `--port` decides. The Unix
 socket is local-trust and relies on filesystem permissions. TCP requires a
 bearer token on every `/api/v1` path but one, and binding it to a non-loopback
-address without TLS is a startup error rather than a warning: an insecure remote
-bind is the one mistake that cannot be undone once traffic has flowed.
+address without a token is a startup error rather than a warning: an
+unauthenticated remote bind is the one mistake that cannot be undone once
+traffic has flowed. TLS is optional: with `[api] tls_cert` and `tls_key` set,
+the TCP listener serves HTTPS, and a certificate that cannot be loaded fails the
+start instead of falling back to cleartext.
 
 The exemption is `GET /api/v1/health`, which answers without a token and reveals
 the product marker and the runtime version, nothing else. A process that finds
 the port taken holds no token of this installation, and what it needs to know is
 whether an Apollia runtime is the holder and in which version. Every other
 `/api/v1` route keeps the token.
+
+### The compatible server and the local network {#local-server}
+
+The runtime has two listeners. The native API, port 7771 and the local socket,
+drives the runtime; the compatible server, port 7772 by default, serves the
+OpenAI and Anthropic formats to other applications. The native API stays on the
+machine: the embedded runtime of the desktop binds it to `127.0.0.1` whatever
+the file says, the daemon to the loopback `[api] bind` names by default (another
+address needs a token, as above), and no setting of the compatible server moves
+it. The compatible server is the only surface the user opens to the local
+network, by `[server] serve_on_lan`, which is off by default and turned on only
+by an explicit action of the user.
+
+The network and the tokens are independent switches for models. A device of the
+local network can call the models without a token when `[server] require_auth`
+is off, as other local inference servers allow; that choice belongs to the
+user. Agents and workflows are not models: they reach the user's connections,
+documents and mail, so a call to one from the local network is admitted only
+with a token of the server in use, whatever `require_auth` says. Each request
+carries its origin, the machine or the local network, read from the peer
+address when its connection is accepted. The organisation policy is where an
+organisation forbids the local network or imposes tokens, overriding the user's
+switches.
+
+Read against the local-first principle: nothing leaves the machine until the
+user opens the network, and what then answers without a token is inference on
+the prompt the caller sent itself. The user's data, which only agents and
+workflows reach, never answers the network without a token the user created and
+can revoke. The native API, which holds every other capability, is never
+reachable from the network through this switch. Traffic on the network is
+cleartext HTTP: the compatible server does not terminate TLS.
 
 ## Signatures {#signing-schemes}
 
@@ -527,6 +627,23 @@ system features. It is the raw binding Microsoft publishes, it has no
 dependency beyond its own linker shim, and the same version was already in the
 tree through other crates, so the lockfile gained no package. The cost is a
 block of FFI code with its own `unsafe` allowance, confined to one module.
+
+## The configuration file {#configuration-file}
+
+`apollia.toml` has one writer, `apollia_core::config::writer`. The settings
+screens of the desktop application, the command line, the routes under
+`/api/v1/config` and the backends the runtime mirrors into the file all go
+through it, so the same four checks hold whoever writes: the text validates
+against the strict schema, no line gives a key the organisation policy fixes
+another value, the file on disk is still the one the caller read, compared by
+its SHA-256 fingerprint, and the text replaces the file through a sibling file
+renamed over it. A write by key keeps the comments and the order of the file.
+The command line calls the writer directly, so it works with the daemon
+stopped, and a refusal reads the same sentence on every surface.
+
+Holding the writer in the foundation crate puts `toml`, `toml_edit` and `sha2`
+among the direct dependencies of `apollia-core`. All three were already
+workspace dependencies and the lockfile gained no package.
 
 ## Command line {#cli}
 

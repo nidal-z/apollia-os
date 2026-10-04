@@ -54,9 +54,6 @@ pub struct ProductionChatAgentRunner {
     pub mailbox_handle: Arc<std::sync::OnceLock<AgentMailboxHandle>>,
     /// Operator tools configuration (`[tools]` apollia.toml).
     pub tools_config: Arc<std::sync::OnceLock<ToolsConfig>>,
-    /// Filesystem roots an agent may reach (`[filesystem] trusted_paths`, `~`
-    /// already resolved). Set after the runtime boots, like every lock here.
-    pub trusted_paths: Arc<std::sync::OnceLock<Vec<std::path::PathBuf>>>,
 }
 
 #[async_trait::async_trait]
@@ -170,7 +167,6 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             a2a_invoker,
             mailbox,
             tools_config,
-            trusted_paths: self.trusted_paths.get().cloned().unwrap_or_default(),
             datasources_declared,
             templates_declared,
             agent_dir,
