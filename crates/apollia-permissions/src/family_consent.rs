@@ -15,6 +15,7 @@ use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
 use crate::error::PermissionError;
+use crate::journal_outbox::{enqueue, StoreEvent};
 
 /// Agent identifier of Apollia, the conversational agent of the interface.
 ///
@@ -165,6 +166,7 @@ impl FamilyConsentStore {
     /// Gives `agent_id` a standing consent for `family`, within `scope`.
     ///
     /// Returns `true` when the consent is new, `false` when it already existed.
+    /// A new consent for a batch run leaves its event in the journal outbox.
     ///
     /// # Errors
     ///
@@ -178,8 +180,9 @@ impl FamilyConsentStore {
         scope: &ConsentScope,
         granted_by: &str,
     ) -> Result<bool, PermissionError> {
-        insert_consent(
-            &self.db,
+        let tx = self.db.transaction()?;
+        let created = insert_consent(
+            &tx,
             &NewConsent {
                 agent_id,
                 family,
@@ -187,10 +190,24 @@ impl FamilyConsentStore {
                 granted_by,
                 granted_at: crate::prefix_rule_engine::unix_now(),
             },
-        )
+        )?;
+        if let (true, ConsentScope::Lot(batch_id)) = (created, scope) {
+            enqueue(
+                &tx,
+                &StoreEvent::BatchAccessGranted {
+                    agent_id: agent_id.to_string(),
+                    batch_id: batch_id.clone(),
+                    family,
+                    granted_by: granted_by.to_string(),
+                },
+            )?;
+        }
+        tx.commit()?;
+        Ok(created)
     }
 
     /// Withdraws one standing consent. Returns `true` when a row was removed.
+    /// Withdrawing a permanent one leaves its event in the journal outbox.
     ///
     /// # Errors
     ///
@@ -201,10 +218,21 @@ impl FamilyConsentStore {
         family: ConsentFamily,
         scope: &ConsentScope,
     ) -> Result<bool, PermissionError> {
-        let affected = self.db.execute(
+        let tx = self.db.transaction()?;
+        let affected = tx.execute(
             "DELETE FROM family_consents WHERE agent_id = ? AND family = ? AND scope = ?",
             params![agent_id, family.as_str(), scope.to_db()],
         )?;
+        if affected > 0 && *scope == ConsentScope::Permanent {
+            enqueue(
+                &tx,
+                &StoreEvent::AlwaysWithdrawn {
+                    agent_id: agent_id.to_string(),
+                    family,
+                },
+            )?;
+        }
+        tx.commit()?;
         Ok(affected > 0)
     }
 

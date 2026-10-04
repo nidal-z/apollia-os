@@ -15,14 +15,19 @@
 //! What cannot be read never becomes a permission: a database that cannot be
 //! read, or a policy deposited and refused, puts the state in fail-closed (see
 //! [`crate::governance::FailClosed`]), and the actor announces each change of
-//! that state on the event bus.
+//! that state on the event bus and records each entry into it in the journal.
+//!
+//! The rules and the consents another process changed leave their events in
+//! the outbox of `governance.db`; the actor moves them to the journal when it
+//! starts and whenever it reads the files again.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use apollia_permissions::{
-    ConsentFamily, ConsentScope, FamilyConsentStore, PolicyVerdict, PrefixRuleEngine,
+    is_code_executor, is_single_simple_command, ConsentFamily, ConsentScope, FamilyConsentStore,
+    PermissionScope, PolicyVerdict, PrefixRule, PrefixRuleEngine, RuleAction,
 };
 use apollia_tools::ActionFamily;
 use tokio::sync::{mpsc, oneshot, watch};
@@ -77,6 +82,10 @@ pub enum GovernanceWriteError {
     /// classified, or a family that needs no consent.
     #[error("no standing consent covers the family {0:?}")]
     NotConsentable(ActionFamily),
+    /// "Always" on executing code writes a fine rule only for a single simple
+    /// command of a code executor, in developer mode.
+    #[error("no fine rule can allow this command: {0}")]
+    NotACommandRule(&'static str),
     /// The runtime has no governance database to write to.
     #[error("governance has no database to write to")]
     NoDatabase,
@@ -93,6 +102,12 @@ enum Command {
         agent_id: String,
         family: ConsentFamily,
         reply: oneshot::Sender<Result<bool, GovernanceWriteError>>,
+    },
+    WriteCommandRule {
+        agent_id: String,
+        tool_name: String,
+        command: String,
+        reply: oneshot::Sender<Result<i64, GovernanceWriteError>>,
     },
     Refresh {
         reply: oneshot::Sender<()>,
@@ -113,7 +128,12 @@ impl GovernanceHandle {
     /// current. Must be called from within a Tokio runtime.
     pub fn spawn(sources: GovernanceSources) -> Self {
         let initial = load_state(&sources, None);
-        announce(None, initial.fail_closed.as_ref(), sources.events.as_ref());
+        announce(
+            None,
+            initial.fail_closed.as_ref(),
+            sources.events.as_ref(),
+            sources.journal.as_ref(),
+        );
         let (state_tx, state) = watch::channel(Arc::new(initial));
         let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
         let journal = sources.journal.clone();
@@ -179,6 +199,53 @@ impl GovernanceHandle {
         tx.send(Command::GrantAlways {
             agent_id: agent_id.to_owned(),
             family: consent,
+            reply,
+        })
+        .await
+        .map_err(|_| GovernanceWriteError::ActorGone)?;
+        answer.await.map_err(|_| GovernanceWriteError::ActorGone)?
+    }
+
+    /// Writes the fine rule an "always" on executing code stands for: `allow`
+    /// for `agent_id`, on the code executor `tool_name`, with the whole
+    /// `command` as its prefix. Never a grant by tool name: the command must
+    /// be a single simple command and the developer mode must be on. Returns
+    /// the identifier of the rule; once it returns, the next decision reads
+    /// it.
+    ///
+    /// # Errors
+    ///
+    /// [`GovernanceWriteError::NotACommandRule`] for a tool that does not run
+    /// code, a compound command, or the developer mode off;
+    /// [`GovernanceWriteError::NoDatabase`], [`GovernanceWriteError::ActorGone`]
+    /// or [`GovernanceWriteError::Store`] when the write cannot be made.
+    pub async fn allow_command(
+        &self,
+        agent_id: &str,
+        tool_name: &str,
+        command: &str,
+    ) -> Result<i64, GovernanceWriteError> {
+        if !is_code_executor(tool_name) {
+            return Err(GovernanceWriteError::NotACommandRule(
+                "the tool does not run code",
+            ));
+        }
+        if command.trim().is_empty() || !is_single_simple_command(command) {
+            return Err(GovernanceWriteError::NotACommandRule(
+                "the command is not a single simple command",
+            ));
+        }
+        if !self.state().developer_mode {
+            return Err(GovernanceWriteError::NotACommandRule(
+                "the developer mode is off",
+            ));
+        }
+        let tx = self.tx.as_ref().ok_or(GovernanceWriteError::NoDatabase)?;
+        let (reply, answer) = oneshot::channel();
+        tx.send(Command::WriteCommandRule {
+            agent_id: agent_id.to_owned(),
+            tool_name: tool_name.to_owned(),
+            command: command.to_owned(),
             reply,
         })
         .await
@@ -269,6 +336,7 @@ struct GovernanceActor {
 
 impl GovernanceActor {
     async fn run(mut self, mut rx: mpsc::Receiver<Command>) {
+        self.drain_outbox().await;
         let mut tick = tokio::time::interval(REFRESH_PERIOD);
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
@@ -276,6 +344,11 @@ impl GovernanceActor {
                 command = rx.recv() => match command {
                     Some(Command::GrantAlways { agent_id, family, reply }) => {
                         let written = self.grant(agent_id, family).await;
+                        self.publish().await;
+                        let _ = reply.send(written);
+                    }
+                    Some(Command::WriteCommandRule { agent_id, tool_name, command, reply }) => {
+                        let written = self.allow(agent_id, tool_name, command).await;
                         self.publish().await;
                         let _ = reply.send(written);
                     }
@@ -321,7 +394,56 @@ impl GovernanceActor {
         Ok(written)
     }
 
+    /// Moves the events the stores of `governance.db` left in its outbox to
+    /// the journal. Without a journal they wait for the next start that has
+    /// one.
+    async fn drain_outbox(&self) {
+        if let (Some(db), Some(journal)) = (&self.sources.governance_db, &self.sources.journal) {
+            crate::governance::journal::drain_outbox(db, journal).await;
+        }
+    }
+
+    async fn allow(
+        &self,
+        agent_id: String,
+        tool_name: String,
+        command: String,
+    ) -> Result<i64, GovernanceWriteError> {
+        let db = self
+            .sources
+            .governance_db
+            .clone()
+            .ok_or(GovernanceWriteError::NoDatabase)?;
+        let rule = PrefixRule {
+            tool_name,
+            arg_prefix: Some(command),
+            action: RuleAction::Allow,
+            created_at: chrono::Utc::now().timestamp(),
+            created_by_agent: None,
+            scope: PermissionScope::Agent,
+            agent_id: Some(agent_id),
+            expires_at: None,
+            ..PrefixRule::default()
+        };
+        let tool = rule.tool_name.clone();
+        let id = tokio::task::spawn_blocking(move || {
+            let mut engine = PrefixRuleEngine::new(&db)?;
+            engine.add_rule(&rule)
+        })
+        .await
+        .map_err(|e| GovernanceWriteError::Store(e.to_string()))?
+        .map_err(|e| GovernanceWriteError::Store(e.to_string()))?;
+        tracing::event!(
+            tracing::Level::INFO,
+            tool = %tool,
+            rule_id = id,
+            "governance.command_rule.written"
+        );
+        Ok(id)
+    }
+
     async fn publish(&mut self) {
+        self.drain_outbox().await;
         let sources = GovernanceSources {
             governance_db: self.sources.governance_db.clone(),
             config_path: self.sources.config_path.clone(),
@@ -344,6 +466,7 @@ impl GovernanceActor {
                     previous.fail_closed.as_ref(),
                     state.fail_closed.as_ref(),
                     self.sources.events.as_ref(),
+                    self.sources.journal.as_ref(),
                 );
                 self.state_tx.send_replace(Arc::new(state));
             }
@@ -485,14 +608,19 @@ fn disabled_tools(db: &Path) -> Result<Vec<String>, String> {
 }
 
 /// Announces a change of the fail-closed state, from `before` to `after`, in
-/// the log and on `events`. Nothing changes, nothing is announced.
+/// the log and on `events`, and records an entry into fail-closed in
+/// `journal`. Nothing changes, nothing is announced.
 fn announce(
     before: Option<&FailClosed>,
     after: Option<&FailClosed>,
     events: Option<&EventBusSender>,
+    journal: Option<&AuditJournalHandle>,
 ) {
     if before == after {
         return;
+    }
+    if let (Some(state), Some(journal)) = (after, journal) {
+        crate::governance::journal::record_fail_closed(journal, state);
     }
     match after {
         Some(state) => tracing::event!(

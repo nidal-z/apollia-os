@@ -3445,11 +3445,20 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "confirm",
+            "in": "query",
+            "description": "Remove the sources made on the folder, and their indexes, with it.\nWithout it, a folder sources depend on is not removed.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Folder connection removed; the connection it was",
+            "description": "Folder connection removed, with the sources made on it when confirmed; the connection it was",
             "content": {
               "application/json": {
                 "schema": {
@@ -3468,8 +3477,18 @@
               }
             }
           },
+          "409": {
+            "description": "Sources depend on the folder and the removal was not confirmed; nothing was removed, `dependent_sources` lists them",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
           "500": {
-            "description": "system.db could not be written",
+            "description": "system.db could not be written, or a dependent source could not be removed",
             "content": {
               "application/json": {
                 "schema": {
@@ -6084,7 +6103,7 @@
         },
         "responses": {
           "200": {
-            "description": "The default embeddings model, as now set",
+            "description": "The default embeddings model, as now set; every source index is rebuilt with it in the background",
             "content": {
               "application/json": {
                 "schema": {
@@ -14888,6 +14907,58 @@
         }
       }
     },
+    "/api/v1/sources/{id}/index": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "`GET /api/v1/sources/{id}/index`: where the index of a source stands.",
+        "operationId": "source_index",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Source identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The state of the source's index, its counts and the files it left out",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceIndexResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Source not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Source registry not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/stt/config": {
       "get": {
         "tags": [
@@ -20800,6 +20871,29 @@
           }
         }
       },
+      "DependentSource": {
+        "type": "object",
+        "description": "A source made on a folder connection.",
+        "required": [
+          "id",
+          "label",
+          "kind"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Source identifier."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`folder` or `code_folder`."
+          },
+          "label": {
+            "type": "string",
+            "description": "The name the user sees."
+          }
+        }
+      },
       "DictationConfigured": {
         "type": "object",
         "description": "What the dictation setup did.",
@@ -21371,7 +21465,14 @@
         "properties": {
           "code": {
             "type": "string",
-            "description": "Stable code: `not_a_folder`, `already_added`, `admission_refused`,\n`not_found`, `store`."
+            "description": "Stable code: `not_a_folder`, `already_added`, `admission_refused`,\n`not_found`, `has_dependent_sources`, `sources`, `store`."
+          },
+          "dependent_sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DependentSource"
+            },
+            "description": "For `has_dependent_sources`, the sources removing the folder would\nremove; absent otherwise."
           },
           "error": {
             "type": "string",
@@ -22814,6 +22915,14 @@
           }
         }
       },
+      "LoadOrigin": {
+        "type": "string",
+        "description": "Who loaded a resident model.",
+        "enum": [
+          "app",
+          "server"
+        ]
+      },
       "LoadedModelDto": {
         "type": "object",
         "description": "One resident model.",
@@ -22827,7 +22936,8 @@
           "nGpuLayers",
           "loadedAt",
           "lastUsedAt",
-          "activeRequests"
+          "activeRequests",
+          "origin"
         ],
         "properties": {
           "activeRequests": {
@@ -22878,6 +22988,10 @@
             "format": "int32",
             "description": "Requests the process may serve in parallel; absent when the engine\ndefault applies.",
             "minimum": 0
+          },
+          "origin": {
+            "$ref": "#/components/schemas/LoadOrigin",
+            "description": "Who loaded the model: `app`, or `server` when the compatible server\nloaded it for a request of another program. Fixed at load."
           },
           "port": {
             "type": "integer",
@@ -26930,6 +27044,39 @@
           }
         }
       },
+      "SkipReasonDto": {
+        "type": "string",
+        "description": "Why a file was left out of an index.",
+        "enum": [
+          "too_large",
+          "unreadable"
+        ]
+      },
+      "SkippedFileResponse": {
+        "type": "object",
+        "description": "A file left out of an index.",
+        "required": [
+          "path",
+          "sizeBytes",
+          "reason"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path of the file on this machine."
+          },
+          "reason": {
+            "$ref": "#/components/schemas/SkipReasonDto",
+            "description": "Why it was left out."
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Its size in bytes when it was left out.",
+            "minimum": 0
+          }
+        }
+      },
       "SourceDescriptor": {
         "type": "object",
         "description": "The source a batch reads its items from.",
@@ -26955,6 +27102,46 @@
             "propertyNames": {
               "type": "string"
             }
+          }
+        }
+      },
+      "SourceIndexResponse": {
+        "type": "object",
+        "description": "Where the index of a source stands.",
+        "required": [
+          "id",
+          "indexState",
+          "documents",
+          "chunks",
+          "skipped"
+        ],
+        "properties": {
+          "chunks": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Passages the index holds.",
+            "minimum": 0
+          },
+          "documents": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Documents the index holds.",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string",
+            "description": "Source identifier."
+          },
+          "indexState": {
+            "$ref": "#/components/schemas/IndexStateDto",
+            "description": "The state of its index."
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SkippedFileResponse"
+            },
+            "description": "Files left out of the index."
           }
         }
       },

@@ -15,6 +15,10 @@
 //! to a client, and when the client's event stream ends, every lease it held is
 //! released, so a closed window never keeps a model loaded.
 //!
+//! A model the compatible server loaded for another program follows the same
+//! rules under its own idle delay, and loading one can unload the others the
+//! server loaded (see [`origin`]).
+//!
 //! A model answering a request is never unloaded by any of these rules: the
 //! engines refuse to stop a process that serves one (see
 //! [`UnloadError::InUse`](crate::llama_server::UnloadError::InUse)).
@@ -23,12 +27,14 @@
 //! restart closes every connection. Pins are persisted in `system.db`.
 
 mod engines;
+pub mod origin;
 pub mod room;
 
 pub use engines::{
-    spawn_idle_sweep, start_residency, unload_idle, unload_if_released, ClientLeases, Engines,
-    IDLE_SWEEP_EVERY,
+    spawn_idle_sweep, start_residency, unload_idle, unload_idle_by_origin, unload_if_released,
+    unload_other_server_models, ClientLeases, Engines, IDLE_SWEEP_EVERY,
 };
+pub use origin::{IdleDelays, LoadOrigin};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -65,6 +71,9 @@ struct Book {
     leases: BTreeMap<LeaseKey, String>,
     /// Paths of the pinned models.
     pins: BTreeSet<String>,
+    /// The models the compatible server loaded, by path, with the instant
+    /// their process finished loading.
+    server_loaded: BTreeMap<String, chrono::DateTime<chrono::Utc>>,
 }
 
 impl Book {
@@ -115,6 +124,7 @@ impl Residency {
             book: Mutex::new(Book {
                 leases: BTreeMap::new(),
                 pins: pins.into_iter().collect(),
+                server_loaded: BTreeMap::new(),
             }),
             system_db,
             config_file,
@@ -262,6 +272,7 @@ impl Residency {
 
     /// Announce that `engine` unloaded `model_path` for `reason`.
     pub fn announce_unloaded(&self, engine: &str, model_path: &str, reason: ModelUnloadReason) {
+        self.forget_origin(model_path);
         tracing::event!(
             tracing::Level::INFO,
             engine = %engine,
@@ -279,5 +290,7 @@ impl Residency {
     }
 }
 
+#[cfg(test)]
+mod origin_tests;
 #[cfg(test)]
 pub(crate) mod tests;

@@ -446,6 +446,10 @@ mod tests {
             tool_call_id: "call-001".into(),
             tool_name: "bash_executor".into(),
             prompt: "The 'bash_executor' tool asks to run".into(),
+            answers: Vec::new(),
+            detail: String::new(),
+            code: None,
+            working_dir: None,
         };
         // WHEN
         let notif = map_event(DEFAULT_BASE_URL, &event).expect("must return Some");

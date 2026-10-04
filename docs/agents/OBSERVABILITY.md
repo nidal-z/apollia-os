@@ -362,6 +362,22 @@ The one-shot access upgrade run at startup records each conversion or
 removal it makes as an `AccessChanged` entry with the actor `upgrade` and a
 `reason`; a change that concerns every agent goes to the run
 `governance:*`.
+Decisions are journaled in the run of their agent: `ConsentAnswered` (once,
+always, refuse), `PolicyRefused` and `RuleRefused` from the decision on a
+tool call, `AlwaysWithdrawn` and `BatchAccessGranted` from the consent store,
+`RuleAdded` and `RuleRemoved` from the rule store (a rule binding every agent
+goes to `governance:rules:global`). None of them carries the argument of the
+call, its result, or a reason typed with a refusal. The stores of
+`governance.db` never write the journal: they leave each event in the
+`journal_outbox` table, in the same transaction as the change, and the
+governance actor moves it to the journal when it starts and whenever it reads
+the database again, so a change made by the CLI with no runtime running is
+journaled at the next start, dated when it was made. The run
+`governance:policy:organisation` holds `PolicyApplied` at each start (with the
+key fingerprint and the SHA-256 of the policy file), `PolicyChanged` when that
+digest differs from the last one applied, `PolicyUnreadable` with its reason,
+and `FailClosedTriggered` on each entry into fail-closed. `JournalExported`
+goes to `governance:journal:export`.
 
 ---
 

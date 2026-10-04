@@ -30,6 +30,7 @@ const COMMAND_CAPACITY: usize = 64;
 const ENABLED_KEY: &str = "server.enabled";
 const PORT_KEY: &str = "server.port";
 const REQUIRE_AUTH_KEY: &str = "server.require_auth";
+const CORS_KEY: &str = "server.cors";
 const SERVE_ON_LAN_KEY: &str = "server.serve_on_lan";
 
 /// What the compatible server is doing.
@@ -338,6 +339,7 @@ impl CompatServerActor {
         let port = self.configured_port()?;
         let require_auth = self.configured_flag(REQUIRE_AUTH_KEY)?;
         let serve_on_lan = self.configured_flag(SERVE_ON_LAN_KEY)?;
+        let cors = self.configured_flag(CORS_KEY)?;
         let tokens = require_auth.then(|| self.tokens.clone());
         let relay = RelayState::new(self.models.clone()).map_err(CompatServerError::Client)?;
         let interface = if serve_on_lan {
@@ -354,7 +356,7 @@ impl CompatServerActor {
         let cancel = CancellationToken::new();
         let task = tokio::spawn(serve(
             listener,
-            compat_router(tokens, relay, self.logs.clone()),
+            compat_router(tokens, relay, self.logs.clone(), cors),
             cancel.clone(),
         ));
         self.running = Some(Running {
@@ -369,6 +371,7 @@ impl CompatServerActor {
             port = port,
             require_auth = require_auth,
             serve_on_lan = serve_on_lan,
+            cors = cors,
             "compat_server.listening"
         );
         Ok(())

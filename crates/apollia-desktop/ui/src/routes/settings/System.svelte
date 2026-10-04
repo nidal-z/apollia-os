@@ -260,10 +260,10 @@
             {:else}
               {@render kvText($t("settings.system_python"), $t("settings.system_python_not_found"))}
             {/if}
-            {#if $configStore.data?.config_path}
+            {#if $configStore.data?.path}
               {@render kvCopyable(
                 $t("settings.config.path_label"),
-                $configStore.data.config_path,
+                $configStore.data.path,
                 "system-info-copy-config",
               )}
             {/if}

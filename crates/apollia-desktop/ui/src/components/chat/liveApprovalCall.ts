@@ -4,8 +4,10 @@
  * A live approval arrives as a `ChatApprovalRequired` event, which carries the
  * tool name and a prompt of the form `Tool '<name>' asks to run with: <json>`,
  * not the tool call itself. The default approval card reads a `ToolCallView`,
- * so the arguments are recovered from that prompt when they parse, and left
- * empty otherwise: the card then describes the tool by its name alone.
+ * so the arguments are recovered from the full detail the event carries beside
+ * the prompt, then from the prompt when it parses, and left empty otherwise:
+ * the card then describes the tool by its name alone. The prompt of a tool
+ * that runs code is the code itself, so only the detail holds its arguments.
  */
 import type { ToolCallView } from "$lib/types";
 
@@ -25,9 +27,14 @@ function asArguments(text: string): Record<string, unknown> | null {
 }
 
 /** Builds the pending tool call of a live approval from its event fields. */
-export function liveApprovalCall(toolName: string, inputPreview: string): ToolCallView {
+export function liveApprovalCall(
+  toolName: string,
+  inputPreview: string,
+  detail?: string | null,
+): ToolCallView {
   const marker = inputPreview.indexOf(PROMPT_MARKER);
   const input =
+    (detail ? asArguments(detail) : null) ??
     asArguments(inputPreview) ??
     (marker >= 0 ? asArguments(inputPreview.slice(marker + PROMPT_MARKER.length)) : null) ??
     {};
