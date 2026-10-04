@@ -154,6 +154,9 @@ pub struct MlxEngineSupervisor {
     residency: std::sync::OnceLock<Arc<crate::residency::Residency>>,
     /// The guardrail settings the organisation policy fixes, over the file.
     imposed: apollia_core::config::PolicySettings,
+    /// The window each model gets from the default of the settings, kept so a
+    /// request to a resident model does not read its folder again.
+    sized_windows: Arc<crate::local_engine::context_default::SizedWindows>,
 }
 
 impl MlxEngineSupervisor {
@@ -208,6 +211,7 @@ impl MlxEngineSupervisor {
             config_file: None,
             residency: std::sync::OnceLock::new(),
             imposed: apollia_core::config::PolicySettings::none(),
+            sized_windows: Arc::default(),
         }
     }
 
@@ -223,6 +227,23 @@ impl MlxEngineSupervisor {
             Some(trained) => u32::try_from(trained).map_or(wanted, |t| wanted.min(t.max(1))),
             None => wanted,
         }
+    }
+
+    /// The window `model_path` is launched with: the one asked for, else the
+    /// default of the settings (`[llm.defaults]`), else the built-in one,
+    /// capped at what the folder declares it was trained for.
+    pub async fn window_for(&self, model_path: &str, requested: Option<u32>) -> u32 {
+        if requested.is_some_and(|n| n > 0) {
+            return Self::window(model_path, requested);
+        }
+        self.sized_windows
+            .window(
+                self.config_file.clone(),
+                self.imposed.clone(),
+                DEFAULT_N_CTX,
+                model_path,
+            )
+            .await
     }
 
     /// A lease on the live process of `model_path`, marked as just used. A
@@ -267,7 +288,7 @@ impl MlxEngineSupervisor {
         if let Some(lease) = self.touch_live_instance(&model_path).await {
             return Ok(lease);
         }
-        let n_ctx = Self::window(&model_path, n_ctx);
+        let n_ctx = self.window_for(&model_path, n_ctx).await;
         let footprint_gb = self.admit(&model_path, n_ctx, consent).await?;
         let lease = self.spawn_instance(model_path, n_ctx).await?;
         self.record_footprint(lease.base_url(), footprint_gb).await;
@@ -578,12 +599,16 @@ impl LocalEngine for MlxEngineSupervisor {
         Engine::VllmMlx
     }
 
-    fn default_n_ctx(&self) -> u32 {
-        DEFAULT_N_CTX
-    }
-
-    fn launch_window(&self, _backend: &str, requested: Option<u32>) -> u32 {
-        requested.filter(|n| *n > 0).unwrap_or(DEFAULT_N_CTX)
+    fn launch_window(&self, _backend: &str, model_path: &str, requested: Option<u32>) -> u32 {
+        if requested.is_some_and(|n| n > 0) {
+            return Self::window(model_path, requested);
+        }
+        self.sized_windows.window_blocking(
+            self.config_file.as_deref(),
+            &self.imposed,
+            DEFAULT_N_CTX,
+            model_path,
+        )
     }
 
     async fn ensure_model(

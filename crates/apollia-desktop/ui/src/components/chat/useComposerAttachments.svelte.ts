@@ -25,7 +25,13 @@ import {
   MAX_IMAGES_PER_MESSAGE,
   MAX_IMAGE_BYTES,
 } from "$lib/chat/attachments";
-import { browserImageCodec, imageMimeOf, prepareImage } from "$lib/chat/imagePrepare";
+import {
+  DEFAULT_IMAGE_MAX_SIDE,
+  browserImageCodec,
+  imageMimeOf,
+  prepareImage,
+} from "$lib/chat/imagePrepare";
+import { readImageSideLimit } from "$lib/settings/modelDefaults";
 
 export interface ComposerAttachments {
   /** The queue, in the order the operator built it. */
@@ -46,9 +52,13 @@ export interface ComposerAttachments {
 /**
  * `imageSupport` reads what the model of the conversation does with images at
  * the moment a file arrives: `null` (not known) keeps the path-or-refuse rule.
+ * `imageSideLimit` reads the largest side an image keeps (Settings > Model
+ * defaults), `null` when images are not held to one; a read that fails holds
+ * to the default ceiling.
  */
 export function createComposerAttachments(
   imageSupport: () => ImageSupport | null = () => null,
+  imageSideLimit: () => Promise<number | null> = readImageSideLimit,
 ): ComposerAttachments {
   let items = $state<PendingAttachment[]>([]);
   let dragOver = $state(false);
@@ -105,11 +115,13 @@ export function createComposerAttachments(
       // To a model that reads images, the image travels as its bytes, in a
       // format the engine decodes; past the ceiling it is not even read.
       if (kind === "image" && support?.vision && queuedImages < MAX_IMAGES_PER_MESSAGE) {
+        const maxSide = await imageSideLimit().catch(() => DEFAULT_IMAGE_MAX_SIDE);
         const prepared = await prepareImage(
           file,
           candidate.mime,
           support.formats,
           browserImageCodec,
+          maxSide,
         );
         if (!prepared.ok) {
           if (candidate.previewUrl) URL.revokeObjectURL(candidate.previewUrl);

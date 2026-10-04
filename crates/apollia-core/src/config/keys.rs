@@ -120,7 +120,12 @@ pub const KEYS: &[ConfigKey] = &[
     withdrawn("llm.runner", "the engine is chosen from the detected hardware; remove the section"),
     locked(key("llm.guardrails.level", Enum(&["disabled", "lenient", "balanced", "strict", "ceiling"]), Some("\"balanced\""), Reloadable, "How strictly a local model launch is held to the machine's memory; an unknown level holds to balanced.")),
     locked(key("llm.guardrails.ceiling_gb", Float, None, Reloadable, "Largest estimate, in gigabytes, the ceiling level launches.")),
+    locked(key("llm.guardrails.bypass", Enum(&["confirm", "unrestricted"]), Some("\"confirm\""), Reloadable, "What loading a refused model anyway asks first: confirm, an explicit confirmation, or unrestricted, nothing.")),
     locked(key("llm.residency.idle_unload_minutes", Integer, Some("60"), Reloadable, "Minutes without a request after which a local model nothing holds is unloaded; 0 never unloads.")),
+    locked(key("llm.defaults.context", Enum(&["custom", "model_max"]), Some("\"custom\""), Reloadable, "Context window of a local model that neither APOLLIA_LLAMA_N_CTX, nor a preset, nor its backend fixes: custom, the figure of llm.defaults.context_tokens, or model_max, the length the model was trained for.")),
+    locked(key("llm.defaults.context_tokens", Integer, Some("0"), Reloadable, "Default context window, in tokens, when llm.defaults.context is custom; 0 lets the engine size it to the memory of this machine, model by model, up to 32768.")),
+    locked(key("llm.images.limit_side", Boolean, Some("true"), Reloadable, "Scale an image down before it is sent to a model when its largest side exceeds llm.images.max_side_px.")),
+    locked(key("llm.images.max_side_px", Integer, Some("2048"), Reloadable, "Largest side, in pixels, of an image sent to a model; proportions are kept.")),
     withdrawn("llm.vertex", "the Google Vertex AI client was removed; declare an OpenAI-compatible server instead"),
     // [api]
     key("api.bind", KeyType::String, Some("\"127.0.0.1\""), Restart, "Address the daemon's TCP listener binds to."),

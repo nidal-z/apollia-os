@@ -4,6 +4,9 @@ use apollia_core::model_preset::{ModelSource, PresetDraft, RequestSettings};
 use apollia_core::LlmBackendRepository;
 use serde_json::json;
 
+/// A model no test reads: its window comes from the settings alone.
+const MODEL: &str = "/nonexistent/model.gguf";
+
 #[test]
 fn test_the_environment_window_wins_over_the_preset() {
     // GIVEN APOLLIA_LLAMA_N_CTX pinned at 4096 and a preset that fixes 8192
@@ -16,7 +19,7 @@ fn test_the_environment_window_wins_over_the_preset() {
     };
 
     // WHEN the window is resolved for a backend asking for 16384
-    let window = sup.window_for(&load, Some(16_384));
+    let window = sup.window_for_blocking(MODEL, &load, Some(16_384));
 
     // THEN the environment wins
     assert_eq!(window, 4096);
@@ -32,12 +35,76 @@ fn test_the_preset_window_wins_over_the_automatic_one() {
     };
 
     // WHEN the window is resolved under a preset that fixes 8192
-    let window = sup.window_for(&load, Some(16_384));
-    let without = sup.window_for(&LoadSettings::default(), None);
+    let window = sup.window_for_blocking(MODEL, &load, Some(16_384));
+    let without = sup.window_for_blocking(MODEL, &LoadSettings::default(), None);
 
     // THEN the preset wins, and without it the default stands
     assert_eq!(window, 8192);
     assert_eq!(without, 32_768);
+}
+
+#[test]
+fn test_the_window_is_resolved_in_the_full_order_down_to_the_built_in_default() {
+    // GIVEN a default of 16384 tokens in the settings, a preset at 8192, a
+    //       backend asking for 12288, and the built-in window of 32768
+    let dir = tempfile::tempdir().expect("tempdir");
+    let file = dir.path().join("apollia.toml");
+    std::fs::write(&file, "[llm.defaults]\ncontext_tokens = 16384\n").expect("write");
+    let mut sup = supervisor_with_ceiling(1);
+    sup.config_file = Some(file.clone());
+    let preset = LoadSettings {
+        n_ctx: Some(8192),
+        ..LoadSettings::default()
+    };
+    let none = LoadSettings::default();
+
+    // WHEN the window is resolved with each source removed in turn, the
+    //      environment last since it is read once, at startup
+    let under_preset = sup.window_for_blocking(MODEL, &preset, Some(12_288));
+    let under_backend = sup.window_for_blocking(MODEL, &none, Some(12_288));
+    let under_setting = sup.window_for_blocking(MODEL, &none, None);
+    std::fs::write(&file, "").expect("write");
+    let built_in = sup.window_for_blocking(MODEL, &none, None);
+    sup.n_ctx = 4096;
+    sup.n_ctx_pinned = true;
+    std::fs::write(&file, "[llm.defaults]\ncontext_tokens = 16384\n").expect("write");
+    let under_env = sup.window_for_blocking(MODEL, &preset, Some(12_288));
+
+    // THEN the environment wins, then the preset, then the backend, then the
+    //      default of the settings, and 32768 is the last resort
+    assert_eq!(
+        (
+            under_env,
+            under_preset,
+            under_backend,
+            under_setting,
+            built_in
+        ),
+        (4096, 8192, 12_288, 16_384, 32_768)
+    );
+}
+
+#[tokio::test]
+async fn test_a_default_changed_in_the_settings_leaves_a_resident_model_serving() {
+    // GIVEN a model resident at the built-in window, and settings that now
+    //       state a default of 16384 tokens
+    let dir = tempfile::tempdir().expect("tempdir");
+    let file = dir.path().join("apollia.toml");
+    std::fs::write(&file, "[llm.defaults]\ncontext_tokens = 16384\n").expect("write");
+    let mut sup = supervisor_with_ceiling(1);
+    sup.config_file = Some(file);
+    let resident = crate::llama_server::test_support::live_instance(&sup, MODEL, 9001).await;
+    sup.instances.lock().await.push(resident);
+
+    // WHEN a request asks for the model without fixing a window
+    let lease = sup
+        .ensure_model("local", MODEL.to_owned(), None, LoadConsent::Unconfirmed)
+        .await;
+
+    // THEN the resident process serves it at its own window, and nothing is
+    //      launched: the engine of this supervisor does not exist
+    assert_eq!(lease.map(|l| l.n_ctx()).ok(), Some(32_768));
+    assert_eq!(sup.instances.lock().await.len(), 1);
 }
 
 /// A stand-in for `llama-server`: it appends each command line to `args.log`

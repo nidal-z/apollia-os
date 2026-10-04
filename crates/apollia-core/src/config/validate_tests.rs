@@ -280,7 +280,7 @@ fn an_unknown_key_in_llm_is_refused() {
     // GIVEN a typo in [llm]
     let text = BACKEND.replacen(
         "default = \"cloud\"\n",
-        "default = \"cloud\"\ndefaults = 1\n",
+        "default = \"cloud\"\ndefualt = 1\n",
         1,
     );
     // WHEN the document is validated
@@ -288,7 +288,7 @@ fn an_unknown_key_in_llm_is_refused() {
     let fault = unknown(&text);
     assert_eq!(
         (fault.path.as_str(), fault.line),
-        ("llm.defaults", 3),
+        ("llm.defualt", 3),
         "{fault}"
     );
 }
