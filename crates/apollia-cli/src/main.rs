@@ -41,6 +41,7 @@ use commands::permissions::PermissionsCommand;
 use commands::policy::PolicyCommand;
 use commands::project::ProjectCommand;
 use commands::resilience::ResilienceCommand;
+use commands::source::SourceCommand;
 use commands::stt::SttCommand;
 use commands::task::TaskCommand;
 use commands::tools::ToolsCommand;
@@ -238,6 +239,12 @@ enum Commands {
         /// Model subcommand.
         #[command(subcommand)]
         command: ModelCommand,
+    },
+
+    /// Sources an agent may consult once checked (list, create, delete).
+    Source {
+        #[command(subcommand)]
+        command: SourceCommand,
     },
 
     /// Trigger management (list, status, fire, enable, disable, logs, reload, create, update, delete).
@@ -714,6 +721,7 @@ fn main() {
             Commands::Memory { command } => commands::memory::run_and_print(&command, json),
             Commands::Llm { command } => commands::llm::run(&command, cli.socket, json).await,
             Commands::Model { command } => commands::model::run(&command, cli.socket, json).await,
+            Commands::Source { command } => commands::source::run(&command, cli.socket, json).await,
             Commands::Trigger { command } => {
                 commands::trigger::run(&command, cli.socket, json).await
             }

@@ -124,6 +124,7 @@ async fn test_runtime_starts_without_llm_router() {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
 
     // WHEN the APIServer starts
@@ -291,6 +292,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
 
     let api = APIServer::new(

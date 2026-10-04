@@ -467,6 +467,13 @@ check_exit   "model recommend (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model re
 # identifier against the registry: daemon off, both leaves refuse with 2.
 check_exit   "model embeddings show (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model embeddings show
 check_exit   "model embeddings set-default (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model embeddings set-default multilingual-e5-small
+# The registry of sources lives in the daemon's system.db, owned by its actor:
+# daemon off, each leaf refuses with 2; a deletion without --confirm outside a
+# terminal is refused with 1 before any call.
+check_exit   "source list (off) → 2"           2     "$BIN" --socket "$OFFSOCK" source list
+check_exit   "source create (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source create --kind folder --label Contracts --reference conn-contracts
+check_exit   "source delete (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source delete src-absent --confirm
+check_exit   "source delete without --confirm → 1" 1 "$BIN" --socket "$OFFSOCK" source delete src-absent
 check        "agent list (off, local fallback)"      "$BIN" --socket "$OFFSOCK" agent list
 check_content "agent list shows 4 seeded agents" "apollia-chat" "$BIN" --socket "$OFFSOCK" agent list
 check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK" agent install /tmp/never-exists.py
