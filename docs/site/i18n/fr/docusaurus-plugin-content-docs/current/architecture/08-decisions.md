@@ -277,7 +277,13 @@ d'Apollia. Le moteur embarqué sert chaque machine dès le premier lancement ; u
 version accélérée, CUDA sur une machine dotée d'une carte NVIDIA, se télécharge
 à la demande, ou s'importe depuis un disque sans réseau, et le lanceur prend
 alors la version installée la plus récente de cette variante plutôt que le
-moteur embarqué. Tout téléchargement ou import de moteur est précédé de la
+moteur embarqué. Le moteur qui sert chaque format de modèle est un réglage,
+automatique par défaut ; une variante choisie qui n'est plus installée retombe
+sur le choix automatique. Le canal suivi est vérifié au démarrage du runtime et
+au changement de canal, et une mise à jour qu'il annonce pour un moteur choisi
+est installée sans qu'on la demande, sauf si le réglage qui la gouverne est
+éteint, auquel cas elle est seulement annoncée. Tout téléchargement ou import
+de moteur est précédé de la
 vérification d'un manifeste d'empreintes signé au format minisign avec une clé
 de distribution dédiée. Chaque canal, stable ou préversion, publie un tel
 manifeste, qui liste chaque archive de moteur avec son SHA-256. La moitié

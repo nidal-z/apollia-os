@@ -3,7 +3,22 @@
   import { t } from "svelte-i18n";
   import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
   import EngineList from "../../components/settings/system/EngineList.svelte";
-  import { enginesStore, systemInfoStore, settingsLoaders } from "$lib/stores/settings";
+  import EngineSelection from "../../components/settings/system/EngineSelection.svelte";
+  import {
+    enginesStore,
+    hardwareStore,
+    systemInfoStore,
+    settingsLoaders,
+  } from "$lib/stores/settings";
+  import {
+    chooseEngine,
+    engineSettings,
+    hydrateEngineSettings,
+    setEngineAutoUpdate,
+    type EngineChoice,
+    type EngineFormat,
+  } from "$lib/settings/engineSelection";
+  import { addToast } from "$lib/components/ui/toast";
   import { developerMode } from "$lib/stores/developerMode";
   import { changeEngineChannel, verifyEngineUpdates } from "$lib/settings/engineChannel";
   import type { EngineChannel } from "$lib/ipc/system";
@@ -13,7 +28,21 @@
   onMount(() => {
     void settingsLoaders.engines();
     void settingsLoaders.systemInfo();
+    void settingsLoaders.hardware();
+    void hydrateEngineSettings();
   });
+
+  const acceleratorKind = $derived($hardwareStore.data?.accelerator.kind ?? null);
+
+  async function selectEngine(format: EngineFormat, choice: EngineChoice): Promise<void> {
+    const written = await chooseEngine(format, choice);
+    if (!written) addToast($t("settings.engines.selection_write_failed"), "error");
+  }
+
+  async function toggleAutoUpdate(on: boolean): Promise<void> {
+    const written = await setEngineAutoUpdate(on);
+    if (!written) addToast($t("settings.engines.selection_write_failed"), "error");
+  }
 
   let checking = $state(false);
   let checkError = $state<string | null>(null);
@@ -50,10 +79,18 @@
 </script>
 
 <SettingsSubPage route="engines" data-testid="engines-section">
+  <EngineSelection
+    response={$enginesStore.data}
+    {acceleratorKind}
+    settings={$engineSettings}
+    onchoose={selectEngine}
+    onautoupdate={toggleAutoUpdate}
+  />
   <EngineList
     response={$enginesStore.data}
     loading={$enginesStore.loading}
     error={$enginesStore.error}
+    {acceleratorKind}
     {diagnosticHead}
     developer={$developerMode}
     {checking}

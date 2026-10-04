@@ -328,7 +328,10 @@ describe("Engines - one table from the engine list", () => {
     expect(html.match(/data-testid="engine-row"/g)?.length).toBe(2);
     expect(html).toContain(`llama.cpp · ${copy.engines.variant_cpu}`);
     expect(html).toContain("llama.cpp · CUDA");
-    expect(html.match(/7001 \(0ff1ce0\)/g)?.length).toBe(2);
+    expect(
+      html.match(/data-testid="engine-row-version"[^>]*>(?:<!--[^>]*-->|\s)*7001 \(0ff1ce0\)/g)
+        ?.length,
+    ).toBe(2);
     // AND the engine in service is marked, once
     expect(html.match(/data-testid="engine-row-in-service"/g)?.length).toBe(1);
     expect(html).toContain(copy.engines.in_service);

@@ -280,7 +280,8 @@ impl LlamaServerSupervisor {
         config_file: Option<PathBuf>,
         imposed: apollia_core::config::PolicySettings,
     ) -> Result<Arc<Self>, LlamaServerError> {
-        let bin_path = locate_llama_server_binary()?;
+        let choices = crate::engine_store::EngineChoices::read(config_file.as_deref(), &imposed);
+        let bin_path = locate_llama_server_binary(choices.gguf)?;
         // The reported window must be the one the server will actually launch
         // with, otherwise an `APOLLIA_LLAMA_N_CTX` override would leave the
         // router sizing compaction against a value no process ever used. The
