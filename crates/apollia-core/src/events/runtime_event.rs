@@ -1287,6 +1287,22 @@ pub enum RuntimeEvent {
         request_id: String,
     },
 
+    /// Governance started or stopped failing closed.
+    ///
+    /// Emitted by the governance actor when what it decides from can no longer
+    /// be read (`governance.db` unreadable, or a deposited policy refused) and
+    /// again when it can. While it fails closed, every sensitive tool call and
+    /// every new connection is refused; reading continues.
+    GovernanceFailClosed {
+        /// `true` while governance fails closed, `false` once it recovered.
+        active: bool,
+        /// `store_unreadable` or `policy_invalid` while active, `None` once
+        /// recovered.
+        cause: Option<String>,
+        /// What could not be read, `None` once recovered.
+        detail: Option<String>,
+    },
+
     // ── File Timestamp Cache events ──────────────────
     /// A previously read file was modified between two accesses.
     ///

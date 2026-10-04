@@ -76,20 +76,39 @@ fn test_policy_refuses_tool_connection_and_family() {
     }
 }
 
-// Line 1: a non-empty list of allowed connections refuses the tools of every
-// other connection, and leaves the tools Apollia ships alone.
+// Line 1: a connection the policy forbade at boot has every tool refused, and
+// the tools of the others and those Apollia ships are left alone.
 #[test]
-fn test_policy_allow_list_refuses_other_connections() {
-    // GIVEN a policy allowing the Notion server only
+fn test_tools_of_a_forbidden_connection_are_refused() {
+    // GIVEN a policy that forbade the files server and a Microsoft account
     let mut state = GovernanceState::default();
-    state.policy.allowed.insert("mcp:notion".into());
+    state.policy.forbidden_connections = ["mcp:files", "conn:microsoft:bob@example.com"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
 
-    // WHEN a tool of another server, one of Notion and a native tool are decided
+    // WHEN a tool of each forbidden connection, one of Notion and a native
+    // tool are decided
     let other = decide(
         &state,
         &call("mcp:files/read_file", ActionFamily::Read, None),
         NOW,
     );
+    let account = decide(
+        &state,
+        &call(
+            "conn:microsoft:bob@example.com/mail.list",
+            ActionFamily::Read,
+            None,
+        ),
+        NOW,
+    );
+    assert!(matches!(
+        account,
+        AccessDecision::Denied {
+            reason: DecisionReason::Policy { .. }
+        }
+    ));
     let notion = decide(
         &state,
         &call("mcp:notion/search", ActionFamily::Read, None),
@@ -97,7 +116,7 @@ fn test_policy_allow_list_refuses_other_connections() {
     );
     let native = decide(&state, &call("web_search", ActionFamily::Read, None), NOW);
 
-    // THEN only the other server is refused
+    // THEN only the forbidden ones are refused
     assert!(matches!(
         other,
         AccessDecision::Denied {
@@ -350,7 +369,9 @@ fn test_unattended_ask_becomes_pending() {
 fn test_fail_closed_refuses_sensitive_only() {
     // GIVEN governance told it cannot read its state, and a standing consent
     let mut state = GovernanceState {
-        fail_closed: true,
+        fail_closed: Some(crate::governance::FailClosed::StoreUnreadable {
+            detail: "file is not a database".into(),
+        }),
         ..GovernanceState::default()
     };
     state

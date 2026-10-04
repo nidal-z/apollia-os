@@ -39,7 +39,7 @@
   } from "$lib/ipc/connections";
   import { messageOf, formatTauriError } from "$lib/connections/errors";
   import { needsOauthSetup } from "$lib/connections/status";
-  import { loadConnections } from "$lib/connections/connectionList";
+  import { loadConnections, forbiddenConnections } from "$lib/connections/connectionList";
   import { createCatalogueSource, type CatalogueTier } from "$lib/connections/catalogueSource";
   import {
     NATIVE_PROVIDER_KEYS,
@@ -163,9 +163,11 @@
     return enrichmentMap.get(server.package) ?? null;
   }
 
+  /** The connections the organisation policy forbade at the last start, listed apart. */
+  const forbidden = $derived(forbiddenConnections(connections));
   /** The rows of the list: the loader's connections, a server named by its catalogue label. */
   const rows = $derived(
-    connectionRows(connections, (c) => {
+    connectionRows(connections.filter((c) => c.state !== "forbidden_by_policy"), (c) => {
       if (c.kind !== "mcp") return c.label;
       const server = servers.find((s) => `mcp:${s.name}` === c.id);
       return (server && resolveEnrichment(server)?.operator_label) ?? c.label;
@@ -440,6 +442,7 @@
     {#snippet sidebar()}
       <ConnectorSidebar
         {rows}
+        {forbidden}
         {selection}
         {loading}
         {loadError}

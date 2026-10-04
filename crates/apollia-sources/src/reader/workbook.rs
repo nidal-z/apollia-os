@@ -64,6 +64,7 @@ impl Format {
 pub fn read_workbook(path: &Path) -> Result<Workbook, ReadError> {
     let format = Format::of(path).ok_or_else(|| ReadError::UnsupportedFormat {
         path: path.to_path_buf(),
+        supported: "xlsx, xlsm, xlsb, xls, ods",
     })?;
     let file = File::open(path).map_err(|source| ReadError::io(path, source))?;
     match catch_unwind(AssertUnwindSafe(|| parse(path, format, file))) {

@@ -48,7 +48,7 @@ impl Provenance {
 }
 
 /// The origin of a connection, persisted beside its configuration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConnectionOrigin {
     /// Where the connection was found.
     pub provenance: Provenance,
@@ -57,6 +57,12 @@ pub struct ConnectionOrigin {
     /// when it was added. `false` unless written.
     #[serde(default)]
     pub official: bool,
+    /// The curated selection entry the connection was made from, named by its
+    /// package identifier (`@notionhq/notion-mcp-server`). Written by the
+    /// desktop for a selection connection only; `None` otherwise. An
+    /// organisation policy names such a connection `selection:<entry>`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry: Option<String>,
 }
 
 #[cfg(test)]

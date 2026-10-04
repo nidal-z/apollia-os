@@ -23,6 +23,7 @@ mod health;
 pub mod jsonrpc;
 pub mod manager;
 pub mod mcp_resources;
+pub mod npm_package;
 pub mod origin;
 pub mod package_server;
 pub mod protocol;

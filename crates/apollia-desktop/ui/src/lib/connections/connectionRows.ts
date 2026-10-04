@@ -62,6 +62,7 @@ export const NATIVE_PROVIDER_KEYS: Record<ProviderId, { name: string; descriptio
 
 /** Order of the states from the least to the most usable. */
 const STATE_RANK: Record<ConnectionState, number> = {
+  forbidden_by_policy: -1,
   unavailable: 0,
   needs_reauth: 1,
   degraded: 2,
@@ -85,6 +86,7 @@ export function statusOfState(state: ConnectionState): ConnectionStatus {
     case "needs_reauth":
       return "attention";
     case "unavailable":
+    case "forbidden_by_policy":
       return "error";
     case "stopped":
       return "idle";

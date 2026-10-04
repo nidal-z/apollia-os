@@ -122,11 +122,13 @@ mod tests {
         remote.origin = Some(ConnectionOrigin {
             provenance: Provenance::Registry,
             official: true,
+            entry: None,
         });
         let mut local = config(serde_json::json!({ "name": "files", "command": "npx" }));
         local.origin = Some(ConnectionOrigin {
             provenance: Provenance::Selection,
             official: false,
+            entry: None,
         });
         let sources = ConnectionSources {
             mcp_configs: vec![remote, local],

@@ -202,6 +202,10 @@ fn main() {
     // McpToolExecutor per registered MCP tool into the agent's dispatcher.
     let mcp_handle_lock: Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>> =
         Arc::new(std::sync::OnceLock::new());
+    // The governance actor, so a run's dispatcher leaves out the tools it
+    // disabled and refuses what is sensitive while it fails closed.
+    let governance_lock: Arc<std::sync::OnceLock<apollia_runtime::governance::GovernanceHandle>> =
+        Arc::new(std::sync::OnceLock::new());
     // Agent registry + task router, required to build A2A delegate/invoker so
     // task-mode (triggers) and chat-agent flows can call `ctx.a2a_invoke(...)`
     // and discover virtual `a2a:*` tools, on parity with Chat Libre.
@@ -238,6 +242,7 @@ fn main() {
             pending_approvals: pending_approvals_lock.clone(),
             task_repository: task_repository_lock.clone(),
             mcp_handle: mcp_handle_lock.clone(),
+            governance: governance_lock.clone(),
             agent_registry: agent_registry_lock.clone(),
             task_router: task_router_lock.clone(),
             mailbox_handle: mailbox_handle_lock.clone(),
@@ -298,6 +303,7 @@ fn main() {
                 task_repository: task_repository_lock.clone(),
                 pending_user_inputs: pending_user_inputs_lock.clone(),
                 mcp_handle: mcp_handle_lock.clone(),
+                governance: governance_lock.clone(),
                 agent_registry: agent_registry_lock.clone(),
                 task_router: task_router_lock.clone(),
                 mailbox_handle: mailbox_handle_lock.clone(),
@@ -367,6 +373,7 @@ fn main() {
             task_repository: &task_repository_lock,
             pending_user_inputs: &pending_user_inputs_lock,
             mcp_handle: &mcp_handle_lock,
+            governance: &governance_lock,
             agent_registry: &agent_registry_lock,
             task_router: &task_router_lock,
             mailbox_handle: &mailbox_handle_lock,

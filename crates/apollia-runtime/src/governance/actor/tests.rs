@@ -25,6 +25,8 @@ fn sources(dir: &tempfile::TempDir, policy: Arc<PolicyVerdict>) -> GovernanceSou
         config_path: Some(dir.path().join("apollia.toml")),
         policy,
         journal: None,
+        events: None,
+        forbidden_connections: Default::default(),
     }
 }
 
@@ -186,11 +188,14 @@ async fn test_developer_mode_reads_config_under_policy() {
     .unwrap();
 
     // WHEN the state is read without a policy, then under a policy fixing it off
-    let free = load_state(&sources(&dir, Arc::new(PolicyVerdict::Absent)));
-    let fixed = load_state(&sources(
-        &dir,
-        verdict("[settings]\n\"desktop.developer_mode\" = false\n"),
-    ));
+    let free = load_state(&sources(&dir, Arc::new(PolicyVerdict::Absent)), None);
+    let fixed = load_state(
+        &sources(
+            &dir,
+            verdict("[settings]\n\"desktop.developer_mode\" = false\n"),
+        ),
+        None,
+    );
 
     // THEN the first is in developer mode and the second is not
     assert!(free.developer_mode);

@@ -28,6 +28,7 @@ impl Supervisor {
         core: &Core<B>,
         inference: &Inference,
         stores: &Stores,
+        governance: &Governance,
         agent_loader: &Arc<dyn AgentLoader>,
         agent_runner: &Option<Arc<dyn crate::chat::ChatAgentRunner>>,
     ) -> (
@@ -84,6 +85,7 @@ impl Supervisor {
                     tools_config: self.config.tools_config.clone(),
                     tool_turn_temperature: self.config.chat_tool_turn_temperature,
                     source_registry: inference.source_registry.clone(),
+                    governance: Some(governance.handle.clone()),
                 })),
                 self.config.mcp_loading,
                 self.config.tool_search_limit,

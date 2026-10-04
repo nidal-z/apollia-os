@@ -144,6 +144,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::agent_adjust::list_model_presets,
         commands::agent_export::export_agent,
         commands::tool_governance::governance_list_tools,
+        commands::tool_governance::governance_state,
         commands::tool_governance::governance_set_tool_enabled,
         commands::tool_governance::governance_get_tool_config,
         commands::tool_governance::governance_set_tool_config,

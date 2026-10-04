@@ -236,6 +236,8 @@ async fn always_on_a_writing_tool_is_a_family_consent() {
             config_path: None,
             policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
             journal: None,
+            events: None,
+            forbidden_connections: Default::default(),
         });
 
     // WHEN the exchange runs

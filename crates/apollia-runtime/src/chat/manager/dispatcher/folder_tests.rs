@@ -12,6 +12,7 @@ fn config(data_dir: &std::path::Path) -> Arc<ChatToolsConfig> {
         tools_config: apollia_core::ToolsConfig::default(),
         tool_turn_temperature: None,
         source_registry: None,
+        governance: None,
     })
 }
 

@@ -30,6 +30,7 @@ fn manager_following(dir: &tempfile::TempDir, feed: ConfigFeed) -> ChatSessionMa
             tools_config: apollia_core::ToolsConfig::default(),
             tool_turn_temperature: None,
             source_registry: None,
+            governance: None,
         })),
         governance_db_path: None,
         governance: None,

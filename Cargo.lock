@@ -736,6 +736,7 @@ dependencies = [
  "calamine",
  "csv",
  "pdf_oxide",
+ "quick-xml 0.41.0",
  "rusqlite",
  "rust_xlsxwriter",
  "serde",
@@ -744,6 +745,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+ "zip 4.6.1",
 ]
 
 [[package]]

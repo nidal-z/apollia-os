@@ -11,6 +11,11 @@
 //! What another process writes (the command line, the settings screen) is
 //! picked up by the actor itself: it looks at the files once a second and
 //! reads them again when one of them changed.
+//!
+//! What cannot be read never becomes a permission: a database that cannot be
+//! read, or a policy deposited and refused, puts the state in fail-closed (see
+//! [`crate::governance::FailClosed`]), and the actor announces each change of
+//! that state on the event bus.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -22,12 +27,15 @@ use apollia_permissions::{
 use apollia_tools::ActionFamily;
 use tokio::sync::{mpsc, oneshot, watch};
 
+use apollia_core::events::{EventBusSender, RuntimeEvent};
+
 use crate::audit_journal::AuditJournalHandle;
 use crate::governance::contract::{
     AccessCall, AccessDecision, DeclaredAccess, EffectiveAccess, GovernanceContract,
     GovernanceError, InstallSubject,
 };
 use crate::governance::decision::{decide, GovernanceState, PolicyRefusals};
+use crate::governance::fail_closed::FailClosed;
 use crate::governance::record::{GovernanceEvent, GovernanceRecord};
 
 /// Capacity of the actor's command channel.
@@ -53,6 +61,12 @@ pub struct GovernanceSources {
     pub policy: Arc<PolicyVerdict>,
     /// The audit journal the records go to; `None` refuses every record.
     pub journal: Option<AuditJournalHandle>,
+    /// The event bus a change of the fail-closed state is announced on;
+    /// `None` announces nothing.
+    pub events: Option<EventBusSender>,
+    /// The connections the policy forbade at boot, as tool identifiers name
+    /// them (see [`crate::governance::ForbiddenConnections::tool_connections`]).
+    pub forbidden_connections: std::collections::HashSet<String>,
 }
 
 /// Errors of a write through the governance actor.
@@ -98,8 +112,9 @@ impl GovernanceHandle {
     /// Reads `sources` once, then starts the actor that keeps the state
     /// current. Must be called from within a Tokio runtime.
     pub fn spawn(sources: GovernanceSources) -> Self {
-        let initial = Arc::new(load_state(&sources));
-        let (state_tx, state) = watch::channel(initial);
+        let initial = load_state(&sources, None);
+        announce(None, initial.fail_closed.as_ref(), sources.events.as_ref());
+        let (state_tx, state) = watch::channel(Arc::new(initial));
         let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
         let journal = sources.journal.clone();
         let actor = GovernanceActor {
@@ -312,15 +327,24 @@ impl GovernanceActor {
             config_path: self.sources.config_path.clone(),
             policy: Arc::clone(&self.sources.policy),
             journal: None,
+            events: None,
+            forbidden_connections: self.sources.forbidden_connections.clone(),
         };
+        let previous = Arc::clone(&self.state_tx.borrow());
+        let kept = Arc::clone(&previous);
         let loaded = tokio::task::spawn_blocking(move || {
             let fingerprint = fingerprint(&sources);
-            (load_state(&sources), fingerprint)
+            (load_state(&sources, Some(&kept)), fingerprint)
         })
         .await;
         match loaded {
             Ok((state, fingerprint)) => {
                 self.fingerprint = fingerprint;
+                announce(
+                    previous.fail_closed.as_ref(),
+                    state.fail_closed.as_ref(),
+                    self.sources.events.as_ref(),
+                );
                 self.state_tx.send_replace(Arc::new(state));
             }
             Err(e) => tracing::event!(
@@ -353,57 +377,138 @@ fn fingerprint(sources: &GovernanceSources) -> Fingerprint {
         .collect()
 }
 
-/// Reads everything a decision reads from `sources`. A database or a
-/// configuration that cannot be read is reported and read as empty.
-pub(crate) fn load_state(sources: &GovernanceSources) -> GovernanceState {
+/// Reads everything a decision reads from `sources`.
+///
+/// A refused policy fails closed. A database that cannot be read fails closed
+/// too, and keeps in force what `previous` read from it (its rules, its
+/// consents, its disabled tools); without a previous state, at startup,
+/// nothing is kept. A configuration that cannot be read is reported and leaves
+/// the developer mode off.
+pub(crate) fn load_state(
+    sources: &GovernanceSources,
+    previous: Option<&GovernanceState>,
+) -> GovernanceState {
     let (policy, require_signature) = match sources.policy.as_ref() {
         PolicyVerdict::Valid(valid) => (
             PolicyRefusals {
                 families: valid.policy.families.deny.iter().copied().collect(),
                 denied: valid.policy.connections.deny.iter().cloned().collect(),
-                allowed: valid.policy.connections.allow.iter().cloned().collect(),
+                forbidden_connections: sources.forbidden_connections.clone(),
             },
             valid.policy.packages.require_signature,
         ),
         PolicyVerdict::Absent | PolicyVerdict::Invalid(_) => (PolicyRefusals::default(), false),
     };
-    let (rules, consents) = match &sources.governance_db {
+    let store = match &sources.governance_db {
         Some(db) if db.exists() => read_store(db),
-        _ => (Vec::new(), Default::default()),
+        _ => Ok(StoreState::default()),
+    };
+    let (store, store_failure) = match store {
+        Ok(store) => (store, None),
+        Err(detail) => {
+            let kept = previous.map_or_else(StoreState::default, |p| StoreState {
+                rules: p.rules.clone(),
+                consents: p.consents.clone(),
+                disabled_tools: p.disabled_tools.clone(),
+            });
+            (kept, Some(FailClosed::StoreUnreadable { detail }))
+        }
     };
     GovernanceState {
         policy,
         require_signature,
-        rules,
-        consents,
+        rules: store.rules,
+        consents: store.consents,
+        disabled_tools: store.disabled_tools,
         developer_mode: developer_mode(sources),
-        fail_closed: false,
+        fail_closed: FailClosed::from_policy(&sources.policy).or(store_failure),
     }
 }
 
-fn read_store(
-    db: &Path,
-) -> (
-    Vec<apollia_permissions::PrefixRule>,
-    std::collections::HashSet<(String, ConsentFamily)>,
+/// What `governance.db` holds for a decision.
+#[derive(Default)]
+struct StoreState {
+    rules: Vec<apollia_permissions::PrefixRule>,
+    consents: std::collections::HashSet<(String, ConsentFamily)>,
+    disabled_tools: Vec<String>,
+}
+
+/// Reads the fine rules, the standing consents and the disabled tools of
+/// `db`, or says why it cannot.
+fn read_store(db: &Path) -> Result<StoreState, String> {
+    let read = || -> Result<StoreState, String> {
+        let rules = PrefixRuleEngine::new(db)
+            .and_then(|engine| engine.list_rules())
+            .map_err(|e| e.to_string())?;
+        let consents = FamilyConsentStore::new(db)
+            .and_then(|store| store.list_permanent())
+            .map_err(|e| e.to_string())?;
+        let disabled_tools = disabled_tools(db)?;
+        Ok(StoreState {
+            rules,
+            consents: consents.into_iter().collect(),
+            disabled_tools,
+        })
+    };
+    read().inspect_err(|error| {
+        tracing::event!(
+            tracing::Level::WARN,
+            error = %error,
+            "governance.store.unreadable"
+        );
+    })
+}
+
+/// The tools `db` disables. A database no tool was ever switched in has no
+/// table for them, and disables none.
+fn disabled_tools(db: &Path) -> Result<Vec<String>, String> {
+    let conn =
+        rusqlite::Connection::open_with_flags(db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|e| e.to_string())?;
+    let has_table: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'tools')",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    if !has_table {
+        return Ok(Vec::new());
+    }
+    Ok(apollia_tools::NativeToolRegistry::new(db)
+        .and_then(|registry| registry.list())
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .filter(|tool| !tool.enabled)
+        .map(|tool| tool.name)
+        .collect())
+}
+
+/// Announces a change of the fail-closed state, from `before` to `after`, in
+/// the log and on `events`. Nothing changes, nothing is announced.
+fn announce(
+    before: Option<&FailClosed>,
+    after: Option<&FailClosed>,
+    events: Option<&EventBusSender>,
 ) {
-    let rules = PrefixRuleEngine::new(db).and_then(|engine| engine.list_rules());
-    let consents = FamilyConsentStore::new(db).and_then(|store| store.list_permanent());
-    match (rules, consents) {
-        (Ok(rules), Ok(consents)) => (rules, consents.into_iter().collect()),
-        (rules, consents) => {
-            let error = rules
-                .err()
-                .or(consents.err())
-                .map(|e| e.to_string())
-                .unwrap_or_default();
-            tracing::event!(
-                tracing::Level::WARN,
-                error = %error,
-                "governance.store.unreadable"
-            );
-            (Vec::new(), Default::default())
-        }
+    if before == after {
+        return;
+    }
+    match after {
+        Some(state) => tracing::event!(
+            tracing::Level::ERROR,
+            cause = state.cause(),
+            detail = %state.detail(),
+            "governance.fail_closed.entered"
+        ),
+        None => tracing::event!(tracing::Level::WARN, "governance.fail_closed.left"),
+    }
+    if let Some(events) = events {
+        let _ = events.send(RuntimeEvent::GovernanceFailClosed {
+            active: after.is_some(),
+            cause: after.map(|state| state.cause().to_owned()),
+            detail: after.map(FailClosed::detail),
+        });
     }
 }
 
@@ -427,3 +532,6 @@ fn developer_mode(sources: &GovernanceSources) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod fail_closed_tests;

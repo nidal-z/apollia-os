@@ -4753,6 +4753,27 @@
         }
       }
     },
+    "/api/v1/governance/state": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/governance/state`: whether governance fails closed, and why.",
+        "operationId": "get_governance_state",
+        "responses": {
+          "200": {
+            "description": "The state of governance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovernanceStateBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/governance/tools": {
       "get": {
         "tags": [
@@ -8758,6 +8779,16 @@
               }
             }
           },
+          "403": {
+            "description": "Refused by the connection admission, or forbidden since the last start",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Server not found",
             "content": {
@@ -8872,6 +8903,16 @@
           },
           "400": {
             "description": "Fallback connect failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden by the organisation policy since the last start",
             "content": {
               "application/json": {
                 "schema": {
@@ -19737,7 +19778,8 @@
           "degraded",
           "needs_reauth",
           "unavailable",
-          "stopped"
+          "stopped",
+          "forbidden_by_policy"
         ]
       },
       "ConnectionTool": {
@@ -21008,6 +21050,56 @@
           "json"
         ]
       },
+      "FailClosed": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "`governance.db` exists and cannot be read.",
+            "required": [
+              "detail",
+              "cause"
+            ],
+            "properties": {
+              "cause": {
+                "type": "string",
+                "enum": [
+                  "store_unreadable"
+                ]
+              },
+              "detail": {
+                "type": "string",
+                "description": "What the read failed on."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "An organisation policy is deposited and refused.",
+            "required": [
+              "reason",
+              "detail",
+              "cause"
+            ],
+            "properties": {
+              "cause": {
+                "type": "string",
+                "enum": [
+                  "policy_invalid"
+                ]
+              },
+              "detail": {
+                "type": "string",
+                "description": "What exactly was refused."
+              },
+              "reason": {
+                "type": "string",
+                "description": "The reason class: `schema`, `signature`, `key` or `owner`."
+              }
+            }
+          }
+        ],
+        "description": "Why governance fails closed."
+      },
       "FireResponse": {
         "type": "object",
         "description": "Response for `POST /api/v1/triggers/:id/fire`.",
@@ -21247,6 +21339,23 @@
           "timestamp": {
             "type": "string",
             "description": "ISO 8601 timestamp."
+          }
+        }
+      },
+      "GovernanceStateBody": {
+        "type": "object",
+        "description": "Answer of `GET /api/v1/governance/state`.",
+        "properties": {
+          "fail_closed": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FailClosed",
+                "description": "Why governance fails closed, `null` while it decides normally. While it\nfails closed, every sensitive tool call and every new connection is\nrefused; reading continues."
+              }
+            ]
           }
         }
       },

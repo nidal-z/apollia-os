@@ -350,6 +350,8 @@
     },
     "native_google_description": "Gmail (envoi + brouillons), Calendar, Drive Workspace",
     "native_microsoft_description": "Outlook Mail, Outlook Calendar, OneDrive",
+    "forbidden_by_policy": "Interdite par la politique",
+    "sidebar_forbidden_section": "Interdites par la politique ({count})",
     "error_refused_by_policy": "Refusé par la politique de l'organisation.",
     "error_oauth_client_missing": "Identifiant OAuth manquant - saisissez-le sur la fiche de cette connexion, dans Connexions.",
     "error_oauth_client_secret_missing": "Secret client OAuth manquant - ajoutez-le sur la fiche de cette connexion, dans Connexions.",
@@ -551,6 +553,7 @@
       "organisation_title": "Refusé par la politique de l'organisation",
       "permissions_title": "Refusé par vos autorisations",
       "remote_denied": "Votre organisation n'autorise pas les connexions à des services en ligne.",
+      "policy_denied": "Votre organisation n'autorise pas cette connexion.",
       "policy_unreadable": "La politique de votre organisation n'a pas pu être lue : aucune connexion ne peut être ajoutée tant qu'elle n'est pas corrigée.",
       "nothing_installed": "Rien n'a été installé ni téléchargé.",
       "ask_administrator": "Pour changer cette règle, adressez-vous à l'administrateur de votre organisation.",
@@ -4413,6 +4416,23 @@
       "wizard": {
         "node_downloading": "Téléchargement d'un composant nécessaire : Node.js"
       }
+    }
+  },
+  "governance": {
+    "fail_closed": {
+      "title": "Actions sensibles bloquées",
+      "store_unreadable": "La base des autorisations est illisible : Apollia refuse tout ce qui écrit, envoie ou exécute. La lecture continue.",
+      "policy_invalid": "La politique de l'organisation est invalide ({reason}) : les actions sensibles et les nouvelles connexions sont refusées. La lecture continue.",
+      "policy_reason": {
+        "schema": "contenu non conforme",
+        "signature": "signature non reconnue",
+        "key": "clé de l'organisation non reconnue",
+        "owner": "fichiers modifiables par un autre que l'administrateur",
+        "unknown": "raison inconnue"
+      },
+      "retry": "Réessayer",
+      "view_policy": "Voir la politique",
+      "retry_failed": "L'état des autorisations n'a pas pu être relu."
     }
   }
 }
