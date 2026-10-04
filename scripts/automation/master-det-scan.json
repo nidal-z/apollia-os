@@ -117,7 +117,6 @@
     "nav-memory",
     "nav-notifications",
     "nav-observability",
-    "nav-projects",
     "nav-settings",
     "nav-tasks",
     "nav-transcriptions",
@@ -149,23 +148,6 @@
     "profile-menu-delete",
     "profile-menu-reset",
     "profile-menu-set_default",
-    "project-agent-remove-cancel-seed-classifier",
-    "project-agent-remove-confirm-onboarding-agent",
-    "project-agent-remove-confirm-seed-classifier",
-    "project-agent-remove-onboarding-agent",
-    "project-agent-remove-seed-classifier",
-    "project-agent-row-apollia-guide",
-    "project-agent-row-onboarding-agent",
-    "project-agent-row-seed-classifier",
-    "project-doc-remove-cancel-seed-document-alpha-readme",
-    "project-doc-remove-confirm-seed-document-alpha-readme",
-    "project-doc-remove-seed-document-alpha-readme",
-    "project-tab-agents",
-    "project-tab-context",
-    "project-tab-conversations",
-    "project-tab-memory",
-    "project-tab-settings",
-    "project-tab-tasks",
     "quickpicker-agent-seed-classifier",
     "settings-nav-appearance",
     "settings-nav-chat",
@@ -327,16 +309,6 @@
     {
       "kind": "waitFor",
       "testid": "agents-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "nav-projects",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
       "timeoutMs": 3000
     },
     {
@@ -1097,10 +1069,6 @@
     },
     {
       "kind": "expect",
-      "testid": "dashboard-cta-projects"
-    },
-    {
-      "kind": "expect",
       "testid": "dashboard-cta-new-chat"
     },
     {
@@ -1124,10 +1092,6 @@
     {
       "kind": "screenshot",
       "label": "03-dashboard-activity"
-    },
-    {
-      "kind": "expect",
-      "testid": "dashboard-projects-see-all"
     },
     {
       "kind": "stubInvoke",
@@ -1311,20 +1275,6 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "click",
-      "testid": "dashboard-projects-see-all",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "projects-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "04a-projects-see-all"
-    },
-    {
       "kind": "goto",
       "route": "dashboard"
     },
@@ -1444,17 +1394,8 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "click",
-      "testid": "dashboard-cta-projects",
-      "timeoutMs": 2500
-    },
-    {
       "kind": "sleep",
       "ms": 900
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-cta-projects-nav"
     },
     {
       "kind": "goto",
@@ -1464,24 +1405,6 @@
       "kind": "waitFor",
       "testid": "dashboard-page",
       "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-pinned-projects",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "dashboard-project-",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "06-dashboard-projects-populated"
-    },
-    {
-      "kind": "expect",
-      "testid": "dashboard-projects-see-all"
     },
     {
       "kind": "click",
@@ -1576,11 +1499,6 @@
     {
       "kind": "waitFor",
       "testidPrefix": "dashboard-activity-",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "dashboard-project-",
       "timeoutMs": 3000
     },
     {
@@ -1884,21 +1802,6 @@
     {
       "kind": "screenshot",
       "label": "04-quickpicker"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "quickpicker-project",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "selectOption",
-      "testid": "quickpicker-project",
-      "index": 1,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-quickpicker-project-selected"
     },
     {
       "kind": "sleep",
@@ -2633,45 +2536,12 @@
       "testid": "chat-header-menu-delete"
     },
     {
-      "kind": "expect",
-      "testid": "chat-header-menu-link-project"
-    },
-    {
       "kind": "screenshot",
-      "label": "21-header-overflow-menu (drawer = md:hidden, unlink = only when linked, link submenu = closes-on-click: screenshot only)"
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-menu-link-project",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-link-project-menu",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-link-project-item",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-link-project-item",
-      "timeoutMs": 3000
+      "label": "21-header-overflow-menu (drawer = md:hidden)"
     },
     {
       "kind": "sleep",
       "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-meta-project",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "22-header-project-linked"
     },
     {
       "kind": "click",
@@ -2679,27 +2549,8 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
-      "testid": "chat-header-overflow-menu",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-menu-unlink-project",
-      "timeoutMs": 3000
-    },
-    {
       "kind": "sleep",
       "ms": 400
-    },
-    {
-      "kind": "waitGone",
-      "testid": "chat-header-meta-project",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "22b-header-project-unlinked"
     },
     {
       "kind": "click",
@@ -3433,54 +3284,6 @@
       "kind": "waitGone",
       "testid": "keyboard-hint-overlay",
       "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-overflow-button",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-overflow-menu",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-menu-link-project",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-link-project-menu",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-link-project-item",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-meta-project",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-meta-project",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "projects-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "39-project-chip-opens-project"
     },
     {
       "kind": "goto",
@@ -5166,990 +4969,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-05-projects-det"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-off",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "list_projects",
-      "resolve": [],
-      "once": true
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "list_projects",
-      "reject": "seeded projects failure",
-      "once": true
-    },
-    {
-      "kind": "goto",
-      "route": "projects"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "projects-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "00a-projects-store-emptied (first list answered [] by the stub)"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "goto",
-      "route": "projects"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "projects-load-error",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "00b-projects-load-error"
-    },
-    {
-      "kind": "click",
-      "testid": "projects-load-error-details-toggle",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "00c-projects-load-error-details-open"
-    },
-    {
-      "kind": "click",
-      "testid": "projects-load-error-details-toggle",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "projects-load-retry",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitGone",
-      "testid": "projects-load-error",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "project-row",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "00d-projects-load-retried"
-    },
-    {
-      "kind": "goto",
-      "route": "projects"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "projects-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "01-projects-operator"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "projects-new-project-btn",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "fill",
-      "testid": "projects-sidebar-search",
-      "text": "Alpha",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "02-projects-search"
-    },
-    {
-      "kind": "fill",
-      "testid": "projects-sidebar-search",
-      "text": "",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "project-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "projects-new-project-btn",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "new-project-cancel",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "03-newproject-step1"
-    },
-    {
-      "kind": "click",
-      "testid": "new-project-continue",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "new-project-name-input",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "fill",
-      "testid": "new-project-name-input",
-      "text": "det-probe-project",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "fill",
-      "testid": "new-project-description-input",
-      "text": "det-probe-description",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "04-newproject-step2"
-    },
-    {
-      "kind": "click",
-      "testid": "new-project-back",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "new-project-cancel",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitGone",
-      "testid": "new-project-cancel",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "project-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-tabbar",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-project-detail"
-    },
-    {
-      "kind": "click",
-      "testid": "project-tab-conversations",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-conversations-list",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "06-project-conversations"
-    },
-    {
-      "kind": "click",
-      "testid": "project-tab-tasks",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-project-tasks"
-    },
-    {
-      "kind": "click",
-      "testid": "project-tab-agents",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-agent-select",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "expect",
-      "testid": "project-agent-add-btn"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-agent-row-seed-classifier",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-agent-row-apollia-guide",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07b-project-agents"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "project-agent-select",
-      "value": "onboarding-agent",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "project-agent-add-btn",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-agent-row-onboarding-agent",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07c-project-agent-attached (onboarding-agent linked through the add button)"
-    },
-    {
-      "kind": "click",
-      "testid": "project-agent-remove-onboarding-agent",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-agent-remove-confirm-onboarding-agent",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "project-agent-remove-confirm-onboarding-agent",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitGone",
-      "testid": "project-agent-row-onboarding-agent",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07c2-project-agent-probe-detached (the two seeded links untouched)"
-    },
-    {
-      "kind": "click",
-      "testid": "project-agent-remove-seed-classifier",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-agent-remove-confirm-seed-classifier",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "07d-project-agent-detach-armed"
-    },
-    {
-      "kind": "click",
-      "testid": "project-agent-remove-cancel-seed-classifier",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-agent-remove-seed-classifier",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "07e-project-agent-detach-cancelled (the link survives)"
-    },
-    {
-      "kind": "click",
-      "testid": "project-tab-conversations",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-conversations-list",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "list_project_agents",
-      "reject": "seeded project agents failure",
-      "once": true
-    },
-    {
-      "kind": "click",
-      "testid": "project-tab-agents",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-agent-error",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "project-agent-error-details",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "07f-project-agent-error-details-open (list refused once by the stub)"
-    },
-    {
-      "kind": "click",
-      "testid": "project-agent-error-details",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "project-tab-conversations",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-conversations-list",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "project-tab-agents",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-agent-row-seed-classifier",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-agent-row-apollia-guide",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07g-project-agents-recovered"
-    },
-    {
-      "kind": "click",
-      "testid": "project-tab-memory",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-project-memory"
-    },
-    {
-      "kind": "expect",
-      "testid": "project-doc-attach-btn"
-    },
-    {
-      "kind": "screenshot",
-      "label": "08b-project-documents (attach is played on the throwaway project at the tail, through a picker stub)"
-    },
-    {
-      "kind": "click",
-      "testid": "project-doc-remove-seed-document-alpha-readme",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-doc-remove-confirm-seed-document-alpha-readme",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "08c-project-document-detach-armed"
-    },
-    {
-      "kind": "click",
-      "testid": "project-doc-remove-cancel-seed-document-alpha-readme",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-doc-remove-seed-document-alpha-readme",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "08d-project-document-detach-cancelled (the document stays attached)"
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "delete_project_document",
-      "reject": "seeded document delete failure",
-      "once": true
-    },
-    {
-      "kind": "click",
-      "testid": "project-doc-remove-seed-document-alpha-readme",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-doc-remove-confirm-seed-document-alpha-readme",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "project-doc-remove-confirm-seed-document-alpha-readme",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-doc-error",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "project-doc-error-details",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "08e-project-document-error-details-open (delete refused by the stub before it ran)"
-    },
-    {
-      "kind": "click",
-      "testid": "project-doc-error-details",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-doc-remove-seed-document-alpha-readme",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "08f-project-document-survives"
-    },
-    {
-      "kind": "click",
-      "testid": "project-tab-context",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "providers-list",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "provider-card",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "provider-toggle",
-      "nth": 0,
-      "timeoutMs": 2000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "provider-delete",
-      "nth": 0,
-      "timeoutMs": 2000
-    },
-    {
-      "kind": "screenshot",
-      "label": "09-project-context"
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "provider-edit",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "provider-edit-dialog",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-provider-edit-dialog"
-    },
-    {
-      "kind": "click",
-      "testid": "dialog-close",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitGone",
-      "testid": "provider-edit-dialog",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "provider-delete",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "provider-delete-confirm",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "11-provider-delete-boundary"
-    },
-    {
-      "kind": "click",
-      "testid": "provider-delete-confirm-cancel",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitGone",
-      "testid": "provider-delete-confirm",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "project-tab-settings",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-name-input",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "expect",
-      "testid": "settings-description-input"
-    },
-    {
-      "kind": "expect",
-      "testid": "settings-instructions-input"
-    },
-    {
-      "kind": "expect",
-      "testid": "settings-workspace-input"
-    },
-    {
-      "kind": "fill",
-      "testid": "settings-name-input",
-      "text": "det-probe-name",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "fill",
-      "testid": "settings-description-input",
-      "text": "det-probe-description",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "fill",
-      "testid": "settings-instructions-input",
-      "text": "det-probe-instructions",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "fill",
-      "testid": "settings-workspace-input",
-      "text": "/tmp/det-probe",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "12-project-settings"
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "delete-project",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-delete-confirm",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "13-delete-project-boundary"
-    },
-    {
-      "kind": "click",
-      "testid": "project-delete-confirm-cancel",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitGone",
-      "testid": "project-delete-confirm",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-on",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "goto",
-      "route": "projects"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "projects-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "14-projects-builder"
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "project-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "project-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-tabbar",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "project-tab-context",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "providers-list",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "15-project-context-builder"
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-off",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "goto",
-      "route": "projects"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "projects-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "16-back-operator"
-    },
-    {
-      "kind": "goto",
-      "route": "projects"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "projects-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "projects-new-project-btn",
-      "timeoutMs": 3000,
-      "nth": 0
-    },
-    {
-      "kind": "waitFor",
-      "testid": "new-project-close",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "new-project-close",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "new-project-cancel",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "projects-new-project-btn",
-      "timeoutMs": 3000,
-      "nth": 0
-    },
-    {
-      "kind": "waitFor",
-      "testid": "new-project-continue",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "new-project-continue",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "new-project-name-input",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "fill",
-      "testid": "new-project-name-input",
-      "text": "Automation Project",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "new-project-create",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "new-project-create",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-tab-tasks",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "30-new-project-created"
-    },
-    {
-      "kind": "click",
-      "testid": "project-tab-tasks",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-tasks-attach-agents-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "project-tasks-attach-agents-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-agent-select",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "31-empty-tasks-cta-opens-agents"
-    },
-    {
-      "kind": "click",
-      "testid": "project-tab-memory",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-doc-attach-empty-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "32-new-project-documents-empty"
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "plugin:dialog|open",
-      "resolve": "${HOME}/.apollia/apollia.toml",
-      "once": true
-    },
-    {
-      "kind": "click",
-      "testid": "project-doc-attach-empty-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "project-doc-attach-empty-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "project-doc-remove-",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "33-new-project-document-attached-from-empty-cta"
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "plugin:dialog|open",
-      "resolve": "${HOME}/.apollia/mcp-registry.json",
-      "once": true
-    },
-    {
-      "kind": "click",
-      "testid": "project-doc-attach-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "project-doc-remove-",
-      "nth": 1,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "34-new-project-second-document-attached-from-header"
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "plugin:dialog|open",
-      "resolve": null,
-      "once": true
-    },
-    {
-      "kind": "click",
-      "testid": "project-doc-attach-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "expect",
-      "testid": "project-doc-attach-btn"
-    },
-    {
-      "kind": "screenshot",
-      "label": "35-new-project-attach-cancelled-picker (null from the picker, nothing added)"
-    },
-    {
-      "kind": "screenshot",
-      "label": "section-06-tasks-det"
+      "label": "section-05-tasks-det"
     },
     {
       "kind": "goto",
@@ -6965,7 +5785,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-07-automations-det"
+      "label": "section-06-automations-det"
     },
     {
       "kind": "goto",
@@ -8024,7 +6844,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-08-inbox-det"
+      "label": "section-07-inbox-det"
     },
     {
       "kind": "goto",
@@ -8530,7 +7350,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-09-notifications-det"
+      "label": "section-08-notifications-det"
     },
     {
       "kind": "goto",
@@ -9308,7 +8128,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-10-memory-det"
+      "label": "section-09-memory-det"
     },
     {
       "kind": "goto",
@@ -10136,7 +8956,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-11-connections-det"
+      "label": "section-10-connections-det"
     },
     {
       "kind": "goto",
@@ -12921,7 +11741,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-12-observability-det"
+      "label": "section-11-observability-det"
     },
     {
       "kind": "goto",
@@ -13717,7 +12537,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-13-coach-det"
+      "label": "section-12-coach-det"
     },
     {
       "kind": "goto",
@@ -14155,7 +12975,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-14-settings-det"
+      "label": "section-13-settings-det"
     },
     {
       "kind": "goto",
@@ -16173,7 +14993,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-15-profile-det"
+      "label": "section-14-profile-det"
     },
     {
       "kind": "goto",
@@ -16654,7 +15474,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-16-llm-det"
+      "label": "section-15-llm-det"
     },
     {
       "kind": "goto",
@@ -17494,7 +16314,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-17-model-hub-det"
+      "label": "section-16-model-hub-det"
     },
     {
       "kind": "goto",
@@ -18189,7 +17009,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-18-stt-det"
+      "label": "section-17-stt-det"
     },
     {
       "kind": "goto",
@@ -18996,7 +17816,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-19-tools-det"
+      "label": "section-18-tools-det"
     },
     {
       "kind": "goto",
@@ -19961,7 +18781,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-20-permissions-det"
+      "label": "section-19-permissions-det"
     },
     {
       "kind": "goto",

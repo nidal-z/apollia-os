@@ -37,6 +37,7 @@ const GOVERNANCE_MARKERS: &[&str] = &[
 fn widest_config(root: &Path) -> NativeDispatcherConfig {
     NativeDispatcherConfig {
         sandbox_roots: vec![root.to_path_buf()],
+        write_roots: vec![root.to_path_buf()],
         agent_id: "third-party-agent".to_string(),
         venv_base_dir: root.join("venvs"),
         memory_namespace: Some("third-party-agent".to_string()),
@@ -51,6 +52,7 @@ fn widest_config(root: &Path) -> NativeDispatcherConfig {
         web_read_config: WebReadConfig::default(),
         python_interpreter: None,
         max_output_chars: apollia_tools::executor::DEFAULT_MAX_OUTPUT_CHARS,
+        sources: apollia_tools::SourceAccess::memory_only(true),
     }
 }
 

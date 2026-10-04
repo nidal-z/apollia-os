@@ -214,7 +214,6 @@
    */
   const actions = createSessionActions(
     () => sessionId,
-    () => sessionDetail?.project_id ?? null,
     () => refreshSession(),
   );
   const subscriptions = createSubscriptionGuard();
@@ -284,7 +283,6 @@
   onMount(async () => {
     await loadSession();
     restoreGlobalState();
-    void actions.loadProjects();
 
     subscriptions.keep(await listen<{ session_id: string; message_id: string; token: string }>(
       "chat-token",
@@ -656,10 +654,6 @@
       {oncontextopen}
       onrename={(title) => void actions.rename(title)}
       ondelete={handleDeleteSession}
-      linkedProject={actions.linkedProject}
-      availableProjects={actions.availableProjects}
-      onlink={(projectId) => void actions.link(projectId)}
-      onprojectopen={() => actions.openProjects()}
       {planMode}
       onplanmodechange={(enabled) => {
         planMode = enabled;

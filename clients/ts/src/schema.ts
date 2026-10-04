@@ -3940,26 +3940,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{id}/sessions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Handler for `GET /api/v1/projects/{id}/sessions`, the sessions of a
-         *     project.
-         */
-        get: operations["list_project_sessions"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/resilience/reset/{tool}": {
         parameters: {
             query?: never;
@@ -4574,26 +4554,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/sessions/{id}/project": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Handler for `PUT /api/v1/sessions/{id}/project`, link the session to a
-         *     project or, with `null`, unlink it.
-         */
-        put: operations["link_session_project"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/sessions/{id}/resume": {
         parameters: {
             query?: never;
@@ -4791,6 +4751,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sources/folder-kinds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/sources/folder-kinds`: the kinds offered for a source made
+         *     on a folder connection.
+         * @description The code folder is offered only when the developer mode is on. This is
+         *     what the user is offered, not a check: `POST /api/v1/sources` accepts a
+         *     code folder whatever the mode.
+         */
+        get: operations["folder_kinds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sources/preview": {
         parameters: {
             query?: never;
@@ -4802,6 +4785,26 @@ export interface paths {
         put?: never;
         /** `POST /api/v1/sources/preview`: the preview of a workbook or a CSV file. */
         post: operations["preview_source"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/project-migration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/sources/project-migration`: what the migration of the former
+         *     projects carried over, and what it listed instead.
+         */
+        get: operations["project_migration_report"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6850,8 +6853,6 @@ export interface components {
             agent_name?: string | null;
             /** @description Session mode: `"libre"` or `"agent"`. */
             mode: string;
-            /** @description Project to link this session to. */
-            project_id?: string | null;
             /** @description Custom system prompt. */
             system_prompt?: string | null;
             /** @description List of tool names available in this session. */
@@ -6865,7 +6866,10 @@ export interface components {
             kind: string;
             /** @description The name the user sees. */
             label: string;
-            /** @description What the source points at; required for `folder`, `file` and `mail`. */
+            /**
+             * @description What the source points at; required for `folder`, `file`, `mail` and
+             *     `code_folder`, whose reference is a folder connection.
+             */
             reference?: string | null;
         };
         /** @description Request body for `POST /api/v1/triggers`, trigger creation. */
@@ -7672,6 +7676,16 @@ export interface components {
              */
             timeout_secs?: number | null;
         };
+        /**
+         * @description What an issue is about.
+         * @enum {string}
+         */
+        IssueItem: "store" | "document" | "instructions" | "agent" | "folder" | "provider" | "memory" | "conversations";
+        /**
+         * @description Why an item was not carried over.
+         * @enum {string}
+         */
+        IssueReason: "missing" | "unreadable" | "wrong_kind" | "agent_not_installed" | "failed" | "not_carried_over";
         /** @description One Python tool of the package. */
         ItemPreview: {
             /** @description What it does. */
@@ -7733,11 +7747,6 @@ export interface components {
             loadedAt: string;
             /** @description The model, by the identifier the model index gives it. */
             modelId: string;
-        };
-        /** @description Request body for `PUT /api/v1/sessions/{id}/project`. */
-        LinkProjectBody: {
-            /** @description The project to link, `null` to unlink. */
-            project_id?: string | null;
         };
         /** @description Response body for a single backend. */
         LlmBackendResponse: {
@@ -8063,6 +8072,24 @@ export interface components {
             /** @description How many entries went in. */
             imported: number;
         };
+        /** @description A memory space of a project merged into the space of the same name. */
+        MemoryMerge: {
+            /**
+             * @description Entries this run added; 0 when they were already there.
+             * @default 0
+             */
+            entriesAdded: number;
+            /**
+             * @description The space of the project, `<project id>:<space>`.
+             * @default
+             */
+            from: string;
+            /**
+             * @description The space it was merged into.
+             * @default
+             */
+            into: string;
+        };
         /** @description Answer of the clear and purge routes. */
         MemoryRemoved: {
             /**
@@ -8108,6 +8135,75 @@ export interface components {
             /** @description Role of the message sender. */
             role: string;
         };
+        /** @description One item the migration did not carry over. */
+        MigrationIssue: {
+            /**
+             * @description Whether the issue keeps the migration partial. A missing document is
+             *     listed and does not: running again would not bring it back.
+             * @default false
+             */
+            blocking: boolean;
+            /**
+             * @description The underlying error, when there is one.
+             * @default null
+             */
+            detail: string | null;
+            /** @default store */
+            item: components["schemas"]["IssueItem"];
+            /**
+             * @description Identifier of the project, if the issue belongs to one.
+             * @default null
+             */
+            projectId: string | null;
+            /**
+             * @description Name of the project, if the issue belongs to one.
+             * @default null
+             */
+            projectName: string | null;
+            /** @default failed */
+            reason: components["schemas"]["IssueReason"];
+            /**
+             * @description The path, agent or space concerned.
+             * @default
+             */
+            subject: string;
+        };
+        /** @description The report of a run of the migration. */
+        MigrationReport: {
+            /**
+             * @description Conversations detached from a project by this run.
+             * @default 0
+             */
+            conversationsDetached: number;
+            /**
+             * Format: int32
+             * @description Version of this format.
+             * @default 0
+             */
+            formatVersion: number;
+            /**
+             * @description What was not carried over.
+             * @default []
+             */
+            issues: components["schemas"]["MigrationIssue"][];
+            /**
+             * @description One entry per project found.
+             * @default []
+             */
+            projects: components["schemas"]["ProjectOutcome"][];
+            /**
+             * @description When the run ended, RFC 3339 in UTC.
+             * @default
+             */
+            ranAt: string;
+            /** @default partial */
+            status: components["schemas"]["MigrationStatus"];
+        };
+        /**
+         * @description Where a run of the migration ended.
+         * @enum {string}
+         */
+        MigrationStatus: "complete" | "partial";
         /** @description The catalogue's cards, or why there are none. */
         ModelCardsResponse: {
             /** @description Every card, in the asked language. */
@@ -8768,6 +8864,50 @@ export interface components {
             };
             /** @description New display name. */
             name?: string | null;
+        };
+        /** @description What the migration did for one project. */
+        ProjectOutcome: {
+            /**
+             * @description Agents its sources are checked for.
+             * @default []
+             */
+            agentsChecked: string[];
+            /**
+             * @description Identifier of the code folder source made on that connection, when
+             *     the project read its git state, its rules or its tree.
+             * @default null
+             */
+            codeFolderSource: string | null;
+            /**
+             * @description Identifiers of the sources made of its documents.
+             * @default []
+             */
+            documentSources: string[];
+            /**
+             * @description Identifier of the folder connection made of its working folder.
+             * @default null
+             */
+            folderConnection: string | null;
+            /**
+             * @description Identifier of the project.
+             * @default
+             */
+            id: string;
+            /**
+             * @description Identifier of the source made of its instructions, if it had any.
+             * @default null
+             */
+            instructionsSource: string | null;
+            /**
+             * @description Its memory spaces, merged.
+             * @default []
+             */
+            memory: components["schemas"]["MemoryMerge"][];
+            /**
+             * @description Name of the project, which is also the group of its sources.
+             * @default
+             */
+            name: string;
         };
         /** @description One proposed permission rule, as the approval card draws it. */
         ProposedRuleView: {
@@ -20094,36 +20234,6 @@ export interface operations {
             };
         };
     };
-    list_project_sessions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Project id */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Session list */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Chat subsystem unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
     reset_breaker: {
         parameters: {
             query?: never;
@@ -21652,49 +21762,6 @@ export interface operations {
             };
         };
     };
-    link_session_project: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Session id */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LinkProjectBody"];
-            };
-        };
-        responses: {
-            /** @description Link stored */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Session or project not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description Chat subsystem unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
     resume_session: {
         parameters: {
             query?: never;
@@ -22127,7 +22194,7 @@ export interface operations {
                     "application/json": components["schemas"]["SourceResponse"];
                 };
             };
-            /** @description Unknown kind, blank label, or a folder, file or mailbox without a reference */
+            /** @description Unknown kind, blank label, or a folder, file, mailbox or code folder without a reference */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -22143,6 +22210,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    folder_kinds: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Whether the developer mode is on, as `[desktop] developer_mode`
+                 *     says; off when absent.
+                 */
+                developerMode?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The kinds offered on a folder connection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceKindDto"][];
                 };
             };
         };
@@ -22189,6 +22282,44 @@ export interface operations {
             };
             /** @description Not a workbook or a CSV file, protected, damaged, or a sheet or row the file lacks */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    project_migration_report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report of the last run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MigrationReport"];
+                };
+            };
+            /** @description No migration of projects has run */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The report cannot be read */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

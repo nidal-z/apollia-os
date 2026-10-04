@@ -26,11 +26,11 @@ the same commit as the command.
 |---|---|
 | entity | `show`, `create`, `delete`, `list`, `rename`, `edit` |
 | config | `get`, `set`, `raw-config`, `set-default` |
-| relationship | `add`, `remove`, `link` |
+| relationship | `add`, `remove` |
 | lifecycle | `install`, `uninstall`, `enable`, `disable`, `start`, `stop`, `restart`, `reset`, `reload`, `update`, `revoke`, `login`, `logout`, `setup`, `init`, `resume`, `cancel`, `pause` |
 | maintenance | `clear`, `evict`, `purge`, `repair`, `forget` |
-| report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `resolved`, `approvals`, `messages`, `skills`, `chats`, `accounts`, `accesses`, `capabilities`, `hardware`, `recommend`, `schema`, `keys`, `anchor`, `inspect`, `preview`, `trace`, `version`, `digest` |
-| action | `run`, `build`, `keygen`, `sign`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `retry`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `seed-builtins`, `set-approval`, `revoke-approval`, `list-pending`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
+| report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `resolved`, `approvals`, `messages`, `skills`, `accounts`, `accesses`, `capabilities`, `hardware`, `recommend`, `schema`, `keys`, `anchor`, `inspect`, `preview`, `trace`, `version`, `digest` |
+| action | `run`, `build`, `keygen`, `sign`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `retry`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `set-approval`, `revoke-approval`, `list-pending`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
 | interchange | `export`, `import` |
 
 **One verb per intent.** `show` is the only entity-detail read (it absorbed
@@ -40,8 +40,8 @@ purpose, verified against real usage:
 
 - `get` / `set` are config key/value pairs (`config`, `chat config`,
   `tools config`, `notify events`), not entity reads.
-- `add` / `remove` attach and detach a relationship, git-style (`mcp add`,
-  `project agents add`); they do not create or delete an entity.
+- `add` / `remove` attach and detach a relationship, git-style (`mcp add`);
+  they do not create or delete an entity.
 - `clear` and `evict` are distinct in `plan cache`: wipe all against purge by
   age.
 
@@ -102,7 +102,7 @@ keyring, the connections and the governance, adds the MCP servers a package
 brings and journals the installation. The archive is sent by its absolute
 path; a missing file is refused before the runtime is reached.
 
-**`source`** (`list`, `create`, `delete`, `inspect`) reads and writes the registry of
+**`source`** (`list`, `create`, `delete`, `inspect`, `report`) reads and writes the registry of
 sources an agent may consult once checked: a folder, a file or a mailbox,
 which name what they point at with `--reference`, the profile, the memory, a
 code folder. Every leaf goes through the runtime, whose actor owns the
@@ -113,6 +113,8 @@ a workbook or a CSV file as a batch would read it, through the runtime too:
 the sheet and header row proposed, the first twenty rows, the columns by
 letter and name, and whether results may be written into the original. A
 file that is not there is refused with exit 1 before the runtime is reached.
+`report` shows what the migration of the former projects carried over into
+sources at boot, and what it listed instead; exit 1 when no migration has run.
 
 **`agent uninstall`** and **`agent package uninstall`** go through the
 runtime, the same route the desktop calls: it removes the definitions,

@@ -182,30 +182,11 @@ fn build_config_view(
         ConfigSection {
             name: "chat".to_string(),
             description: "Chat session defaults".to_string(),
-            entries: vec![
-                ConfigEntry {
-                    key: "plan_mode_default".to_string(),
-                    value: toml_value
-                        .map(|t| toml_string(t, "chat", "plan_mode_default", "false"))
-                        .unwrap_or_else(|| "false".to_string()),
-                },
-                ConfigEntry {
-                    key: "default_workspace".to_string(),
-                    value: toml_value
-                        .map(|t| toml_string(t, "chat", "default_workspace", "~/.apollia"))
-                        .unwrap_or_else(|| "~/.apollia".to_string()),
-                },
-            ],
-            redirect_route: None,
-        },
-        ConfigSection {
-            name: "filesystem".to_string(),
-            description: "Paths an agent works in without being asked".to_string(),
             entries: vec![ConfigEntry {
-                key: "trusted_paths".to_string(),
+                key: "plan_mode_default".to_string(),
                 value: toml_value
-                    .map(|t| toml_string(t, "filesystem", "trusted_paths", "[\"~\"]"))
-                    .unwrap_or_else(|| "[\"~\"]".to_string()),
+                    .map(|t| toml_string(t, "chat", "plan_mode_default", "false"))
+                    .unwrap_or_else(|| "false".to_string()),
             }],
             redirect_route: None,
         },
@@ -331,39 +312,17 @@ mod tests {
 
         // THEN all sections are present with defaults
         assert!(!view.config_exists);
-        assert_eq!(view.sections.len(), 8);
+        assert_eq!(view.sections.len(), 7);
 
-        // AND the trusted paths default to the home directory, which is what
-        // makes an agent usable outside one folder without an approval on every
-        // write. A path outside them is asked about, never refused.
-        let filesystem = view
-            .sections
-            .iter()
-            .find(|s| s.name == "filesystem")
-            .expect("filesystem section");
-        assert_eq!(
-            filesystem
-                .entries
-                .iter()
-                .find(|e| e.key == "trusted_paths")
-                .expect("trusted_paths entry")
-                .value,
-            "[\"~\"]"
-        );
-
+        // AND neither the former trusted paths nor the default workspace is
+        // a setting any more: the folders an agent reaches are connections
+        assert!(view.sections.iter().all(|s| s.name != "filesystem"));
         let chat = view
             .sections
             .iter()
             .find(|s| s.name == "chat")
             .expect("chat section");
-        assert_eq!(
-            chat.entries
-                .iter()
-                .find(|e| e.key == "default_workspace")
-                .expect("default_workspace entry")
-                .value,
-            "~/.apollia"
-        );
+        assert!(chat.entries.iter().all(|e| e.key != "default_workspace"));
 
         let runtime = &view.sections[0];
         assert_eq!(runtime.name, "runtime");

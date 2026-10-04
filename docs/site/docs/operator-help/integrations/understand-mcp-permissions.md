@@ -23,7 +23,7 @@ Every tool exposed by a connector or an MCP has an **approval policy**:
 | `always_require_approval` | An HITL popup appears, you decide. | Writes, `gmail.send`, `outlook.send`, `gcal.create_event`. |
 | `confirm_phrase` | HITL popup + you have to type a confirmation phrase (the name of the thing to delete, for instance). | Irreversible deletions, `gcal.delete_event`, `outlook_cal.delete_event`. |
 
-The card carries three buttons, **Allow once**, **Refuse** and **Always allow**. The scope is a separate choice, offered next to them: *For this session*, *Always for this assistant*, *Always for this project* (unavailable when the session is attached to no project) or *Always, everywhere*. Answering **Always allow** on any scope but the session creates a **persistent rule** which you will find, and can revoke, under **Settings, Permissions**.
+The card carries three buttons, **Allow once**, **Refuse** and **Always allow**. The scope is a separate choice, offered next to them: *For this session*, *Always for this assistant* or *Always, everywhere*. Answering **Always allow** on any scope but the session creates a **persistent rule** which you will find, and can revoke, under **Settings, Permissions**.
 
 There is no MCP-specific approvals screen, and there is no queue of MCP requests to go through. A tool exposed by an MCP server goes through the same gate as a native tool, the one the execution loop opens: the card in the conversation while you are there, the **Inbox** for an agent task that is waiting. Everything the rest of this help centre says about approving an action applies to it unchanged.
 
@@ -76,7 +76,7 @@ approval when they arrive.
 
 - Open **Settings, Permissions**, the four sections are displayed.
 - In the chat, trigger a write (sending a mail), the popup appears.
-- Answer **Always allow** with the *Always for this project* scope, confirm, and check that a new row appears under **Rules**.
+- Answer **Always allow** with the *Always for this assistant* scope, confirm, and check that a new row appears under **Rules**.
 
 ## If it does not work
 

@@ -45,7 +45,8 @@ pub enum SourceRegistryError {
     #[error("a source needs a label")]
     EmptyLabel,
 
-    /// A folder, a file or a mailbox was given nothing to point at.
+    /// A folder, a file, a mailbox or a code folder was given nothing to
+    /// point at.
     #[error("a {0} source needs a reference")]
     MissingReference(SourceKind),
 
@@ -78,6 +79,21 @@ pub enum SourceKind {
 }
 
 impl SourceKind {
+    /// The kinds a source made on a folder connection may take: a folder
+    /// whose documents are indexed, and a code folder when the developer
+    /// mode is on.
+    ///
+    /// This is the list offered to the user, never a check: the registry
+    /// accepts a code folder whatever the mode, so a source added while the
+    /// mode was on keeps working once it is off.
+    pub fn offered_on_folder(developer_mode: bool) -> Vec<SourceKind> {
+        if developer_mode {
+            vec![SourceKind::Folder, SourceKind::CodeFolder]
+        } else {
+            vec![SourceKind::Folder]
+        }
+    }
+
     /// Every kind, in display order.
     pub const ALL: [SourceKind; 6] = [
         SourceKind::Folder,
@@ -116,7 +132,7 @@ impl SourceKind {
     pub fn requires_reference(self) -> bool {
         matches!(
             self,
-            SourceKind::Folder | SourceKind::File | SourceKind::Mail
+            SourceKind::Folder | SourceKind::File | SourceKind::Mail | SourceKind::CodeFolder
         )
     }
 
@@ -193,7 +209,9 @@ pub struct NewSource {
     /// A group the source belongs to, such as the files of one project.
     pub group: Option<String>,
     /// What the source points at: a folder connection, a file path, a mail
-    /// connection, a memory space. Required for a folder, a file and a mailbox.
+    /// connection, a memory space. Required for a folder, a file, a mailbox
+    /// and a code folder, whose reference is the identifier of a folder
+    /// connection.
     pub reference: Option<String>,
 }
 
@@ -256,8 +274,8 @@ impl SourceRegistryStore {
     ///
     /// # Errors
     /// [`SourceRegistryError::EmptyLabel`] for a blank label,
-    /// [`SourceRegistryError::MissingReference`] for a folder, a file or a
-    /// mailbox without a reference, and [`SourceRegistryError::Db`] on any
+    /// [`SourceRegistryError::MissingReference`] for a folder, a file, a
+    /// mailbox or a code folder without a reference, and [`SourceRegistryError::Db`] on any
     /// SQLite failure.
     pub fn create(&self, source: &NewSource) -> Result<Source, SourceRegistryError> {
         let label = source.label.trim();

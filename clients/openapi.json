@@ -11830,41 +11830,6 @@
         }
       }
     },
-    "/api/v1/projects/{id}/sessions": {
-      "get": {
-        "tags": [
-          "chat"
-        ],
-        "summary": "Handler for `GET /api/v1/projects/{id}/sessions`, the sessions of a\nproject.",
-        "operationId": "list_project_sessions",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Session list"
-          },
-          "503": {
-            "description": "Chat subsystem unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/resilience/reset/{tool}": {
       "post": {
         "tags": [
@@ -13730,61 +13695,6 @@
         }
       }
     },
-    "/api/v1/sessions/{id}/project": {
-      "put": {
-        "tags": [
-          "chat"
-        ],
-        "summary": "Handler for `PUT /api/v1/sessions/{id}/project`, link the session to a\nproject or, with `null`, unlink it.",
-        "operationId": "link_session_project",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Session id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LinkProjectBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Link stored"
-          },
-          "404": {
-            "description": "Session or project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Chat subsystem unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/sessions/{id}/resume": {
       "post": {
         "tags": [
@@ -14332,7 +14242,7 @@
             }
           },
           "422": {
-            "description": "Unknown kind, blank label, or a folder, file or mailbox without a reference",
+            "description": "Unknown kind, blank label, or a folder, file, mailbox or code folder without a reference",
             "content": {
               "application/json": {
                 "schema": {
@@ -14347,6 +14257,42 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources/folder-kinds": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "`GET /api/v1/sources/folder-kinds`: the kinds offered for a source made\non a folder connection.",
+        "description": "The code folder is offered only when the developer mode is on. This is\nwhat the user is offered, not a check: `POST /api/v1/sources` accepts a\ncode folder whatever the mode.",
+        "operationId": "folder_kinds",
+        "parameters": [
+          {
+            "name": "developerMode",
+            "in": "query",
+            "description": "Whether the developer mode is on, as `[desktop] developer_mode`\nsays; off when absent.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The kinds offered on a folder connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceKindDto"
+                  }
                 }
               }
             }
@@ -14404,6 +14350,47 @@
           },
           "422": {
             "description": "Not a workbook or a CSV file, protected, damaged, or a sheet or row the file lacks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources/project-migration": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "`GET /api/v1/sources/project-migration`: what the migration of the former\nprojects carried over, and what it listed instead.",
+        "operationId": "project_migration_report",
+        "responses": {
+          "200": {
+            "description": "The report of the last run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationReport"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No migration of projects has run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The report cannot be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -19750,13 +19737,6 @@
             "type": "string",
             "description": "Session mode: `\"libre\"` or `\"agent\"`."
           },
-          "project_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Project to link this session to."
-          },
           "system_prompt": {
             "type": [
               "string",
@@ -19801,7 +19781,7 @@
               "string",
               "null"
             ],
-            "description": "What the source points at; required for `folder`, `file` and `mail`."
+            "description": "What the source points at; required for `folder`, `file`, `mail` and\n`code_folder`, whose reference is a folder connection."
           }
         }
       },
@@ -21753,6 +21733,32 @@
           }
         }
       },
+      "IssueItem": {
+        "type": "string",
+        "description": "What an issue is about.",
+        "enum": [
+          "store",
+          "document",
+          "instructions",
+          "agent",
+          "folder",
+          "provider",
+          "memory",
+          "conversations"
+        ]
+      },
+      "IssueReason": {
+        "type": "string",
+        "description": "Why an item was not carried over.",
+        "enum": [
+          "missing",
+          "unreadable",
+          "wrong_kind",
+          "agent_not_installed",
+          "failed",
+          "not_carried_over"
+        ]
+      },
       "ItemPreview": {
         "type": "object",
         "description": "One Python tool of the package.",
@@ -21870,19 +21876,6 @@
           "modelId": {
             "type": "string",
             "description": "The model, by the identifier the model index gives it."
-          }
-        }
-      },
-      "LinkProjectBody": {
-        "type": "object",
-        "description": "Request body for `PUT /api/v1/sessions/{id}/project`.",
-        "properties": {
-          "project_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The project to link, `null` to unlink."
           }
         }
       },
@@ -22581,6 +22574,28 @@
           }
         }
       },
+      "MemoryMerge": {
+        "type": "object",
+        "description": "A memory space of a project merged into the space of the same name.",
+        "properties": {
+          "entriesAdded": {
+            "type": "integer",
+            "description": "Entries this run added; 0 when they were already there.",
+            "default": 0,
+            "minimum": 0
+          },
+          "from": {
+            "type": "string",
+            "description": "The space of the project, `<project id>:<space>`.",
+            "default": ""
+          },
+          "into": {
+            "type": "string",
+            "description": "The space it was merged into.",
+            "default": ""
+          }
+        }
+      },
       "MemoryRemoved": {
         "type": "object",
         "description": "Answer of the clear and purge routes.",
@@ -22669,6 +22684,121 @@
             "description": "Role of the message sender."
           }
         }
+      },
+      "MigrationIssue": {
+        "type": "object",
+        "description": "One item the migration did not carry over.",
+        "properties": {
+          "blocking": {
+            "type": "boolean",
+            "description": "Whether the issue keeps the migration partial. A missing document is\nlisted and does not: running again would not bring it back.",
+            "default": false
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The underlying error, when there is one.",
+            "default": null
+          },
+          "item": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IssueItem",
+                "description": "What the issue is about."
+              }
+            ],
+            "default": "store"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the project, if the issue belongs to one.",
+            "default": null
+          },
+          "projectName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the project, if the issue belongs to one.",
+            "default": null
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IssueReason",
+                "description": "Why it was not carried over."
+              }
+            ],
+            "default": "failed"
+          },
+          "subject": {
+            "type": "string",
+            "description": "The path, agent or space concerned.",
+            "default": ""
+          }
+        }
+      },
+      "MigrationReport": {
+        "type": "object",
+        "description": "The report of a run of the migration.",
+        "properties": {
+          "conversationsDetached": {
+            "type": "integer",
+            "description": "Conversations detached from a project by this run.",
+            "default": 0,
+            "minimum": 0
+          },
+          "formatVersion": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Version of this format.",
+            "default": 0,
+            "minimum": 0
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationIssue"
+            },
+            "description": "What was not carried over.",
+            "default": []
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectOutcome"
+            },
+            "description": "One entry per project found.",
+            "default": []
+          },
+          "ranAt": {
+            "type": "string",
+            "description": "When the run ended, RFC 3339 in UTC.",
+            "default": ""
+          },
+          "status": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MigrationStatus",
+                "description": "Where the run ended."
+              }
+            ],
+            "default": "partial"
+          }
+        }
+      },
+      "MigrationStatus": {
+        "type": "string",
+        "description": "Where a run of the migration ended.",
+        "enum": [
+          "complete",
+          "partial"
+        ]
       },
       "ModelCardsResponse": {
         "type": "object",
@@ -24177,6 +24307,70 @@
               "null"
             ],
             "description": "New display name."
+          }
+        }
+      },
+      "ProjectOutcome": {
+        "type": "object",
+        "description": "What the migration did for one project.",
+        "properties": {
+          "agentsChecked": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Agents its sources are checked for.",
+            "default": []
+          },
+          "codeFolderSource": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the code folder source made on that connection, when\nthe project read its git state, its rules or its tree.",
+            "default": null
+          },
+          "documentSources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Identifiers of the sources made of its documents.",
+            "default": []
+          },
+          "folderConnection": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the folder connection made of its working folder.",
+            "default": null
+          },
+          "id": {
+            "type": "string",
+            "description": "Identifier of the project.",
+            "default": ""
+          },
+          "instructionsSource": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the source made of its instructions, if it had any.",
+            "default": null
+          },
+          "memory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryMerge"
+            },
+            "description": "Its memory spaces, merged.",
+            "default": []
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the project, which is also the group of its sources.",
+            "default": ""
           }
         }
       },

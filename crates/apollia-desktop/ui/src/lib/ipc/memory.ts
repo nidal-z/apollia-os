@@ -3,9 +3,9 @@
  * data ownership (export, import, purge).
  *
  * Keeping the `invoke` calls here removes direct Tauri usage from the memory
- * `.svelte` components. Namespace/entry listing and agent listing already have
- * wrappers (`$lib/ipc/projects`, `$lib/ipc/connections`); this module covers
- * the memory-specific commands that had no wrapper yet.
+ * `.svelte` components. Entry listing and agent listing have their wrappers
+ * in `$lib/ipc/agents` and `$lib/ipc/connections`; this module covers the
+ * namespaces and the memory-specific commands.
  *
  * Argument names are camelCase on purpose: Tauri maps them to the snake_case
  * parameters of `crates/apollia-desktop/src/commands/memory.rs`. A misspelled
@@ -13,6 +13,11 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import type { MemorySearchResult, InjectedEntry, MemoryEmbeddings } from "$lib/types";
+
+/** Every memory namespace, for the explorer. */
+export function listMemoryNamespaces(): Promise<string[]> {
+  return invoke<string[]>("list_memory_namespaces");
+}
 
 /** Full-text search within a namespace. */
 export function searchMemory(

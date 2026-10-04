@@ -154,7 +154,6 @@ fn make_task(text: &str) -> AIPTask {
         timeout_seconds: None,
         is_resumed: false,
         input_response: None,
-        project_id: None,
         message_id: None,
         delegation_chain: Vec::new(),
         ..AIPTask::default()

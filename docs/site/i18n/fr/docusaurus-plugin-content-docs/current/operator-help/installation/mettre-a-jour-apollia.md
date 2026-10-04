@@ -65,7 +65,7 @@ Un verrou empêche deux mises à jour simultanées.
 ## Ce qui arrive à vos données
 
 **Rien.** La mise à jour remplace un exécutable, pas votre répertoire
-`~/.apollia`. Vos sessions, projets, agents, mémoire, journal d'audit et
+`~/.apollia`. Vos sessions, sources, agents, mémoire, journal d'audit et
 `apollia.toml` sont conservés tels quels.
 
 Un point à connaître avant de mettre à jour un poste que vous ne pourrez pas

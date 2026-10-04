@@ -6,12 +6,12 @@ sidebar_position: 2
 
 # Comprendre la portée d'une intégration
 
-> Pour tout operator qui se demande pourquoi un agent peut appeler un outil alors qu'un autre ne peut pas, ou comment scoper une intégration à un projet précis.
+> Pour tout operator qui se demande pourquoi un agent peut appeler un outil alors qu'un autre ne peut pas, ou comment scoper une intégration à un agent précis.
 
 ## Prérequis
 
 - Au moins une intégration connectée (connecteur natif ou serveur MCP).
-- Au moins un agent installé ou un projet actif.
+- Au moins un agent installé.
 
 ## Les trois filtres qui contrôlent un appel d'outil
 
@@ -36,11 +36,11 @@ Ouvrez la fiche d'un agent, onglet **Outils**. La liste affiche en lecture seule
 
 Cette liste **n'est pas modifiable depuis l'interface en v0.1.0**. Pour ajouter ou retirer un outil à un agent, il faut éditer son manifest et le réinstaller. Voir la page Aide [Installer un agent](../agents/install-an-agent.md).
 
-## Côté projet
+## Côté sources
 
-Ouvrez un projet, onglet **Contexte**. Vous y trouvez des **Context Providers** (dossiers locaux, dépôts Git, etc.), qui alimentent le contexte des chats du projet. **Ce ne sont pas des outils MCP**, et il n'est pas possible en v0.1.0 de scoper un MCP ou un connecteur à un projet précis.
+Les documents et les dossiers qu'un agent lit sont ses **sources**, cochées sur sa fiche. **Ce ne sont pas des outils MCP** : une source dit ce qu'un agent peut chercher, pas quel outil il peut appeler.
 
-Tous les MCPs installés et tous les connecteurs natifs sont visibles par tous les agents qui les déclarent dans leur manifest, indépendamment du projet actif.
+Tous les MCPs installés et tous les connecteurs natifs sont visibles par tous les agents qui les déclarent dans leur manifest.
 
 ## Vérifier ce qu'un agent peut faire
 
@@ -54,4 +54,4 @@ Tous les MCPs installés et tous les connecteurs natifs sont visibles par tous l
 - **L'agent voit l'outil mais l'appel échoue** : c'est probablement une question de permission, un token expiré ou un scope manquant. Voir [Comprendre les permissions MCP](understand-mcp-permissions.md) et [Gérer les tokens OAuth](manage-oauth-tokens.md).
 - **Deux agents devraient voir le même outil et un seul le voit** : vérifiez les deux manifests, l'outil doit être déclaré dans chacun.
 
-> **Référence technique :** [Référence Apollia](/reference) , résolution des outils par agent, scoping projet, ContextProvider.
+> **Référence technique :** [Référence Apollia](/reference) , résolution des outils par agent.

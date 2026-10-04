@@ -72,13 +72,6 @@ impl Supervisor {
                 stores.user_memory.clone(),
                 core.registry_handle.clone(),
                 Some(a2a_invoker.clone()),
-                stores.project_repository.as_ref().map(|repo| {
-                    std::sync::Arc::new(crate::chat::DefaultProjectContextProvider::new(
-                        repo.clone(),
-                    ))
-                        as std::sync::Arc<dyn crate::chat::ProjectContextProvider>
-                }),
-                stores.project_repository.clone(),
                 core.mcp_handle.clone(),
                 // Feed the chat dispatcher the same global config the Agent-mode
                 // dispatcher uses. Native tools that need app-level config
@@ -89,13 +82,8 @@ impl Supervisor {
                     data_dir: self.config.data_dir.clone(),
                     brave_api_key: None, // resolved lazily by web_search when missing
                     tools_config: self.config.tools_config.clone(),
-                    default_workspace: self
-                        .config
-                        .chat_default_workspace
-                        .clone()
-                        .map(std::path::PathBuf::from),
                     tool_turn_temperature: self.config.chat_tool_turn_temperature,
-                    trusted_paths: self.config.filesystem_trusted_paths.clone(),
+                    source_registry: inference.source_registry.clone(),
                 })),
                 self.config.mcp_loading,
                 self.config.tool_search_limit,

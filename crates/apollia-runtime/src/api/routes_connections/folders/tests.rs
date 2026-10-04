@@ -76,23 +76,30 @@ fn test_a_folder_brings_the_native_file_tools_with_their_families() {
     let connection = add(&governance, &store, &body(folder.path())).unwrap();
 
     // THEN reading, listing and searching read and are offered checked;
-    // writing and editing write or delete and are offered unchecked
-    let tools: Vec<(&str, ActionFamily, bool)> = connection
+    // writing and editing write or delete and are offered unchecked; each is
+    // granted for this folder alone
+    let prefix = format!(
+        "conn:folder:{}/",
+        connection.id.trim_start_matches("folder:")
+    );
+    let tools: Vec<(String, ActionFamily, bool)> = connection
         .tools
         .iter()
-        .map(|t| (t.id.as_str(), t.family, t.prechecked))
+        .map(|t| (t.id.replace(&prefix, ""), t.family, t.prechecked))
         .collect();
-    assert_eq!(
-        tools,
-        vec![
-            ("file_edit", ActionFamily::WriteOrDelete, false),
-            ("file_glob", ActionFamily::Read, true),
-            ("file_grep", ActionFamily::Read, true),
-            ("file_list", ActionFamily::Read, true),
-            ("file_read", ActionFamily::Read, true),
-            ("file_write", ActionFamily::WriteOrDelete, false),
-        ]
-    );
+    assert!(connection.tools.iter().all(|t| t.id.starts_with(&prefix)));
+    let expected: Vec<(String, ActionFamily, bool)> = [
+        ("file_edit", ActionFamily::WriteOrDelete, false),
+        ("file_glob", ActionFamily::Read, true),
+        ("file_grep", ActionFamily::Read, true),
+        ("file_list", ActionFamily::Read, true),
+        ("file_read", ActionFamily::Read, true),
+        ("file_write", ActionFamily::WriteOrDelete, false),
+    ]
+    .into_iter()
+    .map(|(id, family, checked)| (id.to_owned(), family, checked))
+    .collect();
+    assert_eq!(tools, expected);
 }
 
 #[tokio::test]
