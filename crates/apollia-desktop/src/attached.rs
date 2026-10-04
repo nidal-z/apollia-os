@@ -275,10 +275,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "apply_proposed_permission_rule",
     "dismiss_proposed_permission_rule",
     "list_proposed_permission_rules",
-    // Tool governance: the tools, their configuration, the permission rules
-    // and the audit, over `/api/v1/governance`.
+    // Tool governance: the tools, their configuration and the permission
+    // rules, over `/api/v1/governance`.
     "governance_get_tool_config",
-    "governance_list_audit",
     "governance_list_permission_rules",
     "governance_list_tools",
     "governance_revoke_all_rules",

@@ -19,6 +19,7 @@
  * identifier, a code fragment, or a placeholder the runtime fills.
  */
 export const IDENTICAL_BY_NATURE: string[] = [
+  "authorizations.apollia_name", // Apollia
   "connections.capabilities.group_gdocs", // Google Docs
   "connections.capabilities.group_gdrive", // Google Drive
   "connections.capabilities.group_gforms", // Google Forms
@@ -207,9 +208,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.nav.configuration", // Configuration
   "settings.nav.mobile_open", // Sections
   "settings.nav.notifications", // Notifications
-  "settings.permissions.add.action_label", // Action
-  "settings.permissions.scope_agent", // Chat / agent
-  "settings.permissions.session_badge", // Session
   "settings.profile.source.agent", // agent
   "settings.profile.source.onboarding", // onboarding
   "settings.shortcuts.category.chat", // Chat

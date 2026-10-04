@@ -27,6 +27,8 @@
   import type { HumanizedError } from "$lib/errors/humanize";
   import { createChatSession, installAgent } from "$lib/ipc/agents";
   import { startAgentChat } from "$lib/agents/startAgentChat";
+  import { takeRequestedAgent } from "$lib/stores/agentFocus";
+  import { APOLLIA_AGENT_ID } from "../components/agents/sheet/agentSheet";
   import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
   import AgentLogs from "../components/agents/AgentLogs.svelte";
   import InstallPackageDialog from "../components/agents/InstallPackageDialog.svelte";
@@ -197,6 +199,14 @@
       reportError(err, { surface: "toast" });
     }
   }
+
+  // Another screen may ask for an agent's sheet before navigating here.
+  $effect(() => {
+    const asked = takeRequestedAgent();
+    if (asked === null) return;
+    if (asked === APOLLIA_AGENT_ID) selectApolliaChat();
+    else selectAgent(asked);
+  });
 
   // ── Actions ──────────────────────────────────────────────────────────
   async function pickAndInstallAgent(): Promise<void> {

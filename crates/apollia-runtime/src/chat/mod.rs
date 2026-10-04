@@ -43,7 +43,7 @@ pub use extractor::{
 };
 pub use manager::{
     AgentTaskRun, ChatPlanSnapshot, ChatSessionManagerHandle, ChatToolsConfig, InjectError,
-    PauseError, PendingUserInputView, SessionAuthorizationView, APOLLIA_CHAT_AGENT_ID,
+    PauseError, PendingUserInputView, APOLLIA_CHAT_AGENT_ID,
 };
 pub use plan_actor::{spawn_plan_actor, PlanHandle, PlanStoreError};
 pub use repository::{

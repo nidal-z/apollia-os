@@ -1,44 +1,6 @@
 use super::*;
 
 impl ChatSessionManager {
-    /// Collect the per-session tool authorizations for all open sessions.
-    pub(in crate::chat::manager) fn handle_list_session_authorizations(
-        &self,
-    ) -> Vec<SessionAuthorizationView> {
-        let mut out: Vec<SessionAuthorizationView> = Vec::new();
-        for s in self.sessions.values() {
-            if matches!(s.status, SessionStatus::Closed) {
-                continue;
-            }
-            for tool in &s.authorized_tools {
-                out.push(SessionAuthorizationView {
-                    session_id: s.id.clone(),
-                    session_title: s.title.clone(),
-                    mode: s.mode.as_sql().to_string(),
-                    tool_name: tool.clone(),
-                });
-            }
-        }
-        out.sort_by(|a, b| {
-            a.session_id
-                .cmp(&b.session_id)
-                .then_with(|| a.tool_name.cmp(&b.tool_name))
-        });
-        out
-    }
-
-    /// Revoke a session-scoped tool authorization. Returns whether it existed.
-    pub(in crate::chat::manager) fn handle_revoke_session_authorization(
-        &mut self,
-        session_id: &str,
-        tool_name: &str,
-    ) -> Result<bool, ChatError> {
-        match self.sessions.get_mut(session_id) {
-            Some(s) => Ok(s.authorized_tools.remove(tool_name)),
-            None => Err(ChatError::SessionNotFound(session_id.to_string())),
-        }
-    }
-
     /// List A2A skills available from active worker agents (async, off-actor).
     pub(in crate::chat::manager) fn handle_list_a2a_skills(
         &self,

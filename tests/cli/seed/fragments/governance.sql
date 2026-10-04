@@ -2,17 +2,15 @@
 -- (governance.db). Tables: permission_rules, permission_audit, tool_credentials.
 -- Schema is applied separately by the builder (schemas/governance.sql).
 --
--- Unblocks the permission-rule assertions in the CLI end-to-end suite:
---   * permissions-count / permission-rules-list / permission-rule-card-*
---                          (Permissions.svelte) <- permission_rules (scope != session)
---   * permissions-filter-scope: every dropdown value has a match
---                          (project, agent, global) <- permission_rules
---   * permissions-filter-tool: multiple distinct tool_name values
---   * permissions-revoke-all / -dialog / -scope-select / -confirm
---                          (render once at least one rule exists)
---   * chat-permission-rules-list (list_chat_permission_rules)
+-- Unblocks the rule assertions of the authorizations screen:
+--   * authorizations-rules / authorizations-rule (rules for every agent)
+--                          <- permission_rules WHERE scope='global'
+--   * authorizations-list-agent, then authorizations-rule on the agent
 --                          <- permission_rules WHERE scope='agent' AND agent_id='apollia:chat'
---   * permissions-audit (audit rows, governance_list_audit) <- permission_audit
+--   * authorizations-revoke-all / -dialog / -confirm
+--                          (the confirmation is enabled once a rule exists)
+--   * permission_audit is no longer read by the desktop; its rows stay for
+--                          the command line
 --   * brave-api-key-delete / -test / -test-result (tools page, web_search)
 --                          <- tool_credentials (web_search / brave.api_key)
 --
@@ -21,11 +19,9 @@
 -- are stored as INTEGER unix seconds, converted to ISO 8601 on the Rust side).
 
 -- Permission rules. Columns action='allow'|'deny', scope IN
--- ('global','project','agent'); 'session' is never persisted. Listed by the main
--- page via list_rules_filtered (WHERE scope != 'session' ORDER BY id ASC), so all
--- four rows appear in permission-rules-list. Scope coverage: global x2, project x1,
--- agent x1, so every permissions-filter-scope value matches and revoke-all always
--- has a target. The agent rule (agent_id='apollia:chat') also feeds the chat list.
+-- ('global','project','agent'); 'session' is never persisted. Scope coverage:
+-- global x2, project x1, agent x1, so revoke-all always has a target. The agent
+-- rule (agent_id='apollia:chat') is the one the screen shows on the built-in agent.
 INSERT INTO permission_rules
   (id, tool_name, arg_prefix, action, created_at, created_by, scope, project_path, expires_at, agent_id)
 VALUES
