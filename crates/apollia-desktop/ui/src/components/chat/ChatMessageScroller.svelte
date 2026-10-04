@@ -14,6 +14,7 @@
   import { Button } from "$lib/components/ui/button";
   import { uiMode } from "$lib/stores/mode";
   import { contextDrawerOpen } from "$lib/stores/chatLayout";
+  import { chatDensity, chatFullWidth } from "$lib/stores/chatAppearance";
   import MessageGroup from "./MessageGroup.svelte";
   import StreamingMessage from "./StreamingMessage.svelte";
   import A2ADelegationCard from "./A2ADelegationCard.svelte";
@@ -85,9 +86,14 @@
 <div
   bind:this={scroll.container}
   onscroll={() => scroll.onScroll()}
-  class="h-full overflow-y-auto px-4 py-5 space-y-5 [&>*]:mx-auto [&>*]:w-full {$contextDrawerOpen
-    ? '[&>*]:max-w-[680px]'
-    : '[&>*]:max-w-[860px]'}"
+  class="h-full overflow-y-auto px-4 py-5 [&>*]:mx-auto [&>*]:w-full {$chatDensity === 'compact'
+    ? 'space-y-3'
+    : 'space-y-5'} {$chatFullWidth
+    ? '[&>*]:max-w-none'
+    : $contextDrawerOpen
+      ? '[&>*]:max-w-[680px]'
+      : '[&>*]:max-w-[860px]'}"
+  data-chat-full-width={$chatFullWidth}
   data-testid="chat-messages-list"
 >
   {#if empty && !isStreaming && !isProcessing}
@@ -110,6 +116,7 @@
           {group}
           {sessionId}
           agentName={sessionAgentName}
+          variant={$chatDensity === "compact" ? "compact" : "default"}
           busy={isProcessing || isStreaming}
           {onregenerate}
           {onedit}

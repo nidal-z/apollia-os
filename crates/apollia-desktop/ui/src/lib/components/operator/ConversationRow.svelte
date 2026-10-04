@@ -1,3 +1,12 @@
+<script lang="ts" module>
+  import type { SidebarDensity } from "$lib/stores/chatSessions";
+
+  /** The row padding a list density asks for: compact tightens, md is the snug default. */
+  export function conversationRowPad(density: SidebarDensity): "snug" | "compact" {
+    return density === "sm" ? "compact" : "snug";
+  }
+</script>
+
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { tick } from "svelte";
@@ -35,6 +44,8 @@
     ondelete?: () => void;
     /** Optional configure action - adds a "Configuration" kebab entry. */
     onconfigure?: () => void;
+    /** List density, from `sidebarDensity`. */
+    density?: SidebarDensity;
   }
 
   let {
@@ -48,6 +59,7 @@
     onrename,
     ondelete,
     onconfigure,
+    density = "md",
   }: Props = $props();
 
   const isActive = $derived(rowStateProp === "active");
@@ -137,7 +149,7 @@
 </script>
 
 <ListRow
-  pad="snug"
+  pad={conversationRowPad(density)}
   align="stretch"
   state={isActive ? "active" : "default"}
   dim={isClosed || isArchived}

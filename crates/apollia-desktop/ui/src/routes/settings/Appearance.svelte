@@ -11,6 +11,7 @@
   import SettingsSection from "../../components/settings/SettingsSection.svelte";
   import SettingsFieldRow from "../../components/settings/SettingsFieldRow.svelte";
   import DestructiveActionDialog from "../../components/settings/DestructiveActionDialog.svelte";
+  import AppearanceChatSettings from "../../components/settings/AppearanceChatSettings.svelte";
 
   type Glyph = typeof Sun;
   type SegOption = { value: string; labelKey: string; icon?: Glyph };
@@ -166,6 +167,8 @@
       {@render themeSwatch("dark", true, darkActive, $themeMode === "system" && systemDark, "theme-preview-dark")}
     </div>
   </SettingsSection>
+
+  <AppearanceChatSettings />
 
   <!-- Onboarding reminders -->
   <SettingsSection title={$t("settings.appearance.reminders_title")} bodyLayout="flush">

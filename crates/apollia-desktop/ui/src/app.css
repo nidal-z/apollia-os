@@ -236,6 +236,22 @@
     --text-micro-sm: 0.65625rem;
     --text-micro-xs: 0.65625rem;
 
+    /* ── Chat reading scale ──
+       The two chat tiers the type scale above did not carry (the user turn and
+       the answer, 14.5 and 16.5 px), multiplied by the reader's choice in
+       Settings > Appearance. `lib/stores/chatAppearance.ts` names the rung on
+       `<html data-chat-font-size>` and the weight on `data-chat-font-weight`;
+       the values live only here. Rung 3 is the default and leaves both tiers
+       at their size. The density rungs are the leading and the user-bubble
+       padding a compact thread tightens. */
+    --text-chat-user: 0.90625rem;
+    --text-chat-answer: 1.03125rem;
+    --chat-font-scale: 1;
+    --chat-font-weight: 400;
+    --chat-answer-leading: 1.68;
+    --chat-bubble-pad-y: 0.625rem;
+    --chat-bubble-pad-x: 0.9375rem;
+
     /* ── Hover ── */
     --hover-surface-lift: -2px;
     --hover-scale: 1.01;
@@ -1621,18 +1637,34 @@
 .chat-user-bubble {
   max-width: 78%;
   width: fit-content;
-  padding: 10px 15px;
+  padding: var(--chat-bubble-pad-y) var(--chat-bubble-pad-x);
   border-radius: 15px 15px 4px 15px;
   background: hsl(var(--user-bubble));
   color: hsl(var(--foreground));
-  font-size: 14.5px;
+  font-size: calc(var(--text-chat-user) * var(--chat-font-scale));
+  font-weight: var(--chat-font-weight);
+}
+
+/* The reader's rungs (Settings > Appearance). Rung 3 is the `:root` value. */
+:root[data-chat-font-size="1"] { --chat-font-scale: 0.875; }
+:root[data-chat-font-size="2"] { --chat-font-scale: 0.9375; }
+:root[data-chat-font-size="4"] { --chat-font-scale: 1.125; }
+:root[data-chat-font-size="5"] { --chat-font-scale: 1.25; }
+:root[data-chat-font-weight="medium"] { --chat-font-weight: 500; }
+
+/* Compact density, carried by the bubble root of a compact thread. */
+.chat-density-compact {
+  --chat-answer-leading: 1.5;
+  --chat-bubble-pad-y: 0.375rem;
+  --chat-bubble-pad-x: 0.75rem;
 }
 
 /* Assistant answer, the hero: larger type, generous leading. */
 .chat-answer {
   margin-top: 6px;
-  font-size: 16.5px;
-  line-height: 1.68;
+  font-size: calc(var(--text-chat-answer) * var(--chat-font-scale));
+  font-weight: var(--chat-font-weight);
+  line-height: var(--chat-answer-leading);
   letter-spacing: -0.003em;
   color: hsl(var(--foreground));
 }
