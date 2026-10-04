@@ -4493,6 +4493,27 @@
         }
       }
     },
+    "/api/v1/governance/policy": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/governance/policy`: the policy read at startup.",
+        "operationId": "read_policy",
+        "responses": {
+          "200": {
+            "description": "The organisation policy the runtime applies: `state` is `none`, `active` or `invalid`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/governance/rules": {
       "get": {
         "tags": [

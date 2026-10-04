@@ -368,6 +368,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_security_posture",
     "set_observability_config",
     "set_python_interpreter",
+    // The organisation policy the runtime applies, read only, over
+    // `/api/v1/governance/policy`.
+    "get_org_policy",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no

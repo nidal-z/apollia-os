@@ -179,6 +179,9 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "plan_session.origin_initial", // Initial
   "plan_session.tab_journal", // Journal
   "plan_session.tab_plan", // Plan
+  "policy.badge.active", // Active
+  "policy.section.journal.title", // Journal
+  "policy.signature.title", // Signature
   "project_migration.row_documents_title", // Documents
   "project_migration.row_instructions_title", // Instructions
   "project_migration.where_chat_title", // Chat

@@ -145,6 +145,14 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
     builtBy: "components/settings/help/HelpBlock.svelte",
   },
   {
+    pattern: new RegExp(`^policy\\.reason\\.${SEG}$`),
+    builtBy: "lib/policy/policyRules.ts",
+  },
+  {
+    pattern: new RegExp(`^policy\\.section\\.${SEG}\\.(title|description)$`),
+    builtBy: "components/policy/PolicyScreen.svelte",
+  },
+  {
     pattern: new RegExp(
       `^settings\\.integrations\\.placeholder\\.client_id_${SEG}$`,
     ),
