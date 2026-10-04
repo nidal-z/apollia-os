@@ -108,6 +108,7 @@ async fn test_each_request_leaves_one_line_with_its_endpoint_model_status_and_du
         None,
         RelayState::new(LocalModels::default()).unwrap(),
         logs.clone(),
+        false,
     );
 
     // WHEN a client lists the models, then asks a model that is not loaded

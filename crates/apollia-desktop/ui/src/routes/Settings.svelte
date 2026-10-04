@@ -34,7 +34,9 @@
   import UnsavedChangesBadge from "../components/settings/UnsavedChangesBadge.svelte";
   import UnsavedChangesDialog from "../components/settings/UnsavedChangesDialog.svelte";
   import { Button } from "$lib/components/ui/button";
-  import { SETTINGS_NAV } from "$lib/settings/settingsNav";
+  import { SETTINGS_NAV, visibleSettingsNav } from "$lib/settings/settingsNav";
+  import { developerMode } from "$lib/stores/developerMode";
+  import { settingsSubRouteVisible } from "$lib/stores/settings";
   import { installSettingsCloseGuard, closeSettingsWindow } from "$lib/stores/settingsWindow";
   import { SHORTCUTS, comboFor } from "$lib/navigation/shortcuts";
 
@@ -48,6 +50,7 @@
     "model-defaults": () => import("./settings/ModelDefaults.svelte"),
     notifications: () => import("./settings/Notifications.svelte"),
     developer: () => import("./settings/Developer.svelte"),
+    configuration: () => import("./settings/Configuration.svelte"),
     engines: () => import("./settings/Engines.svelte"),
     hardware: () => import("./settings/System.svelte"),
     llm: () => import("./settings/Llm.svelte"),
@@ -268,6 +271,7 @@
     "model-defaults": "settings.model_defaults.subtitle",
     notifications: "settings.notifications.subtitle",
     developer: "settings.developer.subtitle",
+    configuration: "settings.config_editor.subtitle",
     engines: "settings.engines.subtitle",
     hardware: "settings.system.subtitle",
     llm: "settings.llm.subtitle",
@@ -291,6 +295,15 @@
       subtitle: $t(SUBTITLE_KEY[$settingsSubRoute]),
     };
   });
+  // The column with the developer mode in its position; a section of the mode
+  // left open when the mode goes off gives way to Developer, where the switch is.
+  const shownNav = $derived(visibleSettingsNav($developerMode));
+  $effect(() => {
+    if (!settingsSubRouteVisible($settingsSubRoute, $developerMode)) {
+      goToSettingsSubRoute("developer");
+    }
+  });
+
   const currentDirty = $derived($settingsDirtyStore[$settingsSubRoute]?.dirty === true);
 
   // ─── Sub-nav rendering helpers ─────────────────────────────────────
@@ -322,7 +335,7 @@
   lazy-loaded sub-route wrapped in the canonical route transition.
 -->
 {#snippet clusterNav()}
-  {#each SETTINGS_NAV as cluster (cluster.labelKey)}
+  {#each shownNav as cluster (cluster.labelKey)}
     <div>
       <div class="mb-1.5 px-2.5 font-mono text-overline uppercase text-muted-foreground">
         {$t(cluster.labelKey)}

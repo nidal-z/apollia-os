@@ -28,7 +28,7 @@ type InvokeStub = (cmd: string, args: unknown) => unknown;
 async function installTauriStub(page: import("@playwright/test").Page): Promise<void> {
   await page.addInitScript(() => {
     const handlers: Record<string, (args: unknown) => unknown> = {
-      get_config: () => ({ config_path: "~/.apollia/apollia.toml", config_exists: true, sections: [] }),
+      read_config_file: () => ({ path: "~/.apollia/apollia.toml", exists: true, text: "", sha256: "", diagnostics: [], locked: [], pendingRestart: [] }),
       get_system_info: () => ({}),
       get_cli_status: () => ({}),
       list_llm_backends: () => [],

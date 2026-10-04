@@ -112,7 +112,15 @@ function seedHardwarePage(): void {
     }),
   );
   configStore.set(
-    loaded({ config_path: "/Users/u/.apollia/apollia.toml", config_exists: true, sections: [] }),
+    loaded({
+      path: "/Users/u/.apollia/apollia.toml",
+      exists: true,
+      text: "",
+      sha256: "",
+      diagnostics: [],
+      locked: [],
+      pendingRestart: [],
+    }),
   );
   hardwareStore.set(
     loaded({

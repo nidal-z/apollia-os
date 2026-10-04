@@ -98,7 +98,7 @@ async function installTauriStub(page: Page): Promise<void> {
     (globalThis as unknown as { __packageCalls: typeof calls }).__packageCalls = calls;
     const handlers: Record<string, (args: unknown) => unknown> = {
       get_onboarding_state: () => ({ completed: true, skipped: false, started_at: null }),
-      get_config: () => ({ config_path: "~/.apollia/apollia.toml", config_exists: true, sections: [] }),
+      read_config_file: () => ({ path: "~/.apollia/apollia.toml", exists: true, text: "", sha256: "", diagnostics: [], locked: [], pendingRestart: [] }),
       get_system_info: () => ({}),
       "plugin:dialog|open": () => (globalThis as unknown as { __nextFile: string }).__nextFile,
       preview_package_file: (args) => {
