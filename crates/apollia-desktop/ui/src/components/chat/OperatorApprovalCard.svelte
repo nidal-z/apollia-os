@@ -5,7 +5,10 @@
   import { t } from "svelte-i18n";
   import { Shield } from "lucide-svelte";
   import { slide } from "svelte/transition";
+  import { developerMode } from "$lib/stores/developerMode";
   import ConsentAnswers, { type ConsentDecision } from "./ConsentAnswers.svelte";
+  import CodeToRun from "./CodeToRun.svelte";
+  import { codeOf, isSingleSimpleCommand, offeredAnswers, workingDirOf } from "./codeConsent";
 
   interface Props {
     sessionId: string;
@@ -15,14 +18,36 @@
      *  no per-call id (historical/reopened messages). */
     toolCallId?: string;
     toolCall: ToolCallView;
+    /** The answers a live request offers; derived from the tool when absent. */
+    answers?: readonly string[] | null;
+    /** The whole code a live request carries; read from the call when absent. */
+    code?: string | null;
+    /** The folder a live request names; read from the call when absent. */
+    workingDir?: string | null;
   }
 
-  let { sessionId, messageId, toolCallId, toolCall }: Props = $props();
+  let {
+    sessionId,
+    messageId,
+    toolCallId,
+    toolCall,
+    answers = null,
+    code: requestCode = null,
+    workingDir: requestWorkingDir = null,
+  }: Props = $props();
 
   const resolvedToolCallId = $derived(toolCallId ?? toolCall.tool_name);
 
   const display = $derived(resolveToolDisplay(toolCall));
   const ToolIcon = $derived(display.icon);
+
+  /** The whole code of a tool that runs code, `null` for any other. */
+  const code = $derived(requestCode ?? codeOf(toolCall.tool_name, toolCall.input));
+  const workingDir = $derived(requestWorkingDir ?? workingDirOf(toolCall.input));
+  const offered = $derived(offeredAnswers(toolCall.tool_name, answers));
+  const compound = $derived(
+    code !== null && $developerMode && !offered.includes("always") && !isSingleSimpleCommand(code),
+  );
 
   let isProcessing = $state(false);
   let error = $state<string | null>(null);
@@ -78,6 +103,15 @@
     </span>
   </div>
 
+  {#if code !== null}
+    <CodeToRun
+      testidPrefix="operator-approval"
+      toolName={toolCall.tool_name}
+      {code}
+      {workingDir}
+    />
+  {/if}
+
   {#if error}
     <p class="mt-1.5 text-micro text-destructive">{error}</p>
   {/if}
@@ -85,6 +119,9 @@
   <ConsentAnswers
     testidPrefix="operator-approval"
     toolName={toolCall.tool_name}
+    answers={offered}
+    runsCode={code !== null}
+    {compound}
     disabled={isProcessing}
     onanswer={handleAnswer}
   />

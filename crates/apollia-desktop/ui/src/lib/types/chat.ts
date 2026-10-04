@@ -176,6 +176,14 @@ export interface PendingChatApproval {
   toolCallId: string;
   toolName: string;
   inputPreview: string;
+  /** The answers the request offers, when it names them. */
+  answers?: string[];
+  /** The full arguments of the call, behind "see more". */
+  detail?: string;
+  /** The whole code of a tool that runs code. */
+  code?: string | null;
+  /** The folder the code runs in. */
+  workingDir?: string | null;
   receivedAt: string;
 }
 

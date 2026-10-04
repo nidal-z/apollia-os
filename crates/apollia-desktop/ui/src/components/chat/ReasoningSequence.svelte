@@ -17,6 +17,7 @@
   import ReasoningCard from "./ReasoningCard.svelte";
   import ApprovalCard from "./ApprovalCard.svelte";
   import OperatorApprovalCard from "./OperatorApprovalCard.svelte";
+  import { codeOf, workingDirOf } from "./codeConsent";
   import { ChevronDown, ChevronRight } from "lucide-svelte";
   import { t } from "svelte-i18n";
   import { slide, fly } from "svelte/transition";
@@ -160,7 +161,10 @@
             messageId={message.id}
             toolCallId={toolCall.tool_name}
             toolName={toolCall.tool_name}
-            inputPreview={JSON.stringify(toolCall.input, null, 2)}
+            inputPreview={JSON.stringify(toolCall.input ?? null).slice(0, 200)}
+            detail={JSON.stringify(toolCall.input, null, 2)}
+            code={codeOf(toolCall.tool_name, toolCall.input)}
+            workingDir={workingDirOf(toolCall.input)}
           />
         {/if}
       </div>

@@ -187,7 +187,9 @@ Reach of what is persisted :
 - An "always" is not a rule: it is a standing consent for one agent and one
   action family (`apollia_permissions::FamilyConsentStore`, table
   `family_consents`), permanent or bound to one batch run. The "execute code"
-  family never takes one.
+  family never takes one: there, in developer mode, "always" on a single simple
+  command writes a fine rule `allow` for that agent whose prefix is the whole
+  command (`GovernanceHandle::allow_command`).
 - Rules written by an older binary are converted once at startup
   (`apollia_permissions::run_access_upgrade`), and every conversion or removal
   is recorded in the audit journal as a change of access.
@@ -210,7 +212,8 @@ applies deciding :
 3. **Reading** (the `read` family, or a tool that acts on the conversation
    alone). Allowed, no consent asked.
 4. **Executing code.** Allowed only by a fine rule `allow` on a single simple
-   command, in developer mode; otherwise asked, without "always".
+   command, in developer mode; otherwise asked, with "always" offered only on
+   a single simple command in developer mode.
 5. **Standing consent** of the agent for the family, or a grant of the run (a
    batch grants the accesses of its agent for its items). Allowed.
 6. **Otherwise asked**, with three answers: once, always, refuse. A tool
@@ -235,7 +238,10 @@ the top bar, with a retry for an unreadable database.
 
 A run nobody watches (an item of a batch) waits where an attended one would
 ask. An "always" answered at the prompt is written as a
-standing consent for the agent and the family, never as a rule on a tool name.
+standing consent for the agent and the family, never as a rule on a tool name;
+on code, as the fine rule of line 4, never as a grant by name. The request the
+prompt shows carries the whole command or source of a code executor and the
+folder it runs in, never a truncated preview.
 Those six lines are the whole of it. Nothing else in `apollia-permissions` sits
 in front of a tool call, and the `[permissions]` section of `apollia.toml` is
 inert (see the withdrawn sections of the configuration reference).
@@ -257,10 +263,12 @@ raw-string prefix is escapable by chaining (`git` would match
 `git status; rm -rf ...`). The permission model enforces one invariant for them
 (the set is `apollia_permissions::CODE_EXECUTOR_TOOLS`) :
 
-- A no-prefix rule never auto-approves a code executor, and "always" is never
-  offered for one: every call asks, whichever agent runs it, in a conversation
-  or outside one, since both go through the same decision. A prefix rule
-  approves only in developer mode.
+- A no-prefix rule never auto-approves a code executor, and outside developer
+  mode "always" is never offered for one: every call asks, whichever agent runs
+  it, in a conversation or outside one, since both go through the same
+  decision. A prefix rule approves only in developer mode, and "always" there
+  is offered only on a single simple command, where it writes an `allow` rule
+  for the agent on that whole command; a compound command is asked every time.
 - A prefix rule on a code executor matches only when the argument is a single
   simple command, with no chaining, pipe, redirection, substitution, or
   backgrounding (`;`, `|`, `&`, `` ` ``, `>`, `<`, `(`, `)`, `{`, `}`, `$(`,

@@ -4302,7 +4302,17 @@
     "cost_estimate": "Estimated cost: {cost}",
     "expires_in": "expires in {expires}",
     "always_hint": "\"Always for this agent\" lets it repeat this kind of action without asking you again.",
-    "refuse_reason_placeholder": "Reason for refusing (optional), passed to the agent"
+    "refuse_reason_placeholder": "Reason for refusing (optional), passed to the agent",
+    "see_more": "See more",
+    "see_less": "See less",
+    "code": {
+      "family": "Run code",
+      "working_dir": "Working folder: {dir}",
+      "always": "Always allow this command",
+      "always_hint": "\"Always allow this command\" lets this agent run exactly this command again without asking. You can withdraw it in Permissions.",
+      "compound_hint": "This command chains several: \"Always\" is not offered, every run asks for your consent.",
+      "each_time_hint": "Every run asks for your consent. Read the command before you answer."
+    }
   },
   "stt_failure": {
     "no_microphone": "No microphone was detected. Plug one in, then try again.",
