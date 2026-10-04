@@ -44,25 +44,44 @@ pub enum VramUsage {
     Unmeasured,
 }
 
+/// A measurement that did not reach its end.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum ResourceUsageError {
+    /// The thread that asks the driver for the video memory did not finish.
+    #[error("the video memory probe did not finish")]
+    VramProbe(#[source] tokio::task::JoinError),
+}
+
 /// Measure the machine once.
 ///
-/// Blocks for [`sysinfo::MINIMUM_CPU_UPDATE_INTERVAL`]: a processor load is a
-/// difference between two readings, so one reading alone says nothing. Call it
-/// from a blocking thread.
-#[must_use]
-pub fn measure() -> ResourceUsage {
+/// Takes [`sysinfo::MINIMUM_CPU_UPDATE_INTERVAL`] to answer: a processor load
+/// is a difference between two readings, so one reading alone says nothing.
+/// The wait between the two is the timer's, so no thread is held for it; only
+/// the video memory probe, which may start a process, runs on a blocking
+/// thread.
+///
+/// # Errors
+///
+/// [`ResourceUsageError::VramProbe`] when the video memory probe is cancelled
+/// or panics.
+pub async fn measure() -> Result<ResourceUsage, ResourceUsageError> {
     let mut sys = System::new();
     sys.refresh_memory();
     sys.refresh_cpu_usage();
-    std::thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL);
+    tokio::time::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL).await;
     sys.refresh_cpu_usage();
 
-    ResourceUsage {
+    let vram = tokio::task::spawn_blocking(measure_vram)
+        .await
+        .map_err(ResourceUsageError::VramProbe)?;
+
+    Ok(ResourceUsage {
         ram_used_gb: sys.used_memory() as f64 / BYTES_PER_GB,
         ram_total_gb: sys.total_memory() as f64 / BYTES_PER_GB,
         cpu_percent: sys.global_cpu_usage().clamp(0.0, 100.0),
-        vram: measure_vram(),
-    }
+        vram,
+    })
 }
 
 #[cfg(target_os = "macos")]
@@ -113,11 +132,11 @@ fn parse_nvidia_memory(listing: &str) -> Option<VramUsage> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_a_measurement_states_memory_within_what_is_installed_and_a_bounded_load() {
+    #[tokio::test]
+    async fn test_a_measurement_states_memory_within_what_is_installed_and_a_bounded_load() {
         // GIVEN this machine
         // WHEN it is measured once
-        let usage = measure();
+        let usage = measure().await.expect("measurement");
 
         // THEN the memory in use is positive and within what is installed, and
         //      the processor load is a percentage
@@ -127,11 +146,11 @@ mod tests {
         assert!((0.0..=100.0).contains(&usage.cpu_percent));
     }
 
-    #[test]
-    fn test_apple_silicon_states_unified_memory_and_never_a_figure() {
+    #[tokio::test]
+    async fn test_apple_silicon_states_unified_memory_and_never_a_figure() {
         // GIVEN the machine the test runs on
         // WHEN its video memory is measured
-        let vram = measure().vram;
+        let vram = measure().await.expect("measurement").vram;
 
         // THEN an Apple chip says the memory is unified; any other machine
         //      says a figure or that none is measured, never unified

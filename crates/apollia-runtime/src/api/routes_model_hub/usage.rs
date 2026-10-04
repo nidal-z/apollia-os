@@ -55,7 +55,7 @@ impl From<ResourceUsage> for ResourceUsageResponse {
 pub async fn get_resource_usage<B: ExecutionBackend + Clone>(
     State(_state): State<AppState<B>>,
 ) -> Result<Json<ResourceUsageResponse>, (StatusCode, Json<ErrorResponse>)> {
-    tokio::task::spawn_blocking(apollia_llm::resource_usage::measure)
+    apollia_llm::resource_usage::measure()
         .await
         .map(|usage| Json(ResourceUsageResponse::from(usage)))
         .map_err(|error| {
