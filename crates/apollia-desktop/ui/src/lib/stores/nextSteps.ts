@@ -2,7 +2,7 @@
  * Next Steps store.
  *
  * Powers the `NextStepsPanel` on two surfaces:
- *   - `global` - operator Dashboard, rolling context of the last ~12h.
+ *   - `global` - Dashboard, rolling context of the last ~12h.
  *   - `session:<id>` - end-of-session debrief on `ChatConversation`.
  *
  * Responsibilities:
@@ -13,12 +13,16 @@
  *     the reminders registry (`$lib/reminders/registry`), so a card the
  *     user actively dismissed does not come back on the next mount, and
  *     Settings > Appearance can bring every dismissed card back.
+ *   - Word the request for the audience the developer mode names: the
+ *     store reads `developerMode` when it asks, and a cached answer worded
+ *     for the other audience is not served.
  *   - Persist inline thumbs-up / thumbs-down feedback per card id (local
  *     only - never uploaded).
  */
 
 import { writable, get, derived, type Readable } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
+import { developerMode } from "$lib/stores/developerMode";
 import {
   readReminderState,
   writeReminderState,
@@ -55,7 +59,6 @@ export interface NextStepsFacts {
 }
 
 export type NextStepsContext = "global_context" | "session_end";
-export type NextStepsMode = "operator" | "builder";
 
 interface BackendResponse {
   steps: NextStep[];
@@ -66,6 +69,8 @@ interface CachedScope {
   steps: NextStep[];
   fromLlm: boolean;
   generatedAt: number; // epoch ms
+  /** State of the developer mode the cards were worded for. */
+  developerMode: boolean;
   loading: boolean;
   error: string | null;
 }
@@ -131,6 +136,7 @@ function initialScope(): CachedScope {
     steps: [],
     fromLlm: false,
     generatedAt: 0,
+    developerMode: false,
     loading: false,
     error: null,
   };
@@ -157,26 +163,28 @@ function createStore() {
   async function fetchSteps(
     scopeKey: string,
     context: NextStepsContext,
-    mode: NextStepsMode,
     facts: NextStepsFacts,
     forceRefresh: boolean,
   ) {
+    const developer = get(developerMode);
     const existing = peekScope(scopeKey);
     const fresh =
       context === "global_context" &&
       existing.steps.length > 0 &&
+      existing.developerMode === developer &&
       Date.now() - existing.generatedAt < GLOBAL_TTL_MS;
     if (!forceRefresh && fresh) return;
 
     setScope(scopeKey, { loading: true, error: null });
     try {
       const response = await invoke<BackendResponse>("meta_generate_next_steps", {
-        request: { context, mode, facts },
+        request: { context, developerMode: developer, facts },
       });
       setScope(scopeKey, {
         steps: response.steps,
         fromLlm: response.fromLlm,
         generatedAt: Date.now(),
+        developerMode: developer,
         loading: false,
         error: null,
       });
@@ -246,21 +254,11 @@ function createStore() {
     scopes: { subscribe: scopes.subscribe },
     dismissed: { subscribe: dismissed.subscribe },
     feedback: { subscribe: feedback.subscribe },
-    load(
-      scopeKey: string,
-      context: NextStepsContext,
-      mode: NextStepsMode,
-      facts: NextStepsFacts,
-    ) {
-      void fetchSteps(scopeKey, context, mode, facts, false);
+    load(scopeKey: string, context: NextStepsContext, facts: NextStepsFacts) {
+      void fetchSteps(scopeKey, context, facts, false);
     },
-    refresh(
-      scopeKey: string,
-      context: NextStepsContext,
-      mode: NextStepsMode,
-      facts: NextStepsFacts,
-    ) {
-      void fetchSteps(scopeKey, context, mode, facts, true);
+    refresh(scopeKey: string, context: NextStepsContext, facts: NextStepsFacts) {
+      void fetchSteps(scopeKey, context, facts, true);
     },
     visible,
     dismiss,
@@ -275,7 +273,7 @@ function createStore() {
 
 export const nextSteps = createStore();
 
-/** Key for the operator Dashboard panel - single global scope. */
+/** Key for the Dashboard panel - single global scope. */
 export const GLOBAL_SCOPE = "global";
 /** Helper to compute a stable per-session scope key. */
 export function sessionScope(sessionId: string): string {

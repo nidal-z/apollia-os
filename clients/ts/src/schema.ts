@@ -12664,7 +12664,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        /** @description `context`, `mode` and the `facts` the window computed, each optional */
+        /** @description `context`, `developerMode` and the `facts` the window computed, each optional */
         requestBody: {
             content: {
                 "application/json": Record<string, never>;

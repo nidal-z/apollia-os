@@ -761,7 +761,6 @@
       <NextStepsPanel
         scopeKey={sessionEndScope}
         context="session_end"
-        mode={$developerMode ? "builder" : "operator"}
         facts={nextStepsFacts}
         title={$t("next_steps.session_title")}
       />

@@ -1,7 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { resolveToolDisplay, truncatePath } from "$lib/tools/tool-display";
 import type { ToolCallView } from "$lib/types";
-import type { UIMode } from "$lib/stores/mode";
 import en from "$lib/i18n/en.json";
 import fr from "$lib/i18n/fr.json";
 import { Plug } from "lucide-svelte";
@@ -22,7 +21,7 @@ type CardKind =
   | "OperatorApprovalCard"
   | "ApprovalCard";
 
-function selectCard(call: ToolCallView, mode: UIMode): CardKind {
+function selectCard(call: ToolCallView, mode: "operator" | "builder"): CardKind {
   const isOperator = mode === "operator";
   if (call.status === "pending") {
     return isOperator ? "OperatorApprovalCard" : "ApprovalCard";
