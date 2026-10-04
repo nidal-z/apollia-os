@@ -378,6 +378,10 @@ impl AgentRunner for BridgeRunner {
                     web_read_config: tools_config.web_read.clone(),
                     python_interpreter: tools_config.python_interpreter.clone(),
                     max_output_chars: tools_config.max_output_chars,
+                    // `memory_search` only when the agent's memory is checked.
+                    sources: apollia_tools::SourceAccess::memory_only(
+                        apollia_tools::memory_is_checked(&governance_base, &agent_id),
+                    ),
                 },
                 extra_executors,
             ));

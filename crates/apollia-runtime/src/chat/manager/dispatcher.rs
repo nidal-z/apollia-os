@@ -25,6 +25,8 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
         mcp_index,
         tool_search_limit,
         package_tools,
+        sources,
+        memory_namespace,
     } = params;
     let session_id = session_id.as_str();
     let anchor = folders.anchor().map(std::path::Path::to_path_buf);
@@ -75,6 +77,8 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
             pending_user_inputs: &pending_user_inputs,
             hitl: hitl.as_ref(),
             extra_executors,
+            sources,
+            memory_namespace,
         })
     } else {
         build_fallback_chat_dispatcher(&folders.read, extra_executors)
@@ -153,6 +157,8 @@ fn build_full_chat_dispatcher(
         pending_user_inputs,
         hitl,
         mut extra_executors,
+        sources,
+        memory_namespace,
     } = params;
     // We disable the dispatcher's default versions of:
     //   - file_write / file_edit / notebook_edit / bash / python:
@@ -187,10 +193,9 @@ fn build_full_chat_dispatcher(
         write_roots: folders.write.clone(),
         agent_id: format!("apollia:chat:{session_id}"),
         venv_base_dir: cfg.data_dir.join("venvs"),
-        // Per-session memory namespace so `memory_search` reads/writes
-        // the chat session's own slice. Other namespaces could be added
-        // here as shared read-only later.
-        memory_namespace: Some(format!("apollia:chat:{session_id}")),
+        // The memory of the agent of the run; `memory_search` reads it only
+        // when that memory is checked for the agent (`sources`).
+        memory_namespace: Some(memory_namespace),
         memory_shared_namespaces: Vec::new(),
         memory_base_dir: cfg.data_dir.join("memory"),
         // Native http_fetch uses None, the wrapper below provides
@@ -204,6 +209,7 @@ fn build_full_chat_dispatcher(
         web_read_config: cfg.tools_config.web_read.clone(),
         python_interpreter: cfg.tools_config.python_interpreter.clone(),
         max_output_chars: cfg.tools_config.max_output_chars,
+        sources,
     };
 
     // Wrap the HITL-sensitive natives with the approval-flow guard. The
@@ -474,6 +480,7 @@ mod tests {
             brave_api_key: None,
             tools_config: apollia_core::ToolsConfig::default(),
             tool_turn_temperature: None,
+            source_registry: None,
         })
     }
 
@@ -500,6 +507,8 @@ mod tests {
             pending_user_inputs: &None,
             hitl: Some(&hitl),
             extra_executors: Vec::new(),
+            sources: apollia_tools::SourceAccess::default(),
+            memory_namespace: "apollia".to_owned(),
         });
 
         // WHEN
@@ -570,6 +579,8 @@ mod tests {
             pending_user_inputs: &None,
             hitl: Some(&hitl),
             extra_executors: Vec::new(),
+            sources: apollia_tools::SourceAccess::default(),
+            memory_namespace: "apollia".to_owned(),
         });
 
         // THEN
@@ -605,6 +616,8 @@ mod tests {
             pending_user_inputs: &None,
             hitl: Some(&hitl),
             extra_executors: Vec::new(),
+            sources: apollia_tools::SourceAccess::default(),
+            memory_namespace: "apollia".to_owned(),
         });
 
         // WHEN

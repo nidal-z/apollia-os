@@ -30,6 +30,10 @@ pub struct ChatToolsConfig {
     /// Temperature applied to a chat turn that advertises tools (`[chat]
     /// tool_turn_temperature`). `None` resolves to the agent default.
     pub tool_turn_temperature: Option<f32>,
+    /// The registry of sources, through which `source_search` reads the
+    /// indexes of the sources an agent checked. `None` leaves every source
+    /// but the memory unsearchable.
+    pub source_registry: Option<apollia_sources::SourceRegistryHandle>,
 }
 
 /// Snapshot of a tool-level `scope=session` authorization for an active session.
@@ -265,6 +269,10 @@ pub(in crate::chat::manager) struct FullDispatcherParams<'a> {
     pub(in crate::chat::manager) hitl: Option<&'a HitlInvokerParams>,
     pub(in crate::chat::manager) extra_executors:
         Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
+    /// The sources the agent of the run has checked.
+    pub(in crate::chat::manager) sources: apollia_tools::SourceAccess,
+    /// The memory namespace `memory_search` reads when the memory is checked.
+    pub(in crate::chat::manager) memory_namespace: String,
 }
 
 /// Parameters for [`resolve_workspace_for_session`].
@@ -286,4 +294,8 @@ pub(in crate::chat::manager) struct WorkspaceResolutionParams {
     pub(in crate::chat::manager) tool_search_limit: usize,
     /// Executors of the package tools, built for the agent of the run.
     pub(in crate::chat::manager) package_tools: Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
+    /// The sources the agent of the run has checked.
+    pub(in crate::chat::manager) sources: apollia_tools::SourceAccess,
+    /// The memory namespace `memory_search` reads when the memory is checked.
+    pub(in crate::chat::manager) memory_namespace: String,
 }

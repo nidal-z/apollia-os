@@ -186,6 +186,12 @@ and is treated as data, not instructions.
 | Tool | Purpose | Key parameters |
 |---|---|---|
 | `memory_search` | Full-text search (FTS5, BM25 ranking) over the agent's own namespace and declared shared namespaces. FTS5 operators are escaped automatically. | `query`, `namespace`, `limit`, `source` |
+| `source_search` | Search of the indexed folders and files checked for the agent, by keywords, and by meaning when an embeddings model is installed. Each result carries its excerpt, document, location, score and source, and the answer says how it was ranked. A source that is not checked is refused. | `query`, `sources`, `limit` (1 to 50) |
+
+Each of these tools is offered to an agent only when its source is checked
+for it: `memory_search` when its memory is, `source_search` when at least one
+indexed folder or file is. The Apollia agent's memory is one space, kept across
+its conversations.
 
 Memory retrieval is always agent-initiated: the runtime never injects memory into
 an agent's prompt. The built-in conversational assistant is the exception, and

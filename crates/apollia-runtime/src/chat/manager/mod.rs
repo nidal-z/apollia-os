@@ -227,6 +227,7 @@ mod handle_ext;
 mod libre;
 mod plan;
 mod session;
+mod sources;
 mod types;
 mod user_input;
 

@@ -192,6 +192,7 @@ pub(in crate::supervisor) fn native_tool_descriptors() -> Vec<apollia_tools::Too
         apollia_tools::tools::file_grep::FileGrep::descriptor(),
         apollia_tools::tools::http_fetch::HttpFetch::descriptor(),
         apollia_tools::tools::memory_search::MemorySearchTool::descriptor(),
+        apollia_tools::tools::source_search::SourceSearchTool::descriptor(),
         apollia_tools::tools::notebook_read::NotebookRead::descriptor(),
         apollia_tools::tools::notebook_edit::NotebookEdit::descriptor(),
         apollia_tools::tools::ask_user::AskUser::descriptor(),
@@ -245,6 +246,7 @@ mod tests {
             "mcp_resources_list",
             "mcp_resources_read",
             "notebook_read",
+            "source_search",
         ];
         #[cfg(feature = "web-read")]
         expected.push("web_read");

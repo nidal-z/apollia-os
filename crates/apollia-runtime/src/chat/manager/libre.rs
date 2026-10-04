@@ -377,6 +377,11 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     let mcp_index = super::disabled::only_granted(mcp_index, &available_tools);
     let (available_tools, mcp_index) =
         super::disabled::without_disabled(available_tools, mcp_index, &disabled);
+    // The source tools are offered only when their source is checked.
+    let sources =
+        super::sources::source_access(chat_tools_config_for_session.as_deref(), &agent_id).await;
+    let available_tools = super::sources::offered(available_tools, &sources);
+    let memory_namespace = super::sources::memory_namespace(&agent_id, &session_id_str);
 
     // Read the tool-turn temperature before the config is moved into the
     // session invoker below; it is applied to the agent further down.
@@ -404,6 +409,8 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             mcp_index: mcp_index.clone(),
             tool_search_limit,
             package_tools,
+            sources,
+            memory_namespace,
         },
         &a2a_for_agent,
         hook_executor.clone(),
