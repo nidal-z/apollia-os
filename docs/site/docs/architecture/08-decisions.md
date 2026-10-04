@@ -366,6 +366,25 @@ The asymmetry is deliberate, and it is stated where an operator meets it.
 
 ## Documents and sources {#documents-and-sources}
 
+Workbooks and CSV files are read in Rust, without the embedded Python
+interpreter. `calamine` (MIT) reads `.xlsx`, `.xlsm`, `.xlsb`, `.xls` and
+`.ods`; `csv` (MIT or Unlicense) reads CSV files, with the separator detected
+among the comma, the semicolon and the tabulation. Both are pure Rust, read
+only, link no system library and open no connection. Each cell is read as text
+with its sheet, row and column: a number without a zero fraction, a date in
+ISO 8601, a formula by the value the file last computed for it (no formula is
+evaluated), an error by its code. A workbook protected by a password, or
+damaged, is a typed error, never a crash. A CSV file that is not UTF-8 is read
+with its invalid bytes replaced, and the result says so: no encoding is
+guessed.
+
+The cost is named: `calamine` depends on `zip` 8 while the workspace carries
+`zip` 4 for the package archive and the batch export, so two major versions of
+`zip` enter every build, with five small crates under `calamine` (`atoi_simd`,
+`codepage`, `debug_unsafe`, `fast-float2`, `typed-path`) and `csv-core` under
+`csv`. `calamine` is pinned to 0.36.1, so that a new release, and the version of
+`zip` it brings, is a decision rather than an update.
+
 A mailbox connects over IMAP with an application password, so any provider is
 reachable, Gmail included, without an OAuth client and without a relay. The
 client is `async-imap` (MIT or Apache-2.0), on the Tokio runtime, over the

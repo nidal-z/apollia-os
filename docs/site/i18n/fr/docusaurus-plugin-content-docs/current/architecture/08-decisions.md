@@ -391,6 +391,27 @@ l'opérateur la rencontre.
 
 ## Documents et sources {#documents-and-sources}
 
+Les classeurs et les fichiers CSV se lisent en Rust, sans l'interpréteur
+Python embarqué. `calamine` (MIT) lit `.xlsx`, `.xlsm`, `.xlsb`, `.xls` et
+`.ods` ; `csv` (MIT ou Unlicense) lit les fichiers CSV, avec le séparateur
+détecté parmi la virgule, le point-virgule et la tabulation. Les deux sont en
+pur Rust, en lecture seule, ne lient aucune bibliothèque système et n'ouvrent
+aucune connexion. Chaque cellule se lit en texte avec sa feuille, sa ligne et sa
+colonne : un nombre sans partie décimale nulle, une date en ISO 8601, une
+formule par la valeur que le fichier a calculée en dernier (aucune formule
+n'est évaluée), une erreur par son code. Un classeur protégé par un mot de
+passe, ou endommagé, donne une erreur typée, jamais un plantage. Un fichier CSV
+qui n'est pas en UTF-8 se lit avec ses octets invalides remplacés, et le
+résultat le signale : aucun encodage n'est deviné.
+
+Le coût est nommé : `calamine` dépend de `zip` 8 quand l'espace de travail porte
+`zip` 4 pour l'archive de paquet et l'export d'un lot ; deux versions majeures
+de `zip` entrent donc dans chaque compilation, avec cinq petites crates sous
+`calamine` (`atoi_simd`, `codepage`, `debug_unsafe`, `fast-float2`,
+`typed-path`) et `csv-core` sous `csv`. `calamine` est épinglé en 0.36.1 : une
+nouvelle version, et la version de `zip` qu'elle apporte, est une décision et
+non une mise à jour.
+
 Une boîte mail se connecte en IMAP avec un mot de passe d'application : tout
 fournisseur est joignable, Gmail compris, sans client OAuth et sans relais. Le
 client est `async-imap` (MIT ou Apache-2.0), sur le runtime Tokio, au-dessus de
