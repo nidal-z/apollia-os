@@ -65,6 +65,10 @@
       "testid": "chat-active-list"
     },
     {
+      "kind": "expect",
+      "testid": "chat-sort-trigger"
+    },
+    {
       "kind": "waitFor",
       "testid": "conversation-row-menu-button",
       "nth": 0,

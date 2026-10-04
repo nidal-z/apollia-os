@@ -236,6 +236,15 @@
       "label": "03b-nav-chat"
     },
     {
+      "kind": "waitFor",
+      "testid": "chat-auto-naming",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-auto-naming-group"
+    },
+    {
       "kind": "click",
       "testid": "settings-nav-stt"
     },

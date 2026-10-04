@@ -1694,6 +1694,10 @@
       "testid": "chat-active-list"
     },
     {
+      "kind": "expect",
+      "testid": "chat-sort-trigger"
+    },
+    {
       "kind": "waitFor",
       "testid": "conversation-row-menu-button",
       "nth": 0,
@@ -12998,6 +13002,15 @@
     {
       "kind": "screenshot",
       "label": "03b-nav-chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-auto-naming",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-auto-naming-group"
     },
     {
       "kind": "click",

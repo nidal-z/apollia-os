@@ -40,6 +40,7 @@
     type AgentLiveStatus,
   } from "$lib/stores/agentStatus";
   import { triggerAutoName } from "$lib/chat/autoName";
+  import { chatSendKey, composerEnterAction } from "$lib/stores/chatSendKey";
   import { setPlanMode, getPlanModeDefault } from "$lib/ipc/planMode";
   import AgentStatusCard from "./AgentStatusCard.svelte";
   import ChatTargetSelector from "./ChatTargetSelector.svelte";
@@ -317,9 +318,7 @@
   }
 
   function handleTextareaKeydown(event: KeyboardEvent): void {
-    const isSubmit =
-      (event.metaKey || event.ctrlKey) && event.key === "Enter";
-    if (isSubmit) {
+    if (composerEnterAction(event, $chatSendKey) === "send") {
       event.preventDefault();
       if (prompt.trim().length === 0) return;
       void createFreeChat(prompt);
@@ -384,7 +383,11 @@
 
   <div class="mt-2 flex items-center justify-between">
     <span class="text-micro text-muted-foreground/50">
-      {$t("chat.quickpicker.submit_hint")}
+      {$t(
+        $chatSendKey === "mod-enter"
+          ? "chat.quickpicker.submit_hint"
+          : "chat.quickpicker.submit_hint_enter",
+      )}
     </span>
     <div class="flex items-center gap-2">
       <Button

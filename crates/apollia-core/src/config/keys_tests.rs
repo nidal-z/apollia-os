@@ -238,6 +238,7 @@ fn the_named_settings_are_lockable() {
             "desktop.link_preview_enabled",
             "desktop.update_channel",
             "desktop.background_service_allowed",
+            "desktop.chat_auto_naming",
             "server.enabled",
             "server.port",
             "server.require_auth",

@@ -106,7 +106,7 @@ pub use autonomy::{
 };
 pub use chat::ChatConfig;
 pub use default_file::{default_file_text, write_default_file_if_absent};
-pub use desktop::{DesktopConfig, UpdateChannel};
+pub use desktop::{ChatAutoNaming, DesktopConfig, UpdateChannel};
 pub use engines::{EngineLogLevel, EnginesConfig, ENGINE_LOG_LEVELS};
 pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};

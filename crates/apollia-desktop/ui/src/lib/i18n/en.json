@@ -3114,7 +3114,20 @@
     "chat": {
       "subtitle": "How conversations behave, and the keyboard shortcuts.",
       "conversations_title": "Conversations",
-      "shortcuts_title": "Keyboard shortcuts"
+      "shortcuts_title": "Keyboard shortcuts",
+      "all_shortcuts_title": "All shortcuts",
+      "send_mod_label_mac": "Use ⌘ + ⏎ to send the message",
+      "send_mod_hint_mac": "Off, Enter sends the message and Shift + Enter starts a new line. On, ⌘ + Enter sends and Enter starts a new line.",
+      "send_mod_label_other": "Use Ctrl + Enter to send the message",
+      "send_mod_hint_other": "Off, Enter sends the message and Shift + Enter starts a new line. On, Ctrl + Enter sends and Enter starts a new line.",
+      "naming_title": "Automatic naming",
+      "naming_label": "Conversation names given by the model",
+      "naming_never": "Never",
+      "naming_never_hint": "A conversation keeps its placeholder name until you rename it.",
+      "naming_auto": "Automatic",
+      "naming_auto_hint": "Apollia names the conversation when the model generates fast enough, going by the measured generation speed.",
+      "naming_always": "Always",
+      "naming_always_hint": "Apollia names every new conversation, whatever the generation speed."
     },
     "model_defaults": {
       "subtitle": "The values a model receives when nothing else sets them.",
@@ -3638,7 +3651,8 @@
       "install_agent": "Install an agent",
       "docs_link": "Documentation",
       "error_no_llm": "No language model is configured yet. Open Settings and add an LLM backend (a local GGUF model or a cloud provider) before starting a conversation.",
-      "error_generic": "Could not start the conversation: {error}"
+      "error_generic": "Could not start the conversation: {error}",
+      "submit_hint_enter": "Enter to start a free chat"
     },
     "agent_status": {
       "online": "Online",
@@ -3752,6 +3766,14 @@
       "role_system": "System"
     },
     "plan_abandoned_reason": "plan abandoned",
+    "sort": {
+      "trigger": "Sort conversations",
+      "title": "Sort by",
+      "newest": "Newest first",
+      "oldest": "Oldest first",
+      "activity": "Latest activity",
+      "name": "Name, A to Z"
+    },
     "step": {
       "toggle": "Show or hide the step detail",
       "failed": "Failed: {reason}",
