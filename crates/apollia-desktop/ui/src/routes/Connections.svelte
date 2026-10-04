@@ -1,9 +1,10 @@
 <script lang="ts">
   /**
-   * Connections - the OAuth + MCP connector hub (canonical v0.1.0 route).
+   * Connections - every connection of this machine, in one list.
    *
-   * Thin orchestrator: owns the top-level data (installed servers, enrichments,
-   * registry, native accounts) and selection, wires IPC via
+   * Thin orchestrator: owns the top-level data (the connection list served by
+   * the loader, installed servers, enrichments, registry, native accounts) and
+   * selection, wires IPC via
    * `$lib/ipc/connections`, and composes the decomposed sub-components under
    * `components/connections/*`. Business logic lives in `$lib/connections/*`
    * (pure, testable) and inside the self-contained detail / catalogue / oauth
@@ -15,6 +16,7 @@
   import ConnectorSidebar from "../components/connections/sidebar/ConnectorSidebar.svelte";
   import NativeConnectorDetail from "../components/connections/detail/NativeConnectorDetail.svelte";
   import McpServerDetail from "../components/connections/detail/McpServerDetail.svelte";
+  import ConnectionSummaryDetail from "../components/connections/detail/ConnectionSummaryDetail.svelte";
   import CatalogueSheet from "../components/connections/catalogue/CatalogueSheet.svelte";
   import NativeOauthDialog from "../components/connections/oauth/NativeOauthDialog.svelte";
   import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
@@ -34,7 +36,13 @@
     type ProviderId,
   } from "$lib/ipc/connections";
   import { messageOf, formatTauriError } from "$lib/connections/errors";
-  import { sortServers, needsOauthSetup } from "$lib/connections/status";
+  import { needsOauthSetup } from "$lib/connections/status";
+  import { loadConnections } from "$lib/connections/connectionList";
+  import {
+    NATIVE_PROVIDER_KEYS,
+    connectionRows,
+    isSelected,
+  } from "$lib/connections/connectionRows";
   import { oauthListClientIds, type OauthClientIdStatus } from "$lib/ipc/oauthClients";
   import { navigateTo } from "$lib/stores/navigation";
   import { pendingChatSessionId } from "$lib/stores/chat";
@@ -46,6 +54,7 @@
   import { tryConnectorPrompt } from "$lib/connections/tryConnectorPrompt";
   import type {
     AgentListItem,
+    Connection,
     ConnectorEnrichmentView,
     McpHealth,
     McpServerStatusView,
@@ -65,6 +74,7 @@
   let { onNavigateTasks }: Props = $props();
 
   // ── Top-level data ─────────────────────────────────────────────────────────
+  let connections = $state<Connection[]>([]);
   let servers = $state<McpServerStatusView[]>([]);
   let enrichmentMap = $state(new Map<string, ConnectorEnrichmentView>());
   let registry = $state<RegistryServerView[]>([]);
@@ -86,10 +96,14 @@
   let oauthClients = $state<OauthClientIdStatus[]>([]);
   let oauthClientsError = $state<string | null>(null);
 
-  const NATIVE_CONNECTORS: NativeConnectorCard[] = $derived([
-    { id: "google", name: "Google Workspace", description: $t("connections.native_google_description") },
-    { id: "microsoft", name: "Microsoft 365", description: $t("connections.native_microsoft_description") },
-  ]);
+  /** Name and description of a native provider's page. */
+  function nativeCard(provider: ProviderId): NativeConnectorCard {
+    return {
+      id: provider,
+      name: $t(NATIVE_PROVIDER_KEYS[provider].name),
+      description: $t(NATIVE_PROVIDER_KEYS[provider].description),
+    };
+  }
 
   function accountsForProvider(provider: ProviderId): OauthAccountInfo[] {
     return nativeAccounts.filter((a) => a.provider === provider);
@@ -134,6 +148,23 @@
     return enrichmentMap.get(server.package) ?? null;
   }
 
+  /** The rows of the list: the loader's connections, a server named by its catalogue label. */
+  const rows = $derived(
+    connectionRows(connections, (c) => {
+      if (c.kind !== "mcp") return c.label;
+      const server = servers.find((s) => `mcp:${s.name}` === c.id);
+      return (server && resolveEnrichment(server)?.operator_label) ?? c.label;
+    }),
+  );
+  const selectedRow = $derived(
+    rows.find((r) => isSelected(r, selection)) ?? null,
+  );
+  const selectedConnection = $derived.by(() => {
+    const sel = selection;
+    if (sel?.kind !== "connection") return null;
+    return connections.find((c) => c.id === sel.id) ?? null;
+  });
+
   const installedNames = $derived(new Set(servers.map((s) => s.name)));
   const installedByPackage = $derived.by(() => {
     const map = new Map<string, string>();
@@ -149,7 +180,7 @@
   const selectedNativeConnector = $derived.by(() => {
     const sel = selection;
     if (sel?.kind !== "native") return null;
-    return NATIVE_CONNECTORS.find((c) => c.id === sel.provider) ?? null;
+    return nativeCard(sel.provider);
   });
 
   // ── Loaders ──────────────────────────────────────────────────────────────────
@@ -157,11 +188,14 @@
     loading = true;
     loadError = null;
     try {
-      const [serverList, enrichmentEntries, agentList] = await Promise.all([
+      const [listState, serverList, enrichmentEntries, agentList] = await Promise.all([
+        loadConnections(),
         listMcpServers(),
         listMcpEnrichments(),
         listAgents().catch(() => [] as AgentListItem[]),
       ]);
+      if (listState.status === "error") loadError = listState.message;
+      else if (listState.status === "ready") connections = listState.connections;
       servers = serverList;
       enrichmentMap = new Map(enrichmentEntries.map((e) => [e.package_identifier, e.enrichment]));
       agents = agentList;
@@ -275,19 +309,17 @@
     void refreshNativeStatus();
   });
 
-  // Auto-select the first connector; recover when the target disappears.
+  // Auto-select the first connection; recover when the target disappears. A
+  // native provider stays selectable without an account: its page is where its
+  // client is entered and its first account connected.
   $effect(() => {
     if (loading) return;
     const cur = selection;
-    if (cur?.kind === "mcp" && !servers.some((s) => s.name === cur.name)) {
+    if (cur !== null && cur.kind !== "native" && selectedRow === null) {
       selection = null;
     }
     if (selection !== null) return;
-    if (servers.length > 0) {
-      selection = { kind: "mcp", name: sortServers(servers)[0]?.name ?? servers[0].name };
-    } else {
-      selection = { kind: "native", provider: "google" };
-    }
+    selection = rows[0]?.selection ?? null;
   });
 
   // Reset tabs on selection kind change.
@@ -307,6 +339,9 @@
         | undefined;
       if (!inner) return;
       servers = servers.map((s) => (s.name === inner.name ? { ...s, health: inner.health } : s));
+      void loadConnections().then((next) => {
+        if (next.status === "ready") connections = next.connections;
+      });
     }).then((fn) => {
       if (disposed) fn();
       else unlisten = fn;
@@ -350,11 +385,7 @@
   <SplitLayout sidebarTestid="connectors-sidebar" detailTestid="connector-detail">
     {#snippet sidebar()}
       <ConnectorSidebar
-        nativeConnectors={NATIVE_CONNECTORS}
-        accountCountFor={(id) => accountsForProvider(id).length}
-        needsSetupFor={needsSetup}
-        {servers}
-        {enrichmentMap}
+        {rows}
         {selection}
         {loading}
         {loadError}
@@ -367,6 +398,7 @@
     {#if selection?.kind === "native" && selectedNativeConnector}
       <NativeConnectorDetail
         connector={selectedNativeConnector}
+        remote={selectedRow?.remote ?? false}
         accounts={accountsForProvider(selectedNativeConnector.id)}
         loading={nativeLoading}
         error={nativeError}
@@ -384,6 +416,7 @@
       <McpServerDetail
         server={selectedServer}
         enrichment={resolveEnrichment(selectedServer)}
+        remote={selectedRow?.remote ?? false}
         tab={mcpTab}
         ontabchange={(tab) => (mcpTab = tab)}
         onchanged={() => void loadAll()}
@@ -392,8 +425,16 @@
           void loadAll();
         }}
       />
+    {:else if selection?.kind === "connection" && selectedConnection}
+      <ConnectionSummaryDetail
+        connection={selectedConnection}
+        label={selectedRow?.label ?? selectedConnection.label}
+      />
     {:else}
-      <div class="flex flex-1 items-center justify-center text-body-sm text-muted-foreground">
+      <div
+        class="flex flex-1 items-center justify-center text-body-sm text-muted-foreground"
+        data-testid="connections-select-prompt"
+      >
         {$t("connections.select_connector_prompt")}
       </div>
     {/if}
@@ -449,6 +490,10 @@
   onclose={() => (catalogueOpen = false)}
   onconnect={handleConnect}
   onmanage={handleManage}
+  onaddnative={(provider) => {
+    catalogueOpen = false;
+    selection = { kind: "native", provider };
+  }}
   oninstalled={() => {
     catalogueOpen = false;
     void loadAll();
