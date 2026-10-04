@@ -206,34 +206,6 @@ fn an_unknown_key_in_chat_is_refused() {
 }
 
 #[test]
-fn an_unknown_key_in_filesystem_is_refused() {
-    // GIVEN a typo in [filesystem]
-    let text = "[filesystem]\ntrusted = []\n";
-    // WHEN the document is validated
-    // THEN it is refused
-    let fault = unknown(text);
-    assert_eq!(
-        (fault.path.as_str(), fault.line),
-        ("filesystem.trusted", 2),
-        "{fault}"
-    );
-}
-
-#[test]
-fn an_unknown_key_in_filesystem_journal_is_refused() {
-    // GIVEN a typo in [filesystem.journal]
-    let text = "[filesystem.journal]\nsessions = 3\n";
-    // WHEN the document is validated
-    // THEN it is refused
-    let fault = unknown(text);
-    assert_eq!(
-        (fault.path.as_str(), fault.line),
-        ("filesystem.journal.sessions", 2),
-        "{fault}"
-    );
-}
-
-#[test]
 fn an_unknown_key_in_models_is_refused() {
     // GIVEN a typo in [models]
     let text = "[models]\nregistry = \"x\"\n";
@@ -299,20 +271,6 @@ fn an_unknown_key_in_observability_is_refused() {
     assert_eq!(
         (fault.path.as_str(), fault.line),
         ("observability.retention", 2),
-        "{fault}"
-    );
-}
-
-#[test]
-fn an_unknown_key_in_ui_is_refused() {
-    // GIVEN a typo in [ui]
-    let text = "[ui]\nlink_preview = true\n";
-    // WHEN the document is validated
-    // THEN it is refused
-    let fault = unknown(text);
-    assert_eq!(
-        (fault.path.as_str(), fault.line),
-        ("ui.link_preview", 2),
         "{fault}"
     );
 }
@@ -388,20 +346,6 @@ fn an_unknown_key_in_llm_routing_hybrid_is_refused() {
     assert_eq!(
         (fault.path.as_str(), fault.line),
         ("llm.routing.hybrid.ceiling", 18),
-        "{fault}"
-    );
-}
-
-#[test]
-fn an_unknown_key_in_llm_runner_is_refused() {
-    // GIVEN a typo in [llm.runner]
-    let text = format!("{BACKEND}\n[llm.runner]\nback_end = \"cpu\"\n");
-    // WHEN the document is validated
-    // THEN it is refused
-    let fault = unknown(&text);
-    assert_eq!(
-        (fault.path.as_str(), fault.line),
-        ("llm.runner.back_end", 12),
         "{fault}"
     );
 }
@@ -506,22 +450,6 @@ background_service_allowed = false\n";
     assert_eq!(config.models.dir, "~/models");
     assert_eq!(config.desktop.update_channel, super::UpdateChannel::Preview);
     assert!(!config.desktop.background_service_allowed);
-}
-
-#[test]
-fn an_unknown_key_in_a_pricing_override_is_refused() {
-    // GIVEN a typo inside one [llm.pricing_overrides] entry
-    let text = format!(
-        "{BACKEND}\n[llm.pricing_overrides.m]\ninput_per_mtok = 1.0\noutput_per_mtok = 2.0\ncached = 0.5\n"
-    );
-    // WHEN the document is validated
-    // THEN it is refused
-    let fault = unknown(&text);
-    assert_eq!(
-        (fault.path.as_str(), fault.line),
-        ("llm.pricing_overrides.m.cached", 14),
-        "{fault}"
-    );
 }
 
 #[test]
@@ -697,4 +625,15 @@ fn distinct_native_api_and_compatible_server_ports_are_accepted() {
     let config = validate(text).expect("distinct ports are valid");
     // THEN both ports are the file's
     assert_eq!((config.api.port, config.server.port), (7781, 7782));
+}
+
+#[test]
+fn an_autonomy_table_is_refused_as_an_unknown_key() {
+    // GIVEN an [autonomy] table, which no loader reads
+    let text = "[autonomy]\ndefault_level = \"assisted\"\n";
+    // WHEN the document is validated
+    // THEN it is refused, at its header
+    let fault = unknown(text);
+    assert_eq!(fault.line, 1, "{fault}");
+    assert!(fault.message.contains("autonomy"), "{fault}");
 }

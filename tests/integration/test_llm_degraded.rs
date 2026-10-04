@@ -9,7 +9,6 @@
 //! No Python dependency - CI friendly.
 
 use apollia_e2e_tests::reserve_port;
-use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -224,9 +223,6 @@ async fn test_runtime_continues_after_llm_init_failure() {
         backends: vec![],
         observability: ObservabilityConfig::default(),
         routing: None,
-        pricing_overrides: HashMap::new(),
-        cost_alert_threshold_usd: None,
-        runner: apollia_core::config::LlmRunnerConfig::default(),
         guardrails: Default::default(),
     };
 

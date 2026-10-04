@@ -1,10 +1,10 @@
 //! Tauri IPC commands for agent management.
 //!
 //! Each command delegates to the embedded runtime handles for runtime agents
-//! (list/start/stop) and to the [`AgentRepository`] + `AgentLoader`
-//! for persistence operations (install/uninstall/enable/disable/update).
-//! The registry, the install, the start and the stop also serve a desktop
-//! attached to a daemon, through the routes of `/api/v1/agents`.
+//! and to the [`AgentRepository`] + `AgentLoader` for the install. The
+//! uninstall and the update are routes of the runtime. The registry, the
+//! install, the uninstall and the update also serve a desktop attached to a
+//! daemon, through the routes of `/api/v1/agents`.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -33,42 +33,9 @@ pub use apollia_runtime::api::routes_agents::installed::InstallAgentResponse;
 /// daemon answers the same view, built by the same function.
 pub use apollia_runtime::api::routes_agents::installed::InstalledAgentView as AgentListItem;
 
-/// What happened to the live runtime instance while an agent's module was
-/// replaced.
-///
-/// The embedded interpreter keeps the imported module in memory, so writing a
-/// new `.py` over the installed one changes nothing for an agent that is
-/// already running. The replacement therefore stops and restarts it, and this
-/// value is what lets the window say which of the two versions is now serving
-/// tasks instead of announcing a success it cannot vouch for.
-pub mod restart_outcome {
-    /// No live runtime entry: the new module loads at the next start.
-    pub const NOT_RUNNING: &str = "not_running";
-    /// Stopped and started again on the new module.
-    pub const RESTARTED: &str = "restarted";
-    /// The stop was refused: the previous module is still running.
-    pub const STOP_FAILED: &str = "stop_failed";
-    /// Stopped, but it did not come back up: nothing is running.
-    pub const START_FAILED: &str = "start_failed";
-}
-
-/// Response to an agent update.
-///
-/// Distinct from [`InstallAgentResponse`] because an update has an outcome an
-/// install cannot have: a runtime instance that had to be cycled.
-#[derive(Debug, Serialize)]
-pub struct UpdateAgentResponse {
-    /// Unique name of the updated agent.
-    pub name: String,
-    /// Semver version read from the new module's manifest.
-    pub version: String,
-    /// Install path on disk.
-    pub install_path: String,
-    /// One of the [`restart_outcome`] constants.
-    pub restart_outcome: String,
-    /// Raw cause when the stop or the start failed, `None` otherwise.
-    pub restart_error: Option<String>,
-}
+/// The answer to an update, with what happened to the live runtime instance
+/// while the agent's module was replaced. The runtime answers it.
+pub use apollia_runtime::api::routes_agents::installed::lifecycle::UpdateAgentResponse;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -80,11 +47,6 @@ fn apollia_data_dir() -> PathBuf {
         .display()
         .to_string();
     apollia_core::paths::data_dir_under(home)
-}
-
-/// Current timestamp in RFC 3339.
-fn now_rfc3339() -> String {
-    chrono::Utc::now().to_rfc3339()
 }
 
 /// The repository of `agents.db`, managed only when the runtime runs in this
@@ -192,6 +154,7 @@ fn ui_status(item: &AgentListItem) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use apollia_runtime::api::routes_agents::installed::lifecycle::restart_outcome;
 
     fn item(enabled: bool, installed: bool, runtime_status: Option<&str>) -> AgentListItem {
         AgentListItem {

@@ -1,36 +1,46 @@
 <script lang="ts">
+  /**
+   * Adding a connection of the selection: two gestures, then the rest runs.
+   *
+   * The dialog opens on the one warning of the entry (the first gesture was
+   * choosing it). Accepting it is the second; it is journaled by the desktop.
+   * Only an authentication comes between, when the connection needs one (a
+   * sign-in in the browser, or a key to type). The connection is then added,
+   * Node.js downloaded first when it needs it, and tried on its own. A failed
+   * trial leaves it added, with Retry and Remove; a refusal says who refused.
+   */
   import { t } from "svelte-i18n";
-  import {
-    BookOpen,
-    KeyRound,
-    PlugZap,
-    Sparkles,
-  } from "lucide-svelte";
+  import { CheckCircle2, XCircle } from "lucide-svelte";
   import { Dialog } from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
-  import { Stepper } from "$lib/components/ui/stepper";
+  import { Badge } from "$lib/components/ui/badge";
+  import { ProgressBar, Spinner } from "$lib/components/ui/progress";
   import {
-    installConnector,
     mcpOauthDiscover,
     mcpOauthLogin,
     mcpOauthResolveClientId,
+    removeMcpServer,
     testMcpConnection,
     type PendingSecret,
   } from "$lib/ipc/connections";
-  import WizardStepDisclaimer, {
-    DISCLAIMER_ITEMS,
-    isDisclaimerVersionAccepted,
-    recordDisclaimerAcceptance,
-  } from "./WizardStepDisclaimer.svelte";
+  import WizardStepDisclaimer from "./WizardStepDisclaimer.svelte";
   import WizardStepAuth from "./WizardStepAuth.svelte";
-  import { nextDisclaimerChecks } from "./disclaimerChecks";
-  import WizardStepTest from "./WizardStepTest.svelte";
   import WizardStepCoaching from "./WizardStepCoaching.svelte";
+  import ConnectionRefusal from "./ConnectionRefusal.svelte";
   import {
     buildConnectorConfig,
     deriveServerName,
     type ConnectorConfigInputs,
   } from "$lib/integrations/connectorConfig";
+  import {
+    addConnection,
+    nodePercent,
+    tryAddedConnection,
+    type NodeRuntimeState,
+    type Refusal,
+  } from "$lib/integrations/addConnection";
+  import { developerMode } from "$lib/stores/developerMode";
+  import { openSettingsWindow } from "$lib/stores/settingsWindow";
   import type {
     McpOAuthAccount,
     McpOAuthDiscoveryResult,
@@ -43,8 +53,9 @@
     server: RegistryServerView;
     open: boolean;
     onclose: () => void;
+    /** Called once the connection exists, so the list shows it. */
     oncomplete: () => void;
-    /** Called with a pre-filled prompt when the user clicks "Try" on a coaching card. */
+    /** Called with a pre-filled prompt when the user clicks "Try" on an example. */
     ontryprompt?: (prompt: string) => void;
   }
 
@@ -56,46 +67,47 @@
     ontryprompt = () => {},
   }: Props = $props();
 
-  type WizardStep = "disclaimer" | "auth" | "test" | "coaching";
+  /**
+   * Where the addition stands. `warning` and `auth` wait for a gesture; the
+   * others run on their own or report.
+   */
+  type Phase =
+    | "warning"
+    | "auth"
+    | "preparing"
+    | "trying"
+    | "succeeded"
+    | "trial_failed"
+    | "refused"
+    | "add_failed";
 
-  // ── Disclaimer state (step 1) ───────────────────────────────────────────────
-  let disclaimerChecks = $state<Record<string, boolean>>({});
-  let disclaimerVersionOk = $state(false);
-  // Whether anyone has ticked a box yet, so the asynchronous version lookup
-  // cannot undo their work when it lands.
-  let disclaimerTouched = $state(false);
-
-  const disclaimerComplete = $derived(
-    DISCLAIMER_ITEMS.every((key) => {
-      const short = key.replace("i18n:integrations.disclaimer.items.", "");
-      return disclaimerChecks[short] === true;
-    }),
-  );
-
-  // ── Auth / Test / Coaching state ────────────────────────────────────────────
-  let currentStepIndex = $state(0);
+  let phase = $state<Phase>("warning");
   let envValues = $state<Record<string, string>>({});
   /** User-supplied values for package positional args, indexed by their
    *  position in `pkg.package_arguments`. Only consulted for args whose
    *  `value` is null (i.e. the user must supply it at install time). */
   let argValues = $state<Record<number, string>>({});
-  let approvalLevel = $state<"auto" | "ask">("ask");
-  let testSucceeded = $state(false);
-  let finalizing = $state(false);
-  /** The connector exists once installed, whether by "Finish" or by trying an example. */
-  let installed = $state(false);
-  let finalizeError = $state<string | null>(null);
+  /** The connection exists once added, whatever its trial answers. */
+  let added = $state(false);
+  let nodeState = $state<NodeRuntimeState | null>(null);
+  let refusal = $state<Refusal | null>(null);
+  let addError = $state<string | null>(null);
+  let trialTools = $state(0);
+  let trialMessageKey = $state<string | null>(null);
+  let trialDetail = $state<string | null>(null);
+  let removing = $state(false);
+  let removeError = $state<string | null>(null);
 
-  // ── Auth-step probe + OAuth state ────────────────────────
-  // When the user enters the Auth step on a `remote` connector, we probe the
-  // server (no auth) once to detect whether it needs OAuth, a static token,
-  // or nothing. The result drives which UI branch the step renders.
+  // ── Auth probe + OAuth state ────────────────────────────
+  // Once the warning is accepted on a `remote` connector, the server is probed
+  // (no auth) once to detect whether it needs OAuth, a static token, or
+  // nothing. The result decides whether the authentication step shows.
   //
   // `probeMode` lifecycle:
   //   "idle"        - not yet probed (initial state / probe disabled).
-  //   "probing"     - request in flight, render a spinner.
+  //   "probing"     - request in flight.
   //   "none"        - server returned 200, no auth required (Figma local etc.).
-  //   "static"      - server returned a non-OAuth 4xx, keep legacy token UX.
+  //   "static"      - server returned a non-OAuth 4xx, keep the token fields.
   //   "oauth"       - server returned 401 + OAuth discovery succeeded.
   //   "probe_error" - transport / discovery failed; the user can still try the
   //                   static-token path if the catalog declared headers.
@@ -116,13 +128,18 @@
 
   $effect(() => {
     if (open) {
-      currentStepIndex = 0;
+      phase = "warning";
       envValues = {};
       argValues = {};
-      approvalLevel = "ask";
-      testSucceeded = false;
-      installed = false;
-      finalizeError = null;
+      added = false;
+      nodeState = null;
+      refusal = null;
+      addError = null;
+      trialTools = 0;
+      trialMessageKey = null;
+      trialDetail = null;
+      removing = false;
+      removeError = null;
       probeMode = "idle";
       probeError = null;
       oauthWwwAuthenticate = null;
@@ -132,19 +149,6 @@
       oauthSigningIn = false;
       oauthSigninError = null;
       oauthClientIdOverride = null;
-      disclaimerTouched = false;
-      // Pre-check the disclaimer if the current version is already accepted.
-      // This lookup hashes the disclaimer text, so it resolves after the
-      // dialog is on screen: whatever it decides, it must not overwrite boxes
-      // someone has ticked in the meantime. See nextDisclaimerChecks.
-      void isDisclaimerVersionAccepted().then((v) => {
-        disclaimerVersionOk = v;
-        disclaimerChecks = nextDisclaimerChecks(
-          disclaimerTouched,
-          v,
-          disclaimerChecks,
-        );
-      });
     }
   });
 
@@ -207,34 +211,6 @@
     });
   });
 
-  const hasWriteTools = $derived.by((): boolean => {
-    // Heuristic fallback until backend exposes `enrichment.capabilities.has_write`:
-    // assume a server has write tools unless it is an explicit read-only category.
-    const ro = new Set(["search", "analytics"]);
-    const cat = server.enrichment?.category ?? server.category ?? "";
-    return !ro.has(cat);
-  });
-
-  const canInstall = $derived(connectionMode !== null);
-
-  // ── Ordered wizard steps ────────────────────────────────────────────────────
-  const steps: readonly WizardStep[] = [
-    "disclaimer",
-    "auth",
-    "test",
-    "coaching",
-  ] as const;
-
-  const stepperSteps = $derived([
-    { label: $t("integrations.wizard.step_disclaimer"), icon: BookOpen },
-    { label: $t("integrations.wizard.step_auth"), icon: KeyRound },
-    { label: $t("integrations.wizard.step_test"), icon: PlugZap },
-    { label: $t("integrations.wizard.step_coaching"), icon: Sparkles },
-  ]);
-
-  const currentStep = $derived(steps[currentStepIndex]);
-  const totalSteps = steps.length;
-
   // Auth-step completion gate. Branches mirror `probeMode` so the wizard
   // accepts the right kind of completion per server type.
   const authComplete = $derived.by((): boolean => {
@@ -266,25 +242,31 @@
     return envOk && argsComplete;
   });
 
-  const canAdvance = $derived.by((): boolean => {
-    switch (currentStep) {
-      case "disclaimer":
-        return disclaimerComplete;
-      case "auth":
-        return authComplete;
-      case "test":
-        return testSucceeded;
-      case "coaching":
-        return canInstall && !finalizing;
-      default:
-        return false;
-    }
-  });
+  const displayName = $derived(
+    server.enrichment?.operator_label ?? server.title ?? server.name,
+  );
+  const serverName = $derived(deriveServerName(server));
 
-  // ── Config builder ──────────────────────────────────────────────────────────
-  // The naming, launcher-mapping and configuration rules live in
-  // `$lib/integrations/connectorConfig`; the component only gathers what they
-  // read.
+  /** Whether the authentication step shows, once the probe (if any) answered. */
+  function needsAuthStep(): boolean {
+    if (connectionMode === "remote") {
+      switch (probeMode) {
+        case "oauth":
+          return true;
+        case "static":
+        case "probe_error":
+          return remoteHeadersAsEnvVars.some((v) => v.isRequired);
+        default:
+          return false;
+      }
+    }
+    return (
+      authEnvVars.some((v) => v.isRequired) ||
+      userPackageArgs.some(({ arg }) => arg.isRequired)
+    );
+  }
+
+  // The approval level is not chosen while adding: it belongs to governance.
   const configInputs = $derived<ConnectorConfigInputs>({
     server,
     connectionMode,
@@ -293,29 +275,22 @@
     oauthResolved: probeMode === "oauth" && oauthAccount !== null,
     envValues,
     argValues,
-    approvalLevel,
+    approvalLevel: "ask",
   });
 
-  const testConfig = $derived(buildConnectorConfig(configInputs, true));
   const builtConfig = $derived(buildConnectorConfig(configInputs, false));
 
-  // ── Navigation ──────────────────────────────────────────────────────────────
-  async function goNext(): Promise<void> {
-    if (!canAdvance) return;
-    if (currentStep === "disclaimer" && !disclaimerVersionOk) {
-      await recordDisclaimerAcceptance();
-      disclaimerVersionOk = true;
+  /** The second gesture: the warning is accepted, the rest follows. */
+  async function acceptWarning(): Promise<void> {
+    if (connectionMode === "remote") {
+      phase = "preparing";
+      await runAuthProbe();
     }
-    if (currentStepIndex < totalSteps - 1) currentStepIndex += 1;
-  }
-
-  function goBack(): void {
-    if (currentStepIndex > 0) currentStepIndex -= 1;
-  }
-
-  function handleDisclaimerChange(key: string, value: boolean): void {
-    disclaimerTouched = true;
-    disclaimerChecks = { ...disclaimerChecks, [key]: value };
+    if (needsAuthStep()) {
+      phase = "auth";
+      return;
+    }
+    await add();
   }
 
   function handleEnvChange(key: string, value: string): void {
@@ -344,7 +319,7 @@
   }
 
   /** Run a one-shot connection probe and route the wizard to the right Auth
-   *  step branch. Triggered once when the user reaches the Auth step. */
+   *  step branch. Run once, after the warning is accepted. */
   async function runAuthProbe(): Promise<void> {
     if (connectionMode !== "remote") {
       probeMode = "idle";
@@ -467,37 +442,6 @@
     }
   }
 
-  // Trigger the probe automatically when the user reaches the Auth step.
-  // Runs once per opening; the probe state is reset in the `$effect(open)` block.
-  $effect(() => {
-    if (open && currentStep === "auth" && probeMode === "idle") {
-      void runAuthProbe();
-    }
-  });
-
-  function handleTestSuccess(): void {
-    testSucceeded = true;
-  }
-
-  function handleFixAuth(): void {
-    testSucceeded = false;
-    currentStepIndex = steps.indexOf("auth");
-  }
-
-  function handleRequestClose(): void {
-    if (
-      currentStepIndex > 0 &&
-      currentStep !== "coaching" &&
-      !confirm($t("integrations.wizard.confirm_exit"))
-    ) {
-      return;
-    }
-    // A connector installed by trying an example must show in the list even
-    // when the wizard is dismissed instead of finished.
-    if (installed) oncomplete();
-    onclose();
-  }
-
   /** The secrets the operator typed, in the order the wizard collected them. */
   function pendingSecrets(): PendingSecret[] {
     const declared =
@@ -519,63 +463,95 @@
     return out;
   }
 
-  /** Install the connector once. Returns whether it exists afterwards. */
-  async function ensureInstalled(): Promise<boolean> {
-    if (installed) return true;
-    if (!builtConfig) return false;
-    finalizing = true;
-    finalizeError = null;
+  /** Add the connection, then try it. */
+  async function add(): Promise<void> {
+    const config = builtConfig;
+    if (!config) {
+      addError = $t("integrations.wizard.no_package_body");
+      phase = "add_failed";
+      return;
+    }
+    phase = "preparing";
+    nodeState = null;
+    addError = null;
+    const outcome = await addConnection(config, pendingSecrets(), {
+      onNode: (state) => (nodeState = state),
+    });
+    if (outcome.kind === "refused") {
+      refusal = outcome.refusal;
+      phase = "refused";
+      return;
+    }
+    if (outcome.kind === "failed") {
+      addError = outcome.message;
+      phase = "add_failed";
+      return;
+    }
+    added = true;
+    await trial(config);
+  }
+
+  /** Try the added connection; a failure leaves it added. */
+  async function trial(config: McpServerConfigInput): Promise<void> {
+    phase = "trying";
+    const outcome = await tryAddedConnection(config.name);
+    if (outcome.kind === "succeeded") {
+      trialTools = outcome.tools;
+      phase = "succeeded";
+      return;
+    }
+    trialMessageKey = outcome.messageKey;
+    trialDetail = outcome.detail;
+    phase = "trial_failed";
+  }
+
+  async function retryTrial(): Promise<void> {
+    if (builtConfig) await trial(builtConfig);
+  }
+
+  /** Remove the connection whose trial failed, then close. */
+  async function removeAdded(): Promise<void> {
+    removing = true;
+    removeError = null;
     try {
-      await installConnector(builtConfig, pendingSecrets());
-      installed = true;
-      return true;
+      await removeMcpServer(serverName);
+      added = false;
+      oncomplete();
+      onclose();
     } catch (err: unknown) {
-      finalizeError = err instanceof Error ? err.message : String(err);
-      return false;
+      removeError = err instanceof Error ? err.message : String(err);
     } finally {
-      finalizing = false;
+      removing = false;
     }
   }
 
-  async function finalize(): Promise<void> {
-    if (!(await ensureInstalled())) return;
-    oncomplete();
-    // No walkthrough follows the wizard: one used to run while this dialog was
-    // closed, pointing at a sheet that was never open.
+  function handleRequestClose(): void {
+    // A connection added, even one whose trial failed, shows in the list.
+    if (added) oncomplete();
     onclose();
   }
 
-  /** An example needs a running connector to draw its tools from, so trying
-   *  one installs it first, with the approval level chosen on this step. */
-  async function tryExample(prompt: string): Promise<void> {
-    if (finalizing || !(await ensureInstalled())) return;
-    ontryprompt(prompt);
+  function openRefusingRule(): void {
+    onclose();
+    openSettingsWindow("permissions");
   }
 
+  const nodeDownloading = $derived(nodeState?.state === "downloading");
+  const nodeProgress = $derived(nodeState ? nodePercent(nodeState) : null);
+  const busy = $derived(phase === "preparing" || phase === "trying" || removing);
 </script>
 
 <Dialog
   {open}
   onclose={handleRequestClose}
   size="lg"
-  title={$t("integrations.wizard.title", {
-    values: { name: server.title ?? server.name },
-  })}
+  title={$t("integrations.wizard.title", { values: { name: displayName } })}
   data-testid="connector-wizard"
 >
-  <!-- Stepper -->
-  <div class="mb-6">
-    <Stepper steps={stepperSteps} current={currentStepIndex} />
-  </div>
-
-  <!-- Step content -->
-  <div class="min-h-[220px]">
-    {#if currentStep === "disclaimer"}
-      <WizardStepDisclaimer
-        checks={disclaimerChecks}
-        onchange={handleDisclaimerChange}
-      />
-    {:else if currentStep === "auth"}
+  <div class="min-h-[180px] space-y-4" data-phase={phase} data-testid="wizard-body">
+    {#if phase === "warning"}
+      <WizardStepDisclaimer name={displayName} />
+    {:else if phase === "auth"}
       <WizardStepAuth
         envVars={authEnvVars}
         enrichment={server.enrichment}
@@ -600,93 +576,157 @@
         onOAuthToggleScope={toggleOAuthScope}
         onOAuthSignin={startOAuthSignin}
       />
-    {:else if currentStep === "test"}
-      {#if testConfig}
-        <WizardStepTest
-          config={testConfig}
-          onsuccess={handleTestSuccess}
-          onfixauth={handleFixAuth}
-        />
-      {:else}
-        <div
-          class="space-y-2 rounded-md border border-border bg-muted/40 p-4"
-          data-testid="wizard-step-test-unavailable"
-        >
-          <p class="text-sm text-muted-foreground">
-            {$t("integrations.wizard.test_unavailable")}
+    {:else if phase === "preparing"}
+      <div class="space-y-3" data-testid="wizard-preparing">
+        <div class="flex items-center gap-2 text-sm text-foreground">
+          <Spinner size={14} />
+          {#if nodeDownloading}
+            {$developerMode
+              ? $t("dev.integrations.wizard.node_downloading")
+              : $t("integrations.wizard.component_downloading")}
+          {:else}
+            {$t("integrations.wizard.preparing")}
+          {/if}
+        </div>
+        {#if nodeDownloading}
+          <div data-testid="wizard-node-progress">
+            <ProgressBar value={nodeProgress ?? undefined} />
+            <p class="mt-1 text-xs text-muted-foreground">
+              {$t("integrations.wizard.component_verified")}
+            </p>
+          </div>
+        {/if}
+      </div>
+    {:else if phase === "trying"}
+      <div class="flex items-center gap-2 text-sm text-foreground" data-testid="wizard-trying">
+        <Spinner size={14} />
+        {$t("integrations.wizard.trying")}
+      </div>
+    {:else if phase === "succeeded"}
+      <div
+        class="rounded-md border border-success/30 bg-success/10 px-4 py-3"
+        data-testid="test-result-success"
+      >
+        <div class="flex items-center gap-2">
+          <CheckCircle2 size={16} class="shrink-0 text-success" aria-hidden="true" />
+          <p class="text-sm font-medium text-success-a11y">
+            {$t("integrations.wizard.added_success", { values: { count: trialTools } })}
           </p>
         </div>
-      {/if}
-    {:else if currentStep === "coaching"}
-      {#if canInstall}
-        <WizardStepCoaching
-          serverName={server.name}
-          serverTitle={server.title}
-          {hasWriteTools}
-          {approvalLevel}
-          onchange={(l) => (approvalLevel = l)}
-          ontry={(prompt) => void tryExample(prompt)}
-        />
-      {:else}
-        <div
-          class="space-y-3 rounded-md border border-border bg-muted/40 p-4"
-          data-testid="wizard-no-package"
-        >
-          <p class="text-sm font-medium text-foreground">
-            {$t("integrations.wizard.no_package_title")}
+        <p class="mt-1 text-xs text-muted-foreground">
+          {$t("integrations.wizard.added_where")}
+        </p>
+      </div>
+      <WizardStepCoaching
+        serverName={server.name}
+        serverTitle={server.title}
+        ontry={(prompt) => ontryprompt(prompt)}
+      />
+    {:else if phase === "trial_failed"}
+      <div
+        class="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3"
+        data-testid="test-result-error"
+      >
+        <div class="flex items-center gap-2">
+          <XCircle size={16} class="shrink-0 text-destructive" aria-hidden="true" />
+          <p class="text-sm font-medium text-destructive">
+            {$t("integrations.wizard.added_failed")}
           </p>
-          <p class="text-sm text-muted-foreground">
-            {$t("integrations.wizard.no_package_body")}
+          <Badge size="sm" variant="danger">{$t("integrations.wizard.failed_badge")}</Badge>
+        </div>
+        <p class="text-sm text-foreground" data-testid="test-result-error-message">
+          {$t(trialMessageKey ?? "integrations.wizard.test_err.generic")}
+        </p>
+        {#if trialDetail}
+          <details class="text-xs">
+            <summary class="cursor-pointer text-muted-foreground">
+              {$t("integrations.wizard.test_err.raw_details")}
+            </summary>
+            <p class="mt-1 break-all font-mono text-caption text-destructive/80">{trialDetail}</p>
+          </details>
+        {/if}
+        {#if removeError}
+          <p class="text-xs text-destructive" data-testid="wizard-remove-error">{removeError}</p>
+        {/if}
+      </div>
+    {:else if phase === "refused" && refusal}
+      <ConnectionRefusal {refusal} onopen={openRefusingRule} />
+    {:else if phase === "add_failed"}
+      <div
+        class="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3"
+        data-testid="wizard-finalize-error"
+      >
+        <div class="flex items-center gap-2">
+          <XCircle size={16} class="shrink-0 text-destructive" aria-hidden="true" />
+          <p class="text-sm font-medium text-destructive">
+            {$t("integrations.wizard.add_failed")}
           </p>
         </div>
-      {/if}
+        {#if addError}
+          <p class="break-all text-xs text-muted-foreground">{addError}</p>
+        {/if}
+      </div>
     {/if}
   </div>
 
-  {#if finalizeError}
-    <p
-      class="mt-3 text-sm text-destructive"
-      data-testid="wizard-finalize-error"
-    >
-      {finalizeError}
-    </p>
-  {/if}
-
-  <!-- Navigation bar -->
-  <div
-    class="mt-6 flex items-center justify-between border-t border-border pt-4 sticky bottom-0 bg-background"
-  >
-    <Button
-      variant="outline"
-      size="sm"
-      onclick={goBack}
-      disabled={currentStepIndex === 0}
-      data-testid="wizard-back-btn"
-    >
-      {$t("common.back")}
-    </Button>
-
-    {#if currentStep !== "coaching"}
+  <div class="mt-6 flex items-center justify-end gap-2 border-t border-border pt-4">
+    {#if phase === "warning"}
+      <Button variant="outline" size="sm" onclick={handleRequestClose} data-testid="wizard-cancel-btn">
+        {$t("common.cancel")}
+      </Button>
       <Button
         variant="primary-solid"
         size="sm"
-        onclick={() => void goNext()}
-        disabled={!canAdvance}
-        data-testid="wizard-next-btn"
+        onclick={() => void acceptWarning()}
+        data-testid="wizard-warning-accept"
       >
-        {$t("integrations.wizard.next")}
+        {$t("integrations.wizard.confirm_button")}
       </Button>
-    {:else}
+    {:else if phase === "auth"}
+      <Button variant="outline" size="sm" onclick={handleRequestClose} data-testid="wizard-cancel-btn">
+        {$t("common.cancel")}
+      </Button>
       <Button
-        variant="primary-gradient"
+        variant="primary-solid"
         size="sm"
-        onclick={() => void finalize()}
-        disabled={finalizing || !canInstall}
-        data-testid="wizard-confirm-btn"
+        onclick={() => void add()}
+        disabled={!authComplete}
+        data-testid="wizard-auth-continue"
       >
-        {finalizing
-          ? $t("integrations.wizard.adding")
-          : $t("integrations.wizard.confirm_button")}
+        {$t("integrations.wizard.confirm_button")}
+      </Button>
+    {:else if phase === "trial_failed"}
+      <Button
+        variant="destructive"
+        size="sm"
+        onclick={() => void removeAdded()}
+        disabled={busy}
+        data-testid="wizard-remove-btn"
+      >
+        {$t("integrations.wizard.remove")}
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onclick={() => void retryTrial()}
+        disabled={busy}
+        data-testid="test-retry-btn"
+      >
+        {$t("integrations.wizard.test_retry")}
+      </Button>
+      <Button variant="primary-solid" size="sm" onclick={handleRequestClose} data-testid="wizard-done-btn">
+        {$t("common.close")}
+      </Button>
+    {:else if phase === "add_failed"}
+      <Button variant="outline" size="sm" onclick={handleRequestClose} data-testid="wizard-cancel-btn">
+        {$t("common.close")}
+      </Button>
+      <Button variant="primary-solid" size="sm" onclick={() => void add()} data-testid="wizard-retry-add-btn">
+        {$t("integrations.wizard.test_retry")}
+      </Button>
+    {:else if phase === "succeeded" || phase === "refused"}
+      <Button variant="primary-solid" size="sm" onclick={handleRequestClose} data-testid="wizard-done-btn">
+        {$t("common.close")}
       </Button>
     {/if}
   </div>

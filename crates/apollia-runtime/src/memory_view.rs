@@ -205,8 +205,9 @@ fn entries_of(store: &MemoryStore, namespace: &str) -> Vec<MemoryEntryView> {
     entries
 }
 
-/// Full-text search of `query` in `namespace`, best BM25 score first. A
-/// namespace without a file has no result.
+/// Search of `query` in `namespace`, best first: by BM25, fused with a
+/// ranking by meaning when this process has an embeddings model. A namespace
+/// without a file has no result.
 ///
 /// # Errors
 ///
@@ -217,6 +218,8 @@ pub async fn search(
     namespace: String,
     query: String,
 ) -> Result<Vec<MemorySearchResultView>, MemoryViewError> {
+    let embedder = apollia_memory::vectors::installed_embedder();
+    let meaning = apollia_memory::vectors::query_vector(embedder.as_deref(), &query).await;
     tokio::task::spawn_blocking(move || {
         let db_path = namespace_file(&base, &namespace)?;
         if !db_path.exists() {
@@ -230,6 +233,7 @@ pub async fn search(
                 limit: SEARCH_LIMIT,
                 sources: None,
                 min_importance: None,
+                meaning: meaning.as_ref(),
             })
             .map_err(MemoryViewError::Search)?;
         Ok(results
@@ -249,6 +253,61 @@ pub async fn search(
     })
     .await
     .map_err(MemoryViewError::Join)?
+}
+
+/// The embeddings model the memory searches with, as the Memory screen names
+/// it: absent when no model is chosen or its file is not on this machine, and
+/// the memory is then searched by its words alone.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MemoryEmbeddingsView {
+    /// Identifier of the embeddings model.
+    pub model: Option<String>,
+    /// Length of its vectors.
+    pub dimensions: Option<u32>,
+}
+
+/// The view of the default embeddings model `model`, given whether its file
+/// is installed: what the daemon's `GET /api/v1/llm/embeddings/default`
+/// answers, read the same way as the embedded runtime reads it.
+#[must_use]
+pub fn embeddings_view(model: Option<&str>, installed: bool) -> MemoryEmbeddingsView {
+    let entry = model.filter(|_| installed).and_then(|id| {
+        let catalogue = apollia_llm::recommend::EmbeddingCatalogue::embedded().ok()?;
+        catalogue.get(id).cloned()
+    });
+    match entry {
+        Some(entry) => MemoryEmbeddingsView {
+            model: Some(entry.id),
+            dimensions: Some(entry.dimensions),
+        },
+        None => MemoryEmbeddingsView::default(),
+    }
+}
+
+/// The embeddings model the memory of `data_dir` searches with.
+///
+/// # Errors
+///
+/// [`MemoryViewError::Join`] when the blocking read did not complete.
+pub async fn embeddings_model(data_dir: PathBuf) -> Result<MemoryEmbeddingsView, MemoryViewError> {
+    tokio::task::spawn_blocking(move || {
+        let Ok(Some(id)) = crate::embeddings::default_model(&data_dir) else {
+            return MemoryEmbeddingsView::default();
+        };
+        let installed = apollia_llm::recommend::EmbeddingCatalogue::embedded()
+            .ok()
+            .and_then(|catalogue| {
+                let entry = catalogue.get(&id)?;
+                crate::embeddings::installed_path(
+                    &crate::installed_models::models_dir(&data_dir),
+                    entry,
+                )
+            })
+            .is_some();
+        embeddings_view(Some(&id), installed)
+    })
+    .await
+    .map_err(MemoryViewError::Join)
 }
 
 /// The entries an agent of this process recalled during `turn_id`, read from

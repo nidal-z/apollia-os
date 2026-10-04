@@ -188,23 +188,23 @@ Do not add any prose before or after the JSON.";
 
 // ── Dynamic-block helpers (caller supplies the data) ────────────────────────
 
-/// Working-directory anchor note. `path` is the session's default workspace.
+/// Working-directory anchor note. `path` is the first folder granted to the
+/// agent, where a relative path lands.
 ///
-/// Frames the directory as the default for relative paths, not a jail: chat
-/// sessions can read and write anywhere on the machine (sensitive paths go
-/// through user approval).
+/// The file tools reach the folders granted to the agent and nothing else, so
+/// the note says so, and says what the user does to grant a folder: a refusal
+/// from a tool then reads as expected rather than as a fault.
 pub fn working_directory_note(path: Option<&str>) -> String {
     match path {
         Some(path) => format!(
-            "Your default working directory is `{path}`: relative file paths resolve there. You \
-             are NOT limited to this folder, you can read and write elsewhere on the machine \
-             using absolute paths (sensitive operations may ask the user for approval). Never \
-             refuse a path on the grounds that it is outside this directory."
+            "Your file tools reach the folders the user granted you, and nothing else. The \
+             first is `{path}`: relative file paths resolve there. Writing may ask the user \
+             for approval. When a path is outside every granted folder, the tool refuses: tell \
+             the user to add that folder as a connection and grant it to you on your sheet."
         ),
-        None => "You have no default working directory: give file tools an absolute path. You \
-                 can read and write anywhere on the machine (sensitive operations may ask the \
-                 user for approval). Never refuse a path on the grounds that it is outside some \
-                 directory."
+        None => "No folder is granted to you, so your file tools refuse every path. When the \
+                 user asks you to work on a file, tell them to add its folder as a connection \
+                 and grant it to you on your sheet."
             .to_string(),
     }
 }

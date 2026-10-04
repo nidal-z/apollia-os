@@ -2,19 +2,23 @@
   "name": "profile-det (settings profile sub-page, operator + builder, explicit save via the shared footer, native selects exercised, fast-fail on data-dependent)",
   "stopOnError": false,
   "notes": [
-    "Code-verified against routes/settings/Profile.svelte + ui/select/Select.svelte + ui/dialog/{Dialog,ConfirmDialog}.svelte + routes/Settings.svelte.",
-    "The profile is backed by SemanticMemory under __user__ (profile_schema.rs). The seed sets preferences.language=fr but NOT name/role, so name+role start empty and are filled here.",
-    "profile-select-* are native <select> (Select.svelte passes data-testid onto the <select>); each is exercised with selectOption using a valid static option value. The onchange handler stages the value; nothing is persisted until the explicit save.",
-    "profile-radio-* testids sit on the RadioGroup container; individual RadioItem elements carry no testid and there is no radio-option primitive, so the group is asserted present only (an option cannot be picked).",
-    "profile-integ-github / profile-compliance-rgpd are <button role=checkbox> (Checkbox.svelte), NOT <input>; they are toggled with click (setChecked requires a native input and would throw).",
-    "The profile now saves EXPLICITLY: Profile.svelte wraps its cards in SettingsSubPage with onSave/onReset, so field edits mark the route dirty (settings-unsaved-badge) and are committed via settings-subpage-save + settings-save-toast-success. settings-saved-hint renders only while the sub-page is clean (Settings.svelte), so it is asserted AFTER the save, not after a field change.",
-    "The route must be left clean before navigating away: the settings nav guard opens settings-unsaved-dialog on a dirty route, and that modal blocks every later section of master-det. Hence the explicit save before the danger-zone block.",
-    "profile-enrichment-banner shows when name AND role are non-empty and at least one TIER2 key is empty (ProfileEnrichmentBanner.svelte:23-29, profileForm.ts:34-47), so it is present deterministically from the role fill onwards (agents.trigger, tech.integrations and constraints.compliance stay empty). The block right after the role fill plays resume first (onboardingResumeMode + onboardingModalOpen, :31-34; App.svelte:223 mounts OnboardingModal on the welcome step since the boot-time skip only wrote onboarding_skipped, and its footer shows onboarding-skip, OnboardingModal.svelte:275-283), closes the modal with onboarding-skip (handleSkip -> dismiss_onboarding, idempotent, then onclose), and dismiss second, since `dismissed` is component-local (:21). The builder pass remounts Profile, so the banner reappears there and is captured by screenshot only.",
-    "Profile.svelte has zero uiMode-conditional rendering; the builder pass asserts mode-invariance of the same fields."
+    "Code-verified against routes/settings/Profile.svelte, components/settings/profile/{ProfileListCard,ProfileFieldsCard,ProfileResetDialog,ProfileEnrichmentBanner}.svelte and ui/dialog/{Dialog,ConfirmDialog}.svelte.",
+    "The fields are drawn from the list Rust sends with the profile (name, role, function, tools, preferences, free_text), each input carrying profile-field-<key>; they are declared in dynamicTestids since the id is built from the key.",
+    "The profile saves EXPLICITLY: field edits mark the route dirty (settings-unsaved-badge) and are committed via settings-subpage-save + settings-save-toast-success; settings-saved-hint renders only while the sub-page is clean, so it is asserted after the save. The route is left clean before navigating away, since the nav guard modal would block every later section of master-det.",
+    "profile-enrichment-banner shows when name AND role are non-empty and at least one field is still empty (shouldOfferEnrichment in profileForm.ts), so it is present from the role fill onwards; resume opens the onboarding modal, onboarding-skip closes it, dismiss hides the banner (component-local state).",
+    "The profiles block creates \"Formateur\" (it is displayed at once), makes it the default through its row menu (the list puts the default first, hence nth 0 afterwards), opens the menu of the default to see the deletion refused with its reason, opens the reset of the default (two choices, the second relaunches the onboarding) and cancels it, gives the default back to the first profile and deletes \"Formateur\". The seed holds one profile, so the run leaves the profiles as it found them.",
+    "Profile.svelte has no developer-mode branch outside the facts card (key column and key field of the add form), so the builder pass asserts the same list and fields."
   ],
   "dynamicTestids": [
-    "profile-compliance-rgpd",
-    "profile-integ-github",
+    "profile-field-free_text",
+    "profile-field-function",
+    "profile-field-name",
+    "profile-field-preferences",
+    "profile-field-role",
+    "profile-field-tools",
+    "profile-menu-delete",
+    "profile-menu-reset",
+    "profile-menu-set_default",
     "settings-nav-developer",
     "settings-nav-profile"
   ],
@@ -84,12 +88,12 @@
     },
     {
       "kind": "fill",
-      "testid": "profile-input-name",
+      "testid": "profile-field-name",
       "text": "Automation Tester"
     },
     {
       "kind": "fill",
-      "testid": "profile-input-role",
+      "testid": "profile-field-role",
       "text": "Automation QA engineer"
     },
     {
@@ -144,22 +148,22 @@
     },
     {
       "kind": "fill",
-      "testid": "profile-input-tech-stack",
-      "text": "Rust, Svelte, Python"
+      "testid": "profile-field-function",
+      "text": "Desktop quality"
     },
     {
       "kind": "fill",
-      "testid": "profile-input-tools-daily",
+      "testid": "profile-field-tools",
       "text": "VSCode, Terminal, Figma"
     },
     {
       "kind": "fill",
-      "testid": "profile-input-agent-domains",
-      "text": "email triage, reporting"
+      "testid": "profile-field-preferences",
+      "text": "Short answers, in English"
     },
     {
       "kind": "fill",
-      "testid": "profile-textarea-goals",
+      "testid": "profile-field-free_text",
       "text": "Automate desktop UI regression coverage."
     },
     {
@@ -168,61 +172,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "02-profile-inputs-filled"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "profile-select-sector",
-      "value": "fintech",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 300
-    },
-    {
-      "kind": "selectOption",
-      "testid": "profile-select-team-size",
-      "value": "2-5",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 300
-    },
-    {
-      "kind": "selectOption",
-      "testid": "profile-select-proficiency",
-      "value": "avance",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 300
-    },
-    {
-      "kind": "selectOption",
-      "testid": "profile-select-language",
-      "value": "en",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 300
-    },
-    {
-      "kind": "selectOption",
-      "testid": "profile-select-llm",
-      "value": "local",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "screenshot",
-      "label": "03-profile-selects-chosen"
+      "label": "02-profile-fields-filled"
     },
     {
       "kind": "waitFor",
@@ -232,98 +182,6 @@
     {
       "kind": "screenshot",
       "label": "04-profile-unsaved-badge"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-radio-hitl",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-radio-trigger",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-radio-sovereignty",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "profile-radio-hitl",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "profile-radio-trigger",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "profile-radio-sovereignty",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 200
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-profile-radios-present"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-integ-github",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "profile-integ-github"
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "screenshot",
-      "label": "06-profile-integ-on"
-    },
-    {
-      "kind": "click",
-      "testid": "profile-integ-github"
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-compliance-rgpd",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "profile-compliance-rgpd"
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-profile-compliance-on"
-    },
-    {
-      "kind": "click",
-      "testid": "profile-compliance-rgpd"
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-profile-enrichment-banner-best-effort"
     },
     {
       "kind": "waitFor",
@@ -346,37 +204,160 @@
     },
     {
       "kind": "screenshot",
-      "label": "08b-profile-saved"
+      "label": "05-profile-saved"
     },
     {
       "kind": "click",
-      "testid": "profile-reset-button"
+      "testid": "profile-new"
     },
     {
       "kind": "waitFor",
-      "testid": "profile-reset-confirm",
+      "testid": "profile-create-dialog",
       "timeoutMs": 4000
     },
     {
+      "kind": "fill",
+      "testid": "profile-create-name",
+      "text": "Formateur"
+    },
+    {
       "kind": "screenshot",
-      "label": "09-profile-reset-confirm-open"
+      "label": "06-profile-create-dialog"
     },
     {
       "kind": "click",
-      "testid": "profile-reset-confirm-cancel"
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
+      "testid": "profile-create-confirm"
     },
     {
       "kind": "waitGone",
-      "testid": "profile-reset-confirm",
+      "testid": "profile-create-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "profile-list",
+      "contains": "Formateur"
+    },
+    {
+      "kind": "expect",
+      "testid": "profile-fields",
+      "contains": "Formateur"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-profile-formateur-displayed"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-row-menu",
+      "nth": 1
+    },
+    {
+      "kind": "click",
+      "testid": "profile-menu-set_default",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "expect",
+      "testid": "profile-row",
+      "nth": 0,
+      "contains": "Formateur"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-profile-formateur-default"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-row-menu",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-menu-delete-reason",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "10-profile-reset-cancelled"
+      "label": "09-profile-default-delete-refused"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-menu-reset",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-reset-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-reset-and-onboard",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-profile-reset-default-choices"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-reset-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "profile-reset-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "profile-row-menu",
+      "nth": 1
+    },
+    {
+      "kind": "click",
+      "testid": "profile-menu-set_default",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "click",
+      "testid": "profile-row-menu",
+      "nth": 1
+    },
+    {
+      "kind": "click",
+      "testid": "profile-menu-delete",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-delete-dialog-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-profile-delete-confirm"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-delete-dialog-confirm"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "profile-delete-dialog-confirm",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-profile-formateur-deleted"
     },
     {
       "kind": "goto",
@@ -424,36 +405,26 @@
     },
     {
       "kind": "screenshot",
-      "label": "11-profile-builder"
+      "label": "13-profile-builder"
     },
     {
       "kind": "waitFor",
-      "testid": "profile-select-sector",
+      "testid": "profile-list",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "profile-select-llm",
+      "testid": "profile-field-name",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "profile-radio-hitl",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-integ-github",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-reset-button",
+      "testid": "profile-field-free_text",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "12-profile-builder-fields-invariant"
+      "label": "14-profile-builder-fields-invariant"
     },
     {
       "kind": "goto",
@@ -501,7 +472,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "13-back-operator"
+      "label": "15-back-operator"
     }
   ]
 }

@@ -101,8 +101,6 @@ impl ChatSessionManagerHandle {
         user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
         registry_handle: AgentRegistryHandle,
         a2a_invoker: Option<Arc<A2AInvoker>>,
-        project_context: Option<Arc<dyn ProjectContextProvider>>,
-        project_repo: Option<Arc<ProjectRepository>>,
         mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
         // Supervisor-built config so the chat dispatcher can include
         // config-dependent natives (web_search, web_read, http_fetch,
@@ -188,8 +186,6 @@ impl ChatSessionManagerHandle {
             enrichment_extractor,
             tx: tx.clone(),
             a2a_invoker,
-            project_context,
-            project_repo,
             pending_user_inputs: pending_user_inputs.clone(),
             mcp_handle,
             chat_tools_config,
@@ -260,7 +256,6 @@ impl ChatSessionManagerHandle {
             agent_name,
             system_prompt,
             tools,
-            project_id,
         } = params;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -269,7 +264,6 @@ impl ChatSessionManagerHandle {
                 agent_name,
                 system_prompt,
                 tools,
-                project_id,
                 reply: reply_tx,
             })
             .await

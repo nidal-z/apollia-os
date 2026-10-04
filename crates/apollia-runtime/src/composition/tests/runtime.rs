@@ -304,8 +304,6 @@ async fn fixture() -> Fixture {
         Some(Arc::clone(&a2a)),
         None,
         None,
-        None,
-        None,
         LoadingMode::Eager,
         20,
         None,

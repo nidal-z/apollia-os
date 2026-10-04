@@ -68,3 +68,12 @@ VALUES
 
 INSERT INTO package_agents (package_name, agent_name)
 VALUES ('seed-office-pack', 'seed-classifier');
+
+-- The access of the Apollia agent (`apollia:chat`): the web reading tools, and
+-- the file tools of the checkout folder (fragments/system.sql, `seed-checkout`),
+-- reading and writing, so the -llama books that read and write under the
+-- checkout keep a folder to work in.
+INSERT INTO agent_overrides (agent, field, value_json, updated_at)
+VALUES ('apollia:chat', 'access',
+        '["web_search","web_read","conn:folder:seed-checkout/file_read","conn:folder:seed-checkout/file_list","conn:folder:seed-checkout/file_glob","conn:folder:seed-checkout/file_grep","conn:folder:seed-checkout/file_write","conn:folder:seed-checkout/file_edit"]',
+        '2026-07-01T00:00:00Z');

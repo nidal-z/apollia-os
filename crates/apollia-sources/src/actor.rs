@@ -5,12 +5,14 @@
 //! SQLite calls block, so the actor runs on a thread of its own rather than on
 //! the async workers. It stops when the last handle is dropped.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use apollia_core::source_registry::{NewSource, Source, SourceRegistryError, SourceRegistryStore};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::checked::{checked_sources, CheckedSource};
+use crate::index::IndexError;
+use crate::search::{search_sources, SourcesQuery, SourcesSearchOutcome};
 
 /// Capacity of the command channel: a caller past it waits for room.
 pub const COMMAND_CAPACITY: usize = 64;
@@ -28,6 +30,12 @@ pub enum SourcesError {
     /// The actor has stopped and answers no more.
     #[error("the source registry has stopped")]
     Stopped,
+    /// An index could not be opened or searched.
+    #[error(transparent)]
+    Index(#[from] IndexError),
+    /// The registry file has no directory to hold the indexes in.
+    #[error("the source registry has no data directory")]
+    NoDataDirectory,
 }
 
 type Reply<T> = oneshot::Sender<Result<T, SourceRegistryError>>;
@@ -38,6 +46,10 @@ enum Command {
     Delete(String, Reply<Source>),
     CheckEntries(Vec<String>, Reply<()>),
     Checked(String, Vec<String>, Reply<Vec<CheckedSource>>),
+    Search(
+        SourcesQuery,
+        oneshot::Sender<Result<SourcesSearchOutcome, SourcesError>>,
+    ),
 }
 
 /// A clonable handle to the registry actor.
@@ -50,17 +62,20 @@ impl SourceRegistryHandle {
     /// Opens the registry of the `system.db` at `path` and starts its actor.
     ///
     /// The file is opened, and brought to the current schema, before this
-    /// returns: a registry that cannot be read is known at startup.
+    /// returns: a registry that cannot be read is known at startup. The
+    /// directory holding it is the data directory, where the indexes of the
+    /// sources live.
     ///
     /// # Errors
     /// [`SourcesError::Registry`] when the file cannot be opened or migrated,
     /// [`SourcesError::Spawn`] when the thread cannot be started.
     pub fn open(path: &Path) -> Result<Self, SourcesError> {
         let store = SourceRegistryStore::open(path)?;
+        let data_dir = path.parent().map(Path::to_path_buf);
         let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
         std::thread::Builder::new()
             .name("apollia-source-registry".to_owned())
-            .spawn(move || run(store, rx))
+            .spawn(move || run(store, data_dir, rx))
             .map_err(SourcesError::Spawn)?;
         Ok(Self { tx })
     }
@@ -90,7 +105,7 @@ impl SourceRegistryHandle {
         self.ask(|reply| Command::Create(source, reply)).await
     }
 
-    /// Removes the source `id` and returns it.
+    /// Removes the source `id` and its index, and returns it.
     ///
     /// # Errors
     /// As [`SourceRegistryStore::delete`], or [`SourcesError::Stopped`].
@@ -122,10 +137,27 @@ impl SourceRegistryHandle {
         self.ask(|reply| Command::Checked(agent, entries, reply))
             .await
     }
+
+    /// Searches the indexes of the sources `query` names; see
+    /// [`search_sources`]. The caller has already bounded the list to the
+    /// sources the agent checked.
+    ///
+    /// # Errors
+    /// [`SourcesError::Index`] when an index cannot be read,
+    /// [`SourcesError::NoDataDirectory`] for a registry outside any
+    /// directory, or [`SourcesError::Stopped`].
+    pub async fn search(&self, query: SourcesQuery) -> Result<SourcesSearchOutcome, SourcesError> {
+        let (reply, answer) = oneshot::channel();
+        self.tx
+            .send(Command::Search(query, reply))
+            .await
+            .map_err(|_| SourcesError::Stopped)?;
+        answer.await.map_err(|_| SourcesError::Stopped)?
+    }
 }
 
 /// The actor loop: one command at a time, until every handle is gone.
-fn run(store: SourceRegistryStore, mut rx: mpsc::Receiver<Command>) {
+fn run(store: SourceRegistryStore, data_dir: Option<PathBuf>, mut rx: mpsc::Receiver<Command>) {
     tracing::event!(tracing::Level::DEBUG, "sources.registry.started");
     while let Some(command) = rx.blocking_recv() {
         // A caller that gave up has dropped its receiver; its answer is moot.
@@ -153,6 +185,7 @@ fn run(store: SourceRegistryStore, mut rx: mpsc::Receiver<Command>) {
                         source = %id,
                         "sources.registry.deleted"
                     );
+                    remove_index_of(data_dir.as_deref(), &id);
                 }
                 let _ = reply.send(deleted);
             }
@@ -165,9 +198,33 @@ fn run(store: SourceRegistryStore, mut rx: mpsc::Receiver<Command>) {
                     .map(|registry| checked_sources(&agent, &entries, &registry));
                 let _ = reply.send(checked);
             }
+            Command::Search(query, reply) => {
+                let outcome = match data_dir.as_deref() {
+                    Some(dir) => search_sources(dir, &query).map_err(SourcesError::from),
+                    None => Err(SourcesError::NoDataDirectory),
+                };
+                let _ = reply.send(outcome);
+            }
         }
     }
     tracing::event!(tracing::Level::DEBUG, "sources.registry.stopped");
+}
+
+/// Removes the index of a source just deleted. The source is gone whatever
+/// happens here, so a file that cannot be removed is reported, not returned:
+/// it is an orphan, never read again.
+fn remove_index_of(data_dir: Option<&Path>, id: &str) {
+    let Some(data_dir) = data_dir else {
+        return;
+    };
+    if let Err(e) = crate::index::remove_index(data_dir, id) {
+        tracing::event!(
+            tracing::Level::WARN,
+            source = %id,
+            error = %e,
+            "sources.index.remove_failed"
+        );
+    }
 }
 
 #[cfg(test)]

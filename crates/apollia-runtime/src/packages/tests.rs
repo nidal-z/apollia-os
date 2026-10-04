@@ -107,6 +107,7 @@ pub(super) fn connection(id: &str, kind: ConnectionKind) -> Connection {
         kind,
         label: id.rsplit(':').next().unwrap_or(id).to_owned(),
         account: None,
+        path: None,
         provenance: Provenance::Custom,
         remote: false,
         official: false,

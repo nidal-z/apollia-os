@@ -415,3 +415,93 @@ fn a_profile_is_renamed_and_an_empty_name_is_refused() {
     assert_eq!(repo.profile(&other.id).unwrap().unwrap().name, "Formatrice");
     assert!(matches!(blank, Err(UserMemoryError::InvalidKey(_))));
 }
+
+#[test]
+fn each_profile_keeps_its_own_facts_across_a_change_of_default() {
+    // GIVEN a default profile with one fact and a second profile with another
+    let (repo, _) = setup();
+    let default = repo.default_profile().unwrap();
+    let trainer = repo.create_profile("Formateur").unwrap();
+    repo.set_in(&default, "timezone", "Paris", WrittenBy::User)
+        .unwrap();
+    repo.set_in(&trainer, "audience", "adults", WrittenBy::User)
+        .unwrap();
+
+    // WHEN the second profile becomes the default
+    repo.set_default_profile(&trainer.id).unwrap();
+    let default = repo.profile(&default.id).unwrap().unwrap();
+    let trainer = repo.profile(&trainer.id).unwrap().unwrap();
+
+    // THEN each profile still reads its own fact and not the other one, and
+    // the key-value view of the default now reads the trainer's facts
+    let keys = |p: &Profile| -> Vec<String> {
+        repo.list_all_in(p)
+            .unwrap()
+            .into_iter()
+            .filter(|e| !e.in_schema)
+            .map(|e| e.key)
+            .collect()
+    };
+    assert_eq!(keys(&default), vec!["timezone".to_owned()]);
+    assert_eq!(keys(&trainer), vec!["audience".to_owned()]);
+    assert_eq!(repo.list_extras().unwrap()[0].key, "audience");
+}
+
+#[test]
+fn deleting_or_resetting_a_profile_takes_its_facts_and_keeps_the_others() {
+    // GIVEN two profiles with one fact each and an onboarding marker
+    let (repo, _) = setup();
+    let default = repo.default_profile().unwrap();
+    let trainer = repo.create_profile("Formateur").unwrap();
+    let volunteer = repo.create_profile("Association").unwrap();
+    repo.set_in(&default, "timezone", "Paris", WrittenBy::User)
+        .unwrap();
+    repo.set_in(&trainer, "audience", "adults", WrittenBy::User)
+        .unwrap();
+    repo.set_in(&volunteer, "role_in_club", "treasurer", WrittenBy::User)
+        .unwrap();
+    repo.set_in(&volunteer, "name", "Claire", WrittenBy::User)
+        .unwrap();
+    repo.set_onboarding_skipped(true).unwrap();
+
+    // WHEN the trainer is deleted and the volunteer reset
+    repo.delete_profile(&trainer.id).unwrap();
+    let volunteer = repo.profile(&volunteer.id).unwrap().unwrap();
+    let removed = repo.reset_in(&volunteer).unwrap();
+
+    // THEN the volunteer lost its field and its fact, the trainer's fact is
+    // gone with it, and the default's fact and the marker remain
+    assert_eq!(removed, 2);
+    let volunteer = repo.profile(&volunteer.id).unwrap().unwrap();
+    assert!(repo.list_all_in(&volunteer).unwrap().is_empty());
+    assert!(repo.get_in(&volunteer, "audience").unwrap().is_none());
+    assert_eq!(repo.list_extras().unwrap().len(), 1);
+    assert!(repo.get_onboarding_skipped().unwrap());
+    let semantic = crate::semantic::SemanticMemory::new(&repo.store);
+    assert!(semantic
+        .recall_all(&facts::parked_namespace(&trainer.id), None)
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
+fn a_fact_of_a_profile_is_forgotten_in_that_profile_only() {
+    // GIVEN the same key retained in two profiles
+    let (repo, _) = setup();
+    let default = repo.default_profile().unwrap();
+    let trainer = repo.create_profile("Formateur").unwrap();
+    repo.set_in(&default, "timezone", "Paris", WrittenBy::User)
+        .unwrap();
+    repo.set_in(&trainer, "timezone", "Lyon", WrittenBy::User)
+        .unwrap();
+
+    // WHEN the trainer forgets it
+    repo.forget_in(&trainer, "timezone").unwrap();
+
+    // THEN the default keeps its own, and forgetting again says not found
+    assert_eq!(repo.get("timezone").unwrap().unwrap().value, "Paris");
+    assert!(matches!(
+        repo.forget_in(&trainer, "timezone"),
+        Err(UserMemoryError::NotFound(_))
+    ));
+}

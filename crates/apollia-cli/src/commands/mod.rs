@@ -101,7 +101,6 @@ pub mod package;
 pub mod permissions;
 pub mod plan_cache;
 pub mod policy;
-pub mod project;
 pub mod resilience;
 pub mod review;
 pub mod run;

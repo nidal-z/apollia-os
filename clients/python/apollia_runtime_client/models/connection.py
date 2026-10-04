@@ -23,7 +23,7 @@ class Connection:
 
     Attributes:
         id (str): Stable identifier: `mcp:<server>`, `native:<provider>:<account>`,
-            `imap:<address>`.
+            `imap:<address>`, `folder:<id>`.
         kind (ConnectionKind): The kind of thing a connection plugs in.
         label (str): Name shown to the user: the server name, or the provider.
         official (bool): Published by the service's own publisher.
@@ -32,6 +32,7 @@ class Connection:
         state (ConnectionState): Whether a connection can be used right now.
         tools (list[ConnectionTool]): Tools the connection brings.
         account (None | str | Unset): Account the connection acts as, when it has one.
+        path (None | str | Unset): Folder of this machine the connection opens, for a folder.
     """
 
     id: str
@@ -43,6 +44,7 @@ class Connection:
     state: ConnectionState
     tools: list[ConnectionTool]
     account: None | str | Unset = UNSET
+    path: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -71,6 +73,12 @@ class Connection:
         else:
             account = self.account
 
+        path: None | str | Unset
+        if isinstance(self.path, Unset):
+            path = UNSET
+        else:
+            path = self.path
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -87,6 +95,8 @@ class Connection:
         )
         if account is not UNSET:
             field_dict["account"] = account
+        if path is not UNSET:
+            field_dict["path"] = path
 
         return field_dict
 
@@ -125,6 +135,15 @@ class Connection:
 
         account = _parse_account(d.pop("account", UNSET))
 
+        def _parse_path(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        path = _parse_path(d.pop("path", UNSET))
+
         connection = cls(
             id=id,
             kind=kind,
@@ -135,6 +154,7 @@ class Connection:
             state=state,
             tools=tools,
             account=account,
+            path=path,
         )
 
         connection.additional_properties = d
