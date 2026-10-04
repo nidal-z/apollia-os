@@ -80,8 +80,8 @@ impl LocalEngine for FakeEngine {
         })
     }
 
-    fn max_loaded(&self) -> usize {
-        1
+    fn max_loaded(&self) -> Option<usize> {
+        Some(1)
     }
 
     fn reads_llama_cpp_grammar(&self) -> bool {

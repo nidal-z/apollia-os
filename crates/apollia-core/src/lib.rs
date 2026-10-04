@@ -31,6 +31,7 @@ pub mod last_loaded_model;
 pub mod llm_backend;
 pub mod manifest;
 pub mod mcp_health;
+pub mod model_pins;
 pub mod model_preset;
 #[cfg(feature = "net")]
 pub mod net;
@@ -77,8 +78,8 @@ pub use decision_point::{ConsideredAlternative, DecisionKind, DecisionPoint};
 pub use embedding_default::{EmbeddingDefaultError, EmbeddingDefaultStore};
 pub use error_analysis::{ErrorAnalysis, ErrorCategory};
 pub use events::{
-    resilient, subscribe_resilient, AgentId, EventBusSender, FilesystemPreview, Received,
-    ResilientReceiver, RunId, RuntimeEvent, TaskId, ToolCallRationale,
+    resilient, subscribe_resilient, AgentId, EventBusSender, FilesystemPreview, ModelUnloadReason,
+    Received, ResilientReceiver, RunId, RuntimeEvent, TaskId, ToolCallRationale,
 };
 pub use folder_connection::{FolderConnection, FolderConnectionError, FolderConnectionStore};
 pub use hitl_payload::{

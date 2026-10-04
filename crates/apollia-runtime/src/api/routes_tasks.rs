@@ -14,7 +14,11 @@ use crate::coordinator::ExecutionBackend;
 use crate::router::SubmitError;
 
 mod declarative;
+/// The A2A delegation tree of a task.
+pub mod delegation;
 mod pause;
+/// The hard deletion of a stored task.
+pub mod record;
 /// The task list an operator reads, history included.
 pub mod summaries;
 pub use pause::ResumeErrorBody;
@@ -912,8 +916,10 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            config_reload: None,
             llm_call_repository: None,
             trigger_def_repo: None,
             notification_repo: None,
@@ -974,8 +980,10 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            config_reload: None,
             llm_call_repository: None,
             trigger_def_repo: None,
             notification_repo: None,
@@ -1157,8 +1165,10 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            config_reload: None,
             llm_call_repository: None,
             trigger_def_repo: None,
             notification_repo: None,
@@ -1252,8 +1262,10 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            config_reload: None,
             llm_call_repository: None,
             trigger_def_repo: None,
             notification_repo: None,
@@ -1591,8 +1603,10 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            config_reload: None,
             llm_call_repository: None,
             trigger_def_repo: None,
             notification_repo: None,
@@ -1727,8 +1741,10 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            config_reload: None,
             llm_call_repository: None,
             trigger_def_repo: None,
             notification_repo: None,

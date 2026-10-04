@@ -45,7 +45,9 @@ impl GovernanceContract for TestGovernance {
     }
 
     fn decide(&self, _call: &AccessCall<'_>) -> AccessDecision {
-        AccessDecision::Allowed
+        AccessDecision::Allowed {
+            reason: crate::governance::DecisionReason::NoConsentNeeded,
+        }
     }
 
     fn signature_required(&self, _subject: &InstallSubject<'_>) -> bool {

@@ -24,9 +24,9 @@ fn session(id: &str) -> SessionInfo {
 
 #[test]
 fn test_a_command_not_routed_is_refused_in_attached_mode_with_a_readable_error() {
-    // GIVEN the application attached to a daemon, and a command whose body
-    // reads state only the embedded runtime builds
-    let command = "get_delegation_tree";
+    // GIVEN the application attached to a daemon, and a command on neither
+    // list, named so that no family routed later can take it
+    let command = "read_state_only_the_embedded_runtime_builds";
 
     // WHEN the gate is asked before the body runs
     let refusal = gate(LinkMode::Attached, command);
@@ -37,14 +37,8 @@ fn test_a_command_not_routed_is_refused_in_attached_mode_with_a_readable_error()
     assert!(matches!(&error, AttachedError::NotRouted { command: c } if c == command));
     let fr = error.for_display(UiLocale::Fr);
     let en = error.for_display(UiLocale::En);
-    assert!(
-        fr.contains("get_delegation_tree") && fr.contains("en service"),
-        "{fr}"
-    );
-    assert!(
-        en.contains("get_delegation_tree") && en.contains("as a service"),
-        "{en}"
-    );
+    assert!(fr.contains(command) && fr.contains("en service"), "{fr}");
+    assert!(en.contains(command) && en.contains("as a service"), "{en}");
 }
 
 #[test]
@@ -85,7 +79,10 @@ fn test_every_routed_command_passes_the_gate_in_attached_mode() {
 fn test_the_embedded_mode_lets_every_command_through() {
     // GIVEN the runtime running in this process
     // WHEN a command not routed is gated
-    let verdict = gate(LinkMode::Embedded, "get_delegation_tree");
+    let verdict = gate(
+        LinkMode::Embedded,
+        "read_state_only_the_embedded_runtime_builds",
+    );
 
     // THEN it runs as it always did
     assert!(verdict.is_ok());

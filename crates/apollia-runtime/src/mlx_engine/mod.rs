@@ -13,6 +13,7 @@
 //! tests replace by a stand-in process answering `/health`.
 
 mod locate;
+mod room;
 
 pub use locate::{locate, MlxLaunch, ENV_ENGINE_DIR, ENV_PYTHON};
 
@@ -41,10 +42,6 @@ const DEFAULT_N_CTX: u32 = 32_768;
 /// `layers on the accelerator` reported for an MLX model: all of them, since
 /// MLX runs the whole model on the GPU of the unified memory.
 const ALL_LAYERS: i32 = 999;
-
-/// Models kept resident at once. One, like `llama-server`'s default: a second
-/// resident model commits its weights for as long as it stays loaded.
-const MAX_LOADED: usize = 1;
 
 /// Timeouts and intervals of the supervision, replaced in tests.
 #[derive(Debug, Clone, Copy)]
@@ -84,6 +81,9 @@ struct Instance {
     loaded_at: DateTime<Utc>,
     last_used_at: DateTime<Utc>,
     in_flight: Arc<AtomicUsize>,
+    /// Footprint the load guardrail estimated at launch, in gigabytes; `None`
+    /// when it was not estimated.
+    footprint_gb: Option<f64>,
 }
 
 impl Instance {
@@ -149,6 +149,9 @@ pub struct MlxEngineSupervisor {
     /// `apollia.toml`, whose `[llm.guardrails]` is read at every launch.
     /// `None` holds every launch to the default level.
     config_file: Option<PathBuf>,
+    /// The leases and pins that keep a model loaded, shared with the other
+    /// engine. Unset, every resident model may be unloaded to make room.
+    residency: std::sync::OnceLock<Arc<crate::residency::Residency>>,
     /// The guardrail settings the organisation policy fixes, over the file.
     imposed: apollia_core::config::PolicySettings,
 }
@@ -203,6 +206,7 @@ impl MlxEngineSupervisor {
             respawn_lock: Mutex::new(()),
             shutting_down: AtomicBool::new(false),
             config_file: None,
+            residency: std::sync::OnceLock::new(),
             imposed: apollia_core::config::PolicySettings::none(),
         }
     }
@@ -241,35 +245,12 @@ impl MlxEngineSupervisor {
         Some(instances[idx].lease())
     }
 
-    /// Stop least recently used processes until one more fits.
-    async fn evict_until_below_ceiling(&self) {
-        let mut instances = self.instances.lock().await;
-        while instances.len() >= MAX_LOADED {
-            let Some(idx) = instances
-                .iter()
-                .enumerate()
-                .min_by_key(|(_, i)| i.last_used)
-                .map(|(idx, _)| idx)
-            else {
-                return;
-            };
-            let mut evicted = instances.remove(idx);
-            tracing::event!(
-                tracing::Level::INFO,
-                model = %evicted.model_path,
-                port = evicted.port,
-                "mlx.engine.instance.evicted"
-            );
-            let _ = evicted.child.kill().await;
-            let _ = evicted.child.wait().await;
-        }
-    }
-
     /// Make `model_path` servable and return a lease on its process.
     ///
-    /// A launch is first held to the load guardrail, before the resident model
-    /// is stopped to make room; `consent` says whether the user confirmed a
-    /// launch the guardrail would refuse.
+    /// A launch is first held to the load guardrail, the resident models
+    /// counted; the ones nothing holds are stopped to make room when the sum
+    /// is refused (see [`crate::residency::room`]). `consent` says whether the
+    /// user confirmed a launch the guardrail would refuse.
     ///
     /// # Errors
     ///
@@ -287,43 +268,48 @@ impl MlxEngineSupervisor {
             return Ok(lease);
         }
         let n_ctx = Self::window(&model_path, n_ctx);
-        self.admit(&model_path, n_ctx, consent).await?;
-        self.evict_until_below_ceiling().await;
-        self.spawn_instance(model_path, n_ctx).await
+        let footprint_gb = self.admit(&model_path, n_ctx, consent).await?;
+        let lease = self.spawn_instance(model_path, n_ctx).await?;
+        self.record_footprint(lease.base_url(), footprint_gb).await;
+        Ok(lease)
     }
 
     /// Hold the launch of `model_path` at `n_ctx` to the guardrail in force
-    /// now, read from `apollia.toml` at every call. One sequence, as served.
+    /// now, read from `apollia.toml` at every call, with the resident models
+    /// counted. One sequence, as served. Returns the footprint judged, in
+    /// gigabytes.
     async fn admit(
         &self,
         model_path: &str,
         n_ctx: u32,
         consent: LoadConsent,
-    ) -> Result<(), LocalEngineError> {
+    ) -> Result<Option<f64>, LocalEngineError> {
         let config_file = self.config_file.clone();
         let imposed = self.imposed.clone();
-        let model_path = model_path.to_owned();
-        let judged = tokio::task::spawn_blocking(move || {
+        let folder = model_path.to_owned();
+        let sized = tokio::task::spawn_blocking(move || {
             let policy = GuardrailPolicy::read_under(config_file.as_deref(), &imposed);
             if policy.level == guardrails::GuardrailLevel::Disabled {
-                return Ok(());
+                return (policy, None);
             }
             let shape = apollia_llm::recommend::RuntimeShape {
                 n_ctx,
                 n_parallel: 1,
                 ..apollia_llm::recommend::RuntimeShape::default()
             };
-            let estimate = LoadEstimate::mlx(
-                Path::new(&model_path),
-                &shape,
-                &apollia_llm::hardware::detect(),
-            );
-            guardrails::enforce(&policy, estimate.as_ref(), consent, &model_path)
+            let estimate =
+                LoadEstimate::mlx(Path::new(&folder), &shape, &apollia_llm::hardware::detect());
+            (policy, estimate)
         })
         .await;
         // A panicked estimate is no estimate: the launch goes ahead, as for a
         // folder without its configuration.
-        judged.unwrap_or(Ok(())).map_err(LocalEngineError::from)
+        let Ok((policy, estimate)) = sized else {
+            return Ok(None);
+        };
+        self.judge_with_residents(&policy, estimate, consent, model_path)
+            .await
+            .map_err(LocalEngineError::from)
     }
 
     /// Launch a process for `model_path` and wait until it is healthy.
@@ -385,6 +371,7 @@ impl MlxEngineSupervisor {
             loaded_at: now,
             last_used_at: now,
             in_flight: Arc::new(AtomicUsize::new(0)),
+            footprint_gb: None,
         };
         let lease = instance.lease();
         tracing::event!(
@@ -617,8 +604,8 @@ impl LocalEngine for MlxEngineSupervisor {
         MlxEngineSupervisor::unload_model(self, model_path).await
     }
 
-    fn max_loaded(&self) -> usize {
-        MAX_LOADED
+    fn max_loaded(&self) -> Option<usize> {
+        None
     }
 
     fn reads_llama_cpp_grammar(&self) -> bool {

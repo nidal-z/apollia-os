@@ -12,10 +12,11 @@
 //! This supervisor owns the `llama-server` child processes: it picks a loopback
 //! port, launches the binary, waits for `/health`, and respawns a process if it
 //! dies. A process serves exactly one model, so serving several means running
-//! several. [`ENV_MAX_LOADED`] caps how many stay resident, defaulting to one,
-//! which reproduces the historical behaviour of stopping the running server on
-//! every model change. Whisper STT still lives in `apollia-runner`; only the LLM
-//! engine moves here.
+//! several. How many stay resident is what the load guardrail admits, the
+//! footprints of the resident models added to the new one's (see `room`);
+//! [`ENV_MAX_LOADED`] is an optional explicit ceiling on top. The residency
+//! rules unload a model nothing uses any more (see [`crate::residency`]).
+//! Whisper STT still lives in `apollia-runner`; only the LLM engine moves here.
 
 mod config;
 mod embeddings;
@@ -30,6 +31,7 @@ mod ngl;
 mod parallel;
 mod projector;
 mod reload;
+mod room;
 
 pub use config::{FlashAttn, LlamaServerConfig, ParseFlashAttnError, SpecType};
 #[cfg(test)]
@@ -120,6 +122,9 @@ struct Instance {
     /// alone. Such a process serves every request for its model, whatever
     /// window the request asks for (see `explicit`).
     explicit: bool,
+    /// Footprint the load guardrail estimated at launch, in gigabytes; `None`
+    /// when it was not estimated.
+    footprint_gb: Option<f64>,
 }
 
 impl Instance {
@@ -146,6 +151,7 @@ impl Instance {
             last_used_at: now,
             in_flight: Arc::new(AtomicUsize::new(0)),
             explicit: false,
+            footprint_gb: None,
         }
     }
 
@@ -159,37 +165,30 @@ impl Instance {
     }
 }
 
-/// Environment variable setting how many models stay resident at once.
+/// Environment variable setting an explicit ceiling on the resident models.
 const ENV_MAX_LOADED: &str = "APOLLIA_LLAMA_MAX_LOADED";
 
-/// Default number of resident models.
+/// Resolve [`ENV_MAX_LOADED`]: `None` when it is unset, so the load guardrail
+/// alone decides how many models stay resident.
 ///
-/// One, deliberately. Every additional resident model holds its weights in
-/// memory for as long as it stays loaded, and the right ceiling depends on the
-/// machine and on which models an installation actually alternates between.
-/// Auto-sizing it from total memory would silently commit gigabytes on the
-/// operator's behalf, so raising it is an explicit act.
-const DEFAULT_MAX_LOADED: usize = 1;
-
-/// Resolve [`ENV_MAX_LOADED`], floored at one.
-///
-/// A zero or unparseable value keeps the default rather than disabling local
-/// inference outright: a typo in an environment variable must not be the reason
-/// no model can load.
-fn resolve_max_loaded(get: impl Fn(&str) -> Option<String>) -> usize {
-    match get(ENV_MAX_LOADED) {
-        None => DEFAULT_MAX_LOADED,
-        Some(raw) => match raw.trim().parse::<usize>() {
-            Ok(n) if n >= 1 => n,
-            _ => {
-                tracing::warn!(
-                    var = ENV_MAX_LOADED,
-                    value = %raw,
-                    "llama.server.max_loaded.invalid"
-                );
-                DEFAULT_MAX_LOADED
-            }
-        },
+/// Every resident model holds its weights for as long as it stays loaded, so
+/// the guardrail weighs a new model with the resident ones added, and the
+/// residency rules give the memory of an unused model back. The variable is
+/// for an operator who wants a hard number on top. A zero or unparseable value
+/// is ignored rather than disabling local inference outright: a typo in an
+/// environment variable must not be the reason no model can load.
+fn resolve_max_loaded(get: impl Fn(&str) -> Option<String>) -> Option<usize> {
+    let raw = get(ENV_MAX_LOADED)?;
+    match raw.trim().parse::<usize>() {
+        Ok(n) if n >= 1 => Some(n),
+        _ => {
+            tracing::warn!(
+                var = ENV_MAX_LOADED,
+                value = %raw,
+                "llama.server.max_loaded.invalid"
+            );
+            None
+        }
     }
 }
 
@@ -209,11 +208,11 @@ const SUPERVISION_POLL: Duration = Duration::from_secs(2);
 
 /// Supervisor that owns the embedded `llama-server` child processes.
 ///
-/// Holds up to [`ENV_MAX_LOADED`] models resident at once, evicting the least
-/// recently used beyond that. With the default of one this is the historical
-/// behaviour exactly: every model change stops the running process and starts
-/// another. Raising it trades memory for hand-off latency, which is the whole
-/// cost of a fleet of agents that do not share a model.
+/// Holds as many models resident as the load guardrail admits, the resident
+/// footprints counted, and up to [`ENV_MAX_LOADED`] when that ceiling is set,
+/// evicting the least recently used beyond it. A second resident model trades
+/// memory for hand-off latency, which is the whole cost of a fleet of agents
+/// that do not share a model.
 ///
 /// Cloneable state lives behind `Arc`; the supervisor itself is held behind an
 /// `Arc` by the runtime so the supervision task can respawn a dead child.
@@ -226,8 +225,9 @@ pub struct LlamaServerSupervisor {
     /// in the environment has said what they want, and it wins over what a
     /// backend asks for.
     n_ctx_pinned: bool,
-    /// How many models may stay resident simultaneously. At least one.
-    max_loaded: usize,
+    /// Explicit ceiling on the resident models, `None` when the load guardrail
+    /// alone decides. At least one when set.
+    max_loaded: Option<usize>,
     /// Launch configuration shared by every instance. Its `model_path` is a
     /// template slot: the real path is supplied per instance at spawn.
     config: Arc<Mutex<LlamaServerConfig>>,
@@ -251,6 +251,9 @@ pub struct LlamaServerSupervisor {
     /// `apollia.toml`, whose `[llm.guardrails]` is read at every launch.
     /// `None` holds every launch to the default level.
     config_file: Option<PathBuf>,
+    /// The leases and pins that keep a model loaded, shared with the other
+    /// engine. Unset, every resident model may be unloaded to make room.
+    residency: std::sync::OnceLock<Arc<crate::residency::Residency>>,
     /// The guardrail settings the organisation policy fixes, over the file.
     imposed: apollia_core::config::PolicySettings,
     /// Where each line the processes print goes besides tracing: the logs of
@@ -297,6 +300,7 @@ impl LlamaServerSupervisor {
             events,
             embedding: Mutex::new(None),
             config_file,
+            residency: std::sync::OnceLock::new(),
             imposed,
             line_sink: OnceLock::new(),
         }))
@@ -320,8 +324,9 @@ impl LlamaServerSupervisor {
         requested.filter(|n| *n > 0).unwrap_or(self.n_ctx)
     }
 
-    /// Number of models kept resident at once.
-    pub fn max_loaded(&self) -> usize {
+    /// The explicit ceiling on resident models, `None` when the load
+    /// guardrail alone decides.
+    pub fn max_loaded(&self) -> Option<usize> {
         self.max_loaded
     }
 
@@ -352,10 +357,14 @@ impl LlamaServerSupervisor {
         ))
     }
 
-    /// Stop least-recently-used instances until one more fits under the ceiling.
+    /// Stop least-recently-used instances until one more fits under the
+    /// explicit ceiling, when one is set.
     async fn evict_until_below_ceiling(&self) {
+        let Some(max_loaded) = self.max_loaded else {
+            return;
+        };
         let mut instances = self.instances.lock().await;
-        while instances.len() >= self.max_loaded {
+        while instances.len() >= max_loaded {
             let Some(idx) = instances
                 .iter()
                 .enumerate()
@@ -477,7 +486,7 @@ impl LlamaServerSupervisor {
             bin_path: PathBuf::from("/nonexistent/llama-server"),
             n_ctx: 32_768,
             n_ctx_pinned: false,
-            max_loaded: 1,
+            max_loaded: Some(1),
             config: Arc::new(Mutex::new(LlamaServerConfig::default())),
             instances: Arc::new(Mutex::new(Vec::new())),
             tick: Arc::new(AtomicU64::new(0)),
@@ -487,6 +496,7 @@ impl LlamaServerSupervisor {
             events: None,
             embedding: Mutex::new(None),
             config_file: None,
+            residency: std::sync::OnceLock::new(),
             imposed: apollia_core::config::PolicySettings::none(),
             line_sink: OnceLock::new(),
         }
@@ -508,7 +518,7 @@ impl LlamaServerSupervisor {
             bin_path: std::path::PathBuf::from("/nonexistent/llama-server"),
             n_ctx: 32_768,
             n_ctx_pinned: false,
-            max_loaded: 1,
+            max_loaded: Some(1),
             config: Arc::new(Mutex::new(LlamaServerConfig::default())),
             instances: Arc::new(Mutex::new(Vec::new())),
             tick: Arc::new(AtomicU64::new(0)),
@@ -518,6 +528,7 @@ impl LlamaServerSupervisor {
             events: None,
             embedding: Mutex::new(None),
             config_file: None,
+            residency: std::sync::OnceLock::new(),
             imposed: apollia_core::config::PolicySettings::none(),
             line_sink: OnceLock::new(),
         })
@@ -573,17 +584,19 @@ impl LlamaServerSupervisor {
         explicit: bool,
     ) -> Result<ModelLease, LlamaServerError> {
         let config = self.launch_config(model_path, n_ctx, &load).await;
-        self.spawn_configured(config, load, explicit).await
+        self.spawn_configured(config, load, explicit, None).await
     }
 
     /// Launch `llama-server` with `config`, already composed by
     /// [`Self::launch_config`], and wait until it is healthy. `explicit` says
-    /// whether the user loaded it by hand.
+    /// whether the user loaded it by hand, `footprint_gb` what the guardrail
+    /// estimated it holds.
     async fn spawn_configured(
         &self,
         config: LlamaServerConfig,
         load: LoadSettings,
         explicit: bool,
+        footprint_gb: Option<f64>,
     ) -> Result<ModelLease, LlamaServerError> {
         let port = pick_free_port()?;
         let args = build_args(&config, port);
@@ -639,6 +652,7 @@ impl LlamaServerSupervisor {
 
         let mut instance = Instance::new(config, load, port, child, self.next_tick());
         instance.explicit = explicit;
+        instance.footprint_gb = footprint_gb;
         let lease = ModelLease::new(
             instance.base_url(),
             instance.n_ctx,
@@ -795,7 +809,7 @@ mod test_support {
             bin_path: PathBuf::from("/nonexistent/llama-server"),
             n_ctx: 32_768,
             n_ctx_pinned: false,
-            max_loaded,
+            max_loaded: Some(max_loaded),
             config: Arc::new(Mutex::new(LlamaServerConfig::default())),
             instances: Arc::new(Mutex::new(Vec::new())),
             tick: Arc::new(AtomicU64::new(0)),
@@ -805,6 +819,7 @@ mod test_support {
             events: None,
             embedding: Mutex::new(None),
             config_file: None,
+            residency: std::sync::OnceLock::new(),
             imposed: apollia_core::config::PolicySettings::none(),
             line_sink: std::sync::OnceLock::new(),
         }
@@ -896,11 +911,11 @@ mod tests {
 
     // GIVEN no environment override
     // WHEN the residency ceiling is resolved
-    // THEN exactly one model stays resident, which is the historical behaviour:
-    //      raising memory use must never be a side effect of an upgrade
+    // THEN there is none: the load guardrail alone decides how many models
+    //      stay resident
     #[test]
-    fn test_residency_defaults_to_a_single_model() {
-        assert_eq!(resolve_max_loaded(|_| None), 1);
+    fn test_residency_has_no_fixed_ceiling_by_default() {
+        assert_eq!(resolve_max_loaded(|_| None), None);
     }
 
     // GIVEN an explicit ceiling
@@ -908,19 +923,19 @@ mod tests {
     // THEN it is honoured verbatim
     #[test]
     fn test_residency_honours_an_explicit_ceiling() {
-        assert_eq!(resolve_max_loaded(|_| Some("3".to_owned())), 3);
-        assert_eq!(resolve_max_loaded(|_| Some(" 2 ".to_owned())), 2);
+        assert_eq!(resolve_max_loaded(|_| Some("3".to_owned())), Some(3));
+        assert_eq!(resolve_max_loaded(|_| Some(" 2 ".to_owned())), Some(2));
     }
 
     // GIVEN a value that is zero or unparseable
     // WHEN it is resolved
-    // THEN the default holds, because a typo must not be the reason no model
-    //      can load at all
+    // THEN it is ignored, because a typo must not be the reason no model can
+    //      load at all
     #[test]
     fn test_residency_rejects_zero_and_garbage_without_disabling_inference() {
-        assert_eq!(resolve_max_loaded(|_| Some("0".to_owned())), 1);
-        assert_eq!(resolve_max_loaded(|_| Some("many".to_owned())), 1);
-        assert_eq!(resolve_max_loaded(|_| Some(String::new())), 1);
+        assert_eq!(resolve_max_loaded(|_| Some("0".to_owned())), None);
+        assert_eq!(resolve_max_loaded(|_| Some("many".to_owned())), None);
+        assert_eq!(resolve_max_loaded(|_| Some(String::new())), None);
     }
 
     // GIVEN a live instance for a model

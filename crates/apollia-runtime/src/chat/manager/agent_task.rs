@@ -47,6 +47,9 @@ pub struct AgentTaskRun {
     pub budget: Option<Arc<StepBudget>>,
     /// The level of the run in the nesting, 1 for a run started on its own.
     pub depth: u32,
+    /// Nobody watches the run (an item of a batch): governance answers a
+    /// call that would ask with a wait instead.
+    pub unattended: bool,
 }
 
 /// What a spawned run needs from the actor.
@@ -66,6 +69,7 @@ struct AgentTaskWiring {
     hitl: HitlInvokerParams,
     package_tools: Option<Arc<dyn crate::package_tools::PackageToolHost>>,
     composer: Option<Arc<dyn crate::composition::Composer>>,
+    governance: Option<crate::governance::GovernanceHandle>,
 }
 
 impl ChatSessionManager {
@@ -98,6 +102,7 @@ impl ChatSessionManager {
             hitl,
             package_tools: self.package_tools.clone(),
             composer: self.composer.clone(),
+            governance: self.governance.clone(),
         };
         info!(task_id = %run.task_id, agent = %run.spec.agent_id, "agent.task.started");
         tokio::spawn(run_agent_task(wiring, run));
@@ -106,8 +111,8 @@ impl ChatSessionManager {
 
     /// Answer a tool approval of a run outside any conversation.
     ///
-    /// Such a run has no session to keep a grant in, so "always accept"
-    /// accepts this call alone.
+    /// The answer reaches the run as given: an "always" becomes a standing
+    /// consent of the run's agent for the family of the tool, as in the chat.
     pub(in crate::chat::manager) fn resolve_task_approval(
         &self,
         task_id: &str,
@@ -115,10 +120,6 @@ impl ChatSessionManager {
         tool_call_id: &str,
         decision: ToolDecision,
     ) -> Result<(), ChatError> {
-        let decision = match decision {
-            ToolDecision::AlwaysAccept { .. } => ToolDecision::Accept,
-            other => other,
-        };
         let key = format!("{task_id}::{message_id}::{tool_call_id}");
         if self.pending_chat_approvals.resolve(&key, decision) {
             Ok(())
@@ -167,6 +168,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         done,
         budget,
         depth,
+        unattended,
     } = run;
     let mut package_tools =
         super::package_executors(&wiring.package_tools, &spec.agent_id, &cancel);
@@ -255,6 +257,8 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
             composition: wiring
                 .composer
                 .map(|composer| Composition { composer, depth }),
+            governance: wiring.governance,
+            unattended,
             ..SessionWiring::default()
         },
         &wiring.runtime_budget,

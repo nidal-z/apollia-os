@@ -191,15 +191,13 @@ impl BuiltInChatAgent {
         let initial_output = first.content.clone();
         let tool_specs_ref: &[ToolSpec] = &tool_specs;
         let valid_tool_names_ref: &HashSet<String> = &valid_tool_names;
-        // Seed the carried authorization set with the session's authorized tools
-        // plus anything the first turn auto-authorized, so a correction turn does
-        // not re-prompt for a tool the user already approved this turn.
-        let mut carried_authorized = authorized_tools.clone();
-        carry_grants(&mut carried_authorized, &first.newly_authorized);
+        // A correction turn runs with the grants of the run; an "always"
+        // answered in the first turn is a standing consent governance already
+        // reads.
         let carry = RetryCarry {
             messages: llm_messages,
             last_response: first,
-            authorized: carried_authorized,
+            authorized: authorized_tools.clone(),
         };
         let (report, carry) = run_verification_with_retry(
             level,
@@ -241,8 +239,6 @@ impl BuiltInChatAgent {
                             let mut calls = std::mem::take(&mut state.last_response.llm_calls);
                             calls.append(&mut next.llm_calls);
                             next.llm_calls = calls;
-                            // Carry any tool authorized on this retry into the next.
-                            carry_grants(&mut state.authorized, &next.newly_authorized);
                             state.last_response = next;
                             (Ok(output), state)
                         }
@@ -256,15 +252,4 @@ impl BuiltInChatAgent {
         response.verification_report = report;
         Ok(response)
     }
-}
-
-/// Carry the grants a turn produced into the next correction turn. A code
-/// executor is never carried: each of its calls asks on its own.
-pub(super) fn carry_grants(carried: &mut HashSet<String>, newly_authorized: &[String]) {
-    carried.extend(
-        newly_authorized
-            .iter()
-            .filter(|name| !apollia_permissions::is_code_executor(name))
-            .cloned(),
-    );
 }

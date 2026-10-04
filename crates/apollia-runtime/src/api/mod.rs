@@ -4,6 +4,7 @@
 
 pub mod middleware;
 pub mod openapi;
+mod openapi_local_models;
 mod port_file;
 pub mod routes_a2a;
 pub mod routes_agent_definitions;
