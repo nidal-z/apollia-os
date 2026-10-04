@@ -614,6 +614,24 @@
       "remove": "Retirer",
       "remove_confirm": "Retirer le dossier {name} des connexions ? Ses fichiers restent sur votre ordinateur."
     },
+    "try": {
+      "action": "Essayer",
+      "title": "Essayer {name}",
+      "subtitle": "Une conversation avec Apollia, limitée aux outils de cette connexion. Rien n'est envoyé ni modifié sans votre accord.",
+      "choose": "Choisissez une question",
+      "general_label": "Question générale",
+      "general_question": "Que puis-je faire avec {name} ?",
+      "no_example": "Cette connexion ne propose pas d'exemple : Apollia vous dit d'abord ce qu'elle permet.",
+      "own": "Ou posez la vôtre",
+      "own_placeholder": "Écrire une question…",
+      "quoted": "« {question} »",
+      "launch": "Lancer l'essai",
+      "not_found": "Cette connexion n'existe plus.",
+      "no_tools": "Cette connexion ne propose encore aucun outil.",
+      "native_added_title": "{provider} est ajouté",
+      "native_added_body": "Le compte {account} est connecté. Vous choisissez quels agents y ont accès depuis leur fiche.",
+      "done": "Terminé"
+    },
     "badge_builtin": "Intégrée"
   },
   "integrations": {
@@ -658,8 +676,7 @@
         "loading": "Génération des suggestions…",
         "error": "Les suggestions ne sont pas disponibles pour l'instant.",
         "empty": "Aucune suggestion - explorez les outils depuis le chat.",
-        "try": "Essayer",
-        "no_tools": "Aucun outil n'est disponible pour cette connexion pour l'instant, l'exemple ne peut pas s'exécuter."
+        "try": "Essayer"
       },
       "optional": "optionnel",
       "auth_help_link": "Où trouver votre clé",

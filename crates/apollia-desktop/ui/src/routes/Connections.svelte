@@ -11,7 +11,7 @@
    * (pure, testable) and inside the self-contained detail / catalogue / oauth
    * components.
    */
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { SplitLayout } from "$lib/components/operator";
   import ConnectorSidebar from "../components/connections/sidebar/ConnectorSidebar.svelte";
@@ -31,7 +31,6 @@
     listMcpServers,
     listMcpEnrichments,
     listAgents,
-    getMcpServerDetail,
     oauthGetStatus,
     oauthDisconnect,
     type OauthAccountInfo,
@@ -59,7 +58,12 @@
   import { triggerAutoName } from "$lib/chat/autoName";
   import { reportError } from "$lib/errors/reportError";
   import { deriveServerName } from "$lib/integrations/connectorConfig";
-  import { tryConnectorPrompt } from "$lib/connections/tryConnectorPrompt";
+  import {
+    tryConnectorPrompt,
+    tryQuestions,
+    type TryQuestion,
+  } from "$lib/connections/tryConnectorPrompt";
+  import TryConnectionDialog from "../components/connections/shared/TryConnectionDialog.svelte";
   import type {
     AgentListItem,
     Connection,
@@ -157,6 +161,10 @@
   let folderOutcome = $state<Exclude<FolderOutcome, { kind: "cancelled" }> | null>(null);
   let folderDialogOpen = $state(false);
 
+  // ── Try ─────────────────────────────────────────────────────────────────────
+  let tryTarget = $state<{ connectionId: string; name: string } | null>(null);
+  let tryLaunching = $state(false);
+
   // ── Derived ──────────────────────────────────────────────────────────────────
   function resolveEnrichment(server: McpServerStatusView): ConnectorEnrichmentView | null {
     if (!server.package) return null;
@@ -197,6 +205,33 @@
     if (sel?.kind !== "mcp") return null;
     return servers.find((s) => s.name === sel.name) ?? null;
   });
+  /** The first account connection of a native provider, the one its page tries. */
+  function nativeConnectionOf(provider: ProviderId): Connection | null {
+    return connections.find((c) => c.kind === "native" && c.id.startsWith(`native:${provider}:`)) ?? null;
+  }
+
+  /** "Try" on a native provider's page: its first account, or nothing without one. */
+  function nativeTry(card: NativeConnectorCard): (() => void) | undefined {
+    const connection = nativeConnectionOf(card.id);
+    return connection ? () => openTry(connection.id, card.name) : undefined;
+  }
+
+  /** The questions offered to try the connection `tryTarget` names. */
+  const tryQuestionList = $derived.by((): TryQuestion[] => {
+    const target = tryTarget;
+    if (!target) return [];
+    const general = {
+      label: $t("connections.try.general_label"),
+      question: $t("connections.try.general_question", { values: { name: target.name } }),
+    };
+    const connection = connections.find((c) => c.id === target.connectionId);
+    if (!connection) return [{ id: "general", ...general, general: true }];
+    const server =
+      connection.kind === "mcp" ? servers.find((s) => `mcp:${s.name}` === connection.id) : undefined;
+    const examples = (server && resolveEnrichment(server)?.examples) ?? [];
+    return tryQuestions(connection, examples, $locale ?? "en", general);
+  });
+
   const selectedNativeConnector = $derived.by(() => {
     const sel = selection;
     if (sel?.kind !== "native") return null;
@@ -409,14 +444,20 @@
   $effect(() => {
     void onNavigateTasks;
   });
-  /** "Try" on a coaching card: a chat limited to the tools of the connector just installed. */
-  async function tryPrompt(prompt: string): Promise<void> {
-    const server = selectedRegistryServer;
-    if (!server) return;
-    const name = deriveServerName(server);
-    const opened = await tryConnectorPrompt(prompt, {
-      loadToolNames: async () =>
-        (await getMcpServerDetail(name)).tools.map((tool) => tool.full_name),
+  /** Open the "Try" dialog on `connectionId`, shown as `name`. */
+  function openTry(connectionId: string, name: string): void {
+    tryTarget = { connectionId, name };
+  }
+
+  /**
+   * Try `prompt` on `connectionId`: a conversation with Apollia limited to the
+   * tools of that connection, then the chat. The dialogs that led here close
+   * once the conversation exists.
+   */
+  async function launchTry(connectionId: string, prompt: string): Promise<void> {
+    tryLaunching = true;
+    const opened = await tryConnectorPrompt(connectionId, prompt, {
+      loadConnections: () => loadConnections(),
       createSession: (tools) => createChatSession({ mode: "libre", tools }),
       sendMessage: sendChatMessage,
       nameSession: triggerAutoName,
@@ -425,13 +466,22 @@
         reportError(err, { surface: "toast", testid: "connector-try-error" });
       },
       navigate: () => navigateTo("chat"),
-      noToolsMessage: $t("integrations.wizard.coaching.no_tools"),
+      noToolsMessage: $t("connections.try.no_tools"),
+      notFoundMessage: $t("connections.try.not_found"),
     });
+    tryLaunching = false;
     if (!opened) return;
+    tryTarget = null;
     wizardOpen = false;
     selectedRegistryServer = null;
     catalogueOpen = false;
     void loadAll();
+  }
+
+  /** "Try" on a coaching card at the end of a server's addition. */
+  function tryAddedServer(prompt: string): void {
+    const server = selectedRegistryServer;
+    if (server) void launchTry(`mcp:${deriveServerName(server)}`, prompt);
   }
 </script>
 
@@ -466,6 +516,7 @@
         onconfigure={() => openClientSection(selectedNativeConnector.id)}
         ondisconnect={disconnectNative}
         ontabchange={(tab) => (nativeTab = tab)}
+        ontry={nativeTry(selectedNativeConnector)}
       />
     {:else if selection?.kind === "mcp" && selectedServer}
       <McpServerDetail
@@ -474,6 +525,7 @@
         remote={selectedRow?.remote ?? false}
         tab={mcpTab}
         ontabchange={(tab) => (mcpTab = tab)}
+        ontry={(name) => openTry(`mcp:${selectedServer.name}`, name)}
         onchanged={() => void loadAll()}
         ondisconnected={() => {
           selection = null;
@@ -486,6 +538,7 @@
       <ConnectionSummaryDetail
         connection={selectedConnection}
         label={selectedRow?.label ?? selectedConnection.label}
+        ontry={() => openTry(selectedConnection.id, selectedRow?.label ?? selectedConnection.label)}
         onremoved={() => {
           selection = null;
           void loadAll();
@@ -516,7 +569,7 @@
       catalogueOpen = false;
       void loadAll();
     }}
-    ontryprompt={(prompt) => void tryPrompt(prompt)}
+    ontryprompt={tryAddedServer}
   />
 {/if}
 
@@ -533,6 +586,10 @@
   open={folderDialogOpen}
   outcome={folderOutcome}
   onclose={closeFolderDialog}
+  ontry={(connection) => {
+    closeFolderDialog();
+    openTry(connection.id, connection.label);
+  }}
   onchooseanother={() => void addFolder()}
   onopenrule={() => {
     closeFolderDialog();
@@ -544,7 +601,14 @@
   open={oauthOpen}
   provider={oauthProvider}
   onclose={() => (oauthOpen = false)}
-  oncompleted={refreshNativeStatus}
+  oncompleted={() => {
+    void refreshNativeStatus();
+    void loadAll();
+  }}
+  ontry={(provider, accountId) => {
+    oauthOpen = false;
+    openTry(`native:${provider}:${accountId}`, nativeCard(provider).name);
+  }}
   onopenclient={(provider) => openClientSection(provider)}
 />
 
@@ -573,5 +637,16 @@
   oninstalled={() => {
     catalogueOpen = false;
     void loadAll();
+  }}
+/>
+
+<TryConnectionDialog
+  open={tryTarget !== null}
+  name={tryTarget?.name ?? ""}
+  questions={tryQuestionList}
+  launching={tryLaunching}
+  onclose={() => (tryTarget = null)}
+  onlaunch={(prompt) => {
+    if (tryTarget) void launchTry(tryTarget.connectionId, prompt);
   }}
 />

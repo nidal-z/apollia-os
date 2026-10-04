@@ -7,7 +7,7 @@
    * of its tools.
    */
   import { t } from "svelte-i18n";
-  import { Link as LinkIcon } from "lucide-svelte";
+  import { Play, Link as LinkIcon } from "lucide-svelte";
   import { DetailHeader } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -26,9 +26,11 @@
     label: string;
     /** Called once the connection is removed. */
     onremoved?: () => void;
+    /** "Try": a conversation limited to the tools of this connection. */
+    ontry?: () => void;
   }
 
-  let { connection, label, onremoved }: Props = $props();
+  let { connection, label, onremoved, ontry }: Props = $props();
 
   let removing = $state(false);
 
@@ -75,6 +77,12 @@
         data-testid="connection-folder-remove"
       >
         {$t("connections.folder.remove")}
+      </Button>
+    {/if}
+    {#if ontry}
+      <Button variant="primary-solid" size="sm" onclick={ontry} data-testid="connection-try-btn">
+        {#snippet icon()}<Play size={12} />{/snippet}
+        {$t("connections.try.action")}
       </Button>
     {/if}
   {/snippet}

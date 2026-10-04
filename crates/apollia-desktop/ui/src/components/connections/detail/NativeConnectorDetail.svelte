@@ -10,7 +10,7 @@
    * parent.
    */
   import { t } from "svelte-i18n";
-  import { Plus, Settings2, Link as LinkIcon } from "lucide-svelte";
+  import { Play, Plus, Settings2, Link as LinkIcon } from "lucide-svelte";
   import { DetailHeader } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -46,6 +46,8 @@
     onconfigure?: () => void;
     ondisconnect: (account: OauthAccountInfo) => void;
     ontabchange: (tab: NativeTab) => void;
+    /** "Try" the connection; absent while no account is connected. */
+    ontry?: () => void;
   }
 
   let {
@@ -63,6 +65,7 @@
     onconfigure,
     ondisconnect,
     ontabchange,
+    ontry,
   }: Props = $props();
 </script>
 
@@ -106,7 +109,7 @@
       </Button>
     {:else}
       <Button
-        variant="primary-solid"
+        variant={ontry ? "outline" : "primary-solid"}
         size="sm"
         onclick={onconnect}
         disabled={loading}
@@ -114,6 +117,12 @@
       >
         {#snippet icon()}<Plus size={12} />{/snippet}
         {accounts.length > 0 ? $t("connections.add_account") : $t("connections.connect")}
+      </Button>
+    {/if}
+    {#if ontry}
+      <Button variant="primary-solid" size="sm" onclick={ontry} data-testid="native-try-{connector.id}">
+        {#snippet icon()}<Play size={12} />{/snippet}
+        {$t("connections.try.action")}
       </Button>
     {/if}
   {/snippet}
