@@ -173,7 +173,15 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         budget,
         depth,
     } = run;
-    spec.granted_tools = access.tools(&wiring.tool_registry).await;
+    let mut package_tools =
+        super::package_executors(&wiring.package_tools, &spec.agent_id, &cancel);
+    spec.granted_tools = super::code_context::with_code_context(
+        wiring.chat_tools_config.as_deref(),
+        &spec.agent_id,
+        access.tools(&wiring.tool_registry).await,
+        &mut package_tools,
+    )
+    .await;
     let mcp_index: Vec<ToolIndexSnapshot> = match (wiring.mcp_loading, &wiring.mcp_handle) {
         (LoadingMode::Deferred, Some(handle)) => handle.get_tool_index().await,
         _ => Vec::new(),
@@ -207,7 +215,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
             mcp_loading: wiring.mcp_loading,
             mcp_index: mcp_index.clone(),
             tool_search_limit: wiring.tool_search_limit,
-            package_tools: super::package_executors(&wiring.package_tools, &spec.agent_id, &cancel),
+            package_tools,
         },
         &wiring.a2a_invoker,
         wiring.hook_executor.clone(),

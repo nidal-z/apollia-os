@@ -14332,7 +14332,7 @@
             }
           },
           "422": {
-            "description": "Unknown kind, blank label, or a folder, file or mailbox without a reference",
+            "description": "Unknown kind, blank label, or a folder, file, mailbox or code folder without a reference",
             "content": {
               "application/json": {
                 "schema": {
@@ -14347,6 +14347,42 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources/folder-kinds": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "`GET /api/v1/sources/folder-kinds`: the kinds offered for a source made\non a folder connection.",
+        "description": "The code folder is offered only when the developer mode is on. This is\nwhat the user is offered, not a check: `POST /api/v1/sources` accepts a\ncode folder whatever the mode.",
+        "operationId": "folder_kinds",
+        "parameters": [
+          {
+            "name": "developerMode",
+            "in": "query",
+            "description": "Whether the developer mode is on, as `[desktop] developer_mode`\nsays; off when absent.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The kinds offered on a folder connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceKindDto"
+                  }
                 }
               }
             }
@@ -19842,7 +19878,7 @@
               "string",
               "null"
             ],
-            "description": "What the source points at; required for `folder`, `file` and `mail`."
+            "description": "What the source points at; required for `folder`, `file`, `mail` and\n`code_folder`, whose reference is a folder connection."
           }
         }
       },
@@ -21803,6 +21839,7 @@
           "instructions",
           "agent",
           "folder",
+          "provider",
           "memory",
           "conversations"
         ]
@@ -21815,7 +21852,8 @@
           "unreadable",
           "wrong_kind",
           "agent_not_installed",
-          "failed"
+          "failed",
+          "not_carried_over"
         ]
       },
       "ItemPreview": {
@@ -24393,6 +24431,14 @@
             },
             "description": "Agents its sources are checked for.",
             "default": []
+          },
+          "codeFolderSource": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the code folder source made on that connection, when\nthe project read its git state, its rules or its tree.",
+            "default": null
           },
           "documentSources": {
             "type": "array",

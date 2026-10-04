@@ -525,3 +525,134 @@ fn test_two_projects_of_the_same_name_keep_their_instructions_apart() {
         ]
     );
 }
+
+/// Adds to the project of `fx` an enabled provider of each kind it had.
+fn with_providers(fx: &Fixture, kinds: &[&str]) {
+    let projects = ProjectRepository::open(&DataFile::Projects.path(fx.data_dir())).unwrap();
+    for (priority, kind) in kinds.iter().enumerate() {
+        let path = (*kind == "script").then(|| fx.file("context.sh"));
+        projects
+            .set_provider(
+                None,
+                &fx.project_id,
+                *kind,
+                format!("my {kind}"),
+                "{}",
+                path,
+                true,
+                u8::try_from(priority).unwrap(),
+            )
+            .unwrap();
+    }
+}
+
+#[test]
+fn test_a_project_reading_its_code_gets_a_code_folder_on_its_working_folder() {
+    // GIVEN a project whose working folder fed the git, rules and tree
+    // providers, and a script and a style provider beside them
+    let fx = fixture();
+    with_providers(&fx, &["git", "rules", "tree", "script", "style"]);
+
+    // WHEN the migration runs
+    let report = migrate(fx.data_dir());
+
+    // THEN one code folder source points at the folder connection of the
+    // working folder, checked for Apollia and the linked agent
+    let outcome = &report.projects[0];
+    let code: Vec<_> = fx
+        .sources()
+        .into_iter()
+        .filter(|s| s.kind == SourceKind::CodeFolder)
+        .collect();
+    assert_eq!(code.len(), 1);
+    assert_eq!(code[0].reference, outcome.folder_connection);
+    assert_eq!(code[0].group.as_deref(), Some("Dossier Durand"));
+    assert_eq!(outcome.code_folder_source, Some(code[0].id.clone()));
+    assert!(fx.checked_by(APOLLIA_AGENT_ID).contains(&code[0].id));
+    assert!(fx.checked_by("veille").contains(&code[0].id));
+
+    // AND the script and the style are listed, never dropped, without
+    // keeping the migration partial
+    let providers: Vec<_> = report
+        .issues
+        .iter()
+        .filter(|i| i.item == IssueItem::Provider)
+        .collect();
+    assert_eq!(providers.len(), 2, "{providers:?}");
+    assert!(providers
+        .iter()
+        .all(|i| i.reason == IssueReason::NotCarriedOver && !i.blocking));
+    assert!(providers.iter().any(|i| i.subject == "my script (script)"));
+    assert!(providers.iter().any(|i| i.subject == "my style (style)"));
+    assert_eq!(report.status, MigrationStatus::Complete);
+}
+
+#[test]
+fn test_a_project_without_code_providers_gets_no_code_folder() {
+    // GIVEN a project with a working folder and no provider
+    let fx = fixture();
+
+    // WHEN the migration runs
+    let report = migrate(fx.data_dir());
+
+    // THEN its folder is a connection and nothing more
+    assert!(report.projects[0].folder_connection.is_some());
+    assert_eq!(report.projects[0].code_folder_source, None);
+    assert!(fx
+        .sources()
+        .iter()
+        .all(|s| s.kind != SourceKind::CodeFolder));
+}
+
+#[test]
+fn test_a_code_provider_without_a_working_folder_is_listed() {
+    // GIVEN a project with a git provider and no working folder
+    let fx = fixture();
+    let projects = ProjectRepository::open(&DataFile::Projects.path(fx.data_dir())).unwrap();
+    let bare = projects
+        .create_project("No folder", None, None, None)
+        .unwrap();
+    projects
+        .set_provider(None, &bare, "git", "git", "{}", None, true, 0)
+        .unwrap();
+
+    // WHEN the migration runs
+    let report = migrate(fx.data_dir());
+
+    // THEN the provider is listed for that project and no code folder is made
+    let listed: Vec<_> = report
+        .issues
+        .iter()
+        .filter(|i| i.project_id.as_deref() == Some(bare.as_str()))
+        .collect();
+    assert_eq!(listed.len(), 1, "{listed:?}");
+    assert_eq!(listed[0].item, IssueItem::Provider);
+    assert_eq!(listed[0].reason, IssueReason::NotCarriedOver);
+    assert!(fx
+        .sources()
+        .iter()
+        .all(|s| s.kind != SourceKind::CodeFolder));
+}
+
+#[test]
+fn test_a_second_run_keeps_a_single_code_folder() {
+    // GIVEN a project reading its code, migrated once
+    let fx = fixture();
+    with_providers(&fx, &["git"]);
+    let first = migrate(fx.data_dir());
+
+    // WHEN the migration runs again
+    let second = migrate(fx.data_dir());
+
+    // THEN the same code folder source is found, not a second one
+    let code = fx
+        .sources()
+        .into_iter()
+        .filter(|s| s.kind == SourceKind::CodeFolder)
+        .count();
+    assert_eq!(code, 1);
+    assert_eq!(
+        second.projects[0].code_folder_source,
+        first.projects[0].code_folder_source
+    );
+}

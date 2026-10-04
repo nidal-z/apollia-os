@@ -1,6 +1,7 @@
 [
   "ask_user",
   "bash_executor",
+  "code_context",
   "file_edit",
   "file_glob",
   "file_grep",

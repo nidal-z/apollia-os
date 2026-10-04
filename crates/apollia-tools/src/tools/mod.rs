@@ -6,6 +6,7 @@
 pub mod ask_user;
 pub mod bash_executor;
 pub mod bash_validator;
+pub mod code_context;
 pub mod file_edit;
 pub mod file_glob;
 pub mod file_grep;
@@ -36,6 +37,7 @@ pub fn native_descriptors() -> Vec<crate::descriptor::ToolDescriptor> {
     let mut d = vec![
         ask_user::AskUser::descriptor(),
         bash_executor::BashExecutor::descriptor(),
+        code_context::CodeContext::descriptor(),
         file_edit::FileEdit::descriptor(),
         file_glob::FileGlob::descriptor(),
         file_grep::FileGrep::descriptor(),

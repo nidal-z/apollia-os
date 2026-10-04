@@ -333,7 +333,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         project_repo_for_session,
         pending_user_inputs_for_session,
         mcp_handle_for_session,
-        package_tools,
+        mut package_tools,
         composer,
         chat_tools_config_for_session,
         mcp_loading,
@@ -357,6 +357,13 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     } = params;
 
     let available_tools = available_tools.tools(&tool_registry).await;
+    let available_tools = super::code_context::with_code_context(
+        chat_tools_config_for_session.as_deref(),
+        &agent_id,
+        available_tools,
+        &mut package_tools,
+    )
+    .await;
 
     // In deferred mode, snapshot the aggregated tool index once. The synthetic
     // `tool_search` tool is built from it twice: as a dispatcher executor (so a

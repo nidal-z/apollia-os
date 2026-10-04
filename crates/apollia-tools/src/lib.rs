@@ -116,6 +116,9 @@ pub use tool_registry::{
 };
 pub use tools::bash_executor::{BashExecutor, BashExecutorError, BashInput, BashOutput};
 pub use tools::bash_validator::BashValidator;
+pub use tools::code_context::{
+    granted_with_code_folders, CodeContext, CodeFolder, CODE_CONTEXT_TOOL,
+};
 pub use tools::notebook_edit::{
     NotebookEdit, NotebookEditError, NotebookEditInput, NotebookEditOutput,
 };

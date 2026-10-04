@@ -128,12 +128,20 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
         // routes through the MCP client manager instead of returning UnknownTool,
         // gated like the task path, plus the SaaS connector executors.
         let mcp_handle = self.mcp_handle.get().cloned().flatten();
-        let extra_executors = task_tool_executors(
+        let mut extra_executors = task_tool_executors(
             &mcp_handle,
             &task,
             manifest.tools_requiring_approval.clone(),
         )
         .await;
+        // A code folder checked for the agent grants `code_context`.
+        let code_context =
+            apollia_runtime::agents::sources::code_context_for(&self.data_dir, agent_name);
+        let allowed_tools =
+            apollia_tools::granted_with_code_folders(allowed_tools, code_context.is_some());
+        if let Some(tool) = code_context {
+            extra_executors.push(Box::new(tool));
+        }
         let dispatcher = Arc::new(build_dispatcher_with(
             &NativeDispatcherConfig {
                 sandbox_roots: sandbox_roots_for_agent(&self.trusted_paths),

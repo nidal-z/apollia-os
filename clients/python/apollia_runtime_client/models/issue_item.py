@@ -8,6 +8,7 @@ class IssueItem(str, Enum):
     FOLDER = "folder"
     INSTRUCTIONS = "instructions"
     MEMORY = "memory"
+    PROVIDER = "provider"
     STORE = "store"
 
     def __str__(self) -> str:

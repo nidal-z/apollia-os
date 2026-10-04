@@ -22,11 +22,18 @@ use apollia_runtime::chat::todo_tool::TODO_WRITE_TOOL_NAME;
 use apollia_tools::tools::ask_user::PendingUserInputs;
 use apollia_tools::{build_native_dispatcher, NativeDispatcherConfig};
 
-/// Natives whose registration is feature-gated or config-gated
-/// (`http`, `web-search`, `web-read`, `memory-search`). Their names are
+/// Natives whose registration is feature-gated, config-gated
+/// (`http`, `web-search`, `web-read`, `memory-search`) or granted by a
+/// checked code folder (`code_context`). Their names are
 /// stable strings; listing them keeps the fixture complete even when this
 /// test binary is compiled without one of the features.
-const GATED_NATIVES: &[&str] = &["http_fetch", "web_search", "web_read", "memory_search"];
+const GATED_NATIVES: &[&str] = &[
+    "http_fetch",
+    "web_search",
+    "web_read",
+    "memory_search",
+    "code_context",
+];
 
 /// Synthetic tool registered by the MCP manager in deferred loading mode.
 /// `ToolSearchExecutor::name()` in `apollia-mcp/src/tool_search.rs` returns
