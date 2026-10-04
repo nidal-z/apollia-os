@@ -50,7 +50,7 @@ fn test_every_routed_command_passes_the_gate_in_attached_mode() {
         .filter(|command| gate(LinkMode::Attached, command).is_err())
         .collect();
 
-    // THEN none is refused, and the chat, agents, tasks, approvals and
+    // THEN none is refused, and the chat, agents, workflows, tasks, approvals and
     // questions to the user are among them
     assert!(refused.is_empty(), "refused: {refused:?}");
     for command in [
@@ -58,7 +58,7 @@ fn test_every_routed_command_passes_the_gate_in_attached_mode() {
         "pause_chat_session",
         "list_chat_sessions",
         "list_agents",
-        "install_agent",
+        "launch_workflow",
         "list_tasks",
         "get_task_timeline",
         "cancel_task",

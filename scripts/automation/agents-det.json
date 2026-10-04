@@ -1,12 +1,9 @@
 {
-  "name": "agents-det (assistants page, operator + builder, deterministic against the seed; update picker stubbed to a missing file, uninstall opened then retired, never committed; one agent stopped and started again; package install dialog previewed, never installed)",
+  "name": "agents-det (Agents screen, agents and workflows side by side, default + developer mode, deterministic against the seed; update picker stubbed to a missing file, uninstall opened then retired, never committed; package install dialog previewed, then one fixture package installed)",
   "stopOnError": false,
   "dynamicTestids": [
     "command-item-agents.create",
     "install-secret-input-seed-deps-webhook",
-    "package-detail-tab-agents",
-    "package-detail-tab-overview",
-    "package-detail-tab-triggers",
     "settings-nav-developer"
   ],
   "steps": [
@@ -78,9 +75,41 @@
       "testid": "apollia-chat-pinned"
     },
     {
-      "kind": "waitFor",
-      "testidPrefix": "package-list-row",
-      "timeoutMs": 4000
+      "kind": "expect",
+      "testid": "agents-column"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflows-column"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-row-chat",
+      "nth": 0
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": null,
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "agents-install-apo-button",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitGone",
+      "testid": "package-preview-dialog",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:dialog|open"
     },
     {
       "kind": "fill",
@@ -209,6 +238,16 @@
     },
     {
       "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testidPrefix": "agent-list-row",
       "timeoutMs": 2500,
       "nth": 0
@@ -273,6 +312,16 @@
     },
     {
       "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testidPrefix": "agent-list-row",
       "nth": 1,
       "timeoutMs": 2500
@@ -286,6 +335,16 @@
       "kind": "waitGone",
       "testid": "agent-uninstall-confirm",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -306,6 +365,16 @@
     {
       "kind": "screenshot",
       "label": "05e-agent-uninstall-disarmed (changing agent retires the armed confirm)"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -408,6 +477,16 @@
     },
     {
       "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testidPrefix": "agent-list-row",
       "nth": 0,
       "timeoutMs": 2500
@@ -449,6 +528,16 @@
       "kind": "waitFor",
       "testid": "agent-detail-activity",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -496,6 +585,16 @@
     },
     {
       "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testidPrefix": "agent-list-row",
       "nth": 2,
       "timeoutMs": 2500
@@ -514,6 +613,16 @@
       "kind": "waitFor",
       "testid": "agent-sheet-mission",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -542,98 +651,8 @@
     },
     {
       "kind": "click",
-      "testid": "package-list-row",
+      "testid": "agent-sheet-back",
       "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tab-content",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-package-overview"
-    },
-    {
-      "kind": "click",
-      "testid": "package-detail-tab-agents",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tab-content",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "11-package-agents"
-    },
-    {
-      "kind": "click",
-      "testid": "package-detail-tab-triggers",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tab-content",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "12-package-triggers"
-    },
-    {
-      "kind": "click",
-      "testid": "package-detail-tab-overview",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "resizeWindow",
-      "width": 900,
-      "height": 800
-    },
-    {
-      "kind": "waitFor",
-      "testid": "split-open-sidebar",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12b-agents-narrow-list-folded"
-    },
-    {
-      "kind": "click",
-      "testid": "split-open-sidebar",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "split-sidebar-backdrop",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12c-agents-narrow-drawer-open"
-    },
-    {
-      "kind": "click",
-      "testid": "split-sidebar-backdrop",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitGone",
-      "testid": "split-sidebar-backdrop",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "resizeWindow",
-      "width": 1280,
-      "height": 800
-    },
-    {
-      "kind": "waitGone",
-      "testid": "split-open-sidebar",
-      "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
@@ -1000,39 +1019,6 @@
       "label": "13k-install-package-closed"
     },
     {
-      "kind": "stubInvoke",
-      "command": "plugin:dialog|open",
-      "resolve": "${HOME}/.apollia/fixtures/missing-agent.py",
-      "once": true
-    },
-    {
-      "kind": "click",
-      "testid": "agents-install-button",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-install-error",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "agent-install-error-details",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 200
-    },
-    {
-      "kind": "screenshot",
-      "label": "13l-agent-install-error-details (picker answered with a path that does not exist)"
-    },
-    {
-      "kind": "clearStubs",
-      "command": "plugin:dialog|open"
-    },
-    {
       "kind": "click",
       "testidPrefix": "agent-list-row",
       "timeoutMs": 2500,
@@ -1073,6 +1059,16 @@
     {
       "kind": "screenshot",
       "label": "16-agent-activity-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -1143,8 +1139,7 @@
     "install-preview-next, install-deps-back, install-deps-confirm, install-configure-back, install-configure-install and install-done-close stay unplayed: the seed ships one package folder, seed-office-pack, and install_agent_package copies the folder before any duplicate check (commands/agent_packages/install.rs:79) then removes the install root on any later failure (install.rs:148), which is the seeded package directory every later section reads. The deps and configure steps need a manifest declaring pip packages or a webhook trigger without a secret (InstallPackageDialog.svelte:102-133); the seeded agent.toml declares neither, and a fixture folder under tests/cli/seed/files/agents/fixtures/ is a seed change outside this book.",
     "The update picker (plugin:dialog|open stub) is pointed at ${HOME}/.apollia/agents/no-such-agent/agent.py, a path the seed never creates: update_agent refuses it at commands/agents/lifecycle.rs:350-352 before the loader and before the copy onto install_path, so the banner and its details render and nothing is written. Never point it at the agent's own module: std::fs::copy onto the same path truncates it (README gotcha).",
     "Update and stop/start are played on agent-list-row nth 2, onboarding-agent (rows follow installed_agents ORDER BY name minus the worker: apollia-chat, apollia-guide, onboarding-agent). The update confirm panel needs a running agent (AgentDetailHeader.svelte:123-126); dashboard-det stops the first agents-at-work row, which is never onboarding-agent while apollia-chat or apollia-guide is loaded, so the row is active in master-det and standalone alike. The stop leaves the registry entry as stopped (list_agents maps it, Start appears through showStartButton, tabs/startVisibility.ts:17-21) and the start replaces it; agents.db is untouched, only the runtime id of onboarding-agent differs afterwards, which no recipe asserts.",
-    "The narrow block resizes to 900 x 800 (SplitLayout.svelte:54 folds the list under 1024 px, the app sidebar stays inline above 768 px), contains no boundary click, and restores 1280 x 800 before the builder section.",
     "The install dialog is driven end to end on two fixture packages the seed copies under ~/.apollia/fixtures/ and never installs itself: seed-deps-pack (a pip dependency and a webhook trigger without a secret) reaches the dependency and configure steps and its install fails on pip on any machine because the declared package name resolves nowhere; seed-plain-pack installs for real (no dependency, no network) and lands on the done step. It stays installed for the rest of the boot: the package header's uninstall buttons carry no data-testid, so no recipe can remove it, and the seed is rebuilt at the next boot anyway.",
-    "agent-install-error-details is reached through the sidebar install button (agents-install-button) with the picker answered by a path that does not exist: install_agent validates before any copy, so the banner appears without a write."
+    "The screen opens on its list: a row opens a sheet in place of the list, and agent-sheet-back leads back to it before the next row is opened. The package file button (agents-install-apo-button) is played with the chooser answered null, a cancelled chooser, so no preview opens; the preview is held by the Playwright spec tests/agents/package-preview.spec.ts. The workflows column is empty against the seed, which installs no workflow: the sheet of a workflow and its launch are played by workflows-det on stubbed commands."
   ]
 }

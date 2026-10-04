@@ -1,0 +1,1875 @@
+{
+  "name": "workflows-det (the Agents screen on its two columns, the sheet of a workflow read, a past run opened, the launch form refused, failed and accepted, a run going then stopped, the developer detail)",
+  "stopOnError": false,
+  "dynamicTestids": [
+    "workflow-input-client",
+    "workflow-input-delay",
+    "workflow-input-level",
+    "workflow-input-notify",
+    "workflow-input-notes",
+    "workflow-input-tags-draft",
+    "workflow-input-tags-add",
+    "workflow-input-tags-remove",
+    "settings-nav-developer"
+  ],
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_workflows",
+      "resolve": [
+        {
+          "workflowId": "sales/follow-up",
+          "name": "Follow up the quotes",
+          "description": "Reminds the clients whose quote was left unanswered."
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_workflow",
+      "resolve": {
+        "workflowId": "sales/follow-up",
+        "version": "1.2.0",
+        "description": "Reminds the clients whose quote was left unanswered.",
+        "steps": [
+          "collect",
+          "draft",
+          "send"
+        ],
+        "inputs": [
+          {
+            "name": "client",
+            "kind": "text",
+            "required": true,
+            "nullable": false,
+            "description": "Who to remind"
+          },
+          {
+            "name": "delay",
+            "kind": "integer",
+            "required": true,
+            "nullable": false
+          },
+          {
+            "name": "notify",
+            "kind": "boolean",
+            "required": false,
+            "nullable": false
+          },
+          {
+            "name": "level",
+            "kind": "choice",
+            "required": false,
+            "nullable": false,
+            "choices": [
+              "low",
+              "high"
+            ]
+          },
+          {
+            "name": "notes",
+            "kind": "long_text",
+            "required": false,
+            "nullable": false
+          },
+          {
+            "name": "tags",
+            "kind": "list",
+            "required": false,
+            "nullable": false,
+            "itemKind": "text"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_workflow_runs",
+      "resolve": [
+        {
+          "runId": "run-5",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "completed",
+          "output": {
+            "sent": 3
+          },
+          "error": null,
+          "startedAt": "2026-10-05T09:00:00Z",
+          "endedAt": "2026-10-05T09:01:30Z"
+        },
+        {
+          "runId": "run-4",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "failed",
+          "output": null,
+          "error": "the mailbox refused the draft",
+          "startedAt": "2026-10-04T09:00:00Z",
+          "endedAt": "2026-10-04T09:01:30Z"
+        },
+        {
+          "runId": "run-3",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "canceled",
+          "output": null,
+          "error": "stopped",
+          "startedAt": "2026-10-03T09:00:00Z",
+          "endedAt": "2026-10-03T09:01:30Z"
+        },
+        {
+          "runId": "run-2",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "completed",
+          "output": {
+            "sent": 3
+          },
+          "error": null,
+          "startedAt": "2026-10-02T09:00:00Z",
+          "endedAt": "2026-10-02T09:01:30Z"
+        },
+        {
+          "runId": "run-1",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "completed",
+          "output": {
+            "sent": 3
+          },
+          "error": null,
+          "startedAt": "2026-10-01T09:00:00Z",
+          "endedAt": "2026-10-01T09:01:30Z"
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_agent_package_detail",
+      "resolve": {
+        "name": "sales",
+        "version": "1.2.0",
+        "description": "Follows the quotes up",
+        "author": "",
+        "agents": [],
+        "installed_at": "2026-10-01T08:00:00Z",
+        "updated_at": "2026-10-01T08:00:00Z",
+        "root_path": "${HOME}/.apollia/agents/packages/sales",
+        "root_missing": false,
+        "manifest": {
+          "workflows": [
+            {
+              "name": "follow-up",
+              "action": "send_external"
+            }
+          ]
+        },
+        "signature": {
+          "publisher": "Acme",
+          "signed": true,
+          "trusted": true,
+          "key_fingerprint": null
+        },
+        "embedded": false,
+        "content": {
+          "agents": [],
+          "workflows": [
+            {
+              "id": "follow-up",
+              "name": "follow-up",
+              "description": "Reminds the clients whose quote was left unanswered."
+            }
+          ],
+          "tools": [],
+          "connections_brought": [],
+          "connections_required": [
+            {
+              "type": "gmail",
+              "reason": "Sends the reminders"
+            }
+          ]
+        },
+        "automations": []
+      },
+      "argsMatch": {
+        "name": "sales"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_workflow_run",
+      "resolve": {
+        "run": {
+          "runId": "run-5",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "completed",
+          "output": {
+            "sent": 3
+          },
+          "error": null,
+          "startedAt": "2026-10-05T09:00:00Z",
+          "endedAt": "2026-10-05T09:01:30Z"
+        },
+        "steps": [
+          {
+            "rank": 0,
+            "name": "collect",
+            "status": "completed",
+            "startedAt": "2026-10-05T09:00:00Z",
+            "endedAt": "2026-10-05T09:00:20Z",
+            "output": "Three quotes found",
+            "error": null
+          },
+          {
+            "rank": 1,
+            "name": "draft",
+            "status": "completed",
+            "startedAt": "2026-10-05T09:00:00Z",
+            "endedAt": "2026-10-05T09:00:20Z",
+            "output": null,
+            "error": null
+          },
+          {
+            "rank": 2,
+            "name": "send",
+            "status": "completed",
+            "startedAt": "2026-10-05T09:00:00Z",
+            "endedAt": "2026-10-05T09:00:20Z",
+            "output": null,
+            "error": null
+          }
+        ]
+      },
+      "argsMatch": {
+        "runId": "run-5"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_workflow_run",
+      "resolve": {
+        "run": {
+          "runId": "run-4",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "failed",
+          "output": null,
+          "error": "the mailbox refused the draft",
+          "startedAt": "2026-10-04T09:00:00Z",
+          "endedAt": "2026-10-04T09:01:30Z"
+        },
+        "steps": [
+          {
+            "rank": 0,
+            "name": "collect",
+            "status": "completed",
+            "startedAt": "2026-10-05T09:00:00Z",
+            "endedAt": "2026-10-05T09:00:20Z",
+            "output": "Three quotes found",
+            "error": null
+          },
+          {
+            "rank": 1,
+            "name": "draft",
+            "status": "failed",
+            "startedAt": "2026-10-05T09:00:00Z",
+            "endedAt": "2026-10-05T09:00:20Z",
+            "output": null,
+            "error": "the mailbox refused the draft"
+          },
+          {
+            "rank": 2,
+            "name": "send",
+            "status": "not_started",
+            "startedAt": null,
+            "endedAt": null,
+            "output": null,
+            "error": null
+          }
+        ]
+      },
+      "argsMatch": {
+        "runId": "run-4"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_workflow_run",
+      "resolve": {
+        "run": {
+          "runId": "run-3",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "canceled",
+          "output": null,
+          "error": "stopped",
+          "startedAt": "2026-10-03T09:00:00Z",
+          "endedAt": "2026-10-03T09:01:30Z"
+        },
+        "steps": [
+          {
+            "rank": 0,
+            "name": "collect",
+            "status": "completed",
+            "startedAt": "2026-10-05T09:00:00Z",
+            "endedAt": "2026-10-05T09:00:20Z",
+            "output": "Three quotes found",
+            "error": null
+          },
+          {
+            "rank": 1,
+            "name": "draft",
+            "status": "canceled",
+            "startedAt": "2026-10-05T09:00:00Z",
+            "endedAt": "2026-10-05T09:00:20Z",
+            "output": null,
+            "error": null
+          },
+          {
+            "rank": 2,
+            "name": "send",
+            "status": "not_started",
+            "startedAt": null,
+            "endedAt": null,
+            "output": null,
+            "error": null
+          }
+        ]
+      },
+      "argsMatch": {
+        "runId": "run-3"
+      }
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-page",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "agents-column"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflows-column"
+    },
+    {
+      "kind": "expect",
+      "testid": "agents-install-apo-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-row",
+      "timeoutMs": 6000,
+      "contains": "Follow up the quotes"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-row-last-run"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-row-launch"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-agents-and-workflows-side-by-side"
+    },
+    {
+      "kind": "fill",
+      "testid": "agents-search",
+      "text": "zzz-no-such-thing"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-column-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "workflows-column-empty"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-filter-no-match"
+    },
+    {
+      "kind": "fill",
+      "testid": "agents-search",
+      "text": "follow"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-row",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "agents-search",
+      "text": ""
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-list-row"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-sheet",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-sheet-title",
+      "contains": "Follow up the quotes"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-sheet-meta",
+      "contains": "sales"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-sheet-what",
+      "timeoutMs": 6000,
+      "contains": "Reminds the clients"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-sheet-steps"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-step",
+      "nth": 0,
+      "contains": "collect"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-step",
+      "nth": 2,
+      "contains": "send"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-sheet-access"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-access-family",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-access-connection",
+      "contains": "gmail"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-sheet-history"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-run",
+      "nth": 0
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-history-all"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-workflow-sheet"
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-history-all"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "workflow-history-all",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-run",
+      "nth": 4
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-run-open",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-run-card",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-run-card-status"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-run-card-meta"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-run-card-inputs",
+      "contains": "Acme"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-step-status",
+      "nth": 0
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-step-output",
+      "contains": "Three quotes found"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-run-relaunch"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-past-run-open"
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-run-open",
+      "nth": 1
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-run-card-error",
+      "timeoutMs": 4000,
+      "contains": "the mailbox refused the draft"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-step-error",
+      "contains": "the mailbox refused the draft"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-failed-run-open"
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-run-open",
+      "nth": 2
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-run-card-canceled",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-stopped-run-open"
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-run-relaunch"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-launch-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-input-client"
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-launch-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "workflow-launch-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-run-close"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "workflow-run-card",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-launch-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-launch-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-launch-form"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-field",
+      "nth": 0
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-field",
+      "nth": 5
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-launch-access"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-launch-form-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-launch-confirm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-launch-errors",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-launch-form-to-correct"
+    },
+    {
+      "kind": "fill",
+      "testid": "workflow-input-client",
+      "text": "nobody"
+    },
+    {
+      "kind": "fill",
+      "testid": "workflow-input-delay",
+      "text": "7"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "workflow-input-level",
+      "value": "high"
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-input-notify"
+    },
+    {
+      "kind": "fill",
+      "testid": "workflow-input-notes",
+      "text": "Second reminder"
+    },
+    {
+      "kind": "fill",
+      "testid": "workflow-input-tags-draft",
+      "text": "urgent"
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-input-tags-add"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-input-tags-remove"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "launch_workflow",
+      "reject": "input 'client': no client by that name [not_a_choice]",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-launch-confirm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-launch-refused",
+      "timeoutMs": 3000,
+      "contains": "no client by that name"
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-launch-refused-by-the-workflow"
+    },
+    {
+      "kind": "fill",
+      "testid": "workflow-input-client",
+      "text": "Acme"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "launch_workflow",
+      "reject": "the workflow engine is not running in this runtime",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-launch-confirm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-launch-failure",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_workflow_runs"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_workflow_runs",
+      "resolve": [
+        {
+          "runId": "run-6",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "running",
+          "output": null,
+          "error": null,
+          "startedAt": "2026-10-06T09:00:00Z",
+          "endedAt": null
+        },
+        {
+          "runId": "run-5",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "completed",
+          "output": {
+            "sent": 3
+          },
+          "error": null,
+          "startedAt": "2026-10-05T09:00:00Z",
+          "endedAt": "2026-10-05T09:01:30Z"
+        },
+        {
+          "runId": "run-4",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "failed",
+          "output": null,
+          "error": "the mailbox refused the draft",
+          "startedAt": "2026-10-04T09:00:00Z",
+          "endedAt": "2026-10-04T09:01:30Z"
+        },
+        {
+          "runId": "run-3",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "canceled",
+          "output": null,
+          "error": "stopped",
+          "startedAt": "2026-10-03T09:00:00Z",
+          "endedAt": "2026-10-03T09:01:30Z"
+        },
+        {
+          "runId": "run-2",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "completed",
+          "output": {
+            "sent": 3
+          },
+          "error": null,
+          "startedAt": "2026-10-02T09:00:00Z",
+          "endedAt": "2026-10-02T09:01:30Z"
+        },
+        {
+          "runId": "run-1",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "completed",
+          "output": {
+            "sent": 3
+          },
+          "error": null,
+          "startedAt": "2026-10-01T09:00:00Z",
+          "endedAt": "2026-10-01T09:01:30Z"
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_workflow_run",
+      "resolve": {
+        "run": {
+          "runId": "run-6",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "running",
+          "output": null,
+          "error": null,
+          "startedAt": "2026-10-06T09:00:00Z",
+          "endedAt": null
+        },
+        "steps": [
+          {
+            "rank": 0,
+            "name": "collect",
+            "status": "completed",
+            "startedAt": "2026-10-05T09:00:00Z",
+            "endedAt": "2026-10-05T09:00:20Z",
+            "output": "Three quotes found",
+            "error": null
+          },
+          {
+            "rank": 1,
+            "name": "draft",
+            "status": "running",
+            "startedAt": "2026-10-05T09:00:00Z",
+            "endedAt": null,
+            "output": null,
+            "error": null
+          },
+          {
+            "rank": 2,
+            "name": "send",
+            "status": "pending",
+            "startedAt": null,
+            "endedAt": null,
+            "output": null,
+            "error": null
+          }
+        ]
+      },
+      "argsMatch": {
+        "runId": "run-6"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "launch_workflow",
+      "resolve": {
+        "runId": "run-6",
+        "workflowId": "sales/follow-up",
+        "parentRunId": null,
+        "depth": 1,
+        "inputs": {
+          "client": "Acme",
+          "delay": 7
+        },
+        "status": "running",
+        "output": null,
+        "error": null,
+        "startedAt": "2026-10-06T09:00:00Z",
+        "endedAt": null
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-launch-confirm"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "workflow-launch-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-run-card",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-run-stop"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-step-status",
+      "nth": 1
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-run-in-progress"
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-run-stop"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-run-stop-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-run-stop-dialog-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "workflow-run-stop-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-run-stop"
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-run-stop"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-run-stop-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_workflow_runs"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_workflow_run"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "cancel_workflow_run",
+      "resolve": {
+        "runId": "run-6",
+        "workflowId": "sales/follow-up",
+        "parentRunId": null,
+        "depth": 1,
+        "inputs": {
+          "client": "Acme",
+          "delay": 7
+        },
+        "status": "canceled",
+        "output": null,
+        "error": "stopped",
+        "startedAt": "2026-10-06T09:00:00Z",
+        "endedAt": "2026-10-06T09:00:40Z"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_workflow_runs",
+      "resolve": [
+        {
+          "runId": "run-6",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "canceled",
+          "output": null,
+          "error": "stopped",
+          "startedAt": "2026-10-06T09:00:00Z",
+          "endedAt": "2026-10-06T09:00:40Z"
+        },
+        {
+          "runId": "run-5",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "completed",
+          "output": {
+            "sent": 3
+          },
+          "error": null,
+          "startedAt": "2026-10-05T09:00:00Z",
+          "endedAt": "2026-10-05T09:01:30Z"
+        },
+        {
+          "runId": "run-4",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "failed",
+          "output": null,
+          "error": "the mailbox refused the draft",
+          "startedAt": "2026-10-04T09:00:00Z",
+          "endedAt": "2026-10-04T09:01:30Z"
+        },
+        {
+          "runId": "run-3",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "canceled",
+          "output": null,
+          "error": "stopped",
+          "startedAt": "2026-10-03T09:00:00Z",
+          "endedAt": "2026-10-03T09:01:30Z"
+        },
+        {
+          "runId": "run-2",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "completed",
+          "output": {
+            "sent": 3
+          },
+          "error": null,
+          "startedAt": "2026-10-02T09:00:00Z",
+          "endedAt": "2026-10-02T09:01:30Z"
+        },
+        {
+          "runId": "run-1",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "completed",
+          "output": {
+            "sent": 3
+          },
+          "error": null,
+          "startedAt": "2026-10-01T09:00:00Z",
+          "endedAt": "2026-10-01T09:01:30Z"
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_workflow_run",
+      "resolve": {
+        "run": {
+          "runId": "run-6",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "canceled",
+          "output": null,
+          "error": "stopped",
+          "startedAt": "2026-10-06T09:00:00Z",
+          "endedAt": "2026-10-06T09:00:40Z"
+        },
+        "steps": [
+          {
+            "rank": 0,
+            "name": "collect",
+            "status": "completed",
+            "startedAt": "2026-10-05T09:00:00Z",
+            "endedAt": "2026-10-05T09:00:20Z",
+            "output": "Three quotes found",
+            "error": null
+          },
+          {
+            "rank": 1,
+            "name": "draft",
+            "status": "canceled",
+            "startedAt": "2026-10-05T09:00:00Z",
+            "endedAt": "2026-10-05T09:00:20Z",
+            "output": null,
+            "error": null
+          },
+          {
+            "rank": 2,
+            "name": "send",
+            "status": "not_started",
+            "startedAt": null,
+            "endedAt": null,
+            "output": null,
+            "error": null
+          }
+        ]
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-run-stop-dialog-confirm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-run-card-canceled",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "workflow-run-stop",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-run-relaunch"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-run-stopped"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_workflow_runs"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_workflow_run"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_workflow_runs",
+      "resolve": [
+        {
+          "runId": "run-6",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "running",
+          "output": null,
+          "error": null,
+          "startedAt": "2026-10-06T09:00:00Z",
+          "endedAt": null
+        },
+        {
+          "runId": "run-5",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "completed",
+          "output": {
+            "sent": 3
+          },
+          "error": null,
+          "startedAt": "2026-10-05T09:00:00Z",
+          "endedAt": "2026-10-05T09:01:30Z"
+        },
+        {
+          "runId": "run-4",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "failed",
+          "output": null,
+          "error": "the mailbox refused the draft",
+          "startedAt": "2026-10-04T09:00:00Z",
+          "endedAt": "2026-10-04T09:01:30Z"
+        },
+        {
+          "runId": "run-3",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "canceled",
+          "output": null,
+          "error": "stopped",
+          "startedAt": "2026-10-03T09:00:00Z",
+          "endedAt": "2026-10-03T09:01:30Z"
+        },
+        {
+          "runId": "run-2",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "completed",
+          "output": {
+            "sent": 3
+          },
+          "error": null,
+          "startedAt": "2026-10-02T09:00:00Z",
+          "endedAt": "2026-10-02T09:01:30Z"
+        },
+        {
+          "runId": "run-1",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "completed",
+          "output": {
+            "sent": 3
+          },
+          "error": null,
+          "startedAt": "2026-10-01T09:00:00Z",
+          "endedAt": "2026-10-01T09:01:30Z"
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_workflow_run",
+      "resolve": {
+        "run": {
+          "runId": "run-6",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "running",
+          "output": null,
+          "error": null,
+          "startedAt": "2026-10-06T09:00:00Z",
+          "endedAt": null
+        },
+        "steps": [
+          {
+            "rank": 0,
+            "name": "collect",
+            "status": "completed",
+            "startedAt": "2026-10-05T09:00:00Z",
+            "endedAt": "2026-10-05T09:00:20Z",
+            "output": "Three quotes found",
+            "error": null
+          },
+          {
+            "rank": 1,
+            "name": "draft",
+            "status": "running",
+            "startedAt": "2026-10-05T09:00:00Z",
+            "endedAt": null,
+            "output": null,
+            "error": null
+          },
+          {
+            "rank": 2,
+            "name": "send",
+            "status": "pending",
+            "startedAt": null,
+            "endedAt": null,
+            "output": null,
+            "error": null
+          }
+        ]
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-sheet-back"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-row-steps",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-row-with-a-run-going"
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-row-steps"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-run-card",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-run-stop"
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-sheet-back"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_workflow_runs"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_workflow_runs",
+      "resolve": []
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-page",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-row-launch",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-row-launch"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-launch-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-launch-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "workflow-launch-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "workflow-history-empty"
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-sheet-never-launched"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_agent_package_detail"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_agent_package_detail",
+      "reject": "package 'sales' is not installed",
+      "argsMatch": {
+        "name": "sales"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-sheet-back"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-list-row"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-access-unknown",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-sheet-package"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "library-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_workflow"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_workflow",
+      "reject": "API error (404): no workflow 'sales/follow-up'"
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-list-row"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-sheet-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-sheet-unreadable"
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-sheet-back"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_workflow"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_workflow",
+      "resolve": {
+        "workflowId": "sales/follow-up",
+        "version": "1.2.0",
+        "description": "Reminds the clients whose quote was left unanswered.",
+        "steps": [
+          "collect",
+          "draft",
+          "send"
+        ],
+        "inputs": [
+          {
+            "name": "client",
+            "kind": "text",
+            "required": true,
+            "nullable": false,
+            "description": "Who to remind"
+          },
+          {
+            "name": "delay",
+            "kind": "integer",
+            "required": true,
+            "nullable": false
+          },
+          {
+            "name": "notify",
+            "kind": "boolean",
+            "required": false,
+            "nullable": false
+          },
+          {
+            "name": "level",
+            "kind": "choice",
+            "required": false,
+            "nullable": false,
+            "choices": [
+              "low",
+              "high"
+            ]
+          },
+          {
+            "name": "notes",
+            "kind": "long_text",
+            "required": false,
+            "nullable": false
+          },
+          {
+            "name": "tags",
+            "kind": "list",
+            "required": false,
+            "nullable": false,
+            "itemKind": "text"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_workflow_runs"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_workflow_run"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_workflow_runs",
+      "resolve": [
+        {
+          "runId": "run-5",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "completed",
+          "output": {
+            "sent": 3
+          },
+          "error": null,
+          "startedAt": "2026-10-05T09:00:00Z",
+          "endedAt": "2026-10-05T09:01:30Z"
+        },
+        {
+          "runId": "run-4",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "failed",
+          "output": null,
+          "error": "the mailbox refused the draft",
+          "startedAt": "2026-10-04T09:00:00Z",
+          "endedAt": "2026-10-04T09:01:30Z"
+        },
+        {
+          "runId": "run-3",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "canceled",
+          "output": null,
+          "error": "stopped",
+          "startedAt": "2026-10-03T09:00:00Z",
+          "endedAt": "2026-10-03T09:01:30Z"
+        },
+        {
+          "runId": "run-2",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "completed",
+          "output": {
+            "sent": 3
+          },
+          "error": null,
+          "startedAt": "2026-10-02T09:00:00Z",
+          "endedAt": "2026-10-02T09:01:30Z"
+        },
+        {
+          "runId": "run-1",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "completed",
+          "output": {
+            "sent": 3
+          },
+          "error": null,
+          "startedAt": "2026-10-01T09:00:00Z",
+          "endedAt": "2026-10-01T09:01:30Z"
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_workflow_run",
+      "resolve": {
+        "run": {
+          "runId": "run-5",
+          "workflowId": "sales/follow-up",
+          "parentRunId": null,
+          "depth": 1,
+          "inputs": {
+            "client": "Acme",
+            "delay": 7
+          },
+          "status": "completed",
+          "output": {
+            "sent": 3
+          },
+          "error": null,
+          "startedAt": "2026-10-05T09:00:00Z",
+          "endedAt": "2026-10-05T09:01:30Z"
+        },
+        "steps": [
+          {
+            "rank": 0,
+            "name": "collect",
+            "status": "completed",
+            "startedAt": "2026-10-05T09:00:00Z",
+            "endedAt": "2026-10-05T09:00:20Z",
+            "output": "Three quotes found",
+            "error": null
+          },
+          {
+            "rank": 1,
+            "name": "draft",
+            "status": "completed",
+            "startedAt": "2026-10-05T09:00:00Z",
+            "endedAt": "2026-10-05T09:00:20Z",
+            "output": null,
+            "error": null
+          },
+          {
+            "rank": 2,
+            "name": "send",
+            "status": "completed",
+            "startedAt": "2026-10-05T09:00:00Z",
+            "endedAt": "2026-10-05T09:00:20Z",
+            "output": null,
+            "error": null
+          }
+        ]
+      }
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-list-row"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-sheet",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "workflow-run-open",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "workflow-run-technical",
+      "timeoutMs": 4000,
+      "contains": "run-5"
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-run-technical-detail-developer-mode"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-page",
+      "timeoutMs": 8000
+    }
+  ],
+  "notes": [
+    "Code-verified against routes/Agents.svelte, components/agents/AgentsOverview.svelte, WorkflowListRow.svelte, components/workflows/WorkflowSheet.svelte, WorkflowLaunchDialog.svelte, WorkflowFieldControl.svelte, WorkflowRunCard.svelte, WorkflowRunRow.svelte, WorkflowStepRow.svelte and useWorkflowSheet.svelte.ts.",
+    "The seed installs no workflow, so every workflow command is stubbed: list_workflows, get_workflow, list_workflow_runs, get_workflow_run, launch_workflow and cancel_workflow_run. The stubbed values imitate WorkflowListItem of crates/apollia-desktop/src/commands/workflows.rs, and WorkflowView, WorkflowRunView, WorkflowStepView and WorkflowRunDetailView of crates/apollia-runtime/src/api/routes_workflows.rs, InputField of crates/apollia-runtime/src/workflows/fields.rs: a field renamed there drifts here silently. The real launch, the real steps and the real stop are held by the runtime tests of the workflow engine.",
+    "get_agent_package_detail is stubbed for the package of the stubbed workflow only (argsMatch), and imitates AgentPackageDetail of crates/apollia-runtime/src/agent_packages.rs; the action family of the workflow is read from its `manifest.workflows[].action`.",
+    "A stub is static, so each state of a run is a new stub: the run going (launch_workflow, then get_workflow_run with its second step in progress), then the same run stopped (cancel_workflow_run, list_workflow_runs and get_workflow_run restubbed once the confirmation of the stop is open). The sheet reads a run going again every second, so the stopped state may show before the confirmation is clicked; the confirmation stays open through it.",
+    "The list is read when the screen shows it, so a new list stub is followed by a round trip through the dashboard or by the way back from a sheet.",
+    "workflow-sheet-loading is not played: it shows for the time of one stubbed call. The file field (a native chooser) is not played either: the stubbed workflow declares none; its control is held by the Vitest suite components/workflows/workflowForm.test.ts.",
+    "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run: just desktop-dev-automation-seeded scripts/automation/workflows-det.json"
+  ]
+}

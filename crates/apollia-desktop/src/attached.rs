@@ -67,9 +67,8 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_a2a_skills",
     "list_chat_approval_history",
     "regenerate_chat_response",
-    // Agents: the registry, the install and the uninstall of an agent.
+    // Agents: the registry and the uninstall of an agent.
     "agent_status_snapshot",
-    "install_agent",
     "list_agents",
     "uninstall_agent",
     // Agents: the update, restart included, over
@@ -138,6 +137,14 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // Apollia as an MCP server, over `/api/v1/mcp/exposed`.
     "list_mcp_exposable",
     "set_mcp_exposed",
+    // Workflows: the list, one workflow, its runs, a launch and a stop, over
+    // `/api/v1/workflows` and `/api/v1/workflow-runs`.
+    "cancel_workflow_run",
+    "get_workflow",
+    "get_workflow_run",
+    "launch_workflow",
+    "list_workflow_runs",
+    "list_workflows",
     // Notifications and the activity feed.
     "create_notification_channel",
     "delete_notification_channel",
