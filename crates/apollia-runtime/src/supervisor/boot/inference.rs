@@ -74,6 +74,7 @@ impl Supervisor {
         });
         let (llama_server_supervisor, mlx_engine) =
             start_local_engines(&system_db_path, guardrails_file, event_sender, org_policy);
+        crate::memory_vectors::start(&self.config.data_dir, llama_server_supervisor.clone());
 
         // Phase 4 (pos 5): LlmRouter + LlmBackendRepository, loads backends from system.db
         let (llm_router, llm_backend_repo) = self

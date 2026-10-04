@@ -3,12 +3,13 @@
    * ConnectorSidebar - the split-screen sidebar for Connections.
    *
    * SidebarHeader (search + status FilterChipBar) over one list: every
-   * connection the loader answers, whatever its kind, in its order. Owns its
+   * connection the loader answers, whatever its kind, in its order, then the
+   * built-in tools, the source of tools Apollia ships. Owns its
    * own search + status-filter state; selection is driven by the orchestrator.
    */
   import { t } from "svelte-i18n";
-  import { Plus, Search } from "lucide-svelte";
-  import { SidebarHeader, FilterChipBar, ErrorBanner } from "$lib/components/operator";
+  import { Plus, Search, Wrench } from "lucide-svelte";
+  import { SidebarHeader, FilterChipBar, ErrorBanner, ListRow } from "$lib/components/operator";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Skeleton } from "$lib/components/ui/skeleton";
@@ -19,8 +20,9 @@
     type ConnectionRow,
     type RowSelection,
   } from "$lib/connections/connectionRows";
-  import type { StatusFilter, McpRowAction } from "../shared/types";
+  import type { BuiltinToolsCount, StatusFilter, McpRowAction } from "../shared/types";
   import ConnectionListRow from "./ConnectionListRow.svelte";
+  import ConnectorTile from "../shared/ConnectorTile.svelte";
 
   interface Props {
     rows: ConnectionRow[];
@@ -30,10 +32,19 @@
     onselect: (sel: RowSelection) => void;
     onopencatalogue: () => void;
     oncontext: (name: string, action: McpRowAction) => void;
+    builtinTools: BuiltinToolsCount;
   }
 
-  let { rows, selection, loading, loadError, onselect, onopencatalogue, oncontext }: Props =
-    $props();
+  let {
+    rows,
+    selection,
+    loading,
+    loadError,
+    onselect,
+    onopencatalogue,
+    oncontext,
+    builtinTools,
+  }: Props = $props();
 
   let sidebarFilter = $state("");
   let statusFilter = $state<StatusFilter>("all");
@@ -45,6 +56,14 @@
       .filter((r) => statusFilter === "all" || r.status === statusFilter)
       .filter((r) => rowMatches(r, sidebarFilter)),
   );
+
+  const builtinLabel = $derived($t("connections.builtin_name"));
+  const builtinVisible = $derived(
+    statusFilter === "all" &&
+      (sidebarFilter.trim() === "" ||
+        builtinLabel.toLowerCase().includes(sidebarFilter.trim().toLowerCase())),
+  );
+  const builtinSelected = $derived(selection?.kind === "builtin");
 </script>
 
 <SidebarHeader
@@ -96,7 +115,7 @@
         </div>
       </div>
     {/each}
-  {:else if visibleRows.length === 0}
+  {:else if visibleRows.length === 0 && !builtinVisible}
     <p class="px-2 py-3 text-caption text-muted-foreground/70" data-testid="connections-sidebar-empty">
       {rows.length === 0
         ? $t("connections.sidebar_no_servers")
@@ -115,6 +134,39 @@
           : undefined}
       />
     {/each}
+  {/if}
+
+  {#if builtinVisible}
+    <section class="mt-3" data-testid="connections-builtin-section">
+      <h3 class="px-2.5 pb-1 text-overline font-semibold uppercase text-muted-foreground">
+        {$t("connections.builtin_section")}
+      </h3>
+      <ListRow
+        variant="nav"
+        state={builtinSelected ? "active" : "default"}
+        align="stretch"
+        class="text-left"
+        onclick={() => onselect({ kind: "builtin" })}
+        data-testid="connections-builtin-tools"
+      >
+        <ConnectorTile size="sm" accent="hsl(var(--primary))">
+          {#snippet icon()}<Wrench size={13} />{/snippet}
+        </ConnectorTile>
+        <div class="min-w-0 flex-1">
+          <span
+            class="block truncate text-label-md text-foreground"
+            style:font-weight={builtinSelected ? 600 : 500}
+          >
+            {builtinLabel}
+          </span>
+          <span class="mt-0.5 block truncate text-caption text-muted-foreground" data-testid="connections-builtin-count">
+            {$t("connections.builtin_count", {
+              values: { active: builtinTools.active, total: builtinTools.total },
+            })}
+          </span>
+        </div>
+      </ListRow>
+    </section>
   {/if}
 </div>
 

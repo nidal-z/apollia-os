@@ -210,6 +210,7 @@
     "tool-configure-web_search",
     "tool-contract-credential-brave.api_key",
     "tool-contract-field-query",
+    "tool-id-web_search",
     "tool-inspect-web_search",
     "tool-toggle-web_search",
     "trigger-logs-filter-all",
@@ -19066,27 +19067,27 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 3000
-    },
-    {
       "kind": "stubInvoke",
       "command": "governance_list_tools",
       "resolve": []
     },
     {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "click",
-      "testid": "settings-nav-tools",
+      "testid": "connections-builtin-tools",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "settings-tools",
+      "testid": "builtin-tools-detail",
       "timeoutMs": 3000
     },
     {
@@ -19132,21 +19133,21 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-tools",
+      "testid": "connections-builtin-tools",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "settings-tools",
+      "testid": "builtin-tools-detail",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "01-settings-tools-operator"
+      "label": "01-connections-builtin-tools-operator"
     },
     {
       "kind": "expect",
-      "testid": "settings-tools"
+      "testid": "builtin-tools-detail"
     },
     {
       "kind": "waitFor",
@@ -19299,102 +19300,22 @@
     },
     {
       "kind": "waitFor",
-      "testid": "tool-inspect-web_search",
+      "testid": "tool-card-web_search",
       "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "tool-inspect-web_search",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tool-contract-sheet",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tool-contract-identity",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tool-contract-input",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tool-contract-field-query",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07b-tool-contract-web-search"
-    },
-    {
-      "kind": "click",
-      "testid": "tool-contract-input-raw-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "tool-contract-output-raw-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 150
-    },
-    {
-      "kind": "click",
-      "testid": "tool-contract-output-raw-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tool-contract-input-raw",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07c-tool-contract-raw-input-schema"
-    },
-    {
-      "kind": "click",
-      "testid": "tool-contract-input-raw-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tool-contract-credentials",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tool-contract-credential-brave.api_key",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07d-tool-contract-credentials (key names and dates only, never a value)"
-    },
-    {
-      "kind": "click",
-      "testid": "sheet-close",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
     },
     {
       "kind": "waitGone",
-      "testid": "tool-contract-sheet",
+      "testid": "tool-inspect-web_search",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tool-id-web_search",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "07e-tool-contract-closed"
+      "label": "07a-tool-contract-absent (developer mode off: no contract button, no identifier)"
     },
     {
       "kind": "waitFor",
@@ -19831,26 +19752,26 @@
     },
     {
       "kind": "goto",
-      "route": "settings"
+      "route": "integrations"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
+      "testid": "connections-route",
       "timeoutMs": 3000
     },
     {
       "kind": "click",
-      "testid": "settings-nav-tools",
+      "testid": "connections-builtin-tools",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "settings-tools",
+      "testid": "builtin-tools-detail",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "19-settings-tools-builder"
+      "label": "19-connections-builtin-tools-builder"
     },
     {
       "kind": "waitFor",
@@ -19866,6 +19787,105 @@
       "kind": "waitFor",
       "testid": "tool-toggle-web_search",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-inspect-web_search",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "tool-inspect-web_search",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-sheet",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-identity",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-field-query",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07b-tool-contract-web-search"
+    },
+    {
+      "kind": "click",
+      "testid": "tool-contract-input-raw-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "tool-contract-output-raw-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 150
+    },
+    {
+      "kind": "click",
+      "testid": "tool-contract-output-raw-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-input-raw",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07c-tool-contract-raw-input-schema"
+    },
+    {
+      "kind": "click",
+      "testid": "tool-contract-input-raw-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-credentials",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-credential-brave.api_key",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07d-tool-contract-credentials (key names and dates only, never a value)"
+    },
+    {
+      "kind": "click",
+      "testid": "sheet-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tool-contract-sheet",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07e-tool-contract-closed"
     },
     {
       "kind": "waitFor",
@@ -19944,21 +19964,21 @@
     },
     {
       "kind": "goto",
-      "route": "settings"
+      "route": "integrations"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
+      "testid": "connections-route",
       "timeoutMs": 3000
     },
     {
       "kind": "click",
-      "testid": "settings-nav-tools",
+      "testid": "connections-builtin-tools",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "settings-tools",
+      "testid": "builtin-tools-detail",
       "timeoutMs": 3000
     },
     {

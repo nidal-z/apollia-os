@@ -2,7 +2,8 @@
   import { Clock, Database, Cog, Copy, Trash2, X, Check, Sparkles } from "lucide-svelte";
   import { t, locale } from "svelte-i18n";
   import { Sheet, SheetHeader, SheetContent, SheetFooter } from "$lib/components/ui/sheet";
-  import type { MemoryEntry } from "$lib/types";
+  import type { MemoryEntry, MemoryEmbeddings } from "$lib/types";
+  import { embeddingsLabel } from "./embeddingsLabel";
   import { developerMode } from "$lib/stores/developerMode";
   import { addToast } from "$lib/components/ui/toast/store";
   import { Button } from "$lib/components/ui/button";
@@ -13,9 +14,17 @@
     open: boolean;
     onclose: () => void;
     ondelete?: (entryId: string) => Promise<void> | void;
+    /** The embeddings model the memory searches with, `null` until read. */
+    embeddings?: MemoryEmbeddings | null;
   }
 
-  let { entry, namespace, open, onclose, ondelete }: Props = $props();
+  let { entry, namespace, open, onclose, ondelete, embeddings = null }: Props = $props();
+
+  const embeddingsText = $derived.by(() => {
+    if (!entry) return "";
+    const label = embeddingsLabel(entry.entry_type, embeddings);
+    return "values" in label ? $t(label.key, { values: label.values }) : $t(label.key);
+  });
 
   // ── Pretty-print the JSON when the value is valid JSON ──────────────────────
   const prettyValue = $derived.by(() => {
@@ -187,7 +196,7 @@
         {#if $developerMode}
           <div class="mt-3 inline-flex items-center gap-1.5 text-overline font-normal italic tracking-normal text-muted-foreground/80">
             <Sparkles size={11} class="text-primary" />
-            {entry.entry_type === "episodic" ? $t("memory.embeddings.none") : $t("memory.embeddings.vector")}
+            {embeddingsText}
           </div>
         {/if}
       </section>
