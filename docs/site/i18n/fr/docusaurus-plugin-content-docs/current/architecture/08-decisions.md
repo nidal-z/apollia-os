@@ -412,6 +412,36 @@ de `zip` entrent donc dans chaque compilation, avec cinq petites crates sous
 nouvelle version, et la version de `zip` qu'elle apporte, est une décision et
 non une mise à jour.
 
+Le texte d'un document PDF s'extrait en Rust par `pdf_oxide` (MIT ou
+Apache-2.0), page par page, chaque page avec son numéro. La bibliothèque est en
+pur Rust, en lecture seule, ne lie aucune bibliothèque système et n'ouvre aucune
+connexion ; ses fonctions par défaut sont désactivées, si bien que ni son moteur
+de profils colorimétriques ni ses modules de rendu, d'OCR ou de signature
+n'entrent dans la compilation, et seule `legacy-crypto` est gardée, pour qu'un
+document verrouillé par un seul mot de passe propriétaire s'ouvre encore. Une
+page qui ne dessine ni lettre ni chiffre est marquée sans texte : c'est la page
+que la reconnaissance optique de caractères devra lire. Un document qui demande
+un mot de passe pour s'ouvrir, ou endommagé, donne une erreur typée, et un
+défaut de l'analyseur sur un fichier malformé est rattrapé et signalé comme un
+fichier endommagé, jamais comme un plantage. La bibliothèque a été mesurée avant
+d'être adoptée, sur vingt documents français réels publiés sous Licence Ouverte
+(pièces de marché et conditions d'utilisation, budgets et grilles tarifaires,
+notes méthodologiques), avec cinq phrases témoins accentuées par document,
+prises à un extracteur indépendant : dix-neuf documents sur vingt rendent leurs
+cinq phrases, tous les accents intacts ; le vingtième perd une phrase dont une
+cellule de tableau répartit les mots sur deux lignes. Le corpus est versionné
+avec les tests qui le lisent, et PDFium, le repli natif envisagé, n'est pas
+livré.
+
+Le coût est nommé : `pdf_oxide` apporte cinquante-trois versions de crates
+absentes du fichier de verrouillage, dont une pile de polices (`skrifa`, `read-fonts`,
+`write-fonts`, `ttf-parser`, `subsetter`), un moteur de mise en page (`taffy`)
+et des secondes versions majeures de `quick-xml`, `brotli`, `sha2` et `aes`.
+`pdf_oxide` est épinglé en 0.3.78, et `office_oxide`, dont il dépend, est tenu
+en 0.1.11 dans le fichier de verrouillage : sa version 0.1.12 ne compile plus
+sous `pdf_oxide` 0.3.78 ; mettre l'une ou l'autre à jour est donc une décision et
+non un rafraîchissement.
+
 Une boîte mail se connecte en IMAP avec un mot de passe d'application : tout
 fournisseur est joignable, Gmail compris, sans client OAuth et sans relais. Le
 client est `async-imap` (MIT ou Apache-2.0), sur le runtime Tokio, au-dessus de

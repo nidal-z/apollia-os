@@ -6,8 +6,9 @@
 //! ([`apollia_core::source_registry`]); this crate holds the actor that owns
 //! it ([`SourceRegistryHandle`]), the reading of an agent's source list
 //! against it ([`checked_sources`]), the readers that turn a workbook or a
-//! CSV file into cells of text ([`read_workbook`], [`read_csv`]), and the
-//! index of a source ([`index`]): its documents cut into chunks
+//! CSV file into cells of text ([`read_workbook`], [`read_csv`]), the
+//! reader that turns a PDF document into the text of its pages ([`read_pdf`]),
+//! and the index of a source ([`index`]): its documents cut into chunks
 //! ([`chunk`]), searched by their words and by their meaning.
 
 mod actor;
@@ -22,6 +23,6 @@ pub use apollia_core::source_registry::{
 };
 pub use checked::{checked_sources, CheckedSource};
 pub use reader::{
-    read_csv, read_workbook, Cell, CellLocation, CsvFile, Delimiter, ReadError, Sheet, Workbook,
-    WORKBOOK_EXTENSIONS,
+    read_csv, read_pdf, read_workbook, Cell, CellLocation, CsvFile, Delimiter, PageText,
+    PdfDocument, PdfPage, ReadError, Sheet, Workbook, WORKBOOK_EXTENSIONS,
 };
