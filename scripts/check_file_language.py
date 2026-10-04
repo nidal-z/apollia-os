@@ -344,7 +344,7 @@ FRENCH_DATA: dict[str, int] = {
     "tests/hitl/hitl_e2e_agent.py": 1,
     # The accented French words recognition must give back from a scanned page.
     "crates/apollia-sources/tests/ocr_reader.rs": 9,
-    "crates/apollia-sources/src/indexer/tests/recognition.rs": 1,
+    "crates/apollia-sources/src/indexer/tests/recognition.rs": 2,
     "crates/apollia-cli/src/commands/mod.rs": 2,
     "crates/apollia-core/src/observability.rs": 1,
     "crates/apollia-core/src/utils.rs": 2,

@@ -248,10 +248,31 @@ impl SourceRegistryHandle {
         embedder: E,
         interval: Duration,
     ) -> Result<(), SourcesError> {
+        self.start_indexing_fetching(embedder, interval, crate::indexer::OcrDataFetch::shipped())
+            .await
+    }
+
+    /// [`Self::start_indexing_every`], the language data of recognition
+    /// fetched through `ocr_data`.
+    pub(crate) async fn start_indexing_fetching<E: PassageEmbedder>(
+        &self,
+        embedder: E,
+        interval: Duration,
+        ocr_data: Option<crate::indexer::OcrDataFetch>,
+    ) -> Result<(), SourcesError> {
         let (system_db, data_dir) = self.ask(Command::Paths).await?;
         let data_dir = data_dir.ok_or(SourcesError::NoDataDirectory)?;
         let link = RegistryLink(self.tx.downgrade());
-        let indexer = crate::indexer::spawn(link, system_db, data_dir, embedder, interval);
+        let indexer = crate::indexer::spawn(
+            link,
+            embedder,
+            crate::indexer::Start {
+                system_db,
+                data_dir,
+                interval,
+                ocr_data,
+            },
+        );
         self.tx
             .send(Command::AttachIndexer(indexer))
             .await

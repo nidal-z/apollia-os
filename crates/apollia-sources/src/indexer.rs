@@ -132,9 +132,46 @@ struct Indexer<E> {
     rescan_rx: mpsc::Receiver<()>,
     tracked: HashMap<String, Tracked>,
     model: Option<Option<String>>,
+    /// Where the language data of recognition is fetched from; `None` in a
+    /// build without the engine, which asks for nothing.
+    ocr_data: Option<Arc<OcrDataFetch>>,
     /// Set once the language data of recognition has been asked of the
     /// registry, so that it is asked once per run.
-    ocr_data_asked: Arc<AtomicBool>,
+    ocr_data_asked: AtomicBool,
+}
+
+/// Where the language data of recognition comes from when a pass leaves
+/// pages waiting: the files the registry pins, the address that serves them,
+/// and the downloader that checks each one against its digest.
+pub(crate) struct OcrDataFetch {
+    pub(crate) catalogue: apollia_llm::recommend::OcrCatalogue,
+    pub(crate) base: String,
+    pub(crate) manager: apollia_llm::DownloadManager,
+}
+
+impl OcrDataFetch {
+    /// The registry shipped in the binary, over the network. `None` in a
+    /// build without the engine, and when the shipped entries do not load.
+    pub(crate) fn shipped() -> Option<Self> {
+        if !Ocr::compiled() {
+            return None;
+        }
+        match apollia_llm::recommend::OcrCatalogue::embedded() {
+            Ok(catalogue) => Some(Self {
+                catalogue,
+                base: apollia_llm::ocr_data::REGISTRY_BASE.to_owned(),
+                manager: apollia_llm::DownloadManager::new(),
+            }),
+            Err(e) => {
+                tracing::event!(
+                    tracing::Level::WARN,
+                    error = %e,
+                    "sources.indexer.ocr_catalogue_unreadable"
+                );
+                None
+            }
+        }
+    }
 }
 
 /// Where the language data of recognition lives under `data_dir`.
@@ -142,16 +179,32 @@ fn tessdata_dir(data_dir: &Path) -> PathBuf {
     apollia_llm::ocr_data::tessdata_dir(&data_dir.join("models"))
 }
 
-/// Starts the indexer over the registry `registry` of the `system.db` at
-/// `system_db`, its indexes under `data_dir`, and returns the handle the
-/// registry keeps. A sweep runs at once, then every `interval`.
+/// What an indexer is started over, beside its registry and its embedder.
+pub(crate) struct Start {
+    /// The `system.db` the registry lives in.
+    pub(crate) system_db: PathBuf,
+    /// The directory the indexes are written under.
+    pub(crate) data_dir: PathBuf,
+    /// Time between two sweeps.
+    pub(crate) interval: Duration,
+    /// Where the language data of recognition is fetched from; `None` never
+    /// fetches it.
+    pub(crate) ocr_data: Option<OcrDataFetch>,
+}
+
+/// Starts the indexer over the registry `registry` and returns the handle the
+/// registry keeps. A sweep runs at once, then every `start.interval`.
 pub(crate) fn spawn<E: PassageEmbedder>(
     registry: RegistryLink,
-    system_db: PathBuf,
-    data_dir: PathBuf,
     embedder: E,
-    interval: Duration,
+    start: Start,
 ) -> IndexerHandle {
+    let Start {
+        system_db,
+        data_dir,
+        interval,
+        ocr_data,
+    } = start;
     let (tx, rx) = mpsc::channel(INDEXER_CAPACITY);
     let (rescan_tx, rescan_rx) = mpsc::channel(1);
     let indexer = Indexer {
@@ -165,8 +218,8 @@ pub(crate) fn spawn<E: PassageEmbedder>(
         rescan_rx,
         tracked: HashMap::new(),
         model: None,
-        // A test never reaches the registry: it starts as already asked.
-        ocr_data_asked: Arc::new(AtomicBool::new(cfg!(test))),
+        ocr_data: ocr_data.map(Arc::new),
+        ocr_data_asked: AtomicBool::new(false),
     };
     tokio::spawn(indexer.run(interval));
     IndexerHandle { tx }
@@ -357,21 +410,22 @@ impl<E: PassageEmbedder> Indexer<E> {
     /// the engine asks for nothing. A failure is traced: the pages stay
     /// marked as waiting, and the data can be imported from a disk.
     fn fetch_ocr_data(&self) {
-        if !Ocr::compiled() || self.ocr_data_asked.swap(true, Ordering::AcqRel) {
+        let Some(fetch) = self.ocr_data.clone() else {
+            return;
+        };
+        if self.ocr_data_asked.swap(true, Ordering::AcqRel) {
             return;
         }
         let dir = tessdata_dir(&self.data_dir);
         let rescan = self.rescan_tx.clone();
         tokio::spawn(async move {
-            let fetched = match apollia_llm::recommend::OcrCatalogue::embedded() {
-                Ok(catalogue) => {
-                    let manager = apollia_llm::DownloadManager::new();
-                    apollia_llm::ocr_data::fetch_missing(&dir, &catalogue, &manager)
-                        .await
-                        .map_err(|e| e.to_string())
-                }
-                Err(e) => Err(e.to_string()),
-            };
+            let fetched = apollia_llm::ocr_data::fetch_missing(
+                &dir,
+                &fetch.catalogue,
+                &fetch.manager,
+                &fetch.base,
+            )
+            .await;
             match fetched {
                 Ok(languages) => {
                     tracing::event!(

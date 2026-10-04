@@ -14896,7 +14896,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The state of the source's index, its counts and the files it left out",
+            "description": "The state of the source's index, its counts, the files it left out and the pages it could not read",
             "content": {
               "application/json": {
                 "schema": {
@@ -27046,7 +27046,8 @@
           "indexState",
           "documents",
           "chunks",
-          "skipped"
+          "skipped",
+          "unreadPages"
         ],
         "properties": {
           "chunks": {
@@ -27075,6 +27076,13 @@
               "$ref": "#/components/schemas/SkippedFileResponse"
             },
             "description": "Files left out of the index."
+          },
+          "unreadPages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnreadPageResponse"
+            },
+            "description": "Pages of indexed documents that hold no text: those waiting for\noptical character recognition, and those it cannot read."
           }
         }
       },
@@ -28735,6 +28743,39 @@
             "minimum": 0
           }
         }
+      },
+      "UnreadPageResponse": {
+        "type": "object",
+        "description": "A page of an indexed document that holds no text in the index.",
+        "required": [
+          "path",
+          "page",
+          "reason"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Page number, from 1; a picture file is its page 1.",
+            "minimum": 0
+          },
+          "path": {
+            "type": "string",
+            "description": "Path of the document on this machine."
+          },
+          "reason": {
+            "$ref": "#/components/schemas/UnreadReasonDto",
+            "description": "Why it was not read."
+          }
+        }
+      },
+      "UnreadReasonDto": {
+        "type": "string",
+        "description": "Why a page of an indexed document holds no text.",
+        "enum": [
+          "ocr_unavailable",
+          "not_read"
+        ]
       },
       "UpdateAgentRequest": {
         "type": "object",

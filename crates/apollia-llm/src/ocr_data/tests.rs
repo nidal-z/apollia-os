@@ -137,10 +137,10 @@ async fn test_missing_data_is_fetched_from_the_registry_and_checked() {
     let manager = loopback_manager();
 
     // WHEN the missing data is fetched, twice
-    let first = fetch_missing_from(&dir, &catalogue, &manager, &server.uri())
+    let first = fetch_missing(&dir, &catalogue, &manager, &server.uri())
         .await
         .unwrap();
-    let second = fetch_missing_from(&dir, &catalogue, &manager, &server.uri())
+    let second = fetch_missing(&dir, &catalogue, &manager, &server.uri())
         .await
         .unwrap();
 
@@ -165,7 +165,7 @@ async fn test_fetched_data_with_another_digest_is_refused_and_left_off_the_disk(
     let catalogue = catalogue_of(FRENCH);
 
     // WHEN the missing data is fetched
-    let refused = fetch_missing_from(&dir, &catalogue, &loopback_manager(), &server.uri()).await;
+    let refused = fetch_missing(&dir, &catalogue, &loopback_manager(), &server.uri()).await;
 
     // THEN the download fails on the digest and no file is left
     assert!(matches!(

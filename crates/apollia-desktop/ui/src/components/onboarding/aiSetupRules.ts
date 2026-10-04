@@ -177,3 +177,15 @@ export async function runLlmConfiguration(
     });
   }
 }
+
+/**
+ * Extension of the language data optical character recognition reads with.
+ * The import from disk offers it beside the model files: on a machine without
+ * the network it is the only way these files reach the application.
+ */
+export const LANGUAGE_DATA_EXTENSION = "traineddata";
+
+/** Whether the file at `path` is language data of recognition, not a model. */
+export function isLanguageData(path: string): boolean {
+  return path.toLowerCase().endsWith(`.${LANGUAGE_DATA_EXTENSION}`);
+}

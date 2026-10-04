@@ -25,7 +25,7 @@ pub const LANGUAGE_DATA_EXTENSION: &str = "traineddata";
 
 /// Address the language data is fetched from.
 #[cfg(feature = "cloud")]
-const REGISTRY_BASE: &str = "https://huggingface.co";
+pub const REGISTRY_BASE: &str = "https://huggingface.co";
 
 /// Why language data could not be brought into the folder.
 #[derive(Debug, Error)]
@@ -127,8 +127,9 @@ pub fn import_language_data(
 }
 
 /// Fetches into `dir` every file of `catalogue` that is not already there
-/// with its pinned digest, each checked against that digest by the
-/// downloader, which deletes a file that does not match. Returns the
+/// with its pinned digest, from the registry served at `base`
+/// ([`REGISTRY_BASE`] outside a test), each checked against that digest by
+/// the downloader, which deletes a file that does not match. Returns the
 /// languages fetched.
 ///
 /// # Errors
@@ -136,15 +137,6 @@ pub fn import_language_data(
 /// [`OcrDataError::Io`] when the folder cannot be prepared.
 #[cfg(feature = "cloud")]
 pub async fn fetch_missing(
-    dir: &Path,
-    catalogue: &OcrCatalogue,
-    manager: &crate::downloader::DownloadManager,
-) -> Result<Vec<String>, OcrDataError> {
-    fetch_missing_from(dir, catalogue, manager, REGISTRY_BASE).await
-}
-
-#[cfg(feature = "cloud")]
-async fn fetch_missing_from(
     dir: &Path,
     catalogue: &OcrCatalogue,
     manager: &crate::downloader::DownloadManager,

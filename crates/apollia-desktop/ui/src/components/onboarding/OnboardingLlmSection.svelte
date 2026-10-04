@@ -54,7 +54,12 @@
     formatContextWindow,
   } from "$lib/contextWindow";
   import { llmBackends } from "$lib/stores/sse";
-  import { llmSectionView, runLlmConfiguration } from "./aiSetupRules";
+  import {
+    LANGUAGE_DATA_EXTENSION,
+    isLanguageData,
+    llmSectionView,
+    runLlmConfiguration,
+  } from "./aiSetupRules";
   import {
     defaultChoice,
     measuredLabel,
@@ -86,6 +91,8 @@
   let llmSuccess = $state(false);
   let llmError = $state<string | null>(null);
   let importingLlm = $state(false);
+  /** File name of the recognition language data the last import brought in. */
+  let languageDataImported = $state<string | null>(null);
 
   let llmDownloadId = $state<string | null>(null);
   let llmDownloadProgress = $state<DownloadProgress | null>(null);
@@ -258,10 +265,17 @@
     if (importingLlm || llmDownloadId) return;
     importingLlm = true;
     llmError = null;
+    languageDataImported = null;
     try {
       const selected = await openFilePicker({
         multiple: false,
-        filters: [{ name: "GGUF", extensions: ["gguf"] }],
+        filters: [
+          { name: "GGUF", extensions: ["gguf"] },
+          {
+            name: get(t)("onboarding.ai_setup.load_language_data_filter"),
+            extensions: [LANGUAGE_DATA_EXTENSION],
+          },
+        ],
         title: get(t)("onboarding.ai_setup.load_model_title"),
         defaultPath: await pickModelsDir(),
       });
@@ -269,8 +283,12 @@
       const filePath =
         typeof selected === "string" ? selected : (selected as { path: string }).path;
       const dest = await importModelFile(filePath, ["gguf"]);
-      await loadData();
       const name = dest.split(/[\\/]/).pop() ?? "";
+      if (isLanguageData(dest)) {
+        languageDataImported = name;
+        return;
+      }
+      await loadData();
       const model = ggufModels.find((m) => m.filename === name);
       if (model) await selectGgufModel(model);
     } catch (err: unknown) {
@@ -703,6 +721,12 @@
   {#if llmDownloadError}
     <p class="inline-error" role="alert" data-testid="llm-download-error">
       <AlertCircle size={12} />{llmDownloadError}
+    </p>
+  {/if}
+
+  {#if languageDataImported}
+    <p class="empty-hint" role="status" data-testid="llm-language-data-imported">
+      {$t("onboarding.ai_setup.language_data_imported", { values: { file: languageDataImported } })}
     </p>
   {/if}
 

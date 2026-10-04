@@ -1,9 +1,80 @@
 //! Scanned pages and pictures in a source: marked while recognition is
 //! missing, read once it is there, and never written beside the documents.
 
+use apollia_llm::ocr_data::verified_languages;
+use apollia_llm::recommend::OcrCatalogue;
+use sha2::{Digest, Sha256};
+use wiremock::matchers::{method, path as url_path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
+
 use super::*;
 use crate::index::{UnreadPage, UnreadReason};
 use crate::ocr::Ocr;
+
+/// A registry of one language, `fra`, pinned to the digest of `bytes`.
+fn catalogue_of(bytes: &[u8]) -> OcrCatalogue {
+    OcrCatalogue::from_toml(&format!(
+        r#"
+[[ocr]]
+language = "fra"
+label = "French"
+publisher = "test"
+released = "2017-09-14"
+license = "apache-2.0"
+repo = "owner/tessdata"
+file = "fra.traineddata"
+size_bytes = {}
+sha256 = "{:x}"
+source = "https://example.invalid"
+"#,
+        bytes.len(),
+        Sha256::digest(bytes)
+    ))
+    .unwrap()
+}
+
+/// A server on the loopback that serves `bytes` as the French language data.
+async fn registry_serving(bytes: &[u8]) -> MockServer {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(url_path("/owner/tessdata/resolve/main/fra.traineddata"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(bytes.to_vec()))
+        .mount(&server)
+        .await;
+    server
+}
+
+/// The fetch the indexer is started with: `catalogue`, served by `server`.
+fn fetch_from(server: &MockServer, catalogue: &OcrCatalogue) -> OcrDataFetch {
+    OcrDataFetch {
+        catalogue: catalogue.clone(),
+        base: server.uri(),
+        manager: apollia_llm::DownloadManager::with_client(
+            apollia_core::net::loopback_client_builder()
+                .build()
+                .unwrap(),
+        ),
+    }
+}
+
+/// Has the source indexed again until `reached` holds. The download runs in
+/// a task the indexer starts and answers to nobody, so the passes are what
+/// the test waits on; a minute of them without `reached` is a failure.
+async fn index_until<F: std::future::Future<Output = bool>>(
+    world: &World,
+    what: &str,
+    mut reached: impl FnMut() -> F,
+) {
+    let started = std::time::Instant::now();
+    while !reached().await {
+        assert!(started.elapsed() < Duration::from_secs(60), "never: {what}");
+        world.refresh().await;
+    }
+}
+
+async fn downloads(server: &MockServer) -> usize {
+    server.received_requests().await.unwrap().len()
+}
 
 /// Copies the fixture `name` of `tests/fixtures/ocr` into `folder`.
 fn bring(folder: &Path, name: &str) -> PathBuf {
@@ -66,6 +137,99 @@ async fn test_without_recognition_scanned_pages_are_listed_as_waiting_in_the_sta
             unread(&scanned, 3, UnreadReason::NotRead),
         ]
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_a_page_left_waiting_has_the_indexer_fetch_the_pinned_language_data_once() {
+    // GIVEN a registry serving the pinned French data, a machine holding
+    // none, and a folder holding a picture
+    const FRENCH: &[u8] = b"language data, French";
+    let server = registry_serving(FRENCH).await;
+    let catalogue = catalogue_of(FRENCH);
+    let world = World::new();
+    bring(&world.root(), "recu.png");
+    world
+        .start_fetching(&Stub::new("e5-small"), fetch_from(&server, &catalogue))
+        .await;
+    let tessdata = tessdata_dir(world.data.path());
+
+    // WHEN the folder becomes a source and is indexed, then indexed again
+    world.folder_source().await;
+    index_until(&world, "the language data is on the disk", || async {
+        verified_languages(&tessdata, &catalogue) == ["fra"]
+    })
+    .await;
+    world.refresh().await;
+
+    // THEN the file the registry pins is in the folder the engine reads,
+    // under its digest, and it was downloaded once
+    assert_eq!(
+        std::fs::read(tessdata.join("fra.traineddata")).unwrap(),
+        FRENCH
+    );
+    assert_eq!(downloads(&server).await, 1);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_language_data_of_another_digest_is_left_off_the_disk_and_the_page_keeps_waiting() {
+    // GIVEN a registry serving other bytes than the pinned ones, and a
+    // folder holding a picture
+    let server = registry_serving(b"tampered").await;
+    let catalogue = catalogue_of(b"language data, French");
+    let world = World::new();
+    let picture = bring(&world.root(), "recu.png");
+    world
+        .start_fetching(&Stub::new("e5-small"), fetch_from(&server, &catalogue))
+        .await;
+    let tessdata = tessdata_dir(world.data.path());
+
+    // WHEN the folder becomes a source and is indexed, the download answered
+    let id = world.folder_source().await;
+    index_until(&world, "the download is answered", || async {
+        downloads(&server).await > 0
+    })
+    .await;
+    world.refresh().await;
+
+    // THEN nothing counts as language data, and the state of the source
+    // still names the page as waiting for recognition
+    assert!(verified_languages(&tessdata, &catalogue).is_empty());
+    let status = world.registry.index_status(&id).await.unwrap();
+    assert_eq!(
+        status.unread_pages,
+        [unread(&picture, 1, UnreadReason::OcrUnavailable)]
+    );
+}
+
+#[cfg(feature = "ocr")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "requires APOLLIA_TEST_TESSDATA, a folder holding the fra.traineddata the registry pins"]
+async fn test_a_scanned_page_is_read_once_the_indexer_has_fetched_the_language_data() {
+    // GIVEN a registry serving the French data the environment names, a
+    // machine holding none, and a folder holding the scanned French document
+    let folder = std::env::var_os("APOLLIA_TEST_TESSDATA").expect("APOLLIA_TEST_TESSDATA");
+    let french = std::fs::read(Path::new(&folder).join("fra.traineddata")).unwrap();
+    let server = registry_serving(&french).await;
+    let catalogue = catalogue_of(&french);
+    let world = World::new();
+    let scanned = bring(&world.root(), "scanned-fr.pdf");
+    world
+        .start_fetching(&Stub::new("e5-small"), fetch_from(&server, &catalogue))
+        .await;
+
+    // WHEN the folder becomes a source and is indexed
+    let id = world.folder_source().await;
+    let left = [unread(&scanned, 3, UnreadReason::NotRead)];
+    index_until(&world, "the pages that waited are read", || async {
+        world.registry.index_status(&id).await.unwrap().unread_pages == left
+    })
+    .await;
+
+    // THEN the data was downloaded once, and the pages that waited are
+    // found by an accented word: only the page of two pictures is left
+    assert_eq!(downloads(&server).await, 1);
+    let found = world.index(&id).search("Besançon", None, None).unwrap();
+    assert!(found.hits.iter().any(|h| h.document == key(&scanned)));
 }
 
 #[test]

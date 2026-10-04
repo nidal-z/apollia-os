@@ -10118,6 +10118,11 @@ export interface components {
             indexState: components["schemas"]["IndexStateDto"];
             /** @description Files left out of the index. */
             skipped: components["schemas"]["SkippedFileResponse"][];
+            /**
+             * @description Pages of indexed documents that hold no text: those waiting for
+             *     optical character recognition, and those it cannot read.
+             */
+            unreadPages: components["schemas"]["UnreadPageResponse"][];
         };
         /**
          * @description What a source is.
@@ -10844,6 +10849,23 @@ export interface components {
              */
             stopped: number;
         };
+        /** @description A page of an indexed document that holds no text in the index. */
+        UnreadPageResponse: {
+            /**
+             * Format: int32
+             * @description Page number, from 1; a picture file is its page 1.
+             */
+            page: number;
+            /** @description Path of the document on this machine. */
+            path: string;
+            /** @description Why it was not read. */
+            reason: components["schemas"]["UnreadReasonDto"];
+        };
+        /**
+         * @description Why a page of an indexed document holds no text.
+         * @enum {string}
+         */
+        UnreadReasonDto: "ocr_unavailable" | "not_read";
         /** @description Request body for `PUT /api/v1/agents/installed/{name}`. */
         UpdateAgentRequest: {
             /** @description Path of the new Python module on this machine. */
@@ -23249,7 +23271,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The state of the source's index, its counts and the files it left out */
+            /** @description The state of the source's index, its counts, the files it left out and the pages it could not read */
             200: {
                 headers: {
                     [name: string]: unknown;

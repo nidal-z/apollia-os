@@ -127,6 +127,19 @@ impl World {
             .unwrap();
     }
 
+    /// [`Self::start`], the language data of recognition fetched through
+    /// `ocr_data`.
+    async fn start_fetching(&self, stub: &Arc<Stub>, ocr_data: OcrDataFetch) {
+        self.registry
+            .start_indexing_fetching(
+                Shared(Arc::clone(stub)),
+                Duration::from_secs(3600),
+                Some(ocr_data),
+            )
+            .await
+            .unwrap();
+    }
+
     async fn refresh(&self) {
         self.registry
             .refresh_indexes()

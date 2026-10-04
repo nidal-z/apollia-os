@@ -197,9 +197,12 @@ impl DownloadManager {
         }
     }
 
-    /// A manager over `client`, for a test that serves files on the loopback.
-    #[cfg(test)]
-    pub(crate) fn with_client(client: reqwest::Client) -> Self {
+    /// A manager over a client the caller built. [`Self::new`] is the one
+    /// to use for a download from the network: its client refuses private
+    /// addresses. This one is for a caller that serves the files itself, on
+    /// the loopback.
+    #[must_use]
+    pub fn with_client(client: reqwest::Client) -> Self {
         Self {
             client,
             active: Arc::new(Mutex::new(HashMap::new())),

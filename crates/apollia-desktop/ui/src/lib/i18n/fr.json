@@ -3316,6 +3316,8 @@
       "rescan": "re-scanner",
       "load_model": "Charger un modèle",
       "load_model_title": "Choisir un fichier modèle",
+      "load_language_data_filter": "Données de langue pour les documents scannés",
+      "language_data_imported": "{file} est en place : les pages scannées et les images sont lues avec.",
       "dest_dir_default": "Dossier par défaut (~/.apollia/models)",
       "dest_dir_custom": "Dossier : {path}",
       "dest_dir_change": "Changer…",
