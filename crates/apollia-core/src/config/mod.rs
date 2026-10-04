@@ -30,7 +30,9 @@
 //! - [`AuthorConfig`]: `[author]`, the publisher name of the agents exported
 //!   from this machine.
 //! - [`LlmConfig`]: `[llm]`, the backends declared in the file, routing and
-//!   the prompt debug log; `apollia-llm` re-exports its shapes.
+//!   the prompt debug log; `apollia-llm` re-exports its shapes. Its
+//!   `[llm.residency]` subsection, [`LlmResidencyConfig`], is a named setting
+//!   resolved by [`resolve_setting`].
 //!
 //! [`default_file_text`] renders the registry as the `apollia.toml` written on a
 //! first start, every key commented at its default under its documentation,
@@ -59,6 +61,7 @@ mod hitl;
 mod hooks;
 pub mod keys;
 mod llm;
+mod llm_residency;
 mod llm_section;
 mod mcp;
 mod models;
@@ -105,6 +108,7 @@ pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
 pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig};
+pub use llm_residency::{LlmResidencyConfig, DEFAULT_IDLE_UNLOAD_MINUTES, IDLE_UNLOAD_KEY};
 pub use llm_section::{
     infer_api_provider_from_url, LlmApiBackendEntry, LlmBackendEntry, LlmBackendKind, LlmConfig,
     LlmGuardrailsConfig, LlmObservabilityConfig,

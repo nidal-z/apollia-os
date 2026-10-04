@@ -6,8 +6,9 @@
 //! ([`crate::stt_config`]), the default embeddings model
 //! ([`crate::embedding_default`]), the tokens of the compatible server
 //! ([`crate::server_token`]), the last local model loaded by hand
-//! ([`crate::last_loaded_model`]), and the registry of sources
-//! ([`crate::source_registry`]).
+//! ([`crate::last_loaded_model`]), the registry of sources
+//! ([`crate::source_registry`]), and the local models pinned in memory
+//! ([`crate::model_pins`]).
 //! `PRAGMA user_version` belongs to the database file, not to a table, so the
 //! stores share one migration list: whichever opens first brings the whole
 //! file to the current version, and both refuse a file written by a newer
@@ -19,7 +20,7 @@ use crate::inference_server::{openai_api_base, DEFAULT_OLLAMA_ADDRESS};
 use crate::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `system.db`.
-pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 8;
+pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 9;
 
 /// Numbered migration steps of `system.db`.
 ///
@@ -27,6 +28,7 @@ pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 8;
 /// always equals [`SYSTEM_DB_SCHEMA_VERSION`].
 pub(crate) const SYSTEM_DB_MIGRATIONS: &[Migration] = &[
     migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5, migrate_v6, migrate_v7, migrate_v8,
+    migrate_v9,
 ];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
@@ -486,6 +488,21 @@ pub(crate) fn migrate_v8(conn: &Connection) -> Result<(), rusqlite::Error> {
             added_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
             CHECK (kind NOT IN ('folder', 'file', 'mail')
                    OR length(trim(coalesce(reference, ''))) > 0)
+        );",
+    )
+}
+
+/// v9: the local models the user pinned in memory, one row per model.
+///
+/// `model_path` is the path the model is loaded from, the key the resident
+/// list and an unload take. A pinned model is never unloaded on its own,
+/// neither after a delay without use nor when its last conversation closes.
+/// The statement is idempotent, so a replay changes nothing.
+pub(crate) fn migrate_v9(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS model_pins (
+            model_path TEXT PRIMARY KEY CHECK (length(trim(model_path)) > 0),
+            pinned_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
         );",
     )
 }
