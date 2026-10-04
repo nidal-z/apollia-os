@@ -38,7 +38,7 @@ Apollia restreint par défaut certains chemins et outils sensibles. Une action s
 
 **Solution :**
 1. Si vous voyez la ligne de refus dans l'historique de la Boîte de réception, lisez la raison technique - elle mentionne le chemin ou l'outil concerné.
-2. Si l'accès est légitime, ouvrez **Paramètres → Autorisations** et utilisez la portée *Toujours pour cet assistant* / *Toujours pour ce projet* lors de la **prochaine** approbation (au lieu d'une règle deny). Voir [Approuver ou refuser une action d'agent](../controle/approve-or-reject-an-action.md).
+2. Si l'accès est légitime, ouvrez **Paramètres → Autorisations** et utilisez la portée *Toujours pour cet assistant* lors de la **prochaine** approbation (au lieu d'une règle deny). Voir [Approuver ou refuser une action d'agent](../controle/approve-or-reject-an-action.md).
 3. Relancez la tâche depuis le chat.
 
 ### 4. Le même type d'action est refusé en boucle
@@ -48,7 +48,7 @@ Si un agent enchaîne plusieurs refus, il peut s'arrêter de lui-même. Cela ind
 **Solution :**
 1. Dans la Boîte de réception → Historique récent, comptez les refus consécutifs sur le même outil/chemin.
 2. Reformulez votre demande dans le chat en précisant le périmètre autorisé (par exemple : *« travaille uniquement dans `~/Rapports` »*).
-3. Pour automatiser les approbations futures sur ce type d'action, utilisez **Toujours autoriser → Pour cet assistant / Pour ce projet** lors de la prochaine carte d'approbation.
+3. Pour automatiser les approbations futures sur ce type d'action, utilisez **Toujours autoriser → Pour cet assistant** lors de la prochaine carte d'approbation.
 
 ## Si rien ne fonctionne
 

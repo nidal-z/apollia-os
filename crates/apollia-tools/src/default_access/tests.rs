@@ -164,6 +164,23 @@ async fn test_an_inactive_tool_is_not_in_the_reading_family() {
     registry.shutdown().await;
 }
 
+// GIVEN a registry holding code_context, of the reading family, and file_read
+// WHEN the reading family is read
+// THEN code_context is not in it: a code folder grants it, not the access
+#[tokio::test]
+async fn test_the_code_context_is_not_granted_by_the_reading_family() {
+    let registry = registry_with(vec![
+        crate::CodeContext::descriptor(),
+        file_read::FileRead::descriptor(),
+    ])
+    .await;
+
+    let family = reading_family(&registry, &[]).await;
+
+    assert_eq!(family, vec!["file_read"]);
+    registry.shutdown().await;
+}
+
 // GIVEN an agent created without code and a registry with notebook_read active
 // WHEN its default access is written in for its card
 // THEN the card shows the reading family, the access still not the user's

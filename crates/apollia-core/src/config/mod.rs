@@ -13,7 +13,6 @@
 //! - [`McpConfig`]: `[mcp]`, the MCP client.
 //! - [`HooksConfig`]: `[hooks]`, lifecycle hook handlers.
 //! - [`ChatConfig`]: `[chat]`, chat session defaults.
-//! - [`FilesystemConfig`]: `[filesystem]`, the trusted paths.
 //! - [`ModelsConfig`]: `[models]`, the signed index of model cards the
 //!   catalogue reads, its mirror, the switch that turns it off, and the rule
 //!   applied to an imported file.
@@ -36,6 +35,11 @@
 //! first start, every key commented at its default under its documentation,
 //! and [`write_default_file_if_absent`] writes it without ever replacing a file.
 //!
+//! [`writer`] is the one writer of the file: every surface that changes it,
+//! by whole text or by key, goes through [`writer::write_config`], which
+//! validates, refuses a value the policy does not impose, refuses a file
+//! modified since it was read, and replaces the file atomically.
+//!
 //! The other types in this module are runtime parameters, not `apollia.toml`
 //! sections. No loader deserializes an `[a2a]` or an `[oria]` table, both are
 //! withdrawn keys of the registry: [`A2AConfig`] reaches the runtime from its
@@ -53,7 +57,6 @@ mod chat;
 mod default_file;
 mod desktop;
 mod engines;
-mod filesystem;
 mod filesystem_risk;
 mod hitl;
 mod hooks;
@@ -76,6 +79,7 @@ mod triggers;
 mod validate;
 mod web;
 mod workflows;
+pub mod writer;
 
 #[cfg(test)]
 mod autonomy_tests;
@@ -89,6 +93,8 @@ mod settings_tests;
 mod tests;
 #[cfg(test)]
 mod validate_tests;
+#[cfg(test)]
+mod writer_tests;
 
 pub use a2a::A2AConfig;
 pub use api::{ApiConfig, DEFAULT_API_PORT};
@@ -100,7 +106,6 @@ pub use chat::ChatConfig;
 pub use default_file::{default_file_text, write_default_file_if_absent};
 pub use desktop::{DesktopConfig, UpdateChannel};
 pub use engines::{EngineLogLevel, EnginesConfig, ENGINE_LOG_LEVELS};
-pub use filesystem::FilesystemConfig;
 pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};

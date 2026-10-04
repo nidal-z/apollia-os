@@ -17,7 +17,6 @@ fn session(id: &str) -> SessionInfo {
         status: SessionStatus::Active,
         created_at: "2026-10-01T00:00:00Z".to_owned(),
         title: Some("Une conversation".to_owned()),
-        project_id: None,
     }
 }
 
@@ -164,7 +163,6 @@ async fn test_a_session_is_created_over_http_from_the_interface_request() {
         agent_name: None,
         system_prompt: None,
         tools: Vec::new(),
-        project_id: None,
     };
 
     // WHEN the attached arm creates a free conversation
@@ -632,11 +630,6 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
             "/api/v1/sessions/s%201/title",
             serde_json::json!({ "title": "Plan" }),
         ),
-        (
-            "PUT",
-            "/api/v1/sessions/s%201/project",
-            serde_json::json!({ "project_id": "p-1" }),
-        ),
     ];
     for (verb, route, body) in routes {
         Mock::given(method(verb))
@@ -658,13 +651,6 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
         .expect(1)
         .mount(&server)
         .await;
-    Mock::given(method("GET"))
-        .and(path("/api/v1/projects/p%2F1/sessions"))
-        .and(header("authorization", auth.as_str()))
-        .respond_with(ResponseTemplate::new(200).set_body_json(vec![session("s-2")]))
-        .expect(1)
-        .mount(&server)
-        .await;
     let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
     let update = crate::commands::chat::UpdateSessionRequest {
         system_prompt: Some("Brief.".to_owned()),
@@ -679,21 +665,13 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
         .unwrap();
     conversations::erase(&client, "s 1").await.unwrap();
     conversations::rename(&client, "s 1", "Plan").await.unwrap();
-    conversations::link_project(&client, "s 1", Some("p-1"))
-        .await
-        .unwrap();
     let title = conversations::name(&client, "s 1", "Help me")
         .await
         .unwrap();
-    let sessions = conversations::project_sessions(&client, "p/1")
-        .await
-        .unwrap();
 
-    // THEN each reached its own route once (the mocks verify it on drop), the
-    // generated title and the project's sessions come back as the daemon said
+    // THEN each reached its own route once (the mocks verify it on drop), and
+    // the generated title comes back as the daemon said
     assert_eq!(title, "CV help");
-    assert_eq!(sessions.len(), 1);
-    assert_eq!(sessions[0].id, "s-2");
 }
 
 #[tokio::test]
@@ -735,8 +713,6 @@ fn test_the_conversation_commands_pass_the_gate_attached() {
     let commands = [
         "delete_chat_session",
         "generate_chat_session_name",
-        "link_chat_to_project",
-        "list_chats_by_project",
         "rename_chat_session",
         "update_chat_session",
     ];

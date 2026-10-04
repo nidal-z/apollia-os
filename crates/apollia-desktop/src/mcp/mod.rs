@@ -6,6 +6,7 @@
 
 pub mod enrichments;
 pub mod npm_server;
+pub mod official;
 pub mod origin;
 pub mod overrides;
 pub mod python_server;

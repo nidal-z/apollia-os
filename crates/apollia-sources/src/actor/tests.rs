@@ -144,3 +144,52 @@ async fn test_removing_a_source_erases_its_index_file() {
     assert!(leftovers.is_empty(), "{leftovers:?}");
     assert!(other.exists());
 }
+
+#[tokio::test]
+async fn test_the_actor_searches_the_indexes_beside_its_registry() {
+    // GIVEN a registry on a system.db, and the index of one of its folder
+    //       sources beside it, holding one passage
+    let dir = tempfile::tempdir().unwrap();
+    let handle = SourceRegistryHandle::open(&dir.path().join("system.db")).unwrap();
+    let folder = handle
+        .create(NewSource {
+            kind: SourceKind::Folder,
+            label: "Contracts".to_owned(),
+            group: None,
+            reference: Some("folder-contracts".to_owned()),
+        })
+        .await
+        .unwrap();
+    let mut index = crate::index::SourceIndex::open(dir.path(), &folder.id).unwrap();
+    index
+        .upsert_document(
+            &crate::index::DocumentRecord {
+                path: "lease.txt".to_owned(),
+                fingerprint: "f".to_owned(),
+                modified_at: "2026-10-04T00:00:00Z".to_owned(),
+            },
+            &[crate::chunk::Chunk {
+                text: "The lease ends in June.".to_owned(),
+                location: crate::chunk::Location::Lines { first: 1, last: 1 },
+            }],
+            None,
+        )
+        .unwrap();
+    drop(index);
+
+    // WHEN the handle is asked to search that source
+    let outcome = handle
+        .search(SourcesQuery {
+            sources: vec![folder.id.clone()],
+            query: "lease".to_owned(),
+            vector: None,
+            limit: None,
+        })
+        .await
+        .unwrap();
+
+    // THEN the passage comes back, with its document and its source
+    assert_eq!(outcome.hits.len(), 1);
+    assert_eq!(outcome.hits[0].document, "lease.txt");
+    assert_eq!(outcome.hits[0].source, folder.id);
+}

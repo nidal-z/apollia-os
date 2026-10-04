@@ -103,6 +103,20 @@ mémoire. Les outils de fichiers sont confinés à une racine résolue : le chem
 est canonisé puis revérifié contre la racine après résolution, donc un lien
 symbolique ne permet pas d'en sortir.
 
+La racine des outils de fichiers d'un agent est l'union des dossiers accordés à
+cet agent, agent de conversation intégré compris, sur le chemin de la
+conversation comme sur celui des tâches. Un dossier du poste est une connexion,
+choisie au sélecteur du système, et ses outils s'accordent à un agent un par
+un : les outils de lecture atteignent tous les dossiers qui lui sont accordés,
+les outils d'écriture seulement ceux accordés pour écrire. Le premier dossier
+accordé, par date d'ajout, sert d'ancre à un chemin relatif. Un agent sans
+dossier accordé a des outils de fichiers qui refusent avec un message disant
+comment en accorder un. Rien d'autre n'est une racine : ni le dossier
+personnel, ni le dossier de données, ni le volume, ni le dossier d'un projet.
+Les anciennes clés `[filesystem] trusted_paths` et `[chat] default_workspace`
+sont retirées ; les dossiers qu'elles nommaient, dossier personnel excepté, ont
+été ajoutés une fois comme connexions, accordées à aucun agent.
+
 Le confinement n'est pas uniforme selon les plateformes, et la différence n'est
 pas cosmétique. Sous Linux, l'exécution shell tourne sous espaces de noms PID et
 mount. Sous macOS le confinement est plus faible. Sous Windows il n'y en a pas.
@@ -442,6 +456,14 @@ en 0.1.11 dans le fichier de verrouillage : sa version 0.1.12 ne compile plus
 sous `pdf_oxide` 0.3.78 ; mettre l'une ou l'autre à jour est donc une décision et
 non un rafraîchissement.
 
+Une crate de cette pile de polices porte un avis : `ttf-parser` 0.25.1, dont
+seul `pdf_oxide` se sert pour lire les polices qu'un document embarque, est
+signalée non maintenue (RUSTSEC-2026-0192). Aucune faille n'y est connue et
+aucune version plus récente n'existe vers laquelle monter : l'avis est donc
+exempté dans `deny.toml`, daté du 2026-10-04, avec cette raison à côté, et il
+est revu à la prochaine version mineure. L'exemption tombe quand `pdf_oxide`
+abandonne `ttf-parser` ou qu'une version maintenue en paraît.
+
 Les documents Word et les présentations PowerPoint sont lus en Rust, par un
 code propre posé sur deux crates : `zip`, celle qui ouvre l'archive de paquet
 (voir [Archive de paquet](#package-archive)), ouvre le fichier, et `quick-xml`
@@ -680,6 +702,25 @@ d'autre dépendance que sa propre cale d'édition de liens, et la même version
 était déjà dans l'arbre par d'autres crates : le fichier de verrouillage n'a
 gagné aucun paquet. Le coût est un bloc de code FFI avec sa propre permission
 `unsafe`, confiné à un module.
+
+## Le fichier de configuration {#configuration-file}
+
+`apollia.toml` a un seul écrivain, `apollia_core::config::writer`. Les écrans de
+réglages de l'application de bureau, la ligne de commande, les routes sous
+`/api/v1/config` et les moteurs que le runtime recopie dans le fichier passent
+tous par lui, si bien que les quatre mêmes vérifications tiennent quel que soit
+l'auteur : le texte se valide contre le schéma strict, aucune ligne ne donne à
+une clé que la politique de l'organisation impose une autre valeur, le fichier
+sur le disque est encore celui que l'appelant a lu, comparé par son empreinte
+SHA-256, et le texte remplace le fichier par un fichier voisin renommé
+par-dessus. Une écriture par clé garde les commentaires et l'ordre du fichier.
+La ligne de commande appelle l'écrivain directement : elle fonctionne démon
+arrêté, et un refus se lit dans la même phrase sur chaque surface.
+
+Tenir l'écrivain dans la crate de fondation place `toml`, `toml_edit` et `sha2`
+parmi les dépendances directes d'`apollia-core`. Les trois étaient déjà des
+dépendances de l'espace de travail, et le fichier de verrouillage n'a gagné
+aucun paquet.
 
 ## Ligne de commande {#cli}
 

@@ -39,8 +39,6 @@ fn state_with_chat(dir: &TempDir) -> AppState<MockBackend> {
         None,
         None,
         None,
-        None,
-        None,
         apollia_mcp::session::LoadingMode::Eager,
         20,
         None,

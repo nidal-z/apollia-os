@@ -717,10 +717,6 @@
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-scope-project-"
-    },
-    {
-      "kind": "expect",
       "testidPrefix": "approval-scope-global-"
     },
     {

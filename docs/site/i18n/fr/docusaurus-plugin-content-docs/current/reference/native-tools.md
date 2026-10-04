@@ -148,16 +148,15 @@ face à `/private/var`, les préfixes verbatim Windows `\\?\`) se résolvent
 au lieu d'être refusés. Les échappatoires par lien symbolique et tout chemin
 dont la cible réelle sort de la racine sont rejetés.
 
-<!-- claim:chat-file-root-is-home-without-project -->
-Le répertoire qui fait office de racine dépend de la session. Avec un projet
-ouvert, c'est le répertoire du projet. Dans un chat sans projet, c'est le
-`default_workspace` de `[chat]` quand l'opérateur en a configuré un qui existe,
-et `~/.apollia` sinon ; la barrière sur ce chemin est l'approbation qui vous est
-demandée avant une écriture, pas une racine plus étroite. Votre répertoire
-personnel est le repli quand aucun des deux ne se résout, et le répertoire
-temporaire système seulement lorsque le répertoire personnel ne peut être résolu
-du tout. En pratique `~/.apollia` existe après le premier démarrage, donc un
-chat libre est enraciné là et non dans votre répertoire personnel.
+<!-- claim:file-tools-root-is-the-granted-folders -->
+Les racines sont les dossiers accordés à l'agent, agent de conversation intégré
+compris, dans une conversation comme dans une tâche. Un dossier du poste est une
+connexion, et ses outils s'accordent à un agent sur sa fiche : les outils de
+lecture atteignent tous les dossiers accordés, les outils d'écriture seulement
+ceux accordés pour écrire. Le premier dossier accordé, par date d'ajout, est
+celui où arrive un chemin relatif. Ni le répertoire personnel, ni le dossier de
+données, ni le dossier d'un projet ne sont des racines. Un agent sans dossier
+accordé a des outils de fichiers qui refusent, en disant comment en accorder un.
 
 | Outil | Objectif | Paramètres clés |
 |---|---|---|
@@ -198,6 +197,12 @@ non fiables et est traité comme des données, jamais comme des instructions.
 | Outil | Objectif | Paramètres clés |
 |---|---|---|
 | `memory_search` | Recherche plein texte (FTS5, classement BM25) sur l'espace de noms propre de l'agent et les espaces de noms partagés déclarés. Les opérateurs FTS5 sont échappés automatiquement. | `query`, `namespace`, `limit`, `source` |
+| `source_search` | Recherche dans les dossiers et fichiers indexés cochés pour l'agent, par mots-clés, et par le sens quand un modèle d'embeddings est installé. Chaque résultat porte son extrait, son document, son emplacement, son score et sa source, et la réponse dit comment elle a été classée. Une source non cochée est refusée. | `query`, `sources`, `limit` (de 1 à 50) |
+
+Chacun de ces outils n'est proposé à un agent que si sa source est cochée pour
+lui : `memory_search` quand sa mémoire l'est, `source_search` quand au moins un
+dossier ou un fichier indexé l'est. La mémoire de l'agent Apollia est un seul
+espace, gardé d'une conversation à l'autre.
 
 La récupération de mémoire est toujours à l'initiative de l'agent : le
 runtime n'injecte jamais de mémoire dans le prompt d'un agent. L'assistant

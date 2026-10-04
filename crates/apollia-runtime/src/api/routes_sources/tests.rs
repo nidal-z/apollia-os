@@ -217,3 +217,104 @@ async fn test_the_profile_checked_by_agent_set_is_among_the_checked_sources() {
     assert_eq!(after, Some(vec![CheckedSource::Profile]));
     assert!(crate::profile::profile_source_checked(dir.path(), "veille"));
 }
+
+#[tokio::test]
+async fn test_the_project_migration_report_is_read_over_http() {
+    // GIVEN a runtime whose data directory holds no report, then one
+    let dir = tempfile::tempdir().unwrap();
+    let state = state(&dir, false).await;
+    let (absent_status, _) = call(
+        state.clone(),
+        "GET",
+        "/api/v1/sources/project-migration",
+        None,
+    )
+    .await;
+    apollia_tools::ProjectRepository::open(
+        &apollia_core::paths::DataFile::Projects.path(dir.path()),
+    )
+    .unwrap()
+    .create_project("Dossier Durand", None, None, None)
+    .unwrap();
+    let written = crate::project_migration::run_if_needed(dir.path()).unwrap();
+
+    // WHEN the report is asked for
+    let (status, body) = call(
+        state.clone(),
+        "GET",
+        "/api/v1/sources/project-migration",
+        None,
+    )
+    .await;
+
+    // THEN it is absent first, then the report the run wrote
+    assert_eq!(absent_status, StatusCode::NOT_FOUND);
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["status"], "complete");
+    assert_eq!(body["formatVersion"], 1);
+    assert_eq!(body["projects"][0]["name"], "Dossier Durand");
+    assert_eq!(body["ranAt"], written.ran_at);
+}
+
+#[tokio::test]
+async fn test_the_code_folder_is_offered_on_a_folder_only_in_developer_mode() {
+    // GIVEN a runtime with the source registry
+    let dir = tempfile::tempdir().unwrap();
+    let state = state(&dir, false).await;
+
+    // WHEN the kinds offered on a folder connection are asked with the
+    // developer mode absent, off, then on
+    let (absent_status, absent) =
+        call(state.clone(), "GET", "/api/v1/sources/folder-kinds", None).await;
+    let (off_status, off) = call(
+        state.clone(),
+        "GET",
+        "/api/v1/sources/folder-kinds?developerMode=false",
+        None,
+    )
+    .await;
+    let (on_status, on) = call(
+        state,
+        "GET",
+        "/api/v1/sources/folder-kinds?developerMode=true",
+        None,
+    )
+    .await;
+
+    // THEN the code folder is offered only when the mode is on
+    assert_eq!(absent_status, StatusCode::OK, "{absent}");
+    assert_eq!(absent, json!(["folder"]));
+    assert_eq!(off_status, StatusCode::OK, "{off}");
+    assert_eq!(off, json!(["folder"]));
+    assert_eq!(on_status, StatusCode::OK, "{on}");
+    assert_eq!(on, json!(["folder", "code_folder"]));
+}
+
+#[tokio::test]
+async fn test_a_code_folder_is_added_whatever_the_mode_but_never_without_its_connection() {
+    // GIVEN a runtime with the source registry; the route knows no mode
+    let dir = tempfile::tempdir().unwrap();
+    let state = state(&dir, false).await;
+
+    // WHEN a code folder is added without a reference, then on a folder connection
+    let (bare_status, bare) = call(
+        state.clone(),
+        "POST",
+        "/api/v1/sources",
+        Some(json!({ "kind": "code_folder", "label": "apollia" })),
+    )
+    .await;
+    let (status, created) = call(
+        state,
+        "POST",
+        "/api/v1/sources",
+        Some(json!({ "kind": "code_folder", "label": "apollia", "reference": "fc-1" })),
+    )
+    .await;
+
+    // THEN the bare one is refused and the other is stored as a code folder
+    assert_eq!(bare_status, StatusCode::UNPROCESSABLE_ENTITY, "{bare}");
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["kind"], "code_folder");
+    assert_eq!(created["reference"], "fc-1");
+}
