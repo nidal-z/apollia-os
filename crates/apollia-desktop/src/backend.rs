@@ -108,15 +108,3 @@ fn open_secret_store(data_dir: &Path) -> Option<Arc<std::sync::Mutex<ToolCredent
         }
     }
 }
-
-// ─── Chat Agent Runner ───────────────────────────────────────────────────────
-
-/// from `governance.db`. Either source disables a tool; duplicates removed.
-fn merge_disabled(static_disabled: &[String], mut runtime_disabled: Vec<String>) -> Vec<String> {
-    for name in static_disabled {
-        if !runtime_disabled.iter().any(|n| n == name) {
-            runtime_disabled.push(name.clone());
-        }
-    }
-    runtime_disabled
-}

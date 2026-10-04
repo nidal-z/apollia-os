@@ -56,6 +56,7 @@ impl Supervisor {
                 ),
                 policy: Arc::clone(org_policy),
                 journal: audit_journal_handle.clone(),
+                events: Some(event_sender.clone()),
             });
         crate::governance::access_upgrade::run_at_startup(&self.config.data_dir, &governance);
 
@@ -78,9 +79,10 @@ impl Supervisor {
         // Connections answer to governance: admitted by the organisation
         // policy read above before they are added, journaled when they change.
         let connection_governance = crate::governance::ConnectionGovernance::new(
-            Arc::new(crate::governance::PolicyAdmission::new(Arc::clone(
-                org_policy,
-            ))),
+            Arc::new(
+                crate::governance::PolicyAdmission::new(Arc::clone(org_policy))
+                    .with_governance(governance.clone()),
+            ),
             audit_journal_handle.clone(),
         );
 

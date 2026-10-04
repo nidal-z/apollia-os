@@ -5,7 +5,8 @@
 //! connection is admitted, the user is free. A valid policy that carries
 //! `connections.remote = "deny"` refuses every connection that sends data off
 //! this machine, a native Google or Microsoft account among them. A policy that
-//! is present but refused cannot be read, so the admission fails closed.
+//! is present but refused cannot be read, so the admission fails closed, and
+//! so does a governance that cannot read its database.
 //!
 //! This is the only place that forbids the cloud for a connection: the check
 //! runs in the runtime, on what the runtime read, never on a value a caller
@@ -16,6 +17,7 @@ use std::sync::Arc;
 use apollia_permissions::org_policy::DenyOnly;
 use apollia_permissions::PolicyVerdict;
 
+use crate::governance::actor::GovernanceHandle;
 use crate::governance::admission::{
     AdmissionDecision, AdmissionRequest, ConnectionAdmission, PolicyReadError,
 };
@@ -25,16 +27,28 @@ pub const REMOTE_DENIED_REASON: &str =
     "refused by the organisation policy: connections to online services are not allowed";
 
 /// Admission over the organisation policy the runtime read at boot.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct PolicyAdmission {
     verdict: Arc<PolicyVerdict>,
+    governance: Option<GovernanceHandle>,
 }
 
 impl PolicyAdmission {
     /// Admission over `verdict`.
     #[must_use]
     pub fn new(verdict: Arc<PolicyVerdict>) -> Self {
-        Self { verdict }
+        Self {
+            verdict,
+            governance: None,
+        }
+    }
+
+    /// The same admission, refusing every connection while `governance`
+    /// fails closed.
+    #[must_use]
+    pub fn with_governance(mut self, governance: GovernanceHandle) -> Self {
+        self.governance = Some(governance);
+        self
     }
 }
 
@@ -43,6 +57,13 @@ impl ConnectionAdmission for PolicyAdmission {
         &self,
         request: &AdmissionRequest,
     ) -> Result<AdmissionDecision, PolicyReadError> {
+        if let Some(state) = self
+            .governance
+            .as_ref()
+            .and_then(|governance| governance.state().fail_closed.clone())
+        {
+            return Err(PolicyReadError::Unreadable(state.detail()));
+        }
         match self.verdict.as_ref() {
             PolicyVerdict::Absent => Ok(AdmissionDecision::Admitted),
             PolicyVerdict::Invalid(invalid) => Err(PolicyReadError::Unreadable(format!(
@@ -161,5 +182,36 @@ mod tests {
             matches!(&decision, AdmissionDecision::Refused { reason } if reason.contains("signature")),
             "{decision:?}"
         );
+    }
+
+    // A governance that cannot read its database refuses every connection,
+    // a local folder included, whatever the policy says.
+    #[test]
+    fn test_unreadable_store_refuses_every_connection() {
+        // GIVEN no policy, and a governance failing closed on its database
+        let governance = crate::governance::GovernanceHandle::detached(
+            crate::governance::GovernanceState {
+                fail_closed: Some(crate::governance::FailClosed::StoreUnreadable {
+                    detail: "file is not a database".into(),
+                }),
+                ..crate::governance::GovernanceState::default()
+            },
+            None,
+        );
+        let admission =
+            PolicyAdmission::new(Arc::new(PolicyVerdict::Absent)).with_governance(governance);
+        // WHEN a Google account and a local folder are submitted
+        let account = admit(&admission, &google());
+        let folder = admit(
+            &admission,
+            &AdmissionRequest::for_folder("/Users/ada/Documents", vec![]),
+        );
+        // THEN both are refused, naming the database
+        for decision in [account, folder] {
+            assert!(
+                matches!(&decision, AdmissionDecision::Refused { reason } if reason.contains("governance database")),
+                "{decision:?}"
+            );
+        }
     }
 }

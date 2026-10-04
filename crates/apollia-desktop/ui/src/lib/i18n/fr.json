@@ -4380,5 +4380,22 @@
         "node_downloading": "Téléchargement d'un composant nécessaire : Node.js"
       }
     }
+  },
+  "governance": {
+    "fail_closed": {
+      "title": "Actions sensibles bloquées",
+      "store_unreadable": "La base des autorisations est illisible : Apollia refuse tout ce qui écrit, envoie ou exécute. La lecture continue.",
+      "policy_invalid": "La politique de l'organisation est invalide ({reason}) : les actions sensibles et les nouvelles connexions sont refusées. La lecture continue.",
+      "policy_reason": {
+        "schema": "contenu non conforme",
+        "signature": "signature non reconnue",
+        "key": "clé de l'organisation non reconnue",
+        "owner": "fichiers modifiables par un autre que l'administrateur",
+        "unknown": "raison inconnue"
+      },
+      "retry": "Réessayer",
+      "view_policy": "Voir la politique",
+      "retry_failed": "L'état des autorisations n'a pas pu être relu."
+    }
   }
 }

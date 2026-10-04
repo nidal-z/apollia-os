@@ -77,6 +77,16 @@ struct OffChatRun {
 }
 
 async fn run_off_chat_write(unattended: bool) -> OffChatRun {
+    let governance =
+        crate::governance::GovernanceHandle::detached(GovernanceState::default(), None);
+    run_off_chat_write_under(unattended, governance).await
+}
+
+/// The same run, decided by `governance`.
+async fn run_off_chat_write_under(
+    unattended: bool,
+    governance: crate::governance::GovernanceHandle,
+) -> OffChatRun {
     let mut backends = std::collections::HashMap::new();
     backends.insert(
         "default".to_string(),
@@ -86,6 +96,7 @@ async fn run_off_chat_write(unattended: bool) -> OffChatRun {
     );
     let router = Arc::new(LlmRouter::with_backends(backends, "default"));
     let (bus, mut events) = tokio::sync::broadcast::channel(64);
+    let end_of_run = bus.clone();
     let registry = ToolRegistryHandle::start();
     let mut descriptor = crate::connectors_bridge::google_tool_descriptors()[0].clone();
     descriptor.name = "file_write".into();
@@ -113,10 +124,7 @@ async fn run_off_chat_write(unattended: bool) -> OffChatRun {
         },
         ApolliaContext::default(),
         SessionWiring {
-            governance: Some(crate::governance::GovernanceHandle::detached(
-                GovernanceState::default(),
-                None,
-            )),
+            governance: Some(governance),
             unattended,
             ..SessionWiring::default()
         },
@@ -133,7 +141,12 @@ async fn run_off_chat_write(unattended: bool) -> OffChatRun {
             let (seen, _) = crate::test_support::collect_events_until(
                 Duration::from_secs(5),
                 &mut events,
-                |event| matches!(event, RuntimeEvent::ChatApprovalRequired { .. }),
+                |event| {
+                    matches!(
+                        event,
+                        RuntimeEvent::ChatApprovalRequired { .. } | RuntimeEvent::AllReady
+                    )
+                },
             )
             .await;
             if let Some(RuntimeEvent::ChatApprovalRequired { tool_call_id, .. }) = seen.last() {
@@ -162,6 +175,8 @@ async fn run_off_chat_write(unattended: bool) -> OffChatRun {
         })
         .await
         .expect("the run ends");
+    // Ends the wait of a run that raised no approval.
+    let _ = end_of_run.send(RuntimeEvent::AllReady);
     let (approvals, ran_before_answer) = answering.await.unwrap();
     registry.shutdown().await;
     OffChatRun {
@@ -216,4 +231,50 @@ async fn test_unattended_off_chat_write_waits_and_never_runs() {
     assert_eq!(run.approvals, vec!["w1".to_string()]);
     assert_eq!(run.ran_before_answer, 0);
     assert_eq!(run.ran, 0);
+}
+
+// GIVEN an agent run outside any conversation, decided by a governance whose
+//       database stopped being readable after it consented to the family
+//       that writes
+// WHEN the model asks to write a file
+// THEN the call is refused as fail-closed: no approval is raised, nothing
+//      runs, a refusal is never turned into a question
+#[tokio::test]
+async fn test_unreadable_store_refuses_the_write_without_asking() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("governance.db");
+    apollia_tools::GovernanceDb::open(dir.path()).unwrap();
+    apollia_permissions::FamilyConsentStore::new(&db)
+        .unwrap()
+        .grant(
+            "ledger-clerk",
+            apollia_permissions::ConsentFamily::WriteOrDelete,
+            &apollia_permissions::ConsentScope::Permanent,
+            "test",
+        )
+        .unwrap();
+    let governance =
+        crate::governance::GovernanceHandle::spawn(crate::governance::GovernanceSources {
+            governance_db: Some(db.clone()),
+            config_path: None,
+            policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
+            journal: None,
+            events: None,
+        });
+    for suffix in ["-wal", "-shm"] {
+        let mut side = db.clone().into_os_string();
+        side.push(suffix);
+        let _ = std::fs::remove_file(std::path::PathBuf::from(side));
+    }
+    std::fs::write(&db, vec![0x5a_u8; 4096]).unwrap();
+    governance.refresh().await;
+
+    // WHEN
+    let run = run_off_chat_write_under(false, governance).await;
+
+    // THEN
+    assert!(run.approvals.is_empty(), "{:?}", run.approvals);
+    assert_eq!(run.ran, 0);
+    assert_eq!(run.status, ToolCallStatus::Refused);
 }

@@ -244,28 +244,18 @@ fn build_full_chat_dispatcher(
 ///
 /// Either source deactivates the tool, which is the contract
 /// `ToolsConfig::disabled` states and the contract the agent-mode runners
-/// already honour. The snapshot is read here rather than at boot so a tool
+/// already honour. The state is read here rather than at boot so a tool
 /// disabled mid-session takes effect on the next message, without a restart.
-/// An unreadable governance database leaves every tool enabled, the same
-/// tolerance the other runners apply.
+/// A governance database that stops being readable keeps the tools it last
+/// disabled switched off, and the decision of every sensitive call refuses
+/// it: an unreadable database never re-enables a tool.
 pub(in crate::chat::manager) fn effective_disabled_tools(cfg: &ChatToolsConfig) -> Vec<String> {
-    let mut disabled = match apollia_tools::load_governance_snapshot(&cfg.data_dir) {
-        Ok(snapshot) => snapshot.disabled_tools,
-        Err(e) => {
-            warn!(
-                error = %e,
-                detail = "every tool stays enabled",
-                "tools.governance.unavailable"
-            );
-            Vec::new()
-        }
-    };
-    for name in &cfg.tools_config.disabled {
-        if !disabled.iter().any(|d| d == name) {
-            disabled.push(name.clone());
-        }
-    }
-    disabled
+    crate::governance::tool_gate(
+        cfg.governance.as_ref(),
+        &cfg.data_dir,
+        &cfg.tools_config.disabled,
+    )
+    .disabled_tools
 }
 
 /// Virtualenv shared by every chat session's `python_executor`.
@@ -481,6 +471,7 @@ mod tests {
             tools_config: apollia_core::ToolsConfig::default(),
             tool_turn_temperature: None,
             source_registry: None,
+            governance: None,
         })
     }
 
@@ -641,3 +632,6 @@ mod tests {
 
 #[cfg(test)]
 mod folder_tests;
+
+#[cfg(test)]
+mod fail_closed_tests;

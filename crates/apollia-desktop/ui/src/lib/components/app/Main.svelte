@@ -7,7 +7,7 @@
   import { PageTransition } from "$lib/components/motion";
   import Topbar from "./Topbar.svelte";
   import DetailSidebar from "./DetailSidebar.svelte";
-  import { RuntimeStatusBanner } from "$lib/components/feedback";
+  import { GovernanceFailClosedBanner, RuntimeStatusBanner } from "$lib/components/feedback";
   import { startRuntimeHealthMonitor } from "$lib/stores/runtimeHealth";
   import Dashboard from "../../../routes/Dashboard.svelte";
   import Agents from "../../../routes/Agents.svelte";
@@ -69,6 +69,9 @@
 
   <!-- Runtime health : global persistent banner across every route. -->
   <RuntimeStatusBanner />
+
+  <!-- Governance failing closed: sensitive actions blocked, reading continues. -->
+  <GovernanceFailClosedBanner />
 
   <!-- Route content, with the detail sidebar on its right. -->
   <div class="flex min-h-0 w-full flex-1 overflow-hidden">

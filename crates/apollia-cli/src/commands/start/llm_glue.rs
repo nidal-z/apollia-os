@@ -108,21 +108,6 @@ pub(super) fn file_tool_access(
     apollia_tools::granted_folders(allowed_tools, data_dir)
 }
 
-/// Union of statically-disabled tools (from `apollia.toml`) with the runtime
-/// disabled set (from `governance.db`). Either source disables a tool: the
-/// dispatcher only registers tools absent from both lists.
-pub(super) fn merge_disabled(
-    static_disabled: &[String],
-    mut runtime_disabled: Vec<String>,
-) -> Vec<String> {
-    for name in static_disabled {
-        if !runtime_disabled.iter().any(|n| n == name) {
-            runtime_disabled.push(name.clone());
-        }
-    }
-    runtime_disabled
-}
-
 #[cfg(test)]
 mod tests {
     use super::file_tool_access;

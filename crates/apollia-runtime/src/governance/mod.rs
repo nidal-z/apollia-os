@@ -35,6 +35,7 @@ mod admission;
 mod connection;
 mod contract;
 mod decision;
+mod fail_closed;
 pub(crate) mod inference_policy;
 #[cfg(test)]
 mod no_policy;
@@ -54,6 +55,7 @@ pub use contract::{
     GovernanceContract, GovernanceError, InstallSubject, ALL_ANSWERS, NO_ALWAYS_ANSWERS,
 };
 pub use decision::{decide, GovernanceState, PolicyRefusals};
+pub use fail_closed::{refused_when_fail_closed, tool_gate, FailClosed, ToolGate};
 pub use inference_policy::{
     InferenceGovernance, REMOTE_SERVER_DENIED_REASON, SERVER_NOT_ALLOWED_REASON,
 };

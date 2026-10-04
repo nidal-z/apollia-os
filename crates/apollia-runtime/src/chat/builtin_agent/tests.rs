@@ -4310,6 +4310,7 @@ fn make_test_governance(
         config_path: Some(config),
         policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
         journal: None,
+        events: None,
     })
 }
 

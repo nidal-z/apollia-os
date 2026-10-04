@@ -350,7 +350,9 @@ fn test_unattended_ask_becomes_pending() {
 fn test_fail_closed_refuses_sensitive_only() {
     // GIVEN governance told it cannot read its state, and a standing consent
     let mut state = GovernanceState {
-        fail_closed: true,
+        fail_closed: Some(crate::governance::FailClosed::StoreUnreadable {
+            detail: "file is not a database".into(),
+        }),
         ..GovernanceState::default()
     };
     state
