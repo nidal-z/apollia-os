@@ -5,11 +5,15 @@
 //! agent's memory or a code folder. Their registry is a table of `system.db`
 //! ([`apollia_core::source_registry`]); this crate holds the actor that owns
 //! it ([`SourceRegistryHandle`]), the reading of an agent's source list
-//! against it ([`checked_sources`]), and the readers that turn a workbook or a
-//! CSV file into cells of text ([`read_workbook`], [`read_csv`]).
+//! against it ([`checked_sources`]), the readers that turn a workbook or a
+//! CSV file into cells of text ([`read_workbook`], [`read_csv`]), and the
+//! index of a source ([`index`]): its documents cut into chunks
+//! ([`chunk`]), searched by their words and by their meaning.
 
 mod actor;
 mod checked;
+pub mod chunk;
+pub mod index;
 mod reader;
 
 pub use actor::{SourceRegistryHandle, SourcesError, COMMAND_CAPACITY};
