@@ -1,6 +1,7 @@
 use tempfile::TempDir;
 
 use super::*;
+use crate::api::test_support::MemorySecrets;
 
 fn no_env(_: &str) -> Option<String> {
     None
@@ -128,10 +129,11 @@ fn test_parse_google_client_json_rejects_malformed_input() {
 }
 
 #[test]
-fn test_a_written_client_reads_back_as_the_file_layer_without_its_secret() {
-    // GIVEN an empty data directory and no environment override
+fn test_a_written_client_keeps_its_id_in_the_file_and_its_secrets_in_the_store() {
+    // GIVEN an empty data directory, a secret store and no environment override
     let dir = TempDir::new().unwrap();
     let file = file_in(dir.path());
+    let secrets = MemorySecrets::default();
 
     // WHEN a Google client id, secret and API key are written, padded
     for (field, value) in [
@@ -142,12 +144,13 @@ fn test_a_written_client_reads_back_as_the_file_layer_without_its_secret() {
         (OauthClientField::ClientSecret, "GOCSPX-s"),
         (OauthClientField::ApiKey, "AIza-k"),
     ] {
-        set_field(&file, "google", field, value).unwrap();
+        set_field(&file, "google", field, value, &secrets.opener()).unwrap();
     }
-    let rows = list_client_ids_with(&file, &no_env);
+    let rows = list_client_ids_with(&file, &no_env, Some(&secrets));
 
     // THEN the Google row reports the trimmed id from the file and the
-    // presence of the secret and key, and serialises no secret value
+    // secret and key from the store, the file holds neither, and no row
+    // serialises a secret value
     let google = rows.iter().find(|r| r.provider == "google").unwrap();
     assert_eq!(google.effective_client_id, "1-a.apps.googleusercontent.com");
     assert_eq!(google.source, "file");
@@ -156,13 +159,96 @@ fn test_a_written_client_reads_back_as_the_file_layer_without_its_secret() {
         Some("1-a.apps.googleusercontent.com")
     );
     assert!(google.has_client_secret && google.has_api_key);
-    assert_eq!(google.client_secret_source, "file");
+    assert_eq!(google.client_secret_source, "store");
+    assert_eq!(google.api_key_source, "store");
+    let on_disk = std::fs::read_to_string(&file).unwrap();
+    assert!(
+        !on_disk.contains("GOCSPX-s") && !on_disk.contains("AIza-k"),
+        "{on_disk}"
+    );
     let json = serde_json::to_string(&rows).unwrap();
     assert!(
         !json.contains("GOCSPX-s") && !json.contains("AIza-k"),
         "{json}"
     );
     assert_eq!(rows.len(), 2);
+}
+
+#[test]
+fn test_the_environment_wins_over_the_stored_secret() {
+    // GIVEN a client secret in the store, and the env var holding another
+    let dir = TempDir::new().unwrap();
+    let file = file_in(dir.path());
+    let secrets = MemorySecrets::default();
+    set_field(
+        &file,
+        "google",
+        OauthClientField::ClientSecret,
+        "GOCSPX-stored",
+        &secrets.opener(),
+    )
+    .unwrap();
+    let env = |name: &str| {
+        (name == ConnectorProvider::Google.client_secret_env_var()).then(|| "GOCSPX-env".to_owned())
+    };
+
+    // WHEN the rows are resolved
+    let rows = list_client_ids_with(&file, &env, Some(&secrets));
+
+    // THEN the environment is the layer that wins
+    let google = rows.iter().find(|r| r.provider == "google").unwrap();
+    assert!(google.has_client_secret);
+    assert_eq!(google.client_secret_source, "env");
+}
+
+#[test]
+fn test_a_file_an_earlier_version_wrote_gives_its_secrets_to_the_store_at_start() {
+    // GIVEN an oauth-clients.toml holding a client secret and an API key in clear
+    let dir = TempDir::new().unwrap();
+    let file = file_in(dir.path());
+    std::fs::write(
+        &file,
+        "[google]\nclient_id = \"1-a.apps.googleusercontent.com\"\n\
+         client_secret = \"GOCSPX-old\"\napi_key = \"AIza-old\"\n",
+    )
+    .unwrap();
+    let secrets = MemorySecrets::default();
+
+    // WHEN Apollia starts
+    let moved = migrate_file_secrets_at_startup(&file, &secrets.opener());
+
+    // THEN the store holds both, the file holds neither, and the row reads
+    // them from the store
+    assert_eq!(moved, 2);
+    assert_eq!(
+        secrets
+            .value("apollia-oauth-clients", "google:client_secret")
+            .as_deref(),
+        Some("GOCSPX-old")
+    );
+    let on_disk = std::fs::read_to_string(&file).unwrap();
+    assert!(!on_disk.contains("-old\""), "{on_disk}");
+    let rows = list_client_ids_with(&file, &no_env, Some(&secrets));
+    let google = rows.iter().find(|r| r.provider == "google").unwrap();
+    assert_eq!(google.client_secret_source, "store");
+    assert_eq!(google.effective_client_id, "1-a.apps.googleusercontent.com");
+}
+
+#[test]
+fn test_a_store_that_does_not_open_leaves_the_file_for_the_next_start() {
+    // GIVEN a file holding a client secret, and a secret store that cannot open
+    let dir = TempDir::new().unwrap();
+    let file = file_in(dir.path());
+    let raw = "[google]\nclient_secret = \"GOCSPX-kept\"\n";
+    std::fs::write(&file, raw).unwrap();
+    let broken: SecretStoreOpener = std::sync::Arc::new(|| Err("locked".to_owned()));
+
+    // WHEN Apollia starts
+    let moved = migrate_file_secrets_at_startup(&file, &broken);
+
+    // THEN nothing moves and the file is untouched
+    assert_eq!(moved, 0);
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), raw);
 }
 
 #[test]
@@ -175,6 +261,7 @@ fn test_the_environment_wins_over_the_file() {
         "google",
         OauthClientField::ClientId,
         "f.apps.googleusercontent.com",
+        &MemorySecrets::default().opener(),
     )
     .unwrap();
     let env = |name: &str| {
@@ -183,7 +270,7 @@ fn test_the_environment_wins_over_the_file() {
     };
 
     // WHEN the rows are resolved
-    let rows = list_client_ids_with(&file, &env);
+    let rows = list_client_ids_with(&file, &env, None);
 
     // THEN the environment value is effective, and the override still shows
     let google = rows.iter().find(|r| r.provider == "google").unwrap();
@@ -202,7 +289,14 @@ fn test_an_unknown_provider_is_refused_before_any_write() {
     let file = file_in(dir.path());
 
     // WHEN a client id is written for a provider Apollia does not know
-    let err = set_field(&file, "yahoo", OauthClientField::ClientId, "x").unwrap_err();
+    let err = set_field(
+        &file,
+        "yahoo",
+        OauthClientField::ClientId,
+        "x",
+        &MemorySecrets::default().opener(),
+    )
+    .unwrap_err();
 
     // THEN it is refused by name and no file appears
     assert!(matches!(&err, OauthClientsError::UnknownProvider(p) if p == "yahoo"));
@@ -216,14 +310,18 @@ fn test_an_imported_export_writes_both_halves() {
     let file = file_in(dir.path());
     let raw = r#"{"installed": {"client_id": "9-z.apps.googleusercontent.com", "client_secret": "GOCSPX-z"}}"#;
 
-    // WHEN it is imported
-    import_client_json(&file, "google", raw).unwrap();
+    let secrets = MemorySecrets::default();
 
-    // THEN the client id and the secret are both in the file
-    let rows = list_client_ids_with(&file, &no_env);
+    // WHEN it is imported
+    import_client_json(&file, "google", raw, &secrets.opener()).unwrap();
+
+    // THEN the client id is in the file and the secret in the store only
+    let rows = list_client_ids_with(&file, &no_env, Some(&secrets));
     let google = rows.iter().find(|r| r.provider == "google").unwrap();
     assert_eq!(google.effective_client_id, "9-z.apps.googleusercontent.com");
     assert!(google.has_client_secret);
+    assert_eq!(google.client_secret_source, "store");
+    assert!(!std::fs::read_to_string(&file).unwrap().contains("GOCSPX-z"));
 }
 
 #[test]
@@ -234,7 +332,8 @@ fn test_microsoft_has_no_export_to_import() {
     let raw = r#"{"installed": {"client_id": "9-z.apps.googleusercontent.com"}}"#;
 
     // WHEN it is imported
-    let err = import_client_json(&file, "microsoft", raw).unwrap_err();
+    let err = import_client_json(&file, "microsoft", raw, &MemorySecrets::default().opener())
+        .unwrap_err();
 
     // THEN the operator is told to paste the application id, and nothing is written
     assert!(
@@ -253,11 +352,12 @@ fn test_the_local_check_names_the_first_missing_piece() {
         "google",
         OauthClientField::ClientId,
         "1-a.apps.googleusercontent.com",
+        &MemorySecrets::default().opener(),
     )
     .unwrap();
 
     // WHEN the client is checked locally
-    let verdict = local_check(ConnectorProvider::Google, &file, &no_env);
+    let verdict = local_check(ConnectorProvider::Google, &file, &no_env, None);
 
     // THEN the missing secret is named before any network call
     assert_eq!(

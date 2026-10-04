@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::{validate_bounds, ConfigError};
 
@@ -7,7 +7,8 @@ use super::{validate_bounds, ConfigError};
 // ─────────────────────────────────────────────
 
 /// Configuration of the `web_search` tool (`[tools.web_search]` section).
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct WebSearchConfig {
     /// Preferred backend: `auto`, `duckduckgo`, or `brave`. Default: `auto`.
     #[serde(default)]
@@ -37,7 +38,7 @@ impl WebSearchConfig {
 }
 
 /// `web_search` backend choice exposed by `apollia.toml`.
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum WebSearchBackend {
     /// Automatic selection: DuckDuckGo first, Brave if configured.
@@ -50,7 +51,8 @@ pub enum WebSearchBackend {
 }
 
 /// Brave backend configuration (`[tools.web_search.brave]` section).
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BraveBackendConfig {
     /// Environment variable holding the Brave API key.
     /// Default: `"BRAVE_SEARCH_API_KEY"`.
@@ -97,7 +99,8 @@ impl BraveBackendConfig {
 }
 
 /// DuckDuckGo backend configuration (`[tools.web_search.duckduckgo]` section).
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DuckDuckGoBackendConfig {
     /// HTTP request timeout in seconds. Default: 15. Bounds: [1, 120].
     #[serde(default = "default_web_timeout_secs")]
@@ -138,7 +141,8 @@ impl DuckDuckGoBackendConfig {
 }
 
 /// Configuration of the `web_read` tool (`[tools.web_read]` section).
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WebReadConfig {
     /// HTTP request timeout in seconds. Default: 20. Bounds: [1, 120].
     #[serde(default = "default_webread_timeout_secs")]

@@ -53,6 +53,7 @@ pub mod registry;
 pub mod resolver;
 pub mod sandbox_path;
 pub mod task_repository;
+pub mod tool_credentials;
 pub mod tool_registry;
 pub mod tools;
 pub mod trusted_keys;
@@ -104,8 +105,12 @@ pub use task_repository::{
     NewWorkflowRun, PauseRecord, PausedTaskRow, PersistedTaskSummary, ResolvedApprovalRow,
     TaskDetail, TaskRepoError, TaskRepository, WorkflowRunRow, WorkflowStepEnd, WorkflowStepRow,
 };
+pub use tool_credentials::{
+    credential_account, list_credential_index, CredentialEntry, ToolCredentialStore,
+    TOOL_CREDENTIALS_SERVICE,
+};
 pub use tool_registry::{
-    load_governance_snapshot, CredentialEntry, GovernanceSnapshot, ToolCredentialStore,
+    load_governance_snapshot, load_governance_snapshot_with, GovernanceSnapshot,
     ToolGovernanceError, ToolRegistry as NativeToolRegistry, ToolStatus,
     AGENT_CREDENTIALS_NAMESPACE, NATIVE_TOOL_NAMES,
 };

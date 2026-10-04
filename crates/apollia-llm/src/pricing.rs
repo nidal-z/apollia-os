@@ -10,14 +10,10 @@
 
 use std::collections::HashMap;
 
-/// Pricing of an LLM model in dollars per million tokens.
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct PricingTier {
-    /// Cost per million input (prompt) tokens.
-    pub input_per_mtok: f64,
-    /// Cost per million output (completion) tokens.
-    pub output_per_mtok: f64,
-}
+/// Pricing of an LLM model in dollars per million tokens. The shape is the
+/// one `[llm.pricing_overrides]` declares, so it lives with the other TOML
+/// shapes of `apollia.toml` in `apollia-core`.
+pub use apollia_core::config::PricingTier;
 
 // TEST-ONLY: no client prices from this table any more; the OpenAI-compatible
 // client prices through its own `estimate_cost_usd`, and the Ollama client
@@ -36,6 +32,7 @@ pub fn default_pricing() -> HashMap<&'static str, PricingTier> {
     m.insert(
         "claude-haiku-4-5",
         PricingTier {
+            format_version: 1,
             input_per_mtok: 0.80,
             output_per_mtok: 4.0,
         },
@@ -43,6 +40,7 @@ pub fn default_pricing() -> HashMap<&'static str, PricingTier> {
     m.insert(
         "claude-sonnet-4-5",
         PricingTier {
+            format_version: 1,
             input_per_mtok: 3.0,
             output_per_mtok: 15.0,
         },
@@ -50,6 +48,7 @@ pub fn default_pricing() -> HashMap<&'static str, PricingTier> {
     m.insert(
         "claude-sonnet-4-6",
         PricingTier {
+            format_version: 1,
             input_per_mtok: 3.0,
             output_per_mtok: 15.0,
         },
@@ -57,6 +56,7 @@ pub fn default_pricing() -> HashMap<&'static str, PricingTier> {
     m.insert(
         "claude-opus-4-5",
         PricingTier {
+            format_version: 1,
             input_per_mtok: 15.0,
             output_per_mtok: 75.0,
         },
@@ -64,6 +64,7 @@ pub fn default_pricing() -> HashMap<&'static str, PricingTier> {
     m.insert(
         "claude-opus-4-6",
         PricingTier {
+            format_version: 1,
             input_per_mtok: 15.0,
             output_per_mtok: 75.0,
         },
@@ -72,6 +73,7 @@ pub fn default_pricing() -> HashMap<&'static str, PricingTier> {
     m.insert(
         "gpt-4o-mini",
         PricingTier {
+            format_version: 1,
             input_per_mtok: 0.15,
             output_per_mtok: 0.60,
         },
@@ -79,6 +81,7 @@ pub fn default_pricing() -> HashMap<&'static str, PricingTier> {
     m.insert(
         "gpt-4o",
         PricingTier {
+            format_version: 1,
             input_per_mtok: 2.50,
             output_per_mtok: 10.0,
         },
@@ -86,6 +89,7 @@ pub fn default_pricing() -> HashMap<&'static str, PricingTier> {
     m.insert(
         "gpt-4.1-mini",
         PricingTier {
+            format_version: 1,
             input_per_mtok: 0.40,
             output_per_mtok: 1.60,
         },
@@ -93,6 +97,7 @@ pub fn default_pricing() -> HashMap<&'static str, PricingTier> {
     m.insert(
         "gpt-4.1-nano",
         PricingTier {
+            format_version: 1,
             input_per_mtok: 0.10,
             output_per_mtok: 0.40,
         },
@@ -100,6 +105,7 @@ pub fn default_pricing() -> HashMap<&'static str, PricingTier> {
     m.insert(
         "gpt-4.1",
         PricingTier {
+            format_version: 1,
             input_per_mtok: 2.0,
             output_per_mtok: 8.0,
         },
@@ -229,6 +235,7 @@ mod tests {
         overrides.insert(
             "custom-model".to_owned(),
             PricingTier {
+                format_version: 1,
                 input_per_mtok: 1.0,
                 output_per_mtok: 5.0,
             },
@@ -249,6 +256,7 @@ mod tests {
         table.insert(
             "claude-sonnet",
             PricingTier {
+                format_version: 1,
                 input_per_mtok: 1.0,
                 output_per_mtok: 2.0,
             },
@@ -256,6 +264,7 @@ mod tests {
         table.insert(
             "claude-sonnet-4-5",
             PricingTier {
+                format_version: 1,
                 input_per_mtok: 3.0,
                 output_per_mtok: 15.0,
             },
@@ -280,6 +289,7 @@ mod tests {
         overrides.insert(
             "claude-sonnet-4-5".to_owned(),
             PricingTier {
+                format_version: 1,
                 input_per_mtok: 2.5,
                 output_per_mtok: 12.0,
             },

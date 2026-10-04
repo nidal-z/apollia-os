@@ -267,7 +267,7 @@
   "connections": {
     "capabilities": {
       "scope_policy_title": "What Apollia can do with this account",
-      "scope_policy_body_google": "Apollia v0.1.0 uses free Google permissions only. Your agents can: send emails and prepare drafts, read and write your calendar, create and edit Drive, Sheets, Docs and Slides files, manage your tasks, create forms, and browse YouTube. On Drive, they work inside the Apollia folder (configurable path) and any folder you designate via the Google picker (Settings → Integrations → \"Add via Google\"). What they do not do by default: read your whole inbox, search your emails, or browse your entire Drive without you designating the relevant areas. To go further, **Expert Mode** (below) lets you connect your own Google app with extended permissions.",
+      "scope_policy_body_google": "Apollia v0.1.0 uses free Google permissions only. Your agents can: send emails and prepare drafts, read and write your calendar, create and edit Drive, Sheets, Docs and Slides files, manage your tasks, create forms, and browse YouTube. On Drive, they work inside the Apollia folder (configurable path) and any folder you designate via the Google picker (the Google page in Connections, \"Add via Google\"). What they do not do by default: read your whole inbox, search your emails, or browse your entire Drive without you designating the relevant areas. To go further, **Expert Mode** (below) lets you connect your own Google app with extended permissions.",
       "scope_policy_body_microsoft": "On Microsoft, your agents can search and read your Outlook mail, send and reply, list and manage your Outlook calendar, and search, read and download your OneDrive files. Unlike Google, reading the inbox needs no advanced permission. Writing to OneDrive will come later (read-only for now).",
       "group_gmail": "Gmail",
       "group_gcal": "Google Calendar",
@@ -298,7 +298,7 @@
         "gdrive_workspace_share": "Share an Apollia-created file with someone (requires approval)",
         "gdrive_workspace_detail": "Apollia works in (1) the Apollia root folder chosen at connection time (default Drive/Apollia/) and (2) any folder you designate via the Google picker. Your other files stay invisible to it.",
         "gdrive_picker": "Designate any Drive folder via the Google picker",
-        "gdrive_picker_detail": "\"Add via Google\" button in Settings → Integrations: you designate a folder (including your Drive root), and Apollia gains access to it and its contents. No advanced permission required.",
+        "gdrive_picker_detail": "\"Add via Google\" button on the Google page in Connections: you designate a folder (including your Drive root), and Apollia gains access to it and its contents. No advanced permission required.",
         "gdrive_full": "Auto-list every Drive file (without designating anything first)",
         "gdrive_full_detail": "Auto-listing your entire Drive needs an advanced Google permission, available in Expert Mode. The Google picker above covers most needs without it.",
         "gdrive_write_anywhere": "Write or edit files without designating them first",
@@ -340,7 +340,7 @@
         "onedrive_write": "Create/edit files in OneDrive",
         "onedrive_write_detail": "Writing to OneDrive is coming soon. For now, OneDrive is read-only."
       },
-      "expert_mode_hint": "Expert Mode (to extend permissions): 1) On console.cloud.google.com, create a project and an OAuth app of type \"Desktop app\". 2) On the consent screen, add the advanced permissions you want (Gmail read, full Drive, etc.). 3) Keep the app in \"Testing\" mode and add yourself as a test user. 4) Paste the Client ID + secret into Settings → Integrations → Expert Mode. Apollia switches to your app and your agents receive the extended permissions."
+      "expert_mode_hint": "Expert Mode (to extend permissions): 1) On console.cloud.google.com, create a project and an OAuth app of type \"Desktop app\". 2) On the consent screen, add the advanced permissions you want (Gmail read, full Drive, etc.). 3) Keep the app in \"Testing\" mode and add yourself as a test user. 4) Paste the Client ID + secret into the Google client section of its page in Connections. Apollia switches to your app and your agents receive the extended permissions."
     },
     "filters": {
       "clear_all": "Clear all"
@@ -358,8 +358,8 @@
     "native_google_description": "Gmail (send + drafts), Calendar, Drive Workspace",
     "native_microsoft_description": "Outlook Mail, Outlook Calendar, OneDrive",
     "error_refused_by_policy": "Refused by your organisation's policy.",
-    "error_oauth_client_missing": "Missing OAuth client ID - open Settings → Integrations to paste it.",
-    "error_oauth_client_secret_missing": "Missing OAuth client secret - open Settings → Integrations to add it.",
+    "error_oauth_client_missing": "Missing OAuth client ID - enter it on this connection's page, in Connections.",
+    "error_oauth_client_secret_missing": "Missing OAuth client secret - add it on this connection's page, in Connections.",
     "error_invalid_client_file": "That file is not a usable OAuth client export.",
     "disconnect_native_confirm": "Disconnect {account} ({provider})?\nThe token will be revoked locally.",
     "sync_just_now": "just now",
@@ -426,17 +426,17 @@
     "select_connector_prompt": "Select a connector in the sidebar.",
     "oauth_drive_folder_title": "Google Drive folder",
     "oauth_connect_title": "Connect {provider}",
-    "oauth_drive_folder_body_html": "Apollia will only be able to see, read and write inside the folder you specify here (<code>drive.file</code> scope, free, no CASA audit). Your other Drive files will stay invisible to it. The folder is created automatically on first write if it does not exist yet. Editable later via Settings → Integrations.",
-    "oauth_drive_folder_expert_html": "To let your agents access your entire Drive, you need to switch to <strong>Expert Mode</strong> (your own Google Cloud app with extended scopes) - see Settings → Integrations after connecting.",
+    "oauth_drive_folder_body_html": "Apollia will only be able to see, read and write inside the folder you specify here (<code>drive.file</code> scope, free, no CASA audit). Your other Drive files will stay invisible to it. The folder is created automatically on first write if it does not exist yet. Editable later on the Google page in Connections.",
+    "oauth_drive_folder_expert_html": "To let your agents access your entire Drive, you need to switch to <strong>Expert Mode</strong> (your own Google Cloud app with extended scopes) - see the Google page in Connections after connecting.",
     "oauth_drive_folder_path_label_html": "Folder path (separated by <code>/</code>)",
-    "oauth_drive_folder_examples_html": "Examples: <code>Apollia</code> (default), <code>Documents/Apollia</code>, <code>Work/AI</code>. Empty = keep the default <code>Apollia</code>. Editable later in Settings → Integrations.",
+    "oauth_drive_folder_examples_html": "Examples: <code>Apollia</code> (default), <code>Documents/Apollia</code>, <code>Work/AI</code>. Empty = keep the default <code>Apollia</code>. Editable later on the Google page in Connections.",
     "oauth_policy_refused_title": "Refused by your organisation's policy",
     "oauth_policy_refused_body": "Your organisation does not allow connections to online services on this computer. Nothing was sent to {provider}.",
     "oauth_policy_refused_contact": "For an exception, contact the person who manages your organisation's policy.",
     "oauth_missing_client_title": "Missing OAuth client ID",
-    "oauth_missing_client_body_html": "No OAuth client is configured for {provider}, so Apollia stopped rather than opening a consent screen that could not complete. Create one in the {console} console, then open Settings → Integrations to add it. No environment variable is required.",
+    "oauth_missing_client_body_html": "No OAuth client is configured for {provider}, so Apollia stopped rather than opening a consent screen that could not complete. Create one in the {console} console, then open its page in Connections to add it. No environment variable is required.",
     "oauth_missing_secret_title": "Missing OAuth client secret",
-    "oauth_missing_secret_body_html": "{provider} issues a <code>client_secret</code> alongside the client ID, and requires it when the token is exchanged. Apollia stopped here rather than sending you to a consent screen that could not complete. Add the secret in Settings → Integrations.",
+    "oauth_missing_secret_body_html": "{provider} issues a <code>client_secret</code> alongside the client ID, and requires it when the token is exchanged. Apollia stopped here rather than sending you to a consent screen that could not complete. Add the secret on its page in Connections.",
     "needs_client_title": "Setup required before connecting",
     "needs_client_body": "No OAuth client is configured for {provider} yet. Add your own to connect an account. It takes a few minutes in the provider console and is a one-off.",
     "oauth_preparing": "Preparing the OAuth flow…",
@@ -449,7 +449,6 @@
     "keep_default": "Keep the default",
     "saving": "Saving…",
     "save": "Save",
-    "open_settings_integrations": "Open Settings → Integrations",
     "configure_credentials": "Set up credentials",
     "catalogue_subtitle": "Browse the public MCP catalogue or register a custom server.",
     "catalogue_tab_discover": "MCP catalogue",
@@ -519,7 +518,36 @@
     },
     "add_connector": "Add a connector",
     "ctx_configure": "Configure",
-    "tool_schema": "Schema"
+    "tool_schema": "Schema",
+    "oauth_client": {
+      "title": {
+        "google": "Google client",
+        "microsoft": "Microsoft client"
+      },
+      "intro": {
+        "google": "The Google application through which Apollia connects to your accounts. Supplied by your organization, or created by you in the Google Cloud console.",
+        "microsoft": "Optional. The Microsoft application through which Apollia connects to your accounts, when you supply your own: created by you or your organization in the Microsoft Entra portal."
+      },
+      "load_error": "The OAuth client of this connection could not be read.",
+      "origin": {
+        "env": "Origin: environment variable. It takes precedence over a value entered here.",
+        "file": "Origin: entered on this page, kept in the configuration file of this computer. An environment variable would take precedence.",
+        "store": "Origin: secret store.",
+        "builtin": "Origin: the client shipped with Apollia. Enter your own to replace it.",
+        "none": "No client yet. Enter its identifier, or import the JSON file the console gives you."
+      },
+      "secret_kept": "Kept in the system keychain, never in a file.",
+      "import_json": "Import the client JSON",
+      "test": "Test the client",
+      "copy_redirect": "Copy the redirect address",
+      "redirect_note": "Redirect address to declare in the Google console: {uri}",
+      "api_key_title": "Google API key",
+      "api_key_intro": "For the Google services that require a key in addition to the account, such as the Drive picker. Optional.",
+      "drive_folder": "Agents' Drive folder: {path}",
+      "drive_folder_edit": "Change",
+      "drive_folder_reset": "Back to default"
+    },
+    "open_connection_client": "Enter the OAuth client"
   },
   "integrations": {
     "disclaimer": {
@@ -2970,7 +2998,8 @@
         "env": "Env var",
         "file": "File",
         "builtin": "Shipped with Apollia",
-        "none": "Not resolved"
+        "none": "Not resolved",
+        "store": "Secret store"
       },
       "status": {
         "ready": "Ready to connect",
@@ -3003,7 +3032,7 @@
       },
       "redirect_note": "This client must allow Apollia's loopback redirect. Add this URI to the client's \"Authorized redirect URIs\":",
       "copied": "Copied",
-      "stored_note": "Stored encrypted locally, never transmitted in clear text",
+      "stored_note": "The secret and the API key are kept in the system keychain, never in a file",
       "ms_no_secret": "No client secret required for Microsoft",
       "explain_intro": "Resolution order for each credential: the first non-empty source wins. Leave a field empty to fall back to the next step.",
       "empty_title": "No OAuth connector available",

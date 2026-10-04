@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::{validate_bounds, ConfigError, WebReadConfig, WebSearchConfig};
 
@@ -11,7 +11,8 @@ use super::{validate_bounds, ConfigError, WebReadConfig, WebSearchConfig};
 /// Controls the limits the runtime applies to native tool outputs before
 /// forwarding them to the LLM. Protects the LLM context window against large
 /// outputs (one of the non-negotiable safeguards).
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ToolsConfig {
     /// Maximum size of a tool output forwarded to the LLM, in UTF-8 bytes.
     ///
