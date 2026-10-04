@@ -20,6 +20,7 @@ use super::logs::ServerLogsHandle;
 use super::models::LocalModels;
 use super::reasoning::{merge_answer, merge_stream, StreamMerger};
 use super::relay::RelayState;
+use super::relay_tests::serve_engine;
 use super::router::compat_router;
 use crate::llama_server::LlamaServerSupervisor;
 
@@ -185,9 +186,7 @@ async fn recorded_relay(toml: &str) -> Recorded {
         }
         ([("content-type", "application/json")], RECORDED_ANSWER).into_response()
     });
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let port = listener.local_addr().unwrap().port();
-    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let port = serve_engine(app).await;
     let supervisor =
         LlamaServerSupervisor::with_resident_for_test(&[("/models/think.gguf", port)], None).await;
     let dir = TempDir::new().unwrap();

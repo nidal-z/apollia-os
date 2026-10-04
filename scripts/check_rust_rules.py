@@ -358,7 +358,8 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # request to the engine that holds the model, over HTTP, and the tests
     # read what that engine received (the path, the `model` replaced, the
     # body passed through). The fake engine holds a port-0 bind for the whole
-    # test, never a port released.
+    # test, never a port released. The reasoning tests of the same server
+    # borrow that helper for the engine that answers their recorded replies.
     "crates/apollia-runtime/src/compat_server/relay_tests.rs": 1,
     "crates/apollia-runtime/src/hooks/executor.rs": 7,
     # The process is the subject: unloading a resident model has to stop its
