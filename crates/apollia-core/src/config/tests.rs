@@ -936,26 +936,14 @@ fn test_config_module_doc_lists_only_sections_a_loader_reads() {
         .collect();
     listed.sort_unstable();
 
-    // THEN it is exactly the fourteen sections this crate defines that a loader
+    // THEN it is exactly the thirteen sections this crate defines that a loader
     // deserializes, and it names neither `[a2a]` nor `[oria]`, which no loader
     // ever reads from a file
     assert_eq!(
         listed,
         vec![
-            "api",
-            "author",
-            "chat",
-            "desktop",
-            "engines",
-            "filesystem",
-            "hitl",
-            "hooks",
-            "llm",
-            "mcp",
-            "models",
-            "runtime",
-            "server",
-            "tools",
+            "api", "author", "chat", "desktop", "engines", "hitl", "hooks", "llm", "mcp", "models",
+            "runtime", "server", "tools",
         ],
         "the module doc bullet list does not match the sections a loader reads"
     );

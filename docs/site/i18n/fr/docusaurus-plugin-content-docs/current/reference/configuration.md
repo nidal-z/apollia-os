@@ -84,7 +84,6 @@ avertissement `config.key.retired`.
 | `[mcp]` | Configuration du module MCP, y compris `[[mcp.servers]]` (voir plus bas). |
 | `[hooks]` | Gestionnaires de hooks de cycle de vie (commande ou HTTP). |
 | `[chat]` | Valeurs par défaut au niveau session du sous-système de chat (par exemple `plan_mode_default`). |
-| `[filesystem]` | Les chemins où un agent travaille sans demander (`trusted_paths`, voir plus bas). |
 | `[workflows]` | Le budget avec lequel démarre l'exécution d'un workflow, partagé par chaque agent et chaque workflow qu'elle lance. |
 | `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), et la règle appliquée à un fichier importé (`[models.import]`). |
 | `[observability]` | Capture et rétention des traces, documentées plus bas. |
@@ -239,16 +238,7 @@ Valeurs par défaut des sessions de chat.
 | Clé | Type | Défaut | Rôle |
 | --- | --- | --- | --- |
 | `chat.plan_mode_default` | booléen | `false` | Démarrer chaque nouvelle conversation en mode plan. |
-| `chat.default_workspace` | chemin | non définie | Dossier de travail d'une conversation hors projet. |
 | `chat.tool_turn_temperature` | décimal | non définie | Température du modèle pour un tour qui propose des outils ; sans valeur, 0.3. |
-
-### `[filesystem]`
-
-Les chemins dans lesquels un agent travaille sans qu'on lui demande. `trusted_paths` règle une friction plutôt qu'un mur, et les deux surfaces ne le lisent pas de la même façon ; voir *Chemins de confiance, et ce qui se passe en dehors* plus bas.
-
-| Clé | Type | Défaut | Rôle |
-| --- | --- | --- | --- |
-| `filesystem.trusted_paths` | liste de chaînes | `["~"]` | Dossiers où un agent peut travailler sans demander. |
 
 ### `[models]`
 
@@ -348,7 +338,8 @@ Acceptées dans un fichier écrit pour une version antérieure, avec un avertiss
 | `llm.cost_alert_threshold_usd` | Rien ne la lit ; retirez la clé. |
 | `llm.runner` | Le moteur est choisi d'après le matériel détecté ; retirez la section. |
 | `tools.file_path_extraction_pattern` | Rien ne la lit ; retirez la clé. |
-| `filesystem.journal` | Rien ne la lit ; retirez la section. |
+| `filesystem` | Les outils de fichiers atteignent les dossiers accordés à chaque agent ; les chemins listés ici ont été ajoutés une fois comme connexions dossier, accordez-les sur la fiche de l'agent. |
+| `chat.default_workspace` | Le dossier a été ajouté une fois comme connexion dossier ; accordez-le à un agent sur sa fiche. |
 | `ui` | Déplacée : écrivez desktop.link_preview_enabled ; ui.link_preview_enabled est encore lue tant qu'elle est absente. |
 <!-- END GENERATED: config-fields -->
 
@@ -371,38 +362,24 @@ qu'avec le `0600` du fichier de socket : il porte donc le même jeton Bearer que
 l'écouteur TCP, et c'est ce jeton qui contrôle l'accès. L'option globale
 `--socket` est acceptée sous Windows et ignorée.
 
-### Chemins de confiance, et ce qui se passe en dehors
+### Les dossiers qu'un agent atteint
 
-`[filesystem] trusted_paths` règle une friction, pas une frontière. Un chemin
-situé sous aucune de ces racines, et hors du répertoire de travail de la
-session, n'est pas refusé : l'opération est suspendue et l'utilisateur est
-sollicité. Vider la liste n'enferme donc pas l'agent, cela signifie que toute
-écriture hors du répertoire de travail lève une approbation. Ajouter un chemin
-est une déclaration de confiance, et les chemins sensibles de la table de risque
-(`~/.ssh`, `/etc`, secrets stockés) gardent leur propre classification quoi que
-contienne cette liste.
+Aucune clé de ce fichier ne dit quels dossiers un agent atteint. Un dossier du
+poste est une connexion, ajoutée depuis l'écran Connexions au sélecteur du
+système, et ses outils de fichiers s'accordent à un agent sur sa fiche. Les
+outils de fichiers d'un agent atteignent l'union des dossiers qui lui sont
+accordés, agent de conversation intégré compris : les outils de lecture tous
+les dossiers accordés, les outils d'écriture seulement ceux accordés pour
+écrire. Le premier dossier accordé, par date d'ajout, est celui où arrive un
+chemin relatif. Un agent sans dossier accordé a des outils de fichiers qui
+refusent, en disant comment en accorder un.
 
-Le répertoire de travail lui-même, `[chat] default_workspace` ou celui du
-projet, est l'endroit où se résolvent les chemins relatifs. Il est de confiance
-au même titre que les entrées de la liste et n'est jamais une limite à lui seul.
-
-Les deux surfaces ne lisent pas cette liste de la même façon, et la différence
-mérite d'être connue avant de la vider :
-
-| Surface | Ce que fait la liste |
-| --- | --- |
-| Chat | Règle une friction. Hors des racines, l'opération est suspendue et l'utilisateur est sollicité. |
-| Mode agent | Pose une frontière. Hors des racines, un outil fichier refuse, en nommant ce réglage. |
-
-Le mode agent n'a pas de demande d'approbation sur laquelle se rabattre :
-l'événement d'approbation filesystem n'est émis que par l'invocateur du chat, et
-un agent peut s'exécuter sans personne devant l'écran. Tant que cette surface
-n'existe pas, un chemin dont un agent a besoin doit être nommé ici.
-
-```toml
-[filesystem]
-trusted_paths = ["~", "/Volumes/travail", "/opt/data"]
-```
+`[filesystem] trusted_paths` et `[chat] default_workspace` nommaient ces
+dossiers. Les deux sont retirées. Au premier démarrage d'une version qui
+connaît les connexions dossier, chaque dossier qu'elles nommaient, dossier
+personnel excepté, a été ajouté une fois comme connexion, accordée à aucun
+agent ; un fichier qui les porte encore se charge avec un avertissement
+`config.key.retired`.
 
 ### Sections retirées
 
@@ -413,10 +390,6 @@ effet et ne produisait pas non plus d'erreur. Plus rien ne les lit : un
 fichier qui en porte encore une est accepté, avec un avertissement
 `config.key.retired`, et le tableau des clés retirées plus haut dit quoi faire à
 la place. Les retirer n'a changé aucun comportement, puisque ces sections n'en avaient aucun.
-
-`[filesystem]` figurait dans cette liste. C'est de nouveau une section vivante :
-`trusted_paths` est lue au démarrage et parvient au classifieur de risque, qui
-décide si une opération s'exécute ou demande.
 
 Des clés ont été retirées pour la même raison, parce que rien ne les lisait. Un
 fichier qui en porte encore une est accepté, avec un avertissement

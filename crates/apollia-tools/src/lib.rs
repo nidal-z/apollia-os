@@ -41,6 +41,7 @@ pub mod dispatcher_invoker;
 pub mod executor;
 pub mod exposed_items;
 pub mod file_path_extractor;
+pub mod folder_access;
 pub mod governance_db;
 pub mod granted_access;
 pub mod hitl_schema;
@@ -77,6 +78,7 @@ pub use executor::{
 };
 pub use exposed_items::{ExposedItem, ExposedItemError, ExposedItemRepository, ExposedKind};
 pub use file_path_extractor::FilePathExtractor;
+pub use folder_access::{granted_folders, resolve_folder_access, FolderRoots};
 pub use governance_db::{
     GovernanceDb, GovernanceError, GOVERNANCE_DB_FILENAME, LEGACY_BACKUP_FILENAME,
     LEGACY_PERMISSIONS_FILENAME,
@@ -87,7 +89,7 @@ pub use journal::{
 };
 pub use native_dispatcher::{
     build_dispatcher_with, build_native_dispatcher, is_disabled, NativeDispatcherConfig,
-    UnavailableTool,
+    NoFolderGranted, UnavailableTool,
 };
 pub use package_repository::{
     InstalledPackage, PackageItem, PackageItemKind, PackageRepository, PackageRepositoryError,

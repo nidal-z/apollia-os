@@ -180,6 +180,34 @@ impl FolderConnectionStore {
             .execute("DELETE FROM folder_connections WHERE id = ?1", params![id])?;
         Ok(folder)
     }
+
+    /// Whether the one-time import `key` already ran against this file.
+    ///
+    /// # Errors
+    /// [`FolderConnectionError::Db`] on any SQLite failure.
+    pub fn imported(&self, key: &str) -> Result<bool, FolderConnectionError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT 1 FROM settings_imports WHERE key = ?1",
+                params![key],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some())
+    }
+
+    /// Record that the one-time import `key` ran, so it never runs again.
+    ///
+    /// # Errors
+    /// [`FolderConnectionError::Db`] on any SQLite failure.
+    pub fn mark_imported(&self, key: &str) -> Result<(), FolderConnectionError> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO settings_imports (key) VALUES (?1)",
+            params![key],
+        )?;
+        Ok(())
+    }
 }
 
 /// The last component of `path`, or the path itself for a root.
@@ -342,5 +370,26 @@ mod tests {
             i64::from(crate::system_db::SYSTEM_DB_SCHEMA_VERSION)
         );
         assert_eq!(columns, ["id", "path", "label", "added_at"]);
+    }
+
+    #[test]
+    fn test_a_one_time_import_is_remembered() {
+        // GIVEN a fresh system.db
+        let db = tempfile::TempDir::new().unwrap();
+        let store = store(&db);
+        let before = store.imported("legacy_folders").unwrap();
+
+        // WHEN the import is recorded twice, then the file is opened again
+        store.mark_imported("legacy_folders").unwrap();
+        store.mark_imported("legacy_folders").unwrap();
+        let reopened = super::FolderConnectionStore::open(
+            &db.path().join(crate::paths::DataFile::System.file_name()),
+        )
+        .unwrap();
+
+        // THEN it was not done before, and is done after, on any connection
+        assert!(!before);
+        assert!(reopened.imported("legacy_folders").unwrap());
+        assert!(!reopened.imported("another").unwrap());
     }
 }

@@ -39,7 +39,8 @@ fn dispatcher_config(
     disabled: Vec<String>,
 ) -> NativeDispatcherConfig {
     NativeDispatcherConfig {
-        sandbox_roots: vec![sandbox],
+        sandbox_roots: vec![sandbox.clone()],
+        write_roots: vec![sandbox],
         agent_id: "test-agent".to_string(),
         venv_base_dir: venv,
         memory_namespace: None,

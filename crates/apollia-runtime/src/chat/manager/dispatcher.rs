@@ -1,20 +1,21 @@
 use super::*;
 
-/// Resolves the sandbox root for a chat session based on its project association.
+/// Builds the tool invoker of one message of a chat session, or of one agent
+/// run outside a conversation.
 ///
-/// Called once per message, inside the async tokio task spawned by `handle_send_message`.
-/// Returns a [`NativeChatToolInvoker`] configured with:
-/// - the project's `workspace_path` when the session is linked to a project;
-/// - `~/.apollia/` for free-chat sessions (no project), if that directory exists;
-/// - `None` as a last resort (bash will then inherit the process CWD).
+/// The file tools reach the folders granted to the agent and nothing else
+/// (`params.folders`): reading tools the union of them, writing tools those
+/// granted for writing. The first folder granted, by the date it was added,
+/// anchors a relative path. Neither a project's folder, the data directory,
+/// the home folder nor the volume is a root. An agent granted no folder has
+/// file tools that refuse with a message saying how to grant one.
 ///
 /// When `hitl` is provided, HITL filesystem support is enabled on the returned invoker.
 pub(in crate::chat::manager) async fn resolve_workspace_for_session(
     params: WorkspaceResolutionParams,
 ) -> Result<NativeChatToolInvoker, ChatError> {
     let WorkspaceResolutionParams {
-        project_id,
-        project_repo,
+        folders,
         hitl,
         pending_user_inputs,
         mcp_handle,
@@ -26,17 +27,9 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
         package_tools,
     } = params;
     let session_id = session_id.as_str();
-    let default_workspace = chat_tools_config
-        .as_ref()
-        .and_then(|c| c.default_workspace.clone());
-    let workspace_path =
-        resolve_workspace_path(&project_id, &project_repo, default_workspace.as_deref()).await?;
-    let trusted_paths = chat_tools_config
-        .as_ref()
-        .map(|c| c.trusted_paths.clone())
-        .unwrap_or_default();
-    let mut invoker = NativeChatToolInvoker::new_unrestricted(workspace_path.clone())
-        .with_trusted_paths(trusted_paths.clone());
+    let anchor = folders.anchor().map(std::path::Path::to_path_buf);
+    let mut invoker =
+        NativeChatToolInvoker::new_with_workspace(anchor).with_trusted_paths(folders.write.clone());
     if let Some(pending) = pending_user_inputs.clone() {
         invoker = invoker.with_ask_user_support(pending, session_id);
     }
@@ -66,29 +59,6 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
     extra_executors.extend(crate::connectors_bridge::build_connector_executors().await);
     extra_executors.extend(package_tools);
 
-    // With no project open, the file tools are rooted at the user's home, not at
-    // the system temp directory. Temp made the assistant unable to reach anything
-    // the user actually owns, while protecting nothing: the trust model already
-    // states that an installed agent runs with the user's rights, and the real
-    // barrier on this path is the human approval on `file_write` / `file_edit`.
-    // It also contradicted the prompt, which tells the model it may read and write
-    // anywhere on the machine. Temp remains the last-resort fallback when the home
-    // directory cannot be resolved.
-    let sandbox_root = workspace_path
-        .clone()
-        .unwrap_or_else(apollia_core::paths::home_dir_or_temp);
-    // The anchor above is where a relative path lands, and a project stays the
-    // natural place to work. What an absolute path may reach is a separate
-    // question, and passing the anchor alone answered it far too narrowly: with
-    // a project open, every tool built here was confined to that one directory,
-    // so the assistant could not read the user's Downloads or Documents.
-    //
-    // In the same conversation, `file_write` and `file_edit` run off the fast
-    // path, built by `new_unrestricted`, and reach the whole machine. So the
-    // assistant could write anywhere and read almost nowhere. Reported on
-    // 2026-09-09, on every system.
-    let sandbox_roots = chat_sandbox_roots(&sandbox_root, &trusted_paths);
-
     // When the supervisor handed us a `ChatToolsConfig`, build the full native
     // dispatcher (same factory the Agent-mode + Triggers pipeline uses). This
     // pulls in web_search, web_read, http_fetch, memory_search and ask_user
@@ -101,15 +71,13 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
         build_full_chat_dispatcher(FullDispatcherParams {
             cfg,
             session_id,
-            sandbox_root: &sandbox_root,
-            sandbox_roots: &sandbox_roots,
-            workspace_path: &workspace_path,
+            folders: &folders,
             pending_user_inputs: &pending_user_inputs,
             hitl: hitl.as_ref(),
             extra_executors,
         })
     } else {
-        build_fallback_chat_dispatcher(&sandbox_roots, extra_executors)
+        build_fallback_chat_dispatcher(&folders.read, extra_executors)
     };
     invoker = invoker.with_fallback_dispatcher(std::sync::Arc::new(
         apollia_tools::dispatcher_invoker::DispatcherToolInvoker::new(std::sync::Arc::new(
@@ -123,39 +91,16 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
     }
 }
 
-/// Resolve the sandbox root path for a chat session.
-async fn resolve_workspace_path(
-    project_id: &Option<String>,
-    project_repo: &Option<Arc<ProjectRepository>>,
-    default_workspace: Option<&std::path::Path>,
-) -> Result<Option<std::path::PathBuf>, ChatError> {
-    match project_id {
-        None => {
-            // Free chat: prefer the operator-configured default workspace
-            // (`[chat] default_workspace`), then `~/.apollia/`, so bash and file
-            // tools never silently inherit the Tauri process CWD.
-            if let Some(p) = default_workspace.filter(|p| p.is_dir()) {
-                return Ok(Some(p.to_path_buf()));
-            }
-            Ok(apollia_core::paths::data_dir().filter(|p| p.is_dir()))
-        }
-        Some(pid) => {
-            let repo = project_repo
-                .as_ref()
-                .ok_or_else(|| ChatError::ProjectNotFound(pid.clone()))?;
-            let detail = repo
-                .get_project_async(pid.clone())
-                .await
-                .map_err(|_| ChatError::ProjectNotFound(pid.clone()))?;
-            if detail.workspace_path.is_none() {
-                warn!(
-                    project_id = %pid,
-                    detail = "falling back to the process working directory",
-                    "project.workspace_path.missing"
-                );
-            }
-            Ok(detail.workspace_path.map(std::path::PathBuf::from))
-        }
+/// The access an executor checks and the folders the file tools reach, from
+/// the granted `tools` and the folders stored beside `cfg`'s data directory.
+/// Without a configuration no folder is reachable.
+pub(in crate::chat::manager) fn granted_folders(
+    tools: Vec<String>,
+    cfg: Option<&ChatToolsConfig>,
+) -> (Vec<String>, apollia_tools::FolderRoots) {
+    match cfg {
+        Some(cfg) => apollia_tools::granted_folders(tools, &cfg.data_dir),
+        None => apollia_tools::resolve_folder_access(tools, &[]),
     }
 }
 
@@ -204,9 +149,7 @@ fn build_full_chat_dispatcher(
     let FullDispatcherParams {
         cfg,
         session_id,
-        sandbox_roots,
-        sandbox_root,
-        workspace_path,
+        folders,
         pending_user_inputs,
         hitl,
         mut extra_executors,
@@ -240,7 +183,8 @@ fn build_full_chat_dispatcher(
     }
 
     let native_cfg = apollia_tools::NativeDispatcherConfig {
-        sandbox_roots: sandbox_roots.to_vec(),
+        sandbox_roots: folders.read.clone(),
+        write_roots: folders.write.clone(),
         agent_id: format!("apollia:chat:{session_id}"),
         venv_base_dir: cfg.data_dir.join("venvs"),
         // Per-session memory namespace so `memory_search` reads/writes
@@ -271,8 +215,7 @@ fn build_full_chat_dispatcher(
             &mut extra_executors,
             HitlNativesParams {
                 hitl: p,
-                workspace_path,
-                sandbox_root,
+                folders,
                 venv_base_dir: &native_cfg.venv_base_dir,
                 disabled: &effective_disabled,
             },
@@ -331,8 +274,9 @@ const CHAT_VENV_ID: &str = "apollia-chat";
 /// workspace's argument budget.
 struct HitlNativesParams<'a> {
     hitl: &'a HitlInvokerParams,
-    workspace_path: &'a Option<std::path::PathBuf>,
-    sandbox_root: &'a std::path::Path,
+    /// The folders granted to the agent: the writing tools reach those
+    /// granted for writing, the first granted anchors a relative path.
+    folders: &'a apollia_tools::FolderRoots,
     venv_base_dir: &'a std::path::Path,
     /// Effective disabled set (operator plus governance): a native named here
     /// is not re-added at all.
@@ -347,20 +291,25 @@ fn push_hitl_natives(
 ) {
     let HitlNativesParams {
         hitl: p,
-        workspace_path,
-        sandbox_root,
+        folders,
         venv_base_dir,
         disabled,
     } = params;
+    let anchor = folders.anchor().map(std::path::Path::to_path_buf);
     let is_active = |name: &str| !disabled.iter().any(|d| d == name);
     let hitl_ctx = crate::chat::native_wrappers::HitlFilesystemContext {
         event_bus: p.event_bus.clone(),
         pending_fs: p.pending_fs.clone(),
         fs_allow_rules: p.fs_allow_rules.clone(),
         session_id: p.session_id.clone(),
-        workspace_path: workspace_path.clone(),
-        trusted_paths: p.trusted_paths.clone(),
-        sandbox_root: sandbox_root.to_path_buf(),
+        workspace_path: anchor.clone(),
+        granted_write_roots: folders.write.clone(),
+        sandbox_root: folders
+            .write
+            .first()
+            .cloned()
+            .or(anchor)
+            .unwrap_or_else(apollia_core::paths::home_dir_or_temp),
         risk_config: p.risk_config.clone(),
     };
 
@@ -372,34 +321,16 @@ fn push_hitl_natives(
         ));
     };
 
-    if is_active("file_write") {
-        if let Ok(t) = apollia_tools::tools::file_write::FileWrite::new(sandbox_root.to_path_buf())
-        {
-            push_hitl(
-                extra_executors,
-                Box::new(t),
-                apollia_tools::FilesystemOp::Write,
-            );
+    // The writing tools reach the folders granted for writing; with none,
+    // they refuse every call with a message saying how to grant one.
+    for name in apollia_tools::folder_access::FOLDER_WRITE_TOOLS {
+        if !is_active(name) {
+            continue;
         }
-    }
-    if is_active("file_edit") {
-        if let Ok(t) = apollia_tools::tools::file_edit::FileEdit::new(sandbox_root.to_path_buf()) {
-            push_hitl(
-                extra_executors,
-                Box::new(t),
-                apollia_tools::FilesystemOp::Write,
-            );
-        }
-    }
-    if is_active("notebook_edit") {
-        if let Ok(t) =
-            apollia_tools::tools::notebook_edit::NotebookEdit::new(sandbox_root.to_path_buf())
-        {
-            push_hitl(
-                extra_executors,
-                Box::new(t),
-                apollia_tools::FilesystemOp::Write,
-            );
+        if folders.write.is_empty() {
+            extra_executors.push(Box::new(apollia_tools::NoFolderGranted::new(name)));
+        } else if let Some(tool) = writing_tool(name, folders.write.clone()) {
+            push_hitl(extra_executors, tool, apollia_tools::FilesystemOp::Write);
         }
     }
     if is_active("bash_executor") {
@@ -431,57 +362,21 @@ fn push_hitl_natives(
     }
 }
 
-/// What the chat's file tools may reach, anchor first.
-///
-/// The anchor decides where a relative path lands and stays the workspace. The
-/// entries after it only widen what an absolute path may reach, which is what
-/// lets the assistant open a file the user names by its real path.
-///
-/// The volume of the anchor is included rather than a bare `/`: on Windows that
-/// is the drive, which puts Downloads and Documents in reach without having to
-/// enumerate the mounted volumes, and on Unix it is the filesystem root. The
-/// home directory and the configured trusted paths follow, so a home on another
-/// volume and an operator's own entries are covered too.
-///
-/// This is not a widening of the trust model, it is the removal of an
-/// inconsistency: `file_write` on the fast path already reaches the whole
-/// machine, and the human approval on write is the barrier the design names.
-fn chat_sandbox_roots(
-    anchor: &std::path::Path,
-    trusted: &[std::path::PathBuf],
-) -> Vec<std::path::PathBuf> {
-    let mut roots = vec![anchor.to_path_buf()];
-    if let Some(volume) = volume_root(anchor) {
-        roots.push(volume);
-    }
-    roots.push(apollia_core::paths::home_dir_or_temp());
-    roots.extend(
-        trusted
-            .iter()
-            .filter(|p| !p.as_os_str().is_empty())
-            .cloned(),
-    );
-    roots.dedup();
-    roots
-}
-
-/// The volume a path sits on: `/` on Unix, `C:\` and its siblings on Windows.
-///
-/// Returns `None` for a relative path, which has no volume to speak of.
-fn volume_root(path: &std::path::Path) -> Option<std::path::PathBuf> {
-    use std::path::Component;
-    let mut root = std::path::PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::Prefix(prefix) => root.push(prefix.as_os_str()),
-            Component::RootDir => {
-                root.push(component.as_os_str());
-                return Some(root);
-            }
-            _ => break,
-        }
-    }
-    None
+/// The writing file tool `name`, rooted at `roots`; `None` when it cannot be
+/// built.
+fn writing_tool(
+    name: &str,
+    roots: Vec<std::path::PathBuf>,
+) -> Option<Box<dyn apollia_tools::executor::ToolExecutor>> {
+    use apollia_tools::executor::ToolExecutor;
+    use apollia_tools::tools::{file_edit::FileEdit, file_write::FileWrite};
+    let tool: Box<dyn ToolExecutor> = match name {
+        "file_write" => Box::new(FileWrite::new(roots).ok()?),
+        "file_edit" => Box::new(FileEdit::new(roots).ok()?),
+        "notebook_edit" => Box::new(apollia_tools::NotebookEdit::new(roots).ok()?),
+        _ => return None,
+    };
+    Some(tool)
 }
 
 /// Build the fallback dispatcher used when no `ChatToolsConfig` was provided
@@ -530,72 +425,9 @@ pub(in crate::chat::manager) fn now_rfc3339() -> String {
 mod tests {
     use super::*;
 
-    #[test]
-    fn a_project_anchors_relative_paths_without_confining_absolute_ones() {
-        // GIVEN a workspace directory, which is what the desktop opens by
-        // default, and no operator trusted path
-        let workspace = std::env::temp_dir().join("apollia-roots-anchor");
-        std::fs::create_dir_all(&workspace).expect("the workspace is created");
-
-        // WHEN the roots of the chat file tools are built from it
-        let roots = chat_sandbox_roots(&workspace, &[]);
-
-        // THEN the workspace comes first, so a relative path still lands in the
-        // project, and the volume follows, so an absolute path elsewhere is
-        // reachable. Passing the workspace alone confined every read-only tool
-        // to it while file_write, built on the fast path, reached the whole
-        // machine.
-        assert_eq!(roots.first(), Some(&workspace));
-        assert!(roots.len() > 1, "roots were {roots:?}");
-        let outside = std::env::temp_dir().join("apollia-roots-outside.txt");
-        let sandbox = apollia_tools::SandboxRoot::new(roots).expect("the roots are usable");
-        let resolved = sandbox.resolve(&outside.to_string_lossy());
-        assert!(
-            resolved.is_ok(),
-            "a path outside the project was refused: {resolved:?}"
-        );
-
-        // AND the control, so this test cannot pass by accident: the anchor on
-        // its own, which is what was passed before, refuses that same path.
-        let anchor_only =
-            apollia_tools::SandboxRoot::new(workspace.clone()).expect("the anchor alone is usable");
-        assert!(
-            anchor_only.resolve(&outside.to_string_lossy()).is_err(),
-            "the anchor alone should refuse, or this test proves nothing"
-        );
-        let _ = std::fs::remove_dir_all(&workspace);
-    }
-
-    #[test]
-    fn an_operator_trusted_path_on_another_volume_is_kept() {
-        // GIVEN a trusted path the operator named in apollia.toml
-        let workspace = std::env::temp_dir().join("apollia-roots-trusted");
-        let trusted = vec![std::path::PathBuf::from("/opt/apollia-elsewhere")];
-
-        // WHEN the roots are built
-        let roots = chat_sandbox_roots(&workspace, &trusted);
-
-        // THEN the operator's entry survives, since a volume it does not sit on
-        // would otherwise drop it
-        assert!(roots.contains(&trusted[0]), "roots were {roots:?}");
-    }
-
-    #[test]
-    fn a_relative_anchor_contributes_no_volume() {
-        // GIVEN a path with no volume to speak of
-        let relative = std::path::Path::new("some/where");
-
-        // WHEN its volume is asked for
-        let volume = volume_root(relative);
-
-        // THEN none is claimed, rather than a root that would silently widen
-        // the reachable surface to everything
-        assert!(volume.is_none());
-    }
-
     /// HITL parameters that approve every filesystem risk level up front, so a
     /// test never waits on an approval nobody will answer.
-    fn preapproved_hitl(session_id: &str) -> HitlInvokerParams {
+    pub(super) fn preapproved_hitl(session_id: &str) -> HitlInvokerParams {
         let (event_bus, _rx) = crate::eventbus::EventBus::new();
         let fs_allow_rules = std::sync::Arc::new(std::sync::Mutex::new(
             ["write:medium", "write:high", "write:critical"]
@@ -609,7 +441,6 @@ mod tests {
             pending_fs: crate::chat::types::PendingFilesystemApprovals::new(),
             fs_allow_rules,
             risk_config: apollia_core::FilesystemRiskConfig::default(),
-            trusted_paths: Vec::new(),
         }
     }
 
@@ -630,14 +461,20 @@ mod tests {
         }
     }
 
+    /// A folder granted to read and to write.
+    fn folders_at(path: &std::path::Path) -> apollia_tools::FolderRoots {
+        apollia_tools::FolderRoots {
+            read: vec![path.to_path_buf()],
+            write: vec![path.to_path_buf()],
+        }
+    }
+
     fn chat_tools_config(data_dir: &std::path::Path) -> std::sync::Arc<ChatToolsConfig> {
         std::sync::Arc::new(ChatToolsConfig {
             data_dir: data_dir.to_path_buf(),
             brave_api_key: None,
             tools_config: apollia_core::ToolsConfig::default(),
-            default_workspace: None,
             tool_turn_temperature: None,
-            trusted_paths: Vec::new(),
         })
     }
 
@@ -660,9 +497,7 @@ mod tests {
         let dispatcher = build_full_chat_dispatcher(FullDispatcherParams {
             cfg: &cfg,
             session_id: "session-under-test",
-            sandbox_root: sandbox.path(),
-            sandbox_roots: &[sandbox.path().to_path_buf()],
-            workspace_path: &None,
+            folders: &folders_at(sandbox.path()),
             pending_user_inputs: &None,
             hitl: Some(&hitl),
             extra_executors: Vec::new(),
@@ -732,9 +567,7 @@ mod tests {
         let dispatcher = build_full_chat_dispatcher(FullDispatcherParams {
             cfg: &cfg,
             session_id: "session-under-test",
-            sandbox_root: sandbox.path(),
-            sandbox_roots: &[sandbox.path().to_path_buf()],
-            workspace_path: &None,
+            folders: &folders_at(sandbox.path()),
             pending_user_inputs: &None,
             hitl: Some(&hitl),
             extra_executors: Vec::new(),
@@ -769,9 +602,7 @@ mod tests {
         let dispatcher = build_full_chat_dispatcher(FullDispatcherParams {
             cfg: &cfg,
             session_id: "session-under-test",
-            sandbox_root: sandbox.path(),
-            sandbox_roots: &[sandbox.path().to_path_buf()],
-            workspace_path: &None,
+            folders: &folders_at(sandbox.path()),
             pending_user_inputs: &None,
             hitl: Some(&hitl),
             extra_executors: Vec::new(),
@@ -795,3 +626,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod folder_tests;

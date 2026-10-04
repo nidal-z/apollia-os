@@ -20,15 +20,23 @@ use crate::inference_server::{openai_api_base, DEFAULT_OLLAMA_ADDRESS};
 use crate::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `system.db`.
-pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 9;
+pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 10;
 
 /// Numbered migration steps of `system.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`SYSTEM_DB_SCHEMA_VERSION`].
 pub(crate) const SYSTEM_DB_MIGRATIONS: &[Migration] = &[
-    migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5, migrate_v6, migrate_v7, migrate_v8,
+    migrate_v1,
+    migrate_v2,
+    migrate_v3,
+    migrate_v4,
+    migrate_v5,
+    migrate_v6,
+    migrate_v7,
+    migrate_v8,
     migrate_v9,
+    migrate_v10,
 ];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
@@ -518,6 +526,17 @@ pub(crate) fn migrate_v9(conn: &Connection) -> Result<(), rusqlite::Error> {
             path     TEXT NOT NULL UNIQUE CHECK (length(trim(path)) > 0),
             label    TEXT NOT NULL CHECK (length(trim(label)) > 0),
             added_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );",
+    )
+}
+
+/// v10: the settings of `apollia.toml` already imported into this file, so a
+/// one-time import never runs twice.
+pub(crate) fn migrate_v10(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS settings_imports (
+            key         TEXT PRIMARY KEY CHECK (length(trim(key)) > 0),
+            imported_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
         );",
     )
 }

@@ -130,7 +130,12 @@ struct ChatSessionManager {
     a2a_invoker: Option<Arc<A2AInvoker>>,
     /// Optional project context provider for injecting project context into system prompts.
     project_context: Option<Arc<dyn ProjectContextProvider>>,
-    /// Optional project repository for resolving workspace_path per session.
+    /// Project repository. A project's folder no longer roots the file tools
+    /// of its sessions, so nothing reads it here.
+    #[allow(
+        dead_code,
+        reason = "kept for the spawn signature its callers share; it goes with the projects"
+    )]
     project_repo: Option<Arc<ProjectRepository>>,
     /// Pending user input registry for the `ask_user` tool.
     pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs,
