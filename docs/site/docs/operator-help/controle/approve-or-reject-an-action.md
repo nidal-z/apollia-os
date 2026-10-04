@@ -38,16 +38,15 @@ Whatever the entry point (chat or Inbox for a tool call), the available actions 
 
    The reason is **passed on to the agent**: it is injected into the tool message the LLM sees at the next iteration, in the form *"Tool refused by the user. Reason: ..."*. This lets the agent correct its trajectory instead of retrying blindly. The reason is also **persisted** in the recent history (see below) so you can find the context later.
 
-3. **Always allow** - opens a menu with **4 scopes** to choose from, in the chat card:
+3. **Always allow** - opens a menu with **3 scopes** to choose from, in the chat card:
 
    | Scope | Effect |
    |---|---|
    | **For this session** | Auto-approved until the chat is closed. Not persisted. |
    | **Always for this assistant** | Persisted rule - the current assistant will no longer ask for this tool. |
-   | **Always for this project** | Persisted rule for every assistant used in the current project. *Disabled if the session is not attached to any project.* |
-   | **Always, everywhere** | Persisted rule, globally - every assistant, every project. Shown in orange as a signal of the widest scope. |
+   | **Always, everywhere** | Persisted rule, globally - every assistant. Shown in orange as a signal of the widest scope. |
 
-   The approval prompt raised by a risky filesystem write is a different surface, and it offers **five**: the four above plus **Only this tool**, which authorises that one tool and nothing else.
+   The approval prompt raised by a risky filesystem write is a different surface, and it offers **four**: the three above plus **Only this tool**, which authorises that one tool and nothing else.
 
    Persisted rules can be reviewed and revoked in **Settings → Permissions** (see [Manage tool permissions](manage-tool-permissions.md)).
 
@@ -104,7 +103,6 @@ The history is **read-only**; it does not replace the Settings → Permissions �
 - **No card appears while the agent seems stuck**: open the **Inbox** from the sidebar. Background agents drop their requests there instead of showing them in the chat.
 - **The agent keeps retrying the same rejected action**: the reason may not have been usable by the agent. Open its logs from **My Assistants**; the reason that was passed on shows up there in the rejected tool output. Reject again with a more actionable reason (alternative path, expected value…).
 - **An "Always" rule creates too many automatic actions**: open **Settings → Permissions** and revoke or narrow the rule's scope. See [Manage tool permissions](manage-tool-permissions.md).
-- **The "Always for this project" option is greyed out**: the current chat session is not attached to any project. Link it from the chat header, or use the *Always for this assistant* scope instead.
 - **Fewer approval requests than usual**: this is expected if the agent runs at the `supervised` level or above. The automatic verification loop resolves part of the situations without asking you. If you want full control back, relaunch the agent with `--autonomy assisted`.
 
 > **Concept:** [Apollia explanation](/explanation)

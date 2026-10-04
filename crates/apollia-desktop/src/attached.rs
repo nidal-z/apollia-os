@@ -47,11 +47,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "pause_chat_session",
     "send_chat_message",
     // The conversations as the list manages them: configure, rename, name,
-    // erase, link to a project, list by project.
+    // erase.
     "delete_chat_session",
     "generate_chat_session_name",
-    "link_chat_to_project",
-    "list_chats_by_project",
     "rename_chat_session",
     "update_chat_session",
     // The chat: a turn played again, a decision on a tool call, the history
@@ -102,6 +100,7 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "set_mcp_server_approval",
     "test_mcp_connection",
     "test_mcp_live_server",
+    "node_runtime_state",
     "update_mcp_server_config",
     // Agent packages installed from a folder, over
     // `/api/v1/agent-packages/`. The preview and the install name the folder
@@ -111,8 +110,16 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_agent_packages",
     "preview_agent_package",
     "uninstall_agent_package",
-    // Connections.
+    // Connections, the folders added as connections, and the mailbox
+    // connection: the providers known from the address, and the addition,
+    // which logs in before it stores.
+    "add_folder_connection",
+    "add_imap_mailbox",
     "list_connections",
+    "list_imap_providers",
+    "remove_folder_connection",
+    // The report of the migration of the former projects.
+    "get_project_migration_report",
     // Apollia as an MCP server, over `/api/v1/mcp/exposed`.
     "list_mcp_exposable",
     "set_mcp_exposed",
@@ -162,20 +169,27 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // The export of an agent from its sheet: the runtime builds and signs the
     // archive, this process writes the file the user chose.
     "export_agent",
-    // The user profile, over `/api/v1/profile`.
-    "delete_profile_entry",
-    "get_profile",
-    "reset_user_profile",
-    "set_profile_entry",
+    // The user profiles and their facts, over `/api/v1/profiles`.
+    "create_profile",
+    "delete_profile",
+    "delete_profile_fact",
+    "get_profile_by_id",
+    "list_profiles",
+    "reset_profile",
+    "set_default_profile",
+    "set_profile_fact",
+    "update_profile",
     // The credentials of the native tools, over `/api/v1/tool-credentials`.
     "governance_delete_credential",
     "governance_list_credentials",
     "governance_set_credential",
     "governance_test_credential",
     // Memory, read side: the namespaces, their entries, the search, the
-    // entries recalled during a turn, the statistics of a conversation.
+    // entries recalled during a turn, the statistics of a conversation, the
+    // embeddings model it searches with.
     "get_conversation_stats",
     "get_injected_memory_entries",
+    "get_memory_embeddings_model",
     "list_memory_entries",
     "list_memory_namespaces",
     "search_memory",
@@ -298,10 +312,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // Models: the removal of an installed model, refused while a backend or
     // the dictation engine of the runtime uses it.
     "delete_installed_model",
-    // LLM engines: the list, the test, the reload, the cost alert threshold.
-    // The last ping of each engine stays in this window's memory, which
-    // [`run`] manages in both modes.
-    "get_cost_alert_threshold",
+    // LLM engines: the list, the test, the reload. The last ping of each
+    // engine stays in this window's memory, which [`run`] manages in both
+    // modes.
     "list_llm_backends",
     "ping_llm_backend",
     "reload_llm",
@@ -333,6 +346,16 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "meta_generate_next_steps",
     "meta_parse_automation",
     "meta_rewrite_input",
+    // The system settings, in the daemon's `apollia.toml` and on the machine
+    // that runs its tools: the observability policy over
+    // `/api/v1/config/observability`, the Python interpreter over
+    // `/api/v1/config/python-interpreter`, the security posture over
+    // `/api/v1/security-posture`.
+    "get_observability_config",
+    "get_python_interpreter",
+    "get_security_posture",
+    "set_observability_config",
+    "set_python_interpreter",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no
@@ -340,6 +363,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
 /// reason it needs no route. `scripts/check_attached_coverage.py` reads the
 /// reasons and refuses an entry without one.
 pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
+    (
+        "get_system_info",
+        "describes this application, its version, and the machine that carries the window",
+    ),
     (
         "app_restart",
         "relaunches this window, which attaches again at startup",
@@ -379,6 +406,10 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "link_preview",
         "fetches the card of a link the window shows",
+    ),
+    (
+        "get_api_port",
+        "reads the port this window resolved at startup, the daemon's when attached",
     ),
     (
         "list_audio_input_devices",
@@ -645,6 +676,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(RuntimeLink::Attached(client))
+        .manage(crate::startup::ApiPort(port))
         .manage(dictation.clone())
         .manage(
             std::sync::Arc::new(tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()))

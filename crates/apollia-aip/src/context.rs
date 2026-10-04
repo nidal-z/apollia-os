@@ -579,21 +579,6 @@ impl RuntimeContext {
     }
 }
 
-/// Computes the effective memory namespace for an agent in a session context.
-///
-/// If the agent runs inside a project (`project_id` not empty), the namespace
-/// is prefixed with the `project_id` to guarantee isolation between projects.
-///
-/// Convention: `"{project_id}:{manifest_namespace}"` | `"{manifest_namespace}"`
-///
-/// The `shared_memory_namespaces` are NOT prefixed; they are global.
-pub fn effective_memory_namespace(manifest_namespace: &str, project_id: Option<&str>) -> String {
-    match project_id {
-        Some(pid) if !pid.is_empty() => format!("{pid}:{manifest_namespace}"),
-        _ => manifest_namespace.to_owned(),
-    }
-}
-
 #[cfg(test)]
 mod runtime_context_tests {
 
@@ -1998,82 +1983,6 @@ mod workspace_context_tests {
         // THEN workspace is None
         assert!(ctx.workspace.is_none());
     }
-
-    // ── effective_memory_namespace ──────────────────────────────────────────────
-
-    #[test]
-    fn test_effective_namespace_with_project_id() {
-        // GIVEN
-        let manifest_ns = "dev-assistant";
-        let project_id = Some("proj_abc123");
-        // WHEN
-        let ns = effective_memory_namespace(manifest_ns, project_id);
-        // THEN
-        assert_eq!(ns, "proj_abc123:dev-assistant");
-    }
-
-    #[test]
-    fn test_effective_namespace_without_project_id() {
-        // GIVEN
-        let manifest_ns = "dev-assistant";
-        let project_id: Option<&str> = None;
-        // WHEN
-        let ns = effective_memory_namespace(manifest_ns, project_id);
-        // THEN
-        assert_eq!(ns, "dev-assistant");
-    }
-
-    #[test]
-    fn test_effective_namespace_empty_project_id_treated_as_none() {
-        // GIVEN
-        let manifest_ns = "test-agent";
-        let project_id = Some("");
-        // WHEN
-        let ns = effective_memory_namespace(manifest_ns, project_id);
-        // THEN
-        assert_eq!(ns, "test-agent");
-    }
-
-    #[test]
-    fn test_isolation_between_two_projects() {
-        use apollia_memory::{
-            manager::MemoryManager,
-            semantic::{RememberInput, SemanticMemory},
-        };
-        use tempfile::TempDir;
-
-        // GIVEN an agent that wrote "forbidden_deps" in proj_A
-        let dir = TempDir::new().expect("temp dir");
-
-        let ns_a = effective_memory_namespace("dev-assistant", Some("proj_A"));
-        let ns_b = effective_memory_namespace("dev-assistant", Some("proj_B"));
-
-        {
-            let mut mgr = MemoryManager::new(dir.path(), Some(ns_a.clone()), vec![]);
-            let store = mgr.store(&ns_a).expect("open store for proj_A");
-            let sem = SemanticMemory::new(store);
-            sem.remember(RememberInput {
-                namespace: &ns_a,
-                key: "forbidden_deps",
-                value: &serde_json::json!("no_async_std"),
-                confidence: 1.0,
-                source: None,
-                expires_at: None,
-            })
-            .expect("write to proj_A");
-        }
-
-        // WHEN reading from the same agent in proj_B
-        let mut mgr_b = MemoryManager::new(dir.path(), Some(ns_b.clone()), vec![]);
-        let store_b = mgr_b.store(&ns_b).expect("open store for proj_B");
-        let sem_b = SemanticMemory::new(store_b);
-        let found = sem_b
-            .recall(&ns_b, "forbidden_deps")
-            .expect("recall from proj_B");
-
-        // THEN the key written in proj_A is invisible in proj_B
-        assert!(found.is_none());
-    }
 }
 
 /// Pure-helper suite run under Miri to check the FFI-adjacent Rust code for
@@ -2138,18 +2047,6 @@ mod miri_pure {
             Some("pdf.read_text")
         );
         assert_eq!(extract_a2a_skill_id("bash"), None);
-    }
-
-    // GIVEN a namespace and an optional project id, WHEN composed, THEN the
-    // prefixing rule holds and the formatting allocates cleanly.
-    #[test]
-    fn miri_pure_effective_memory_namespace_prefixes_project() {
-        assert_eq!(
-            super::effective_memory_namespace("mem", Some("proj")),
-            "proj:mem"
-        );
-        assert_eq!(super::effective_memory_namespace("mem", None), "mem");
-        assert_eq!(super::effective_memory_namespace("mem", Some("")), "mem");
     }
 }
 

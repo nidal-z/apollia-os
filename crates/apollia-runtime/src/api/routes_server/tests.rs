@@ -63,6 +63,39 @@ async fn test_stopping_over_http_refuses_connections_and_the_native_api_still_an
 }
 
 #[tokio::test]
+async fn test_restarting_over_http_opens_the_network_and_the_native_api_still_answers() {
+    // GIVEN a daemon whose compatible server runs on the machine alone
+    let (_dir, path, port, state) = daemon_with_server("[server]\nenabled = true\nport = {port}\n");
+    let (_, before) = call(state.clone(), "GET", "/api/v1/server", None).await;
+    assert_eq!(before["serveOnLan"], false);
+    assert_eq!(before["address"], format!("http://127.0.0.1:{port}"));
+
+    // WHEN the local network is switched on and a client restarts the server
+    apollia_core::config::write_setting(
+        &path,
+        "server.serve_on_lan",
+        serde_json::Value::Bool(true),
+        &apollia_core::config::PolicySettings::none(),
+    )
+    .unwrap();
+    let (status, body) = call(state.clone(), "POST", "/api/v1/server/restart", None).await;
+
+    // THEN it runs on the network on the same port, the state gives the
+    // address to copy, and the native API keeps answering
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["running"], true);
+    assert_eq!(body["serveOnLan"], true);
+    assert_eq!(body["port"], port);
+    assert_eq!(
+        body["address"],
+        crate::compat_server::reachable_address(true, port)
+    );
+    assert!(listens(port).await);
+    let (health, _) = call(state, "GET", "/api/v1/health", None).await;
+    assert_eq!(health, StatusCode::OK);
+}
+
+#[tokio::test]
 async fn test_a_taken_port_is_refused_as_a_conflict_and_the_state_keeps_the_reason() {
     // GIVEN a daemon whose configured port another program holds
     let (_holder, held) = held_port();

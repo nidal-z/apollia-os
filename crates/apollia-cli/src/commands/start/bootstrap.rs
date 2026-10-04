@@ -12,10 +12,11 @@ use apollia_runtime::on_demand::{BackendLoader, OnDemandBackend};
 use super::factory::find_config_file;
 use super::StartError;
 
-/// Locates and parses `apollia.toml` if present, through the shared
-/// validation of `apollia-core`. Returns the parsed config and its path, or
-/// `(None, None)` when no config file is found (defaults are then used by the
-/// caller).
+/// Locates and parses `apollia.toml`, through the shared validation of
+/// `apollia-core`. On a first start, without `--config`, the default file is
+/// written at `~/.apollia/apollia.toml` first. Returns the parsed config and its
+/// path, or `(None, None)` when no file could be read or written (defaults are
+/// then used by the caller).
 ///
 /// `explicit` is the path given with `--config`; it must exist. Without it the
 /// file is `~/.apollia/apollia.toml`. A file left at a former location is
@@ -45,7 +46,7 @@ pub(super) fn load_start_config_from(
             });
         }
         Some(p) => Some(p.to_path_buf()),
-        None => canonical_if_present,
+        None => canonical_if_present.or_else(|| write_default_file(canonical)),
     };
     let Some(path) = found else {
         tracing::info!(detail = "starting with the defaults", "config.file.absent");
@@ -66,6 +67,31 @@ pub(super) fn load_start_config_from(
         },
     })?;
     Ok((Some(cfg), Some(path)))
+}
+
+/// Writes the default `apollia.toml` at the canonical location on a first
+/// start, and returns it to be loaded. A failure to write leaves the start on
+/// the defaults, as before the file existed.
+fn write_default_file(canonical: &Path) -> Option<PathBuf> {
+    match apollia_core::config::write_default_file_if_absent(canonical) {
+        Ok(_) => Some(canonical.to_path_buf()).filter(|p| p.is_file()),
+        Err(e) => {
+            tracing::warn!(
+                path = %canonical.display(),
+                error = %e,
+                detail = "starting with the defaults",
+                "config.default_file.write_failed"
+            );
+            None
+        }
+    }
+}
+
+/// The TCP port the daemon listens on: `--port`, then `[api].port`, then
+/// [`DEFAULT_API_PORT`](apollia_core::config::DEFAULT_API_PORT), which is the
+/// default of `[api].port` when the file or the section is absent.
+pub(super) fn resolve_tcp_port(flag: Option<u16>, api: &apollia_core::ApiConfig) -> u16 {
+    flag.unwrap_or(api.port)
 }
 
 /// Populates a shared `OnceLock` from an optional value, ignoring the result
@@ -176,6 +202,24 @@ pub(super) async fn rewire_auto_loaded_agents(
     }
     if rewired > 0 {
         tracing::info!(count = rewired, "agent.rewire.completed");
+    }
+}
+
+/// The two settings of `apollia.toml` the daemon used to replace by constants:
+/// `[runtime] startup_timeout_secs` and the `[observability]` section.
+pub(super) struct DaemonFileSettings {
+    /// Seconds the supervisor gives every actor to start.
+    pub(super) startup_timeout_secs: u64,
+    /// Truncation and capture of persisted run data.
+    pub(super) observability: apollia_core::ObservabilityConfig,
+}
+
+/// Reads [`DaemonFileSettings`] from the validated file, or from the defaults
+/// when there is none.
+pub(super) fn daemon_file_settings(file: &crate::config::ApolliaConfig) -> DaemonFileSettings {
+    DaemonFileSettings {
+        startup_timeout_secs: file.runtime.startup_timeout_secs,
+        observability: file.observability.clone(),
     }
 }
 

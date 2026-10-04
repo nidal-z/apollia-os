@@ -75,8 +75,6 @@ impl ChatSessionRepository {
             title: row.title,
             parent_session_id: row.parent_session_id,
             fork_depth: row.fork_depth,
-            project_id: row.project_id,
-            force_project_context_inject: false,
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashSet::new(),
             )),
@@ -126,12 +124,12 @@ impl ChatSessionRepository {
             .unchecked_transaction()
             .map_err(|e| ChatError::InternalError(format!("create_fork_session begin: {e}")))?;
 
-        // Persist child session row (inherits parent's project_id).
+        // Persist child session row.
         tx.execute(
             "INSERT INTO chat_sessions
                     (id, mode, agent_name, system_prompt, available_tools, created_at,
-                     llm_backend, parent_session_id, fork_depth, project_id)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                     llm_backend, parent_session_id, fork_depth)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
                 child_id,
                 parent_row.mode,
@@ -142,7 +140,6 @@ impl ChatSessionRepository {
                 parent_row.llm_backend,
                 parent_id,
                 child_fork_depth,
-                parent_row.project_id,
             ],
         )
         .map_err(|e| ChatError::InternalError(format!("create_fork_session insert: {e}")))?;
@@ -188,7 +185,7 @@ impl ChatSessionRepository {
             .conn
             .prepare(
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
-                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id,
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
                         plan_mode, plan_phase
                  FROM chat_sessions
                  WHERE parent_session_id = ?1

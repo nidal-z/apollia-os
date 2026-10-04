@@ -23,6 +23,7 @@ pub mod decision_point;
 pub mod embedding_default;
 pub mod error_analysis;
 pub mod events;
+pub mod folder_connection;
 pub mod hitl_payload;
 pub mod hitl_request;
 pub mod inference_server;
@@ -48,6 +49,7 @@ pub mod schema;
 pub mod security_posture;
 pub mod server_token;
 pub mod session_metrics;
+pub mod source_registry;
 pub mod stt_config;
 pub mod subprocess_env;
 pub mod subprocess_window;
@@ -57,17 +59,18 @@ pub mod temporal_context;
 pub mod todo;
 pub mod token_budget;
 pub mod utils;
+pub mod vector_search;
 pub mod workspace;
 
 pub use budget::StepBudgetConfig;
 pub use config::{
     validate_bounds, A2AConfig, ApiConfig, AutonomyConfig, AutonomyLevel, AutonomyLevelConfig,
     AutonomyLevelParseError, BashValidatorConfig, BraveBackendConfig, CeilingAction, ChatConfig,
-    ConfigError, DesktopConfig, DuckDuckGoBackendConfig, FilesystemConfig, FilesystemRiskConfig,
-    GatePolicy, HitlConfig, HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig,
-    HybridRoutingConfig, JournalConfig, LlmRoutingConfig, LlmRunnerConfig, McpConfig,
-    McpToolLoading, ModelsConfig, ORIAConfig, RegistryConfig, RuntimeConfig, ServerConfig,
-    ToolsConfig, TriggersConfig, WebReadConfig, WebSearchBackend, WebSearchConfig, WorkflowsConfig,
+    ConfigError, DesktopConfig, DuckDuckGoBackendConfig, FilesystemRiskConfig, GatePolicy,
+    HitlConfig, HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig,
+    HybridRoutingConfig, LlmRoutingConfig, McpConfig, McpToolLoading, ModelsConfig, ORIAConfig,
+    RegistryConfig, RuntimeConfig, ServerConfig, ToolsConfig, TriggersConfig, WebReadConfig,
+    WebSearchBackend, WebSearchConfig, WorkflowsConfig,
 };
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
 pub use decision_point::{ConsideredAlternative, DecisionKind, DecisionPoint};
@@ -77,6 +80,7 @@ pub use events::{
     resilient, subscribe_resilient, AgentId, EventBusSender, FilesystemPreview, Received,
     ResilientReceiver, RunId, RuntimeEvent, TaskId, ToolCallRationale,
 };
+pub use folder_connection::{FolderConnection, FolderConnectionError, FolderConnectionStore};
 pub use hitl_payload::{
     AnswerError, Approbation, HitlPayload, PayloadError, Proposition, Question, QuestionGenre,
     Risque,
@@ -109,6 +113,9 @@ pub use sandbox::SandboxProfile;
 pub use security_posture::{AgentExecution, SecurityPosture, ToolSandbox};
 pub use session_metrics::{
     BudgetAlertLevel, SessionMetrics, SessionThresholds, SummarizationEvent, ToolTiming,
+};
+pub use source_registry::{
+    IndexState, NewSource, Source, SourceKind, SourceRegistryError, SourceRegistryStore,
 };
 pub use stt_config::{SttConfigError, SttConfigRepository, SttConfigRow};
 pub use task::{AIPInput, AIPMessage, AIPPart, AIPTask, DataPart, FilePart, RunOptions, TextPart};

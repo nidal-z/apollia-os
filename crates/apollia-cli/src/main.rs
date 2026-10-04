@@ -39,8 +39,8 @@ use commands::notify::NotifyCommand;
 use commands::package::PackageCommand;
 use commands::permissions::PermissionsCommand;
 use commands::policy::PolicyCommand;
-use commands::project::ProjectCommand;
 use commands::resilience::ResilienceCommand;
+use commands::source::SourceCommand;
 use commands::stt::SttCommand;
 use commands::task::TaskCommand;
 use commands::tools::ToolsCommand;
@@ -95,7 +95,7 @@ struct Cli {
 enum Commands {
     /// Start the runtime in foreground.
     Start {
-        /// TCP port to listen on (default: 7771).
+        /// TCP port to listen on; overrides `[api].port` (default: 7771).
         #[arg(long, value_name = "PORT")]
         port: Option<u16>,
         /// Configuration file to load instead of `~/.apollia/apollia.toml`.
@@ -238,6 +238,12 @@ enum Commands {
         /// Model subcommand.
         #[command(subcommand)]
         command: ModelCommand,
+    },
+
+    /// The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete, inspect)
+    Source {
+        #[command(subcommand)]
+        command: SourceCommand,
     },
 
     /// Trigger management (list, status, fire, enable, disable, logs, reload, create, update, delete).
@@ -420,16 +426,6 @@ enum Commands {
         /// Profile subcommand.
         #[command(subcommand)]
         command: UserMemoryCommand,
-    },
-
-    /// Project management (list, create, show, update, delete, agents, templates).
-    ///
-    /// Operates locally on `~/.apollia/projects.db`; the runtime does not need
-    /// to be running.
-    Project {
-        /// Project subcommand.
-        #[command(subcommand)]
-        command: ProjectCommand,
     },
 
     /// Print the event-sourced trace of a task.
@@ -714,6 +710,7 @@ fn main() {
             Commands::Memory { command } => commands::memory::run_and_print(&command, json),
             Commands::Llm { command } => commands::llm::run(&command, cli.socket, json).await,
             Commands::Model { command } => commands::model::run(&command, cli.socket, json).await,
+            Commands::Source { command } => commands::source::run(&command, cli.socket, json).await,
             Commands::Trigger { command } => {
                 commands::trigger::run(&command, cli.socket, json).await
             }
@@ -757,7 +754,6 @@ fn main() {
             Commands::Connector { command } => commands::connector::run(&command, json).await,
             Commands::Config { command } => commands::config::run(&command, json),
             Commands::Profile { command } => commands::user_memory::run(&command, json),
-            Commands::Project { command } => commands::project::run(&command, json),
             Commands::Trace { task_id, format } => {
                 let format_json = format == "json";
                 commands::trace::run(&task_id, format_json, cli.socket, json).await

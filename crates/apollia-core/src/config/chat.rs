@@ -23,15 +23,6 @@ pub struct ChatConfig {
     #[serde(default)]
     pub plan_mode_default: bool,
 
-    /// Default working directory for free-chat (project-less) sessions.
-    ///
-    /// When set to an existing directory, free-chat file tools and bash anchor
-    /// there instead of the process working directory, and the agent is told its
-    /// working directory so it stops guessing paths. Project-linked sessions keep
-    /// their own `workspace_path`. `None` falls back to `~/.apollia`.
-    #[serde(default)]
-    pub default_workspace: Option<String>,
-
     /// LLM temperature applied to a chat turn that advertises tools to the model.
     ///
     /// Small local models tool-call erratically at conversational temperatures

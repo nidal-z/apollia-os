@@ -16,6 +16,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::logs::ServerLogsHandle;
 use super::models::LocalModels;
+use super::origin::reachable_address;
 use super::relay::RelayState;
 use super::router::{compat_router, serve};
 use super::tokens::ServerTokensHandle;
@@ -30,6 +31,7 @@ const ENABLED_KEY: &str = "server.enabled";
 const PORT_KEY: &str = "server.port";
 const REQUIRE_AUTH_KEY: &str = "server.require_auth";
 const CORS_KEY: &str = "server.cors";
+const SERVE_ON_LAN_KEY: &str = "server.serve_on_lan";
 
 /// What the compatible server is doing.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, utoipa::ToSchema)]
@@ -39,6 +41,12 @@ pub struct CompatServerStatus {
     pub running: bool,
     /// The port it listens on, or the configured port when it is stopped.
     pub port: u16,
+    /// Whether it listens on every interface, reachable from the local
+    /// network, or the configured choice when it is stopped.
+    pub serve_on_lan: bool,
+    /// The address a client copies: `http://127.0.0.1:<port>` on the machine
+    /// alone, `http://<IPv4 address on the local network>:<port>` otherwise.
+    pub address: String,
     /// Why the last start failed, cleared by the next successful start.
     pub last_error: Option<String>,
     /// How many tokens of the server are in use (not revoked).
@@ -51,6 +59,7 @@ enum Command {
     Status(oneshot::Sender<CompatServerStatus>),
     Start(Reply<CompatServerStatus>),
     Stop(Reply<CompatServerStatus>),
+    Restart(Reply<CompatServerStatus>),
 }
 
 /// Handle to the compatible server's actor.
@@ -159,6 +168,19 @@ impl CompatServerHandle {
         self.request(Command::Stop).await
     }
 
+    /// Closes and reopens the listener so it applies the `[server]` settings
+    /// as they stand now (port, interfaces, token check). Only this listener
+    /// is reopened; the native API keeps its connections. Restarting a
+    /// stopped server changes nothing.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::start`]; a failed reopen leaves the server stopped, with the
+    /// reason kept as its last error.
+    pub async fn restart(&self) -> Result<CompatServerStatus, CompatServerError> {
+        self.request(Command::Restart).await
+    }
+
     async fn request(
         &self,
         command: fn(Reply<CompatServerStatus>) -> Command,
@@ -173,9 +195,11 @@ impl CompatServerHandle {
     }
 }
 
-/// The open listener: its port, the token that stops it, and its task.
+/// The open listener: its port, its interfaces, the token that stops it, and
+/// its task.
 struct Running {
     port: u16,
+    serve_on_lan: bool,
     cancel: CancellationToken,
     task: JoinHandle<()>,
 }
@@ -213,6 +237,9 @@ impl CompatServerActor {
                     Some(Command::Stop(reply)) => {
                         let _ = reply.send(self.stop().await);
                     }
+                    Some(Command::Restart(reply)) => {
+                        let _ = reply.send(self.restart().await);
+                    }
                     None => break,
                 },
             }
@@ -247,21 +274,24 @@ impl CompatServerActor {
             .unwrap_or(DEFAULT_COMPAT_SERVER_PORT))
     }
 
-    /// Whether the listener about to open answers cross-origin requests. Read
-    /// at each opening, so a change takes effect at the next start.
-    fn configured_cors(&self) -> Result<bool, CompatServerError> {
-        let resolved = resolve_setting(&self.settings_path, CORS_KEY, &PolicySettings::none())?;
+    fn configured_flag(&self, key: &str) -> Result<bool, CompatServerError> {
+        let resolved = resolve_setting(&self.settings_path, key, &PolicySettings::none())?;
         Ok(resolved.value == Value::Bool(true))
     }
 
     fn status(&self) -> CompatServerStatus {
-        let port = match &self.running {
-            Some(running) => running.port,
-            None => self.configured_port().unwrap_or(DEFAULT_COMPAT_SERVER_PORT),
+        let (port, serve_on_lan) = match &self.running {
+            Some(running) => (running.port, running.serve_on_lan),
+            None => (
+                self.configured_port().unwrap_or(DEFAULT_COMPAT_SERVER_PORT),
+                self.configured_flag(SERVE_ON_LAN_KEY).unwrap_or(false),
+            ),
         };
         CompatServerStatus {
             running: self.running.is_some(),
             port,
+            serve_on_lan,
+            address: reachable_address(serve_on_lan, port),
             last_error: self.last_error.clone(),
             active_tokens: 0,
         }
@@ -282,28 +312,42 @@ impl CompatServerActor {
         Ok(self.status())
     }
 
+    async fn restart(&mut self) -> Result<CompatServerStatus, CompatServerError> {
+        if self.running.is_some() {
+            self.close().await;
+            if let Err(error) = self.open().await {
+                self.fail(&error);
+                return Err(error);
+            }
+        }
+        Ok(self.status())
+    }
+
     async fn stop(&mut self) -> Result<CompatServerStatus, CompatServerError> {
         self.close().await;
         self.write_enabled(false)?;
         Ok(self.status())
     }
 
-    /// Binds the configured port on the loopback interface and spawns the
+    /// Binds the configured port, on the loopback interface or, when
+    /// `[server] serve_on_lan` asks for it, on every interface, and spawns the
     /// accept loop, behind the token check when `[server] require_auth` asks
-    /// for it.
+    /// for it. The two settings are independent: the local network without a
+    /// token is allowed here, and calls to agents keep their own rule (see
+    /// [`super::origin::admits_agent_call`]).
     async fn open(&mut self) -> Result<(), CompatServerError> {
         let port = self.configured_port()?;
-        let cors = self.configured_cors()?;
-        let require_auth = resolve_setting(
-            &self.settings_path,
-            REQUIRE_AUTH_KEY,
-            &PolicySettings::none(),
-        )?
-        .value
-            == Value::Bool(true);
+        let require_auth = self.configured_flag(REQUIRE_AUTH_KEY)?;
+        let serve_on_lan = self.configured_flag(SERVE_ON_LAN_KEY)?;
+        let cors = self.configured_flag(CORS_KEY)?;
         let tokens = require_auth.then(|| self.tokens.clone());
         let relay = RelayState::new(self.models.clone()).map_err(CompatServerError::Client)?;
-        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, port))
+        let interface = if serve_on_lan {
+            Ipv4Addr::UNSPECIFIED
+        } else {
+            Ipv4Addr::LOCALHOST
+        };
+        let listener = TcpListener::bind((interface, port))
             .await
             .map_err(|source| match source.kind() {
                 std::io::ErrorKind::AddrInUse => CompatServerError::PortInUse { port },
@@ -315,12 +359,18 @@ impl CompatServerActor {
             compat_router(tokens, relay, self.logs.clone(), cors),
             cancel.clone(),
         ));
-        self.running = Some(Running { port, cancel, task });
+        self.running = Some(Running {
+            port,
+            serve_on_lan,
+            cancel,
+            task,
+        });
         self.last_error = None;
         tracing::event!(
             tracing::Level::INFO,
             port = port,
             require_auth = require_auth,
+            serve_on_lan = serve_on_lan,
             cors = cors,
             "compat_server.listening"
         );

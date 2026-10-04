@@ -103,6 +103,20 @@ mémoire. Les outils de fichiers sont confinés à une racine résolue : le chem
 est canonisé puis revérifié contre la racine après résolution, donc un lien
 symbolique ne permet pas d'en sortir.
 
+La racine des outils de fichiers d'un agent est l'union des dossiers accordés à
+cet agent, agent de conversation intégré compris, sur le chemin de la
+conversation comme sur celui des tâches. Un dossier du poste est une connexion,
+choisie au sélecteur du système, et ses outils s'accordent à un agent un par
+un : les outils de lecture atteignent tous les dossiers qui lui sont accordés,
+les outils d'écriture seulement ceux accordés pour écrire. Le premier dossier
+accordé, par date d'ajout, sert d'ancre à un chemin relatif. Un agent sans
+dossier accordé a des outils de fichiers qui refusent avec un message disant
+comment en accorder un. Rien d'autre n'est une racine : ni le dossier
+personnel, ni le dossier de données, ni le volume, ni le dossier d'un projet.
+Les anciennes clés `[filesystem] trusted_paths` et `[chat] default_workspace`
+sont retirées ; les dossiers qu'elles nommaient, dossier personnel excepté, ont
+été ajoutés une fois comme connexions, accordées à aucun agent.
+
 Le confinement n'est pas uniforme selon les plateformes, et la différence n'est
 pas cosmétique. Sous Linux, l'exécution shell tourne sous espaces de noms PID et
 mount. Sous macOS le confinement est plus faible. Sous Windows il n'y en a pas.
@@ -391,6 +405,27 @@ l'opérateur la rencontre.
 
 ## Documents et sources {#documents-and-sources}
 
+Les classeurs et les fichiers CSV se lisent en Rust, sans l'interpréteur
+Python embarqué. `calamine` (MIT) lit `.xlsx`, `.xlsm`, `.xlsb`, `.xls` et
+`.ods` ; `csv` (MIT ou Unlicense) lit les fichiers CSV, avec le séparateur
+détecté parmi la virgule, le point-virgule et la tabulation. Les deux sont en
+pur Rust, en lecture seule, ne lient aucune bibliothèque système et n'ouvrent
+aucune connexion. Chaque cellule se lit en texte avec sa feuille, sa ligne et sa
+colonne : un nombre sans partie décimale nulle, une date en ISO 8601, une
+formule par la valeur que le fichier a calculée en dernier (aucune formule
+n'est évaluée), une erreur par son code. Un classeur protégé par un mot de
+passe, ou endommagé, donne une erreur typée, jamais un plantage. Un fichier CSV
+qui n'est pas en UTF-8 se lit avec ses octets invalides remplacés, et le
+résultat le signale : aucun encodage n'est deviné.
+
+Le coût est nommé : `calamine` dépend de `zip` 8 quand l'espace de travail porte
+`zip` 4 pour l'archive de paquet et l'export d'un lot ; deux versions majeures
+de `zip` entrent donc dans chaque compilation, avec cinq petites crates sous
+`calamine` (`atoi_simd`, `codepage`, `debug_unsafe`, `fast-float2`,
+`typed-path`) et `csv-core` sous `csv`. `calamine` est épinglé en 0.36.1 : une
+nouvelle version, et la version de `zip` qu'elle apporte, est une décision et
+non une mise à jour.
+
 Une boîte mail se connecte en IMAP avec un mot de passe d'application : tout
 fournisseur est joignable, Gmail compris, sans client OAuth et sans relais. Le
 client est `async-imap` (MIT ou Apache-2.0), sur le runtime Tokio, au-dessus de
@@ -480,15 +515,51 @@ L'API HTTP écoute sur une socket Unix et sur un port TCP ; le daemon lie les de
 à chaque démarrage, et le numéro de port est la seule chose que `--port` décide.
 La socket Unix relève de la confiance locale et s'appuie sur les permissions du
 système de fichiers. Le TCP exige un jeton porteur sur tous les chemins
-`/api/v1` sauf un, et le lier à une adresse non locale sans TLS est une erreur de
-démarrage plutôt qu'un avertissement : un attachement distant non sécurisé est la
-seule erreur qu'on ne peut pas défaire une fois que le trafic est passé.
+`/api/v1` sauf un, et le lier à une adresse non locale sans jeton est une erreur
+de démarrage plutôt qu'un avertissement : un attachement distant non authentifié
+est la seule erreur qu'on ne peut pas défaire une fois que le trafic est passé.
+TLS est facultatif : avec `[api] tls_cert` et `tls_key` renseignés, l'écouteur
+TCP sert en HTTPS, et un certificat qui ne se charge pas fait échouer le
+démarrage au lieu de retomber en clair.
 
 L'exception est `GET /api/v1/health`, qui répond sans jeton et ne révèle que le
 marqueur de produit et la version du runtime, rien d'autre. Un processus qui
 trouve le port pris ne détient aucun jeton de cette installation, et ce qu'il doit
 savoir, c'est si le détenteur est un runtime Apollia et dans quelle version.
 Toutes les autres routes `/api/v1` gardent le jeton.
+
+### Le serveur compatible et le réseau local {#local-server}
+
+Le runtime a deux écouteurs. L'API native, port 7771 et socket locale, pilote le
+runtime ; le serveur compatible, port 7772 par défaut, sert les formats d'OpenAI
+et d'Anthropic aux autres applications. L'API native reste sur la machine : le
+runtime embarqué du bureau la lie à `127.0.0.1` quoi que dise le fichier, le
+daemon à la boucle locale que `[api] bind` nomme par défaut (une autre adresse
+exige un jeton, comme ci-dessus), et aucun réglage du serveur compatible ne la
+déplace. Le serveur compatible est la seule surface que l'utilisateur ouvre au
+réseau local, par `[server] serve_on_lan`, éteint par défaut et allumé
+seulement par un geste explicite de l'utilisateur.
+
+Pour les modèles, le réseau et les jetons sont deux interrupteurs indépendants.
+Un appareil du réseau local peut appeler les modèles sans jeton quand
+`[server] require_auth` est éteint, comme d'autres serveurs d'inférence locaux
+le permettent ; ce choix appartient à l'utilisateur. Les agents et les workflows
+ne sont pas des modèles : ils atteignent les connexions, les documents et le
+courrier de l'utilisateur, si bien qu'un appel venu du réseau local n'est admis
+qu'avec un jeton actif du serveur, quoi que dise `require_auth`. Chaque requête
+porte son origine, la machine ou le réseau local, lue dans l'adresse du pair à
+l'acceptation de sa connexion. La politique de l'organisation est l'endroit où
+une organisation interdit le réseau local ou impose les jetons, par-dessus les
+interrupteurs de l'utilisateur.
+
+Au regard du principe du local d'abord : rien ne sort de la machine tant que
+l'utilisateur n'ouvre pas le réseau, et ce qui répond alors sans jeton est une
+inférence sur le texte que l'appelant a lui-même envoyé. Les données de
+l'utilisateur, que seuls les agents et les workflows atteignent, ne répondent
+jamais au réseau sans un jeton que l'utilisateur a créé et peut révoquer. L'API
+native, qui porte toutes les autres capacités, n'est jamais joignable depuis le
+réseau par cet interrupteur. Le trafic sur le réseau est du HTTP en clair : le
+serveur compatible ne termine pas TLS.
 
 ## Signatures {#signing-schemes}
 
@@ -568,6 +639,25 @@ d'autre dépendance que sa propre cale d'édition de liens, et la même version
 était déjà dans l'arbre par d'autres crates : le fichier de verrouillage n'a
 gagné aucun paquet. Le coût est un bloc de code FFI avec sa propre permission
 `unsafe`, confiné à un module.
+
+## Le fichier de configuration {#configuration-file}
+
+`apollia.toml` a un seul écrivain, `apollia_core::config::writer`. Les écrans de
+réglages de l'application de bureau, la ligne de commande, les routes sous
+`/api/v1/config` et les moteurs que le runtime recopie dans le fichier passent
+tous par lui, si bien que les quatre mêmes vérifications tiennent quel que soit
+l'auteur : le texte se valide contre le schéma strict, aucune ligne ne donne à
+une clé que la politique de l'organisation impose une autre valeur, le fichier
+sur le disque est encore celui que l'appelant a lu, comparé par son empreinte
+SHA-256, et le texte remplace le fichier par un fichier voisin renommé
+par-dessus. Une écriture par clé garde les commentaires et l'ordre du fichier.
+La ligne de commande appelle l'écrivain directement : elle fonctionne démon
+arrêté, et un refus se lit dans la même phrase sur chaque surface.
+
+Tenir l'écrivain dans la crate de fondation place `toml`, `toml_edit` et `sha2`
+parmi les dépendances directes d'`apollia-core`. Les trois étaient déjà des
+dépendances de l'espace de travail, et le fichier de verrouillage n'a gagné
+aucun paquet.
 
 ## Ligne de commande {#cli}
 

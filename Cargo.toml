@@ -20,6 +20,7 @@ members = [
     "crates/apollia-permissions",
     "crates/apollia-eval",
     "crates/apollia-signing",
+    "crates/apollia-sources",
     "crates/apollia-cli",
     "crates/apollia-desktop",
     "tests",
@@ -45,6 +46,7 @@ default-members = [
     "crates/apollia-permissions",
     "crates/apollia-eval",
     "crates/apollia-signing",
+    "crates/apollia-sources",
     "crates/apollia-cli",
     "tests",
 ]
@@ -159,6 +161,12 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 # feature of zip brings `zopfli` and `zlib-rs`. See the `package-archive`
 # decision.
 rust_xlsxwriter = { version = "=0.92.0", default-features = false }
+# Reads workbooks (.xlsx, .xlsm, .xlsb, .xls, .ods) and CSV files
+# (apollia-sources). Readers only, pure Rust, no network, no system library.
+# calamine depends on zip 8, a second major of zip beside the one above. See
+# the `documents-and-sources` decision.
+calamine = { version = "=0.36.1", default-features = false }
+csv = "1.4.0"
 
 # --- Random ---
 # rand 0.9 = the latest widely adopted stable major (0.10 has only just
@@ -322,6 +330,7 @@ apollia-auth          = { path = "crates/apollia-auth" }
 apollia-connectors    = { path = "crates/apollia-connectors" }
 apollia-eval          = { path = "crates/apollia-eval" }
 apollia-signing       = { path = "crates/apollia-signing" }
+apollia-sources       = { path = "crates/apollia-sources" }
 
 [profile.release]
 opt-level = 3

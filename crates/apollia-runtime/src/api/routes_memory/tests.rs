@@ -52,8 +52,6 @@ fn with_chat(mut state: AppState<MockBackend>, dir: &TempDir) -> AppState<MockBa
         None,
         None,
         None,
-        None,
-        None,
         LoadingMode::Eager,
         20,
         None,

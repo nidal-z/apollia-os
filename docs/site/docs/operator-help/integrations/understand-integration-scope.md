@@ -6,12 +6,12 @@ sidebar_position: 2
 
 # Understand the scope of an integration
 
-> For any operator who wonders why one agent can call a tool while another cannot, or how to scope an integration to a specific project.
+> For any operator who wonders why one agent can call a tool while another cannot, or how to scope an integration to a specific agent.
 
 ## Prerequisites
 
 - At least one connected integration (native connector or MCP server).
-- At least one installed agent or one active project.
+- At least one installed agent.
 
 ## The three filters that control a tool call
 
@@ -36,11 +36,11 @@ Open an agent detail page, **Tools** tab. The list shows, read-only:
 
 This list **cannot be edited from the interface in v0.1.0**. To add or remove a tool for an agent, you have to edit its manifest and reinstall it. See the Help page [Install an agent](../agents/install-an-agent.md).
 
-## On the project side
+## On the sources side
 
-Open a project, **Context** tab. There you find **Context Providers** (local folders, Git repositories, and so on), which feed the context of the project chats. **These are not MCP tools**, and it is not possible in v0.1.0 to scope an MCP or a connector to a specific project.
+The documents and folders an agent reads are its **sources**, checked on its card. **These are not MCP tools**: a source says what an agent may search, not which tool it may call.
 
-Every installed MCP and every native connector is visible to every agent that declares them in its manifest, regardless of the active project.
+Every installed MCP and every native connector is visible to every agent that declares them in its manifest.
 
 ## Checking what an agent can do
 
@@ -54,4 +54,4 @@ Every installed MCP and every native connector is visible to every agent that de
 - **The agent sees the tool but the call fails**: this is most likely a permission issue, an expired token or a missing scope. See [Understand MCP permissions](understand-mcp-permissions.md) and [Manage OAuth tokens](manage-oauth-tokens.md).
 - **Two agents should see the same tool and only one does**: check both manifests, the tool has to be declared in each of them.
 
-> **Technical reference:** [Apollia reference](/reference) , per-agent tool resolution, project scoping, ContextProvider.
+> **Technical reference:** [Apollia reference](/reference) , per-agent tool resolution.

@@ -165,9 +165,15 @@ pub(crate) fn list(conn: &Connection) -> Result<Vec<Profile>, UserMemoryError> {
 }
 
 /// Marks `id` as the default profile and clears the mark on any other, in one
-/// transaction.
+/// transaction that also swaps the facts of the two profiles
+/// ([`super::facts::swap_default`]).
 pub(crate) fn set_default(conn: &Connection, id: &str) -> Result<(), UserMemoryError> {
     let tx = conn.unchecked_transaction().map_err(storage)?;
+    if get(&tx, id)?.is_none() {
+        return Err(UserMemoryError::NotFound(id.to_owned()));
+    }
+    let outgoing = default_profile(&tx)?.map(|p| p.id);
+    super::facts::swap_default(&tx, outgoing.as_deref(), id)?;
     let now = now_utc();
     tx.execute(
         "UPDATE profiles SET is_default = 0, updated_at = ?1 WHERE is_default = 1 AND id <> ?2",
@@ -220,7 +226,7 @@ pub(crate) fn rename(conn: &Connection, id: &str, name: &str) -> Result<(), User
     Ok(())
 }
 
-/// Deletes a profile that is not the default one.
+/// Deletes a profile that is not the default one, and its facts.
 pub(crate) fn delete(conn: &Connection, id: &str) -> Result<(), UserMemoryError> {
     let Some(profile) = get(conn, id)? else {
         return Err(UserMemoryError::NotFound(id.to_owned()));
@@ -228,7 +234,9 @@ pub(crate) fn delete(conn: &Connection, id: &str) -> Result<(), UserMemoryError>
     if profile.is_default {
         return Err(UserMemoryError::DefaultProfile(profile.name));
     }
-    conn.execute("DELETE FROM profiles WHERE id = ?1", rusqlite::params![id])
+    let tx = conn.unchecked_transaction().map_err(storage)?;
+    super::facts::drop_facts(&tx, &super::facts::parked_namespace(id))?;
+    tx.execute("DELETE FROM profiles WHERE id = ?1", rusqlite::params![id])
         .map_err(storage)?;
-    Ok(())
+    tx.commit().map_err(storage)
 }

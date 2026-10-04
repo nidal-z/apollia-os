@@ -153,7 +153,8 @@ fn test_override_value_shape_is_checked() {
 
 // GIVEN a manifest with a system prompt, tools and data sources
 // WHEN its definition is built
-// THEN the mission is the prompt and the access lists each tool once
+// THEN the mission is the prompt, the access lists each tool once, and the
+// data sources, files the package carries, check no source
 #[test]
 fn test_definition_from_manifest() {
     let manifest: AgentManifest = serde_json::from_value(json!({
@@ -175,7 +176,7 @@ fn test_definition_from_manifest() {
             "id": "notes",
             "name": "notes",
             "mission": "You keep the notes tidy.",
-            "defaults": {"access": ["file_write", "file_read"], "sources": ["documents"]}
+            "defaults": {"access": ["file_write", "file_read"]}
         })
     );
 }

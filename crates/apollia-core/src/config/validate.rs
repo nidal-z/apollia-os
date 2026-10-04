@@ -48,7 +48,9 @@ impl std::fmt::Display for ConfigDiagnostic {
 /// 2. the rest is deserialized strictly: a syntax error, a value of the wrong
 ///    type, or a key no section declares is a fault;
 /// 3. the `validate()` of every section the file writes runs: a value out of
-///    its bounds is a fault.
+///    its bounds is a fault;
+/// 4. the checks across sections run: `[api].port` equal to `[server].port`
+///    is a fault.
 ///
 /// An empty text is valid and gives the defaults.
 ///
@@ -134,11 +136,24 @@ fn section_checks(config: &ApolliaConfig, written: &[String]) -> Vec<ConfigError
     if wrote("hooks") {
         check(config.hooks.validate());
     }
-    if wrote("filesystem") {
-        check(config.filesystem.validate());
-    }
     if wrote("workflows") {
         check(config.workflows.validate());
+    }
+    if config.api.port == config.server.port {
+        // Placed on the native API port when the file writes it, else on the
+        // compatible server port that collides with its default.
+        let field = if wrote("api.port") {
+            "api.port"
+        } else {
+            "server.port"
+        };
+        check(Err(ConfigError::InvalidValue {
+            field: field.to_owned(),
+            reason: format!(
+                "the native API and the compatible server cannot share port {}",
+                config.api.port
+            ),
+        }));
     }
     if let Some(hybrid) = config
         .llm

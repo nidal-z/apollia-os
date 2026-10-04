@@ -285,27 +285,6 @@ pub(in crate::supervisor) fn open_sidechain_logger(
     }
 }
 
-/// Phase 13b: open `projects.db` and seed the built-in project templates.
-/// Returns `None` (logged) when the database cannot be opened.
-pub(in crate::supervisor) fn open_project_repository(
-    data_dir: &std::path::Path,
-) -> Option<std::sync::Arc<apollia_tools::ProjectRepository>> {
-    let db_path = data_dir.join(apollia_core::paths::DataFile::Projects.file_name());
-    match apollia_tools::ProjectRepository::open(&db_path) {
-        Ok(repo) => {
-            if let Err(e) = repo.seed_builtin_templates() {
-                warn!(error = %e, "project.templates.seed.failed");
-            }
-            info!("supervisor.projects.ready");
-            Some(std::sync::Arc::new(repo))
-        }
-        Err(e) => {
-            warn!(error = %e, detail = "projects disabled", "supervisor.projects.failed");
-            None
-        }
-    }
-}
-
 /// Resolves `~` at the start of a path to `$HOME`.
 pub(crate) fn resolve_home(path: &std::path::Path) -> std::path::PathBuf {
     if let Ok(stripped) = path.strip_prefix("~") {

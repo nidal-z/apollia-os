@@ -14,7 +14,7 @@ use std::time::Duration;
 use apollia_core::{HitlConfig, ObservabilityConfig, PendingApprovals, RuntimeConfig};
 use apollia_llm::LlmRouter;
 use apollia_notifications::NotificationEngineHandle;
-use apollia_tools::{AgentRepository, AuditTrailHandle, ProjectRepository, TaskRepository};
+use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository};
 
 use crate::api::routes_agents::{AgentBackendFactory, AgentLoader, StubAgentLoader};
 use crate::api::{APIServerConfig, APIServerHandle};
@@ -113,10 +113,6 @@ pub struct RuntimeHandle {
     ///
     /// Separate connection for read operations. Holds `None` when STT is disabled.
     pub stt_repository: crate::api::server::SharedSttRepository,
-    /// Project repository, manages per-project workspace contexts.
-    ///
-    /// `Some` when `projects.db` opened successfully on startup.
-    pub project_repository: Option<Arc<ProjectRepository>>,
     /// Handle to the MCP client manager.
     ///
     /// `Some` when the supervisor started the manager (always in v0.1.1+
@@ -156,21 +152,6 @@ pub struct RuntimeHandle {
     /// The runtime is the single source of truth for this default; the desktop
     /// reads it to seed its own per-user preference rather than inventing one.
     pub plan_mode_default: bool,
-
-    /// Default working directory for free-chat sessions, read from the
-    /// `[chat] default_workspace` key of `apollia.toml` at boot. `None` falls
-    /// back to `~/.apollia`. Surfaced to the desktop Settings page.
-    pub chat_default_workspace: Option<String>,
-
-    /// Paths an agent may read and write without an approval prompt, from the
-    /// `[filesystem] trusted_paths` key of `apollia.toml`, `~` already
-    /// resolved. Read once at boot.
-    ///
-    /// It is a friction boundary, not a wall: a path outside every entry is
-    /// classified one level higher, which asks the user rather than refusing.
-    /// An empty list therefore means every write outside the working directory
-    /// is asked about. Default: the user's home directory.
-    pub filesystem_trusted_paths: Vec<std::path::PathBuf>,
 
     /// Temperature applied to a chat turn that advertises tools, read from the
     /// `[chat] tool_turn_temperature` key of `apollia.toml` at boot. `None`
@@ -322,13 +303,6 @@ pub struct EmbeddedConfig {
     /// Populated by [`EmbeddedConfig::apply_toml`].
     pub chat_config: apollia_core::ChatConfig,
 
-    /// Filesystem configuration: reversible journal, and the paths an agent may
-    /// work in without being asked.
-    ///
-    /// Maps to the `[filesystem]` section in `apollia.toml`.
-    /// Populated by [`EmbeddedConfig::apply_toml`].
-    pub filesystem_config: apollia_core::FilesystemConfig,
-
     /// Workflow configuration: the budget a run starts with.
     ///
     /// Maps to the `[workflows]` section in `apollia.toml`.
@@ -368,7 +342,6 @@ impl Default for EmbeddedConfig {
             mcp_config: apollia_core::McpConfig::default(),
             hooks_config: apollia_core::HooksConfig::default(),
             chat_config: apollia_core::ChatConfig::default(),
-            filesystem_config: apollia_core::FilesystemConfig::default(),
             workflows_config: apollia_core::WorkflowsConfig::default(),
             config_diagnostics: Vec::new(),
         }
@@ -417,7 +390,6 @@ impl EmbeddedConfig {
         self.mcp_config = file.mcp;
         self.hooks_config = file.hooks;
         self.chat_config = file.chat;
-        self.filesystem_config = file.filesystem;
         self.obs_config = file.observability;
         self.workflows_config = file.workflows;
 
@@ -532,6 +504,11 @@ pub fn init_embedded(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedEr
     }
 }
 
+/// The interface the native API of an embedded runtime binds: the loopback
+/// one, always. Opening the compatible server to the local network
+/// (`[server] serve_on_lan`) never moves it.
+const EMBEDDED_API_BIND_ADDR: &str = "127.0.0.1";
+
 /// Internal: starts the Supervisor and waits for `AllReady`.
 async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedError> {
     let tcp_port = config.tcp_port;
@@ -541,13 +518,11 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
     let mcp_loading = apollia_mcp::session::LoadingMode::from(config.mcp_config.tool_loading);
     let tool_search_limit = config.mcp_config.tool_search_limit;
     let plan_mode_default = config.chat_config.plan_mode_default;
-    let chat_default_workspace = config.chat_config.default_workspace.clone();
-    let filesystem_trusted_paths = config.filesystem_config.resolved_trusted_paths();
     let chat_tool_turn_temperature = config.chat_config.tool_turn_temperature;
     let supervisor_config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: config.socket_path,
-            bind_addr: "127.0.0.1".to_owned(),
+            bind_addr: EMBEDDED_API_BIND_ADDR.to_owned(),
             tcp_port,
             tcp_listener: config.tcp_listener,
             api_token: config.api_token,
@@ -569,9 +544,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         tool_search_limit,
         hooks_config: config.hooks_config,
         plan_mode_default: config.chat_config.plan_mode_default,
-        chat_default_workspace: chat_default_workspace.clone(),
         chat_tool_turn_temperature,
-        filesystem_trusted_paths: filesystem_trusted_paths.clone(),
         workflows_config: config.workflows_config,
     };
 
@@ -615,7 +588,6 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         user_memory: handles.user_memory,
         stt_engine: handles.stt_engine,
         stt_repository: handles.stt_repository,
-        project_repository: handles.project_repository,
         mcp_handle: handles.mcp_handle,
         tools_config,
         api_port: tcp_port.unwrap_or(0),
@@ -624,9 +596,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         mlx_engine: handles.mlx_engine,
         org_policy: handles.org_policy,
         plan_mode_default,
-        chat_default_workspace,
         chat_tool_turn_temperature,
-        filesystem_trusted_paths,
     })
 }
 
@@ -678,6 +648,17 @@ mod tests {
             apollia_core::paths::socket_path_under(apollia_core::paths::home_dir_or_temp())
         );
         assert_eq!(config.startup_timeout_secs, DEFAULT_STARTUP_TIMEOUT_SECS);
+    }
+
+    #[test]
+    fn test_the_native_api_of_an_embedded_runtime_stays_on_the_loopback_interface() {
+        // GIVEN the interface the embedded runtime gives its native API
+        // WHEN it is parsed
+        let ip: std::net::IpAddr = EMBEDDED_API_BIND_ADDR.parse().unwrap();
+
+        // THEN it is the loopback one: no setting of the compatible server
+        // reaches it
+        assert!(ip.is_loopback());
     }
 
     #[test]

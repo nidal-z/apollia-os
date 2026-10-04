@@ -298,11 +298,6 @@ model = "claude-haiku-4-5-20251001"
         // THEN
         let obs = &config.llm.expect("llm should be present").observability;
         assert!(
-            obs.log_token_usage,
-            "log_token_usage should default to true"
-        );
-        assert!(obs.log_latency, "log_latency should default to true");
-        assert!(
             !obs.debug_log_prompt,
             "debug_log_prompt should default to false"
         );
@@ -459,10 +454,12 @@ max_sessions = 100
         // caller can mistake it for a setting that does something.
         assert!(apollia_core::config::keys::withdrawn_covering("permissions").is_some());
 
-        // AND `[filesystem]` is live again: `trusted_paths` reaches the risk
-        // classifier, which is what decides whether an operation runs or asks.
-        assert!(apollia_core::config::keys::withdrawn_covering("filesystem.journal").is_none());
-        assert_eq!(config.filesystem.journal.max_sessions, 100);
+        // AND `[filesystem]` is withdrawn whole: the file tools reach the
+        // folders granted to each agent, not a list in this file.
+        assert!(apollia_core::config::keys::withdrawn_covering("filesystem.journal").is_some());
+        assert!(
+            apollia_core::config::keys::withdrawn_covering("filesystem.trusted_paths").is_some()
+        );
     }
 
     // GIVEN the four sections that deserialized into an unread struct

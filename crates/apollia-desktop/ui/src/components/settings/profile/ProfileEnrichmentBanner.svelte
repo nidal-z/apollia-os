@@ -1,32 +1,27 @@
 <script lang="ts">
   /**
-   * ProfileEnrichmentBanner - the "complete your profile" nudge. Once
-   * calibration (name + role) is done but optional Tier 2 fields are still
-   * empty, offers to resume the onboarding agent (which preserves collected
-   * answers) rather than filling the form by hand.
+   * ProfileEnrichmentBanner - the "complete this profile" nudge. Once name and
+   * role are set but a field is still empty, offers to resume the onboarding
+   * agent (which preserves collected answers) rather than filling the form by
+   * hand.
    */
   import { t } from "svelte-i18n";
   import { fly } from "svelte/transition";
   import { Button } from "$lib/components/ui/button";
   import { rowIn } from "$lib/design/listMotion";
   import { onboardingModalOpen, onboardingResumeMode } from "$lib/stores/onboarding";
-  import { TIER2_KEYS, type ProfileFieldApi } from "./profileForm";
+  import type { ProfileFieldView } from "$lib/ipc/profile";
+  import { shouldOfferEnrichment } from "./profileForm";
 
   interface Props {
-    api: ProfileFieldApi;
+    fields: ProfileFieldView[];
   }
 
-  let { api }: Props = $props();
+  let { fields }: Props = $props();
 
   let dismissed = $state(false);
 
-  const calibrationDone = $derived(
-    !!api.values["name"]?.trim() && !!api.values["role"]?.trim(),
-  );
-  const missingCount = $derived(
-    TIER2_KEYS.filter((k) => !api.values[k]?.trim()).length,
-  );
-  const show = $derived(!dismissed && calibrationDone && missingCount > 0);
+  const show = $derived(!dismissed && shouldOfferEnrichment(fields));
 
   function resume(): void {
     onboardingResumeMode.set(true);
