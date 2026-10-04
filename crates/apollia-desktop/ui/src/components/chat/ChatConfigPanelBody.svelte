@@ -10,7 +10,7 @@
   import { isSensitiveFamily } from "$lib/tools/action-family";
   import { llmBackends } from "$lib/stores/sse";
   import { useUserMemory, chatConversationStats } from "$lib/stores/chat";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { Card } from "$lib/components/ui/card";
   import { Input } from "$lib/components/ui/input";
   import { Textarea } from "$lib/components/ui/textarea";
@@ -78,7 +78,7 @@
   }
 
   const memoryToggleLabel = $derived(
-    $uiMode === "builder"
+    $developerMode
       ? $t("chat.inject_user_memory")
       : $t("chat.use_preferences"),
   );
@@ -141,7 +141,7 @@
     }
   }
 
-  const isOperator = $derived($uiMode === "operator");
+  const isOperator = $derived(!$developerMode);
 
   // Re-sync whenever the session identity changes (drawer stays mounted across sessions).
   let lastSessionId = $state<string | null>(null);
