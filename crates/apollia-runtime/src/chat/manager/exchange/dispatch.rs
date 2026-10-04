@@ -120,11 +120,7 @@ impl ChatSessionManager {
             // conversation. The merge is purely additive: an authorization
             // granted during the session is never removed, only added to if the
             // config has been enriched since.
-            let authorized_tools = merge_live_authorized_tools(
-                &session.authorized_tools,
-                &session.mode,
-                self.governance_db_path.as_deref(),
-            );
+            let authorized_tools = session_run_grants(&session.authorized_tools);
             let pending_approvals = self.pending_chat_approvals.clone();
 
             // The tier of the agent: a declarative agent's as resolved; the
@@ -207,6 +203,7 @@ impl ChatSessionManager {
                 mcp_handle_for_session,
                 package_tools,
                 composer: self.composer.clone(),
+                governance: self.governance.clone(),
                 chat_tools_config_for_session,
                 mcp_loading,
                 tool_search_limit,

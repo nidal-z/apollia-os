@@ -118,29 +118,29 @@ evidence = ""
 note = """
 This is where the anti-chaining protection actually lives. It went dark once,
 its only call chain leading to an aggregate no binary installed while the docs
-promised it anyway; it is live through the chat loop's per-invocation prefix
-checker (`build_prefix_checker` -> `check_with_scope` ->
-`code_executor_prefix_matches`). If that checker ever loses its caller, this
-claim must flip back to not-wired together with the pages that state it.
+promised it anyway; it is live through the governance decision every tool call
+of every agent goes through (`governance::decide` -> `rule_matches` ->
+`code_executor_prefix_matches`, and `decide` itself for a code call allowed by
+a rule). If that decision ever loses its caller, this claim must flip back to
+not-wired together with the pages that state it.
 """
 
 [[claim]]
 id = "prefix-rules-evaluated-per-invocation"
 scope = "public"
-symbol = "build_prefix_checker"
+symbol = "rule_matches"
 status = "wired"
-proof = "crates/apollia-runtime/src/chat/manager/libre.rs"
+proof = "crates/apollia-runtime/src/governance/decision.rs"
 evidence = ""
 note = """
 The onboarding round found the previous state the hard way: a rule allowing
 `ls` was recorded and free chat still asked for approval, because the chat
 authorization was a name-only HashSet and no production code evaluated the
-stored prefixes. The checker built here closes that gap: on a miss of the
-name-only set, the ReAct loop consults `check_with_scope` with the call's
-first argument, per invocation, Libre sessions only. The name-only seeding
-still drops arg-prefix rules from the set; that is now complemented, not
-contradicted, by the per-invocation evaluation. If this checker loses its
-caller, replace this claim with the not-wired retraction it superseded.
+stored prefixes. The governance decision closes that gap: before every tool
+call of every agent, in the chat and outside it, it matches the stored rules
+against the call's first argument, per invocation. No name-only set is seeded
+from the rules any more. If the decision loses its caller, replace this claim
+with the not-wired retraction it superseded.
 """
 
 [[claim]]

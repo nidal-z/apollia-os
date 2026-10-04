@@ -24,8 +24,7 @@
 use std::path::{Path, PathBuf};
 
 use apollia_aip::package_tools::grant::{ONBOARDING_MODULE, ONBOARDING_PACKAGE, ONBOARDING_SOURCE};
-use apollia_runtime::audit_journal::AuditJournalHandle;
-use apollia_runtime::governance::NoPolicyGovernance;
+use apollia_runtime::governance::GovernanceHandle;
 use apollia_runtime::packages::{install_embedded, EmbeddedOutcome, PackageError};
 use apollia_tools::apo_archive::{build_from_dir, ApoError, BuildOptions};
 use apollia_tools::apollia_manifest::{self, ApolliaManifest, ApolliaManifestError};
@@ -257,12 +256,12 @@ const SHIPPED: [Shipped; 2] = [
 ];
 
 /// Installs `shipped` into the stores under `data_dir`, recording the
-/// installation through `journal`. Nothing is assembled when the installed
+/// installation through `governance`. Nothing is assembled when the installed
 /// package is already this version.
 async fn install_shipped(
     shipped: &Shipped,
     data_dir: &Path,
-    journal: AuditJournalHandle,
+    governance: &GovernanceHandle,
 ) -> Result<EmbeddedOutcome, BundledPackageError> {
     let package = (shipped.manifest)()?.package;
     let db = apollia_core::paths::DataFile::Agents.path(data_dir);
@@ -278,30 +277,26 @@ async fn install_shipped(
         });
     }
     let archive = (shipped.assemble)(data_dir)?;
-    let governance = NoPolicyGovernance::new(journal);
-    Ok(install_embedded(&archive, data_dir, &governance).await?)
+    Ok(install_embedded(&archive, data_dir, governance).await?)
 }
 
 /// Installs the packages the binary ships, logging each outcome. Without an
 /// audit journal nothing is installed: a package is never installed
 /// unrecorded.
-pub async fn install_bundled_packages(data_dir: &Path, journal: Option<AuditJournalHandle>) {
-    let Some(journal) = journal else {
+pub async fn install_bundled_packages(data_dir: &Path, governance: GovernanceHandle) {
+    if !governance.journaled() {
         tracing::event!(
             tracing::Level::WARN,
             detail = "no audit journal, the packages the binary ships are not installed",
             "bundled.package.skipped"
         );
         return;
-    };
+    }
     for shipped in &SHIPPED {
         let name = (shipped.manifest)()
             .map(|m| m.package.name)
             .unwrap_or_default();
-        log_outcome(
-            &name,
-            install_shipped(shipped, data_dir, journal.clone()).await,
-        );
+        log_outcome(&name, install_shipped(shipped, data_dir, &governance).await);
     }
 }
 

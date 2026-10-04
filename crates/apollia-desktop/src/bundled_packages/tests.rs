@@ -36,7 +36,9 @@ impl GovernanceContract for StrictGovernance {
     }
 
     fn decide(&self, _call: &AccessCall<'_>) -> AccessDecision {
-        AccessDecision::Allowed
+        AccessDecision::Allowed {
+            reason: apollia_runtime::governance::DecisionReason::NoConsentNeeded,
+        }
     }
 
     fn signature_required(&self, _subject: &InstallSubject<'_>) -> bool {

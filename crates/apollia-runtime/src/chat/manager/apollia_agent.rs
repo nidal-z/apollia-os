@@ -142,7 +142,6 @@ mod tests {
 
         assert_eq!(out.system_prompt.as_deref(), Some("Answer in French."));
         assert_eq!(out.llm_backend.as_deref(), Some("qwen"));
-        assert!(out.pre_authorized_tools.is_empty());
     }
 
     // GIVEN a data directory without agents.db
