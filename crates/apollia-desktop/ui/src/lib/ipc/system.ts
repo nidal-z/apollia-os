@@ -72,3 +72,37 @@ export async function getPythonInterpreter(): Promise<PythonInterpreterSetting> 
 export async function setPythonInterpreter(path: string | null): Promise<void> {
   return invoke<void>("set_python_interpreter", { path });
 }
+
+/** An engine of this machine, as `GET /api/v1/engines` lists it. */
+export interface EngineEntry {
+  engine: "llama-server" | "vllm-mlx" | "nodejs";
+  /** Upstream tag of a store package; `null` for an embedded engine. */
+  tag: string | null;
+  variant: "cuda" | "vulkan" | "cpu" | "metal" | null;
+  path: string;
+  source: "embedded" | "downloaded" | "imported";
+  /** What the engine states at its source (banner, package metadata); `null` when it says nothing. */
+  version: string | null;
+}
+
+/** The dictation engine, whisper.cpp inside the runner the daemon starts. */
+export interface DictationEngine {
+  path: string;
+  /** The whisper.cpp version the runner states; `null` when it says nothing. */
+  version: string | null;
+}
+
+/** The engine list, with the store's channel and pending updates. */
+export interface EnginesResponse {
+  engines: EngineEntry[];
+  channel: "stable" | "preview";
+  manifest_sequence: number | null;
+  updates: unknown[];
+  cuda_proposable: boolean;
+  dictation: DictationEngine | null;
+}
+
+/** The engines of this machine, each with the version it states. */
+export async function listEngines(): Promise<EnginesResponse> {
+  return invoke<EnginesResponse>("list_engines");
+}

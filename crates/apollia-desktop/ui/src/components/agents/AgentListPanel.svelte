@@ -8,7 +8,7 @@
    * by the route; this panel is presentation + event wiring only.
    */
   import { t } from "svelte-i18n";
-  import { Bot, Download, Package, Plus, Search } from "lucide-svelte";
+  import { Bot, Download, FileArchive, Package, Plus, Search } from "lucide-svelte";
   import { SidebarHeader, SkeletonList, EmptyState } from "$lib/components/operator";
   import { Button } from "$lib/components/ui/button";
   import { Spinner } from "$lib/components/ui/progress";
@@ -33,6 +33,8 @@
     onSelectApolliaChat: () => void;
     onInstallAgent: () => void;
     onInstallPackage: () => void;
+    /** Choose a `.apo` package file, then open its preview. */
+    onInstallPackageFile: () => void;
     onOpenLogs: (agentId: string) => void;
     onOpenSettings: (agent: AgentListItem) => void;
     onRequestUninstallAgent: (agent: AgentListItem) => void;
@@ -53,6 +55,7 @@
     onSelectApolliaChat,
     onInstallAgent,
     onInstallPackage,
+    onInstallPackageFile,
     onOpenLogs,
     onOpenSettings,
     onRequestUninstallAgent,
@@ -65,6 +68,16 @@
 <div class="flex h-full min-h-0 flex-col" data-testid="agents-list">
   <SidebarHeader title={$t("agents.page_title")}>
     {#snippet actions()}
+      <Button
+        variant="outline"
+        size="icon-sm"
+        onclick={onInstallPackageFile}
+        data-testid="agents-install-apo-button"
+        title={$t("agents.install_apo_button")}
+        aria-label={$t("agents.install_apo_button")}
+      >
+        <FileArchive size={13} />
+      </Button>
       <Button
         variant="outline"
         size="icon-sm"

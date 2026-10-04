@@ -3,8 +3,7 @@
 //! installation, and a refusal is the daemon's own message.
 
 use apollia_runtime::api::routes_onboarding::{
-    AdvancePhaseBody, OnboardingDismissed, OnboardingFinalized, OnboardingProfileBody,
-    TriggerOnboardingBody,
+    AdvancePhaseBody, OnboardingDismissed, OnboardingFinalized, TriggerOnboardingBody,
 };
 use apollia_runtime::onboarding::state::{OnboardingState, TriggerResult};
 
@@ -26,24 +25,12 @@ pub(crate) async fn advance(
     Ok(client.post("/api/v1/onboarding/phase", &body).await?)
 }
 
-/// `PUT /api/v1/onboarding/profile`.
-pub(crate) async fn set_profile(
-    client: &AttachedClient,
-    profile: &str,
-) -> Result<OnboardingState, String> {
-    let body = OnboardingProfileBody {
-        profile: profile.to_owned(),
-    };
-    Ok(client.put("/api/v1/onboarding/profile", &body).await?)
-}
-
 /// `POST /api/v1/onboarding/sessions`.
 pub(crate) async fn trigger(
     client: &AttachedClient,
     topic: Option<String>,
-    profile: Option<String>,
 ) -> Result<TriggerResult, String> {
-    let body = TriggerOnboardingBody { topic, profile };
+    let body = TriggerOnboardingBody { topic };
     Ok(client.post("/api/v1/onboarding/sessions", &body).await?)
 }
 

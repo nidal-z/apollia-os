@@ -99,6 +99,7 @@ impl BuiltInChatAgent {
             user_message,
             summary,
             context_window_size,
+            &self.turn_images,
         );
 
         // A resume turn carrying an operator instruction prepends it as a user
@@ -193,11 +194,15 @@ impl BuiltInChatAgent {
         let valid_tool_names_ref: &HashSet<String> = &valid_tool_names;
         // A correction turn runs with the grants of the run; an "always"
         // answered in the first turn is a standing consent governance already
-        // reads.
+        // reads. A grant of one call is not given again.
         let carry = RetryCarry {
             messages: llm_messages,
             last_response: first,
-            authorized: authorized_tools.clone(),
+            authorized: authorized_tools
+                .iter()
+                .filter(|grant| !crate::governance::is_once_grant(grant))
+                .cloned()
+                .collect(),
         };
         let (report, carry) = run_verification_with_retry(
             level,

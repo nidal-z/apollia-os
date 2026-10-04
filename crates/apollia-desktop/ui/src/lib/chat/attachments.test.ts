@@ -4,9 +4,13 @@ import frCatalogue from "$lib/i18n/fr.json";
 import {
   type AttachmentCandidate,
   type AttachmentRefusal,
+  type PendingAttachment,
   composeUserPayload,
+  imagePayloads,
   intakeAttachment,
   refusalMessageKey,
+  MAX_IMAGES_PER_MESSAGE,
+  MAX_IMAGE_BYTES,
 } from "./attachments";
 
 function candidate(over: Partial<AttachmentCandidate>): AttachmentCandidate {
@@ -108,7 +112,7 @@ describe("intakeAttachment, every shape a picked file can take", () => {
     // WHEN it goes through intake
     const intake = intakeAttachment(input);
 
-    // THEN it is refused, because nothing downstream reads image bytes
+    // THEN it is refused: no model known to read images, nothing reads its bytes
     expect(intake.accepted).toBe(false);
     if (intake.accepted) return;
     expect(intake.reason).toBe("image_not_supported");
@@ -259,7 +263,7 @@ describe("composeUserPayload, every queued attachment carries content or a path"
 
     // WHEN only the accepted ones reach the composition
     const queued = shapes
-      .map(intakeAttachment)
+      .map((c) => intakeAttachment(c))
       .filter((r): r is Extract<typeof r, { accepted: true }> => r.accepted)
       .map((r) => r.attachment);
     const payload = composeUserPayload("hi", queued);
@@ -281,6 +285,10 @@ describe("refusalMessageKey, every refusal has a sentence in both catalogues", (
   const reasons: AttachmentRefusal[] = [
     "read_failed",
     "image_not_supported",
+    "image_limit",
+    "image_too_large",
+    "image_unreadable",
+    "image_format",
     "too_large_without_path",
     "binary_not_text",
   ];
@@ -301,4 +309,72 @@ describe("refusalMessageKey, every refusal has a sentence in both catalogues", (
       expect(fr as string).toContain("{name}");
     });
   }
+});
+
+describe("intakeAttachment, images and the model of the conversation", () => {
+  const image = (over: Partial<AttachmentCandidate> = {}): AttachmentCandidate =>
+    candidate({ name: "shot.png", mime: "image/png", kind: "image", base64: base64("IMG"), ...over });
+
+  it("queues an image as its bytes when the model reads images", () => {
+    // GIVEN a picked image, read, and a model with vision
+    // WHEN it goes through intake
+    const intake = intakeAttachment(image(), { vision: true, queuedImages: 0 });
+
+    // THEN it is queued in the image form, its bytes kept
+    expect(intake.accepted).toBe(true);
+    if (!intake.accepted) return;
+    expect(intake.attachment.form).toBe("image");
+    expect(intake.attachment.base64).toBe(base64("IMG"));
+  });
+
+  it("keeps the path-or-refuse rule when the model does not read images", () => {
+    // GIVEN the same image to a model without vision, then one dropped
+    const picked = intakeAttachment(image(), { vision: false });
+    const dropped = intakeAttachment(image({ absolutePath: "/tmp/shot.png" }), { vision: false });
+
+    // WHEN intake decides
+    // THEN the picked one is refused with the cause, the dropped one is a path
+    expect(picked.accepted).toBe(false);
+    if (!picked.accepted) expect(picked.reason).toBe("image_not_supported");
+    expect(dropped.accepted).toBe(true);
+    if (dropped.accepted) expect(dropped.attachment.form).toBe("path_reference");
+  });
+
+  it("refuses the ninth image of a message, and an image past the size ceiling", () => {
+    // GIVEN eight images already queued, then an image of 10 MiB plus one byte
+    const ninth = intakeAttachment(image(), {
+      vision: true,
+      queuedImages: MAX_IMAGES_PER_MESSAGE,
+    });
+    const heavy = intakeAttachment(
+      image({ base64: Buffer.alloc(MAX_IMAGE_BYTES + 1).toString("base64") }),
+      { vision: true, queuedImages: 0 },
+    );
+
+    // WHEN intake decides
+    // THEN both are refused, each with its reason
+    expect(ninth.accepted).toBe(false);
+    if (!ninth.accepted) expect(ninth.reason).toBe("image_limit");
+    expect(heavy.accepted).toBe(false);
+    if (!heavy.accepted) expect(heavy.reason).toBe("image_too_large");
+  });
+
+  it("sends images beside the text, never inside it", () => {
+    // GIVEN a message with a text file and two images queued
+    const queued: PendingAttachment[] = [
+      { id: "a", name: "a.png", mime: "image/png", size: 3, kind: "image", form: "image", base64: "AQID" },
+      { id: "b", name: "b.jpg", mime: "image/jpeg", size: 2, kind: "image", form: "image", base64: "BAU=" },
+    ];
+
+    // WHEN the text and the image payloads are built
+    const text = composeUserPayload("compare them", queued);
+    const images = imagePayloads(queued);
+
+    // THEN the text is unchanged and the images travel in order
+    expect(text).toBe("compare them");
+    expect(images).toEqual([
+      { mime_type: "image/png", data: "AQID" },
+      { mime_type: "image/jpeg", data: "BAU=" },
+    ]);
+  });
 });

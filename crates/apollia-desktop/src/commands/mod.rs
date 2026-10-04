@@ -40,6 +40,8 @@ pub(crate) mod model_index;
 pub mod notifications;
 pub mod observability;
 pub mod onboarding;
+pub mod org_policy;
+pub mod package_files;
 pub mod permissions_proposals;
 pub mod plan_mode;
 pub mod project_migration;

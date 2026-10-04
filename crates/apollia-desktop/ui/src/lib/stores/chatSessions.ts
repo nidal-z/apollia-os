@@ -2,7 +2,8 @@
  * Chat sessions sidebar state.
  *
  * Owns the UI-level state for the refonted sessions sidebar: search query,
- * filter segment, sort order, density, and the per-session flags (pinned,
+ * filter segment, sort order, the list density (read from the chat
+ * density of `chatAppearance.ts`), and the per-session flags (pinned,
  * archived, last read) that back the pin/archive/unread features.
  *
  * Persistence is local-first via localStorage - backend SQLite columns
@@ -11,16 +12,16 @@
  */
 import { derived, writable, type Readable } from "svelte/store";
 import { chatSessions } from "./sse";
+import { chatDensity, type ChatDensity } from "./chatAppearance";
 import type { ChatSessionSummary } from "$lib/types";
 
 export type SessionFilter = "active" | "closed" | "archived" | "pinned";
 export type SessionSort = "recent" | "oldest" | "alphabetical" | "most-tokens";
-export type SidebarDensity = "sm" | "md" | "lg";
+export type SidebarDensity = "sm" | "md";
 
 const STORAGE_KEYS = {
   filter: "chat.sidebar.filter",
   sort: "chat.sidebar.sort",
-  density: "chat.sidebar.density",
   pinned: "chat.sidebar.pinned",
   archived: "chat.sidebar.archived",
   lastRead: "chat.sidebar.lastRead",
@@ -90,10 +91,15 @@ export const sessionSort = writable<SessionSort>(
 );
 sessionSort.subscribe((v) => saveString(STORAGE_KEYS.sort, v));
 
-export const sidebarDensity = writable<SidebarDensity>(
-  loadString<SidebarDensity>(STORAGE_KEYS.density, "md", ["sm", "md", "lg"]),
+/** The conversation list follows the chat density chosen in Appearance. */
+export function sidebarDensityFor(density: ChatDensity): SidebarDensity {
+  return density === "compact" ? "sm" : "md";
+}
+
+export const sidebarDensity: Readable<SidebarDensity> = derived(
+  chatDensity,
+  sidebarDensityFor,
 );
-sidebarDensity.subscribe((v) => saveString(STORAGE_KEYS.density, v));
 
 export const pinnedSessionIds = writable<Set<string>>(
   new Set(loadJson<string[]>(STORAGE_KEYS.pinned, [])),

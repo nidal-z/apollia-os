@@ -12,7 +12,6 @@ export interface TriggerResult {
 /** Ordered phases of the onboarding flow that the interface reaches. */
 export type OnboardingPhase =
   | "welcome"
-  | "profile_choice"
   | "ai_setup"
   | "acquaintance"
   | "graduation"
@@ -28,7 +27,6 @@ export interface OnboardingStats {
 /** Full onboarding state returned by get_onboarding_state. */
 export interface OnboardingState {
   phase: OnboardingPhase;
-  profile: string | null;
   llm_configured: boolean;
   stt_configured: boolean;
   topics_covered: string[];

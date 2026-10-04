@@ -16,9 +16,9 @@ mod resolve;
 mod source;
 
 pub use manage::{
-    create_profile, delete_profile, delete_profile_fact, list_profiles, read_profile_by_id,
-    reset_profile_by_id, set_default_profile, set_profile_fact, update_profile, ProfileDetailView,
-    ProfileFieldView, ProfileSummaryView, ProfileUpdate, DEFAULT_PROFILE_ALIAS,
+    create_profile, delete_profile, delete_profile_and_release, delete_profile_fact, list_profiles,
+    read_profile_by_id, reset_profile_by_id, set_default_profile, set_profile_fact, update_profile,
+    ProfileDetailView, ProfileFieldView, ProfileSummaryView, ProfileUpdate, DEFAULT_PROFILE_ALIAS,
 };
 pub use resolve::{profile_for_agent, profile_for_execution};
 pub use source::{profile_source_checked, profile_source_checked_in};

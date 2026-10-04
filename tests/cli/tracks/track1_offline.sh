@@ -401,6 +401,10 @@ check_exit "package install --json (missing file) → 1"  1 "$BIN" --socket "$PK
 check_exit "package trust import (runtime absent) → 2"  2 "$BIN" --socket "$PKGOFF" package trust import "$E2E_KEY" --label "E2E"
 check_exit "package trust list (runtime absent) → 2"    2 "$BIN" --socket "$PKGOFF" package trust list
 check_exit "package trust remove (runtime absent) → 2"  2 "$BIN" --socket "$PKGOFF" package trust remove "$E2E_KEY" --confirm
+# The decisions waiting for the user live in the runtime: with no runtime the
+# list answers 2, in human and in JSON form. Track 2 lists them, empty.
+check_exit "approvals pending (runtime absent) → 2"        2 "$BIN" --socket "$PKGOFF" approvals pending
+check_exit "approvals pending --json (runtime absent) → 2" 2 "$BIN" --socket "$PKGOFF" approvals pending --json
 
 # ── A.13b organisation policy (files only) ──────────────────────────────────
 # The key pair and the policy folder are prepared under the scratch folder;

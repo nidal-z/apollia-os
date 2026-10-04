@@ -334,6 +334,9 @@ enum Commands {
     /// Automated code or plan review via the apollia-review agent.
     Review(commands::review::ReviewArgs),
 
+    /// The decisions waiting for you (pending).
+    Approvals(commands::approvals::ApprovalsArgs),
+
     /// Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry, export).
     Batch {
         /// Batch subcommand.
@@ -607,29 +610,11 @@ async fn run_run(dispatch: RunDispatch) -> i32 {
     .await
 }
 
-/// Run the embedded MCP server, mapping its result to an exit code.
 /// Print a "did you mean" hint when an unknown top-level command is typed.
 fn maybe_suggest_command(err: &clap::Error) {
-    use clap::error::ErrorKind;
-    if !matches!(
-        err.kind(),
-        ErrorKind::InvalidSubcommand | ErrorKind::UnknownArgument
-    ) {
-        return;
-    }
-    // First positional argument after the binary name.
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let Some(bad) = args.iter().find(|a| !a.starts_with('-')) else {
-        return;
-    };
     let cmd = Cli::command();
     let names: Vec<&str> = cmd.get_subcommands().map(clap::Command::get_name).collect();
-    if names.contains(&bad.as_str()) {
-        return;
-    }
-    if let Some(sugg) = commands::suggest::nearest(bad, &names, 3) {
-        eprintln!("apollia-os: unknown command `{bad}`. Did you mean `{sugg}`?");
-    }
+    commands::suggest::hint_unknown_command(err, &names);
 }
 
 fn main() {
@@ -738,6 +723,7 @@ fn main() {
             }
             Commands::Policy { command } => commands::policy::run(&command, json),
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
+            Commands::Approvals(args) => commands::approvals::run(&args, cli.socket, json).await,
             Commands::Batch { command } => commands::batch::run(&command, cli.socket, json).await,
             Commands::Workflow { command } => {
                 commands::workflow::run(&command, cli.socket, json).await

@@ -12,6 +12,7 @@ pub mod agent_executor;
 pub mod builtin_agent;
 pub mod extractor;
 pub mod generation;
+pub mod images;
 pub mod manager;
 pub mod native_wrappers;
 pub mod plan_actor;
@@ -55,8 +56,8 @@ pub use todo_handle::TodoHandle;
 pub use types::PastSessionSummary;
 pub use types::RecentSessionSummary;
 pub use types::{
-    AlwaysAcceptScope, ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ChatSessionConfig,
-    ExchangeState, FsHitlDecision, InjectedInstruction, MessageId, PauseState,
-    PendingChatApprovals, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
+    ChatApprovalAsked, ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ChatSessionConfig,
+    ExchangeState, InjectedInstruction, MessageId, PauseState, PendingChatApprovals,
+    SessionConfigUpdate, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
     ToolCallRecord, ToolCallStatus, ToolDecision, ToolStatEntry, TurnOutcome,
 };

@@ -23,11 +23,11 @@ import {
   Brain,
   Repeat,
   Database,
-  Bell,
   Activity,
   Settings,
   Mic,
   Paintbrush,
+  Landmark,
 } from "lucide-svelte";
 import type { Route } from "$lib/stores/navigation";
 
@@ -50,8 +50,8 @@ export const routeMeta: Record<Route, RouteMeta> = {
   automations: { labelKey: "nav.automations", parent: null, icon: Repeat },
   memory: { labelKey: "nav.memory", parent: null, icon: Database },
   transcriptions: { labelKey: "nav.transcriptions", parent: null, icon: Mic },
-  notifications: { labelKey: "nav.notifications", parent: null, icon: Bell },
   observability: { labelKey: "nav.observability", parent: null, icon: Activity },
+  policy: { labelKey: "nav.policy", parent: null, icon: Landmark },
   settings: { labelKey: "nav.settings", parent: null, icon: Settings },
   design: { labelKey: "topbar.route.design", parent: null, icon: Paintbrush },
   "design-motion": { labelKey: "topbar.route.design_motion", parent: "design", icon: Paintbrush },

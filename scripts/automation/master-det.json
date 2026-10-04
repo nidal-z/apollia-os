@@ -48,6 +48,7 @@
     "channel-delete-btn-seed-channel-desktop",
     "channel-edit-btn-seed-channel-desktop",
     "channel-event-task.completed",
+    "channel-menu-seed-channel-desktop",
     "channel-test-btn-seed-channel-desktop",
     "channel-toggle-det-auto-channel",
     "channel-toggle-seed-channel-desktop",
@@ -113,7 +114,6 @@
     "nav-integrations",
     "nav-llm",
     "nav-memory",
-    "nav-notifications",
     "nav-observability",
     "nav-settings",
     "nav-tasks",
@@ -159,6 +159,7 @@
     "settings-nav-llm",
     "settings-nav-model-defaults",
     "settings-nav-model-hub",
+    "settings-nav-notifications",
     "settings-nav-permissions",
     "settings-nav-profile",
     "settings-nav-stt",
@@ -324,15 +325,6 @@
     {
       "kind": "click",
       "testid": "nav-inbox"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "nav-notifications"
     },
     {
       "kind": "waitFor",
@@ -1762,6 +1754,46 @@
       "label": "04-quickpicker"
     },
     {
+      "kind": "expect",
+      "testid": "chat-target-selector-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-panel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-target-selector-behaviour"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04a-target-selector-open"
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-target-selector-search",
+      "text": "zz-no-agent-no-model"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-no-results",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-button"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-target-selector-panel",
+      "timeoutMs": 2500
+    },
+    {
       "kind": "sleep",
       "ms": 200
     },
@@ -2837,77 +2869,90 @@
     },
     {
       "kind": "stubInvoke",
-      "command": "respond_hitl_filesystem",
+      "command": "authorize_chat_tool",
       "resolve": null
     },
     {
       "kind": "emitEvent",
-      "event": "hitl-fs-required",
+      "event": "runtime-event",
       "payload": {
-        "request_id": "automation-critical-1",
-        "session_id": "seed-session-2",
-        "level": "critical",
-        "op": "delete",
-        "path": "${HOME}/.apollia/automation-critical.txt",
-        "preview": {
-          "kind": "content",
-          "content": "",
-          "size_bytes": 0,
-          "truncated": false
+        "category": "chat-changed",
+        "event_type": "ChatApprovalRequired",
+        "payload": {
+          "ChatApprovalRequired": {
+            "session_id": "seed-session-2",
+            "message_id": "automation-msg-1",
+            "tool_call_id": "automation-call-1",
+            "tool_name": "file_write",
+            "prompt": "Tool 'file_write' asks to run with: {\"path\":\"note.txt\",\"content\":\"hello\"}"
+          }
         }
       }
     },
     {
       "kind": "waitFor",
-      "testid": "hitl-fs-modal",
+      "testid": "chat-approval-inline",
       "timeoutMs": 6000
     },
     {
-      "kind": "waitFor",
-      "testid": "hitl-fs-critical-input",
-      "timeoutMs": 4000
+      "kind": "expect",
+      "testidPrefix": "approval-accept-"
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-always-"
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-reason-"
+    },
+    {
+      "kind": "expect",
+      "testidPrefix": "approval-refuse-"
     },
     {
       "kind": "screenshot",
-      "label": "20a-hitl-fs-critical (payload shaped like HitlFsRequiredPayload, delivered by the recipe)"
+      "label": "20a-consent-card-three-answers (a write asks on the card of its family, no scope menu, no file modal)"
     },
     {
       "kind": "fill",
-      "testid": "hitl-fs-critical-input",
-      "text": "CONFIRM"
-    },
-    {
-      "kind": "click",
-      "testid": "hitl-fs-deny",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "hitl-fs-reject-reason",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "fill",
-      "testid": "hitl-fs-reject-reason",
+      "testidPrefix": "approval-reason-",
       "text": "automation reject reason"
     },
     {
-      "kind": "screenshot",
-      "label": "20b-hitl-fs-critical-reject-reason"
-    },
-    {
       "kind": "click",
-      "testid": "hitl-fs-deny",
+      "testidPrefix": "approval-refuse-",
       "timeoutMs": 3000
     },
     {
+      "kind": "emitEvent",
+      "event": "runtime-event",
+      "payload": {
+        "category": "chat-changed",
+        "event_type": "ChatApprovalResolved",
+        "payload": {
+          "ChatApprovalResolved": {
+            "session_id": "seed-session-2",
+            "message_id": "automation-msg-1",
+            "tool_call_id": "automation-call-1",
+            "tool_name": "file_write",
+            "decision": "refuse"
+          }
+        }
+      }
+    },
+    {
       "kind": "waitGone",
-      "testid": "hitl-fs-modal",
+      "testid": "chat-approval-inline",
       "timeoutMs": 6000
     },
     {
+      "kind": "screenshot",
+      "label": "20b-consent-card-refused-with-reason"
+    },
+    {
       "kind": "clearStubs",
-      "command": "respond_hitl_filesystem"
+      "command": "authorize_chat_tool"
     },
     {
       "kind": "click",
@@ -7252,7 +7297,16 @@
     },
     {
       "kind": "goto",
-      "route": "notifications"
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-notifications"
     },
     {
       "kind": "waitFor",
@@ -7261,7 +7315,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "01-notifications-operator"
+      "label": "01-notifications-section"
+    },
+    {
+      "kind": "expect",
+      "testid": "notifications-intro"
     },
     {
       "kind": "waitFor",
@@ -7270,7 +7328,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "02-global-events"
+      "label": "02-notified-events"
     },
     {
       "kind": "expect",
@@ -7304,23 +7362,20 @@
     },
     {
       "kind": "expect",
-      "testid": "channel-edit-btn-seed-channel-desktop"
-    },
-    {
-      "kind": "expect",
       "testid": "channel-test-btn-seed-channel-desktop"
     },
     {
       "kind": "expect",
-      "testid": "channel-delete-btn-seed-channel-desktop"
+      "testid": "channel-menu-seed-channel-desktop"
     },
     {
-      "kind": "expect",
-      "testid": "notifications-history-moved"
+      "kind": "waitFor",
+      "testid": "notifications-recent",
+      "timeoutMs": 6000
     },
     {
-      "kind": "expect",
-      "testid": "notifications-history-link"
+      "kind": "screenshot",
+      "label": "04-recent-sends"
     },
     {
       "kind": "click",
@@ -7334,7 +7389,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "04-create-dialog"
+      "label": "05-create-dialog"
     },
     {
       "kind": "expect",
@@ -7351,13 +7406,10 @@
       "timeoutMs": 2500
     },
     {
-      "kind": "expect",
-      "testid": "channel-id-input"
-    },
-    {
       "kind": "fill",
       "testid": "channel-id-input",
-      "text": "det-auto-channel"
+      "text": "det-auto-channel",
+      "timeoutMs": 2500
     },
     {
       "kind": "expect",
@@ -7372,13 +7424,17 @@
       "testid": "channel-enabled-toggle"
     },
     {
+      "kind": "expect",
+      "testid": "channel-events-all"
+    },
+    {
       "kind": "waitFor",
       "testid": "channel-event-task.completed",
       "timeoutMs": 2500
     },
     {
       "kind": "screenshot",
-      "label": "05-create-dialog-events"
+      "label": "06-create-dialog-events"
     },
     {
       "kind": "selectOption",
@@ -7393,7 +7449,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "06-webhook-url-revealed"
+      "label": "07-web-call-address"
     },
     {
       "kind": "fill",
@@ -7402,9 +7458,20 @@
       "timeoutMs": 2500
     },
     {
+      "kind": "click",
+      "testid": "channel-headers-disclosure-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "channel-headers-textarea",
+      "timeoutMs": 2500
+    },
+    {
       "kind": "fill",
       "testid": "channel-headers-textarea",
-      "text": "{\"X-Det\": \"1\"}"
+      "text": "{\"X-Det\": \"1\"}",
+      "timeoutMs": 2500
     },
     {
       "kind": "selectOption",
@@ -7425,7 +7492,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "07-throttle-custom-revealed"
+      "label": "08-frequency-custom"
     },
     {
       "kind": "selectOption",
@@ -7455,7 +7522,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "08-enabled-off"
+      "label": "09-enabled-off"
     },
     {
       "kind": "setChecked",
@@ -7464,7 +7531,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "09-create-filled"
+      "label": "10-create-filled"
     },
     {
       "kind": "click",
@@ -7478,7 +7545,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "10-channel-card-created"
+      "label": "11-channel-created"
     },
     {
       "kind": "expect",
@@ -7495,7 +7562,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "11-channel-toggled"
+      "label": "12-channel-switched-off"
     },
     {
       "kind": "click",
@@ -7505,6 +7572,20 @@
     {
       "kind": "sleep",
       "ms": 600
+    },
+    {
+      "kind": "click",
+      "testid": "channel-menu-seed-channel-desktop",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "channel-edit-btn-seed-channel-desktop",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-row-menu"
     },
     {
       "kind": "click",
@@ -7518,15 +7599,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "12-edit-dialog"
+      "label": "14-edit-dialog"
     },
     {
       "kind": "expect",
       "testid": "edit-channel-label-input"
-    },
-    {
-      "kind": "expect",
-      "testid": "edit-channel-id-input"
     },
     {
       "kind": "expect",
@@ -7539,6 +7616,10 @@
     {
       "kind": "expect",
       "testid": "edit-channel-enabled-toggle"
+    },
+    {
+      "kind": "expect",
+      "testid": "edit-channel-events-all"
     },
     {
       "kind": "setChecked",
@@ -7562,7 +7643,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "13-edit-filled"
+      "label": "15-edit-filled"
     },
     {
       "kind": "click",
@@ -7585,7 +7666,17 @@
     },
     {
       "kind": "screenshot",
-      "label": "14-channel-test"
+      "label": "16-channel-test"
+    },
+    {
+      "kind": "click",
+      "testid": "channel-menu-seed-channel-desktop",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "channel-delete-btn-seed-channel-desktop",
+      "timeoutMs": 2500
     },
     {
       "kind": "click",
@@ -7599,7 +7690,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "15-delete-confirm"
+      "label": "17-delete-confirm"
     },
     {
       "kind": "click",
@@ -7646,7 +7737,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "16-create-id-error"
+      "label": "18-create-id-error"
     },
     {
       "kind": "click",
@@ -7690,7 +7781,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "17-create-duplicate-error"
+      "label": "19-create-duplicate-error"
     },
     {
       "kind": "click",
@@ -7713,7 +7804,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "18-global-event-toggled"
+      "label": "20-notified-event-off"
     },
     {
       "kind": "click",
@@ -7751,22 +7842,13 @@
       "ms": 800
     },
     {
-      "kind": "goto",
-      "route": "notifications"
+      "kind": "click",
+      "testid": "settings-nav-notifications"
     },
     {
       "kind": "waitFor",
       "testid": "notifications-page",
       "timeoutMs": 15000
-    },
-    {
-      "kind": "screenshot",
-      "label": "19-notifications-builder"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "global-events-section",
-      "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
@@ -7775,7 +7857,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "20-global-events-builder"
+      "label": "21-notifications-developer"
     },
     {
       "kind": "goto",
@@ -7804,8 +7886,8 @@
       "ms": 800
     },
     {
-      "kind": "goto",
-      "route": "notifications"
+      "kind": "click",
+      "testid": "settings-nav-notifications"
     },
     {
       "kind": "waitFor",
@@ -7813,17 +7895,19 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "screenshot",
-      "label": "21-back-operator"
+      "kind": "waitFor",
+      "testid": "channel-card-seed-channel-desktop",
+      "timeoutMs": 6000
     },
     {
-      "kind": "goto",
-      "route": "notifications"
+      "kind": "click",
+      "testid": "channel-menu-seed-channel-desktop",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "notifications-page",
-      "timeoutMs": 15000
+      "testid": "channel-edit-btn-seed-channel-desktop",
+      "timeoutMs": 2500
     },
     {
       "kind": "click",
@@ -7839,7 +7923,7 @@
       "kind": "selectOption",
       "testid": "edit-channel-type-select",
       "value": "webhook",
-      "timeoutMs": 3000
+      "timeoutMs": 2500
     },
     {
       "kind": "waitFor",
@@ -7849,18 +7933,30 @@
     {
       "kind": "fill",
       "testid": "edit-channel-url-input",
-      "text": "https://hooks.example.invalid/apollia"
+      "text": "https://hooks.example.invalid/apollia",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "edit-channel-headers-disclosure-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "edit-channel-headers-textarea",
+      "timeoutMs": 2500
     },
     {
       "kind": "fill",
       "testid": "edit-channel-headers-textarea",
-      "text": "{\"X-Automation\": \"1\"}"
+      "text": "{\"X-Automation\": \"1\"}",
+      "timeoutMs": 2500
     },
     {
       "kind": "selectOption",
       "testid": "edit-channel-throttle-select",
       "value": "custom",
-      "timeoutMs": 3000
+      "timeoutMs": 2500
     },
     {
       "kind": "waitFor",
@@ -7870,11 +7966,12 @@
     {
       "kind": "fill",
       "testid": "edit-channel-throttle-custom-input",
-      "text": "45"
+      "text": "45",
+      "timeoutMs": 2500
     },
     {
       "kind": "screenshot",
-      "label": "20-edit-channel-webhook-form"
+      "label": "22-edit-channel-web-call"
     },
     {
       "kind": "click",
@@ -7888,16 +7985,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "21-edit-channel-saved"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 30000
+      "label": "23-edit-channel-saved"
     },
     {
       "kind": "stubInvoke",
@@ -7906,8 +7994,17 @@
       "once": true
     },
     {
-      "kind": "goto",
-      "route": "notifications"
+      "kind": "click",
+      "testid": "settings-nav-general"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-notifications"
     },
     {
       "kind": "waitFor",
@@ -7920,8 +8017,12 @@
       "timeoutMs": 8000
     },
     {
+      "kind": "expect",
+      "testid": "global-events-section"
+    },
+    {
       "kind": "screenshot",
-      "label": "21a-notifications-load-error"
+      "label": "24-channels-error"
     },
     {
       "kind": "click",
@@ -7930,7 +8031,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "21b-notifications-load-error-details-open"
+      "label": "25-channels-error-details"
     },
     {
       "kind": "click",
@@ -7938,17 +8039,17 @@
       "timeoutMs": 2500
     },
     {
-      "kind": "goto",
-      "route": "dashboard"
+      "kind": "click",
+      "testid": "settings-nav-general"
     },
     {
       "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 30000
+      "testid": "settings-page",
+      "timeoutMs": 4000
     },
     {
-      "kind": "goto",
-      "route": "notifications"
+      "kind": "click",
+      "testid": "settings-nav-notifications"
     },
     {
       "kind": "waitFor",
@@ -7961,17 +8062,17 @@
       "timeoutMs": 6000
     },
     {
-      "kind": "click",
-      "testid": "notifications-history-link",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
       "kind": "screenshot",
-      "label": "22-history-link"
+      "label": "26-channels-back"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
     },
     {
       "kind": "screenshot",
@@ -13393,20 +13494,17 @@
     },
     {
       "kind": "click",
-      "testid": "developer-mode-off"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "click",
       "testid": "settings-nav-hardware"
     },
     {
       "kind": "waitFor",
       "testid": "system-info-section",
       "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hardware-processor",
+      "timeoutMs": 20000
     },
     {
       "kind": "screenshot",
@@ -13475,6 +13573,23 @@
     {
       "kind": "screenshot",
       "label": "27-agent-install-section"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
     },
     {
       "kind": "click",
@@ -14437,6 +14552,11 @@
       "timeoutMs": 6000
     },
     {
+      "kind": "waitFor",
+      "testid": "engines-list",
+      "timeoutMs": 20000
+    },
+    {
       "kind": "click",
       "testid": "about-copy-diagnostics",
       "timeoutMs": 4000
@@ -14448,51 +14568,6 @@
     {
       "kind": "screenshot",
       "label": "56-about-diagnostic-copied"
-    },
-    {
-      "kind": "click",
-      "testid": "about-copy-version",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 250
-    },
-    {
-      "kind": "click",
-      "testid": "about-copy-platform",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 250
-    },
-    {
-      "kind": "click",
-      "testid": "about-copy-python",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 250
-    },
-    {
-      "kind": "click",
-      "testid": "about-copy-engine",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 250
-    },
-    {
-      "kind": "click",
-      "testid": "about-copy-stt",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 250
     },
     {
       "kind": "click",
@@ -15922,7 +15997,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "model-hardware-card",
+      "testid": "model-hub-page",
       "timeoutMs": 20000
     },
     {
@@ -16470,7 +16545,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "model-hardware-card",
+      "testid": "model-hub-page",
       "timeoutMs": 20000
     },
     {
@@ -16526,7 +16601,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "model-hardware-card",
+      "testid": "model-hub-page",
       "timeoutMs": 20000
     },
     {

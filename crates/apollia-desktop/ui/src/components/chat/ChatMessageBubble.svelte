@@ -3,13 +3,15 @@
   import { t, locale } from "svelte-i18n";
   import { Copy, Check, RefreshCw, Pencil } from "lucide-svelte";
   import type { ChatMessageView } from "$lib/types";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
+  import { reasoningExpandedByDefault } from "$lib/stores/chatAppearance";
   import MessageRenderer from "./MessageRenderer.svelte";
   import type { Citation } from "$lib/chat/confidenceParser";
   import ReasoningSequence from "./ReasoningSequence.svelte";
   import ActivityStrip from "./ActivityStrip.svelte";
   import SourceCards from "./SourceCards.svelte";
   import LinkPreviewList from "./LinkPreviewList.svelte";
+  import MessageImages from "./MessageImages.svelte";
   import { parseStream } from "$lib/chat/streamParser";
   import { extractSources, sumToolDurationMs, reasoningFragmentCount } from "$lib/chat/reasoning";
   import {
@@ -23,7 +25,10 @@
     sessionId: string;
     /** When false, the bubble is a continuation inside a group - no timestamp footer. */
     showTimestamp?: boolean;
-    /** Visual density. "compact" clamps the max-width at 72 % for embedded contexts. */
+    /**
+     * Thread density chosen in Settings > Appearance. "compact" tightens the
+     * leading, the bubble padding and the gaps; the width stays the column's.
+     */
     variant?: "default" | "compact";
     /** True while a turn is generating - disables regenerate/edit affordances. */
     busy?: boolean;
@@ -44,7 +49,7 @@
   }: Props = $props();
 
   const isUser = $derived(message.role === "user");
-  const isOperator = $derived($uiMode === "operator");
+  const isOperator = $derived(!$developerMode);
 
   const formattedTime = $derived.by(() => {
     const date = new Date(message.created_at);
@@ -127,10 +132,9 @@
       : $t("chat.empty_response_builder"),
   );
 
-  // Flat thread: the reading column constrains width. Compact embeds still cap.
-  const widthClass = $derived(
-    variant === "compact" ? "max-w-[min(78ch,72%)]" : "w-full",
-  );
+  // Flat thread: the reading column constrains width, in both densities.
+  const widthClass = "w-full";
+  const compact = $derived(variant === "compact");
 
   let copied = $state(false);
 
@@ -172,7 +176,9 @@
 </script>
 
 <div
-  class="group flex flex-col {isUser ? 'items-end' : 'items-start'} gap-1 w-full"
+  class="group flex flex-col {isUser ? 'items-end' : 'items-start'} {compact
+    ? 'chat-density-compact gap-0.5'
+    : 'gap-1'} w-full"
   data-testid="chat-message-{message.id}"
   in:fly={{ y: 4, duration: 200 }}
 >
@@ -182,7 +188,12 @@
        detail. A turn with eighteen tool calls is one line until asked. -->
   {#if hasThinking || nonPendingCalls.length > 0}
     <div class="{widthClass}">
-      <ActivityStrip durationMs={activityDurationMs} {reasoningCount} {toolCount}>
+      <ActivityStrip
+        open={$reasoningExpandedByDefault}
+        durationMs={activityDurationMs}
+        {reasoningCount}
+        {toolCount}
+      >
         <ReasoningSequence
           {message}
           {sessionId}
@@ -206,7 +217,7 @@
       ? editing
         ? widthClass
         : 'chat-user-bubble'
-      : `${widthClass} text-foreground py-1`}"
+      : `${widthClass} text-foreground ${compact ? "py-0.5" : "py-1"}`}"
   >
     {#if isUser}
       {#if editing}
@@ -242,8 +253,11 @@
             </button>
           </div>
         </div>
-      {:else if message.content}
-        <p class="whitespace-pre-wrap break-words">{message.content}</p>
+      {:else}
+        <MessageImages {sessionId} messageId={message.id} metadata={message.metadata} />
+        {#if message.content}
+          <p class="whitespace-pre-wrap break-words">{message.content}</p>
+        {/if}
       {/if}
     {:else if isEmptyAgentResponse}
       <p

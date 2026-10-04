@@ -1,5 +1,4 @@
 mod ids;
-mod preview;
 mod rationale;
 mod resilient;
 mod runtime_event;
@@ -11,7 +10,6 @@ mod tests;
 mod tool_call_rationale_tests;
 
 pub use ids::{AgentId, RunId, TaskId};
-pub use preview::FilesystemPreview;
 pub use rationale::ToolCallRationale;
 pub use resilient::{resilient, subscribe_resilient, Received, ResilientReceiver};
 pub use runtime_event::RuntimeEvent;

@@ -1,6 +1,13 @@
 import { writable, get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import { readConfigFile, type ConfigFileView } from "$lib/ipc/configFile";
+import {
+  listEngines,
+  getPythonInterpreter,
+  type EnginesResponse,
+  type PythonInterpreterSetting,
+} from "$lib/ipc/system";
+import { getHardwareProfile, type HardwareProfile } from "$lib/ipc/modelHub";
 import type {
   SystemInfo,
   SecurityPosture,
@@ -22,6 +29,7 @@ export type SettingsSubRoute =
   | "chat"
   | "stt"
   | "model-defaults"
+  | "notifications"
   | "developer"
   | "configuration"
   | "engines"
@@ -38,6 +46,7 @@ export const SETTINGS_SUB_ROUTES: SettingsSubRoute[] = [
   "chat",
   "stt",
   "model-defaults",
+  "notifications",
   "developer",
   "configuration",
   "engines",
@@ -154,6 +163,12 @@ export const cliStatusStore = writable<LoadState<CliStatus>>(loadState());
 export const sttModelsStore = writable<LoadState<SttModelInfo[]>>(loadState());
 export const sttConfigStore = writable<LoadState<SttConfigView>>(loadState());
 export const llmBackendsStore = writable<LoadState<LlmBackendConfig[]>>(loadState());
+/** System > Engines: the engines of this machine and their stated versions. */
+export const enginesStore = writable<LoadState<EnginesResponse>>(loadState());
+/** System > Hardware: the single hardware probe of the inference. */
+export const hardwareStore = writable<LoadState<HardwareProfile>>(loadState());
+/** System > Hardware, developer mode: the Python interpreter setting. */
+export const pythonInterpreterStore = writable<LoadState<PythonInterpreterSetting>>(loadState());
 
 function toErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -194,4 +209,8 @@ export const settingsLoaders = {
     loadOnce(sttConfigStore, () => invoke<SttConfigView>("get_stt_config"), force),
   llmBackends: (force = false) =>
     loadOnce(llmBackendsStore, () => invoke<LlmBackendConfig[]>("list_llm_backends"), force),
+  engines: (force = false) => loadOnce(enginesStore, listEngines, force),
+  hardware: (force = false) => loadOnce(hardwareStore, getHardwareProfile, force),
+  pythonInterpreter: (force = false) =>
+    loadOnce(pythonInterpreterStore, getPythonInterpreter, force),
 };

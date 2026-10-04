@@ -20,6 +20,7 @@
   import {
     decoratedSessions,
     markSessionRead,
+    sidebarDensity,
     type DecoratedSession,
   } from "$lib/stores/chatSessions";
   import {
@@ -43,6 +44,7 @@
   import { commandPaletteOpen } from "$lib/stores/commandPalette";
   import { developerMode } from "$lib/stores/developerMode";
   import { registerShortcuts } from "$lib/stores/shortcuts";
+  import { requestChatTargetSelector } from "$lib/stores/chatTargetSelector";
   import CommandPalette from "../components/chat/CommandPalette.svelte";
 
   // Operator design-system primitives - V3 Chat Refonte v2.
@@ -108,6 +110,15 @@
       keys: [MOD_LABEL, "K"],
       allowInTextarea: true,
       run: () => commandPaletteOpen.update((v) => !v),
+    },
+    {
+      id: "chat.target_selector",
+      chord: { code: "KeyL", modifiers: ["mod"] },
+      group: "chat.shortcut_group.chat",
+      descriptionKey: "chat.shortcut.target_selector",
+      keys: [MOD_LABEL, "L"],
+      allowInTextarea: true,
+      run: () => requestChatTargetSelector(),
     },
     {
       id: "chat.search",
@@ -511,6 +522,7 @@
             onrename={(newTitle) => void handleRenameSession(session.id, newTitle)}
             ondelete={() => void handleDeleteSession(session.id)}
             onconfigure={() => { openConfig(session.id); closeSessionsDrawer(); }}
+            density={$sidebarDensity}
           />
         {/each}
       {/if}
@@ -554,6 +566,7 @@
           onconfigtoggle={() => openConfig()}
           ondelete={handleDeleteSession}
           onnewChat={() => { closeConversation(); openNewChatPicker(); }}
+          onopensession={navigateToSession}
         />
       </div>
     {:else if $activeChatSessions.length === 0 && $closedChatSessions.length === 0}

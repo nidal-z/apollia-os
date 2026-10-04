@@ -287,3 +287,66 @@ async fn test_grants_are_checked_recorded_for_the_batch_and_withdrawn_at_its_end
     let listed = handle.accesses("clerk").await.unwrap();
     assert_eq!(listed.len(), 2);
 }
+
+// GIVEN a finished batch whose two items wait to execute code
+// WHEN the first is allowed once, then code is asked for an access that is
+//      not code, and for an item that does not wait
+// THEN the first item alone runs again, allowed one call of the code tool,
+//      and completes; the second still waits; the other two are refused
+#[tokio::test]
+async fn test_an_item_waiting_on_code_runs_again_alone_allowed_one_call() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let repo = repository(&dir).await;
+    let runner = Arc::new(Scripted::default());
+    let (handle, _bus) = spawn(
+        repo.clone(),
+        registry(&["ok", "code", "code"]),
+        runner.clone(),
+    );
+    let batch = handle.launch(launch(Some(1), Some(5))).await.unwrap();
+    let done = wait_state(&repo, &batch.batch_id, "completed").await;
+    assert_eq!(done.awaiting, 2);
+
+    // WHEN
+    let allowed = handle
+        .control(
+            &batch.batch_id,
+            BatchControl::RunOnce {
+                rank: 1,
+                access: "bash_executor".into(),
+            },
+        )
+        .await;
+    let row = wait_state(&repo, &batch.batch_id, "completed").await;
+    let not_code = handle
+        .control(
+            &batch.batch_id,
+            BatchControl::RunOnce {
+                rank: 2,
+                access: "send_email".into(),
+            },
+        )
+        .await;
+    let not_waiting = handle
+        .control(
+            &batch.batch_id,
+            BatchControl::RunOnce {
+                rank: 0,
+                access: "bash_executor".into(),
+            },
+        )
+        .await;
+
+    // THEN
+    assert!(allowed.is_ok(), "{allowed:?}");
+    assert_eq!((row.completed, row.awaiting), (2, 1));
+    let items = repo.batch_items(&batch.batch_id).await.unwrap();
+    let statuses: Vec<&str> = items.iter().map(|i| i.status.as_str()).collect();
+    assert_eq!(statuses, vec!["completed", "completed", "awaiting"]);
+    assert_eq!(runner.started.load(Ordering::SeqCst), 4);
+    let once = runner.once.lock().unwrap().clone();
+    assert_eq!(once, vec![None, None, None, Some("bash_executor".into())]);
+    assert!(matches!(not_code, Err(BatchError::Invalid(m)) if m.contains("executes code")));
+    assert!(matches!(not_waiting, Err(BatchError::State(_))));
+}

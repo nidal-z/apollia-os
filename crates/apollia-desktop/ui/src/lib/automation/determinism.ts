@@ -38,7 +38,8 @@ export function resetDeterministicUiState(): void {
   const keys = [
     "apollia.quickpicker.expanded",
     "apollia.delete_automation.skip",
-    "apollia.next_steps.dismissed",
+    // reminders/storage.ts: the dismissed next-step cards.
+    "apollia.reminders.next_steps",
     "apollia.next_steps.feedback",
     "apollia.ui.sidebar",
     // layout.ts persists the drawer state whenever the viewport is sm, which

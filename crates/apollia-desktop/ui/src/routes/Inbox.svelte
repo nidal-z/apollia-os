@@ -19,7 +19,6 @@
   import { TabBar } from "$lib/components/ui/tabs";
   import RouteTransition from "$lib/components/ui/route-transition/RouteTransition.svelte";
   import { PageHeader } from "$lib/components/operator";
-  import type { AlwaysScope } from "$lib/components/operator/HITLCard.svelte";
 
   import RejectReasonDialog from "../components/inbox/RejectReasonDialog.svelte";
   import InboxPendingTab from "../components/inbox/InboxPendingTab.svelte";
@@ -158,8 +157,8 @@
   const handleApprove = (item: InboxItem) =>
     runResolve(() => resolveItem(item, true), "inbox.toast.accepted");
 
-  const handleAlwaysAccept = (item: InboxItem, scope: AlwaysScope) =>
-    runResolve(() => alwaysAccept(item, scope), "inbox.toast.always_accepted");
+  const handleAlwaysAccept = (item: InboxItem) =>
+    runResolve(() => alwaysAccept(item), "inbox.toast.always_accepted");
 
   function openReject(item: InboxItem): void {
     rejectTarget = item;
