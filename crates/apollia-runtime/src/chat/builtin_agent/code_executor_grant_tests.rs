@@ -6,7 +6,6 @@
 //! tool twice in one exchange and count the approval prompts it raises.
 
 use super::*;
-use crate::chat::types::AlwaysAcceptScope;
 use crate::test_support::poll_until;
 use apollia_llm::types::{
     CompletionModel, CompletionRequest, CompletionResponse, StreamChunk as LlmStreamChunk,
@@ -22,6 +21,8 @@ const PROMPT_WAIT: Duration = Duration::from_secs(5);
 /// `c1`), then final text.
 struct TwoCallsThenText {
     tool: &'static str,
+    /// The command of both calls; `echo <iteration>` when absent.
+    command: Option<&'static str>,
     iteration: AtomicU32,
 }
 
@@ -53,7 +54,9 @@ impl CompletionModel for TwoCallsThenText {
             LlmStreamChunk::ToolCall(LlmToolCall {
                 id: format!("c{current}"),
                 name: self.tool.into(),
-                arguments: serde_json::json!({"command": format!("echo {current}")}),
+                arguments: serde_json::json!({
+                    "command": self.command.map_or_else(|| format!("echo {current}"), str::to_owned)
+                }),
             })
         } else {
             LlmStreamChunk::Text("done".to_string())
@@ -89,6 +92,8 @@ impl ToolInvoker for OkInvoker {
 struct ExchangeRun {
     response: ChatAgentResponse,
     prompts: Vec<String>,
+    /// The answers each prompt offered, in order.
+    answers: Vec<Vec<String>>,
     second_resolved: bool,
 }
 
@@ -103,8 +108,19 @@ async fn run_two_call_exchange(
     family: Option<apollia_tools::ActionFamily>,
     governance: Option<crate::governance::GovernanceHandle>,
 ) -> ExchangeRun {
+    run_two_call_exchange_of(tool, None, family, governance).await
+}
+
+/// [`run_two_call_exchange`], both calls carrying `command` when given.
+async fn run_two_call_exchange_of(
+    tool: &'static str,
+    command: Option<&'static str>,
+    family: Option<apollia_tools::ActionFamily>,
+    governance: Option<crate::governance::GovernanceHandle>,
+) -> ExchangeRun {
     let model: Arc<dyn CompletionModel> = Arc::new(TwoCallsThenText {
         tool,
+        command,
         iteration: AtomicU32::new(0),
     });
     let mut backends = std::collections::HashMap::new();
@@ -138,12 +154,7 @@ async fn run_two_call_exchange(
         let second_resolved = second_resolved.clone();
         async move {
             poll_until(PROMPT_WAIT, || {
-                approvals.resolve(
-                    "sess-1::msg-1::c0",
-                    ToolDecision::AlwaysAccept {
-                        scope: AlwaysAcceptScope::safe_default(),
-                    },
-                )
+                approvals.resolve("sess-1::msg-1::c0", ToolDecision::AlwaysAccept)
             })
             .await;
             let resolved = poll_until(PROMPT_WAIT, || {
@@ -180,14 +191,22 @@ async fn run_two_call_exchange(
     tool_registry.shutdown().await;
 
     let mut prompts = Vec::new();
+    let mut answers = Vec::new();
     while let Ok(event) = events.try_recv() {
-        if let RuntimeEvent::ChatApprovalRequired { tool_call_id, .. } = event {
+        if let RuntimeEvent::ChatApprovalRequired {
+            tool_call_id,
+            answers: offered,
+            ..
+        } = event
+        {
             prompts.push(tool_call_id);
+            answers.push(offered);
         }
     }
     ExchangeRun {
         response,
         prompts,
+        answers,
         second_resolved: second_resolved.load(Ordering::SeqCst),
     }
 }
@@ -236,6 +255,8 @@ async fn always_on_a_writing_tool_is_a_family_consent() {
             config_path: None,
             policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
             journal: None,
+            events: None,
+            forbidden_connections: Default::default(),
         });
 
     // WHEN the exchange runs
@@ -285,5 +306,110 @@ async fn always_on_an_unclassified_tool_asks_again() {
 
     // THEN the second call is prompted as well
     assert_eq!(run.prompts, vec!["c0".to_string(), "c1".to_string()]);
+    assert!(run.second_resolved, "the second call raised no prompt");
+}
+
+/// Governance over an empty governance.db in `dir`, the developer mode on.
+fn developer_governance(dir: &tempfile::TempDir) -> crate::governance::GovernanceHandle {
+    let config = dir.path().join("apollia.toml");
+    std::fs::write(&config, "[desktop]\ndeveloper_mode = true\n").unwrap();
+    crate::governance::GovernanceHandle::spawn(crate::governance::GovernanceSources {
+        governance_db: Some(dir.path().join("governance.db")),
+        config_path: Some(config),
+        policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
+        journal: None,
+        events: None,
+        forbidden_connections: Default::default(),
+    })
+}
+
+#[tokio::test]
+async fn always_on_a_simple_command_in_developer_mode_is_a_command_rule() {
+    // GIVEN governance in developer mode, and an exchange where the model runs
+    // the same simple command twice, the operator answering "always" first
+    let dir = tempfile::tempdir().unwrap();
+    let governance = developer_governance(&dir);
+
+    // WHEN the exchange runs
+    let run = run_two_call_exchange_of(
+        "bash_executor",
+        Some("git status --short"),
+        None,
+        Some(governance),
+    )
+    .await;
+
+    // THEN the first prompt offered "always", and the second call ran
+    // without asking
+    assert_eq!(run.prompts, vec!["c0".to_string()]);
+    assert_eq!(run.answers, vec![vec!["once", "always", "refuse"]]);
+    assert!(!run.second_resolved);
+    assert_eq!(run.response.tool_calls.len(), 2);
+    // AND the store holds an allow rule of this agent on the whole command,
+    // no family consent, and no name grant leaves the loop
+    let db = dir.path().join("governance.db");
+    let rules = apollia_permissions::PrefixRuleEngine::new(&db)
+        .unwrap()
+        .list_rules()
+        .unwrap();
+    assert_eq!(rules.len(), 1);
+    assert_eq!(rules[0].tool_name, "bash_executor");
+    assert_eq!(rules[0].arg_prefix.as_deref(), Some("git status --short"));
+    assert_eq!(rules[0].action, apollia_permissions::RuleAction::Allow);
+    assert_eq!(
+        rules[0].agent_id.as_deref(),
+        Some(crate::chat::manager::APOLLIA_CHAT_AGENT_ID)
+    );
+    assert!(apollia_permissions::FamilyConsentStore::new(&db)
+        .unwrap()
+        .list_permanent()
+        .unwrap()
+        .is_empty());
+    assert!(run.response.newly_authorized.is_empty());
+}
+
+#[tokio::test]
+async fn a_compound_command_in_developer_mode_is_never_offered_always() {
+    // GIVEN governance in developer mode, and an exchange where the model runs
+    // the same compound command twice
+    let dir = tempfile::tempdir().unwrap();
+    let governance = developer_governance(&dir);
+
+    // WHEN the exchange runs, the operator answering "always" anyway
+    let run = run_two_call_exchange_of(
+        "bash_executor",
+        Some("cd build && rm -f *.tmp"),
+        None,
+        Some(governance),
+    )
+    .await;
+
+    // THEN each call asked with "once" and "refuse" only
+    assert_eq!(run.prompts, vec!["c0".to_string(), "c1".to_string()]);
+    assert_eq!(
+        run.answers,
+        vec![vec!["once", "refuse"], vec!["once", "refuse"]]
+    );
+    assert!(run.second_resolved, "the second call raised no prompt");
+    // AND nothing was written
+    let rules = apollia_permissions::PrefixRuleEngine::new(&dir.path().join("governance.db"))
+        .unwrap()
+        .list_rules()
+        .unwrap();
+    assert!(rules.is_empty());
+}
+
+#[tokio::test]
+async fn outside_developer_mode_code_is_offered_two_answers() {
+    // GIVEN an exchange where the model runs the same simple command twice,
+    // the developer mode off
+    // WHEN the exchange runs, the operator answering "always" anyway
+    let run = run_two_call_exchange_of("bash_executor", Some("ls -la"), None, None).await;
+
+    // THEN each call asked with "once" and "refuse" only
+    assert_eq!(
+        run.answers,
+        vec![vec!["once", "refuse"], vec!["once", "refuse"]]
+    );
     assert!(run.second_resolved, "the second call raised no prompt");
 }

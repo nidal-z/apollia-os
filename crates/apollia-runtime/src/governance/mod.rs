@@ -23,8 +23,16 @@
 //! addition of a connection, failing closed; [`ConnectionGovernance`] carries
 //! that call and the journal of connection events to the places that add,
 //! change or remove a connection. [`PolicyAdmission`] answers that call from
-//! the organisation policy read at boot. [`InferenceGovernance`] answers, from
+//! the organisation policy read at boot, its `[connections]` lists naming a
+//! connection by the identifiers of [`AdmissionRequest`]; at every boot,
+//! [`ForbiddenConnections`] submits the existing connections to the same call
+//! and keeps out the ones it now refuses. [`InferenceGovernance`] answers, from
 //! the same policy, whether an inference server may be added or reached.
+//!
+//! Governance also writes to the journal on its own: every consent answered
+//! and every call refused by the policy or a rule, the rules and consents the
+//! stores of `governance.db` changed (moved from their outbox), the policy
+//! applied at each start, and every entry into fail-closed.
 //!
 //! [`access_upgrade`] runs, once at startup, the conversion of the rules
 //! persisted before standing consents, and journals every change it makes.
@@ -35,7 +43,10 @@ mod admission;
 mod connection;
 mod contract;
 mod decision;
+mod fail_closed;
+mod forbidden;
 pub(crate) mod inference_policy;
+mod journal;
 #[cfg(test)]
 mod no_policy;
 pub(crate) mod policy_admission;
@@ -53,15 +64,23 @@ pub use contract::{
     AccessCall, AccessDecision, ConsentAnswer, DecisionReason, DeclaredAccess, EffectiveAccess,
     GovernanceContract, GovernanceError, InstallSubject, ALL_ANSWERS, NO_ALWAYS_ANSWERS,
 };
-pub use decision::{decide, GovernanceState, PolicyRefusals};
+pub use decision::{
+    answered_once, decide, is_once_grant, once_grant, GovernanceState, PolicyRefusals,
+};
+pub use fail_closed::{refused_when_fail_closed, tool_gate, FailClosed, ToolGate};
+pub use forbidden::{mailbox_refusal, ForbiddenConnections, FORBIDDEN_CONNECTION_REASON};
 pub use inference_policy::{
     InferenceGovernance, REMOTE_SERVER_DENIED_REASON, SERVER_NOT_ALLOWED_REASON,
 };
+pub(crate) use journal::record_policy_at_startup;
 #[cfg(test)]
 pub use no_policy::NoPolicyGovernance;
-pub use policy_admission::{PolicyAdmission, REMOTE_DENIED_REASON};
+pub use policy_admission::{
+    PolicyAdmission, CONNECTION_DENIED_REASON, CONNECTION_NOT_ALLOWED_REASON,
+    POLICY_REFUSAL_PREFIX, REMOTE_DENIED_REASON,
+};
 pub use record::{
     governance_run_id, package_run_id, AccessChange, GovernanceEvent, GovernanceRecord,
-    OverrideChange,
+    OverrideChange, GLOBAL_RULES_RUN_ID, JOURNAL_EXPORT_RUN_ID, POLICY_RUN_ID,
 };
 pub use tool_attributes::{tool_attributes, ToolAttributes};

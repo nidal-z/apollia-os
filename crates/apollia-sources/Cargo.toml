@@ -3,25 +3,30 @@ name = "apollia-sources"
 version = "0.2.0-preview"
 edition.workspace = true
 rust-version.workspace = true
-description = "Apollia OS - the sources an agent may consult: the registry, the actor that owns it, the readers of workbooks, CSV files and PDF documents, the table a batch reads from them, and the index of each source"
+description = "Apollia OS - the sources an agent may consult: the registry, the actor that owns it, the readers of workbooks, CSV files, PDF, Word and PowerPoint documents, the table a batch reads from them and writes its results to, and the index of each source, kept in step with its files"
 license.workspace = true
 
 [dependencies]
 apollia-core = { workspace = true }
 apollia-llm  = { workspace = true, features = ["cloud"] }
 calamine     = { workspace = true }
+chrono       = { workspace = true }
 csv          = { workspace = true }
+notify       = { workspace = true }
 pdf_oxide    = { workspace = true }
+quick-xml    = { workspace = true }
 rusqlite     = { workspace = true }
+rust_xlsxwriter = { workspace = true }
 serde        = { workspace = true }
 serde_json   = { workspace = true }
+sha2         = { workspace = true }
 thiserror    = { workspace = true }
 tokio        = { workspace = true }
 tracing      = { workspace = true }
+zip          = { workspace = true }
 
 [dev-dependencies]
-rust_xlsxwriter = { workspace = true }
-tempfile        = { workspace = true }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

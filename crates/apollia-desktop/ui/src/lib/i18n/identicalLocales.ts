@@ -35,7 +35,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "dashboard.headline_greeting", // {greeting}.
   "dev.connections.custom_transport_http", // Streamable HTTP (MCP 2025-11-25)
   "dev.connections.custom_transport_sse", // SSE (legacy 2024-11-05)
-  "hitl.fs.preview_mode_label", // {before} → {after}
   "inbox.activity.filter.llm", // LLM
   "llm.loaded.engine_mlx", // MLX
   "notifications.field_headers_placeholder", // {"Authorization": "Bearer ..."}
@@ -54,12 +53,12 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "settings.llm_dialog.field_top_p", // Top-P
   "settings.model_hub.detail.param_top_k", // top_k
   "settings.model_hub.detail.param_top_p", // top_p
+  "settings.hardware.gpu", // GPU
   "settings.model_hub.filters.lang_de", // Deutsch
   "settings.model_hub.filters.lang_en", // English
   "settings.model_hub.filters.lang_es", // Español
   "settings.model_hub.filters.lang_fr", // Français
   "settings.model_hub.filters.lang_pt", // Português
-  "settings.model_hub.hardware.ram", // RAM
   "settings.stt_cuda", // CUDA
   "settings.stt_metal", // Metal
   "settings.tools_page.bash_executor_title", // Bash
@@ -124,6 +123,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "chat.shortcut_group.navigation", // Navigation
   "chat.status_active", // Active
   "chat.system_prompt", // Instructions
+  "chat.target_selector.group_agents", // Agents
   "chat.title", // Chat
   "commandPalette.groups.actions", // Actions
   "commandPalette.groups.pages", // Pages
@@ -154,15 +154,10 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "memory.namespaces.cat_agent_header", // Agents
   "memory.namespaces.title", // Namespaces
   "nav.chat", // Chat
-  "nav.notifications", // Notifications
   "nav.sidebar.chat", // Chat
-  "nav.sidebar.notifications", // Notifications
   "nav.sidebar.transcriptions", // Transcriptions
   "nav.transcriptions", // Transcriptions
   "notifications.field_type", // Type
-  "notifications.field_type_desktop", // Desktop
-  "notifications.field_type_webhook", // Webhook
-  "notifications.title", // Notifications
   "observability.agent", // Agent
   "observability.filter", // Type
   "observability.hooks_col_timeout", // Timeout
@@ -175,22 +170,24 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "observability.task_timeline_fact_backend", // Backend
   "onboarding.ai_setup.backends_count", // {count, plural, one {# backend} other {# backends}}
   "onboarding.ai_setup.gated", // gated
-  "onboarding.profile_selector.builder_title", // Builder
   "onboarding_stt.mic_label", // Microphone
   "onboarding_welcome.feature_local_title", // Local-first
+  "packages.preview.content.kind_agent", // Agent
+  "packages.preview.content.kind_workflow", // Workflow
+  "packages.preview.version", // version {version}
   "plan_mode.history_pause", // Pause
   "plan_session.origin_initial", // Initial
   "plan_session.tab_journal", // Journal
   "plan_session.tab_plan", // Plan
+  "policy.badge.active", // Active
+  "policy.section.journal.title", // Journal
+  "policy.signature.title", // Signature
   "project_migration.row_documents_title", // Documents
   "project_migration.row_instructions_title", // Instructions
   "project_migration.where_chat_title", // Chat
   "project_migration.where_sources_title", // Agents › Apollia › Sources
   "settings.about.contact_title", // Contact
-  "settings.about.diag_transcription", // Transcription
   "settings.about.docs_title", // Documentation
-  "settings.about.kv_stt", // Transcription
-  "settings.about.kv_version", // Version
   "settings.chat.conversations_title", // Conversations
   "settings.credential.absent", // Absent
   "settings.developer.mcp.kind_agent", // Agent
@@ -198,6 +195,8 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.general.application_title", // Application
   "settings.general.channel_stable", // Stable
   "settings.general.interface_title", // Interface
+  "settings.hardware.architecture", // Architecture
+  "settings.hardware.compatible", // Compatible
   "settings.llm_backend.provider_local", // local
   "settings.llm_dialog.field_endpoint", // Endpoint
   "settings.model_hub.detail.param_max_tokens", // max tokens
@@ -207,6 +206,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.nav.chat", // Chat
   "settings.nav.configuration", // Configuration
   "settings.nav.mobile_open", // Sections
+  "settings.nav.notifications", // Notifications
   "settings.permissions.add.action_label", // Action
   "settings.permissions.scope_agent", // Chat / agent
   "settings.permissions.session_badge", // Session

@@ -141,6 +141,10 @@ impl GrantedToolProxy {
                 "Tool '{tool_name}' asks to run with: {}",
                 preview(&input.to_string())
             ),
+            answers: ["once", "always", "refuse"].map(String::from).to_vec(),
+            detail: serde_json::to_string_pretty(input).unwrap_or_default(),
+            code: None,
+            working_dir: None,
         });
         let rx = self.pending_approvals.register(format!(
             "{}::{}::{call_id}",
@@ -151,7 +155,7 @@ impl GrantedToolProxy {
                 locked(&self.approved_calls).insert(call_key);
                 Ok(())
             }
-            ToolDecision::AlwaysAccept { .. } => {
+            ToolDecision::AlwaysAccept => {
                 if apollia_permissions::is_code_executor(tool_name) {
                     locked(&self.approved_calls).insert(call_key);
                 } else {

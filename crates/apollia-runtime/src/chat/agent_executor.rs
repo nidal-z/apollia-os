@@ -141,6 +141,8 @@ pub struct SessionWiring {
     pub hook_executor: Option<Arc<HookExecutor>>,
     /// Operator instruction queued while the conversation was paused.
     pub pending_injection: Option<InjectedInstruction>,
+    /// Images of the message answered and of the earlier user messages.
+    pub turn_images: crate::chat::images::TurnImages,
     /// Temperature of a turn that offers tools; the tuned default when absent.
     pub tool_turn_temperature: Option<f32>,
     /// The governance every tool call of the run is decided by; `None`
@@ -303,6 +305,7 @@ impl AgentExecutor {
         .with_plan_phase_start(wiring.plan_phase)
         .with_hook_executor(wiring.hook_executor)
         .with_pending_injection(wiring.pending_injection)
+        .with_turn_images(wiring.turn_images)
         .with_tool_turn_temperature(wiring.tool_turn_temperature)
         .with_governance(wiring.governance)
         .with_unattended(wiring.unattended)

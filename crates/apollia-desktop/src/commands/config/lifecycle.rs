@@ -15,7 +15,7 @@ use apollia_runtime::api::routes_app_lifecycle::{
 };
 use apollia_runtime::app_lifecycle;
 use apollia_runtime::profile::ProfileStore;
-use tauri::State;
+use tauri::{Manager, State};
 
 use crate::attached::{AttachedClient, AttachedError, RuntimeLink};
 
@@ -170,6 +170,40 @@ pub async fn app_restart(app: tauri::AppHandle) -> Result<(), String> {
     // (no packaged bundle to relaunch); the frontend should handle this by
     // showing a manual reload prompt if the app doesn't actually restart.
     app.restart();
+}
+
+/// Route that asks a daemon to stop.
+pub(crate) const SHUTDOWN_ROUTE: &str = "/api/v1/shutdown";
+
+/// Asks the daemon to stop, so the relaunched window starts its service again
+/// and attaches to a runtime that read the file anew.
+pub(crate) async fn stop_daemon_on(remote: &AttachedClient) -> Result<(), AttachedError> {
+    let _: serde_json::Value = remote.post(SHUTDOWN_ROUTE, &serde_json::json!({})).await?;
+    Ok(())
+}
+
+/// Restarts Apollia, so the keys of `apollia.toml` that wait for a restart
+/// take effect: the runs in progress are interrupted.
+///
+/// Embedded, the runtime lives in this process: the application relaunches.
+/// Attached, the daemon is stopped first and its port awaited; the relaunched
+/// window finds its service installed, starts it and attaches again.
+#[tauri::command]
+pub async fn restart_apollia(
+    app: tauri::AppHandle,
+    link: State<'_, RuntimeLink>,
+) -> Result<(), String> {
+    let attached = matches!(link.inner(), RuntimeLink::Attached(_));
+    if let RuntimeLink::Attached(remote) = link.inner() {
+        stop_daemon_on(remote).await?;
+        let port = app
+            .try_state::<crate::startup::ApiPort>()
+            .map_or(apollia_core::config::DEFAULT_API_PORT, |port| port.0);
+        crate::commands::background_service::wait_for_release(port).await;
+    }
+    tracing::event!(tracing::Level::INFO, attached, "desktop.restart_apollia");
+    app.request_restart();
+    Ok(())
 }
 
 /// Quits the application gracefully from a webview surface (in-app user menu,

@@ -9,9 +9,14 @@
 //! A call names the mailbox by its address in `account`; with a single
 //! mailbox connected, the field may be left out. The password is read from the
 //! secret store on each call and never enters the tool's input or output.
+//!
+//! A mailbox the organisation policy forbids is refused before anything is
+//! read from it: each call submits the mailbox it names to the admission a
+//! connection goes through, under the policy deposited on the machine.
 
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 
 use apollia_connectors::imap::{
     ImapAccount, ImapAccountStore, ImapClient, ImapError, MailQuery, DEFAULT_FOLDER,
@@ -22,6 +27,11 @@ use apollia_tools::descriptor::{
 };
 use apollia_tools::executor::{ToolExecutionError, ToolExecutor as DispatchableExecutor};
 use serde_json::{json, Value};
+
+use crate::governance::{mailbox_refusal, ConnectionAdmission, PolicyAdmission};
+
+/// Code of the error a call on a mailbox the policy forbids answers.
+pub const IMAP_FORBIDDEN_CODE: &str = "imap.forbidden_by_policy";
 
 /// Lists the folders of a connected mailbox.
 pub const IMAP_LIST_FOLDERS: &str = "imap.list_folders";
@@ -141,26 +151,60 @@ impl DispatchableExecutor for ImapToolExecutor {
         input: Value,
     ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
         Box::pin(async move {
-            run_tool(self.tool, &input)
-                .await
-                .map_err(|e| ToolExecutionError::ExecutionFailed {
-                    code: format!("imap.{}", e.code()),
-                    message: e.to_string(),
-                })
+            let data_dir = apollia_core::paths::data_dir().ok_or_else(|| ImapError::Index {
+                action: "read",
+                detail: "the home directory cannot be resolved".to_owned(),
+            });
+            let store = data_dir.and_then(|dir| ImapAccountStore::open(&dir));
+            let store = store.map_err(failed)?;
+            run_tool(self.tool, &input, &store, &deposited_policy()).await
         })
     }
 }
 
-async fn run_tool(tool: &str, input: &Value) -> Result<Value, ImapError> {
-    let data_dir = apollia_core::paths::data_dir().ok_or_else(|| ImapError::Index {
-        action: "read",
-        detail: "the home directory cannot be resolved".to_owned(),
-    })?;
-    let store = ImapAccountStore::open(&data_dir)?;
-    let account = resolve_account(&store, input.get("account").and_then(Value::as_str))?;
-    let password = store.password(&account.email)?;
-    let client = ImapClient::with_system_roots()?;
-    run_with(&client, tool, &account, &password, input).await
+/// Admission over the organisation policy deposited on the machine.
+fn deposited_policy() -> PolicyAdmission {
+    let location = apollia_permissions::policy_location();
+    PolicyAdmission::new(Arc::new(apollia_permissions::load_policy(
+        &location.dir,
+        location.owner,
+    )))
+}
+
+fn failed(e: ImapError) -> ToolExecutionError {
+    ToolExecutionError::ExecutionFailed {
+        code: format!("imap.{}", e.code()),
+        message: e.to_string(),
+    }
+}
+
+/// Run `tool` on the mailbox `input` names in `store`, once `admission`
+/// admits it.
+async fn run_tool(
+    tool: &str,
+    input: &Value,
+    store: &ImapAccountStore,
+    admission: &dyn ConnectionAdmission,
+) -> Result<Value, ToolExecutionError> {
+    let account =
+        resolve_account(store, input.get("account").and_then(Value::as_str)).map_err(failed)?;
+    if let Some(reason) = mailbox_refusal(admission, &account) {
+        tracing::event!(
+            tracing::Level::WARN,
+            tool = %tool,
+            account = %account.email,
+            "governance.connection.forbidden.call_refused"
+        );
+        return Err(ToolExecutionError::ExecutionFailed {
+            code: IMAP_FORBIDDEN_CODE.to_owned(),
+            message: reason.to_owned(),
+        });
+    }
+    let password = store.password(&account.email).map_err(failed)?;
+    let client = ImapClient::with_system_roots().map_err(failed)?;
+    run_with(&client, tool, &account, &password, input)
+        .await
+        .map_err(failed)
 }
 
 /// Run `tool` against `account` with `client`.
@@ -277,7 +321,7 @@ mod tests {
     async fn test_mailbox_tools_are_registered_with_the_connectors() {
         // GIVEN the tools registered at boot, with no native account
         let registry = apollia_tools::ToolRegistryHandle::start();
-        crate::supervisor::register_builtin_tools(&registry, &[]).await;
+        crate::supervisor::register_builtin_tools(&registry, &[], true).await;
         // WHEN the mailbox tools are looked for
         let all = registry.list().await.unwrap();
         // THEN all three are there: they take their mailbox as an argument
@@ -285,6 +329,79 @@ mod tests {
             assert!(all.iter().any(|d| d.name == id), "{id}");
         }
         registry.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_mailbox_tools_are_not_registered_when_withdrawn() {
+        // GIVEN the tools registered at boot when every mailbox is forbidden
+        let registry = apollia_tools::ToolRegistryHandle::start();
+        crate::supervisor::register_builtin_tools(&registry, &[], false).await;
+        // WHEN the mailbox tools are looked for
+        let all = registry.list().await.unwrap();
+        // THEN none is offered
+        for id in IMAP_TOOLS {
+            assert!(!all.iter().any(|d| d.name == id), "{id}");
+        }
+        registry.shutdown().await;
+    }
+
+    /// A store holding the one mailbox `eve@example.com` on a remote server.
+    fn store_with_one_mailbox(dir: &std::path::Path) -> ImapAccountStore {
+        let index = dir.join(apollia_connectors::imap::IMAP_INDEX_FILE);
+        std::fs::write(
+            &index,
+            r#"{"accounts":[
+                {"email":"eve@example.com","host":"imap.example.com","port":993,"username":"eve"}]}"#,
+        )
+        .unwrap();
+        ImapAccountStore::with_store(index, Box::new(NoSecrets))
+    }
+
+    #[tokio::test]
+    async fn test_a_forbidden_mailbox_is_refused_before_anything_is_read() {
+        // GIVEN one remote mailbox, a policy denying the mailboxes and one
+        //   admitting everything
+        let dir = tempfile::tempdir().unwrap();
+        let store = store_with_one_mailbox(dir.path());
+        let deny = PolicyAdmission::new(
+            crate::governance::policy_admission::valid_verdict_with_connections(
+                "deny = [\"native:imap\"]",
+            ),
+        );
+        let admit = PolicyAdmission::new(
+            crate::governance::policy_admission::valid_verdict_with_connections(""),
+        );
+
+        // WHEN each tool runs on it, named and left implicit
+        for tool in IMAP_TOOLS {
+            for input in [
+                json!({ "account": "eve@example.com", "uid": 1 }),
+                json!({ "uid": 1 }),
+            ] {
+                let refused = run_tool(tool, &input, &store, &deny).await.unwrap_err();
+                let admitted = run_tool(tool, &input, &store, &admit).await.unwrap_err();
+
+                // THEN the forbidden mailbox is refused by the policy, before
+                //   its password is read; the admitted one goes past the gate
+                //   and stops on the missing password
+                match refused {
+                    ToolExecutionError::ExecutionFailed { code, message } => {
+                        assert_eq!(code, IMAP_FORBIDDEN_CODE, "{tool}");
+                        assert!(
+                            message.starts_with("refused by the organisation policy"),
+                            "{tool}: {message}"
+                        );
+                    }
+                    other => panic!("{tool}: {other:?}"),
+                }
+                match admitted {
+                    ToolExecutionError::ExecutionFailed { code, .. } => {
+                        assert_ne!(code, IMAP_FORBIDDEN_CODE, "{tool}");
+                    }
+                    other => panic!("{tool}: {other:?}"),
+                }
+            }
+        }
     }
 
     #[test]

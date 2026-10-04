@@ -136,11 +136,15 @@ schema_version = 1
 signed_at = {signed_at}
 
 [connections]
-# Connections and tools allowed. A non-empty list refuses everything else.
-# allow = ["gmail", "mcp:filesystem", "native:file_io"]
+# Connections allowed, by identifier: "selection:<entry>" for a server of the
+# curated selection, "package:npm:<name>" for a server that runs an npm
+# package, "native:<kind>" for google, microsoft, imap or folder. A non-empty
+# list refuses everything else, a server of the user's own among it.
+# allow = ["native:google", "selection:@notionhq/notion-mcp-server"]
 allow = []
-# Connections and tools refused.
-# deny = ["mcp:slack"]
+# Connections refused, by the same identifiers. A connection already added
+# that becomes refused is not started again; it is never deleted.
+# deny = ["package:npm:@modelcontextprotocol/server-filesystem"]
 deny = []
 # Refuse every remote server.
 # remote = "deny"

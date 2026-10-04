@@ -23,6 +23,15 @@ fn origin(provenance: Provenance, official: bool) -> Option<ConnectionOrigin> {
     Some(ConnectionOrigin {
         provenance,
         official,
+        entry: None,
+    })
+}
+
+fn selection(official: bool, entry: &str) -> Option<ConnectionOrigin> {
+    Some(ConnectionOrigin {
+        provenance: Provenance::Selection,
+        official,
+        entry: Some(entry.to_owned()),
     })
 }
 
@@ -38,22 +47,35 @@ fn test_a_selection_entry_is_recorded_with_its_official_mark() {
         &enrichments,
     );
 
-    // THEN both come from the selection, only the verified one is official
-    assert_eq!(notion.origin, origin(Provenance::Selection, true));
-    assert_eq!(memory.origin, origin(Provenance::Selection, false));
+    // THEN both come from the selection, named by their entry, only the
+    // verified one official
+    assert_eq!(
+        notion.origin,
+        selection(true, "@notionhq/notion-mcp-server")
+    );
+    assert_eq!(
+        memory.origin,
+        selection(false, "@modelcontextprotocol/server-memory")
+    );
 }
 
 #[test]
 fn test_a_registry_entry_keeps_the_origin_the_interface_sent() {
-    // GIVEN a registry entry outside the selection, sent as such, recorded official
+    // GIVEN a registry entry outside the selection, sent as such, recorded
+    // official, and claiming a selection entry it does not come from
     let enrichments = load_builtin_enrichments();
     let mut config = remote("weather", "https://weather.example.com/mcp");
-    config.origin = origin(Provenance::Registry, true);
+    config.origin = Some(ConnectionOrigin {
+        provenance: Provenance::Registry,
+        official: true,
+        entry: Some("@notionhq/notion-mcp-server".into()),
+    });
 
     // WHEN it is given its origin
     let config = with_origin(config, &enrichments);
 
-    // THEN the registry origin and its official flag are kept
+    // THEN the registry origin and its official flag are kept, the claimed
+    // entry dropped
     assert_eq!(config.origin, origin(Provenance::Registry, true));
 }
 
@@ -98,8 +120,14 @@ fn test_backfill_matches_by_launch_or_by_name_and_leaves_the_rest_custom() {
     // the recorded one is untouched
     assert_eq!(written, 3);
     let read = |name: &str| repo.find_by_name(name).unwrap().unwrap().origin;
-    assert_eq!(read("kg"), origin(Provenance::Selection, false));
-    assert_eq!(read("notion"), origin(Provenance::Selection, true));
+    assert_eq!(
+        read("kg"),
+        selection(false, "@modelcontextprotocol/server-memory")
+    );
+    assert_eq!(
+        read("notion"),
+        selection(true, "@notionhq/notion-mcp-server")
+    );
     assert_eq!(read("mine"), origin(Provenance::Custom, false));
     assert_eq!(read("weather"), origin(Provenance::Registry, false));
 }
@@ -116,4 +144,29 @@ fn test_server_names_are_derived_as_the_interface_derives_them() {
     );
     assert_eq!(sanitize_server_name("com.notion/mcp"), "com-notion-mcp");
     assert_eq!(sanitize_server_name("Time"), "time");
+}
+
+#[test]
+fn test_backfill_names_the_entry_of_a_selection_server_recorded_without_one() {
+    // GIVEN a selection server recorded before the entry was, and a custom one
+    let dir = TempDir::new().unwrap();
+    let repo = McpServerRepository::open(&dir.path().join("mcp.db")).unwrap();
+    let mut kg = npx("kg", "@modelcontextprotocol/server-memory");
+    kg.origin = origin(Provenance::Selection, false);
+    repo.save(&kg).unwrap();
+    let mut mine = npx("mine", "@modelcontextprotocol/server-memory");
+    mine.origin = origin(Provenance::Custom, false);
+    repo.save(&mine).unwrap();
+
+    // WHEN the origins are backfilled
+    let written = backfill_origins(&repo, &load_builtin_enrichments()).unwrap();
+
+    // THEN only the selection server gains its entry
+    assert_eq!(written, 1);
+    let read = |name: &str| repo.find_by_name(name).unwrap().unwrap().origin;
+    assert_eq!(
+        read("kg"),
+        selection(false, "@modelcontextprotocol/server-memory")
+    );
+    assert_eq!(read("mine"), origin(Provenance::Custom, false));
 }

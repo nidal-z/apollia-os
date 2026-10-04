@@ -228,6 +228,25 @@ fn test_the_server_keys_resolve_to_their_defaults() {
 }
 
 #[test]
+fn test_server_cors_is_a_setting_off_by_default_and_writable() {
+    // GIVEN a file without a [server] section
+    let (_dir, path) = config_with("[desktop]\ndeveloper_mode = true\n");
+    let before = resolve_setting(&path, "server.cors", &PolicySettings::none()).unwrap();
+
+    // WHEN cross-origin answers are switched on
+    write_setting(&path, "server.cors", json!(true), &PolicySettings::none()).unwrap();
+
+    // THEN the key was off from the defaults, and now reads on from the user
+    assert_eq!(before.value, json!(false));
+    assert_eq!(before.source, SettingSource::Default);
+    let after = resolve_setting(&path, "server.cors", &PolicySettings::none()).unwrap();
+    assert_eq!(after.value, json!(true));
+    assert_eq!(after.source, SettingSource::User);
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(ServerConfig::from_toml_str(&written).unwrap().cors);
+}
+
+#[test]
 fn test_writing_server_enabled_keeps_the_rest_of_the_file() {
     // GIVEN a file carrying a comment and the desktop section
     let (_dir, path) = config_with("# mine\n[desktop]\ndeveloper_mode = true\n");

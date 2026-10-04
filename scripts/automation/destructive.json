@@ -15,14 +15,15 @@
     "command-item-companion.toggle",
     "command-item-session.seed-session-2",
     "mcp-detail-tab-settings",
+    "profile-menu-reset",
     "settings-nav-appearance",
     "settings-nav-developer",
     "settings-nav-general",
     "settings-nav-llm",
     "settings-nav-model-hub",
+    "settings-nav-notifications",
     "settings-nav-permissions",
-    "settings-nav-profile",
-    "profile-menu-reset"
+    "settings-nav-profile"
   ],
   "steps": [
     {
@@ -452,7 +453,16 @@
     },
     {
       "kind": "goto",
-      "route": "notifications"
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-notifications"
     },
     {
       "kind": "sleep",
@@ -461,6 +471,15 @@
     {
       "kind": "screenshot",
       "label": "21-notifications-before"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "channel-menu-",
+      "nth": 0
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
     },
     {
       "kind": "click",

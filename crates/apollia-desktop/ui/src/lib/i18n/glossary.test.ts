@@ -71,7 +71,7 @@ describe("glossary.json", () => {
     expect([...fr.banned].sort()).toEqual([...en.banned].sort());
     expect(fr.banned_synonyms).toEqual(en.banned_synonyms);
     expect(fr.banned_synonyms.assistant).toBe("agent");
-    expect(fr.permitted_formats).toEqual(["Excel", "CSV", "JSON", "PDF"]);
+    expect(fr.permitted_formats).toEqual(["Excel", "CSV", "JSON", "PDF", "GGUF", "MLX"]);
     expect(en.permitted_formats).toEqual(fr.permitted_formats);
     for (const format of fr.permitted_formats) {
       expect(fr.banned).not.toContain(format);

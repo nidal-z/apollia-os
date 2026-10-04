@@ -29,11 +29,36 @@ hold its state:
 enabled = false        # whether the compatible server listens
 port = 7772            # its TCP port; never the native API's 7771
 require_auth = false   # whether every request must present a token
+cors = false           # whether a web page of another origin may call it
 serve_on_lan = false   # whether the other devices of the local network reach it
 ```
 
+Four more say how it loads and unloads models on demand; see
+[Loading on demand](#loading-on-demand).
+
 By default it listens on the loopback interface, `127.0.0.1`, so only the
 applications of this machine reach it.
+
+## Calls from a web page (CORS)
+
+A browser lets a page call a server of another origin only if that server
+allows it, and it asks first: before a request carrying a bearer or a JSON body,
+it sends an `OPTIONS` preflight. With `cors = false`, the default, the
+compatible server sends no cross-origin header at all, and the browser refuses
+the call. With `cors = true`, a page of any origin may call it:
+
+- a preflight is answered `204 No Content` with
+  `Access-Control-Allow-Origin: *`,
+  `Access-Control-Allow-Methods: GET, POST, OPTIONS` and
+  `Access-Control-Allow-Headers: authorization, content-type, x-api-key, anthropic-version`,
+  the headers the OpenAI and Anthropic SDKs send;
+- every other answer, an error included, carries
+  `Access-Control-Allow-Origin: *`.
+
+The preflight needs no token, since a browser never sends one on it; the
+request that follows is checked like any other. The setting is read when the
+server starts: after changing it, stop and start the server. The native API on
+port 7771 never carries these headers, whatever the setting.
 
 ## Starting and stopping it
 
@@ -141,15 +166,15 @@ Anthropic's: `{"type": "error", "error": {"type", "message"}}`.
 |---|---|---|---|
 | `400` | `invalid_request` | `invalid_request_error` | The body is not a JSON object, or names no `model` |
 | `401` | `invalid_api_key` | `authentication_error` | `require_auth` is on and no token in use was presented |
-| `404` | `model_not_loaded` | `not_found_error` | The model named in `model` is not loaded |
+| `404` | `model_not_loaded` | `not_found_error` | The model named in `model` is not loaded, and is not loaded on demand |
 | `404` | `endpoint_not_served` | `not_found_error` | The engine running the model does not serve this endpoint |
 | `404` | `unknown_url` | | No endpoint lives at this path |
-| `502` | `engine_unavailable` | `api_error` | The engine running the model did not answer |
+| `502` | `engine_unavailable` | `api_error` | The engine running the model did not answer, or the model could not be loaded on demand |
 
 ## The models it serves
 
-The compatible server serves the local models loaded in Apollia, and only
-them. A request names one in its `model` field, by the identifier
+The compatible server serves the local models of this machine, and only them.
+A request names one in its `model` field, by the identifier
 `GET /v1/models` lists, which is its identifier in Apollia's model registry.
 The server passes the request to the engine that runs the model,
 `llama-server` for a GGUF model, `vllm-mlx` for an MLX one, with `model` set to
@@ -157,8 +182,9 @@ what that engine expects, and passes the engine's answer back as it came: a
 JSON body, or an event stream relayed chunk by chunk when the request asked for
 `"stream": true`.
 
-- A model that is not loaded answers `404 model_not_loaded`. Load it in Apollia
-  first.
+- A language model of the registry that is not loaded is loaded for the
+  request, unless loading on demand is off; then it answers
+  `404 model_not_loaded`, and has to be loaded in Apollia first.
 - A model of a remote provider is never relayed: the compatible server is not a
   gateway to a cloud.
 - Nothing is translated from one format into another. An endpoint the engine of
@@ -169,6 +195,38 @@ JSON body, or an event stream relayed chunk by chunk when the request asked for
 
 A model stays loaded for as long as a request to it runs, streams included:
 unloading it waits until the answer ends.
+
+## Loading on demand
+
+The server loads the model a request names when it is not loaded yet, and
+gives the memory of the models it loaded back on its own.
+
+```toml
+[server]
+jit_loading = true            # a request loads the model of this machine it names
+jit_auto_unload = true        # the models the server loaded have their own idle delay
+jit_idle_ttl_minutes = 60     # that delay; 0 keeps them loaded
+jit_keep_last_only = true     # loading one unloads the others the server loaded
+```
+
+| Key | Default | Effect |
+|---|---|---|
+| `jit_loading` | `true` | A request naming a language model of the registry that is not loaded loads it first. Off, it answers `404 model_not_loaded`. With it on, `GET /v1/models` lists the language models of this machine as well as the loaded ones |
+| `jit_auto_unload` | `true` | A model the server loaded is unloaded after `jit_idle_ttl_minutes` without a request, instead of the general delay of `[llm.residency]`. Off, it follows the general delay |
+| `jit_idle_ttl_minutes` | `60` | The delay above, in minutes; `0` keeps those models loaded |
+| `jit_keep_last_only` | `true` | When the server loads a model, it unloads the other models it loaded |
+
+The list of loaded models of the native API, `GET /api/v1/llm/loaded-models`,
+tells them apart: a model the server loaded carries `"origin": "server"`, the
+others `"origin": "app"`. The origin is fixed when the model loads: a model
+the application loaded stays the application's when a request uses it.
+
+None of these rules unloads a model the user pinned, a model an open
+conversation uses, or a model answering a request, and keeping only the last
+model never touches a model the application loaded. Each unload is published as
+`LlmModelUnloaded`, with the reason `idle`, or `server_replaced` when the
+server loaded another model. The keys are read at every request and every
+check, so a change applies without a restart.
 
 ## Endpoints
 

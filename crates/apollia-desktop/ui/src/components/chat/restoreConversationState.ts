@@ -23,6 +23,14 @@ export interface ConversationRestoreInput {
     toolCallId: string;
     toolName: string;
     inputPreview: string;
+    /** The answers the request offers, when it names them. */
+    answers?: string[];
+    /** The full arguments of the call, behind "see more". */
+    detail?: string;
+    /** The whole code of a tool that runs code. */
+    code?: string | null;
+    /** The folder the code runs in. */
+    workingDir?: string | null;
   } | null;
   userInput: { request_id: string; questions_json: string; context: string | null } | null;
   /** True when an ask_user card is already on screen; it is not replaced. */

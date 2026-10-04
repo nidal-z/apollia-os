@@ -12,6 +12,7 @@ use clap::Parser;
 
 use crate::commands::a2a::A2aCommand;
 use crate::commands::agent::{AgentCommand, PackageCommand};
+use crate::commands::approvals::ApprovalsCommand;
 use crate::commands::audit::AuditCommand;
 use crate::commands::chat::ChatHygieneCommand;
 use crate::commands::chat_config::ChatConfigCommand;
@@ -1780,4 +1781,19 @@ fn test_cli_parses_service_status() {
         panic!("expected service");
     };
     assert!(matches!(command, ServiceCommand::Status));
+}
+
+// ─── approvals ──────────────────────────────────────────────────────────────
+
+#[test]
+fn test_cli_parses_approvals_pending() {
+    // GIVEN "apollia-os approvals pending --json"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "approvals", "pending", "--json"]);
+    // THEN the pending verb of the approvals noun is selected, in JSON
+    assert!(cli.json);
+    let Commands::Approvals(args) = cli.command else {
+        panic!("expected approvals");
+    };
+    assert!(matches!(args.command, ApprovalsCommand::Pending));
 }

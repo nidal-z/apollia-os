@@ -2,7 +2,7 @@ use super::*;
 
 use apollia_tools::ActionFamily;
 
-use super::governed::{family_of, refusal_text, AskedConsent};
+use super::governed::{answer_taken, family_of, is_code_call, refusal_text, AskedConsent};
 use crate::governance::{AccessDecision, ConsentAnswer};
 
 impl BuiltInChatAgent {
@@ -439,6 +439,7 @@ impl BuiltInChatAgent {
                     reason = ?reason,
                     "chat.tool.governance_denied"
                 );
+                self.journal_refusal(call, family, reason);
                 let refusal = refusal_text(reason);
                 llm_messages.push(LlmChatMessage::tool_result(&call.id, &refusal));
                 acc.all_tool_calls.push(ToolCallRecord {
@@ -460,6 +461,9 @@ impl BuiltInChatAgent {
                     reason = ?reason,
                     "chat.tool.governance_allowed"
                 );
+                // A grant of one call is spent by the call it let through.
+                acc.authorized
+                    .remove(&crate::governance::once_grant(&call.name));
                 let (record, tool_result, success) = self
                     .execute_tool_call(session_id, message_id, call, run_id)
                     .await;
@@ -484,18 +488,43 @@ impl BuiltInChatAgent {
         // distinct pending slots: without it, the first call's timeout task
         // would evict the second call's live approval under a shared key.
         let key = format!("{session_id}::{message_id}::{}", call.id);
-        let input_preview =
-            truncate_preview(&serde_json::to_string(&call.arguments).unwrap_or_default());
+        let request = super::approval_request::approval_request(call, decision.answers());
 
+        let prompt = request.prompt.clone();
         let _ = self.event_bus.send(RuntimeEvent::ChatApprovalRequired {
             session_id: session_id.to_string(),
             message_id: message_id.to_string(),
             tool_call_id: call.id.clone(),
             tool_name: call.name.clone(),
-            prompt: format!("Tool '{}' asks to run with: {}", call.name, input_preview),
+            prompt: request.prompt,
+            answers: request.answers,
+            detail: request.detail,
+            code: request.code,
+            working_dir: request.working_dir,
         });
 
-        let rx = pending_approvals.register(key.clone());
+        // An unattended run stops at its first approval instead of waiting, so
+        // only a call someone is asked about is listed with what it asks.
+        let rx = if matches!(decision, AccessDecision::AskUser { .. }) {
+            pending_approvals.register_asked(
+                key.clone(),
+                crate::chat::ChatApprovalAsked {
+                    session_id: session_id.to_string(),
+                    message_id: message_id.to_string(),
+                    tool_call_id: call.id.clone(),
+                    tool_name: call.name.clone(),
+                    agent_id: Some(self.agent_id.clone()),
+                    family: serde_json::to_value(family)
+                        .ok()
+                        .and_then(|v| v.as_str().map(str::to_owned)),
+                    prompt,
+                    answers: decision.answers().to_vec(),
+                    asked_at: chrono::Utc::now().to_rfc3339(),
+                },
+            )
+        } else {
+            pending_approvals.register(key.clone())
+        };
         if let Some(duration) = self.approval_timeout {
             pending_approvals.start_timeout(ApprovalTimeoutParams {
                 key,
@@ -539,9 +568,11 @@ impl BuiltInChatAgent {
     /// Apply the operator's answer to a tool call governance asked about.
     ///
     /// "Always" becomes a standing consent of this agent for the family of
-    /// the tool, never a grant by tool name; where governance did not offer
-    /// it (executing code, a tool nobody classified) it holds for this call
-    /// only.
+    /// the tool, never a grant by tool name. On a tool that runs code, which
+    /// governance offers it for only on a single simple command in developer
+    /// mode, it becomes a fine allow rule of this agent on that command.
+    /// Where governance did not offer it (a compound command, the developer
+    /// mode off, a tool nobody classified) it holds for this call only.
     ///
     /// Returns a [`ToolCallOutcome`]: `failed` is set on an execution failure or
     /// a refusal; `executed` carries the output when the tool ran, enabling the
@@ -560,6 +591,7 @@ impl BuiltInChatAgent {
             run_id,
             asked,
         } = target;
+        self.journal_answer(call, asked.family, answer_taken(&decision, &asked));
         match decision {
             ToolDecision::Accept => {
                 let (record, tool_result, success) = self
@@ -572,8 +604,10 @@ impl BuiltInChatAgent {
                     executed: Some((tool_result, success)),
                 }
             }
-            ToolDecision::AlwaysAccept { .. } => {
-                if asked.always_offered {
+            ToolDecision::AlwaysAccept => {
+                if asked.always_offered && is_code_call(call, asked.family) {
+                    self.allow_command_for_good(call).await;
+                } else if asked.always_offered {
                     match self
                         .governance
                         .grant_always(&self.agent_id, asked.family)

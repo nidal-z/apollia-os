@@ -8,10 +8,11 @@ use std::path::Path;
 
 use rusqlite::{params, Connection};
 
-use super::types::{ChatError, ChatMode, ChatRole, PlanPhase, SessionStatus};
+use super::types::{ChatError, ChatMode, ChatRole, PlanPhase, SessionConfigUpdate, SessionStatus};
 
 mod approvals;
 mod forking;
+mod profile;
 mod search;
 
 /// Raw row from the `chat_sessions` table.
@@ -47,6 +48,8 @@ pub struct SessionRow {
     pub plan_mode: bool,
     /// Plan-mode lifecycle phase string (`"discovery"`, `"drafting"`, etc.).
     pub plan_phase: String,
+    /// Profile the conversation designates (nullable: the current default).
+    pub profile_id: Option<String>,
 }
 
 /// Raw row from the `chat_messages` table.
@@ -130,6 +133,9 @@ pub struct ToolApprovalLogEntry<'a> {
 /// Thread-safety is achieved by the caller (typically `Arc<Mutex<ChatSessionRepository>>`).
 pub struct ChatSessionRepository {
     conn: Connection,
+    /// The data directory `chat.db` lives in, where the images of the
+    /// conversations are kept. `None` for an in-memory database.
+    data_dir: Option<std::path::PathBuf>,
 }
 
 impl ChatSessionRepository {
@@ -148,7 +154,24 @@ impl ChatSessionRepository {
         super::schema::migrate(&conn)
             .map_err(|e| ChatError::InternalError(format!("chat schema migration failed: {e}")))?;
 
-        Ok(Self { conn })
+        let data_dir = path.parent().map(Path::to_path_buf);
+        Ok(Self { conn, data_dir })
+    }
+
+    /// The data directory `chat.db` lives in, `None` for an in-memory
+    /// database.
+    #[must_use]
+    pub fn data_dir(&self) -> Option<&Path> {
+        self.data_dir.as_deref()
+    }
+
+    /// The folder holding the images of `session_id`, `None` for an in-memory
+    /// database.
+    #[must_use]
+    pub fn session_images_dir(&self, session_id: &str) -> Option<std::path::PathBuf> {
+        self.data_dir
+            .as_deref()
+            .map(|dir| super::images::session_images_dir(dir, session_id))
     }
 
     /// Open an in-memory database (for tests).
@@ -160,7 +183,10 @@ impl ChatSessionRepository {
         super::schema::migrate(&conn)
             .map_err(|e| ChatError::InternalError(format!("chat schema migration failed: {e}")))?;
 
-        Ok(Self { conn })
+        Ok(Self {
+            conn,
+            data_dir: None,
+        })
     }
 
     /// Persist a new chat session.
@@ -190,32 +216,35 @@ impl ChatSessionRepository {
         Ok(())
     }
 
-    /// Update session configuration (system_prompt, available_tools, llm_backend).
+    /// Update session configuration (system_prompt, available_tools,
+    /// llm_backend, profile_id).
     ///
     /// Only updates fields that are `Some`.
     pub fn update_session_config(
         &self,
         id: &str,
-        system_prompt: Option<&str>,
-        available_tools: Option<&[String]>,
-        llm_backend: Option<Option<&str>>,
+        update: &SessionConfigUpdate,
     ) -> Result<(), ChatError> {
         let mut parts = Vec::new();
         let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
-        if let Some(prompt) = system_prompt {
+        if let Some(prompt) = &update.system_prompt {
             parts.push("system_prompt = ?");
-            values.push(Box::new(prompt.to_string()));
+            values.push(Box::new(prompt.clone()));
         }
-        if let Some(tools) = available_tools {
+        if let Some(tools) = &update.available_tools {
             let tools_json = serde_json::to_string(tools)
                 .map_err(|e| ChatError::InternalError(format!("tools serialization: {e}")))?;
             parts.push("available_tools = ?");
             values.push(Box::new(tools_json));
         }
-        if let Some(backend) = llm_backend {
+        if let Some(backend) = &update.llm_backend {
             parts.push("llm_backend = ?");
-            values.push(Box::new(backend.map(|s| s.to_string())));
+            values.push(Box::new(backend.clone()));
+        }
+        if let Some(profile) = &update.profile_id {
+            parts.push("profile_id = ?");
+            values.push(Box::new(profile.clone()));
         }
 
         if parts.is_empty() {
@@ -282,6 +311,9 @@ impl ChatSessionRepository {
 
         tx.commit()
             .map_err(|e| ChatError::InternalError(format!("delete_session commit: {e}")))?;
+        if let Some(dir) = self.session_images_dir(id) {
+            super::images::remove_session_images(&dir);
+        }
         Ok(())
     }
 
@@ -361,7 +393,7 @@ impl ChatSessionRepository {
             .prepare(
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
                         closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
-                        plan_mode, plan_phase
+                        plan_mode, plan_phase, profile_id
                  FROM chat_sessions WHERE id = ?1",
             )
             .map_err(|e| ChatError::InternalError(format!("get_session prepare: {e}")))?;
@@ -380,14 +412,14 @@ impl ChatSessionRepository {
             Some(s) => (
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
                         closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
-                        plan_mode, plan_phase
+                        plan_mode, plan_phase, profile_id
                  FROM chat_sessions WHERE status = ?1 ORDER BY created_at DESC",
                 Some(s),
             ),
             None => (
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
                         closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
-                        plan_mode, plan_phase
+                        plan_mode, plan_phase, profile_id
                  FROM chat_sessions ORDER BY created_at DESC",
                 None,
             ),
@@ -668,6 +700,7 @@ fn row_to_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRow> {
         fork_depth: row.get(12)?,
         plan_mode: row.get::<_, i64>(13)? != 0,
         plan_phase: row.get(14)?,
+        profile_id: row.get(15)?,
     })
 }
 

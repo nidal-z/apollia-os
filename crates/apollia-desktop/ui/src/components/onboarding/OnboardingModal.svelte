@@ -5,15 +5,16 @@
    * Drives the new-user flow as a sequence of dedicated screens, each
    * implemented as a self-contained component:
    *
-   *   1. {@link OnboardingWelcome}        - intro and consent to start
-   *   2. {@link OnboardingProfileSelector} - operator vs builder
-   *   3. {@link OnboardingAiSetup}         - local LLM (GGUF) + STT (Whisper)
-   *   4. {@link OnboardingChatStep}        - agent-driven chat (calibration +
-   *                                          optional enrichment) then the
-   *                                          proposed-permission triage
+   *   1. {@link OnboardingWelcome}  - intro and consent to start
+   *   2. {@link OnboardingAiSetup}  - local LLM (GGUF) + STT (Whisper)
+   *   3. {@link OnboardingChatStep} - agent-driven chat (calibration +
+   *                                   optional enrichment) then the
+   *                                   proposed-permission triage
    *
-   * The phase machine in `crates/apollia-desktop/src/commands/onboarding.rs`
-   * is updated in lockstep via `advance_onboarding_phase`, so the backend
+   * The list itself is `ONBOARDING_STEPS` in `onboardingSteps.ts`. No step asks
+   * for a usage profile: the developer mode is a setting, off by default.
+   *
+   * The phase machine in `apollia_runtime::onboarding` is updated in lockstep via `advance_onboarding_phase`, so the backend
    * still owns analytics/persistence even though navigation is local.
    *
    * This is a first-run vitrine surface: the card entrance, the signature
@@ -37,9 +38,14 @@
   import type { HumanizedError } from "$lib/errors/humanize";
   import { ErrorBanner } from "$lib/components/operator";
   import OnboardingWelcome from "./OnboardingWelcome.svelte";
-  import OnboardingProfileSelector from "./OnboardingProfileSelector.svelte";
   import OnboardingAiSetup from "./OnboardingAiSetup.svelte";
   import OnboardingChatStep from "./OnboardingChatStep.svelte";
+  import {
+    ONBOARDING_STEPS,
+    phaseOfStep,
+    stepOfPhase,
+    type OnboardingStep,
+  } from "./onboardingSteps";
   import type { OnboardingPhase } from "$lib/types";
 
   interface Props {
@@ -48,14 +54,9 @@
 
   const { onclose }: Props = $props();
 
-  type Step = "welcome" | "profile" | "ai-setup" | "chat";
+  type Step = OnboardingStep;
 
-  const STEPS: { id: Step; labelKey: string }[] = [
-    { id: "welcome", labelKey: "onboarding_modal.step_welcome" },
-    { id: "profile", labelKey: "onboarding_modal.step_profile" },
-    { id: "ai-setup", labelKey: "onboarding_modal.step_models" },
-    { id: "chat", labelKey: "onboarding_modal.step_calibration" },
-  ];
+  const STEPS = ONBOARDING_STEPS;
 
   let currentStep = $state<Step>("welcome");
   let navDir = $state<1 | -1>(1);
@@ -85,7 +86,7 @@
   }
 
   // Best-effort backend phase sync. The phase machine validates strict
-  // transitions (Welcome -> ProfileChoice -> AiSetup -> Acquaintance -> ...),
+  // transitions (Welcome -> AiSetup -> Acquaintance -> ...),
   // so we map each frontend step to the matching legal target.
   async function syncBackendPhase(target: OnboardingPhase): Promise<void> {
     try {
@@ -100,13 +101,7 @@
     navDir = STEPS.findIndex((s) => s.id === step) >= stepIndex ? 1 : -1;
     currentStep = step;
     untrack(() => {
-      const phaseMap: Record<Step, OnboardingPhase | null> = {
-        welcome: null,
-        profile: "profile_choice",
-        "ai-setup": "ai_setup",
-        chat: "acquaintance",
-      };
-      const target = phaseMap[step];
+      const target = phaseOfStep(step);
       if (target) void syncBackendPhase(target);
     });
   }
@@ -131,15 +126,7 @@
   async function restoreStepFromBackend(): Promise<void> {
     try {
       const state = await getOnboardingState();
-      const phaseToStep: Record<OnboardingPhase, Step> = {
-        welcome: "welcome",
-        profile_choice: "profile",
-        ai_setup: "ai-setup",
-        acquaintance: "chat",
-        graduation: "chat",
-        done: "chat",
-      };
-      currentStep = phaseToStep[state.phase] ?? "welcome";
+      currentStep = stepOfPhase(state.phase);
     } catch {
       // Backend unreachable - keep the default "welcome" step.
     }
@@ -214,16 +201,11 @@
           out:fly={rm({ x: -12 * navDir, duration: duration.fast, easing: cubicOut })}
         >
           {#if currentStep === "welcome"}
-            <OnboardingWelcome onnext={() => goTo("profile")} />
-          {:else if currentStep === "profile"}
-            <OnboardingProfileSelector
-              onnext={() => goTo("ai-setup")}
-              onback={() => goTo("welcome")}
-            />
+            <OnboardingWelcome onnext={() => goTo("ai-setup")} />
           {:else if currentStep === "ai-setup"}
             <OnboardingAiSetup
               onnext={() => goTo("chat")}
-              onback={() => goTo("profile")}
+              onback={() => goTo("welcome")}
               onskip={() => goTo("chat")}
               onopencloud={onclose}
             />

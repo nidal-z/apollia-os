@@ -32,6 +32,11 @@ export function precheckedToolIds(connection: Connection): string[] {
   return connection.tools.filter((t) => t.prechecked).map((t) => t.id);
 }
 
+/** The connections the organisation policy forbade at the last start. */
+export function forbiddenConnections(connections: readonly Connection[]): Connection[] {
+  return sortConnections(connections.filter((c) => c.state === "forbidden_by_policy"));
+}
+
 /** Load the list once. */
 export async function loadConnections(
   fetcher: () => Promise<Connection[]> = listConnections,

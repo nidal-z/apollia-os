@@ -237,6 +237,13 @@ else
     skip "agent without code" "agents.db has no agents table to write the agent into"
 fi
 
+# ── decisions waiting for the user ──────────────────────────────────────────
+# Nothing in the seed waits for a decision: no paused task, no batch, no
+# conversation running. The list is empty and the command succeeds.
+section "approvals"
+check_json_field "approvals pending --json holds no item" "len(d['items'])" 0 "${Q[@]}" approvals pending --json
+check         "approvals pending (empty)"                    "${Q[@]}" approvals pending
+
 # ── batches ─────────────────────────────────────────────────────────────────
 # The batch engine runs in the daemon. The seed holds no batch. It reads
 # workbooks (`spreadsheet`) and CSV files (`csv`): a launch on another source

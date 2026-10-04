@@ -23,7 +23,11 @@ import { recentActionIds, touchRecentAction } from "$lib/stores/recentActionsSto
 import { recentSessions, touchRecentSession } from "$lib/stores/recentSessionsStore";
 import { navigateTo } from "$lib/stores/navigation";
 import { pendingChatSessionId } from "$lib/stores/chat";
-import { SETTINGS_SUB_ROUTES, type SettingsSubRoute } from "$lib/stores/settings";
+import {
+  SETTINGS_SUB_ROUTES,
+  settingsSubRouteVisible,
+  type SettingsSubRoute,
+} from "$lib/stores/settings";
 import { navigateToSettings } from "$lib/router";
 import { settingsSubRouteLabelKey } from "$lib/navigation/breadcrumbSegments";
 import type { PaletteAction } from "./actions";
@@ -125,9 +129,10 @@ function buildSessionsGroup(
   return { label, items };
 }
 
-function buildSettingsGroup(): CommandPaletteGroup {
+function buildSettingsGroup(developerModeOn: boolean): CommandPaletteGroup {
   const label = tr("commandPalette.groups.settings");
-  const items: CommandItem[] = SETTINGS_SUB_ROUTES.map((sub) => ({
+  const shown = SETTINGS_SUB_ROUTES.filter((sub) => settingsSubRouteVisible(sub, developerModeOn));
+  const items: CommandItem[] = shown.map((sub) => ({
     id: `settings.${sub}`,
     label: `${tr("nav.settings")} → ${settingsSubRouteLabel(sub)}`,
     icon: SettingsIcon,
@@ -178,7 +183,7 @@ export const paletteGroups: Readable<CommandPaletteGroup[]> = derived(
       buildKindGroup(visible, "pages", tr("commandPalette.groups.pages")),
       buildKindGroup(visible, "actions", tr("commandPalette.groups.actions")),
       buildSessionsGroup($recentSessions),
-      buildSettingsGroup(),
+      buildSettingsGroup($developerMode),
       ...buildExtraGroups($extra),
       buildKindGroup(visible, "help", tr("commandPalette.groups.help")),
     ];

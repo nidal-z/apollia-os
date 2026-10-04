@@ -162,14 +162,11 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     # The plan cache the runtime opens at boot, forwarded as ORIA's
     # `with_shared_plan_cache` takes it; the executor holds no lock of its own.
     "crates/apollia-runtime/src/chat/agent_executor/plan_first.rs": 1,
-    "crates/apollia-runtime/src/chat/builtin_agent/invoker.rs": 2,
     "crates/apollia-runtime/src/chat/builtin_agent/mod.rs": 2,
     "crates/apollia-runtime/src/chat/extractor.rs": 4,
     "crates/apollia-runtime/src/chat/manager/handle.rs": 1,
     "crates/apollia-runtime/src/chat/manager/mod.rs": 2,
-    "crates/apollia-runtime/src/chat/native_wrappers.rs": 1,
-    "crates/apollia-runtime/src/chat/types.rs": 1,
-    "crates/apollia-runtime/src/chat/types/approvals.rs": 2,
+    "crates/apollia-runtime/src/chat/types/approvals.rs": 1,
     "crates/apollia-runtime/src/embedded.rs": 3,
     "crates/apollia-runtime/src/llama_server/mod.rs": 4,
     "crates/apollia-runtime/src/observability/resilience_subscriber.rs": 1,
@@ -399,6 +396,12 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # timer, and a saved timeout has to start a scan at once rather than at
     # the next tick. One poll of the task store for the cancellation.
     "crates/apollia-runtime/src/timeout_watcher.rs": 1,
+    # The file system is the subject: the index of a source follows a file
+    # added, rewritten and deleted with no request, so the only observable is
+    # the index once the watch has delivered. One bounded wait, one poll
+    # interval inside it; every other test of the indexer asks for its pass
+    # and awaits the reply.
+    "crates/apollia-sources/src/indexer/tests.rs": 2,
     "crates/apollia-tools/src/executor.rs": 1,
     "crates/apollia-tools/src/file_path_extractor.rs": 2,
     "crates/apollia-tools/src/journal.rs": 2,

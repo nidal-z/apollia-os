@@ -464,6 +464,59 @@ exempté dans `deny.toml`, daté du 2026-10-04, avec cette raison à côté, et 
 est revu à la prochaine version mineure. L'exemption tombe quand `pdf_oxide`
 abandonne `ttf-parser` ou qu'une version maintenue en paraît.
 
+Les documents Word et les présentations PowerPoint sont lus en Rust, par un
+code propre posé sur deux crates : `zip`, celle qui ouvre l'archive de paquet
+(voir [Archive de paquet](#package-archive)), ouvre le fichier, et `quick-xml`
+(MIT), un lecteur XML en flux, en lit les parties. Un document Word rend les
+paragraphes et les lignes de tableau de son corps, une ligne par segment, dans
+l'ordre du document et chacun avec son rang ; une présentation rend le texte et
+les notes de chaque diapositive, dans l'ordre numérique, chacune avec son
+numéro. Les en-têtes, pieds de page, commentaires et zones de texte flottantes
+ne sont pas lus. Un fichier aux anciens formats binaires, `.doc` ou `.ppt`, est
+une erreur typée qui nomme les formats lus. L'archive vient d'ailleurs, sa
+lecture est donc bornée : au-delà de 10 000 entrées, ou de 64 Mio décompressés
+sur l'ensemble des parties lues, le fichier est refusé, les octets étant comptés
+à mesure qu'ils sont décompressés et non tels que l'archive les déclare. Une
+crate dédiée n'a pas été retenue : `docx-rs`, celle pesée pour Word, est
+tournée vers l'écriture et ne lit pas PowerPoint, et `office_oxide`, qu'apporte
+le lecteur PDF, est tenue à une ancienne version (voir plus haut) et n'est pas
+appelée directement.
+
+Le coût est nommé : aucune crate n'entre dans le fichier de verrouillage.
+`quick-xml` 0.41 était déjà compilée pour le lecteur de classeurs et le paquet
+du bureau, et devient une dépendance directe, fonctionnalités par défaut
+coupées ; `zip` était déjà une dépendance directe. Ce que ces crates ne couvrent
+pas est à notre charge : la structure des deux formats, lue ici jusqu'à leur
+texte seulement.
+
+Les résultats d'un lot sont écrits dans le tableau qu'il a lu, par défaut dans
+une copie posée à côté de l'original, `<nom> (résultats AAAA-MM-JJ).xlsx`,
+nommée dans la langue de l'interface, si bien que l'original est lu et jamais
+ouvert en écriture. Sur demande explicite, et pour `.xlsx` et `.xlsm` seulement,
+ils vont dans l'original lui-même, après la copie de sauvegarde datée qu'exige
+le contrat des lots ; si la sauvegarde échoue, rien n'est écrit. Dans les deux
+cas, le classeur est édité en place, par du code à nous au-dessus de `zip` et
+de `quick-xml` : les cellules de la colonne ajoutée, après la dernière colonne
+de la feuille, sont insérées dans le XML de cette feuille en chaînes en ligne,
+la chaîne de calcul est retirée pour que le tableur recalcule à l'ouverture, et
+toutes les autres parties de l'archive sont recopiées telles qu'elles sont
+stockées, octet pour octet. La mise en forme, les graphiques, les tableaux
+croisés, les commentaires et les macros sont donc conservés, ce que ne garantit
+pas une bibliothèque qui charge un classeur puis l'enregistre de nouveau :
+`umya-spreadsheet`, celle qui a été pesée, documente des graphiques corrompus,
+des commentaires perdus et des tableaux croisés non lus. L'édition est testée
+sur un corpus versionné de classeurs réels (mise en forme conditionnelle,
+graphique, tableaux croisés, commentaires, fichier enregistré par LibreOffice,
+classeur à macros). Un fichier CSV reçoit une copie avec sa colonne ajoutée,
+jamais une édition de l'original ; un classeur `.xls`, `.xlsb` ou `.ods` reçoit
+une copie `.xlsx` neuve écrite par `rust_xlsxwriter` (voir
+[Export d'un lot](#batch-export)), ses valeurs seulement.
+
+Le coût est nommé : aucune crate n'entre dans le fichier de verrouillage,
+`rust_xlsxwriter` devenant une dépendance directe des lecteurs. Ce qui est à
+notre charge est l'édition de la feuille, une petite partie d'un format dont
+les autres parties ne sont jamais réécrites.
+
 Une boîte mail se connecte en IMAP avec un mot de passe d'application : tout
 fournisseur est joignable, Gmail compris, sans client OAuth et sans relais. Le
 client est `async-imap` (MIT ou Apache-2.0), sur le runtime Tokio, au-dessus de
@@ -501,7 +554,7 @@ fichier de verrouillage, lui-même, `zopfli` et `zlib-rs` (voir
 
 `rust_xlsxwriter` ne sait pas modifier un classeur existant. Écrire les
 résultats dans le fichier d'où un lot a été lu se décide avec le lecteur de
-tableurs, pas ici.
+tableurs (voir [Documents et sources](#documents-and-sources)).
 
 ## Messagerie entre agents {#agent-messaging}
 

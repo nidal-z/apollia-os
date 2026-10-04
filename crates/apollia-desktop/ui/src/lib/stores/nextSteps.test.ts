@@ -112,7 +112,7 @@ describe("nextSteps store - dismiss persistence", () => {
       "ask-apollia",
     ]);
 
-    const raw = localStorage.getItem("apollia.next_steps.dismissed");
+    const raw = localStorage.getItem("apollia.reminders.next_steps");
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw as string);
     expect(parsed["capture-note"]).toBeGreaterThan(Date.now());

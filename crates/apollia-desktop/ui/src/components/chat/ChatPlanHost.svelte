@@ -4,12 +4,12 @@
    *
    * Owns the "plan-mode" runtime-event subscription for the active chat session
    * (cleaned up in the `$effect`) and renders the review card when the session
-   * is awaiting approval. Operator persona gets the compact review; Builder
-   * persona gets the detailed one. No card is shown otherwise (clean empty
+   * is awaiting approval. The default view gets the compact review; the developer
+   * mode gets the detailed one. No card is shown otherwise (clean empty
    * state, no phantom frame).
    */
   import { chatPlanState, startChatPlanListener } from "$lib/stores/chatPlanMode";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import ChatPlanReview from "./ChatPlanReview.svelte";
   import ChatPlanReviewBuilder from "./ChatPlanReviewBuilder.svelte";
 
@@ -40,12 +40,12 @@
       state.phase === "awaiting_approval" &&
       state.sessionId === sessionId,
   );
-  const isBuilder = $derived($uiMode === "builder");
+  const detailed = $derived($developerMode);
 </script>
 
 {#if visible}
   <div class="px-4 pb-2" data-testid="chat-plan-host">
-    {#if isBuilder}
+    {#if detailed}
       <ChatPlanReviewBuilder {sessionId} />
     {:else}
       <ChatPlanReview {sessionId} />

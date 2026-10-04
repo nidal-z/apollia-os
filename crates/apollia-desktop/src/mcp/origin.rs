@@ -13,9 +13,10 @@ use crate::mcp::enrichments::{selection_entry_for, ConnectorEnrichment, TrustLev
 /// Give `config` the origin it is added under.
 ///
 /// - matches a selection entry: the selection, official when the entry is
-///   marked verified official;
+///   marked verified official, naming the entry by its package identifier;
 /// - otherwise the origin the interface sent (a registry entry, with the
-///   official flag recorded for it), unless it claims the selection;
+///   official flag recorded for it), unless it claims the selection, and
+///   never naming a selection entry;
 /// - otherwise custom.
 #[must_use]
 pub fn with_origin(
@@ -25,10 +26,14 @@ pub fn with_origin(
     config.origin = Some(match selection_entry_for(&config, enrichments) {
         Some(entry) => selection_origin(entry),
         None => match config.origin {
-            Some(origin) if origin.provenance != Provenance::Selection => origin,
+            Some(origin) if origin.provenance != Provenance::Selection => ConnectionOrigin {
+                entry: None,
+                ..origin
+            },
             _ => ConnectionOrigin {
                 provenance: Provenance::Custom,
                 official: false,
+                entry: None,
             },
         },
     });
@@ -39,28 +44,46 @@ fn selection_origin(entry: &ConnectorEnrichment) -> ConnectionOrigin {
     ConnectionOrigin {
         provenance: Provenance::Selection,
         official: matches!(entry.trust_level, TrustLevel::VerifiedOfficial),
+        entry: Some(entry.package_identifier.clone()),
     }
 }
 
 /// Record an origin for every stored server that has none: the selection
 /// when its launch configuration or its name matches an entry, custom
-/// otherwise. Returns how many servers were written.
+/// otherwise; and name the entry of every selection server recorded before
+/// the entry was. Returns how many servers were written.
 pub fn backfill_origins(
     repo: &McpServerRepository,
     enrichments: &[ConnectorEnrichment],
 ) -> Result<usize, McpRepoError> {
     let mut written = 0;
-    for config in repo.list()?.into_iter().filter(|c| c.origin.is_none()) {
-        let origin = selection_entry_for(&config, enrichments)
-            .or_else(|| entry_named(&config.name, enrichments))
-            .map_or(
-                ConnectionOrigin {
-                    provenance: Provenance::Custom,
-                    official: false,
-                },
-                selection_origin,
-            );
-        if repo.set_origin_if_missing(&config.name, origin)? {
+    for config in repo.list()? {
+        let matched = selection_entry_for(&config, enrichments)
+            .or_else(|| entry_named(&config.name, enrichments));
+        let wrote = match &config.origin {
+            None => {
+                let origin = matched.map_or(
+                    ConnectionOrigin {
+                        provenance: Provenance::Custom,
+                        official: false,
+                        entry: None,
+                    },
+                    selection_origin,
+                );
+                repo.set_origin_if_missing(&config.name, origin)?
+            }
+            Some(origin)
+                if origin.provenance == Provenance::Selection && origin.entry.is_none() =>
+            {
+                match matched {
+                    Some(entry) => repo
+                        .set_selection_entry_if_missing(&config.name, &entry.package_identifier)?,
+                    None => false,
+                }
+            }
+            Some(_) => false,
+        };
+        if wrote {
             written += 1;
         }
     }

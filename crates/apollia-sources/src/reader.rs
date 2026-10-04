@@ -1,21 +1,32 @@
-//! Readers that turn a workbook, a CSV file or a PDF document into text.
+//! Readers that turn a workbook, a CSV file, a PDF document, a Word document
+//! or a PowerPoint presentation into text.
 //!
 //! A workbook (`.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.ods`) is read by
 //! [`read_workbook`], a CSV file by [`read_csv`]. Both answer sheets of rows of
 //! [`Cell`]s, each cell carrying its text and where it was read
 //! ([`CellLocation`]). A PDF document is read by [`read_pdf`], which answers
-//! the text of each page with its number ([`PdfPage`]). The readers only read:
+//! the text of each page with its number ([`PdfPage`]). A Word document is read
+//! by [`read_word`], which answers its paragraphs and table rows in order
+//! ([`WordSegment`]), and a PowerPoint presentation by [`read_presentation`],
+//! which answers the text and the notes of each slide ([`Slide`]). The readers
+//! only read:
 //! nothing is written, nothing leaves the machine. They are synchronous and read the whole file, so an async
 //! caller runs them under `spawn_blocking`.
 
 use std::path::{Path, PathBuf};
 
 mod delimited;
+mod office;
 mod pdf;
+mod presentation;
+mod word;
 mod workbook;
 
 pub use delimited::{read_csv, CsvFile, Delimiter};
+pub use office::{OFFICE_MAX_DECOMPRESSED_BYTES, OFFICE_MAX_ENTRIES};
 pub use pdf::{read_pdf, PageText, PdfDocument, PdfPage};
+pub use presentation::{read_presentation, Presentation, Slide, PRESENTATION_EXTENSIONS};
+pub use word::{read_word, SegmentKind, WordDocument, WordSegment, WORD_EXTENSIONS};
 pub use workbook::{read_workbook, Workbook, WORKBOOK_EXTENSIONS};
 
 /// Where a cell was read: its sheet, its row and its column.
@@ -63,11 +74,14 @@ pub enum ReadError {
         #[source]
         source: std::io::Error,
     },
-    /// The file name does not end with an extension the reader opens.
-    #[error("{} is not a workbook this reader opens (xlsx, xlsm, xlsb, xls, ods)", .path.display())]
+    /// The file name does not end with an extension the reader opens, as a
+    /// legacy binary Word (`.doc`) or PowerPoint (`.ppt`) file does not.
+    #[error("{} is not a format this reader opens ({supported})", .path.display())]
     UnsupportedFormat {
         /// The file.
         path: PathBuf,
+        /// The extensions the reader opens, for the message.
+        supported: &'static str,
     },
     /// The file is protected by a password.
     #[error("{} is protected by a password", .path.display())]
@@ -82,6 +96,18 @@ pub enum ReadError {
         path: PathBuf,
         /// What the reader found wrong.
         detail: String,
+    },
+    /// The archive a Word or PowerPoint file is goes over a cap: more entries
+    /// than [`OFFICE_MAX_ENTRIES`], or more bytes once decompressed than
+    /// [`OFFICE_MAX_DECOMPRESSED_BYTES`]. It is not read.
+    #[error("{} is over the cap of {limit} {cap} and is not read", .path.display())]
+    ArchiveOverCap {
+        /// The file.
+        path: PathBuf,
+        /// What the cap counts: entries, or bytes decompressed.
+        cap: &'static str,
+        /// The cap.
+        limit: u64,
     },
 }
 

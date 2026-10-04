@@ -75,6 +75,5 @@ Use only these routes in an action block:
 - `/integrations`: MCP servers and connected accounts.
 - `/llm`: models, local and remote, and the default model.
 - `/memory`: what each agent remembers.
-- `/notifications`: the notifications Apollia sent.
 - `/observability`: runs, costs and the audit journal.
-- `/settings`: preferences, profile and security.
+- `/settings`: preferences, profile, notification channels and security.

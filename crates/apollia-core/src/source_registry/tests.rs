@@ -246,3 +246,25 @@ fn test_a_code_folder_is_accepted_whatever_the_mode_once_it_names_a_connection()
     assert_eq!(added.kind, SourceKind::CodeFolder);
     assert_eq!(added.reference.as_deref(), Some("fc-1"));
 }
+
+#[test]
+fn test_the_index_state_of_a_source_is_recorded_and_an_absent_source_refused() {
+    // GIVEN a registry holding one folder source, its index absent
+    let (_dir, store) = store();
+    let added = store.create(&folder("Contracts", Some("fc-1"))).unwrap();
+
+    // WHEN its index state is set to indexing, then ready, and the state of
+    // a source that is not there is set
+    store
+        .set_index_state(&added.id, IndexState::Indexing)
+        .unwrap();
+    let during = store.get(&added.id).unwrap().unwrap().index_state;
+    store.set_index_state(&added.id, IndexState::Ready).unwrap();
+    let after = store.get(&added.id).unwrap().unwrap().index_state;
+    let absent = store.set_index_state("src-absent", IndexState::Ready);
+
+    // THEN each state is read back, and the absent source is refused
+    assert_eq!(during, IndexState::Indexing);
+    assert_eq!(after, IndexState::Ready);
+    assert!(matches!(absent, Err(SourceRegistryError::NotFound(_))));
+}

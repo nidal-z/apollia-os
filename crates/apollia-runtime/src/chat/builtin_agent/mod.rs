@@ -51,6 +51,7 @@ use crate::composition::Composer;
 use crate::eventbus::EventBusSender;
 use crate::hooks::executor::{HookDecision, HookExecutor};
 
+mod approval_request;
 mod builder;
 mod catalog;
 mod context_window;
@@ -75,7 +76,7 @@ pub(in crate::chat::builtin_agent) use helpers::{
     stamp_inject_provenance, step_status_token, truncate_preview, truncate_tool_output,
     unknown_tool_reason,
 };
-pub use invoker::{HitlInvokerParams, NativeChatToolInvoker};
+pub use invoker::NativeChatToolInvoker;
 pub use outputs::{context_tool_output, default_tool_output_dir, TOOL_OUTPUT_DIR};
 pub use response::{ChatAgentResponse, ConsolidatedVerificationReport};
 pub(in crate::chat::builtin_agent) use response::{NoopCheckInvoker, PlanPhaseTracker, RetryCarry};
@@ -83,6 +84,8 @@ pub(in crate::chat::builtin_agent) use response::{NoopCheckInvoker, PlanPhaseTra
 /// An "always accept" on a code executor covers the current call only.
 #[cfg(test)]
 mod code_executor_grant_tests;
+#[cfg(test)]
+mod consent_journal_tests;
 #[cfg(test)]
 mod governed_test_support;
 #[cfg(test)]
@@ -96,6 +99,9 @@ mod tests;
 mod todo_compaction_tests;
 #[cfg(test)]
 mod verification_wire_tests;
+/// A write is consented to on the card of its family, with no prompt of its own.
+#[cfg(test)]
+mod write_consent_tests;
 
 /// Delay after which a tool approval of a conversation is refused (5 minutes).
 pub(crate) const CHAT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(300);
@@ -269,6 +275,9 @@ pub struct BuiltInChatAgent {
     /// the operator text as reason. `None` for every ordinary turn, so behavior is
     /// unchanged when no injection is pending.
     pending_injection: Option<InjectedInstruction>,
+    /// Images of the turn: those of the message answered and of the earlier
+    /// user messages in the window. Empty for a turn without images.
+    turn_images: crate::chat::images::TurnImages,
     /// Temperature applied to a turn that advertises tools to the model.
     ///
     /// Lowering it whenever tools are exposed makes structured tool-call output

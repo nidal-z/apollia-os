@@ -125,6 +125,10 @@ from .credential_entry_view import CredentialEntryView
 from .credential_test_view import CredentialTestView
 from .daily_cost_entry import DailyCostEntry
 from .daily_costs_response import DailyCostsResponse
+from .decide_request import DecideRequest
+from .decide_request_answers_type_0_item import DecideRequestAnswersType0Item
+from .decide_request_value_type_0 import DecideRequestValueType0
+from .decide_response import DecideResponse
 from .default_model_response import DefaultModelResponse
 from .delegate_request import DelegateRequest
 from .delegate_request_input import DelegateRequestInput
@@ -138,7 +142,9 @@ from .deleted_credential import DeletedCredential
 from .deleted_installed_model import DeletedInstalledModel
 from .deleted_profile import DeletedProfile
 from .deleted_profile_entry import DeletedProfileEntry
+from .dependent_source import DependentSource
 from .dictation_configured import DictationConfigured
+from .dictation_engine import DictationEngine
 from .dictation_models_response import DictationModelsResponse
 from .dictation_models_response_models_item import DictationModelsResponseModelsItem
 from .dictation_models_response_reason_type_0 import DictationModelsResponseReasonType0
@@ -164,18 +170,14 @@ from .events_response import EventsResponse
 from .export_agent_request import ExportAgentRequest
 from .export_format import ExportFormat
 from .export_memory_namespace_response_200 import ExportMemoryNamespaceResponse200
+from .fail_closed_type_0 import FailClosedType0
+from .fail_closed_type_0_cause import FailClosedType0Cause
+from .fail_closed_type_1 import FailClosedType1
+from .fail_closed_type_1_cause import FailClosedType1Cause
 from .fire_response import FireResponse
 from .fit_dto import FitDto
 from .folder_error_body import FolderErrorBody
 from .fork_session_request import ForkSessionRequest
-from .fs_hitl_decision_body_type_0 import FsHitlDecisionBodyType0
-from .fs_hitl_decision_body_type_0_decision import FsHitlDecisionBodyType0Decision
-from .fs_hitl_decision_body_type_1 import FsHitlDecisionBodyType1
-from .fs_hitl_decision_body_type_1_decision import FsHitlDecisionBodyType1Decision
-from .fs_hitl_decision_body_type_2 import FsHitlDecisionBodyType2
-from .fs_hitl_decision_body_type_2_decision import FsHitlDecisionBodyType2Decision
-from .fs_hitl_decision_body_type_3 import FsHitlDecisionBodyType3
-from .fs_hitl_decision_body_type_3_decision import FsHitlDecisionBodyType3Decision
 from .generate_next_steps_body import GenerateNextStepsBody
 from .generate_title_body import GenerateTitleBody
 from .generated_title import GeneratedTitle
@@ -183,6 +185,7 @@ from .get_model_card_response_200 import GetModelCardResponse200
 from .gguf_model_info import GgufModelInfo
 from .global_timeline_event import GlobalTimelineEvent
 from .global_timeline_event_detail import GlobalTimelineEventDetail
+from .governance_state_body import GovernanceStateBody
 from .guardrail_check_dto import GuardrailCheckDto
 from .guardrail_level import GuardrailLevel
 from .guardrail_refused_body import GuardrailRefusedBody
@@ -190,6 +193,7 @@ from .guardrail_verdict_dto import GuardrailVerdictDto
 from .hardware_response import HardwareResponse
 from .hardware_response_accelerator import HardwareResponseAccelerator
 from .health_response import HealthResponse
+from .image_attachment import ImageAttachment
 from .imap_account_body import ImapAccountBody
 from .imap_account_response import ImapAccountResponse
 from .imap_error_body import ImapErrorBody
@@ -241,6 +245,7 @@ from .load_estimate_response import LoadEstimateResponse
 from .load_model_request import LoadModelRequest
 from .load_model_request_advanced import LoadModelRequestAdvanced
 from .load_model_response import LoadModelResponse
+from .load_origin import LoadOrigin
 from .loaded_model_dto import LoadedModelDto
 from .loaded_models_response import LoadedModelsResponse
 from .locked_key_body import LockedKeyBody
@@ -299,7 +304,6 @@ from .onboarding_dismissed import OnboardingDismissed
 from .onboarding_finalized import OnboardingFinalized
 from .onboarding_marked import OnboardingMarked
 from .onboarding_phase import OnboardingPhase
-from .onboarding_profile_body import OnboardingProfileBody
 from .onboarding_reset import OnboardingReset
 from .onboarding_state import OnboardingState
 from .onboarding_stats import OnboardingStats
@@ -318,9 +322,16 @@ from .package_preview import PackagePreview
 from .package_preview_request import PackagePreviewRequest
 from .parse_automation_request import ParseAutomationRequest
 from .parse_automation_response_200 import ParseAutomationResponse200
+from .pending_answer import PendingAnswer
 from .pending_approval_response import PendingApprovalResponse
 from .pending_approval_response_context_type_0 import PendingApprovalResponseContextType0
 from .pending_approval_response_payload_type_0 import PendingApprovalResponsePayloadType0
+from .pending_decision import PendingDecision
+from .pending_decision_list import PendingDecisionList
+from .pending_decision_questions_type_0 import PendingDecisionQuestionsType0
+from .pending_error_body import PendingErrorBody
+from .pending_kind import PendingKind
+from .pending_origin import PendingOrigin
 from .pending_restart_key import PendingRestartKey
 from .pending_user_input_view import PendingUserInputView
 from .permission_rule_dto import PermissionRuleDto
@@ -356,6 +367,7 @@ from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
 from .python_interpreter_request import PythonInterpreterRequest
 from .python_interpreter_setting import PythonInterpreterSetting
+from .read_policy_response_200 import ReadPolicyResponse200
 from .readme_response import ReadmeResponse
 from .reasoning_profile_dto import ReasoningProfileDto
 from .reject_plan_request import RejectPlanRequest
@@ -377,7 +389,6 @@ from .resilience_status_response_circuit_breakers_item import (
 from .resolved_agent_response import ResolvedAgentResponse
 from .resolved_agent_response_definition import ResolvedAgentResponseDefinition
 from .resolved_approval_response import ResolvedApprovalResponse
-from .resolved_filesystem_approval import ResolvedFilesystemApproval
 from .resume_error_body import ResumeErrorBody
 from .resume_request import ResumeRequest
 from .resume_response import ResumeResponse
@@ -425,8 +436,11 @@ from .signature_status import SignatureStatus
 from .skill_dto import SkillDto
 from .skill_listing import SkillListing
 from .skill_listing_input_schema_type_0 import SkillListingInputSchemaType0
+from .skip_reason_dto import SkipReasonDto
+from .skipped_file_response import SkippedFileResponse
 from .source_descriptor import SourceDescriptor
 from .source_descriptor_options import SourceDescriptorOptions
+from .source_index_response import SourceIndexResponse
 from .source_kind_dto import SourceKindDto
 from .source_preview_response import SourcePreviewResponse
 from .source_response import SourceResponse
@@ -665,6 +679,10 @@ __all__ = (
     "CredentialTestView",
     "DailyCostEntry",
     "DailyCostsResponse",
+    "DecideRequest",
+    "DecideRequestAnswersType0Item",
+    "DecideRequestValueType0",
+    "DecideResponse",
     "DefaultModelResponse",
     "DelegateRequest",
     "DelegateRequestInput",
@@ -678,7 +696,9 @@ __all__ = (
     "DeletePresetResponse",
     "DeleteResponse",
     "DeleteServerResponse",
+    "DependentSource",
     "DictationConfigured",
+    "DictationEngine",
     "DictationModelsResponse",
     "DictationModelsResponseModelsItem",
     "DictationModelsResponseReasonType0",
@@ -704,18 +724,14 @@ __all__ = (
     "ExportAgentRequest",
     "ExportFormat",
     "ExportMemoryNamespaceResponse200",
+    "FailClosedType0",
+    "FailClosedType0Cause",
+    "FailClosedType1",
+    "FailClosedType1Cause",
     "FireResponse",
     "FitDto",
     "FolderErrorBody",
     "ForkSessionRequest",
-    "FsHitlDecisionBodyType0",
-    "FsHitlDecisionBodyType0Decision",
-    "FsHitlDecisionBodyType1",
-    "FsHitlDecisionBodyType1Decision",
-    "FsHitlDecisionBodyType2",
-    "FsHitlDecisionBodyType2Decision",
-    "FsHitlDecisionBodyType3",
-    "FsHitlDecisionBodyType3Decision",
     "GeneratedTitle",
     "GenerateNextStepsBody",
     "GenerateTitleBody",
@@ -723,6 +739,7 @@ __all__ = (
     "GgufModelInfo",
     "GlobalTimelineEvent",
     "GlobalTimelineEventDetail",
+    "GovernanceStateBody",
     "GuardrailCheckDto",
     "GuardrailLevel",
     "GuardrailRefusedBody",
@@ -730,6 +747,7 @@ __all__ = (
     "HardwareResponse",
     "HardwareResponseAccelerator",
     "HealthResponse",
+    "ImageAttachment",
     "ImapAccountBody",
     "ImapAccountResponse",
     "ImapErrorBody",
@@ -783,6 +801,7 @@ __all__ = (
     "LoadModelRequest",
     "LoadModelRequestAdvanced",
     "LoadModelResponse",
+    "LoadOrigin",
     "LockedKeyBody",
     "LockedKeyBodyValue",
     "LogsResponse",
@@ -839,7 +858,6 @@ __all__ = (
     "OnboardingFinalized",
     "OnboardingMarked",
     "OnboardingPhase",
-    "OnboardingProfileBody",
     "OnboardingReset",
     "OnboardingState",
     "OnboardingStats",
@@ -858,9 +876,16 @@ __all__ = (
     "PackagePreviewRequest",
     "ParseAutomationRequest",
     "ParseAutomationResponse200",
+    "PendingAnswer",
     "PendingApprovalResponse",
     "PendingApprovalResponseContextType0",
     "PendingApprovalResponsePayloadType0",
+    "PendingDecision",
+    "PendingDecisionList",
+    "PendingDecisionQuestionsType0",
+    "PendingErrorBody",
+    "PendingKind",
+    "PendingOrigin",
     "PendingRestartKey",
     "PendingUserInputView",
     "PermissionRuleDto",
@@ -895,6 +920,7 @@ __all__ = (
     "PythonInterpreterRequest",
     "PythonInterpreterSetting",
     "ReadmeResponse",
+    "ReadPolicyResponse200",
     "ReasoningProfileDto",
     "RejectPlanRequest",
     "RejectUserInputRequest",
@@ -913,7 +939,6 @@ __all__ = (
     "ResolvedAgentResponse",
     "ResolvedAgentResponseDefinition",
     "ResolvedApprovalResponse",
-    "ResolvedFilesystemApproval",
     "ResumeErrorBody",
     "ResumeRequest",
     "ResumeResponse",
@@ -961,8 +986,11 @@ __all__ = (
     "SkillDto",
     "SkillListing",
     "SkillListingInputSchemaType0",
+    "SkippedFileResponse",
+    "SkipReasonDto",
     "SourceDescriptor",
     "SourceDescriptorOptions",
+    "SourceIndexResponse",
     "SourceKindDto",
     "SourcePreviewResponse",
     "SourceResponse",

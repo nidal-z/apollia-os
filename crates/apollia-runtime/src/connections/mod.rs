@@ -59,6 +59,9 @@ pub enum ConnectionState {
     Unavailable,
     /// Declared, and not started (disabled, or not yet connected).
     Stopped,
+    /// Forbidden by the organisation policy since the last start: not started,
+    /// its tools neither offered nor run, never deleted.
+    ForbiddenByPolicy,
 }
 
 /// One tool a connection brings.
