@@ -6,6 +6,7 @@ use apollia_tools::BatchRow;
 
 use super::access::resolve_grants;
 use super::actor::BatchActor;
+use super::write_back::SOURCE_WRITE_ACCESS;
 use super::{BatchControl, BatchError, BatchRetry, ItemRunner};
 
 /// Output of an item canceled because its batch was stopped before it ran.
@@ -142,12 +143,14 @@ impl<R: ItemRunner> BatchActor<R> {
             .grant(&row.batch_id, &row.agent, &grants)
             .await
             .map_err(BatchError::Invalid)?;
+        // Writing into the original file stays granted for the batch run again.
+        let mut granted: Vec<String> = grants.iter().map(|g| g.access_id.clone()).collect();
+        if row.grants.iter().any(|g| g == SOURCE_WRITE_ACCESS) {
+            granted.push(SOURCE_WRITE_ACCESS.to_owned());
+        }
         let requeued = self
             .repository
-            .requeue_for_retry(
-                &row.batch_id,
-                grants.iter().map(|g| g.access_id.clone()).collect(),
-            )
+            .requeue_for_retry(&row.batch_id, granted)
             .await?;
         tracing::event!(
             Level::INFO,

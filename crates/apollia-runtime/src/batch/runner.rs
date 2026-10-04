@@ -14,13 +14,19 @@ use apollia_permissions::{ConsentFamily, ConsentScope, FamilyConsentStore};
 use apollia_tools::ResolvedAgent;
 
 use super::access::{classify, known_tools, sensitive, BatchAccess, KnownTool};
+use super::write_back::SOURCE_WRITE_ACCESS;
 use super::{item_message, ItemEnd, ItemRunner, ItemStatus, StartedItem};
 use crate::agents::task::{resolve_runnable, AgentTaskLauncher};
 use crate::coordinator::ExecutionBackend;
-use crate::governance::GovernanceContract;
+use crate::governance::{
+    AccessCall, AccessChange, AccessDecision, GovernanceContract, GovernanceEvent,
+};
 
 /// Who records a consent given for a batch.
 const GRANTED_BY: &str = "batch";
+
+/// Who grants writing into the original file: the user, at launch.
+const WRITE_GRANTED_BY: &str = "user";
 
 /// Runs each item through the agent executor, as a task of its own.
 pub struct AgentItemRunner<B: ExecutionBackend> {
@@ -151,6 +157,19 @@ impl<B: ExecutionBackend> ItemRunner for AgentItemRunner<B> {
         Ok(())
     }
 
+    async fn allow_original_write(&self, agent: &str, location: &str) -> Result<(), String> {
+        decide_original_write(self.governance.as_deref(), agent, location)
+    }
+
+    async fn record_original_write(
+        &self,
+        batch_id: &str,
+        agent: &str,
+        location: &str,
+    ) -> Result<(), String> {
+        journal_original_write(self.governance.as_deref(), batch_id, agent, location)
+    }
+
     async fn release(&self, batch_id: &str) -> Result<(), String> {
         let lot = batch_id.to_string();
         let withdrawn = self
@@ -215,4 +234,59 @@ impl<B: ExecutionBackend> ItemRunner for AgentItemRunner<B> {
             );
         }
     }
+}
+
+/// Why writing into the original file cannot be decided without governance.
+const NO_GOVERNANCE: &str =
+    "writing into the original file needs the governance journal, which is not open";
+
+/// Asks `governance` whether `agent` may write the results of a batch into
+/// the original file at `location`. The grant at launch is the user's answer:
+/// a decision that would ask is answered, a refusal of the policy stands.
+pub(crate) fn decide_original_write(
+    governance: Option<&dyn GovernanceContract>,
+    agent: &str,
+    location: &str,
+) -> Result<(), String> {
+    let governance = governance.ok_or_else(|| NO_GOVERNANCE.to_string())?;
+    match governance.decide(&AccessCall {
+        agent_id: agent,
+        access_id: SOURCE_WRITE_ACCESS,
+        argument: Some(location),
+    }) {
+        AccessDecision::Allowed | AccessDecision::AskUser => Ok(()),
+        AccessDecision::DeniedByPolicy { reason } => Err(format!(
+            "writing into the original file is refused by the policy: {reason}"
+        )),
+    }
+}
+
+/// Records in the journal of `governance` that the batch `batch_id` of
+/// `agent` writes its results into the original file at `location`, for its
+/// duration.
+pub(crate) fn journal_original_write(
+    governance: Option<&dyn GovernanceContract>,
+    batch_id: &str,
+    agent: &str,
+    location: &str,
+) -> Result<(), String> {
+    let governance = governance.ok_or_else(|| NO_GOVERNANCE.to_string())?;
+    governance
+        .record(&GovernanceEvent::AccessChanged {
+            agent_id: agent.to_string(),
+            access_id: SOURCE_WRITE_ACCESS.to_string(),
+            change: AccessChange::Granted,
+            actor: WRITE_GRANTED_BY.to_string(),
+            reason: Some(format!(
+                "write_or_delete for lot:{batch_id}: the results are written into {location}, \
+                 after a dated backup copy"
+            )),
+        })
+        .map_err(|e| e.to_string())?;
+    tracing::event!(
+        tracing::Level::INFO,
+        batch_id,
+        "batch.original_write.granted"
+    );
+    Ok(())
 }

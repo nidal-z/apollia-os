@@ -18417,7 +18417,7 @@
             "items": {
               "type": "string"
             },
-            "description": "The sensitive accesses granted for the duration of the batch, by\ntheir id as `GET /api/v1/batches/accesses` lists them."
+            "description": "The sensitive accesses granted for the duration of the batch, by\ntheir id as `GET /api/v1/batches/accesses` lists them, and\n`source:write` when the results go into the original file."
           },
           "maxFailures": {
             "type": [
@@ -25738,6 +25738,17 @@
             "propertyNames": {
               "type": "string"
             }
+          },
+          "write": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SourceWrite",
+                "description": "Writes the answer of every completed item back into the source, in\ncolumns added to it; nothing is written when absent."
+              }
+            ]
           }
         }
       },
@@ -25888,6 +25899,26 @@
               "null"
             ],
             "description": "What the source points at: a folder connection, a file path, a mail\nconnection, a memory space."
+          }
+        }
+      },
+      "SourceWrite": {
+        "type": "object",
+        "description": "What a launch writes back into its source.",
+        "required": [
+          "columns"
+        ],
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The columns added, one per field of the answer, in order. An answer\nthat is not an object of these fields is written whole in the first."
+          },
+          "destination": {
+            "$ref": "#/components/schemas/WriteDestination",
+            "description": "`copy` when absent."
           }
         }
       },
@@ -28103,6 +28134,14 @@
             "description": "`<package>/<workflow>`."
           }
         }
+      },
+      "WriteDestination": {
+        "type": "string",
+        "description": "Where the results of a batch are written.",
+        "enum": [
+          "copy",
+          "original"
+        ]
       }
     },
     "securitySchemes": {

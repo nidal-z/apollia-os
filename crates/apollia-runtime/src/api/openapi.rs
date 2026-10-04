@@ -434,6 +434,8 @@ use security::BearerToken;
         crate::api::routes_tasks::SubmitTaskRequest,
         crate::batch::BatchLaunch,
         crate::batch::SourceDescriptor,
+        crate::batch::SourceWrite,
+        crate::batch::WriteDestination,
         crate::api::routes_batches::BatchErrorResponse,
         crate::api::routes_batches::BatchView,
         crate::api::routes_batches::BatchItemView,

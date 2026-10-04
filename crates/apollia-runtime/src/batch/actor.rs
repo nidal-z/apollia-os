@@ -3,16 +3,17 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use apollia_core::batch_source::{SourceRegistry, SourceSpec};
+use apollia_core::batch_source::SourceRegistry;
 use apollia_core::{AgentId, RuntimeEvent};
 use apollia_tools::{BatchRow, NewBatch, TaskRepository};
 use tokio::sync::mpsc;
 use tracing::Level;
 
 use super::access::resolve_grants;
+use super::write_back::{source_spec, write_results, WriteDestination, SOURCE_WRITE_ACCESS};
 use super::{
-    BatchCommand, BatchError, BatchLaunch, ItemEnd, ItemRunner, ItemStatus, DEFAULT_CONCURRENCY,
-    DEFAULT_MAX_FAILURES, ITEM_END_CAPACITY, MAX_CONCURRENCY,
+    BatchCommand, BatchError, BatchLaunch, ItemEnd, ItemRunner, ItemStatus, SourceDescriptor,
+    DEFAULT_CONCURRENCY, DEFAULT_MAX_FAILURES, ITEM_END_CAPACITY, MAX_CONCURRENCY,
 };
 use crate::eventbus::EventBusSender;
 
@@ -34,6 +35,11 @@ pub(super) struct Active {
     pub(super) interrupted: bool,
     /// Paused: no item starts, and the batch does not end.
     pub(super) paused: bool,
+    /// The source the answers are written back into when the batch ends,
+    /// when the launch asked for it.
+    pub(super) write_back: Option<SourceDescriptor>,
+    /// Whether the launch granted writing into the original file.
+    pub(super) original_granted: bool,
 }
 
 pub(super) struct BatchActor<R: ItemRunner> {
@@ -138,6 +144,10 @@ impl<R: ItemRunner> BatchActor<R> {
                 in_flight: 0,
                 interrupted: false,
                 paused: batch.state == "paused",
+                write_back: serde_json::from_value::<SourceDescriptor>(batch.source.clone())
+                    .ok()
+                    .filter(|source| source.write.is_some()),
+                original_granted: batch.grants.iter().any(|g| g == SOURCE_WRITE_ACCESS),
             },
         );
     }
@@ -155,22 +165,39 @@ impl<R: ItemRunner> BatchActor<R> {
             .check(&launch.agent)
             .await
             .map_err(BatchError::Agent)?;
-        let grants = resolve_grants(&sensitive, &launch.grants)?;
+        let writes_original = self.check_write(&launch).await?;
+        let agent_grants: Vec<String> = launch
+            .grants
+            .iter()
+            .filter(|g| g.as_str() != SOURCE_WRITE_ACCESS)
+            .cloned()
+            .collect();
+        let grants = resolve_grants(&sensitive, &agent_grants)?;
         let items = self.read_items(&launch).await?;
         let source =
             serde_json::to_value(&launch.source).map_err(|e| BatchError::Invalid(e.to_string()))?;
         let batch_id = uuid::Uuid::new_v4().to_string();
+        if writes_original {
+            self.runner
+                .record_original_write(&batch_id, &launch.agent, &launch.source.location)
+                .await
+                .map_err(BatchError::Invalid)?;
+        }
         self.runner
             .grant(&batch_id, &launch.agent, &grants)
             .await
             .map_err(BatchError::Invalid)?;
+        let mut granted: Vec<String> = grants.into_iter().map(|g| g.access_id).collect();
+        if writes_original {
+            granted.push(SOURCE_WRITE_ACCESS.to_owned());
+        }
         let created = self
             .repository
             .create_batch(NewBatch {
                 batch_id: batch_id.clone(),
                 agent: launch.agent,
                 source,
-                grants: grants.into_iter().map(|g| g.access_id).collect(),
+                grants: granted,
                 concurrency,
                 max_failures,
                 items,
@@ -197,19 +224,55 @@ impl<R: ItemRunner> BatchActor<R> {
         Ok(batch)
     }
 
-    /// Opens the source and reads every item, off the actor's loop.
+    /// Checks the write option of a launch, and asks governance when it
+    /// writes into the original file. Returns whether it does.
+    async fn check_write(&self, launch: &BatchLaunch) -> Result<bool, BatchError> {
+        let source_granted = launch.grants.iter().any(|g| g == SOURCE_WRITE_ACCESS);
+        let writes_original = match &launch.source.write {
+            Some(write) => {
+                write.check()?;
+                write.destination == WriteDestination::Original
+            }
+            None => false,
+        };
+        if source_granted && !writes_original {
+            return Err(BatchError::Invalid(format!(
+                "'{SOURCE_WRITE_ACCESS}' is granted only when the results go into the original file"
+            )));
+        }
+        if !writes_original {
+            return Ok(false);
+        }
+        if !source_granted {
+            return Err(BatchError::Invalid(format!(
+                "writing the results into the original file is an access to grant at launch: \
+                 add '{SOURCE_WRITE_ACCESS}' to the grants, or write them into a copy"
+            )));
+        }
+        self.runner
+            .allow_original_write(&launch.agent, &launch.source.location)
+            .await
+            .map_err(BatchError::Invalid)?;
+        Ok(true)
+    }
+
+    /// Opens the source and reads every item, off the actor's loop. A launch
+    /// that writes back into the source is refused when it cannot write.
     async fn read_items(
         &self,
         launch: &BatchLaunch,
     ) -> Result<Vec<(String, serde_json::Value)>, BatchError> {
         let sources = self.sources.clone();
         let kind = launch.source.kind.clone();
-        let spec = SourceSpec {
-            location: launch.source.location.clone(),
-            options: launch.source.options.clone(),
-        };
+        let spec = source_spec(&launch.source);
+        let writes = launch.source.write.is_some();
         tokio::task::spawn_blocking(move || {
-            let source = sources.open(&kind, &spec)?;
+            let mut source = sources.open(&kind, &spec)?;
+            if writes && source.writer().is_none() {
+                return Err(BatchError::Invalid(format!(
+                    "a source of kind '{kind}' cannot be written: the results can only be exported"
+                )));
+            }
             let items = source.items()?;
             items
                 .items
@@ -398,27 +461,99 @@ impl<R: ItemRunner> BatchActor<R> {
             tracing::event!(Level::INFO, batch_id, "batch.completed");
         }
         let agent = active.agent.clone();
+        let write_back = active.write_back.clone();
+        let original_granted = active.original_granted;
         self.active.remove(batch_id);
         if let Err(reason) = self.runner.release(batch_id).await {
             tracing::event!(Level::WARN, batch_id, reason = %reason, "batch.release.failed");
         }
-        match self.repository.batch(batch_id).await {
-            Ok(Some(row)) => {
-                let _ = self.event_bus.send(RuntimeEvent::BatchEnded {
-                    batch_id: row.batch_id,
-                    agent_id: AgentId::from(agent.as_str()),
-                    state: row.state,
-                    total: row.total,
-                    completed: row.completed,
-                    failed: row.failed,
-                    canceled: row.canceled,
-                    awaiting: row.awaiting,
+        let repository = self.repository.clone();
+        let event_bus = self.event_bus.clone();
+        let batch_id = batch_id.to_string();
+        match write_back {
+            // The answers are written off the actor's loop; the end is
+            // announced once they are in the file.
+            Some(descriptor) => {
+                let sources = self.sources.clone();
+                tokio::spawn(async move {
+                    write_answers(
+                        &repository,
+                        sources,
+                        &batch_id,
+                        descriptor,
+                        original_granted,
+                    )
+                    .await;
+                    publish_end(&repository, &event_bus, &batch_id, &agent).await;
                 });
             }
-            Ok(None) => {}
-            Err(e) => {
-                tracing::event!(Level::WARN, batch_id, error = %e, "batch.read.failed");
-            }
+            None => publish_end(&repository, &event_bus, &batch_id, &agent).await,
+        }
+    }
+}
+
+/// Writes the answers of the completed items of `batch_id` back into its
+/// source, and traces what was written.
+async fn write_answers(
+    repository: &TaskRepository,
+    sources: Arc<SourceRegistry>,
+    batch_id: &str,
+    descriptor: SourceDescriptor,
+    original_granted: bool,
+) {
+    let items = match repository.batch_items(batch_id).await {
+        Ok(items) => items,
+        Err(e) => {
+            tracing::event!(Level::WARN, batch_id, error = %e, "batch.read.failed");
+            return;
+        }
+    };
+    let written = tokio::task::spawn_blocking(move || {
+        write_results(&sources, &descriptor, original_granted, &items)
+    })
+    .await;
+    match written {
+        Ok(Ok(Some(written))) => tracing::event!(
+            Level::INFO,
+            batch_id,
+            path = %written.backup.display(),
+            items = written.items,
+            refused = written.refused,
+            "batch.results.written"
+        ),
+        Ok(Ok(None)) => tracing::event!(Level::INFO, batch_id, "batch.results.nothing_to_write"),
+        Ok(Err(e)) => {
+            tracing::event!(Level::WARN, batch_id, error = %e, "batch.results.write_failed");
+        }
+        Err(e) => {
+            tracing::event!(Level::WARN, batch_id, error = %e, "batch.results.write_failed");
+        }
+    }
+}
+
+/// Publishes the end of `batch_id` with its counters.
+async fn publish_end(
+    repository: &TaskRepository,
+    event_bus: &EventBusSender,
+    batch_id: &str,
+    agent: &str,
+) {
+    match repository.batch(batch_id).await {
+        Ok(Some(row)) => {
+            let _ = event_bus.send(RuntimeEvent::BatchEnded {
+                batch_id: row.batch_id,
+                agent_id: AgentId::from(agent),
+                state: row.state,
+                total: row.total,
+                completed: row.completed,
+                failed: row.failed,
+                canceled: row.canceled,
+                awaiting: row.awaiting,
+            });
+        }
+        Ok(None) => {}
+        Err(e) => {
+            tracing::event!(Level::WARN, batch_id, error = %e, "batch.read.failed");
         }
     }
 }
