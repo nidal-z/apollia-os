@@ -7,7 +7,7 @@ sidebar_position: 4
 # Set up your profile on first launch
 
 > On the first start of Apollia (or after a reset), a configuration flow opens automatically.
-> It walks you through four steps - welcome, profile choice, AI setup, conversational calibration - so that Apollia is ready to use.
+> It walks you through three steps - welcome, AI setup, conversational calibration - so that Apollia is ready to use. It never asks you to pick a usage profile: the interface is the same for everyone, and the extra technical screens sit behind the developer mode in Settings, off by default.
 > Total duration: 3 to 8 minutes depending on model downloads.
 >
 > This page covers **the initial flow only**. To edit your profile day to day from the installed application, see **[My profile](../memoire/manage-my-profile.md)**.
@@ -19,12 +19,11 @@ sidebar_position: 4
 
 ## Flow overview
 
-The flow is paced by a progress rail visible at the top of the window: **Welcome · Profile · Models · Calibration**. You can go back at any step, and **Configure later** is available at the bottom to postpone the whole thing.
+The flow is paced by a progress rail visible at the top of the window: **Welcome · Models · Calibration**. You can go back at any step, and **Configure later** is available at the bottom to postpone the whole thing.
 
 | Step | What happens there |
 |---|---|
 | **Welcome** | Introduction to Apollia and start of the flow. |
-| **Profile** | Choice between **Operator** (simplified interface, explicit validation) and **Builder** (full observability, Python SDK). |
 | **Models** | LLM setup (local GGUF with built-in download, or cloud provider) and, optionally, the Whisper voice dictation model. |
 | **Calibration** | Conversation with an agent that collects 4 quick pieces of information (name, role, supervision level, data sovereignty) and suggests matching permission rules. |
 
@@ -38,18 +37,7 @@ At launch, Apollia detects that no profile exists and opens the configuration wi
 
 Read the welcome banner, then click **Start configuration**.
 
-### Step 2 - Choose your profile
-
-Two cards are offered side by side. Click the one that best matches your use - you can change it later from **Settings → Profile**.
-
-![Profile step with two cards Operator (sparkles icon) and Builder (code icon), each with 3 bullets and a sample role](/img/operator-help/installation-configurer-votre-profil-2.png)
-
-- **Operator**: for anyone who wants agents that carry out concrete tasks (emails, monitoring, summaries) without touching code. Explicit validation of sensitive actions, ready-to-use agents.
-- **Builder**: for anyone who wants to design, debug and observe their agents. Full observability (timeline, traces, costs), Python SDK, granular permissions.
-
-A discreet link at the bottom - **I'm both → Builder mode** - switches you to Builder mode if you hesitate (Builder mode exposes every Operator feature on top of its own).
-
-### Step 3 - Configure the AI engine
+### Step 2 - Configure the AI engine
 
 This step calibrates Apollia to your hardware and your sovereignty preferences. A system information banner (RAM, OS, GPU) appears at the top to help you choose.
 
@@ -84,11 +72,11 @@ You can skip this section and enable it later from **Settings → Speech-to-Text
 
 #### Buttons available in the footer
 
-- **← Back** - returns to the Profile step.
+- **← Back** - returns to the Welcome step.
 - **Configure later** - jumps straight to the conversational calibration (only if an LLM is already available).
 - **Continue** - disabled as long as no LLM is usable, becomes active as soon as a cloud or local backend is configured.
 
-### Step 4 - Conversational calibration
+### Step 3 - Conversational calibration
 
 The onboarding agent opens in the window. It asks you up to 4 questions, one after another.
 
@@ -159,7 +147,7 @@ If you have significantly changed your profile (new role, new sovereignty policy
 1. Open **Settings → Danger Zone**.
 2. Click **Reset Onboarding**. This action only clears the progress and profile markers - your LLM backends, downloaded models and other data stay intact.
 3. A confirmation window asks you to type `RESET`. Confirm.
-4. The four-step flow restarts from Welcome.
+4. The three-step flow restarts from Welcome.
 
 For **small adjustments** (fixing your name, adding a daily tool, toggling an integration) without going through the flow again, open **Settings → Profile** directly - see [My profile](../memoire/manage-my-profile.md).
 

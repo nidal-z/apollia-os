@@ -603,6 +603,9 @@ impl LlmProxy {
             .iter()
             .map(|m| match &m.content {
                 apollia_llm::types::MessageContent::Text(t) => t.chars().count() as u64,
+                apollia_llm::types::MessageContent::TextWithImages { text, .. } => {
+                    text.chars().count() as u64
+                }
                 apollia_llm::types::MessageContent::ToolResult { content, .. } => {
                     content.chars().count() as u64
                 }

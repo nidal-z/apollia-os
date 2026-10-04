@@ -72,18 +72,9 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
     builtBy: "components/agents/useAgentActions.svelte.ts",
   },
   {
-    pattern: new RegExp(`^(approvals\\.risk|hitl\\.impact)\\.${SEG}$`),
-    builtBy:
-      "lib/components/operator/badges/RiskBadge.svelte, components/chat/HitlFilesystemModal.svelte",
-  },
-  {
     pattern: new RegExp(`^connections\\.oauth_client\\.(title|intro|origin)\\.${SEG}$`),
     builtBy:
       "components/connections/detail/NativeClientSection.svelte, lib/connections/oauthClient.ts",
-  },
-  {
-    pattern: new RegExp(`^approvals\\.scope\\.${SEG}$`),
-    builtBy: "components/chat/ApprovalScopeSelect.svelte",
   },
   {
     pattern: new RegExp(`^automations\\.humanize\\.${SEG}$`),
@@ -152,6 +143,14 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
   {
     pattern: new RegExp(`^settings\\.help\\.faq_(a|q)_${SEG}$`),
     builtBy: "components/settings/help/HelpBlock.svelte",
+  },
+  {
+    pattern: new RegExp(`^policy\\.reason\\.${SEG}$`),
+    builtBy: "lib/policy/policyRules.ts",
+  },
+  {
+    pattern: new RegExp(`^policy\\.section\\.${SEG}\\.(title|description)$`),
+    builtBy: "components/policy/PolicyScreen.svelte",
   },
   {
     pattern: new RegExp(

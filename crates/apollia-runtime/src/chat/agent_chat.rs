@@ -309,7 +309,7 @@ impl AgentChatExecutor {
                 Ok(build_response(content, vec![]))
             }
 
-            ToolDecision::Accept | ToolDecision::AlwaysAccept { .. } => {
+            ToolDecision::Accept | ToolDecision::AlwaysAccept => {
                 let newly_authorized = if decision.is_always_accept() {
                     vec!["agent_action".to_string()]
                 } else {
@@ -644,9 +644,9 @@ mod tests {
             title: None,
             parent_session_id: None,
             fork_depth: 0,
-            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(HashSet::new())),
             plan_mode: false,
             plan_phase: super::super::types::PlanPhase::Done,
+            profile_id: None,
         }
     }
 
@@ -717,9 +717,9 @@ mod tests {
             title: None,
             parent_session_id: None,
             fork_depth: 0,
-            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(HashSet::new())),
             plan_mode: false,
             plan_phase: super::super::types::PlanPhase::Done,
+            profile_id: None,
         }
     }
 
@@ -1082,7 +1082,7 @@ mod tests {
         tokio::spawn(async move {
             let key = format!("{sid}::msg-hitl3::agent_action");
             poll_until(Duration::from_secs(5), || {
-                approvals_clone.resolve(&key, ToolDecision::always_accept_default())
+                approvals_clone.resolve(&key, ToolDecision::AlwaysAccept)
             })
             .await;
         });

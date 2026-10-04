@@ -31,6 +31,8 @@
     ConversationStatsView,
   } from "$lib/types";
   import A2AWorkerBadge from "./A2AWorkerBadge.svelte";
+  import ChatTargetSelector from "./ChatTargetSelector.svelte";
+  import type { ChatTarget, ConversationTarget } from "$lib/chat/chatTargets";
   import PlanModeChip from "./PlanModeChip.svelte";
   import { Button } from "$lib/components/ui/button";
   import { ActionMenu } from "$lib/components/ui/action-menu";
@@ -61,6 +63,11 @@
     onplanmodechange?: (enabled: boolean) => void;
     /** Bumped by the parent (e.g. /rename) to open the inline title editor. */
     renameTrigger?: number;
+    /** Who the conversation talks to, for its selector. */
+    target?: ConversationTarget | null;
+    /** Called with the agent or the model chosen in the selector; the
+     *  selector is shown only when it is given. */
+    ontargetpick?: (target: ChatTarget) => void;
   }
 
   let {
@@ -81,6 +88,8 @@
     planMode = false,
     onplanmodechange,
     renameTrigger = 0,
+    target = null,
+    ontargetpick,
   }: Props = $props();
 
   // Open the inline title editor when the parent bumps `renameTrigger` (/rename).
@@ -246,6 +255,17 @@
         </button>
       {/if}
     </div>
+
+    <!-- Agent or model of the conversation -->
+    {#if ontargetpick}
+      <div class="min-w-0 shrink">
+        <ChatTargetSelector
+          conversation={target}
+          onpick={ontargetpick}
+          disabled={sessionStatus !== "active"}
+        />
+      </div>
+    {/if}
 
     <!-- Status badge -->
     {#if sessionStatus === "closed"}

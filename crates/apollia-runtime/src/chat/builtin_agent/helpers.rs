@@ -136,12 +136,20 @@ where
 /// history to preserve context from older messages.
 ///
 /// Message order: system prompt, [summary], windowed history, user message.
+///
+/// A user message that carried images, earlier in the history or the one
+/// answered, is rebuilt with them after its text, so a follow-up question
+/// still sees them.
+// REASON: each argument is one part of the prompt, in the order it is laid
+// out; a struct would carry the same six values one call further.
+#[allow(clippy::too_many_arguments)]
 pub(in crate::chat::builtin_agent) fn build_llm_messages(
     system_prompt: &str,
     history: &[ChatMessage],
     user_message: &str,
     summary: Option<&str>,
     context_window_size: usize,
+    images: &crate::chat::images::TurnImages,
 ) -> Vec<LlmChatMessage> {
     let window_size = if context_window_size == 0 {
         DEFAULT_CONTEXT_WINDOW_SIZE
@@ -170,7 +178,10 @@ pub(in crate::chat::builtin_agent) fn build_llm_messages(
 
     for msg in windowed_history {
         match msg.role {
-            ChatRole::User => messages.push(LlmChatMessage::user(&msg.content)),
+            ChatRole::User => messages.push(match images.history.get(&msg.id) {
+                Some(found) => LlmChatMessage::user_with_images(&msg.content, found.clone()),
+                None => LlmChatMessage::user(&msg.content),
+            }),
             ChatRole::Assistant => messages.push(LlmChatMessage::assistant(&msg.content)),
             ChatRole::Tool => {
                 let call_id = msg.tool_name.as_deref().unwrap_or("unknown");
@@ -182,7 +193,10 @@ pub(in crate::chat::builtin_agent) fn build_llm_messages(
         }
     }
 
-    messages.push(LlmChatMessage::user(user_message));
+    messages.push(LlmChatMessage::user_with_images(
+        user_message,
+        images.current.clone(),
+    ));
     messages
 }
 

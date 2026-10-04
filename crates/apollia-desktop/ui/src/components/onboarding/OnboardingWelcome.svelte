@@ -12,8 +12,8 @@
    * collapses under reduced-motion.
    *
    * Includes a top-right language toggle so the user can switch FR/EN before
-   * any screen of the wizard is filled - once a profile is set the locale is
-   * harder to change without re-entering the welcome page.
+   * any screen of the wizard is filled - once past this page the locale is
+   * harder to change without re-entering it.
    */
   import { ShieldCheck, Cpu, Sparkles, Languages } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";

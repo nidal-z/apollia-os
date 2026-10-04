@@ -26,6 +26,7 @@ pub mod hardware;
 pub mod hf_registry;
 #[cfg(feature = "cloud")]
 pub mod http_client;
+pub mod message_image;
 pub mod meta;
 pub mod meta_orchestrator;
 pub mod model_cards;

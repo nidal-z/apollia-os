@@ -11,6 +11,7 @@ impl ChatSessionManager {
                     agent_name,
                     system_prompt,
                     tools,
+                    model,
                     reply,
                 } => {
                     let result = self
@@ -19,6 +20,7 @@ impl ChatSessionManager {
                             agent_name,
                             system_prompt,
                             tools,
+                            model,
                         })
                         .await;
                     let _ = reply.send(result);
@@ -26,9 +28,10 @@ impl ChatSessionManager {
                 ChatCommand::SendMessage {
                     session_id,
                     content,
+                    images,
                     reply,
                 } => {
-                    let result = self.handle_send_message(&session_id, &content);
+                    let result = self.handle_send_message(&session_id, &content, images);
                     let _ = reply.send(result);
                 }
                 ChatCommand::ResolveTool {
@@ -182,18 +185,13 @@ impl ChatSessionManager {
                 }
                 ChatCommand::UpdateSession {
                     session_id,
-                    system_prompt,
-                    available_tools,
-                    llm_backend,
+                    update,
                     reply,
                 } => {
-                    let result = self.handle_update_session(
-                        &session_id,
-                        system_prompt.as_deref(),
-                        available_tools.as_deref(),
-                        llm_backend.as_ref(),
-                    );
-                    let _ = reply.send(result);
+                    let _ = reply.send(self.handle_update_session(&session_id, update));
+                }
+                ChatCommand::ReleaseProfile { profile_id, reply } => {
+                    let _ = reply.send(self.handle_release_profile(&profile_id));
                 }
                 ChatCommand::RegenerateResponse {
                     session_id,
@@ -300,13 +298,6 @@ impl ChatSessionManager {
                 ChatCommand::SetGovernance { governance } => {
                     info!("chat.governance.set");
                     self.governance = Some(governance);
-                }
-                ChatCommand::ResolveFsHitl {
-                    request_id,
-                    decision,
-                    reply,
-                } => {
-                    let _ = reply.send(self.handle_resolve_fs_hitl(&request_id, decision));
                 }
                 ChatCommand::ListApprovalHistory { limit, days, reply } => {
                     let result = self.repository.list_tool_approval_history(limit, days);

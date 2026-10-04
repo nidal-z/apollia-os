@@ -5,7 +5,6 @@
  * Each function rejects with the runtime error string on failure, letting the
  * caller humanize it (`reportError`) rather than swallowing it.
  */
-import type { AlwaysScope } from "$lib/components/operator/HITLCard.svelte";
 import { approvePlan, rejectPlan } from "$lib/ipc/planMode";
 import {
   authorizeChatTool,
@@ -49,8 +48,8 @@ export async function resolveItem(
   });
 }
 
-/** Grant a standing "always allow" for a chat tool at the chosen scope. */
-export async function alwaysAccept(item: InboxItem, scope: AlwaysScope): Promise<void> {
+/** Answer "always for this agent" to a chat tool call. */
+export async function alwaysAccept(item: InboxItem): Promise<void> {
   if (item.kind === "task" || item.kind === "ask_user" || item.kind === "plan") return;
   const src = item.source as PendingChatApproval;
   await authorizeChatTool({
@@ -59,6 +58,5 @@ export async function alwaysAccept(item: InboxItem, scope: AlwaysScope): Promise
     toolCallId: src.toolCallId,
     toolName: src.toolName,
     decision: "always_accept",
-    scope,
   });
 }

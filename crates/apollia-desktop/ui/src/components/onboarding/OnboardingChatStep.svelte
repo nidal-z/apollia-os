@@ -91,7 +91,7 @@
   // wrap-up panel appear *without* the agent's authoritative
   // `onboarding.completed_at` signal. Deliberately generous now that the
   // conversation runs through the optional enrichment: the real exits are
-  // the agent's [PROFILE] closure and the explicit "finish" button, so this
+  // the agent's closing call and the explicit "finish" button, so this
   // backstop should almost never fire before either.
   const SAFETY_REPLIES = 12;
 
@@ -127,7 +127,7 @@
     if (!sessionId || finishing) return;
     finishing = true;
     try {
-      // Nudge the agent to wrap up. It closes with [PROFILE] once the
+      // Nudge the agent to wrap up. It closes through its tool once the
       // mandatory keys are present, which writes `onboarding.completed_at`.
       await sendChatMessage(sessionId, $t("onboarding_chat.finish_early_message"));
     } catch {

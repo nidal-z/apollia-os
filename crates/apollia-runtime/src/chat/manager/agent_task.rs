@@ -66,7 +66,6 @@ struct AgentTaskWiring {
     mcp_loading: LoadingMode,
     tool_search_limit: usize,
     hook_executor: Option<Arc<HookExecutor>>,
-    hitl: HitlInvokerParams,
     package_tools: Option<Arc<dyn crate::package_tools::PackageToolHost>>,
     composer: Option<Arc<dyn crate::composition::Composer>>,
     governance: Option<crate::governance::GovernanceHandle>,
@@ -79,13 +78,6 @@ impl ChatSessionManager {
         run: AgentTaskRun,
     ) -> Result<(), ChatError> {
         let llm_router = self.llm_router.clone().ok_or(ChatError::NoLlmConfigured)?;
-        let hitl = HitlInvokerParams {
-            session_id: run.task_id.clone(),
-            event_bus: self.event_bus.clone(),
-            pending_fs: self.pending_fs_approvals.clone(),
-            fs_allow_rules: Arc::new(std::sync::Mutex::new(HashSet::new())),
-            risk_config: apollia_core::FilesystemRiskConfig::default(),
-        };
         let wiring = AgentTaskWiring {
             llm_router,
             tool_registry: self.tool_registry.clone(),
@@ -99,7 +91,6 @@ impl ChatSessionManager {
             mcp_loading: self.mcp_loading,
             tool_search_limit: self.tool_search_limit,
             hook_executor: self.hook_executor.clone(),
-            hitl,
             package_tools: self.package_tools.clone(),
             composer: self.composer.clone(),
             governance: self.governance.clone(),
@@ -210,7 +201,6 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
     let resolved = super::libre::build_session_invoker(
         WorkspaceResolutionParams {
             folders,
-            hitl: Some(wiring.hitl),
             pending_user_inputs: Some(wiring.pending_user_inputs),
             mcp_handle: wiring.mcp_handle,
             chat_tools_config: wiring.chat_tools_config,

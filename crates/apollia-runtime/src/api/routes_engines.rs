@@ -1,7 +1,8 @@
 //! Inference engines: what is installed, the followed channel, updates, and
 //! the verified download or import of an engine.
 //!
-//! - `GET  /api/v1/engines`          , engines embedded and installed, channel, updates
+//! - `GET  /api/v1/engines`          , engines embedded and installed with the
+//!   version each states, the dictation engine, channel, updates
 //! - `GET  /api/v1/engines/settings` , the followed channel and the mirror address
 //! - `PUT  /api/v1/engines/settings` , change them
 //! - `POST /api/v1/engines/check`    , fetch and verify the channel manifest
@@ -22,8 +23,8 @@ use crate::api::routes_llm::servers::{api_err, ApiError};
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 use crate::engine_store::{
-    self, cached_manifest, installed_packages, node::NodeState, Channel, Engine, EngineStore,
-    EngineStoreError, EngineStoreSettings, Source, Variant, VariantUpdate,
+    self, cached_manifest, installed_packages, node::NodeState, version, Channel, Engine,
+    EngineStore, EngineStoreError, EngineStoreSettings, Source, Variant, VariantUpdate,
 };
 
 /// One engine on this machine.
@@ -39,6 +40,20 @@ pub struct EngineEntry {
     pub path: String,
     /// Embedded, downloaded or imported.
     pub source: Source,
+    /// The version the engine states at its source: the `--version` banner of
+    /// a binary, the package metadata of a Python environment. Unknown when it
+    /// does not answer.
+    pub version: Option<String>,
+}
+
+/// The dictation engine, whisper.cpp inside the runner the daemon starts.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct DictationEngine {
+    /// The runner binary.
+    pub path: String,
+    /// The whisper.cpp version the runner states with `--version`; unknown
+    /// when it does not answer.
+    pub version: Option<String>,
 }
 
 /// Body of `GET /api/v1/engines`.
@@ -55,6 +70,8 @@ pub struct EnginesResponse {
     pub updates: Vec<VariantUpdate>,
     /// True when an NVIDIA card is detected and no CUDA engine is installed.
     pub cuda_proposable: bool,
+    /// The dictation engine, when a runner is in reach.
+    pub dictation: Option<DictationEngine>,
 }
 
 /// Body of the settings routes.
@@ -130,7 +147,46 @@ fn entry(p: engine_store::InstalledPackage) -> EngineEntry {
         variant: Some(p.variant),
         path: p.path.display().to_string(),
         source: p.source,
+        version: None,
     }
+}
+
+/// The version `entry` states at its source, read from what is on disk.
+async fn stated_version(entry: &EngineEntry) -> Option<String> {
+    let path = Path::new(&entry.path);
+    let binary = |name: &str| {
+        let file = format!("{name}{}", std::env::consts::EXE_SUFFIX);
+        if path.is_file() {
+            Some(path.to_path_buf())
+        } else {
+            engine_store::find_binary(path, &file)
+        }
+    };
+    match entry.engine {
+        Engine::LlamaServer => version::probe_banner(&binary("llama-server")?).await,
+        Engine::NodeJs => version::probe_banner(&binary("node")?).await,
+        Engine::VllmMlx => version::dist_info_version(&path.join("site-packages"), "vllm_mlx"),
+    }
+}
+
+/// `entries`, each with the version it states.
+async fn with_versions(mut entries: Vec<EngineEntry>) -> Vec<EngineEntry> {
+    for entry in &mut entries {
+        entry.version = stated_version(entry).await;
+    }
+    entries
+}
+
+/// The dictation engine of this machine and the version its runner states.
+async fn dictation_engine() -> Option<DictationEngine> {
+    let binary = tokio::task::spawn_blocking(crate::runner_supervisor::dictation_runner_binary)
+        .await
+        .ok()
+        .flatten()?;
+    Some(DictationEngine {
+        path: binary.display().to_string(),
+        version: version::probe_banner(&binary).await,
+    })
 }
 
 /// The engines shipped inside the bundle next to the running executable.
@@ -160,6 +216,7 @@ fn embedded_engines() -> Vec<EngineEntry> {
             variant: cfg!(target_os = "macos").then_some(Variant::Metal),
             path: found.display().to_string(),
             source: Source::Embedded,
+            version: None,
         });
     }
     let mlx = apollia_core::paths::bundled_resource_dirs(&exe_dir, "python")
@@ -173,6 +230,7 @@ fn embedded_engines() -> Vec<EngineEntry> {
             variant: Some(Variant::Metal),
             path: found.display().to_string(),
             source: Source::Embedded,
+            version: None,
         });
     }
     out
@@ -205,6 +263,7 @@ fn engines_view(
         manifest_sequence: manifest.map(|m| m.sequence),
         updates,
         cuda_proposable: nvidia_detected && !has_cuda,
+        dictation: None,
     })
 }
 
@@ -230,9 +289,10 @@ pub async fn list_engines<B: ExecutionBackend + Clone>(
     .await
     .unwrap_or(false);
     let embedded = embedded_engines();
-    engines_view(&data_dir, embedded, nvidia)
-        .map(Json)
-        .map_err(store_err)
+    let mut view = engines_view(&data_dir, embedded, nvidia).map_err(store_err)?;
+    view.engines = with_versions(view.engines).await;
+    view.dictation = dictation_engine().await;
+    Ok(Json(view))
 }
 
 #[utoipa::path(
@@ -331,7 +391,7 @@ pub async fn install_engine<B: ExecutionBackend + Clone>(
         .await
         .map_err(store_err)?;
     Ok(Json(EngineInstalledResponse {
-        installed: vec![entry(installed)],
+        installed: with_versions(vec![entry(installed)]).await,
     }))
 }
 
@@ -359,7 +419,7 @@ pub async fn import_engines<B: ExecutionBackend + Clone>(
             .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?
             .map_err(store_err)?;
     Ok(Json(EngineInstalledResponse {
-        installed: installed.into_iter().map(entry).collect(),
+        installed: with_versions(installed.into_iter().map(entry).collect()).await,
     }))
 }
 

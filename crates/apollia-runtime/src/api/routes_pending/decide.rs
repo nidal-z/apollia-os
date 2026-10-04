@@ -119,7 +119,7 @@ async fn decide_consent<B: ExecutionBackend + Clone>(
     let (decision, message) = match request.answer {
         PendingAnswer::Once => (ToolDecision::Accept, "Allowed once; the agent goes on."),
         PendingAnswer::Always => (
-            ToolDecision::always_accept_default(),
+            ToolDecision::AlwaysAccept,
             "Allowed for this agent from now on; the agent goes on.",
         ),
         _ => (
