@@ -8,12 +8,13 @@
    * machine, chosen with the system picker, then the native accounts
    * (Google, Microsoft),
    * whose page is where their client is entered and their accounts connected,
+   * and on the mailbox, added by its address and an application password,
    * then the ranked suggestions and the rest of the registry with trust-level
    * filter chips and IntersectionObserver auto-pagination. The technical names
    * of the catalogue and of the custom form are shown in developer mode only.
    */
   import { t } from "svelte-i18n";
-  import { Folder, Sparkles, UserRound } from "lucide-svelte";
+  import { Folder, Mail, Sparkles, UserRound } from "lucide-svelte";
   import { ListRow } from "$lib/components/operator";
   import { developerMode } from "$lib/stores/developerMode";
   import { NATIVE_PROVIDERS, NATIVE_PROVIDER_KEYS } from "$lib/connections/connectionRows";
@@ -50,6 +51,8 @@
     oninstalled: () => void;
     /** Open the page of a native provider, to set its client or connect an account. */
     onaddnative: (provider: ProviderId) => void;
+    /** Open the form that adds a mailbox by its address and an application password. */
+    onaddmailbox: () => void;
     /** Choose a folder of this machine with the system picker and add it. */
     onaddfolder: () => void;
   }
@@ -67,6 +70,7 @@
     onmanage,
     oninstalled,
     onaddnative,
+    onaddmailbox,
     onaddfolder,
   }: Props = $props();
 
@@ -234,6 +238,28 @@
               </ListRow>
             </li>
           {/each}
+          <li>
+            <ListRow
+              variant="row"
+              border={false}
+              pad="snug"
+              class="rounded-lg border border-border/60 bg-card elev-interactive hover:border-primary/40"
+              onclick={onaddmailbox}
+              data-testid="catalogue-native-mailbox"
+            >
+              <ConnectorTile size="md" accent="hsl(var(--primary))">
+                {#snippet icon()}<Mail size={14} />{/snippet}
+              </ConnectorTile>
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-body-sm font-medium text-foreground">
+                  {$t("connections.mailbox.entry_name")}
+                </div>
+                <div class="truncate text-caption text-muted-foreground">
+                  {$t("connections.mailbox.entry_description")}
+                </div>
+              </div>
+            </ListRow>
+          </li>
         </ul>
         {#if registryLoading && entries.length === 0}
           <div class="space-y-2" data-testid="catalogue-loading">

@@ -41,9 +41,11 @@ export interface Refusal {
  * connections. It is the runtime's `REMOTE_DENIED_REASON`, verbatim.
  */
 export const REMOTE_DENIED_REASON =
+  // i18n-ignore: runtime reason matched verbatim, never shown to the user
   "refused by the organisation policy: connections to online services are not allowed";
 
 /** Start of the reason the admission gives when the deposited policy cannot be read. */
+// i18n-ignore: runtime reason prefix matched verbatim, never shown to the user
 const POLICY_UNREADABLE_PREFIX = "the connection policy could not be read";
 
 /**

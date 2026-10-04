@@ -23,6 +23,7 @@
   import CatalogueSheet from "../components/connections/catalogue/CatalogueSheet.svelte";
   import NativeOauthDialog from "../components/connections/oauth/NativeOauthDialog.svelte";
   import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
+  import MailboxDialog from "../components/integrations/MailboxDialog.svelte";
   import FolderConnectionDialog from "../components/connections/catalogue/FolderConnectionDialog.svelte";
   import { chooseAndAddFolder, type FolderOutcome } from "$lib/connections/folderConnection";
   import { openSettingsWindow } from "$lib/stores/settingsWindow";
@@ -148,6 +149,7 @@
   let catalogueTier = $state<"none" | "curated" | "full">("none");
   let selectedRegistryServer = $state<RegistryServerView | null>(null);
   let wizardOpen = $state(false);
+  let mailboxOpen = $state(false);
 
   // ── Folder connections ───────────────────────────────────────────────────────
   let folderOutcome = $state<Exclude<FolderOutcome, { kind: "cancelled" }> | null>(null);
@@ -518,6 +520,15 @@
   />
 {/if}
 
+<MailboxDialog
+  open={mailboxOpen}
+  onclose={() => (mailboxOpen = false)}
+  onadded={(connectionId) => {
+    selection = { kind: "connection", id: connectionId };
+    void loadAll();
+  }}
+/>
+
 <FolderConnectionDialog
   open={folderDialogOpen}
   outcome={folderOutcome}
@@ -552,6 +563,10 @@
   onaddnative={(provider) => {
     catalogueOpen = false;
     selection = { kind: "native", provider };
+  }}
+  onaddmailbox={() => {
+    catalogueOpen = false;
+    mailboxOpen = true;
   }}
   oninstalled={() => {
     catalogueOpen = false;
