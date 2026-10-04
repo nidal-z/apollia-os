@@ -3194,7 +3194,66 @@
     },
     "model_defaults": {
       "subtitle": "Les valeurs que reçoit un modèle quand rien d'autre ne les fixe.",
-      "empty": "Aucun défaut n'est encore réglable ici : chaque modèle garde les valeurs de l'écran IA."
+      "saved": "Enregistré",
+      "write_failed": "Ce réglage n'a pas pu être enregistré.",
+      "images": {
+        "title": "Images en entrée",
+        "never_exceed": "Ne jamais dépasser",
+        "unit": "pixels",
+        "hint": "Le plus grand côté est ramené à cette valeur, proportions gardées. Éteint, une image part à sa taille, dans la limite de ce que le modèle accepte.",
+        "toggle_label": "Limiter la taille des images en entrée"
+      },
+      "context": {
+        "title": "Contexte par défaut",
+        "description": "La longueur de conversation qu'un modèle garde en mémoire, quand ni ses réglages de chargement ni sa configuration ne la fixent.",
+        "custom": "Valeur personnalisée",
+        "custom_hint": "Sans valeur saisie, Apollia la calcule pour chaque modèle afin qu'il tienne dans la mémoire de cet ordinateur ; vous pouvez la changer.",
+        "model_max": "Maximum du modèle",
+        "model_max_hint": "Chaque modèle se charge avec le plus long contexte qu'il sait tenir. Demande davantage de mémoire.",
+        "unit": "jetons",
+        "auto_placeholder": "Automatique"
+      },
+      "guardrails": {
+        "title": "Garde-fous de chargement",
+        "level_label": "Niveau de précaution",
+        "help": "Avant de charger un modèle, Apollia estime la mémoire qu'il demande et la compare à celle de cet ordinateur. Le niveau choisi décide si le modèle se charge ou s'il est refusé.",
+        "help_label": "Comment fonctionnent les garde-fous de chargement",
+        "disabled": "Désactivés (déconseillé)",
+        "disabled_hint": "Aucun contrôle : tout modèle se charge, même s'il sature l'ordinateur.",
+        "lenient": "Souples",
+        "lenient_hint": "Tout modèle se charge ; un dépassement de la mémoire est seulement signalé.",
+        "balanced": "Équilibrés",
+        "balanced_hint": "Un modèle qui dépasse la mémoire de l'ordinateur est refusé. Recommandé.",
+        "strict": "Stricts",
+        "strict_hint": "Seuls se chargent les modèles qui tiennent à l'aise dans la mémoire.",
+        "ceiling": "Plafond",
+        "ceiling_hint": "Un modèle se charge tant que la mémoire qu'il demande reste sous ce plafond.",
+        "ceiling_unit": "Go"
+      },
+      "bypass": {
+        "title": "Contournement des alertes mémoire",
+        "load_anyway": "Charger quand même",
+        "load_anyway_hint": "Quand un garde-fou refuse un modèle, vous pouvez demander à le charger malgré tout.",
+        "confirm": "Confirmation explicite",
+        "confirm_hint": "Au chargement, une fenêtre de confirmation rappelle le risque ; le modèle ne se charge qu'après votre accord.",
+        "unrestricted": "Aucune restriction (déconseillé)",
+        "unrestricted_hint": "« Charger quand même » charge le modèle aussitôt, sans confirmation."
+      },
+      "unload": {
+        "title": "Déchargement des modèles",
+        "label": "Décharger un modèle inutilisé après",
+        "label_hint": "Un modèle qu'aucune conversation ouverte n'utilise rend sa mémoire. Un modèle gardé en mémoire par son épingle reste chargé.",
+        "after": "Après un délai",
+        "after_hint": "Le modèle est déchargé quand rien ne l'a sollicité pendant ce délai.",
+        "never": "Jamais",
+        "never_hint": "Un modèle reste chargé jusqu'à ce que vous l'éjectiez.",
+        "unit": "minutes"
+      },
+      "errors": {
+        "not_a_number": "Saisissez un nombre.",
+        "out_of_bounds": "La valeur doit être comprise entre {min} et {max}.",
+        "above_memory": "Ce plafond dépasse la mémoire de cet ordinateur ({max} Go)."
+      }
     },
     "notifications": {
       "subtitle": "Où Apollia vous prévient, et de quoi.",

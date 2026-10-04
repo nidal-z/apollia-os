@@ -63,6 +63,7 @@ mod hitl;
 mod hooks;
 pub mod keys;
 mod llm;
+mod llm_defaults;
 mod llm_residency;
 mod llm_section;
 mod mcp;
@@ -111,6 +112,11 @@ pub use engines::{EngineLogLevel, EnginesConfig, ENGINE_LOG_LEVELS};
 pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
 pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig};
+pub use llm_defaults::{
+    ContextDefault, LlmDefaultsConfig, LlmImagesConfig, CONTEXT_MODES, CONTEXT_MODE_KEY,
+    CONTEXT_TOKENS_KEY, DEFAULT_IMAGE_MAX_SIDE_PX, IMAGE_LIMIT_KEY, IMAGE_MAX_SIDE_KEY,
+    LOAD_BYPASS_KEY, LOAD_BYPASS_MODES,
+};
 pub use llm_residency::{LlmResidencyConfig, DEFAULT_IDLE_UNLOAD_MINUTES, IDLE_UNLOAD_KEY};
 pub use llm_section::{
     infer_api_provider_from_url, LlmApiBackendEntry, LlmBackendEntry, LlmBackendKind, LlmConfig,

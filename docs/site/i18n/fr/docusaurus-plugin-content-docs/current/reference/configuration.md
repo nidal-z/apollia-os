@@ -169,7 +169,12 @@ Backends LLM, routage, et le runner de transcription. Le fichier par défaut lai
 | `llm.routing` | table | non définie | Backends qui répondent aux requêtes précises et rapides, et le plafond du routage hybride. |
 | `llm.guardrails.level` | l'une de disabled, lenient, balanced, strict, ceiling | `"balanced"` | Sévérité avec laquelle le lancement d'un modèle local est tenu à la mémoire de la machine ; un niveau inconnu vaut balanced. La politique de l'organisation peut l'imposer. |
 | `llm.guardrails.ceiling_gb` | décimal | non définie | Plus grande estimation, en gigaoctets, que le niveau ceiling lance. La politique de l'organisation peut l'imposer. |
+| `llm.guardrails.bypass` | l'une de confirm, unrestricted | `"confirm"` | Ce que demande d'abord le chargement d'un modèle refusé : confirm, une confirmation explicite, ou unrestricted, rien. La politique de l'organisation peut l'imposer. |
 | `llm.residency.idle_unload_minutes` | entier | `60` | Minutes sans requête au bout desquelles un modèle local que rien ne retient est déchargé ; 0 ne décharge jamais. La politique de l'organisation peut l'imposer. |
+| `llm.defaults.context` | l'une de custom, model_max | `"custom"` | Fenêtre de contexte d'un modèle local que ni APOLLIA_LLAMA_N_CTX, ni un preset, ni son backend ne fixent : custom, la valeur de llm.defaults.context_tokens, ou model_max, la longueur pour laquelle le modèle a été entraîné. La politique de l'organisation peut l'imposer. |
+| `llm.defaults.context_tokens` | entier | `0` | Fenêtre de contexte par défaut, en jetons, quand llm.defaults.context vaut custom ; 0 laisse le moteur la dimensionner à la mémoire de cette machine, modèle par modèle, jusqu'à 32768. La politique de l'organisation peut l'imposer. |
+| `llm.images.limit_side` | booléen | `true` | Réduire une image avant de l'envoyer à un modèle quand son plus grand côté dépasse llm.images.max_side_px. La politique de l'organisation peut l'imposer. |
+| `llm.images.max_side_px` | entier | `2048` | Plus grand côté, en pixels, d'une image envoyée à un modèle ; les proportions sont gardées. La politique de l'organisation peut l'imposer. |
 
 ### `[api]`
 
@@ -570,6 +575,55 @@ quelles conversations sont ouvertes avec `POST /api/v1/llm/leases` et
 comptent comme fermées. Chaque déchargement est publié sur le bus d'événements
 sous `LlmModelUnloaded`, avec sa raison : `idle`, `last_conversation`,
 `requested` ou `make_room`.
+
+## Défauts des modèles (`[llm.defaults]`, `[llm.images]`)
+
+Ce que reçoit un modèle local quand rien de plus proche de lui ne dit autre
+chose. L'application les montre dans Réglages, Défauts des modèles.
+
+```toml
+[llm.defaults]
+context = "custom"       # ou "model_max"
+context_tokens = 16384   # 0 laisse le moteur dimensionner la fenêtre à cette machine
+
+[llm.images]
+limit_side = true
+max_side_px = 2048
+
+[llm.guardrails]
+bypass = "confirm"       # ou "unrestricted"
+```
+
+La fenêtre de contexte d'un lancement est la première de ces sources qui se
+prononce :
+
+| Ordre | Source |
+| --- | --- |
+| 1 | `APOLLIA_LLAMA_N_CTX` |
+| 2 | la fenêtre du preset du modèle |
+| 3 | le `context_window` du backend |
+| 4 | `[llm.defaults]` |
+| 5 | 32768 jetons, la valeur avec laquelle le moteur est construit |
+
+Avec `context = "custom"` et une valeur, cette valeur s'applique. Avec
+`context_tokens = 0`, le défaut, le moteur dimensionne la fenêtre modèle par
+modèle : la plus longue, jusqu'à 32768 jetons et jamais sous 4096, à laquelle
+l'estimation qu'utilise le garde-fou de chargement tient encore le modèle dans
+la mémoire de la machine. Avec `context = "model_max"`, la fenêtre est la
+longueur pour laquelle le modèle a été entraîné. Chacune est plafonnée à la
+longueur d'entraînement, et un modèle dont l'en-tête ne se lit pas tombe à la
+dernière ligne du tableau. La section est relue à chaque chargement : un
+changement s'applique au prochain modèle chargé.
+
+`[llm.images]` est lue par le chat de l'application : une image dont le plus
+grand côté dépasse `max_side_px` y est ramenée, proportions gardées, avant
+d'être envoyée à un modèle qui lit les images. Avec `limit_side = false`, une
+image voyage à sa taille, jusqu'à ce que le moteur accepte.
+
+`bypass` dit ce que l'application demande avant de charger un modèle que le
+garde-fou a refusé : `confirm` montre une confirmation qui rappelle le risque,
+`unrestricted` charge aussitôt. Le garde-fou lui-même n'est pas affaibli : le
+refus reste affiché, et une requête qui ne confirme pas reste refusée.
 
 ## Dictée (`system.db`, pas `apollia.toml`)
 

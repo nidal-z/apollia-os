@@ -3194,7 +3194,66 @@
     },
     "model_defaults": {
       "subtitle": "The values a model receives when nothing else sets them.",
-      "empty": "No default can be set here yet: each model keeps the values of the AI screen."
+      "saved": "Saved",
+      "write_failed": "This setting could not be saved.",
+      "images": {
+        "title": "Image input",
+        "never_exceed": "Never exceed",
+        "unit": "pixels",
+        "hint": "The largest side is scaled down to this value, proportions kept. Off, an image is sent at its own size, within what the model accepts.",
+        "toggle_label": "Limit the size of input images"
+      },
+      "context": {
+        "title": "Default context length",
+        "description": "How much of a conversation a model keeps in memory, when neither its load settings nor its configuration set it.",
+        "custom": "Custom value",
+        "custom_hint": "With no value entered, Apollia works it out for each model so that it fits in the memory of this computer; you can change it.",
+        "model_max": "Model maximum",
+        "model_max_hint": "Each model loads with the longest context it can hold. Needs more memory.",
+        "unit": "tokens",
+        "auto_placeholder": "Automatic"
+      },
+      "guardrails": {
+        "title": "Model loading guardrails",
+        "level_label": "Level of caution",
+        "help": "Before it loads a model, Apollia estimates the memory it needs and compares it with the memory of this computer. The level chosen decides whether the model loads or is refused.",
+        "help_label": "How the loading guardrails work",
+        "disabled": "Off (not recommended)",
+        "disabled_hint": "No check: every model loads, even one that saturates the computer.",
+        "lenient": "Relaxed",
+        "lenient_hint": "Every model loads; going past the memory is only reported.",
+        "balanced": "Balanced",
+        "balanced_hint": "A model that exceeds the memory of the computer is refused. Recommended.",
+        "strict": "Strict",
+        "strict_hint": "Only models that fit comfortably in memory load.",
+        "ceiling": "Ceiling",
+        "ceiling_hint": "A model loads as long as the memory it needs stays under this ceiling.",
+        "ceiling_unit": "GB"
+      },
+      "bypass": {
+        "title": "Bypass memory load warnings",
+        "load_anyway": "Load anyway",
+        "load_anyway_hint": "When a guardrail refuses a model, you can ask to load it all the same.",
+        "confirm": "Explicit confirmation",
+        "confirm_hint": "At load time, a confirmation window recalls the risk; the model only loads once you agree.",
+        "unrestricted": "No restriction (not recommended)",
+        "unrestricted_hint": "\"Load anyway\" loads the model at once, without a confirmation."
+      },
+      "unload": {
+        "title": "Model unloading",
+        "label": "Unload an unused model after",
+        "label_hint": "A model no open conversation uses gives its memory back. A model kept in memory by its pin stays loaded.",
+        "after": "After a delay",
+        "after_hint": "The model is unloaded when nothing has called on it for this long.",
+        "never": "Never",
+        "never_hint": "A model stays loaded until you eject it.",
+        "unit": "minutes"
+      },
+      "errors": {
+        "not_a_number": "Enter a number.",
+        "out_of_bounds": "The value must be between {min} and {max}.",
+        "above_memory": "This ceiling exceeds the memory of this computer ({max} GB)."
+      }
     },
     "notifications": {
       "subtitle": "Where Apollia warns you, and about what.",

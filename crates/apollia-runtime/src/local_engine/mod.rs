@@ -19,6 +19,7 @@
 
 mod backend;
 mod capabilities;
+pub mod context_default;
 pub mod guardrails;
 mod rows;
 
@@ -80,12 +81,11 @@ pub trait LocalEngine: Send + Sync + 'static {
     /// Which engine this is.
     fn engine(&self) -> Engine;
 
-    /// Context window, in tokens, for a backend that asks for none.
-    fn default_n_ctx(&self) -> u32;
-
-    /// The window a backend asking for `requested` would be served with,
-    /// before any process exists, for the router to size compaction.
-    fn launch_window(&self, backend: &str, requested: Option<u32>) -> u32;
+    /// The window `model_path`, asked for by a backend wanting `requested`,
+    /// would be served with, before any process exists, for the router to
+    /// size compaction. Reads the settings and the model: called where the
+    /// backend is built, off the async workers.
+    fn launch_window(&self, backend: &str, model_path: &str, requested: Option<u32>) -> u32;
 
     /// Make `model_path` servable and return a lease on the process serving it.
     ///
@@ -127,12 +127,8 @@ impl LocalEngine for LlamaServerSupervisor {
         Engine::LlamaServer
     }
 
-    fn default_n_ctx(&self) -> u32 {
-        self.n_ctx()
-    }
-
-    fn launch_window(&self, backend: &str, requested: Option<u32>) -> u32 {
-        self.window_for(&self.default_load_blocking(backend), requested)
+    fn launch_window(&self, backend: &str, model_path: &str, requested: Option<u32>) -> u32 {
+        self.window_for_blocking(model_path, &self.default_load_blocking(backend), requested)
     }
 
     async fn ensure_model(

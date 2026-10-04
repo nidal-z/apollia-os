@@ -45,8 +45,8 @@ impl LlamaServerSupervisor {
         // The preset, then the environment, then the plans: the slot count
         // first, since the offload plan sizes the cache those slots hold (see
         // `parallel` and `ngl` for why the literals were wrong). The window is
-        // already resolved by `effective_n_ctx`: the environment, then the
-        // preset, then the backend's own window, then the default.
+        // already resolved by `window_for`: the environment, then the preset,
+        // then the backend's own window, then the default of the settings.
         load_settings::compose(
             &base,
             load,

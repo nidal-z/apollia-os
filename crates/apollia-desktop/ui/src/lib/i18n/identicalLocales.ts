@@ -51,6 +51,8 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "settings.language_fr", // Français
   "settings.llm_dialog.field_top_k", // Top-K
   "settings.llm_dialog.field_top_p", // Top-P
+  "settings.model_defaults.images.unit", // pixels
+  "settings.model_defaults.unload.unit", // minutes
   "settings.model_hub.detail.param_top_k", // top_k
   "settings.model_hub.detail.param_top_p", // top_p
   "settings.hardware.gpu", // GPU

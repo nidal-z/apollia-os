@@ -26,8 +26,9 @@ use serde::Serialize;
 use serde_json::Value;
 
 use super::{
-    AuthorConfig, DesktopConfig, EnginesConfig, LlmResidencyConfig, McpConfig, ModelsConfig,
-    ServerConfig, ENGINE_LOG_LEVELS,
+    AuthorConfig, DesktopConfig, EnginesConfig, LlmDefaultsConfig, LlmImagesConfig,
+    LlmResidencyConfig, McpConfig, ModelsConfig, ServerConfig, CONTEXT_MODES, CONTEXT_MODE_KEY,
+    ENGINE_LOG_LEVELS, LOAD_BYPASS_KEY, LOAD_BYPASS_MODES,
 };
 
 /// Wire names of the load guardrail levels, the values `llm.guardrails.level`
@@ -37,6 +38,8 @@ pub const GUARDRAIL_LEVELS: &[&str] = &["disabled", "lenient", "balanced", "stri
 /// Settings whose value is one of a closed list, by dotted key.
 const CHOICES: &[(&str, &[&str])] = &[
     ("llm.guardrails.level", GUARDRAIL_LEVELS),
+    (LOAD_BYPASS_KEY, LOAD_BYPASS_MODES),
+    (CONTEXT_MODE_KEY, CONTEXT_MODES),
     ("engines.log_level", ENGINE_LOG_LEVELS),
 ];
 
@@ -160,9 +163,10 @@ pub enum SettingError {
 /// `models.registry_mirror_url`, `models.registry_enabled`), the import rule
 /// (`models.import.require_verified`) and the load guardrail
 /// (`llm.guardrails.level`, `llm.guardrails.ceiling_gb`, where `0` sets no
-/// ceiling), the idle unload delay of a local model
-/// (`llm.residency.idle_unload_minutes`, where `0` never unloads), then the
-/// whole `[server]` and `[engines]` sections.
+/// ceiling, `llm.guardrails.bypass`), the idle unload delay of a local model
+/// (`llm.residency.idle_unload_minutes`, where `0` never unloads), the default
+/// context window (`[llm.defaults]`) and the image ceiling (`[llm.images]`),
+/// then the whole `[server]` and `[engines]` sections.
 fn defaults() -> serde_json::Map<String, Value> {
     let mut sections = serde_json::Map::new();
     // A struct of plain fields always serializes; a failure would only make
@@ -177,12 +181,25 @@ fn defaults() -> serde_json::Map<String, Value> {
         );
         sections.insert("models".to_owned(), Value::Object(models));
     }
-    let mut llm = serde_json::json!({ "guardrails": { "level": "balanced", "ceiling_gb": 0.0 } });
-    if let (Some(llm), Ok(residency)) = (
-        llm.as_object_mut(),
-        serde_json::to_value(LlmResidencyConfig::default()),
-    ) {
-        llm.insert("residency".to_owned(), residency);
+    let mut llm = serde_json::json!({
+        "guardrails": { "level": "balanced", "ceiling_gb": 0.0, "bypass": "confirm" }
+    });
+    if let Some(llm) = llm.as_object_mut() {
+        for (name, section) in [
+            (
+                "residency",
+                serde_json::to_value(LlmResidencyConfig::default()),
+            ),
+            (
+                "defaults",
+                serde_json::to_value(LlmDefaultsConfig::default()),
+            ),
+            ("images", serde_json::to_value(LlmImagesConfig::default())),
+        ] {
+            if let Ok(section) = section {
+                llm.insert(name.to_owned(), section);
+            }
+        }
     }
     sections.insert("llm".to_owned(), llm);
     if let Ok(mcp) = serde_json::to_value(McpConfig::default()) {
