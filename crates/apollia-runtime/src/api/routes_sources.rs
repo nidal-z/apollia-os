@@ -2,7 +2,9 @@
 //!
 //! - `GET    /api/v1/sources`      , every source, oldest first
 //! - `POST   /api/v1/sources`      , add a source
-//! - `DELETE /api/v1/sources/{id}` , remove a source
+//! - `DELETE /api/v1/sources/{id}` , remove a source, and its index
+//! - `GET    /api/v1/sources/{id}/index`, where the index of a source stands
+//!   and the files it left out ([`index_status`])
 //! - `POST   /api/v1/sources/preview`, what a batch on a workbook or a CSV
 //!   file would read ([`preview`])
 //! - `GET    /api/v1/sources/project-migration`, the report of the migration
@@ -38,6 +40,10 @@ pub fn sources_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             get(list_sources::<B>).post(create_source::<B>),
         )
         .route("/api/v1/sources/:id", delete(delete_source::<B>))
+        .route(
+            "/api/v1/sources/:id/index",
+            get(index_status::source_index::<B>),
+        )
         .route("/api/v1/sources/preview", post(preview::preview_source))
         .route(
             "/api/v1/sources/project-migration",
@@ -46,6 +52,7 @@ pub fn sources_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route("/api/v1/sources/folder-kinds", get(folder_kinds))
 }
 
+pub mod index_status;
 pub mod preview;
 pub mod project_migration;
 
