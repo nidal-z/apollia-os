@@ -2277,7 +2277,8 @@
       "kib_display": "{kib} KiB",
       "sensitive_confirm_title": "Enable sensitive capture?",
       "sensitive_confirm_message": "This persists potentially sensitive content (raw prompts and responses) to the local database. It never leaves your machine, but anyone with local access can read it. Enable it only if you need it for debugging.",
-      "sensitive_confirm_enable": "Enable capture"
+      "sensitive_confirm_enable": "Enable capture",
+      "open_config_editor": "Open the configuration editor"
     },
     "shortcuts": {
       "search_placeholder": "Search shortcuts…",
@@ -2371,11 +2372,6 @@
       "confirm_mismatch": "The text does not match yet.",
       "locked_hint": "Unlocks in {seconds}s"
     },
-    "open_editor": "Open in Editor",
-    "opening": "Opening...",
-    "readonly_banner": "Read-only configuration. To modify, edit {file} and restart the runtime.",
-    "see_details": "See details",
-    "operational_redirect_banner": "Triggers and notifications are configured from their dedicated views in the sidebar.",
     "language_en": "English",
     "language_fr": "Français",
     "theme_title": "Theme",
@@ -2769,18 +2765,11 @@
       }
     },
     "config": {
-      "status_exists": "OK",
-      "status_missing": "Missing",
       "copy_path": "Copy path",
       "path_copied": "Path copied to clipboard",
       "copy_failed": "Failed to copy",
-      "missing_hint": "File not found. Default values are used until you create it.",
-      "show_raw": "Show raw view",
-      "empty": "No entries in this section.",
       "path_label": "Configuration file",
-      "reveal_in_finder": "Reveal in Finder",
-      "empty_title": "No sections to display",
-      "toggle_section": "Show or hide section details"
+      "reveal_in_finder": "Reveal in Finder"
     },
     "system": {
       "refresh": "Refresh",
@@ -3248,6 +3237,51 @@
     "window": {
       "label": "Settings",
       "close": "Close settings"
+    },
+    "config_editor": {
+      "subtitle": "The apollia.toml file, edited here and checked at each pause in typing.",
+      "intro": "All of Apollia's configuration lives in this file. A commented line stands for its default value; what can apply at once applies when you save.",
+      "aria_label": "Text of the configuration file",
+      "save": "Save",
+      "saving": "Saving…",
+      "defaults": "Restore default values",
+      "load_failed": "The configuration file could not be read.",
+      "status_saved": "Saved",
+      "status_modified": "Modified",
+      "status_checking": "Checking…",
+      "status_errors": "{count, plural, one {# error} other {# errors}}",
+      "cursor": "Line {line}, column {column}",
+      "mark_error": "Error: {message}",
+      "mark_restart": "At the next restart",
+      "mark_modified": "Modified line",
+      "notice_restart": "Some values only take effect at the next restart of Apollia.",
+      "restart_now": "Restart Apollia now",
+      "notice_disk_changed": "The file changed on disk. Your changes are not saved yet.",
+      "compare": "Compare",
+      "reload": "Reload",
+      "notice_reloaded": "The file was reloaded from disk.",
+      "notice_saved": "Saved. The values that can apply already do.",
+      "dismiss": "Close the notice",
+      "defaults_title": "Restore the default values?",
+      "defaults_message": "The whole file goes back to its default values; the values imposed by the policy are kept. Nothing is written before you confirm.",
+      "defaults_unchanged": "The file already holds its default values.",
+      "compare_title": "Compare with the file on disk",
+      "compare_message": "Removed lines are those of your changes, added lines those on disk. \"Reload\" takes the file from disk.",
+      "diff_removed": "Removed",
+      "diff_added": "Added",
+      "restart_title": "Restart Apollia now?",
+      "restart_message": "{count, plural, =0 {No run in progress will be interrupted.} one {# run in progress will be interrupted.} other {# runs in progress will be interrupted.}}",
+      "restart_confirm": "Restart",
+      "compare_unchanged": "Your changes and the file on disk are the same."
+    },
+    "config_invalid": {
+      "title": "Invalid configuration, default values in force",
+      "detail": "Line {line}: {message}",
+      "open": "Open the editor",
+      "confirm_title": "Open the configuration editor?",
+      "confirm_message": "The developer mode will be turned on, then the editor opens at line {line}, the one that keeps the file from being read.",
+      "confirm": "Turn on and open",
+      "mode_refused": "The developer mode could not be turned on."
     },
     "hardware": {
       "detecting": "Detecting the hardware…",

@@ -1,5 +1,6 @@
 import { writable, get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
+import { readConfigFile, type ConfigFileView } from "$lib/ipc/configFile";
 import {
   listEngines,
   getPythonInterpreter,
@@ -8,7 +9,6 @@ import {
 } from "$lib/ipc/system";
 import { getHardwareProfile, type HardwareProfile } from "$lib/ipc/modelHub";
 import type {
-  ApollaConfigView,
   SystemInfo,
   SecurityPosture,
   SttModelInfo,
@@ -31,6 +31,7 @@ export type SettingsSubRoute =
   | "model-defaults"
   | "notifications"
   | "developer"
+  | "configuration"
   | "engines"
   | "hardware"
   | "llm"
@@ -47,6 +48,7 @@ export const SETTINGS_SUB_ROUTES: SettingsSubRoute[] = [
   "model-defaults",
   "notifications",
   "developer",
+  "configuration",
   "engines",
   "hardware",
   "llm",
@@ -65,9 +67,19 @@ export const MOVED_SETTINGS_SUB_ROUTES: Readonly<Record<string, SettingsSubRoute
   help: "general",
   danger: "general",
   shortcuts: "chat",
-  configuration: "developer",
   system: "hardware",
 };
+
+/**
+ * The sections that exist only with the developer mode on: absent from the
+ * column, the palette and the window with the mode off.
+ */
+export const DEVELOPER_ONLY_SETTINGS_SUB_ROUTES: readonly SettingsSubRoute[] = ["configuration"];
+
+/** Whether a section is shown with the developer mode in this position. */
+export function settingsSubRouteVisible(route: SettingsSubRoute, developerMode: boolean): boolean {
+  return developerMode || !DEVELOPER_ONLY_SETTINGS_SUB_ROUTES.includes(route);
+}
 
 /**
  * Key of a settings form in the unsaved-changes store: a settings section, or
@@ -144,7 +156,7 @@ function loadState<T>(): LoadState<T> {
   return { data: null, loading: false, error: null, loaded: false };
 }
 
-export const configStore = writable<LoadState<ApollaConfigView>>(loadState());
+export const configStore = writable<LoadState<ConfigFileView>>(loadState());
 export const systemInfoStore = writable<LoadState<SystemInfo>>(loadState());
 export const securityPostureStore = writable<LoadState<SecurityPosture>>(loadState());
 export const cliStatusStore = writable<LoadState<CliStatus>>(loadState());
@@ -180,7 +192,7 @@ async function loadOnce<T>(
 
 export const settingsLoaders = {
   config: (force = false) =>
-    loadOnce(configStore, () => invoke<ApollaConfigView>("get_config"), force),
+    loadOnce(configStore, readConfigFile, force),
   systemInfo: (force = false) =>
     loadOnce(systemInfoStore, () => invoke<SystemInfo>("get_system_info"), force),
   securityPosture: (force = false) =>

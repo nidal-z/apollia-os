@@ -30,7 +30,7 @@
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import { reportError } from "$lib/errors/reportError";
   import type { HumanizedError } from "$lib/errors/humanize";
-  import { openConfigInEditor } from "$lib/ipc/app";
+  import { openSettingsWindow } from "$lib/stores/settingsWindow";
   import {
     getObservabilityConfig,
     setObservabilityConfig,
@@ -85,7 +85,6 @@
   let confirmOpen = $state(false);
   let pendingKey = $state<BoolKey | null>(null);
 
-  let openingEditor = $state(false);
 
   async function load(): Promise<void> {
     loading = true;
@@ -187,18 +186,10 @@
     });
   }
 
-  async function openEditor(): Promise<void> {
-    openingEditor = true;
-    try {
-      await openConfigInEditor();
-    } catch (err) {
-      reportError(err, {
-        surface: "toast",
-        testid: "observability-open-editor-error-toast",
-      });
-    } finally {
-      openingEditor = false;
-    }
+  // The capture policy lives in `apollia.toml`: its other keys are edited in
+  // the editor of the file, in the settings.
+  function openEditor(): void {
+    openSettingsWindow("configuration");
   }
 
   onMount(() => {
@@ -283,13 +274,12 @@
       </p>
       <Button
         onclick={openEditor}
-        disabled={openingEditor}
         variant="outline"
         size="sm"
         data-testid="observability-open-editor"
       >
         {#snippet icon()}<ExternalLink size={13} />{/snippet}
-        {openingEditor ? $t("settings.opening") : $t("settings.open_editor")}
+        {$t("settings.observability.open_config_editor")}
       </Button>
     </div>
 

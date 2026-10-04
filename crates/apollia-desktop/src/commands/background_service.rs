@@ -142,7 +142,7 @@ async fn port_released(port: u16) -> bool {
 
 /// Waits, bounded, for the stopped daemon to release the runtime `port`,
 /// without holding a thread of the pool between two looks.
-async fn wait_for_release(port: u16) {
+pub(crate) async fn wait_for_release(port: u16) {
     let deadline = tokio::time::Instant::now() + RELEASE_TIMEOUT;
     while tokio::time::Instant::now() < deadline {
         if port_released(port).await {
