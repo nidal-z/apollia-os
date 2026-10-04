@@ -711,6 +711,9 @@ mod tests {
             tool_name: "web_search".into(),
             args_json: Some("{\"query\":\"hello\"}".into()),
             run_id: None,
+            tool_call_id: None,
+            family: None,
+            target: None,
         })
         .expect("bus send started");
 
@@ -724,6 +727,9 @@ mod tests {
             duration_ms: 412,
             success: true,
             run_id: None,
+            tool_call_id: None,
+            family: None,
+            target: None,
         })
         .expect("bus send completed");
 
@@ -1005,6 +1011,9 @@ mod tests {
                 tool_name: "file_read".into(),
                 args_json: Some("{\"path\":\"/SECRET_ARG\"}".into()),
                 run_id: None,
+                tool_call_id: None,
+                family: None,
+                target: None,
             },
             RuntimeEvent::ToolCallCompleted {
                 parent_event_id: started_id,
@@ -1016,6 +1025,9 @@ mod tests {
                 duration_ms: 5,
                 success: true,
                 run_id: None,
+                tool_call_id: None,
+                family: None,
+                target: None,
             },
         ]
     }

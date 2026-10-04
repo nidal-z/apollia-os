@@ -154,6 +154,7 @@ impl PackageTool {
             tags: vec!["pkg".to_string(), self.package.clone()],
             family,
             family_source: FamilySource::Package,
+            target_arg: None,
             is_read_only: false,
             risk_score: if reads { 1 } else { 6 },
             approval_risk_level: None,

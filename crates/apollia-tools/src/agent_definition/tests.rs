@@ -271,3 +271,54 @@ fn test_definition_from_manifest_carries_the_declared_autonomy() {
     assert_eq!(definition["defaults"]["autonomy"], json!("supervised"));
     assert_eq!(resolved.autonomy, AutonomyLevel::Supervised);
 }
+
+#[test]
+fn test_resolve_plans_on_its_own_judgement_when_nothing_says_otherwise() {
+    // GIVEN an agent whose definition says nothing about planning
+    let agent = stored();
+
+    // WHEN it is resolved
+    let resolved = resolve(&agent, &[], None, AutonomyLevel::Assisted);
+
+    // THEN it plans when the task reads as a multi-step one
+    assert_eq!(resolved.planning, PlanningMode::Auto);
+}
+
+#[test]
+fn test_resolve_planning_override_wins_over_the_declared_one() {
+    // GIVEN an agent whose package asks it to always plan, overridden to never
+    let mut agent = stored();
+    agent.definition["defaults"]["planning"] = json!("always");
+    let declared = resolve(&agent, &[], None, AutonomyLevel::Assisted);
+    let overrides = [over(OverrideField::Planning, json!("never"))];
+
+    // WHEN it is resolved with the override
+    let resolved = resolve(&agent, &overrides, None, AutonomyLevel::Assisted);
+
+    // THEN the package's mode applies without it, the user's with it
+    assert_eq!(declared.planning, PlanningMode::Always);
+    assert_eq!(resolved.planning, PlanningMode::Never);
+    assert_eq!(resolved.overridden, vec![OverrideField::Planning]);
+}
+
+#[test]
+fn test_planning_override_value_is_one_of_the_three_modes() {
+    // GIVEN the planning field
+
+    // WHEN each mode, an unknown name and a boolean are checked
+    let modes: Vec<_> = ["never", "auto", "always"]
+        .iter()
+        .map(|mode| OverrideField::Planning.check(&json!(mode)))
+        .collect();
+    let unknown = OverrideField::Planning.check(&json!("sometimes"));
+    let boolean = OverrideField::Planning.check(&json!(true));
+
+    // THEN only the three modes are accepted, and the field reads by its name
+    assert_eq!(modes, vec![Ok(()), Ok(()), Ok(())]);
+    assert_eq!(unknown, Err(OverrideValueError::ExpectedPlanningMode));
+    assert_eq!(boolean, Err(OverrideValueError::ExpectedPlanningMode));
+    assert_eq!(
+        OverrideField::parse("planning"),
+        Ok(OverrideField::Planning)
+    );
+}

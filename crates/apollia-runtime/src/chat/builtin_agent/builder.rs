@@ -9,6 +9,7 @@ impl BuiltInChatAgent {
             tool_invoker: deps.tool_invoker,
             event_bus: deps.event_bus,
             user_memory: deps.user_memory,
+            conversation_profile: None,
             composer: None,
             context_manager: ContextManager::from_config(&ORIAConfig::default()),
             meta_handle: None,
@@ -32,8 +33,17 @@ impl BuiltInChatAgent {
             preferred_backend: None,
             agent_id: crate::chat::manager::APOLLIA_CHAT_AGENT_ID.to_string(),
             approval_timeout: Some(CHAT_APPROVAL_TIMEOUT),
+            tool_output_dir: None,
+            resilience: apollia_oria::ResilienceLayer::default(),
             turn_id: None,
         }
+    }
+
+    /// Keep a tool output too long for the context whole in `dir`, and give
+    /// the model its beginning and the path. `None` cuts it instead.
+    pub fn with_tool_output_dir(mut self, dir: Option<std::path::PathBuf>) -> Self {
+        self.tool_output_dir = dir;
+        self
     }
 
     /// Name the conversation turn the run's model calls are made for, the
@@ -142,6 +152,13 @@ impl BuiltInChatAgent {
     /// reopening discovery (see [`session_plan_phase`](Self::session_plan_phase)).
     pub fn with_plan_phase_start(mut self, phase: PlanPhase) -> Self {
         self.session_plan_phase = phase;
+        self
+    }
+
+    /// Name the profile the conversation designates, the one the profile
+    /// block is read from. `None` reads the default profile.
+    pub fn with_conversation_profile(mut self, profile_id: Option<String>) -> Self {
+        self.conversation_profile = profile_id;
         self
     }
 

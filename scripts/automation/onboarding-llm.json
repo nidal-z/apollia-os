@@ -1,6 +1,9 @@
 {
   "name": "onboarding-llm",
   "stopOnError": false,
+  "dynamicTestids": [
+    "profile-field-role"
+  ],
   "steps": [
     {
       "kind": "waitFor",
@@ -62,12 +65,8 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "expect",
-      "testid": "onboarding-chat-phase"
-    },
-    {
       "kind": "screenshot",
-      "label": "04-onb-chat-phase-calibration"
+      "label": "04-onb-chat-first-question"
     },
     {
       "kind": "sleep",
@@ -90,7 +89,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "05-onb-tier1-name-during"
+      "label": "05-onb-name-role-during"
     },
     {
       "kind": "waitGone",
@@ -105,7 +104,7 @@
       "kind": "captureText",
       "testidPrefix": "chat-message-",
       "nth": -1,
-      "as": "tier1_name"
+      "as": "answer_name_role"
     },
     {
       "kind": "screenshot",
@@ -113,7 +112,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Approve only critical actions."
+      "text": "I work in the engineering department, with VS Code, GitHub and Slack."
     },
     {
       "kind": "waitFor",
@@ -133,15 +132,15 @@
       "kind": "captureText",
       "testidPrefix": "chat-message-",
       "nth": -1,
-      "as": "tier1_hitl"
+      "as": "answer_function_tools"
     },
     {
       "kind": "screenshot",
-      "label": "07-onb-pips-after-hitl"
+      "label": "07-onb-pips-after-tools"
     },
     {
       "kind": "sendChat",
-      "text": "Everything must stay on my machine, local only."
+      "text": "I like short answers, in English."
     },
     {
       "kind": "waitFor",
@@ -161,11 +160,11 @@
       "kind": "captureText",
       "testidPrefix": "chat-message-",
       "nth": -1,
-      "as": "tier1_sovereignty"
+      "as": "answer_preferences"
     },
     {
       "kind": "screenshot",
-      "label": "08-onb-pips-after-sovereignty"
+      "label": "08-onb-pips-after-preferences"
     },
     {
       "kind": "waitFor",
@@ -181,16 +180,45 @@
       "testid": "onboarding-finish-early"
     },
     {
-      "kind": "sleep",
-      "ms": 1200
+      "kind": "waitFor",
+      "testid": "onboarding-profile-review",
+      "timeoutMs": 180000
     },
     {
-      "kind": "sleep",
-      "ms": 2000
+      "kind": "waitFor",
+      "testid": "profile-field-role",
+      "timeoutMs": 15000
     },
     {
       "kind": "screenshot",
-      "label": "12-onb-finalization-best-effort"
+      "label": "10-onb-profile-proposed"
+    },
+    {
+      "kind": "fill",
+      "testid": "profile-field-role",
+      "text": "Staff software engineer"
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-review-skip"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-onb-profile-role-corrected"
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-review-save",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-modal",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-onb-profile-saved"
     }
   ]
 }

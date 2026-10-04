@@ -94,14 +94,20 @@ vit ailleurs, dans la commande de réécriture du bureau, qui ne touche jamais a
 prompt de l'assistant : elle répond au composeur, pas à une exécution. Aucun
 chemin d'exécution d'agent ne passe par l'une des trois.
 
-La première est écrite dans l'assistant et inatteignable dans cette version. Au
-palier d'autonomie le plus élevé uniquement, `long_autonomous`, l'assistant
-ajoute un court brief de persona utilisateur à son prompt système. Le chat libre
-reconstruit le palier par défaut à chaque échange : il s'exécute donc toujours en
-`assisted`, et ce brief n'est jamais ajouté.
+La première est le profil de la conversation, et c'est celle que vous
+contrôlez. Une conversation désigne l'un de vos profils, ou suit le profil par
+défaut. À chaque tour, à tous les paliers d'autonomie, l'assistant ajoute à son
+prompt système un court résumé de ce profil : nom, rôle, fonction, outils,
+préférences et notes, ce que vous avez rempli. Elle se trouve sous un
+interrupteur, « Utiliser mes préférences », dans le panneau de configuration de
+la conversation. L'interrupteur est allumé à la création d'une conversation, il
+est enregistré avec elle, et l'éteindre prend effet au message suivant. La jauge
+de contexte du même panneau dit si le prompt porte le profil : ce que vous y
+lisez est ce que le modèle a reçu. Les sessions Companion et les sessions qui
+exécutent un agent installé ne le reçoivent jamais, interrupteur ou non.
 
 <!-- claim:cross-session-recall-injects-summaries -->
-La seconde n'est pas conditionnée par un palier, et mérite d'être énoncée sans
+La seconde n'a pas d'interrupteur, et mérite d'être énoncée sans
 détour. Au **premier message d'une session de chat libre**, le runtime
 interroge, avec ce message, un index de résumés de sessions passées et ajoute
 jusqu'à trois correspondances au prompt système, sous un intitulé les
@@ -115,16 +121,17 @@ Prenez cette seconde exception pour ce qu'elle est. Dans la fenêtre de chat,
 une nouvelle conversation peut démarrer en portant déjà une trace des
 précédentes, sans que l'opérateur l'ait demandé pour cette session précise.
 Cela achète de la continuité dans une surface produit où un utilisateur
-s'attend raisonnablement à être reconnu. C'est aussi le seul endroit du
-runtime où la règle « à l'initiative de l'agent » ne tient réellement pas, et
-c'est pourquoi cela est écrit ici plutôt que laissé implicite.
+s'attend raisonnablement à être reconnu. Avec le résumé du profil, c'est l'un
+des deux endroits du runtime où la règle « à l'initiative de l'agent » ne tient
+réellement pas, et le seul que vous ne pouvez pas couper : c'est pourquoi cela
+est écrit ici plutôt que laissé implicite.
 
 <!-- claim:rewrite-injects-work-context -->
 La troisième exception est également à l'initiative de l'opérateur, et ne
 survient que lorsqu'elle est explicitement déclenchée. Lorsque l'opérateur
 clique sur le bouton « Améliorer la demande » dans un composeur de chat, la
-requête de réécriture inclut la section Travail de son profil utilisateur
-(secteur, pile technique, outils quotidiens) si elle a été remplie. Ce n'est
+requête de réécriture inclut trois champs du profil de la conversation
+(rôle, fonction, outils) s'ils ont été remplis. Ce n'est
 pas une injection automatique : rien ne se produit tant que l'opérateur ne
 clique pas, et il voit le résultat réécrit avant de choisir de l'envoyer. Le
 contexte aide la réécriture à rester ancrée dans l'environnement réel de

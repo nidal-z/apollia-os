@@ -250,9 +250,8 @@ impl ORIAEngine {
     /// Calls [`Reasoner::plan_with_alternatives`] via `tokio::join!` (both plans are
     /// produced in parallel) then emits `RuntimeEvent::PlanAlternativesGenerated`.
     ///
-    /// The frontend (CLI `--alternatives` or `PlanAlternativesView.svelte`) intercepts
-    /// the event, shows both plans, and asks the operator to choose.
-    /// The choice is persisted by `PlanChoiceStore::log_plan_choice()`.
+    /// Nothing calls it: plan alternatives were retired from the product, and
+    /// no surface offers the operator a choice between two plans any more.
     ///
     /// # Errors
     ///
@@ -2335,6 +2334,3 @@ mod orchestrated_tests {
         );
     }
 }
-
-#[cfg(test)]
-mod parity_tests;

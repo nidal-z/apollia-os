@@ -7,9 +7,9 @@
    *
    *   1. {@link OnboardingWelcome}  - intro and consent to start
    *   2. {@link OnboardingAiSetup}  - local LLM (GGUF) + STT (Whisper)
-   *   3. {@link OnboardingChatStep} - agent-driven chat (calibration +
-   *                                   optional enrichment) then the
-   *                                   proposed-permission triage
+   *   3. {@link OnboardingChatStep} - a short agent-driven chat, then the
+   *                                   proposed profile read over before it
+   *                                   is saved
    *
    * The list itself is `ONBOARDING_STEPS` in `onboardingSteps.ts`. No step asks
    * for a usage profile: the developer mode is a setting, off by default.
@@ -34,6 +34,8 @@
     getOnboardingState,
   } from "$lib/ipc/onboarding";
   import { skipOnboarding } from "$lib/onboarding/skipOnboarding";
+  import { get } from "svelte/store";
+  import { profileEnrichment } from "$lib/stores/onboarding";
   import { reportError } from "$lib/errors/reportError";
   import type { HumanizedError } from "$lib/errors/humanize";
   import { ErrorBanner } from "$lib/components/operator";
@@ -63,7 +65,7 @@
   let unlistenRuntime: UnlistenFn | null = null;
   let rootEl = $state<HTMLDivElement | null>(null);
   // Bumped by the footer during the chat step to ask the chat to skip the
-  // remaining OPTIONAL questions and move forward to the permissions phase.
+  // questions and open the profile review.
   let chatSkipSignal = $state(0);
   // Why inline and not a toast: the overlay sits at `z-index: 80` and the
   // toast container at `--z-toast: 40` (`app.css`), so a toast fired from
@@ -72,6 +74,10 @@
   // Set once the conversation reports it never started: Escape becomes an exit
   // again, because there is no turn left to interrupt by accident.
   let chatStranded = $state(false);
+  // Opened by Settings > Profile to complete a profile, not by a first launch:
+  // the modal goes straight to the conversation and leaves the first-launch
+  // state (phase, skipped flag) alone.
+  const enriching = get(profileEnrichment) !== null;
 
   const stepIndex = $derived(STEPS.findIndex((s) => s.id === currentStep));
 
@@ -124,6 +130,10 @@
   // This makes the flow resumable across app restarts and after users
   // bounce out to /llm to add a cloud backend.
   async function restoreStepFromBackend(): Promise<void> {
+    if (enriching) {
+      currentStep = "chat";
+      return;
+    }
     try {
       const state = await getOnboardingState();
       currentStep = stepOfPhase(state.phase);
@@ -150,6 +160,9 @@
 
     return () => {
       unlistenRuntime?.();
+      // A request the conversation never took (the modal was closed before
+      // it started) must not turn the next first-launch run into a resume.
+      profileEnrichment.set(null);
     };
   });
 </script>
@@ -215,7 +228,8 @@
               skipSignal={chatSkipSignal}
               onstranded={() => {
                 chatStranded = true;
-                void handleSkip();
+                if (enriching) onclose();
+                else void handleSkip();
               }}
               {onclose}
             />
@@ -248,10 +262,9 @@
 
     <footer class="onboarding-card-footer">
       {#if currentStep === "chat"}
-        <!-- During the conversation the only remaining questions are OPTIONAL.
-             "Configure later" here must skip just those and still route to the
-             permissions phase, never abandon onboarding (which would skip
-             permissions entirely). -->
+        <!-- During the conversation every question is optional: skipping them
+             opens the profile review, where the person fills the form by hand
+             or leaves without saving. -->
         <button
           type="button"
           class="onboarding-skip"

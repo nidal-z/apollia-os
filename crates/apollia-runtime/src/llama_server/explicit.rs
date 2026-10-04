@@ -82,7 +82,7 @@ impl LlamaServerSupervisor {
             chat_template: None,
             ..load.clone()
         };
-        let n_ctx = self.window_for(&load, None);
+        let n_ctx = self.window_for(model_path, &load, None).await;
         let config = self
             .launch_config(model_path.to_owned(), n_ctx, &load)
             .await;
@@ -112,7 +112,7 @@ impl LlamaServerSupervisor {
         load: LoadSettings,
         consent: LoadConsent,
     ) -> Result<ModelLease, LlamaServerError> {
-        let n_ctx = self.window_for(&load, None);
+        let n_ctx = self.window_for(&model_path, &load, None).await;
         let _guard = self.respawn_lock.lock().await;
         if let Some(lease) = self.touch_live_instance(&model_path, n_ctx, &load).await {
             self.mark_explicit(&model_path, n_ctx, &load).await;

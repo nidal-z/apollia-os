@@ -42,7 +42,6 @@ pub mod observability;
 pub mod onboarding;
 pub mod org_policy;
 pub mod package_files;
-pub mod permissions_proposals;
 pub mod plan_mode;
 pub mod project_migration;
 pub mod recommend;

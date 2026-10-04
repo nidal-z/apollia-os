@@ -42,11 +42,7 @@ impl LocalEngine for FakeEngine {
         self.engine
     }
 
-    fn default_n_ctx(&self) -> u32 {
-        4096
-    }
-
-    fn launch_window(&self, _backend: &str, requested: Option<u32>) -> u32 {
+    fn launch_window(&self, _backend: &str, _model_path: &str, requested: Option<u32>) -> u32 {
         requested.unwrap_or(4096)
     }
 

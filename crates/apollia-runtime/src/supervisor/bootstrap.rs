@@ -170,7 +170,8 @@ pub(in crate::supervisor) fn load_trigger_definitions(
 }
 
 /// The agent executor an agent without code runs on outside a conversation,
-/// when the runtime has both the executor and the task store.
+/// when the runtime has both the executor and the task store. It shares no
+/// plan cache: the caller sets the one the runtime opened.
 pub(in crate::supervisor) fn agent_launcher<B: ExecutionBackend + Clone>(
     router: &TaskRouterHandle<B>,
     chat: Option<&crate::chat::ChatSessionManagerHandle>,
@@ -185,6 +186,7 @@ pub(in crate::supervisor) fn agent_launcher<B: ExecutionBackend + Clone>(
             repository: Some(repo.clone()),
             event_bus: event_bus.clone(),
             observability: observability.clone(),
+            plan_cache: None,
         }),
         _ => None,
     }

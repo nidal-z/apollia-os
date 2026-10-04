@@ -564,3 +564,73 @@ fn test_the_background_service_is_allowed_by_default_and_a_policy_can_forbid_it(
     assert_eq!(imposed.source, SettingSource::Policy);
     assert!(check_imposed_setting(key, &json!(false)).is_ok());
 }
+
+// ── The defaults of the models ───────────────────────────────────────────
+
+#[test]
+fn test_the_model_defaults_are_named_settings_with_their_defaults() {
+    // GIVEN a file nobody wrote a model default in
+    let (_dir, path) = config_with("");
+    let none = PolicySettings::none();
+
+    // WHEN each model default is resolved
+    let resolved: Vec<_> = [
+        CONTEXT_MODE_KEY,
+        CONTEXT_TOKENS_KEY,
+        LOAD_BYPASS_KEY,
+        super::IMAGE_LIMIT_KEY,
+        super::IMAGE_MAX_SIDE_KEY,
+    ]
+    .iter()
+    .map(|key| resolve_setting(&path, key, &none).unwrap())
+    .collect();
+
+    // THEN the window is a custom figure left to the engine, a refused load
+    //      asks a confirmation, and images are held to 2048 pixels
+    let values: Vec<_> = resolved.iter().map(|r| r.value.clone()).collect();
+    assert_eq!(
+        values,
+        vec![
+            json!("custom"),
+            json!(0),
+            json!("confirm"),
+            json!(true),
+            json!(2048)
+        ]
+    );
+    assert!(resolved.iter().all(|r| r.source == SettingSource::Default));
+}
+
+#[test]
+fn test_a_default_context_written_lands_under_llm_defaults() {
+    // GIVEN an empty file
+    let (_dir, path) = config_with("");
+    let none = PolicySettings::none();
+
+    // WHEN a figure is written, and a mode the setting does not know
+    write_setting(&path, CONTEXT_TOKENS_KEY, json!(16_384), &none).unwrap();
+    let unknown = write_setting(&path, CONTEXT_MODE_KEY, json!("largest"), &none);
+
+    // THEN the file carries the figure under [llm.defaults], and the unknown
+    //      mode is refused
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(written.contains("[llm.defaults]"), "{written}");
+    assert!(written.contains("context_tokens = 16384"), "{written}");
+    assert!(matches!(unknown, Err(SettingError::InvalidValue { .. })));
+}
+
+#[test]
+fn test_a_policy_fixing_the_load_bypass_refuses_the_write() {
+    // GIVEN a policy that holds "load anyway" to an explicit confirmation
+    let (_dir, path) = config_with("");
+    let policy = PolicySettings::none().impose(LOAD_BYPASS_KEY, json!("confirm"));
+
+    // WHEN the user lifts the restriction
+    let refused = write_setting(&path, LOAD_BYPASS_KEY, json!("unrestricted"), &policy);
+    let resolved = resolve_setting(&path, LOAD_BYPASS_KEY, &policy).unwrap();
+
+    // THEN the write is refused and the value in force is the policy's
+    assert!(matches!(refused, Err(SettingError::LockedByPolicy { .. })));
+    assert_eq!(resolved.value, json!("confirm"));
+    assert_eq!(resolved.source, SettingSource::Policy);
+}

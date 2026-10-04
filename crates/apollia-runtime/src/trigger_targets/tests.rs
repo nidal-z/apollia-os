@@ -176,6 +176,7 @@ async fn fixture(definitions: Vec<TriggerDefinition>) -> Fixture {
             repository: Some(repository),
             event_bus: state.event_sender.clone(),
             observability: ObservabilityConfig::default(),
+            plan_cache: None,
         }),
         workflows: Some(workflows.clone()),
         data_dir: dir.path().to_path_buf(),

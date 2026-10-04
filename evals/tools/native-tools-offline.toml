@@ -137,20 +137,6 @@ assertions = [
 ]
 
 [[tasks]]
-id = "permission_rule_list"
-agent = "eval-tools-probe"
-runs = 3
-prompt = """
-Use the permission_rule_list tool, filtered on tool_name eval-probe-list.
-Then reply with exactly one line, in this form and nothing else:
-RULES=<how many rules it returned>
-"""
-assertions = [
-  { type = "exit_code", equals = 0 },
-  { type = "regex", on = "result", pattern = "RULES=3\\b" },
-]
-
-[[tasks]]
 id = "http_fetch"
 agent = "eval-tools-probe"
 runs = 3
@@ -216,35 +202,4 @@ assertions = [
   { type = "exit_code", equals = 0 },
   { type = "file_exists", path = "/tmp/apollia-eval-tools/home/eval-tools/nb/edit.ipynb" },
   { type = "regex", on = "result", pattern = "NBEDIT=done" },
-]
-
-[[tasks]]
-id = "permission_rule_add"
-agent = "eval-tools-probe"
-runs = 1
-prompt = """
-Use the permission_rule_add tool to persist one rule: tool_name
-eval-probe-add, action deny, scope global. Then reply with exactly one line,
-in this form and nothing else:
-ADDED=eval-probe-add
-"""
-assertions = [
-  { type = "exit_code", equals = 0 },
-  { type = "regex", on = "result", pattern = "ADDED=eval-probe-add" },
-]
-
-[[tasks]]
-id = "permission_rule_remove"
-agent = "eval-tools-probe"
-runs = 1
-prompt = """
-The tool eval-probe-remove has exactly one permission rule. Use
-permission_rule_list to read its id, then permission_rule_remove to delete
-that id, then permission_rule_list once more to count what is left.
-Reply with exactly one line, in this form and nothing else:
-REMAINING=<how many rules remain for eval-probe-remove>
-"""
-assertions = [
-  { type = "exit_code", equals = 0 },
-  { type = "regex", on = "result", pattern = "REMAINING=0\\b" },
 ]

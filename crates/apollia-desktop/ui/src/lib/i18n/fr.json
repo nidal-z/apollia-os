@@ -2464,6 +2464,12 @@
         "resume": "Compléter avec un agent",
         "dismiss": "Ignorer"
       },
+      "proposal": {
+        "title": "Proposition de l'agent, à relire",
+        "detail": "L'agent a rempli les champs ci-dessous d'après votre échange. Corrigez ce qui ne va pas : rien n'est écrit avant « Enregistrer ».",
+        "skip": "Passer",
+        "save": "Enregistrer"
+      },
       "source": {
         "onboarding": "onboarding",
         "user": "vous",
@@ -3119,11 +3125,83 @@
     "chat": {
       "subtitle": "Comportement des conversations et raccourcis clavier.",
       "conversations_title": "Conversations",
-      "shortcuts_title": "Raccourcis clavier"
+      "shortcuts_title": "Raccourcis clavier",
+      "all_shortcuts_title": "Tous les raccourcis",
+      "send_mod_label_mac": "Utiliser ⌘ + ⏎ pour envoyer le message",
+      "send_mod_hint_mac": "Éteint, Entrée envoie le message et Maj + Entrée passe à la ligne. Allumé, ⌘ + Entrée envoie et Entrée passe à la ligne.",
+      "send_mod_label_other": "Utiliser Ctrl + Entrée pour envoyer le message",
+      "send_mod_hint_other": "Éteint, Entrée envoie le message et Maj + Entrée passe à la ligne. Allumé, Ctrl + Entrée envoie et Entrée passe à la ligne.",
+      "naming_title": "Nommage automatique",
+      "naming_label": "Nom des conversations donné par le modèle",
+      "naming_never": "Jamais",
+      "naming_never_hint": "Une conversation garde son nom provisoire jusqu'à ce que vous la renommiez.",
+      "naming_auto": "Automatique",
+      "naming_auto_hint": "Apollia nomme la conversation quand le modèle génère assez vite, selon la vitesse de génération mesurée.",
+      "naming_always": "Toujours",
+      "naming_always_hint": "Apollia nomme chaque nouvelle conversation, quelle que soit la vitesse de génération."
     },
     "model_defaults": {
       "subtitle": "Les valeurs que reçoit un modèle quand rien d'autre ne les fixe.",
-      "empty": "Aucun défaut n'est encore réglable ici : chaque modèle garde les valeurs de l'écran IA."
+      "saved": "Enregistré",
+      "write_failed": "Ce réglage n'a pas pu être enregistré.",
+      "images": {
+        "title": "Images en entrée",
+        "never_exceed": "Ne jamais dépasser",
+        "unit": "pixels",
+        "hint": "Le plus grand côté est ramené à cette valeur, proportions gardées. Éteint, une image part à sa taille, dans la limite de ce que le modèle accepte.",
+        "toggle_label": "Limiter la taille des images en entrée"
+      },
+      "context": {
+        "title": "Contexte par défaut",
+        "description": "La longueur de conversation qu'un modèle garde en mémoire, quand ni ses réglages de chargement ni sa configuration ne la fixent.",
+        "custom": "Valeur personnalisée",
+        "custom_hint": "Sans valeur saisie, Apollia la calcule pour chaque modèle afin qu'il tienne dans la mémoire de cet ordinateur ; vous pouvez la changer.",
+        "model_max": "Maximum du modèle",
+        "model_max_hint": "Chaque modèle se charge avec le plus long contexte qu'il sait tenir. Demande davantage de mémoire.",
+        "unit": "jetons",
+        "auto_placeholder": "Automatique"
+      },
+      "guardrails": {
+        "title": "Garde-fous de chargement",
+        "level_label": "Niveau de précaution",
+        "help": "Avant de charger un modèle, Apollia estime la mémoire qu'il demande et la compare à celle de cet ordinateur. Le niveau choisi décide si le modèle se charge ou s'il est refusé.",
+        "help_label": "Comment fonctionnent les garde-fous de chargement",
+        "disabled": "Désactivés (déconseillé)",
+        "disabled_hint": "Aucun contrôle : tout modèle se charge, même s'il sature l'ordinateur.",
+        "lenient": "Souples",
+        "lenient_hint": "Tout modèle se charge ; un dépassement de la mémoire est seulement signalé.",
+        "balanced": "Équilibrés",
+        "balanced_hint": "Un modèle qui dépasse la mémoire de l'ordinateur est refusé. Recommandé.",
+        "strict": "Stricts",
+        "strict_hint": "Seuls se chargent les modèles qui tiennent à l'aise dans la mémoire.",
+        "ceiling": "Plafond",
+        "ceiling_hint": "Un modèle se charge tant que la mémoire qu'il demande reste sous ce plafond.",
+        "ceiling_unit": "Go"
+      },
+      "bypass": {
+        "title": "Contournement des alertes mémoire",
+        "load_anyway": "Charger quand même",
+        "load_anyway_hint": "Quand un garde-fou refuse un modèle, vous pouvez demander à le charger malgré tout.",
+        "confirm": "Confirmation explicite",
+        "confirm_hint": "Au chargement, une fenêtre de confirmation rappelle le risque ; le modèle ne se charge qu'après votre accord.",
+        "unrestricted": "Aucune restriction (déconseillé)",
+        "unrestricted_hint": "« Charger quand même » charge le modèle aussitôt, sans confirmation."
+      },
+      "unload": {
+        "title": "Déchargement des modèles",
+        "label": "Décharger un modèle inutilisé après",
+        "label_hint": "Un modèle qu'aucune conversation ouverte n'utilise rend sa mémoire. Un modèle gardé en mémoire par son épingle reste chargé.",
+        "after": "Après un délai",
+        "after_hint": "Le modèle est déchargé quand rien ne l'a sollicité pendant ce délai.",
+        "never": "Jamais",
+        "never_hint": "Un modèle reste chargé jusqu'à ce que vous l'éjectiez.",
+        "unit": "minutes"
+      },
+      "errors": {
+        "not_a_number": "Saisissez un nombre.",
+        "out_of_bounds": "La valeur doit être comprise entre {min} et {max}.",
+        "above_memory": "Ce plafond dépasse la mémoire de cet ordinateur ({max} Go)."
+      }
     },
     "notifications": {
       "subtitle": "Où Apollia vous prévient, et de quoi.",
@@ -3172,7 +3250,30 @@
       "role_gguf": "Fait tourner les modèles du poste, accélérés par la puce graphique quand il y en a une.",
       "role_mlx": "Inférence des modèles MLX sur les Mac à puce Apple.",
       "role_node": "Fait tourner les serveurs d'outils écrits pour Node.js.",
-      "role_dictation": "Dictée : la voix transcrite en texte, sur le poste."
+      "role_dictation": "Dictée : la voix transcrite en texte, sur le poste.",
+      "channel_title": "Canal des moteurs",
+      "channel_label": "Canal suivi par les moteurs",
+      "channel_hint": "Stable reçoit les moteurs publiés ; Préversion reçoit aussi les moteurs à l'essai. Ce canal est distinct de celui de l'application.",
+      "channel_stable": "Stable",
+      "channel_preview": "Préversion",
+      "check_updates": "Vérifier les mises à jour",
+      "in_service": "En service",
+      "update_available": "{tag} disponible",
+      "update_latest": "Dernière version",
+      "source_embedded": "Embarqué",
+      "source_downloaded": "Téléchargé",
+      "source_imported": "Importé",
+      "channel_tag": "Publié par le canal sous {tag}",
+      "tag_mismatch": "Écart : le canal a publié ce moteur sous {tag}, il annonce {version}."
+    },
+    "resource_monitor": {
+      "title": "Moniteur de ressources",
+      "desc": "Ce que le poste consomme en ce moment, mesuré tant que cette page est ouverte.",
+      "measuring": "Mesure en cours…",
+      "used_of": "{used} sur {total}",
+      "percent": "{n} %",
+      "vram_unified": "Mémoire unifiée, partagée avec la mémoire vive",
+      "vram_unmeasured": "Non mesurée sur ce poste"
     },
     "window": {
       "label": "Réglages",
@@ -3256,6 +3357,8 @@
       "rescan": "re-scanner",
       "load_model": "Charger un modèle",
       "load_model_title": "Choisir un fichier modèle",
+      "load_language_data_filter": "Données de langue pour les documents scannés",
+      "language_data_imported": "{file} est en place : les pages scannées et les images sont lues avec.",
       "dest_dir_default": "Dossier par défaut (~/.apollia/models)",
       "dest_dir_custom": "Dossier : {path}",
       "dest_dir_change": "Changer…",
@@ -3582,6 +3685,8 @@
     "context_window": "Fenêtre de contexte",
     "context_messages": "Messages : {pct} %",
     "context_memory": "Mémoire utilisateur : {pct} %",
+    "context_profile_on": "Profil inclus dans le prompt",
+    "context_profile_off": "Profil absent du prompt",
     "context_free": "Libre : {pct} %",
     "legend_messages": "Messages",
     "legend_memory": "Mémoire",
@@ -3641,7 +3746,8 @@
       "install_agent": "Installer un agent",
       "docs_link": "Documentation",
       "error_no_llm": "Aucun modèle de langage n'est configuré. Ouvre les Réglages et ajoute un backend LLM (un modèle GGUF local ou un fournisseur cloud) avant de démarrer une conversation.",
-      "error_generic": "Impossible de démarrer la conversation : {error}"
+      "error_generic": "Impossible de démarrer la conversation : {error}",
+      "submit_hint_enter": "Entrée pour démarrer un chat libre"
     },
     "agent_status": {
       "online": "En ligne",
@@ -3755,6 +3861,14 @@
       "role_system": "Système"
     },
     "plan_abandoned_reason": "plan abandonné",
+    "sort": {
+      "trigger": "Trier les conversations",
+      "title": "Trier par",
+      "newest": "Plus récentes d'abord",
+      "oldest": "Plus anciennes d'abord",
+      "activity": "Dernière activité",
+      "name": "Nom, de A à Z"
+    },
     "step": {
       "toggle": "Afficher ou masquer le détail de l'étape",
       "failed": "Échec : {reason}",
@@ -3823,12 +3937,6 @@
     "switch_locale": "Passer en {code}"
   },
   "onboarding_chat": {
-    "permission_banner": "À la fin du dialogue, Apollia te proposera quelques règles de permissions adaptées à tes choix - chaque règle s'affichera comme une carte à valider ou refuser dans la conversation.",
-    "wrapup_title_finalized": "Calibrage terminé",
-    "wrapup_title_safety": "Tu peux passer à la suite",
-    "wrapup_detail_finalized": "L'agent a enregistré ton profil et appliqué les règles de permissions que tu as validées. Tu peux désormais ouvrir Apollia et explorer.",
-    "wrapup_detail_safety": "Si tu as répondu aux questions principales, on peut clore ici.",
-    "finish": "Terminer",
     "no_llm_title": "Aucun moteur LLM disponible",
     "no_llm_detail": "Reviens à l'étape précédente pour configurer un modèle local ou un fournisseur cloud - l'agent en a besoin pour dialoguer.",
     "llm_starting_title": "Démarrage du moteur…",
@@ -3837,38 +3945,31 @@
     "bootstrap": "Initialisation de l'agent…",
     "bootstrap_failed": "Impossible de démarrer l'onboarding.",
     "progress_label": "Progression de l'onboarding",
-    "phase_calibration": "Calibrage",
-    "phase_enrichment": "Profil",
     "finish_early": "J'ai fini",
-    "finish_early_hint_calibration": "Vous pourrez conclure une fois les premières questions répondues.",
-    "finish_early_hint_enrichment": "Optionnel à partir d'ici, passez le reste quand vous voulez.",
     "kick_message": "Bonjour !",
-    "finish_early_message": "C'est bon pour moi, terminons."
+    "finish_early_message": "C'est bon pour moi, terminons.",
+    "review_banner": "À la fin de l'échange, Apollia vous propose un profil à relire. Rien n'est enregistré sans votre accord.",
+    "finish_early_hint": "Chaque question est facultative : concluez quand vous voulez.",
+    "review_again": "Revoir la proposition",
+    "review_again_hint": "Votre profil n'est pas encore enregistré.",
+    "kick_message_resume": "Bonjour ! Mon profil contient déjà ceci : {known}. Pose-moi seulement les questions sur ce qui manque."
+  },
+  "onboarding_review": {
+    "title": "Votre profil, à relire",
+    "description": "Corrigez ce qui ne va pas. Aucun champ n'est obligatoire, et rien n'est écrit tant que vous n'avez pas enregistré.",
+    "loading": "Chargement du profil…",
+    "back": "Retour",
+    "skip": "Passer sans enregistrer",
+    "save": "Enregistrer"
   },
   "onboarding_modal": {
     "title": "Apollia - Premier contact",
     "progress_label": "Progression de l'onboarding",
     "skip_later": "Configurer plus tard",
-    "skip_optional": "Passer les questions optionnelles",
+    "skip_optional": "Passer les questions",
     "step_welcome": "Accueil",
     "step_models": "Modèles",
-    "step_calibration": "Calibrage"
-  },
-  "onboarding_permissions": {
-    "title": "Règles de permissions proposées",
-    "subtitle_html": "D'après tes choix, Apollia te suggère les règles ci-dessous. Applique celles qui te conviennent, ignore les autres - tu pourras toujours les modifier dans <strong>Paramètres → Permissions</strong>.",
-    "loading": "Chargement…",
-    "empty": "Aucune règle restante.",
-    "apply": "Appliquer",
-    "dismiss": "Ignorer",
-    "action_allow": "Autoriser",
-    "action_deny": "Refuser",
-    "scope_label": "{scope}",
-    "rule_applied": "Règle appliquée",
-    "tool_title": "Outil concerné",
-    "prefix_title": "Cible",
-    "scope_title": "Portée",
-    "count_aria": "Règles en attente"
+    "step_about": "Qui je suis"
   },
   "onboarding_stt": {
     "hotkey_label": "Raccourci clavier global",

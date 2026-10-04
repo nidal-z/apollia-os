@@ -20,7 +20,7 @@ export function decideSkip(state: {
     return "abandon";
   }
   if (state.completed) {
-    // The agent already finalized; a second skip would ask it to redo so.
+    // The conversation is already over; a second skip has nothing to end.
     return "ignore";
   }
   return "finalize";

@@ -742,3 +742,35 @@ size_bytes = 874188075
 sha256 = "317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1"
 card = "whisper-large-v3-turbo-q5"
 source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+
+# ── Optical character recognition ─────────────────────────────────────────
+#
+# The language data the embedded Tesseract engine reads a scanned page with.
+# Each entry is one `<language>.traineddata` file of the `tessdata_fast` set,
+# pinned by its SHA-256: the file is fetched when the first scanned document
+# is met, and a copy brought on a key is recognised by the same digest. A file
+# whose digest is not listed here is never handed to the engine.
+
+[[ocr]]
+language = "fra"
+label = "French"
+publisher = "tesseract-ocr"
+released = "2017-09-14"
+license = "apache-2.0"
+repo = "Apollia-OS/tessdata-fast"
+file = "fra.traineddata"
+size_bytes = 1130365
+sha256 = "ced037562e8c80c13122dece28dd477d399af80911a28791a66a63ac1e3445ca"
+source = "https://github.com/tesseract-ocr/tessdata_fast/blob/main/fra.traineddata"
+
+[[ocr]]
+language = "eng"
+label = "English"
+publisher = "tesseract-ocr"
+released = "2017-09-14"
+license = "apache-2.0"
+repo = "Apollia-OS/tessdata-fast"
+file = "eng.traineddata"
+size_bytes = 4113088
+sha256 = "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2"
+source = "https://github.com/tesseract-ocr/tessdata_fast/blob/main/eng.traineddata"

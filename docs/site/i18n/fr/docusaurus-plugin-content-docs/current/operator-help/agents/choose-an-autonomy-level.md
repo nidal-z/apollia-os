@@ -42,8 +42,9 @@ l'exécution, pas un contrôle entre les étapes, et `assisted` ne la lance pas.
 > La colonne "Injection mémoire" vaut `Non` à tous les paliers **pour une
 > exécution d'agent**, et c'est la garantie qui compte : rien n'injecte de
 > mémoire dans le prompt d'un agent. L'assistant conversationnel intégré est un
-> autre chemin, et au palier `long_autonomous` il reçoit bien un brief de persona
-> utilisateur. Un agent ne peut pas atteindre ce code.
+> autre chemin : à tous les paliers, il reçoit le profil de la conversation tant
+> que l'interrupteur « Utiliser mes préférences » de cette conversation est
+> allumé. Un agent ne peut pas atteindre ce code.
 
 ## Étapes - Appliquer un palier pour une exécution
 

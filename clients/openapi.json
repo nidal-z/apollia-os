@@ -483,7 +483,7 @@
           {
             "name": "field",
             "in": "path",
-            "description": "name, mission, examples, access, sources, autonomy or profile",
+            "description": "name, mission, examples, access, sources, autonomy, planning or profile",
             "required": true,
             "schema": {
               "type": "string"
@@ -562,7 +562,7 @@
           {
             "name": "field",
             "in": "path",
-            "description": "name, mission, examples, access, sources, autonomy or profile",
+            "description": "name, mission, examples, access, sources, autonomy, planning or profile",
             "required": true,
             "schema": {
               "type": "string"
@@ -1932,8 +1932,8 @@
         "tags": [
           "audit"
         ],
-        "summary": "`GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal\nacross every run.",
-        "description": "This is the only read of the journal that does not need a run id up front:\n`GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,\nand `GET /api/v1/audit` answers the separate tool-invocation trail. 503 when\nthe journal is not configured.",
+        "summary": "`GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal\nacross every run, each entry with its summary.",
+        "description": "This is the only read of the journal that does not need a run id up front:\n`GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,\nand `GET /api/v1/audit` answers the separate tool-invocation trail. The\nfilters are applied before paging, so `limit` and `offset` count matching\nentries. 400 on a filter value that cannot be read, 503 when the journal is\nnot configured.",
         "operationId": "list_audit_journal",
         "parameters": [
           {
@@ -1950,7 +1950,7 @@
           {
             "name": "offset",
             "in": "query",
-            "description": "Number of entries to skip, newest first (default 0). Page through the journal by advancing it.",
+            "description": "Number of matching entries to skip, newest first (default 0). Page through the journal by advancing it.",
             "required": false,
             "schema": {
               "type": "integer",
@@ -1961,7 +1961,52 @@
           {
             "name": "agents",
             "in": "query",
-            "description": "Comma-separated agent names. When set, only the runs of those agents' tasks are paged, so a caller following some agents does not walk the pages of every other one. A run with no task, such as a chat turn, is never included.",
+            "description": "Comma-separated agent names. When set, only the entries that name one of those agents, and the runs of their tasks, are paged.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "description": "Comma-separated action families: `read`, `read_personal`, `write_or_delete`, `send_external`, `execute_code`, `unclassified`, `exempt`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nature",
+            "in": "query",
+            "description": "Comma-separated natures: `action`, `access_change`, `policy`, `system`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "result",
+            "in": "query",
+            "description": "Comma-separated results: `success`, `failure`, `refused`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Start of the period, included: a day `YYYY-MM-DD` read in UTC, or an RFC 3339 instant.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "End of the period, excluded: a day `YYYY-MM-DD` read in UTC, or an RFC 3339 instant.",
             "required": false,
             "schema": {
               "type": "string"
@@ -1970,11 +2015,21 @@
         ],
         "responses": {
           "200": {
-            "description": "A page of hash-chained journal entries",
+            "description": "A page of hash-chained journal entries, each with its summary",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AuditJournalPageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A filter value that cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
                 }
               }
             }
@@ -2024,6 +2079,70 @@
           },
           "404": {
             "description": "Run has no entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Audit journal not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/journal/{run_id}/entries/{seq}": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "`GET /api/v1/audit/journal/:run_id/entries/:seq`, one entry with its detail.",
+        "description": "The page gives each entry a summary without content. This gives the entry\nwhole and, for a tool call, the full arguments and the full output of that\ncall, joined by the run and the call identifier from the entries the run\ncaptured for replay. 404 when the run has no such entry, 503 when the\njournal is not configured.",
+        "operationId": "show_audit_entry",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "description": "Run the entry belongs to",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "seq",
+            "in": "path",
+            "description": "Sequence number of the entry within its run",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The entry, its summary, and the arguments and output of its tool call when it is about one",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditJournalEntryDetailResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The run has no such entry",
             "content": {
               "application/json": {
                 "schema": {
@@ -6149,6 +6268,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HardwareResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/hardware/usage": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/hardware/usage`, measure the machine once.",
+        "operationId": "get_resource_usage",
+        "responses": {
+          "200": {
+            "description": "Memory, processor and video memory in use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceUsageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The measurement did not complete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
                 }
               }
             }
@@ -14896,7 +15046,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The state of the source's index, its counts and the files it left out",
+            "description": "The state of the source's index, its counts, the files it left out and the pages it could not read",
             "content": {
               "application/json": {
                 "schema": {
@@ -18936,6 +19086,19 @@
           }
         }
       },
+      "AuditJournalEntryDetailResponse": {
+        "type": "object",
+        "description": "Response body for `GET /api/v1/audit/journal/:run_id/entries/:seq`.",
+        "required": [
+          "entry"
+        ],
+        "properties": {
+          "entry": {
+            "type": "object",
+            "description": "The chained entry, with its `summary` and, when it is about a tool\ncall, a `tool_call` holding the full `arguments`, `output` and `status`."
+          }
+        }
+      },
       "AuditJournalPageResponse": {
         "type": "object",
         "description": "Response body for `GET /api/v1/audit/journal`.",
@@ -18954,7 +19117,7 @@
             "items": {
               "type": "object"
             },
-            "description": "Journal entries, newest global position first."
+            "description": "Journal entries, newest global position first. Each one is the chained\nentry with a `summary` beside its fields: agent, nature, family, what\nhappened, tool, target, outcome and date, without content."
           }
         }
       },
@@ -20247,7 +20410,7 @@
           },
           "user_memory_injected": {
             "type": "boolean",
-            "description": "Whether the user profile was injected into the system prompt."
+            "description": "Whether the assistant's prompt carries the profile of the conversation."
           }
         }
       },
@@ -21363,12 +21526,17 @@
         "required": [
           "engine",
           "path",
-          "source"
+          "source",
+          "in_service"
         ],
         "properties": {
           "engine": {
             "$ref": "#/components/schemas/EngineName",
             "description": "Engine."
+          },
+          "in_service": {
+            "type": "boolean",
+            "description": "True for the build this runtime starts for the model format it serves:\nthe `llama-server` binary it resolves, the MLX environment it imports."
           },
           "path": {
             "type": "string",
@@ -22856,6 +23024,87 @@
           "unknown_signing_key",
           "per_run_broken"
         ]
+      },
+      "JournalNature": {
+        "type": "string",
+        "description": "What kind of fact an entry records.",
+        "enum": [
+          "action",
+          "access_change",
+          "policy",
+          "system"
+        ]
+      },
+      "JournalOutcome": {
+        "type": "string",
+        "description": "How what an entry records ended.",
+        "enum": [
+          "success",
+          "failure",
+          "refused"
+        ]
+      },
+      "JournalSummary": {
+        "type": "object",
+        "description": "One journal entry, said in a line and without content.",
+        "required": [
+          "nature",
+          "what",
+          "ts"
+        ],
+        "properties": {
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Agent the entry is about, when it is about one."
+          },
+          "family": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Action family concerned (`read`, `write_or_delete`, ...), when there is one."
+          },
+          "nature": {
+            "$ref": "#/components/schemas/JournalNature",
+            "description": "What kind of fact the entry records."
+          },
+          "outcome": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JournalOutcome",
+                "description": "How it ended. `None` for an entry that records no ending, such as the\nstart of a call."
+              }
+            ]
+          },
+          "target": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What was acted on: a path, a recipient, the host of an address, a\nconnection. Never an argument that carries content."
+          },
+          "tool": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Tool concerned, when there is one."
+          },
+          "ts": {
+            "type": "string",
+            "description": "When, RFC 3339 UTC."
+          },
+          "what": {
+            "type": "string",
+            "description": "What happened, in a few words."
+          }
+        }
       },
       "LastLoadedModelResponse": {
         "type": "object",
@@ -26023,6 +26272,7 @@
           "access",
           "sources",
           "autonomy",
+          "planning",
           "overridden",
           "definition"
         ],
@@ -26085,7 +26335,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Fields whose value is the user's rather than the package's:\n`name`, `mission`, `examples`, `access`, `sources`, `autonomy`,\n`profile`."
+            "description": "Fields whose value is the user's rather than the package's:\n`name`, `mission`, `examples`, `access`, `sources`, `autonomy`,\n`planning`, `profile`."
           },
           "package": {
             "type": [
@@ -26093,6 +26343,10 @@
               "null"
             ],
             "description": "Package the agent came with."
+          },
+          "planning": {
+            "type": "string",
+            "description": "Whether the agent plans a task before acting on it: `never`, `auto` or\n`always`. The user's, else the package's, else `auto`."
           },
           "profile": {
             "type": [
@@ -26150,6 +26404,37 @@
               "null"
             ],
             "format": "int64"
+          }
+        }
+      },
+      "ResourceUsageResponse": {
+        "type": "object",
+        "description": "The memory and the processor in use at the time of the request.",
+        "required": [
+          "ram_used_gb",
+          "ram_total_gb",
+          "cpu_percent",
+          "vram"
+        ],
+        "properties": {
+          "cpu_percent": {
+            "type": "number",
+            "format": "float",
+            "description": "Processor load over every core, from 0 to 100."
+          },
+          "ram_total_gb": {
+            "type": "number",
+            "format": "double",
+            "description": "System memory installed, in GB."
+          },
+          "ram_used_gb": {
+            "type": "number",
+            "format": "double",
+            "description": "System memory in use, in GB."
+          },
+          "vram": {
+            "type": "object",
+            "description": "Video memory in use: `{\"kind\":\"dedicated\",\"used_gb\":..,\"total_gb\":..}`\non an NVIDIA card, `{\"kind\":\"unified\"}` where the graphics processor\nshares the system memory, `{\"kind\":\"unmeasured\"}` anywhere else."
           }
         }
       },
@@ -26962,7 +27247,7 @@
         "properties": {
           "value": {
             "type": "object",
-            "description": "The user's value: a string for `name` and `mission`, a tier name for\n`autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`.\nA `sources` entry is a source identifier of `GET /api/v1/sources`, `profile` or `memory`."
+            "description": "The user's value: a string for `name` and `mission`, a tier name for\n`autonomy`, a mode for `planning`, a profile identifier for `profile`,\na list of strings for `examples`, `access` and `sources`.\nA `sources` entry is a source identifier of `GET /api/v1/sources`, `profile` or `memory`."
           }
         }
       },
@@ -27311,7 +27596,8 @@
           "indexState",
           "documents",
           "chunks",
-          "skipped"
+          "skipped",
+          "unreadPages"
         ],
         "properties": {
           "chunks": {
@@ -27340,6 +27626,13 @@
               "$ref": "#/components/schemas/SkippedFileResponse"
             },
             "description": "Files left out of the index."
+          },
+          "unreadPages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnreadPageResponse"
+            },
+            "description": "Pages of indexed documents that hold no text: those waiting for\noptical character recognition, and those it cannot read."
           }
         }
       },
@@ -28415,6 +28708,40 @@
           }
         }
       },
+      "ToolCallDetail": {
+        "type": "object",
+        "description": "The arguments and the output of one tool call.",
+        "required": [
+          "tool_call_id"
+        ],
+        "properties": {
+          "arguments": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Full arguments of the call. `None` when no model response of the run\ncarries this call, as for a tool an agent's own code called."
+          },
+          "output": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Full output of the call. `None` when the run captured none."
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "How the call ended, as the capture wrote it: `success`, `error` or\n`rejected`."
+          },
+          "tool_call_id": {
+            "type": "string",
+            "description": "Identifier of the call within its run."
+          }
+        }
+      },
       "ToolConfigBody": {
         "type": "object",
         "description": "Request and answer body of `/api/v1/governance/tools/{name}/config`.",
@@ -29021,6 +29348,39 @@
           }
         }
       },
+      "UnreadPageResponse": {
+        "type": "object",
+        "description": "A page of an indexed document that holds no text in the index.",
+        "required": [
+          "path",
+          "page",
+          "reason"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Page number, from 1; a picture file is its page 1.",
+            "minimum": 0
+          },
+          "path": {
+            "type": "string",
+            "description": "Path of the document on this machine."
+          },
+          "reason": {
+            "$ref": "#/components/schemas/UnreadReasonDto",
+            "description": "Why it was not read."
+          }
+        }
+      },
+      "UnreadReasonDto": {
+        "type": "string",
+        "description": "Why a page of an indexed document holds no text.",
+        "enum": [
+          "ocr_unavailable",
+          "not_read"
+        ]
+      },
       "UpdateAgentRequest": {
         "type": "object",
         "description": "Request body for `PUT /api/v1/agents/installed/{name}`.",
@@ -29279,6 +29639,13 @@
               "type": "string"
             },
             "description": "New list of tools available in the session."
+          },
+          "use_profile": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Profile switch of the conversation: whether the built-in assistant\nreceives the profile in its prompt."
           }
         }
       },

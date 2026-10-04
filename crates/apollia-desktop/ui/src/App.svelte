@@ -18,6 +18,8 @@
   import { initTheme } from "$lib/stores/theme";
   import { initChatAppearance } from "$lib/stores/chatAppearance";
   import { hydratePlanModeDefault } from "$lib/stores/planModeSetting";
+  import { hydrateChatAutoNaming } from "$lib/stores/chatAutoNaming";
+  import { startGenerationSpeedListener } from "$lib/chat/autoName";
   import { hydrateDeveloperMode } from "$lib/stores/developerMode";
   import { navigateTo } from "$lib/stores/navigation";
   import { onboardingModalOpen } from "$lib/stores/onboarding";
@@ -74,6 +76,13 @@
     initChatAppearance();
     void hydratePlanModeDefault();
     void hydrateDeveloperMode();
+    void hydrateChatAutoNaming();
+    let unlistenSpeed: (() => void) | null = null;
+    void startGenerationSpeedListener()
+      .then((fn) => {
+        unlistenSpeed = fn;
+      })
+      .catch(() => {});
     const cleanup = createSSEConnection();
     // Phase-0 shortcut dispatcher: the single window keydown listener that
     // routes chords to handlers surfaces register via `registerShortcutHandler`.
@@ -141,7 +150,7 @@
       });
 
     // Live channel - supervisor emits OnboardingRequired at first launch and
-    // OnboardingCompleted once the agent writes onboarding.completed_at.
+    // OnboardingCompleted once the phase machine reaches its last phase.
     let unlistenRuntime: UnlistenFn | null = null;
     void listen<{ category: string; event_type: string }>(
       "runtime-event",
@@ -185,6 +194,7 @@
       disposeGlobalHandlers();
       disposeShortcutDispatcher();
       unlistenRuntime?.();
+      unlistenSpeed?.();
       unsubscribeLlm();
     };
   });

@@ -379,6 +379,7 @@ impl HttpFetch {
             ],
             family: crate::descriptor::ActionFamily::SendExternal,
             family_source: crate::descriptor::FamilySource::Builtin,
+            target_arg: Some("url".to_string()),
             is_read_only: false,
             risk_score: 3,
             approval_risk_level: None,

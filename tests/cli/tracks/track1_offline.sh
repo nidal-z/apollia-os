@@ -440,6 +440,10 @@ OFFSOCK="$RUN_TMP/off.sock"
 check_exit   "status (off) → 2"        2  "$BIN" --socket "$OFFSOCK" status
 check_exit   "audit list (off) → 2"    2  "$BIN" --socket "$OFFSOCK" audit list
 check_exit   "audit stats (off) → 2"   2  "$BIN" --socket "$OFFSOCK" audit stats
+# The usage error of an unknown flag is exit 2 as well, so the message is read
+# too: every filter is parsed, and the refusal is the runtime being off.
+check_exit   "audit journal, every filter (off) → 2" 2 "$BIN" --socket "$OFFSOCK" audit journal --agent flux-quotes --family read --family send_external --nature action --result refused --since 2026-10-01 --until 2026-10-04
+check_content "audit journal, every filter (off): refused by the runtime being off" 'runtime not started' bash -c "'$BIN' --socket '$OFFSOCK' audit journal --agent flux-quotes --family read --family send_external --nature action --result refused --since 2026-10-01 --until 2026-10-04; true"
 check_exit   "llm status (off) → 2"    2  "$BIN" --socket "$OFFSOCK" llm status
 check_exit   "llm backends list (off) → 2" 2 "$BIN" --socket "$OFFSOCK" llm backends list
 check_exit   "task list (off) → 2"     2  "$BIN" --socket "$OFFSOCK" task list

@@ -4,7 +4,9 @@
 //! same part, and settles the difference: a file the index lacks, or whose
 //! modification date and then fingerprint changed, is read, cut and written;
 //! a file whose date changed but whose content did not only has its date
-//! updated; a document whose file is gone leaves the index. A file over
+//! updated; a document whose file is gone leaves the index. A document with
+//! pages waiting for optical character recognition is read again once it is
+//! available. A file over
 //! [`MAX_INDEXED_FILE_BYTES`], or one no reader opens, is recorded as
 //! skipped. The same pass serves the first indexing, a restart (the disk is
 //! compared with what the index holds) and a change the watcher reported.
@@ -21,9 +23,10 @@ use sha2::{Digest, Sha256};
 
 use crate::chunk::chunk_document;
 use crate::index::{
-    ChunkVectors, DocumentRecord, IndexError, SkipReason, SkippedFile, SourceIndex,
+    ChunkVectors, DocumentRecord, IndexError, SkipReason, SkippedFile, SourceIndex, UnreadReason,
 };
 use crate::indexer::extract::{is_indexed_format, sections_of};
+use crate::ocr::Ocr;
 
 /// Largest file indexed, in bytes (50 MiB). A larger one is skipped and
 /// listed in the state of its source.
@@ -55,15 +58,27 @@ pub struct PassOutcome {
     /// Whether the index was emptied first, the model of its vectors having
     /// changed.
     pub rebuilt: bool,
+    /// Pages of the index that wait for optical character recognition after
+    /// the pass: scanned pages and pictures, on a machine where it is not
+    /// available.
+    pub awaiting_ocr: usize,
 }
 
 /// Computes the vectors of passages, on the caller's behalf.
 pub(super) type Embed<'a> = dyn Fn(&[String]) -> Result<ChunkVectors, EmbeddingError> + 'a;
 
-/// The model a pass embeds with, `None` for keywords alone, and how.
-struct Vectors<'a, 'b> {
-    model: Option<&'a str>,
-    embed: &'a Embed<'b>,
+/// What a pass works with: the model it embeds with, `None` for keywords
+/// alone, how it embeds, and what it reads scanned pages and pictures with.
+pub(super) struct Means<'a, 'b> {
+    pub(super) model: Option<&'a str>,
+    pub(super) embed: &'a Embed<'b>,
+    pub(super) ocr: &'a Ocr,
+}
+
+/// The means of a pass, and the documents whose pages wait for recognition.
+struct Reading<'a, 'b, 'c> {
+    means: &'c Means<'a, 'b>,
+    waiting: HashSet<String>,
 }
 
 /// The index's key for a path: its text form.
@@ -150,8 +165,9 @@ fn fingerprint(path: &Path) -> std::io::Result<String> {
         .collect())
 }
 
-/// Runs one pass over `scopes` of the index at `index`, the vectors computed
-/// by `embed` with `model`, or none without a model.
+/// Runs one pass over `scopes` of the index at `index` with `means`: the
+/// vectors computed by its embedder with its model, or none without a model,
+/// the scanned pages and the pictures read by its recognition.
 ///
 /// When the index holds vectors of another model than `model`, or none
 /// while `model` is set, it is emptied first and the pass covers the whole
@@ -164,9 +180,9 @@ pub(super) fn run(
     index: &mut SourceIndex,
     root: &Path,
     scopes: &[PathBuf],
-    model: Option<&str>,
-    embed: &Embed<'_>,
+    means: &Means<'_, '_>,
 ) -> Result<PassOutcome, IndexError> {
+    let model = means.model;
     let mut outcome = PassOutcome::default();
     let (documents, _) = index.counts()?;
     let stored = index.embedding_model()?;
@@ -183,6 +199,15 @@ pub(super) fn run(
         .map(|d| (d.path.clone(), d))
         .collect();
     let skipped: HashSet<String> = index.skipped()?.into_iter().map(|s| s.path).collect();
+    let reading = Reading {
+        means,
+        waiting: index
+            .unread_pages()?
+            .into_iter()
+            .filter(|page| page.reason == UnreadReason::OcrUnavailable)
+            .map(|page| page.path)
+            .collect(),
+    };
     for scope in &full {
         let scope_key = key_of(scope);
         let on_disk = walk(scope);
@@ -200,11 +225,15 @@ pub(super) fn run(
         {
             index.forget_skipped(gone)?;
         }
-        let vectors = Vectors { model, embed };
         for file in &on_disk {
-            settle(index, file, known.get(&file.key), &vectors, &mut outcome)?;
+            settle(index, file, known.get(&file.key), &reading, &mut outcome)?;
         }
     }
+    outcome.awaiting_ocr = index
+        .unread_pages()?
+        .iter()
+        .filter(|page| page.reason == UnreadReason::OcrUnavailable)
+        .count();
     Ok(outcome)
 }
 
@@ -213,7 +242,7 @@ fn settle(
     index: &mut SourceIndex,
     file: &DiskFile,
     known: Option<&DocumentRecord>,
-    vectors: &Vectors<'_, '_>,
+    reading: &Reading<'_, '_, '_>,
     outcome: &mut PassOutcome,
 ) -> Result<(), IndexError> {
     if file.size > MAX_INDEXED_FILE_BYTES {
@@ -232,19 +261,23 @@ fn settle(
         );
         return Ok(());
     }
-    if known.is_some_and(|k| k.modified_at == file.modified_at) {
+    // A document whose pages waited for recognition is read again, unchanged
+    // as it is, once recognition is there.
+    let vectors = reading.means;
+    let read_again = vectors.ocr.is_available() && reading.waiting.contains(&file.key);
+    if !read_again && known.is_some_and(|k| k.modified_at == file.modified_at) {
         return Ok(());
     }
     let Ok(print) = fingerprint(&file.path) else {
         return unreadable(index, file, outcome);
     };
-    if let Some(known) = known.filter(|k| k.fingerprint == print) {
+    if let Some(known) = known.filter(|k| !read_again && k.fingerprint == print) {
         index.touch_document(&known.path, &file.modified_at)?;
         outcome.touched += 1;
         return Ok(());
     }
-    let sections = match sections_of(&file.path) {
-        Ok(Some(sections)) => sections,
+    let extracted = match sections_of(&file.path, vectors.ocr) {
+        Ok(Some(extracted)) => extracted,
         Ok(None) => return Ok(()),
         Err(e) => {
             tracing::event!(
@@ -256,7 +289,7 @@ fn settle(
             return unreadable(index, file, outcome);
         }
     };
-    let chunks = chunk_document(&sections);
+    let chunks = chunk_document(&extracted.sections);
     let embedded = match vectors.model {
         Some(_) if !chunks.is_empty() => {
             let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
@@ -283,6 +316,7 @@ fn settle(
         modified_at: file.modified_at.clone(),
     };
     index.upsert_document(&record, &chunks, embedded.as_ref())?;
+    index.set_unread_pages(&file.key, &extracted.unread)?;
     index.forget_skipped(&file.key)?;
     outcome.indexed += 1;
     Ok(())

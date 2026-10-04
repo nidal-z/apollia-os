@@ -96,10 +96,11 @@ garde l'assemblage du contexte explicite et auditable plutôt que de le
 transformer en effet de bord caché, et c'est un principe délibéré, pas un
 oubli.
 
-Trois voies échappent à cette règle : une note de profil utilisateur au palier
-`long_autonomous`, des résumés de sessions passées sur le premier message d'une
-session de chat libre, et la section Travail du profil utilisateur lorsque
-l'opérateur clique sur « Améliorer la demande » dans un composeur de chat. Les
+Trois voies échappent à cette règle : un résumé du profil de la conversation, à
+tous les paliers d'autonomie tant que l'interrupteur de profil de cette
+conversation est allumé, des résumés de sessions passées sur le premier message
+d'une session de chat libre, et le rôle, la fonction et les outils de ce profil
+lorsque l'opérateur clique sur « Améliorer la demande » dans un composeur de chat. Les
 deux premières vivent dans l'assistant conversationnel intégré, dans son
 constructeur de prompt et son gestionnaire de chat. La troisième vit en dehors de
 l'assistant, dans la commande de réécriture du bureau, qui construit son propre
@@ -109,8 +110,8 @@ principe tient là où il est énoncé.
 
 <!-- claim:rewrite-injects-work-context -->
 La troisième mérite d'être située précisément, car elle est la plus récente et
-la moins visible : la requête de réécriture ne porte la section Travail de
-l'opérateur que lorsque celui-ci la déclenche, et sa sortie arrive dans le
+la moins visible : la requête de réécriture ne porte ces trois champs du profil
+que lorsque l'opérateur la déclenche, et sa sortie arrive dans le
 composeur, où elle peut encore être modifiée ou abandonnée avant tout envoi.
 Voir [les huit principes](/explanation/the-8-principles).
 

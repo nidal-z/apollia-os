@@ -1,13 +1,13 @@
 import { describe, test, expect, vi } from "vitest";
 import { isChatComplete, runDirectSkip } from "./skipFlow";
 
-const MIN_REAL_REPLIES = 2;
+const MIN_REAL_REPLIES = 1;
 const SAFETY_REPLIES = 12;
 
 describe("isChatComplete", () => {
   test("an explicit operator skip completes immediately", () => {
-    // GIVEN a fresh chat where the operator clicked "skip the optional
-    // questions" before typing anything
+    // GIVEN a fresh chat where the operator clicked "skip the questions"
+    // before typing anything
     const inputs = {
       skippedDirectly: true,
       agentFinalized: false,

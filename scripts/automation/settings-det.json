@@ -18,7 +18,9 @@
     "help-hero-cta is played under a plugin:opener|open_url stub resolving null: the anchor's onclick is handleExternalLinkClick (HelpHero.svelte:54, externalLink.ts:98-105), which preventDefaults and hands https://docs.apollia.fr/... to the opener, so the webview stays on the help page (help-hero-cta and help-section asserted after the click). `aria-disabled` follows navigator.onLine (Help.svelte:38-50) and only removes pointer events; the runner's el.click() is programmatic, so the handler runs online or offline. No in-app state changes on that click, so the block can assert nothing beyond the page staying mounted.",
     "shortcuts-search is a plain bind:value filter (Shortcuts.svelte:41-55, 85-92): a no-match query renders shortcuts-empty (:99-104), an empty query restores the groups; local state, nothing persisted, the page is not nav-guarded.",
     "update-install-btn is played twice under stubs, both after a remount. Happy path: check_for_update resolves available true with new_version 99.0.0 (update-available-label contains 99.0.0, update-changelog rendered), install_update resolves null, and the phase moves downloading -> installed (UpdateCheckPanel.svelte:110-126): installed renders no testid of its own, so it is proven by the three waitGone (update-install-btn, update-download-progress, update-check-btn), the only phase reachable from runInstall that renders none of them; error would keep update-check-btn as retry. The real install_update would replace the binary and restart the app before the report lands (commands/updates.rs:172), which is why it is never let through. Error path: install_update rejects a string, humanize keeps it as detail (lib/errors/humanize.ts:251-263) and update-error-banner contains it. listen(\"update-download-progress\") still reaches the real event plugin; nothing emits on it.",
-    "The developer mode is one switch in Settings > Developer (developer-mode-toggle, developer-mode-on, developer-mode-off), written to [desktop] developer_mode of the seeded apollia.toml; every book turns it on and off there, never per screen."
+    "The developer mode is one switch in Settings > Developer (developer-mode-toggle, developer-mode-on, developer-mode-off), written to [desktop] developer_mode of the seeded apollia.toml; every book turns it on and off there, never per screen.",
+    "Model defaults is walked once in the first pass: its five blocks in the order of the page (images, context, guardrails, bypass, unload). The refused figure of the image field is left to Vitest: its anchor, model-defaults-image-side-error, would also resolve through the -error suffix the option rows compose, so naming it here would mask it. The policy state is played under five get_resolved_setting stubs in patch mode, one per block (llm.images.limit_side, llm.defaults.context, llm.guardrails.level, llm.guardrails.bypass, llm.residency.idle_unload_minutes): the real call runs and only the source field of its ResolvedSetting (lib/ipc/settings.ts) becomes policy, so each block shows its policy note with the value in force; the page is left and reopened because it reads its values on mount, and the stubs are cleared before the next entry.",
+    "The resource monitor and the engine table are played under stubs, because their states depend on the host. get_resource_usage (lib/ipc/system.ts ResourceUsage, VramUsage) is rejected before the first mount of System > Hardware of the boot, which is the only moment resource-monitor-measuring exists (the store keeps its last figures afterwards), then resolved with a dedicated, a unified and an unmeasured video memory in turn; the store reads every two seconds, so each waitFor allows eight. list_engines (EnginesResponse, EngineEntry, EngineVariantUpdate) resolves three llama-server builds, one embedded and in service, one downloaded with an update on the channel, one imported whose banner contradicts its tag; check_engine_updates (EngineCheckResponse) and set_engine_channel (EngineSettings) are stubbed because the real ones fetch the channel manifest over the network, and a real channel write would outlive the section. The block ends on a real list_engines (waitGone engine-row-tag-mismatch) and leaves the developer mode off. These stubs imitate backend types and drift silently if the types change."
   ],
   "dynamicTestids": [
     "config-editor-gutter-1",
@@ -148,6 +150,11 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "stubInvoke",
+      "command": "get_resource_usage",
+      "reject": "automation stub: measurement withheld"
+    },
+    {
       "kind": "press",
       "key": "R",
       "mod": true,
@@ -173,6 +180,29 @@
       "kind": "waitFor",
       "testid": "advanced-section",
       "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-measuring",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01a-resource-monitor-measuring"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resource_usage"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-ram",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "resource-monitor-measuring",
+      "timeoutMs": 4000
     },
     {
       "kind": "expect",
@@ -236,6 +266,15 @@
       "label": "03b-nav-chat"
     },
     {
+      "kind": "waitFor",
+      "testid": "chat-auto-naming",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-auto-naming-group"
+    },
+    {
       "kind": "click",
       "testid": "settings-nav-stt"
     },
@@ -258,6 +297,146 @@
     {
       "kind": "screenshot",
       "label": "04b-nav-model-defaults"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-images",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-image-limit",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-image-side",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-context",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-guardrails",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-guardrails-help",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-guardrail-selector",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-bypass",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-unload",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.images.limit_side"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.defaults.context"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.guardrails.level"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.guardrails.bypass"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.residency.idle_unload_minutes"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-stt"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-model-defaults"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-images-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-context-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-guardrails-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-bypass-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-unload-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b3-model-defaults-policy-locked"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resolved_setting"
     },
     {
       "kind": "click",
@@ -771,6 +950,108 @@
       "kind": "waitFor",
       "testid": "hardware-processor",
       "timeoutMs": 20000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-ram",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "resource-monitor-ram-value"
+    },
+    {
+      "kind": "expect",
+      "testid": "resource-monitor-vram"
+    },
+    {
+      "kind": "expect",
+      "testid": "resource-monitor-cpu"
+    },
+    {
+      "kind": "expect",
+      "testid": "resource-monitor-cpu-value"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resource_usage",
+      "resolve": {
+        "ram_used_gb": 12.5,
+        "ram_total_gb": 32.0,
+        "cpu_percent": 37.0,
+        "vram": {
+          "kind": "dedicated",
+          "used_gb": 3.5,
+          "total_gb": 8.0
+        }
+      }
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-vram-value",
+      "contains": "3.5",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-cpu-value",
+      "contains": "37",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "24a-resource-monitor-dedicated-vram"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resource_usage"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resource_usage",
+      "resolve": {
+        "ram_used_gb": 12.5,
+        "ram_total_gb": 32.0,
+        "cpu_percent": 37.0,
+        "vram": {
+          "kind": "unified"
+        }
+      }
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-vram-unified",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resource_usage"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resource_usage",
+      "resolve": {
+        "ram_used_gb": 12.5,
+        "ram_total_gb": 32.0,
+        "cpu_percent": 37.0,
+        "vram": {
+          "kind": "unmeasured"
+        }
+      }
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-vram-unmeasured",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resource_usage"
     },
     {
       "kind": "screenshot",
@@ -1823,6 +2104,10 @@
       "timeoutMs": 20000
     },
     {
+      "kind": "expect",
+      "testid": "engines-check-updates"
+    },
+    {
       "kind": "click",
       "testid": "about-copy-diagnostics",
       "timeoutMs": 4000
@@ -1834,6 +2119,341 @@
     {
       "kind": "screenshot",
       "label": "56-about-diagnostic-copied"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "resolve": {
+        "engines": [
+          {
+            "engine": "llama-server",
+            "variant": "metal",
+            "source": "embedded",
+            "tag": null,
+            "version": "7001 (0ff1ce0)",
+            "in_service": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "source": "downloaded",
+            "tag": "b7001",
+            "version": "7001 (0ff1ce0)",
+            "in_service": false
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "source": "imported",
+            "tag": "b6900",
+            "version": "6800 (deadbee)",
+            "in_service": false
+          }
+        ],
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ],
+        "cuda_proposable": false,
+        "dictation": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-in-service",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-update-available",
+      "contains": "b7100",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-update-latest"
+    },
+    {
+      "kind": "screenshot",
+      "label": "56a-engines-update-available"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "reject": "automation stub: channel unreachable",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-check-error",
+      "contains": "channel unreachable",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56b-engines-check-refused"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-engines"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-channel",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "engines-channel-select"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-source",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-tag"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-tag-mismatch"
+    },
+    {
+      "kind": "screenshot",
+      "label": "56c-engines-developer-channel-sources"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_engines"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "resolve": {
+        "engines": [
+          {
+            "engine": "llama-server",
+            "variant": "metal",
+            "source": "embedded",
+            "tag": null,
+            "version": "7001 (0ff1ce0)",
+            "in_service": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "source": "downloaded",
+            "tag": "b7001",
+            "version": "7001 (0ff1ce0)",
+            "in_service": false
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "source": "imported",
+            "tag": "b6900",
+            "version": "6800 (deadbee)",
+            "in_service": false
+          }
+        ],
+        "channel": "preview",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7200",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ],
+        "cuda_proposable": false,
+        "dictation": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_engine_channel",
+      "resolve": {
+        "channel": "preview",
+        "base_url": ""
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "preview",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7200",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engines-channel-select",
+      "value": "preview"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-update-available",
+      "contains": "b7200",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56d-engines-channel-preview"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_engines"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "set_engine_channel"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-row-tag-mismatch",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "check_engine_updates"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
     },
     {
       "kind": "click",

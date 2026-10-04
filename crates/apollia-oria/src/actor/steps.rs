@@ -69,7 +69,7 @@ impl ActorLoop {
 
         // Path B: just-in-time extraction against the tool schema.
         if let Some(s) = schema.as_ref() {
-            if let Some(model) = llm_router.get(step.model_hint.as_deref()) {
+            if let Some(model) = llm_router.get(self.agent_backend(llm_router)) {
                 match crate::arg_resolver::resolve_tool_args(
                     &model,
                     tool_name,
@@ -100,11 +100,10 @@ impl ActorLoop {
     /// `manifest.tools_requiring_approval`. If so and `pending_approvals` is
     /// configured, calls [`suspend_for_approval`] and waits for the human decision.
     ///
-    /// - `tool_hint = Some("llm")` or `None`: LLM call, routed via `model_hint`
-    ///   when present, otherwise the default backend. Previous outputs are
-    ///   injected into the system message.
-    /// - `tool_hint = Some(tool_name)`: call via `ToolProxyTrait::invoke`
-    ///   (`model_hint` ignored for tool steps).
+    /// - `tool_hint = Some("llm")` or `None`: LLM call on the agent's model
+    ///   (see [`ActorLoop::agent_backend`]). Previous outputs are injected into
+    ///   the system message.
+    /// - `tool_hint = Some(tool_name)`: call via `ToolProxyTrait::invoke`.
     ///
     /// Previous step outputs are interpolated into the step description via
     /// [`interpolate_outputs`] before being passed to the tool or the LLM.
@@ -152,13 +151,13 @@ impl ActorLoop {
         let input = interpolate_outputs(&step.description, &step_ctx.previous_outputs);
 
         match step.tool_hint.as_deref() {
-            // LLM step: routed to the backend specified by model_hint.
-            // previous outputs injected into the system message.
+            // LLM step: on the agent's model, previous outputs injected into
+            // the system message.
             Some("llm") | None => {
                 self.execute_llm_step(step, input, llm_router, step_ctx)
                     .await
             }
-            // Tool step: model_hint ignored. The invocation is wrapped by the
+            // Tool step. The invocation is wrapped by the
             // ResilienceLayer so a flaky tool trips its circuit breaker and
             // transient failures are retried with backoff before bubbling up.
             Some(tool_name) => {
@@ -208,13 +207,30 @@ impl ActorLoop {
             ErrorClass::Transient
         }
     }
-    /// Execute an LLM call for a step, honoring `model_hint`.
+    /// The backend every model call of a step goes to: the model of the agent
+    /// (`llm_backend` of its manifest) when the router holds it, the router's
+    /// default otherwise.
     ///
-    /// - If `model_hint = Some(hint)` and the backend exists in the `LlmRouter`,
-    ///   the call is routed to that backend.
-    /// - If `model_hint = Some(hint)` but the backend does not exist, a `tracing::warn!`
-    ///   is emitted and the default backend is used as fallback.
-    /// - If `model_hint = None`, the default backend is used.
+    /// A step never picks its own model. A plan may still carry a
+    /// `model_hint`, written by an earlier planner or by the model on its own;
+    /// it is not read, so a run stays on the one model its agent was given.
+    pub(super) fn agent_backend<'a>(&'a self, llm_router: &LlmRouter) -> Option<&'a str> {
+        let backend = self.manifest.llm_backend.as_deref()?;
+        if llm_router.get(Some(backend)).is_some() {
+            Some(backend)
+        } else {
+            tracing::event!(
+                tracing::Level::WARN,
+                backend = %backend,
+                detail = "falling back to the default backend",
+                "step.agent_backend.unknown"
+            );
+            None
+        }
+    }
+    /// Execute an LLM call for a step, on the agent's model.
+    ///
+    /// - The call goes to [`ActorLoop::agent_backend`].
     /// - if previous steps completed, their outputs are formatted into a system
     ///   message `"Previous step results:\n- s1: ..."`.
     pub(super) async fn execute_llm_step(
@@ -269,22 +285,7 @@ impl ActorLoop {
             ..Default::default()
         };
 
-        let backend_name = match &step.model_hint {
-            Some(hint) => {
-                if llm_router.get(Some(hint)).is_some() {
-                    Some(hint.as_str())
-                } else {
-                    tracing::warn!(
-                        step_id = %step.step_id,
-                        model_hint = %hint,
-                        detail = "falling back to the default backend",
-                        "step.model_hint.unknown"
-                    );
-                    None
-                }
-            }
-            None => None,
-        };
+        let backend_name = self.agent_backend(llm_router);
 
         let obs = LlmObsConfig::default();
         let response = llm_router

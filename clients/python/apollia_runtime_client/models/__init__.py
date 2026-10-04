@@ -51,6 +51,8 @@ from .applied_proposal import AppliedProposal
 from .artifact import Artifact
 from .audit_entry_dto import AuditEntryDto
 from .audit_event_response import AuditEventResponse
+from .audit_journal_entry_detail_response import AuditJournalEntryDetailResponse
+from .audit_journal_entry_detail_response_entry import AuditJournalEntryDetailResponseEntry
 from .audit_journal_page_response import AuditJournalPageResponse
 from .audit_journal_page_response_entries_item import AuditJournalPageResponseEntriesItem
 from .audit_journal_response import AuditJournalResponse
@@ -240,6 +242,9 @@ from .item_preview import ItemPreview
 from .journal_anchor import JournalAnchor
 from .journal_break import JournalBreak
 from .journal_break_reason import JournalBreakReason
+from .journal_nature import JournalNature
+from .journal_outcome import JournalOutcome
+from .journal_summary import JournalSummary
 from .last_loaded_model_response import LastLoadedModelResponse
 from .last_loaded_model_response_load import LastLoadedModelResponseLoad
 from .lease_response import LeaseResponse
@@ -397,6 +402,8 @@ from .resilience_status_response_circuit_breakers_item import (
 from .resolved_agent_response import ResolvedAgentResponse
 from .resolved_agent_response_definition import ResolvedAgentResponseDefinition
 from .resolved_approval_response import ResolvedApprovalResponse
+from .resource_usage_response import ResourceUsageResponse
+from .resource_usage_response_vram import ResourceUsageResponseVram
 from .resume_error_body import ResumeErrorBody
 from .resume_request import ResumeRequest
 from .resume_response import ResumeResponse
@@ -497,6 +504,9 @@ from .timeline_response import TimelineResponse
 from .todo_read_response import TodoReadResponse
 from .todo_read_response_items_item import TodoReadResponseItemsItem
 from .token_usage_response import TokenUsageResponse
+from .tool_call_detail import ToolCallDetail
+from .tool_call_detail_arguments_type_0 import ToolCallDetailArgumentsType0
+from .tool_call_detail_output_type_0 import ToolCallDetailOutputType0
 from .tool_config_body import ToolConfigBody
 from .tool_config_body_config_type_0 import ToolConfigBodyConfigType0
 from .tool_enabled_body import ToolEnabledBody
@@ -530,6 +540,8 @@ from .uninstall_report import UninstallReport
 from .uninstall_request import UninstallRequest
 from .unload_model_request import UnloadModelRequest
 from .unload_model_response import UnloadModelResponse
+from .unread_page_response import UnreadPageResponse
+from .unread_reason_dto import UnreadReasonDto
 from .update_agent_request import UpdateAgentRequest
 from .update_agent_response import UpdateAgentResponse
 from .update_artifact_request import UpdateArtifactRequest
@@ -615,6 +627,8 @@ __all__ = (
     "Artifact",
     "AuditEntryDto",
     "AuditEventResponse",
+    "AuditJournalEntryDetailResponse",
+    "AuditJournalEntryDetailResponseEntry",
     "AuditJournalPageResponse",
     "AuditJournalPageResponseEntriesItem",
     "AuditJournalResponse",
@@ -804,6 +818,9 @@ __all__ = (
     "JournalAnchor",
     "JournalBreak",
     "JournalBreakReason",
+    "JournalNature",
+    "JournalOutcome",
+    "JournalSummary",
     "LastLoadedModelResponse",
     "LastLoadedModelResponseLoad",
     "LeaseResponse",
@@ -957,6 +974,8 @@ __all__ = (
     "ResolvedAgentResponse",
     "ResolvedAgentResponseDefinition",
     "ResolvedApprovalResponse",
+    "ResourceUsageResponse",
+    "ResourceUsageResponseVram",
     "ResumeErrorBody",
     "ResumeRequest",
     "ResumeResponse",
@@ -1057,6 +1076,9 @@ __all__ = (
     "TodoReadResponse",
     "TodoReadResponseItemsItem",
     "TokenUsageResponse",
+    "ToolCallDetail",
+    "ToolCallDetailArgumentsType0",
+    "ToolCallDetailOutputType0",
     "ToolConfigBody",
     "ToolConfigBodyConfigType0",
     "ToolEnabledBody",
@@ -1086,6 +1108,8 @@ __all__ = (
     "UninstallRequest",
     "UnloadModelRequest",
     "UnloadModelResponse",
+    "UnreadPageResponse",
+    "UnreadReasonDto",
     "UpdateAgentRequest",
     "UpdateAgentResponse",
     "UpdateArtifactRequest",

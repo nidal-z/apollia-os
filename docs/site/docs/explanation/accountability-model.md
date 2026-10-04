@@ -101,9 +101,8 @@ path would not contain a hostile one.
 
 ### Autonomy tiers
 
-An autonomy tier moves five things and no others: the suggested step budget,
-memory injection, the post-run verification pass, the system-prompt profile, and
-the plan gate. It moves no permission rule and no human checkpoint on a tool
+An autonomy tier moves four things and no others: the suggested step budget,
+the post-run verification pass, the system-prompt profile, and the plan gate. It moves no permission rule and no human checkpoint on a tool
 call, so a higher tier does not widen what an agent is allowed to touch. It
 widens how far a run goes before it stops to ask.
 

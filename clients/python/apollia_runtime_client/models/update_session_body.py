@@ -24,12 +24,15 @@ class UpdateSessionBody:
                 default profile.
             system_prompt (None | str | Unset): New system prompt.
             tools (list[str] | None | Unset): New list of tools available in the session.
+            use_profile (bool | None | Unset): Profile switch of the conversation: whether the built-in assistant
+                receives the profile in its prompt.
     """
 
     llm_backend: None | str | Unset = UNSET
     profile_id: None | str | Unset = UNSET
     system_prompt: None | str | Unset = UNSET
     tools: list[str] | None | Unset = UNSET
+    use_profile: bool | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -60,6 +63,12 @@ class UpdateSessionBody:
         else:
             tools = self.tools
 
+        use_profile: bool | None | Unset
+        if isinstance(self.use_profile, Unset):
+            use_profile = UNSET
+        else:
+            use_profile = self.use_profile
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
@@ -71,6 +80,8 @@ class UpdateSessionBody:
             field_dict["system_prompt"] = system_prompt
         if tools is not UNSET:
             field_dict["tools"] = tools
+        if use_profile is not UNSET:
+            field_dict["use_profile"] = use_profile
 
         return field_dict
 
@@ -122,11 +133,21 @@ class UpdateSessionBody:
 
         tools = _parse_tools(d.pop("tools", UNSET))
 
+        def _parse_use_profile(data: object) -> bool | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(bool | None | Unset, data)
+
+        use_profile = _parse_use_profile(d.pop("use_profile", UNSET))
+
         update_session_body = cls(
             llm_backend=llm_backend,
             profile_id=profile_id,
             system_prompt=system_prompt,
             tools=tools,
+            use_profile=use_profile,
         )
 
         update_session_body.additional_properties = d

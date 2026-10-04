@@ -218,16 +218,13 @@ async fn test_user_memory_store_recall_injection() {
     assert_eq!(sector.key, "tools");
     assert_eq!(sector.value, "apollia-os");
 
-    // Verify the injection text is formatted correctly
+    // Verify the persona brief is formatted correctly
     let injection_text = repo
-        .recall_all_for_injection(50)
-        .expect("recall_all_for_injection");
-    assert!(injection_text.contains("Section: identity"));
-    assert!(injection_text.contains("- role: senior developer"));
-    assert!(injection_text.contains("Section: work"));
-    assert!(injection_text.contains("- tools: apollia-os"));
-    assert!(injection_text.contains("Section: preferences"));
-    assert!(injection_text.contains("- preferences: francais"));
+        .recall_persona_brief(None, 50)
+        .expect("recall_persona_brief");
+    assert!(injection_text.contains("Role: senior developer"));
+    assert!(injection_text.contains("Tools: apollia-os"));
+    assert!(injection_text.contains("Preferences: francais"));
 
     // Verify injection into BuiltInChatAgent system prompt
     let repo_arc = Arc::new(Mutex::new(repo));
@@ -249,7 +246,6 @@ async fn test_user_memory_store_recall_injection() {
     let prompt = agent.build_system_prompt(
         Some("Base system prompt."),
         apollia_core::AutonomyLevel::Assisted,
-        true,
     );
     // Production prepends a temporal context block, so the base prompt is
     // present but no longer the leading line.
@@ -445,8 +441,8 @@ async fn test_cross_session_recall() {
 // ─── Scenario 5 ──────────────────────────────────────────────────────────────
 
 /// GIVEN a UserMemoryRepository with entries across 3 sections
-/// WHEN an agent retrieves user context via recall_all_for_injection
-/// THEN the result contains all sections properly formatted and ordered
+/// WHEN the persona brief of the default profile is recalled
+/// THEN it carries the fields, then the free-form entries, in that order
 #[tokio::test]
 async fn test_agent_mode_user_context() {
     let dir = tempfile::tempdir().expect("tempdir");
@@ -467,44 +463,30 @@ async fn test_agent_mode_user_context() {
     );
 
     let context_block = repo
-        .recall_all_for_injection(50)
-        .expect("recall_all_for_injection");
+        .recall_persona_brief(None, 50)
+        .expect("recall_persona_brief");
 
-    // All 3 sections should be present
-    assert!(
-        context_block.contains("Section: identity"),
-        "identity section missing"
-    );
-    assert!(
-        context_block.contains("Section: work"),
-        "work section missing"
-    );
-    assert!(
-        context_block.contains("Section: preferences"),
-        "preferences section missing"
-    );
+    // The fields of the profile
+    assert!(context_block.contains("Role: senior developer"));
+    assert!(context_block.contains("Preferences: francais"));
+    assert!(context_block.contains("Tools: platform"));
 
-    // Entries within each section
-    assert!(context_block.contains("- preferences: francais"));
+    // The free-form entries, listed as context
     assert!(context_block.contains("- preferences.llm: markdown"));
     assert!(context_block.contains("- goals: daily"));
     assert!(context_block.contains("- domain.team_size: 9h-18h"));
-    assert!(context_block.contains("- role: senior developer"));
-    assert!(context_block.contains("- tools: platform"));
 
-    // Verify sections appear in schema order: identity < work < preferences
-    let identity_pos = context_block
-        .find("Section: identity")
-        .expect("identity found");
-    let work_pos = context_block.find("Section: work").expect("work found");
-    let pref_pos = context_block
-        .find("Section: preferences")
-        .expect("preferences found");
+    // The fields come before the free-form entries
+    let role_pos = context_block
+        .find("Role: senior developer")
+        .expect("role found");
+    let tools_pos = context_block.find("Tools: platform").expect("tools found");
+    let context_pos = context_block.find("Context:").expect("context found");
+    assert!(role_pos < tools_pos, "role should appear before tools");
     assert!(
-        identity_pos < work_pos,
-        "identity should appear before work"
+        tools_pos < context_pos,
+        "tools should appear before the free-form entries"
     );
-    assert!(work_pos < pref_pos, "work should appear before preferences");
 
     // Verify the block can be injected into a BuiltInChatAgent system prompt
     let repo_arc = Arc::new(Mutex::new(repo));
@@ -526,7 +508,6 @@ async fn test_agent_mode_user_context() {
     let prompt = agent.build_system_prompt(
         Some("You are a helpful assistant."),
         apollia_core::AutonomyLevel::Assisted,
-        true,
     );
     // Production now uses recall_persona_brief with "## User Persona" header
     assert!(prompt.contains("## User Persona"));

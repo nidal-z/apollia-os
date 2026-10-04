@@ -650,11 +650,13 @@ export interface paths {
         };
         /**
          * `GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal
-         *     across every run.
+         *     across every run, each entry with its summary.
          * @description This is the only read of the journal that does not need a run id up front:
          *     `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,
-         *     and `GET /api/v1/audit` answers the separate tool-invocation trail. 503 when
-         *     the journal is not configured.
+         *     and `GET /api/v1/audit` answers the separate tool-invocation trail. The
+         *     filters are applied before paging, so `limit` and `offset` count matching
+         *     entries. 400 on a filter value that cannot be read, 503 when the journal is
+         *     not configured.
          */
         get: operations["list_audit_journal"];
         put?: never;
@@ -680,6 +682,30 @@ export interface paths {
          *     not configured.
          */
         get: operations["show_audit_run"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/journal/{run_id}/entries/{seq}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/audit/journal/:run_id/entries/:seq`, one entry with its detail.
+         * @description The page gives each entry a summary without content. This gives the entry
+         *     whole and, for a tool call, the full arguments and the full output of that
+         *     call, joined by the run and the call identifier from the entries the run
+         *     captured for replay. 404 when the run has no such entry, 503 when the
+         *     journal is not configured.
+         */
+        get: operations["show_audit_entry"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1956,6 +1982,23 @@ export interface paths {
         };
         /** `GET /api/v1/llm/hardware`, detect and return the hardware profile. */
         get: operations["get_hardware"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/hardware/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/hardware/usage`, measure the machine once. */
+        get: operations["get_resource_usage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6460,11 +6503,23 @@ export interface components {
             task_id: string;
             tool_name: string;
         };
+        /** @description Response body for `GET /api/v1/audit/journal/:run_id/entries/:seq`. */
+        AuditJournalEntryDetailResponse: {
+            /**
+             * @description The chained entry, with its `summary` and, when it is about a tool
+             *     call, a `tool_call` holding the full `arguments`, `output` and `status`.
+             */
+            entry: Record<string, never>;
+        };
         /** @description Response body for `GET /api/v1/audit/journal`. */
         AuditJournalPageResponse: {
             /** @description Number of entries in this page. */
             count: number;
-            /** @description Journal entries, newest global position first. */
+            /**
+             * @description Journal entries, newest global position first. Each one is the chained
+             *     entry with a `summary` beside its fields: agent, nature, family, what
+             *     happened, tool, target, outcome and date, without content.
+             */
             entries: Record<string, never>[];
         };
         /** @description Response body for `GET /api/v1/audit/journal/:run_id`. */
@@ -7034,7 +7089,7 @@ export interface components {
             message_count: number;
             /** @description Number of messages that have been summarized. */
             summarized_count: number;
-            /** @description Whether the user profile was injected into the system prompt. */
+            /** @description Whether the assistant's prompt carries the profile of the conversation. */
             user_memory_injected: boolean;
         };
         /** @description A single backend/model cost summary row. */
@@ -7499,6 +7554,11 @@ export interface components {
         EngineEntry: {
             /** @description Engine. */
             engine: components["schemas"]["EngineName"];
+            /**
+             * @description True for the build this runtime starts for the model format it serves:
+             *     the `llama-server` binary it resolves, the MLX environment it imports.
+             */
+            in_service: boolean;
             /** @description Where it lives. */
             path: string;
             /** @description Embedded, downloaded or imported. */
@@ -8133,6 +8193,37 @@ export interface components {
          * @enum {string}
          */
         JournalBreakReason: "global_seq_gap" | "global_prev_hash_mismatch" | "global_hash_mismatch" | "global_signature_invalid" | "unknown_signing_key" | "per_run_broken";
+        /**
+         * @description What kind of fact an entry records.
+         * @enum {string}
+         */
+        JournalNature: "action" | "access_change" | "policy" | "system";
+        /**
+         * @description How what an entry records ended.
+         * @enum {string}
+         */
+        JournalOutcome: "success" | "failure" | "refused";
+        /** @description One journal entry, said in a line and without content. */
+        JournalSummary: {
+            /** @description Agent the entry is about, when it is about one. */
+            agent?: string | null;
+            /** @description Action family concerned (`read`, `write_or_delete`, ...), when there is one. */
+            family?: string | null;
+            /** @description What kind of fact the entry records. */
+            nature: components["schemas"]["JournalNature"];
+            outcome?: null | components["schemas"]["JournalOutcome"];
+            /**
+             * @description What was acted on: a path, a recipient, the host of an address, a
+             *     connection. Never an argument that carries content.
+             */
+            target?: string | null;
+            /** @description Tool concerned, when there is one. */
+            tool?: string | null;
+            /** @description When, RFC 3339 UTC. */
+            ts: string;
+            /** @description What happened, in a few words. */
+            what: string;
+        };
         /** @description Response of `GET /api/v1/llm/loaded-models/last`. */
         LastLoadedModelResponse: {
             /**
@@ -9637,11 +9728,16 @@ export interface components {
             /**
              * @description Fields whose value is the user's rather than the package's:
              *     `name`, `mission`, `examples`, `access`, `sources`, `autonomy`,
-             *     `profile`.
+             *     `planning`, `profile`.
              */
             overridden: string[];
             /** @description Package the agent came with. */
             package?: string | null;
+            /**
+             * @description Whether the agent plans a task before acting on it: `never`, `auto` or
+             *     `always`. The user's, else the package's, else `auto`.
+             */
+            planning: string;
             /**
              * @description Identifier of the user profile designated for the agent; absent when
              *     it runs with the default profile.
@@ -9661,6 +9757,30 @@ export interface components {
             task_id: string;
             /** Format: int64 */
             wait_duration_ms?: number | null;
+        };
+        /** @description The memory and the processor in use at the time of the request. */
+        ResourceUsageResponse: {
+            /**
+             * Format: float
+             * @description Processor load over every core, from 0 to 100.
+             */
+            cpu_percent: number;
+            /**
+             * Format: double
+             * @description System memory installed, in GB.
+             */
+            ram_total_gb: number;
+            /**
+             * Format: double
+             * @description System memory in use, in GB.
+             */
+            ram_used_gb: number;
+            /**
+             * @description Video memory in use: `{"kind":"dedicated","used_gb":..,"total_gb":..}`
+             *     on an NVIDIA card, `{"kind":"unified"}` where the graphics processor
+             *     shares the system memory, `{"kind":"unmeasured"}` anywhere else.
+             */
+            vram: Record<string, never>;
         };
         /**
          * @description Error body of `POST /api/v1/tasks/{id}/resume`.
@@ -10067,7 +10187,8 @@ export interface components {
         SetOverrideRequest: {
             /**
              * @description The user's value: a string for `name` and `mission`, a tier name for
-             *     `autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`.
+             *     `autonomy`, a mode for `planning`, a profile identifier for `profile`,
+             *     a list of strings for `examples`, `access` and `sources`.
              *     A `sources` entry is a source identifier of `GET /api/v1/sources`, `profile` or `memory`.
              */
             value: Record<string, never>;
@@ -10235,6 +10356,11 @@ export interface components {
             indexState: components["schemas"]["IndexStateDto"];
             /** @description Files left out of the index. */
             skipped: components["schemas"]["SkippedFileResponse"][];
+            /**
+             * @description Pages of indexed documents that hold no text: those waiting for
+             *     optical character recognition, and those it cannot read.
+             */
+            unreadPages: components["schemas"]["UnreadPageResponse"][];
         };
         /**
          * @description What a source is.
@@ -10709,6 +10835,23 @@ export interface components {
              */
             prompt_tokens: number;
         };
+        /** @description The arguments and the output of one tool call. */
+        ToolCallDetail: {
+            /**
+             * @description Full arguments of the call. `None` when no model response of the run
+             *     carries this call, as for a tool an agent's own code called.
+             */
+            arguments?: Record<string, never> | null;
+            /** @description Full output of the call. `None` when the run captured none. */
+            output?: Record<string, never> | null;
+            /**
+             * @description How the call ended, as the capture wrote it: `success`, `error` or
+             *     `rejected`.
+             */
+            status?: string | null;
+            /** @description Identifier of the call within its run. */
+            tool_call_id: string;
+        };
         /** @description Request and answer body of `/api/v1/governance/tools/{name}/config`. */
         ToolConfigBody: {
             /** @description Tool-specific JSON configuration, `null` when none is stored. */
@@ -10971,6 +11114,23 @@ export interface components {
              */
             stopped: number;
         };
+        /** @description A page of an indexed document that holds no text in the index. */
+        UnreadPageResponse: {
+            /**
+             * Format: int32
+             * @description Page number, from 1; a picture file is its page 1.
+             */
+            page: number;
+            /** @description Path of the document on this machine. */
+            path: string;
+            /** @description Why it was not read. */
+            reason: components["schemas"]["UnreadReasonDto"];
+        };
+        /**
+         * @description Why a page of an indexed document holds no text.
+         * @enum {string}
+         */
+        UnreadReasonDto: "ocr_unavailable" | "not_read";
         /** @description Request body for `PUT /api/v1/agents/installed/{name}`. */
         UpdateAgentRequest: {
             /** @description Path of the new Python module on this machine. */
@@ -11088,6 +11248,11 @@ export interface components {
             system_prompt?: string | null;
             /** @description New list of tools available in the session. */
             tools?: string[] | null;
+            /**
+             * @description Profile switch of the conversation: whether the built-in assistant
+             *     receives the profile in its prompt.
+             */
+            use_profile?: boolean | null;
         };
         /** @description Request body for `PUT /api/v1/triggers/:id`, trigger update. */
         UpdateTriggerRequest: {
@@ -11666,7 +11831,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access, sources, autonomy or profile */
+                /** @description name, mission, examples, access, sources, autonomy, planning or profile */
                 field: string;
             };
             cookie?: never;
@@ -11722,7 +11887,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access, sources, autonomy or profile */
+                /** @description name, mission, examples, access, sources, autonomy, planning or profile */
                 field: string;
             };
             cookie?: never;
@@ -12807,10 +12972,20 @@ export interface operations {
             query?: {
                 /** @description Maximum number of entries to return (default 20, capped at 500) */
                 limit?: number;
-                /** @description Number of entries to skip, newest first (default 0). Page through the journal by advancing it. */
+                /** @description Number of matching entries to skip, newest first (default 0). Page through the journal by advancing it. */
                 offset?: number;
-                /** @description Comma-separated agent names. When set, only the runs of those agents' tasks are paged, so a caller following some agents does not walk the pages of every other one. A run with no task, such as a chat turn, is never included. */
+                /** @description Comma-separated agent names. When set, only the entries that name one of those agents, and the runs of their tasks, are paged. */
                 agents?: string;
+                /** @description Comma-separated action families: `read`, `read_personal`, `write_or_delete`, `send_external`, `execute_code`, `unclassified`, `exempt`. */
+                family?: string;
+                /** @description Comma-separated natures: `action`, `access_change`, `policy`, `system`. */
+                nature?: string;
+                /** @description Comma-separated results: `success`, `failure`, `refused`. */
+                result?: string;
+                /** @description Start of the period, included: a day `YYYY-MM-DD` read in UTC, or an RFC 3339 instant. */
+                since?: string;
+                /** @description End of the period, excluded: a day `YYYY-MM-DD` read in UTC, or an RFC 3339 instant. */
+                until?: string;
             };
             header?: never;
             path?: never;
@@ -12818,13 +12993,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description A page of hash-chained journal entries */
+            /** @description A page of hash-chained journal entries, each with its summary */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["AuditJournalPageResponse"];
+                };
+            };
+            /** @description A filter value that cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
             /** @description Audit journal not configured, or `agents` given with no task repository to resolve them */
@@ -12860,6 +13044,49 @@ export interface operations {
                 };
             };
             /** @description Run has no entries */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    show_audit_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run the entry belongs to */
+                run_id: string;
+                /** @description Sequence number of the entry within its run */
+                seq: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The entry, its summary, and the arguments and output of its tool call when it is about one */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditJournalEntryDetailResponse"];
+                };
+            };
+            /** @description The run has no such entry */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16264,6 +16491,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HardwareResponse"];
+                };
+            };
+        };
+    };
+    get_resource_usage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Memory, processor and video memory in use */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceUsageResponse"];
+                };
+            };
+            /** @description The measurement did not complete */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };
@@ -23381,7 +23637,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The state of the source's index, its counts and the files it left out */
+            /** @description The state of the source's index, its counts, the files it left out and the pages it could not read */
             200: {
                 headers: {
                     [name: string]: unknown;

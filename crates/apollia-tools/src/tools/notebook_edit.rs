@@ -311,6 +311,7 @@ impl NotebookEdit {
             ],
             family: crate::descriptor::ActionFamily::WriteOrDelete,
             family_source: crate::descriptor::FamilySource::Builtin,
+            target_arg: Some("path".to_string()),
             is_read_only: false,
             risk_score: 3,
             approval_risk_level: None,

@@ -20,7 +20,7 @@ export interface OnboardingStepEntry {
 export const ONBOARDING_STEPS: readonly OnboardingStepEntry[] = [
   { id: "welcome", labelKey: "onboarding_modal.step_welcome", phase: null },
   { id: "ai-setup", labelKey: "onboarding_modal.step_models", phase: "ai_setup" },
-  { id: "chat", labelKey: "onboarding_modal.step_calibration", phase: "acquaintance" },
+  { id: "chat", labelKey: "onboarding_modal.step_about", phase: "acquaintance" },
 ];
 
 /** The phase the backend moves to when `step` opens. */

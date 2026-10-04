@@ -2464,6 +2464,12 @@
         "resume": "Complete with an agent",
         "dismiss": "Dismiss"
       },
+      "proposal": {
+        "title": "The agent's proposal, to review",
+        "detail": "The agent filled in the fields below from your conversation. Correct anything that is off: nothing is written before \"Save\".",
+        "skip": "Skip",
+        "save": "Save"
+      },
       "source": {
         "onboarding": "onboarding",
         "user": "you",
@@ -3119,11 +3125,83 @@
     "chat": {
       "subtitle": "How conversations behave, and the keyboard shortcuts.",
       "conversations_title": "Conversations",
-      "shortcuts_title": "Keyboard shortcuts"
+      "shortcuts_title": "Keyboard shortcuts",
+      "all_shortcuts_title": "All shortcuts",
+      "send_mod_label_mac": "Use ⌘ + ⏎ to send the message",
+      "send_mod_hint_mac": "Off, Enter sends the message and Shift + Enter starts a new line. On, ⌘ + Enter sends and Enter starts a new line.",
+      "send_mod_label_other": "Use Ctrl + Enter to send the message",
+      "send_mod_hint_other": "Off, Enter sends the message and Shift + Enter starts a new line. On, Ctrl + Enter sends and Enter starts a new line.",
+      "naming_title": "Automatic naming",
+      "naming_label": "Conversation names given by the model",
+      "naming_never": "Never",
+      "naming_never_hint": "A conversation keeps its placeholder name until you rename it.",
+      "naming_auto": "Automatic",
+      "naming_auto_hint": "Apollia names the conversation when the model generates fast enough, going by the measured generation speed.",
+      "naming_always": "Always",
+      "naming_always_hint": "Apollia names every new conversation, whatever the generation speed."
     },
     "model_defaults": {
       "subtitle": "The values a model receives when nothing else sets them.",
-      "empty": "No default can be set here yet: each model keeps the values of the AI screen."
+      "saved": "Saved",
+      "write_failed": "This setting could not be saved.",
+      "images": {
+        "title": "Image input",
+        "never_exceed": "Never exceed",
+        "unit": "pixels",
+        "hint": "The largest side is scaled down to this value, proportions kept. Off, an image is sent at its own size, within what the model accepts.",
+        "toggle_label": "Limit the size of input images"
+      },
+      "context": {
+        "title": "Default context length",
+        "description": "How much of a conversation a model keeps in memory, when neither its load settings nor its configuration set it.",
+        "custom": "Custom value",
+        "custom_hint": "With no value entered, Apollia works it out for each model so that it fits in the memory of this computer; you can change it.",
+        "model_max": "Model maximum",
+        "model_max_hint": "Each model loads with the longest context it can hold. Needs more memory.",
+        "unit": "tokens",
+        "auto_placeholder": "Automatic"
+      },
+      "guardrails": {
+        "title": "Model loading guardrails",
+        "level_label": "Level of caution",
+        "help": "Before it loads a model, Apollia estimates the memory it needs and compares it with the memory of this computer. The level chosen decides whether the model loads or is refused.",
+        "help_label": "How the loading guardrails work",
+        "disabled": "Off (not recommended)",
+        "disabled_hint": "No check: every model loads, even one that saturates the computer.",
+        "lenient": "Relaxed",
+        "lenient_hint": "Every model loads; going past the memory is only reported.",
+        "balanced": "Balanced",
+        "balanced_hint": "A model that exceeds the memory of the computer is refused. Recommended.",
+        "strict": "Strict",
+        "strict_hint": "Only models that fit comfortably in memory load.",
+        "ceiling": "Ceiling",
+        "ceiling_hint": "A model loads as long as the memory it needs stays under this ceiling.",
+        "ceiling_unit": "GB"
+      },
+      "bypass": {
+        "title": "Bypass memory load warnings",
+        "load_anyway": "Load anyway",
+        "load_anyway_hint": "When a guardrail refuses a model, you can ask to load it all the same.",
+        "confirm": "Explicit confirmation",
+        "confirm_hint": "At load time, a confirmation window recalls the risk; the model only loads once you agree.",
+        "unrestricted": "No restriction (not recommended)",
+        "unrestricted_hint": "\"Load anyway\" loads the model at once, without a confirmation."
+      },
+      "unload": {
+        "title": "Model unloading",
+        "label": "Unload an unused model after",
+        "label_hint": "A model no open conversation uses gives its memory back. A model kept in memory by its pin stays loaded.",
+        "after": "After a delay",
+        "after_hint": "The model is unloaded when nothing has called on it for this long.",
+        "never": "Never",
+        "never_hint": "A model stays loaded until you eject it.",
+        "unit": "minutes"
+      },
+      "errors": {
+        "not_a_number": "Enter a number.",
+        "out_of_bounds": "The value must be between {min} and {max}.",
+        "above_memory": "This ceiling exceeds the memory of this computer ({max} GB)."
+      }
     },
     "notifications": {
       "subtitle": "Where Apollia warns you, and about what.",
@@ -3172,7 +3250,30 @@
       "role_gguf": "Runs the models on this computer, on its graphics chip when it has one.",
       "role_mlx": "Runs MLX models on Apple silicon Macs.",
       "role_node": "Runs the tool servers written for Node.js.",
-      "role_dictation": "Dictation: speech turned into text, on this computer."
+      "role_dictation": "Dictation: speech turned into text, on this computer.",
+      "channel_title": "Engine channel",
+      "channel_label": "Channel the engines follow",
+      "channel_hint": "Stable receives the published engines; Preview also receives the engines on trial. This channel is separate from the application's.",
+      "channel_stable": "Stable",
+      "channel_preview": "Preview",
+      "check_updates": "Check for updates",
+      "in_service": "In service",
+      "update_available": "{tag} available",
+      "update_latest": "Latest version",
+      "source_embedded": "Embedded",
+      "source_downloaded": "Downloaded",
+      "source_imported": "Imported",
+      "channel_tag": "Published by the channel as {tag}",
+      "tag_mismatch": "Mismatch: the channel published this engine as {tag}, it states {version}."
+    },
+    "resource_monitor": {
+      "title": "Resource monitor",
+      "desc": "What this computer is using right now, measured while this page is open.",
+      "measuring": "Measuring…",
+      "used_of": "{used} of {total}",
+      "percent": "{n}%",
+      "vram_unified": "Unified memory, shared with the system memory",
+      "vram_unmeasured": "Not measured on this computer"
     },
     "window": {
       "label": "Settings",
@@ -3256,6 +3357,8 @@
       "rescan": "re-scan",
       "load_model": "Load a model",
       "load_model_title": "Choose a model file",
+      "load_language_data_filter": "Language data for scanned documents",
+      "language_data_imported": "{file} is in place: scanned pages and pictures are read with it.",
       "dest_dir_default": "Default folder (~/.apollia/models)",
       "dest_dir_custom": "Folder: {path}",
       "dest_dir_change": "Change…",
@@ -3582,6 +3685,8 @@
     "context_window": "Context window",
     "context_messages": "Messages: {pct}%",
     "context_memory": "User memory: {pct}%",
+    "context_profile_on": "Profile included in the prompt",
+    "context_profile_off": "Profile not included in the prompt",
     "context_free": "Free: {pct}%",
     "legend_messages": "Messages",
     "legend_memory": "Memory",
@@ -3641,7 +3746,8 @@
       "install_agent": "Install an agent",
       "docs_link": "Documentation",
       "error_no_llm": "No language model is configured yet. Open Settings and add an LLM backend (a local GGUF model or a cloud provider) before starting a conversation.",
-      "error_generic": "Could not start the conversation: {error}"
+      "error_generic": "Could not start the conversation: {error}",
+      "submit_hint_enter": "Enter to start a free chat"
     },
     "agent_status": {
       "online": "Online",
@@ -3755,6 +3861,14 @@
       "role_system": "System"
     },
     "plan_abandoned_reason": "plan abandoned",
+    "sort": {
+      "trigger": "Sort conversations",
+      "title": "Sort by",
+      "newest": "Newest first",
+      "oldest": "Oldest first",
+      "activity": "Latest activity",
+      "name": "Name, A to Z"
+    },
     "step": {
       "toggle": "Show or hide the step detail",
       "failed": "Failed: {reason}",
@@ -3823,12 +3937,6 @@
     "switch_locale": "Switch to {code}"
   },
   "onboarding_chat": {
-    "permission_banner": "At the end of the conversation, Apollia will suggest a few permission rules tailored to your answers - each rule appears as a card you can approve or refuse.",
-    "wrapup_title_finalized": "Calibration complete",
-    "wrapup_title_safety": "You can move on",
-    "wrapup_detail_finalized": "The agent saved your profile and applied the permission rules you approved. You can now open Apollia and explore.",
-    "wrapup_detail_safety": "If you answered the main questions, we can wrap this up.",
-    "finish": "Finish",
     "no_llm_title": "No LLM engine available",
     "no_llm_detail": "Go back to the previous step to configure a local model or a cloud provider - the agent needs one to chat.",
     "llm_starting_title": "Starting the engine…",
@@ -3837,38 +3945,31 @@
     "bootstrap": "Starting the agent…",
     "bootstrap_failed": "Couldn't start onboarding.",
     "progress_label": "Onboarding progress",
-    "phase_calibration": "Calibration",
-    "phase_enrichment": "Profile",
     "finish_early": "I'm done",
-    "finish_early_hint_calibration": "You can wrap up once the first questions are answered.",
-    "finish_early_hint_enrichment": "Optional from here - skip the rest whenever you like.",
     "kick_message": "Hello!",
-    "finish_early_message": "That's good for me, let's wrap up."
+    "finish_early_message": "That's good for me, let's wrap up.",
+    "review_banner": "At the end of the conversation, Apollia proposes a profile for you to review. Nothing is saved without your consent.",
+    "finish_early_hint": "Every question is optional: wrap up whenever you like.",
+    "review_again": "See the proposal again",
+    "review_again_hint": "Your profile is not saved yet.",
+    "kick_message_resume": "Hello! My profile already holds this: {known}. Only ask me about what is missing."
+  },
+  "onboarding_review": {
+    "title": "Your profile, to review",
+    "description": "Correct anything that is off. No field is required, and nothing is written until you save.",
+    "loading": "Loading the profile…",
+    "back": "Back",
+    "skip": "Skip without saving",
+    "save": "Save"
   },
   "onboarding_modal": {
     "title": "Apollia - First contact",
     "progress_label": "Onboarding progress",
     "skip_later": "Configure later",
-    "skip_optional": "Skip the optional questions",
+    "skip_optional": "Skip the questions",
     "step_welcome": "Welcome",
     "step_models": "Models",
-    "step_calibration": "Calibration"
-  },
-  "onboarding_permissions": {
-    "title": "Suggested permission rules",
-    "subtitle_html": "Based on your answers, Apollia suggests the rules below. Apply the ones you want, dismiss the rest - you can always edit them under <strong>Settings → Permissions</strong>.",
-    "loading": "Loading…",
-    "empty": "No rules left.",
-    "apply": "Apply",
-    "dismiss": "Dismiss",
-    "action_allow": "Allow",
-    "action_deny": "Deny",
-    "scope_label": "{scope}",
-    "rule_applied": "Rule applied",
-    "tool_title": "Tool",
-    "prefix_title": "Target",
-    "scope_title": "Scope",
-    "count_aria": "Pending rules"
+    "step_about": "About me"
   },
   "onboarding_stt": {
     "hotkey_label": "Global keyboard shortcut",

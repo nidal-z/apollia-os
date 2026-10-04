@@ -43,7 +43,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "notifications.field_url_placeholder", // https://hooks.example.com/notify
   "observability.timeline_window_30min", // 30 min
   "observability.type_llm", // LLM
-  "onboarding_permissions.scope_label", // {scope}
   "settings.integrations.drive.placeholder", // Apollia
   "settings.integrations.field.client_id", // Client ID
   "settings.integrations.placeholder.api_key", // AIzaSy…
@@ -53,6 +52,8 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "settings.language_fr", // Français
   "settings.llm_dialog.field_top_k", // Top-K
   "settings.llm_dialog.field_top_p", // Top-P
+  "settings.model_defaults.images.unit", // pixels
+  "settings.model_defaults.unload.unit", // minutes
   "settings.model_hub.detail.param_top_k", // top_k
   "settings.model_hub.detail.param_top_p", // top_p
   "settings.hardware.gpu", // GPU
@@ -200,6 +201,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.credential.absent", // Absent
   "settings.developer.mcp.kind_agent", // Agent
   "settings.developer.mcp.kind_workflow", // Workflow
+  "settings.engines.channel_stable", // Stable
   "settings.general.application_title", // Application
   "settings.general.channel_stable", // Stable
   "settings.general.interface_title", // Interface

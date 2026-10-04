@@ -249,6 +249,47 @@ fn an_operation_requiring_a_confirm_phrase_writes_or_deletes() {
 }
 
 #[test]
+fn a_connector_operation_designates_a_recipient_or_a_file_name_only() {
+    // GIVEN the connector operations that act on something a reader can name,
+    // copied here by hand
+    let expected = [
+        ("gmail.send", "to"),
+        ("gmail.compose_draft", "to"),
+        ("outlook.send", "to"),
+        ("gdrive.workspace_share", "email"),
+        ("gdrive.workspace_write", "name"),
+        ("gdrive.write_to_folder", "name"),
+        ("imap.list_folders", "account"),
+        ("imap.search", "account"),
+        ("imap.read", "account"),
+    ];
+    // WHEN every connector descriptor is read
+    let mut actual: Vec<(String, String)> = all_connector_descriptors()
+        .into_iter()
+        .filter_map(|d| d.target_arg.clone().map(|arg| (d.name, arg)))
+        .collect();
+    actual.sort();
+    let mut wanted: Vec<(String, String)> = expected
+        .iter()
+        .map(|(name, arg)| ((*name).to_owned(), (*arg).to_owned()))
+        .collect();
+    wanted.sort();
+    // THEN those and no other designate a target argument, which their schema
+    // declares, and none designates a body
+    assert_eq!(actual, wanted);
+    for d in all_connector_descriptors() {
+        if let Some(arg) = d.target_arg.as_deref() {
+            assert!(
+                d.input_schema["properties"].get(arg).is_some(),
+                "{} designates `{arg}`, which its schema does not declare",
+                d.name
+            );
+            assert!(!matches!(arg, "body" | "content" | "text" | "comment"));
+        }
+    }
+}
+
+#[test]
 fn every_connector_descriptor_is_classified() {
     // GIVEN every connector descriptor registered at boot
     // WHEN their families are read

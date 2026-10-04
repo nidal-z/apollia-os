@@ -10,6 +10,7 @@
 import { writable, derived } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import type { OnboardingState, OnboardingPhase } from "$lib/types";
+import type { EnrichmentRequest, PendingProposal } from "$lib/onboarding/profileProposal";
 
 const DEFAULT_STATE: OnboardingState = {
   phase: "welcome",
@@ -91,13 +92,22 @@ export const onboardingStore = createOnboardingStore();
 export const onboardingModalOpen = writable(false);
 
 /**
- * When `true`, the onboarding chat step resumes profile enrichment instead of
- * starting a fresh run: it calls `resume_onboarding` (which preserves the
- * already-collected Tier 1 + Tier 2 facts) rather than `trigger_onboarding`
- * (which resets progress). Set by the "complete your profile" entry point and
- * consumed (reset to `false`) by the chat step once the session starts.
+ * The profile the next onboarding conversation is asked to complete, or
+ * `null` for the first-launch conversation. Set by the "complete this profile"
+ * banner of Settings > Profile with the displayed profile; the chat step
+ * takes it (and clears it) when the session starts, calls `resume_onboarding`
+ * instead of `trigger_onboarding`, and tells the agent what the profile
+ * already holds.
  */
-export const onboardingResumeMode = writable(false);
+export const profileEnrichment = writable<EnrichmentRequest | null>(null);
+
+/**
+ * The proposal a completed enrichment conversation hands back to Settings >
+ * Profile. Nothing is written when it is set: the page lays it over the form
+ * of the profile it was asked for, where the person reads it over and saves
+ * it or not, then clears it.
+ */
+export const pendingProfileProposal = writable<PendingProposal | null>(null);
 
 /** Whether the sidebar onboarding badge should be visible. */
 export const showOnboardingBadge = derived(

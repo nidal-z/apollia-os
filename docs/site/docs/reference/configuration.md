@@ -99,7 +99,7 @@ still accepted, with a `config.key.retired` warning.
 | `[workflows]` | The budget a workflow run starts with, shared by every agent and workflow it runs. |
 | `[models]` | The signed index of model cards, the models folder (`dir`), and the rule applied to an imported file (`[models.import]`). |
 | `[observability]` | Trace capture and retention, documented below. |
-| `[desktop]` | Settings of the desktop application: `developer_mode`, `update_channel` (`stable` or `preview`), `background_service_allowed`, and `link_preview_enabled`, which fetches the preview of a link shown in a conversation. Off by default, since the fetch leaves the machine. |
+| `[desktop]` | Settings of the desktop application: `developer_mode`, `update_channel` (`stable` or `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` or `always`), and `link_preview_enabled`, which fetches the preview of a link shown in a conversation. Off by default, since the fetch leaves the machine. |
 | `[server]` | The compatible server: `enabled`, `port`, `require_auth`, `cors`, and loading on demand: `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`. |
 | `[engines]` | Settings of the local inference engines (`log_level`). |
 | `[author]` | The publisher name of the agents exported from this machine (`name`). |
@@ -163,7 +163,12 @@ LLM backends, routing, and the speech-to-text runner. The default file leaves th
 | `llm.routing` | table | not set | Backends answering precise and fast requests, and the hybrid routing ceiling. |
 | `llm.guardrails.level` | one of disabled, lenient, balanced, strict, ceiling | `"balanced"` | How strictly a local model launch is held to the machine's memory; an unknown level holds to balanced. The organization policy can fix it. |
 | `llm.guardrails.ceiling_gb` | float | not set | Largest estimate, in gigabytes, the ceiling level launches. The organization policy can fix it. |
+| `llm.guardrails.bypass` | one of confirm, unrestricted | `"confirm"` | What loading a refused model anyway asks first: confirm, an explicit confirmation, or unrestricted, nothing. The organization policy can fix it. |
 | `llm.residency.idle_unload_minutes` | integer | `60` | Minutes without a request after which a local model nothing holds is unloaded; 0 never unloads. The organization policy can fix it. |
+| `llm.defaults.context` | one of custom, model_max | `"custom"` | Context window of a local model that neither APOLLIA_LLAMA_N_CTX, nor a preset, nor its backend fixes: custom, the figure of llm.defaults.context_tokens, or model_max, the length the model was trained for. The organization policy can fix it. |
+| `llm.defaults.context_tokens` | integer | `0` | Default context window, in tokens, when llm.defaults.context is custom; 0 lets the engine size it to the memory of this machine, model by model, up to 32768. The organization policy can fix it. |
+| `llm.images.limit_side` | boolean | `true` | Scale an image down before it is sent to a model when its largest side exceeds llm.images.max_side_px. The organization policy can fix it. |
+| `llm.images.max_side_px` | integer | `2048` | Largest side, in pixels, of an image sent to a model; proportions are kept. The organization policy can fix it. |
 
 ### `[api]`
 
@@ -283,6 +288,7 @@ Settings of the desktop application that the engine reads.
 | `desktop.link_preview_enabled` | boolean | `false` | Fetch the preview of a link shown in a conversation. The organization policy can fix it. |
 | `desktop.update_channel` | one of stable, preview | `"stable"` | Update channel of the application: stable receives the published versions, preview the trial versions as well. The organization policy can fix it. |
 | `desktop.background_service_allowed` | boolean | `true` | Allow the application to install the engine as a service of the user's session. The organization policy can fix it. |
+| `desktop.chat_auto_naming` | one of never, auto, always | `"auto"` | Name a new conversation from its first message: never, automatically when the model generates fast enough, or always. The organization policy can fix it. |
 
 ### `[server]`
 
@@ -558,6 +564,53 @@ with its reason: `idle`, `last_conversation`, `requested`, `make_room`, or
 `server_replaced` when the compatible server loaded another model. The models
 the compatible server loaded follow their own delay, set under `[server]`
 (see the compatible endpoints reference).
+
+## Model defaults (`[llm.defaults]`, `[llm.images]`)
+
+What a local model receives when nothing closer to it says otherwise. The
+application shows these under Settings, Model defaults.
+
+```toml
+[llm.defaults]
+context = "custom"       # or "model_max"
+context_tokens = 16384   # 0 lets the engine size the window to this machine
+
+[llm.images]
+limit_side = true
+max_side_px = 2048
+
+[llm.guardrails]
+bypass = "confirm"       # or "unrestricted"
+```
+
+The context window of a launch is the first of these that speaks:
+
+| Order | Source |
+| --- | --- |
+| 1 | `APOLLIA_LLAMA_N_CTX` |
+| 2 | the window of the model's preset |
+| 3 | the `context_window` of the backend |
+| 4 | `[llm.defaults]` |
+| 5 | 32768 tokens, the value the engine is built with |
+
+With `context = "custom"` and a figure, that figure applies. With
+`context_tokens = 0`, the default, the engine sizes the window model by model:
+the longest one, up to 32768 tokens and never under 4096, at which the estimate
+used by the load guardrail still holds the model within the memory of the
+machine. With `context = "model_max"`, the window is the length the model was
+trained for. Every one of them is capped at the training length, and a model
+whose header cannot be read falls to the last line of the table. The section is
+read at every load, so a change applies to the next model loaded.
+
+`[llm.images]` is read by the chat of the application: an image whose largest
+side exceeds `max_side_px` is scaled down to it, proportions kept, before it is
+sent to a model that reads images. With `limit_side = false` an image travels
+at its own size, up to what the engine accepts.
+
+`bypass` says what the application asks before it loads a model the guardrail
+refused: `confirm` shows a confirmation that recalls the risk, `unrestricted`
+loads at once. The guardrail itself is not weakened: the refusal is still
+shown, and a request that does not confirm is still refused.
 
 ## Dictation (`system.db`, not `apollia.toml`)
 

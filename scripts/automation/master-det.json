@@ -164,6 +164,7 @@
     "settings-nav-profile",
     "settings-nav-stt",
     "settings-nav-tools",
+    "sidebar-connection-folder:automation",
     "sidebar-mcp-automation-stub-mcp",
     "sidebar-mcp-seed-stub",
     "task-detail-tab-output",
@@ -1692,6 +1693,10 @@
     {
       "kind": "expect",
       "testid": "chat-active-list"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-sort-trigger"
     },
     {
       "kind": "waitFor",
@@ -4086,6 +4091,92 @@
     {
       "kind": "waitGone",
       "testid": "agent-source-pick-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_connections"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": [
+        {
+          "id": "folder:automation",
+          "kind": "folder",
+          "label": "Automation folder",
+          "account": null,
+          "path": "/automation/folder",
+          "provenance": "custom",
+          "remote": false,
+          "official": false,
+          "state": "connected",
+          "tools": [
+            {
+              "id": "mcp:automation/read_file",
+              "family": "read",
+              "familySource": "server",
+              "prechecked": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sources-add",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-sources-add-menu",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-sources-add-choice",
+      "timeoutMs": 2500,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-source-pick-candidate",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-source-pick-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-source-pick-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-adjust-source-check",
+      "timeoutMs": 2500,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-source-grant-reading",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03a2-apollia-adjust-source-reading-note (checked folder the agent cannot read)"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-adjust-source-check",
+      "timeoutMs": 2500,
+      "nth": 0
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-source-grant-reading",
       "timeoutMs": 4000
     },
     {
@@ -11801,6 +11892,157 @@
       "command": "oauth_set_drive_folder"
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": [
+        {
+          "id": "folder:automation",
+          "kind": "folder",
+          "label": "Automation folder",
+          "account": null,
+          "path": "/automation/folder",
+          "provenance": "custom",
+          "remote": false,
+          "official": false,
+          "state": "connected",
+          "tools": []
+        }
+      ]
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-sidebar-filter-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-connection-folder:automation",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-detail-title",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_sources",
+      "resolve": [
+        {
+          "id": "src-automation",
+          "kind": "folder",
+          "label": "Automation documents",
+          "group": null,
+          "reference": "folder:automation",
+          "indexState": "ready",
+          "addedAt": "2026-10-01T08:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "kind": "click",
+      "testid": "connection-folder-remove",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-folder-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-folder-remove-source"
+    },
+    {
+      "kind": "screenshot",
+      "label": "47-folder-connection-removal-lists-its-sources"
+    },
+    {
+      "kind": "click",
+      "testid": "connection-folder-remove-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connection-folder-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "connection-folder-remove",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-folder-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_folder_connection",
+      "resolve": {
+        "id": "folder:automation",
+        "kind": "folder",
+        "label": "Automation folder",
+        "account": null,
+        "path": "/automation/folder",
+        "provenance": "custom",
+        "remote": false,
+        "official": false,
+        "state": "connected",
+        "tools": []
+      },
+      "argsMatch": {
+        "connectionId": "folder:automation",
+        "confirm": true
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_folder_connection",
+      "reject": "automation: remove_folder_connection was not called with the confirmation the dialog gave"
+    },
+    {
+      "kind": "click",
+      "testid": "connection-folder-remove-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connection-folder-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "remove_folder_connection"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_sources"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_connections"
+    },
+    {
       "kind": "goto",
       "route": "dashboard"
     },
@@ -13052,6 +13294,11 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "stubInvoke",
+      "command": "get_resource_usage",
+      "reject": "automation stub: measurement withheld"
+    },
+    {
       "kind": "press",
       "key": "R",
       "mod": true,
@@ -13077,6 +13324,29 @@
       "kind": "waitFor",
       "testid": "advanced-section",
       "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-measuring",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01a-resource-monitor-measuring"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resource_usage"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-ram",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "resource-monitor-measuring",
+      "timeoutMs": 4000
     },
     {
       "kind": "expect",
@@ -13140,6 +13410,15 @@
       "label": "03b-nav-chat"
     },
     {
+      "kind": "waitFor",
+      "testid": "chat-auto-naming",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-auto-naming-group"
+    },
+    {
       "kind": "click",
       "testid": "settings-nav-stt"
     },
@@ -13162,6 +13441,146 @@
     {
       "kind": "screenshot",
       "label": "04b-nav-model-defaults"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-images",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-image-limit",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-image-side",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-context",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-guardrails",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-guardrails-help",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-guardrail-selector",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-bypass",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-unload",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.images.limit_side"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.defaults.context"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.guardrails.level"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.guardrails.bypass"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.residency.idle_unload_minutes"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-stt"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-model-defaults"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-images-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-context-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-guardrails-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-bypass-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-unload-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b3-model-defaults-policy-locked"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resolved_setting"
     },
     {
       "kind": "click",
@@ -13675,6 +14094,108 @@
       "kind": "waitFor",
       "testid": "hardware-processor",
       "timeoutMs": 20000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-ram",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "resource-monitor-ram-value"
+    },
+    {
+      "kind": "expect",
+      "testid": "resource-monitor-vram"
+    },
+    {
+      "kind": "expect",
+      "testid": "resource-monitor-cpu"
+    },
+    {
+      "kind": "expect",
+      "testid": "resource-monitor-cpu-value"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resource_usage",
+      "resolve": {
+        "ram_used_gb": 12.5,
+        "ram_total_gb": 32.0,
+        "cpu_percent": 37.0,
+        "vram": {
+          "kind": "dedicated",
+          "used_gb": 3.5,
+          "total_gb": 8.0
+        }
+      }
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-vram-value",
+      "contains": "3.5",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-cpu-value",
+      "contains": "37",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "24a-resource-monitor-dedicated-vram"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resource_usage"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resource_usage",
+      "resolve": {
+        "ram_used_gb": 12.5,
+        "ram_total_gb": 32.0,
+        "cpu_percent": 37.0,
+        "vram": {
+          "kind": "unified"
+        }
+      }
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-vram-unified",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resource_usage"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resource_usage",
+      "resolve": {
+        "ram_used_gb": 12.5,
+        "ram_total_gb": 32.0,
+        "cpu_percent": 37.0,
+        "vram": {
+          "kind": "unmeasured"
+        }
+      }
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-vram-unmeasured",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resource_usage"
     },
     {
       "kind": "screenshot",
@@ -14727,6 +15248,10 @@
       "timeoutMs": 20000
     },
     {
+      "kind": "expect",
+      "testid": "engines-check-updates"
+    },
+    {
       "kind": "click",
       "testid": "about-copy-diagnostics",
       "timeoutMs": 4000
@@ -14738,6 +15263,341 @@
     {
       "kind": "screenshot",
       "label": "56-about-diagnostic-copied"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "resolve": {
+        "engines": [
+          {
+            "engine": "llama-server",
+            "variant": "metal",
+            "source": "embedded",
+            "tag": null,
+            "version": "7001 (0ff1ce0)",
+            "in_service": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "source": "downloaded",
+            "tag": "b7001",
+            "version": "7001 (0ff1ce0)",
+            "in_service": false
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "source": "imported",
+            "tag": "b6900",
+            "version": "6800 (deadbee)",
+            "in_service": false
+          }
+        ],
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ],
+        "cuda_proposable": false,
+        "dictation": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-in-service",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-update-available",
+      "contains": "b7100",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-update-latest"
+    },
+    {
+      "kind": "screenshot",
+      "label": "56a-engines-update-available"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "reject": "automation stub: channel unreachable",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-check-error",
+      "contains": "channel unreachable",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56b-engines-check-refused"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-engines"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-channel",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "engines-channel-select"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-source",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-tag"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-tag-mismatch"
+    },
+    {
+      "kind": "screenshot",
+      "label": "56c-engines-developer-channel-sources"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_engines"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "resolve": {
+        "engines": [
+          {
+            "engine": "llama-server",
+            "variant": "metal",
+            "source": "embedded",
+            "tag": null,
+            "version": "7001 (0ff1ce0)",
+            "in_service": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "source": "downloaded",
+            "tag": "b7001",
+            "version": "7001 (0ff1ce0)",
+            "in_service": false
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "source": "imported",
+            "tag": "b6900",
+            "version": "6800 (deadbee)",
+            "in_service": false
+          }
+        ],
+        "channel": "preview",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7200",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ],
+        "cuda_proposable": false,
+        "dictation": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_engine_channel",
+      "resolve": {
+        "channel": "preview",
+        "base_url": ""
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "preview",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7200",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engines-channel-select",
+      "value": "preview"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-update-available",
+      "contains": "b7200",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56d-engines-channel-preview"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_engines"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "set_engine_channel"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-row-tag-mismatch",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "check_engine_updates"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
     },
     {
       "kind": "click",
@@ -14940,11 +15800,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "01c-enrichment-resume-opens-onboarding"
+      "label": "01c-enrichment-resume-opens-conversation"
     },
     {
       "kind": "click",
-      "testid": "onboarding-skip",
+      "testid": "onboarding-skip-optional",
       "timeoutMs": 4000
     },
     {

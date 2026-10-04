@@ -16,6 +16,7 @@ use apollia_tools::{resolve_agent, AgentOrigin, AgentOverride, OverrideField, St
 use serde_json::json;
 
 use super::*;
+use crate::chat::types::ChatSession;
 
 /// A backend that counts the turns streamed through it.
 struct Counting {
@@ -139,6 +140,7 @@ fn deps(router: Arc<LlmRouter>, bus: EventBusSender) -> AgentExecutorDeps {
         event_bus: bus,
         todo: None,
         plan: None,
+        plan_cache: None,
     }
 }
 
@@ -152,6 +154,7 @@ fn full_apollia_context() -> ApolliaContext {
         .expect("set entry");
     ApolliaContext {
         user_memory: Some(Arc::new(std::sync::Mutex::new(repo))),
+        profile_id: None,
         past_sessions: Some("## Context from earlier, unrelated sessions\n- [x] budget".into()),
     }
 }
@@ -362,10 +365,9 @@ async fn test_other_agent_receives_none_of_the_apollia_injections() {
         CancellationToken::new(),
     );
     let prompt = executor.system_prompt().await;
-    let composed =
-        executor
-            .agent()
-            .build_system_prompt(Some(&prompt), AutonomyLevel::LongAutonomous, true);
+    let composed = executor
+        .agent()
+        .build_system_prompt(Some(&prompt), AutonomyLevel::LongAutonomous);
 
     // THEN
     assert_eq!(prompt, "Reconcile the ledger, then report the gaps.");
@@ -376,7 +378,7 @@ async fn test_other_agent_receives_none_of_the_apollia_injections() {
 // GIVEN the Apollia agent, handed the same two injections
 // WHEN its executor is built and its system prompt composed
 // THEN the prompt carries the mission then the past sessions block, nothing
-//      after it, and the memory tier adds the persona
+//      after it, and the profile block is added
 #[tokio::test]
 async fn test_apollia_receives_the_two_injections() {
     // GIVEN
@@ -388,6 +390,8 @@ async fn test_apollia_receives_the_two_injections() {
         granted_tools: vec![],
         model: None,
         autonomy: AutonomyLevel::LongAutonomous,
+        planning: PlanningMode::Never,
+        version: String::new(),
     };
 
     // WHEN
@@ -400,10 +404,9 @@ async fn test_apollia_receives_the_two_injections() {
         CancellationToken::new(),
     );
     let prompt = executor.system_prompt().await;
-    let composed =
-        executor
-            .agent()
-            .build_system_prompt(Some(&prompt), AutonomyLevel::LongAutonomous, true);
+    let composed = executor
+        .agent()
+        .build_system_prompt(Some(&prompt), AutonomyLevel::LongAutonomous);
 
     // THEN
     assert_eq!(
@@ -534,11 +537,11 @@ async fn test_checked_sources_leave_the_system_prompt_unchanged() {
                 CancellationToken::new(),
             );
             let prompt = executor.system_prompt().await;
-            composed.push(executor.agent().build_system_prompt(
-                Some(&prompt),
-                AutonomyLevel::Assisted,
-                true,
-            ));
+            composed.push(
+                executor
+                    .agent()
+                    .build_system_prompt(Some(&prompt), AutonomyLevel::Assisted),
+            );
         }
         assert_eq!(
             resolve_agent(&stored, &with_sources, None, AutonomyLevel::Assisted).sources,
@@ -550,5 +553,96 @@ async fn test_checked_sources_leave_the_system_prompt_unchanged() {
     // THEN
     for (id, with, without) in prompts {
         assert_eq!(with, without, "{id}: the sources changed the system prompt");
+    }
+}
+
+/// The Apollia agent of `session`, built as the dispatch builds it: handed
+/// the profile store only while the profile switch of the session is on.
+fn apollia_executor_of(
+    session: &ChatSession,
+    store: &Arc<std::sync::Mutex<UserMemoryRepository>>,
+) -> AgentExecutor {
+    let (router, _, _) = two_backend_router();
+    let (bus, _) = tokio::sync::broadcast::channel(16);
+    let spec = AgentRunSpec {
+        agent_id: APOLLIA_CHAT_AGENT_ID.to_string(),
+        mission: "You are Apollia.".into(),
+        granted_tools: vec![],
+        model: None,
+        autonomy: AutonomyLevel::Assisted,
+    };
+    AgentExecutor::new(
+        spec,
+        deps(router, bus),
+        ApolliaContext {
+            user_memory: crate::chat::profile_injection::switched_store(session, Some(store)),
+            profile_id: session.profile_id.clone(),
+            past_sessions: None,
+        },
+        SessionWiring::default(),
+        &ceiling(),
+        CancellationToken::new(),
+    )
+}
+
+/// A store whose default profile is a "CTO" and whose "Formateur" profile is
+/// a trainer; returns the store and the identifier of "Formateur".
+fn two_profile_store() -> (Arc<std::sync::Mutex<UserMemoryRepository>>, String) {
+    let dir = std::env::temp_dir().join(format!("apollia_exec_prof_{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let repo = UserMemoryRepository::new(&dir.join("user_memory.db")).expect("open user memory");
+    repo.set("role", "CTO", WrittenBy::User).expect("set role");
+    let formateur = repo.create_profile("Formateur").expect("created");
+    repo.set_profile_field(&formateur.id, "role", Some("formateur"))
+        .expect("set role");
+    (Arc::new(std::sync::Mutex::new(repo)), formateur.id)
+}
+
+#[tokio::test]
+async fn test_the_assisted_tier_carries_the_profile_while_the_switch_is_on() {
+    // GIVEN the assisted tier, a conversation on "Formateur" and its switch on
+    let (store, formateur) = two_profile_store();
+    let session = crate::chat::profile_injection::test_session(
+        crate::chat::types::ChatMode::Libre,
+        true,
+        Some(&formateur),
+    );
+    assert!(
+        !AutonomyConfig::default()
+            .level_config(AutonomyLevel::Assisted)
+            .inject_memory
+    );
+
+    // WHEN the prompt of the turn is built
+    let executor = apollia_executor_of(&session, &store);
+    let prompt = executor
+        .agent()
+        .build_system_prompt(Some("You are Apollia."), AutonomyLevel::Assisted);
+
+    // THEN the profile block is present, with the role of the conversation's profile
+    assert!(prompt.contains("## User Persona"), "{prompt}");
+    assert!(prompt.contains("Role: formateur"), "{prompt}");
+    assert!(!prompt.contains("CTO"), "{prompt}");
+}
+
+#[tokio::test]
+async fn test_a_switched_off_conversation_carries_no_profile_at_any_tier() {
+    // GIVEN the same conversation with its switch off
+    let (store, formateur) = two_profile_store();
+    let session = crate::chat::profile_injection::test_session(
+        crate::chat::types::ChatMode::Libre,
+        false,
+        Some(&formateur),
+    );
+
+    // WHEN the prompt is built at each tier
+    let executor = apollia_executor_of(&session, &store);
+    let prompts = [AutonomyLevel::Assisted, AutonomyLevel::LongAutonomous]
+        .map(|level| executor.agent().build_system_prompt(None, level));
+
+    // THEN no profile block is present, the highest tier included
+    for prompt in prompts {
+        assert!(!prompt.contains("## User Persona"), "{prompt}");
+        assert!(!prompt.contains("formateur"), "{prompt}");
     }
 }

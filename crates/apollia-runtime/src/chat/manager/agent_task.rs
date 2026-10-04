@@ -39,6 +39,8 @@ pub struct AgentTaskRun {
     /// Stops the run at its next checkpoint, and refuses the approvals it
     /// waits on.
     pub cancel: CancellationToken,
+    /// Plan cache of the runtime, for an agent that plans first.
+    pub plan_cache: Option<crate::chat::agent_executor::plan_first::SharedPlanCache>,
     /// Receives the outcome once the run has ended.
     pub done: oneshot::Sender<Result<ChatAgentResponse, ChatError>>,
     /// The budget of the caller, when the run spends from it (a workflow
@@ -156,6 +158,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         message,
         authorized_tools,
         cancel,
+        plan_cache,
         done,
         budget,
         depth,
@@ -232,6 +235,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
             event_bus: wiring.event_bus,
             todo: None,
             plan: None,
+            plan_cache,
         },
         ApolliaContext::default(),
         SessionWiring {
@@ -243,6 +247,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
             tool_search_limit: wiring.tool_search_limit,
             hook_executor: wiring.hook_executor,
             tool_turn_temperature,
+            tool_output_dir: crate::chat::builtin_agent::default_tool_output_dir(),
             shared_budget: budget,
             composition: wiring
                 .composer

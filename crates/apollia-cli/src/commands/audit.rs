@@ -15,7 +15,7 @@ mod replay;
 mod report;
 mod verify;
 
-use journal::{run_journal, run_show};
+use journal::{run_journal, run_show, JournalPage};
 use replay::{run_anchor, run_replay};
 use report::{run_export, run_list, run_stats};
 use verify::{run_verify, run_verify_journal};
@@ -34,7 +34,10 @@ pub enum AuditCommand {
     ///
     /// Unlike `audit list` (the tool-invocation trail) and `audit show RUN`
     /// (one run), this reads the chained journal without needing a run id up
-    /// front, so the audited register is reachable by browsing.
+    /// front, so the audited register is reachable by browsing. Each entry is
+    /// printed as its summary: when, who, what, on what, with which result,
+    /// and never the content of a call. The filters add up, and `--limit` and
+    /// `--offset` count the entries that pass them.
     #[command(name = "journal")]
     Journal {
         /// Maximum number of entries to display.
@@ -43,10 +46,29 @@ pub enum AuditCommand {
         /// Number of entries to skip, newest first. Page through with it.
         #[arg(long, default_value_t = 0)]
         offset: u32,
-        /// Keep the runs of this agent's tasks only. Repeat it for several
-        /// agents.
+        /// Keep what names this agent, and the runs of its tasks. Repeat it
+        /// for several agents.
         #[arg(long = "agent", value_name = "AGENT")]
         agents: Vec<String>,
+        /// Keep this action family: read, read_personal, write_or_delete,
+        /// send_external, execute_code. Repeat it for several.
+        #[arg(long = "family", value_name = "FAMILY")]
+        families: Vec<String>,
+        /// Keep this nature: action, access_change, policy, system. Repeat it
+        /// for several.
+        #[arg(long = "nature", value_name = "NATURE")]
+        natures: Vec<String>,
+        /// Keep this result: success, failure, refused. Repeat it for several.
+        #[arg(long = "result", value_name = "RESULT")]
+        results: Vec<String>,
+        /// Start of the period, included: YYYY-MM-DD (UTC) or an RFC 3339
+        /// instant.
+        #[arg(long, value_name = "DATE")]
+        since: Option<String>,
+        /// End of the period, excluded: YYYY-MM-DD (UTC) or an RFC 3339
+        /// instant.
+        #[arg(long, value_name = "DATE")]
+        until: Option<String>,
     },
     /// Display audit statistics.
     Stats,
@@ -117,7 +139,24 @@ pub async fn run(cmd: &AuditCommand, socket: Option<PathBuf>, json: bool) -> i32
             limit,
             offset,
             agents,
-        } => run_journal(&client, *limit, *offset, agents, json).await,
+            families,
+            natures,
+            results,
+            since,
+            until,
+        } => {
+            let page = JournalPage {
+                limit: *limit,
+                offset: *offset,
+                agents,
+                families,
+                natures,
+                results,
+                since: since.as_deref(),
+                until: until.as_deref(),
+            };
+            run_journal(&client, &page, json).await
+        }
         AuditCommand::Stats => run_stats(&client, json).await,
         AuditCommand::Export { output, limit } => {
             run_export(&client, output.as_deref(), *limit, json).await

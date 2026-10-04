@@ -1,6 +1,7 @@
 //! Model Hub routes, hardware detection, HF registry search.
 //!
 //! - `GET /api/v1/llm/hardware`                 , hardware profile (RAM, CPU, GPU)
+//! - `GET /api/v1/llm/hardware/usage`           , memory, processor and video memory in use
 //! - `GET /api/v1/llm/registry/search`          , search the official publishers and the recognised converters
 //! - `GET /api/v1/llm/registry/model/:org/:repo`, model metadata + file list
 //! - `GET /api/v1/llm/recommend`                 , models ranked for this machine
@@ -32,6 +33,7 @@ pub mod dictation;
 pub mod embedding_default;
 pub mod embeddings;
 pub mod installed;
+pub mod usage;
 
 // ─────────────────────────────────────────────
 // Response types
@@ -422,6 +424,10 @@ fn internal_error(error: String) -> (StatusCode, Json<ErrorResponse>) {
 pub fn model_hub_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     let router = Router::new()
         .route("/api/v1/llm/hardware", get(get_hardware::<B>))
+        .route(
+            "/api/v1/llm/hardware/usage",
+            get(usage::get_resource_usage::<B>),
+        )
         .route(
             "/api/v1/llm/embeddings",
             get(embeddings::list_embedding_models::<B>),

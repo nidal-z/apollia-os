@@ -86,6 +86,7 @@ fn descriptor(id: &str) -> ToolDescriptor {
         tags: vec!["imap".to_owned(), "mail".to_owned(), "read".to_owned()],
         family: ActionFamily::ReadPersonal,
         family_source: FamilySource::Builtin,
+        target_arg: Some("account".to_owned()),
         is_read_only: true,
         risk_score: 1,
         approval_risk_level: Some(ApprovalRiskLevel::Low),

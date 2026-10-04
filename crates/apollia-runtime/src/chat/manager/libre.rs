@@ -325,12 +325,16 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     // The session runs its agent: Apollia, whose stored prompt is the mission,
     // whose session tools are its granted tools and whose stored backend is
     // its model; or a declarative agent, as resolved when the message is sent.
+    // In a conversation the plan of a task is drafted and approved through the
+    // plan mode, so the agent never plans first there.
     let spec = AgentRunSpec {
         agent_id,
         mission: system_prompt,
         granted_tools: available_tools,
         model: preferred_backend,
         autonomy: autonomy_level,
+        planning: apollia_tools::PlanningMode::Never,
+        version: String::new(),
     };
     let executor = AgentExecutor::new(
         spec,
@@ -341,6 +345,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             event_bus,
             todo,
             plan,
+            plan_cache: None,
         },
         apollia_context,
         SessionWiring {
@@ -356,6 +361,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             governance,
             unattended: false,
             approval_timeout: Some(crate::chat::builtin_agent::CHAT_APPROVAL_TIMEOUT),
+            tool_output_dir: crate::chat::builtin_agent::default_tool_output_dir(),
             shared_budget: None,
             composition: composer.map(|composer| Composition { composer, depth: 1 }),
             turn_id,
@@ -516,6 +522,7 @@ mod context_gauge_tests {
             plan_mode: false,
             plan_phase: PlanPhase::Done,
             profile_id: None,
+            use_profile: true,
         }
     }
 

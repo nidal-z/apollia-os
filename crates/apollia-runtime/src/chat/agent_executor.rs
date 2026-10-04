@@ -7,6 +7,9 @@
 //! first, and the autonomy tier sets the budget, the verification and the
 //! critic. The budget is capped by the runtime ceiling and never raised.
 //!
+//! A task that reads as several steps may be planned first (see
+//! [`plan_first`]): the agent's planning mode says when.
+//!
 //! The agents and workflows the agent was granted (`agent:<id>`,
 //! `workflow:<id>`) are tools of the run when a composer is wired: a call
 //! runs nested in this run, see [`crate::composition`].
@@ -26,7 +29,7 @@ use apollia_mcp::tool_search::ToolIndexSnapshot;
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
 use apollia_oria::verification::{CriticPass, VerificationLoop};
-use apollia_tools::{ResolvedAgent, ToolRegistryHandle};
+use apollia_tools::{PlanningMode, ResolvedAgent, ToolRegistryHandle};
 use tokio_util::sync::CancellationToken;
 
 use crate::chat::builtin_agent::{BuiltInChatAgent, BuiltInChatAgentDeps, ChatAgentResponse};
@@ -54,11 +57,15 @@ pub struct AgentRunSpec {
     pub model: Option<String>,
     /// Autonomy tier: budget, verification, critic, memory gate.
     pub autonomy: AutonomyLevel,
+    /// Whether the agent plans a task before acting on it.
+    pub planning: PlanningMode,
+    /// Version of the agent's definition, part of the key of its cached plans.
+    pub version: String,
 }
 
 impl AgentRunSpec {
     /// Read a resolved agent: its mission, its granted tools, its model, its
-    /// autonomy tier.
+    /// autonomy tier, its planning mode and its version.
     pub fn from_resolved(agent: &ResolvedAgent) -> Self {
         Self {
             agent_id: agent.id.clone(),
@@ -66,6 +73,8 @@ impl AgentRunSpec {
             granted_tools: agent.access.clone(),
             model: agent.model.as_ref().map(|m| m.model_id.clone()),
             autonomy: agent.autonomy,
+            planning: agent.planning,
+            version: agent.version.clone(),
         }
     }
 
@@ -80,9 +89,11 @@ impl AgentRunSpec {
 /// [`AgentExecutor::new`], they are kept only when the agent is Apollia.
 #[derive(Default)]
 pub struct ApolliaContext {
-    /// Memory the user persona brief is read from, at the tiers that inject
-    /// memory.
+    /// Profile store the profile block is read from. The caller hands it only
+    /// when the profile switch of the conversation is on.
     pub user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
+    /// Profile the conversation designates; `None` reads the default profile.
+    pub profile_id: Option<String>,
     /// Block summarising earlier, unrelated sessions.
     pub past_sessions: Option<String>,
 }
@@ -107,6 +118,8 @@ pub struct AgentExecutorDeps {
     pub todo: Option<TodoHandle>,
     /// Plan store of the conversation, enabling the `plan_*` tools.
     pub plan: Option<PlanHandle>,
+    /// Plan cache of the runtime, read and written by a plan-first run.
+    pub plan_cache: Option<plan_first::SharedPlanCache>,
 }
 
 /// Settings of the conversation the run belongs to. The default is a run
@@ -144,6 +157,9 @@ pub struct SessionWiring {
     /// Delay after which a pending tool approval is refused; `None` never
     /// refuses on its own.
     pub approval_timeout: Option<Duration>,
+    /// Where a tool output too long for the context is kept whole; `None`
+    /// cuts it instead.
+    pub tool_output_dir: Option<PathBuf>,
     /// The budget of the caller, when the run spends from it (a workflow
     /// step, an agent that called this one); `None` gives the run the budget
     /// of its tier.
@@ -196,6 +212,8 @@ pub struct AgentExecutor {
     critic: Option<CriticPass>,
     cancel: CancellationToken,
     past_sessions: Option<String>,
+    plan_mode: bool,
+    plan_first: plan_first::PlanFirstDeps,
 }
 
 impl AgentExecutor {
@@ -261,6 +279,17 @@ impl AgentExecutor {
             }
             ApolliaContext::default()
         };
+        let plan_first = plan_first::PlanFirstDeps {
+            llm_router: Arc::clone(&deps.llm_router),
+            tool_registry: deps.tool_registry.clone(),
+            tool_invoker: Arc::clone(&tool_invoker),
+            event_bus: deps.event_bus.clone(),
+            plan_cache: deps.plan_cache,
+            workspace_path: wiring.workspace_path.clone(),
+            tool_output_dir: wiring.tool_output_dir.clone(),
+            runtime_ceiling: runtime_ceiling.clone(),
+        };
+        let plan_mode = wiring.plan_mode;
         let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
             llm_router: deps.llm_router,
             tool_registry: deps.tool_registry,
@@ -271,6 +300,7 @@ impl AgentExecutor {
             plan: deps.plan,
         })
         .with_agent_id(spec.agent_id.clone())
+        .with_conversation_profile(apollia.profile_id)
         .with_composer(composer)
         .with_workspace_path(wiring.workspace_path)
         .with_mcp_index(wiring.mcp_index, wiring.tool_search_limit)
@@ -283,6 +313,7 @@ impl AgentExecutor {
         .with_governance(wiring.governance)
         .with_unattended(wiring.unattended)
         .with_approval_timeout(wiring.approval_timeout)
+        .with_tool_output_dir(wiring.tool_output_dir)
         .with_preferred_backend(spec.model.clone())
         .with_turn_id(wiring.turn_id);
         Self {
@@ -294,6 +325,8 @@ impl AgentExecutor {
             critic,
             cancel,
             past_sessions: apollia.past_sessions,
+            plan_mode,
+            plan_first,
         }
     }
 
@@ -331,13 +364,35 @@ impl AgentExecutor {
         prompt
     }
 
-    /// Run one exchange to its end, its pause, or its budget.
+    /// Whether the run of `message` plans first.
+    pub fn plans_first(&self, message: &str) -> bool {
+        plan_first::engages(
+            &self.spec,
+            &self.level_config.budget,
+            message,
+            self.plan_mode,
+        )
+    }
+
+    /// Run one exchange to its end, its pause, or its budget: planned first
+    /// when [`Self::plans_first`] says so, step by step otherwise.
     ///
     /// # Errors
     ///
-    /// The errors of [`BuiltInChatAgent::execute`].
+    /// The errors of [`BuiltInChatAgent::execute`], or of a plan that fails.
     pub async fn run(&self, input: RunInput<'_>) -> Result<ChatAgentResponse, ChatError> {
         let system_prompt = self.system_prompt().await;
+        if self.plans_first(input.user_message) {
+            return plan_first::PlanFirstRun {
+                spec: &self.spec,
+                deps: &self.plan_first,
+                budget: &self.level_config.budget,
+                system_prompt,
+                cancel: self.cancel.clone(),
+            }
+            .run(input)
+            .await;
+        }
         self.agent
             .execute(
                 input.session_id,
@@ -367,6 +422,8 @@ impl AgentExecutor {
         &self.agent
     }
 }
+
+pub mod plan_first;
 
 #[cfg(test)]
 mod governance_tests;

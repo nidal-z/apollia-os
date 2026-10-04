@@ -1,11 +1,8 @@
 //! Dispatch of one SSE event onto the display state.
 
-use apollia_core::plan_alternatives::{ChosenPlan, PlanAlternatives};
-use apollia_core::ORIAConfig;
-
 use crate::note;
 
-use super::display::{handle_alternatives, RunDisplayState, SseEvent};
+use super::display::{RunDisplayState, SseEvent};
 
 // ─── Event handler ────────────────────────────────────────────────────────────
 
@@ -153,12 +150,6 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             false
         }
 
-        // ── Plan alternatives: display plans, read choice ─────────────────
-        "plan_alternatives_generated" => {
-            handle_plan_alternatives(event, state);
-            false
-        }
-
         _ => false,
     }
 }
@@ -223,28 +214,4 @@ pub(super) fn handle_plan_generated(event: &SseEvent, state: &mut RunDisplayStat
     }
     eprintln!();
     false
-}
-
-/// Display plan alternatives and read the operator's choice into `state`.
-pub(super) fn handle_plan_alternatives(event: &SseEvent, state: &mut RunDisplayState) {
-    if !state.alternatives_mode {
-        return;
-    }
-    let Ok(alternatives) = serde_json::from_value::<PlanAlternatives>(event.data.clone()) else {
-        return;
-    };
-    let config = ORIAConfig::default();
-    match handle_alternatives(&alternatives, &config) {
-        Ok(chosen) => {
-            let label = match &chosen {
-                ChosenPlan::PlanA => "Plan A (conservative)",
-                ChosenPlan::PlanB => "Plan B (exploratory)",
-            };
-            println!("  -> {label} selected.");
-            state.chosen_plan = Some(chosen);
-        }
-        Err(e) => {
-            eprintln!("  x Error during plan choice: {e}");
-        }
-    }
 }

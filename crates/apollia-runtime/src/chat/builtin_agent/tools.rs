@@ -699,9 +699,11 @@ impl BuiltInChatAgent {
             input_preview,
             rationale: rationale.clone(),
         });
+        let call_facts = self.journal_call_started(call, run_id).await;
 
         let invoke_started = std::time::Instant::now();
-        let result = self.tool_invoker.invoke(&call.name, &call.arguments).await;
+        let (result, retry_attempts) = self.invoke_through_breaker(call).await;
+        let duration_ms = invoke_started.elapsed().as_millis() as u64;
         // Dispatch to result available, and nothing else. Any HITL approval was
         // awaited upstream of this call and is recorded there as its own sample,
         // so this span carries tool work only. An earlier comment here claimed
@@ -758,6 +760,7 @@ impl BuiltInChatAgent {
             output: captured_output,
             status: if success { "success" } else { "error" }.to_string(),
         });
+        self.journal_call_completed(call_facts, &output, success, duration_ms);
 
         let record = ToolCallRecord {
             tool_name: call.name.clone(),
@@ -768,12 +771,13 @@ impl BuiltInChatAgent {
             // once the turn finalized.
             status: ToolCallStatus::from_success(success),
             rationale,
-            retry_attempts: Vec::new(),
+            retry_attempts,
         };
 
-        // Truncate output for LLM context to avoid flooding the context window.
-        // The full output is preserved in the ToolCallRecord for history/UI.
-        let llm_output = truncate_tool_output(&output);
+        // An output too long for the context is kept whole on disk and the
+        // model gets its beginning and the path; the full output is also in
+        // the ToolCallRecord for history and UI.
+        let llm_output = context_tool_output(&output, self.tool_output_dir.as_deref());
 
         (record, llm_output, success)
     }

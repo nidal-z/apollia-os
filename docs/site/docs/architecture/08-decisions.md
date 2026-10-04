@@ -199,11 +199,21 @@ content into an agent's prompt. An agent that wants context asks for it, which
 keeps the prompt something the agent author controls and can reason about.
 
 Three exceptions exist, and none of them is reachable from an agent execution
-path. Two are inside the built-in conversational assistant: a user-persona brief
-at the longest autonomy tier, and past session summaries on the first message of
+path. Two are inside the built-in conversational assistant: a brief of the
+profile of the conversation, and past session summaries on the first message of
 a free chat. The third is outside the assistant, in the desktop prompt-rewrite
-command, which carries the Work section of the user profile into its own one-shot
-prompt and returns text to the composer rather than to a run.
+command, which carries the role, the function and the tools of that profile into
+its own one-shot prompt and returns text to the composer rather than to a run.
+
+The profile brief is appended on every turn of the assistant, at every autonomy
+tier, while the profile switch of the conversation is on. The switch is on by
+default, stored with the conversation, and the conversation gauge reports
+whether the prompt carries the profile. The brief was previously gated by the
+longest autonomy tier, which free chat never runs at, so a profile the user
+filled in never reached the assistant. A setting with no effect is worse than an
+injection the user sees and can turn off, so the gate moved from the tier to the
+conversation. The rule for agents is unchanged: an installed agent reads the
+profile only when it asks for it.
 
 ## Local inference {#local-inference}
 
@@ -454,6 +464,48 @@ built for the spreadsheet reader and the desktop bundle, and is now a direct
 dependency with its default features off; `zip` was already a direct
 dependency. What these crates do not cover is ours to maintain: the structure
 of the two formats, read here only as far as their text.
+
+Scanned pages and pictures are read by optical character recognition, with an
+engine compiled into the binary. A page of a PDF document that draws no text
+and is a single picture is taken as the document embeds it, without rendering
+the page, and recognised; the `.png`, `.jpg` and `.tiff` files of a source are
+read the same way. The engine is Tesseract, over Leptonica, both built from
+source by `tesseract-rs` (MIT; Tesseract is Apache-2.0, Leptonica BSD-2-Clause)
+and linked statically: the machine that runs Apollia installs nothing, and the
+binary depends on no Tesseract or Leptonica library. Leptonica is built without
+its image codecs, so pictures are decoded in Rust by `image` (MIT or
+Apache-2.0), with its PNG, JPEG and TIFF decoders only. The recognised text
+lives in the index of the source and nowhere else: no file is written beside
+the documents.
+
+The engine reads with one data file per language. French and English, from the
+`tessdata_fast` set (Apache-2.0), are entries of the model registry, each
+pinned by its SHA-256. They are fetched the first time a source holds a scanned
+page, once per run, by the downloader that checks every model against its
+digest; a machine without the network takes the same files from a disk through
+the model import, which accepts a language data file only when its digest is a
+pinned one. A file whose digest is not pinned is never handed to the engine.
+Until the data is there, each page that waits is listed in the state of its
+source as waiting for recognition, and is read once it arrives; a page without
+text that is not a single picture is listed as not read. No rendering engine is
+shipped: `hayro` and PDFium, the ones weighed, stay out until documents show
+the need.
+
+The cost is named: the C++ toolchain enters the build. Compiling the engine
+needs cmake, a C++ compiler and the network, takes one to two minutes (83
+seconds on macOS Apple Silicon, 133 seconds on Linux x64 under emulation), and
+adds 2.8 MB to the binary on macOS and 4.4 MB on Linux. The build script of
+`tesseract-rs` downloads the sources of Tesseract 5.5.2 and Leptonica 1.87.0
+from GitHub without checking a digest, keeps them with the compiled libraries
+in a folder of the home directory rather than under `target/`, and fetches two
+language files there that the product does not read. Recognition therefore sits
+behind the `ocr` feature, off by default: an everyday build compiles none of
+it, and a build that ships recognition turns it on. `tesseract-rs` is pinned to 0.4.0, since a release changes the
+sources it fetches; three crates enter the lock file, `tesseract-rs` itself and
+`aws-lc-rs` with `aws-lc-sys`, which the HTTP client of its build script brings
+and which run at build time only. `image` was already built for the PDF reader
+and adds none. The static build is measured on macOS and on Linux; it is not
+measured on Windows, where the feature stays off until it is.
 
 The results of a batch are written back to the table it read, by default into
 a copy next to the original, `<name> (results YYYY-MM-DD).xlsx`, named in the

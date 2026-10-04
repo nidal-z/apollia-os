@@ -16,7 +16,14 @@ import { chatDensity, type ChatDensity } from "./chatAppearance";
 import type { ChatSessionSummary } from "$lib/types";
 
 export type SessionFilter = "active" | "closed" | "archived" | "pinned";
-export type SessionSort = "recent" | "oldest" | "alphabetical" | "most-tokens";
+/**
+ * Order of the conversation list, criterion and direction in one choice:
+ * newest or oldest created first, most recent activity first, name A to Z.
+ */
+export type SessionSort = "newest" | "oldest" | "activity" | "name";
+
+/** The choices in the order the sort menu offers them; the first is the default. */
+export const SESSION_SORTS: readonly SessionSort[] = ["newest", "oldest", "activity", "name"];
 export type SidebarDensity = "sm" | "md";
 
 const STORAGE_KEYS = {
@@ -25,6 +32,7 @@ const STORAGE_KEYS = {
   pinned: "chat.sidebar.pinned",
   archived: "chat.sidebar.archived",
   lastRead: "chat.sidebar.lastRead",
+  activity: "chat.sidebar.activity",
 } as const;
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -82,12 +90,7 @@ export const sessionFilter = writable<SessionFilter>(
 sessionFilter.subscribe((v) => saveString(STORAGE_KEYS.filter, v));
 
 export const sessionSort = writable<SessionSort>(
-  loadString<SessionSort>(STORAGE_KEYS.sort, "recent", [
-    "recent",
-    "oldest",
-    "alphabetical",
-    "most-tokens",
-  ]),
+  loadString<SessionSort>(STORAGE_KEYS.sort, SESSION_SORTS[0], SESSION_SORTS),
 );
 sessionSort.subscribe((v) => saveString(STORAGE_KEYS.sort, v));
 
@@ -119,6 +122,16 @@ export const sessionLastReadAt = writable<Record<string, string>>(
 );
 sessionLastReadAt.subscribe((m) => saveJson(STORAGE_KEYS.lastRead, m));
 
+/**
+ * `sessionId → ISO timestamp` of the last message sent in the session from
+ * this window. The list the runtime returns carries no time of last message,
+ * so the activity order reads this, and the creation time where it is absent.
+ */
+export const sessionActivityAt = writable<Record<string, string>>(
+  loadJson<Record<string, string>>(STORAGE_KEYS.activity, {}),
+);
+sessionActivityAt.subscribe((m) => saveJson(STORAGE_KEYS.activity, m));
+
 // ─── Mutators ────────────────────────────────────────────────────────────────
 
 export function togglePinned(sessionId: string): void {
@@ -139,6 +152,10 @@ export function toggleArchived(sessionId: string): void {
   });
 }
 
+export function noteSessionActivity(sessionId: string, at: Date = new Date()): void {
+  sessionActivityAt.update((m) => ({ ...m, [sessionId]: at.toISOString() }));
+}
+
 export function markSessionRead(sessionId: string): void {
   sessionLastReadAt.update((m) => ({ ...m, [sessionId]: new Date().toISOString() }));
 }
@@ -153,17 +170,25 @@ export interface DecoratedSession extends ChatSessionSummary {
   lastActivityAt: string;
 }
 
-function lastActivity(s: ChatSessionSummary): string {
-  // `closed_at` when closed, otherwise created_at. The runtime does not yet
-  // surface a `last_message_at`; callers can refine this when available.
-  return s.closed_at ?? s.created_at;
+function time(iso: string | null | undefined): number {
+  if (!iso) return Number.NaN;
+  return new Date(iso).getTime();
+}
+
+/** The latest of the noted activity, the closing and the creation of a session. */
+export function lastActivity(s: ChatSessionSummary, noted?: string): string {
+  let latest = s.created_at;
+  for (const candidate of [s.closed_at, noted]) {
+    if (candidate && time(candidate) > time(latest)) latest = candidate;
+  }
+  return latest;
 }
 
 export const decoratedSessions: Readable<DecoratedSession[]> = derived(
-  [chatSessions, pinnedSessionIds, archivedSessionIds, sessionLastReadAt],
-  ([$sessions, $pinned, $archived, $lastRead]) =>
+  [chatSessions, pinnedSessionIds, archivedSessionIds, sessionLastReadAt, sessionActivityAt],
+  ([$sessions, $pinned, $archived, $lastRead, $activity]) =>
     $sessions.map((s) => {
-      const activity = lastActivity(s);
+      const activity = lastActivity(s, $activity[s.id]);
       const readAt = $lastRead[s.id];
       const unread = !readAt || new Date(readAt).getTime() < new Date(activity).getTime();
       return {
@@ -192,20 +217,49 @@ function matchSession(s: DecoratedSession, query: string): boolean {
   return fuzzyMatch(query.trim(), hay);
 }
 
-function compareSessions(a: DecoratedSession, b: DecoratedSession, order: SessionSort): number {
+/** Orders two times, newest or oldest first; an unreadable time goes last. */
+function byTime(a: string, b: string, newest: boolean): number {
+  const ta = time(a);
+  const tb = time(b);
+  if (Number.isNaN(ta)) return Number.isNaN(tb) ? 0 : 1;
+  if (Number.isNaN(tb)) return -1;
+  return newest ? tb - ta : ta - tb;
+}
+
+function displayName(s: DecoratedSession): string {
+  return s.title ?? s.agent_name ?? s.mode;
+}
+
+export function compareSessions(
+  a: DecoratedSession,
+  b: DecoratedSession,
+  order: SessionSort,
+): number {
   switch (order) {
-    case "recent":
-      return new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime();
+    case "newest":
+      return byTime(a.created_at, b.created_at, true);
     case "oldest":
-      return new Date(a.lastActivityAt).getTime() - new Date(b.lastActivityAt).getTime();
-    case "alphabetical": {
-      const na = (a.title ?? a.agent_name ?? a.mode).toLowerCase();
-      const nb = (b.title ?? b.agent_name ?? b.mode).toLowerCase();
-      return na.localeCompare(nb);
-    }
-    case "most-tokens":
-      return (b.message_count ?? 0) - (a.message_count ?? 0);
+      return byTime(a.created_at, b.created_at, false);
+    case "activity":
+      return byTime(a.lastActivityAt, b.lastActivityAt, true);
+    case "name":
+      return displayName(a).localeCompare(displayName(b), undefined, { sensitivity: "base" });
   }
+}
+
+/**
+ * The conversations the Chat list shows: archived ones left out, the search
+ * applied to the title, the agent, the last message and the mode, in `order`.
+ */
+export function sidebarSessions(
+  sessions: readonly DecoratedSession[],
+  query: string,
+  order: SessionSort,
+): DecoratedSession[] {
+  return sessions
+    .filter((s) => !s.archived)
+    .filter((s) => matchSession(s, query))
+    .sort((a, b) => compareSessions(a, b, order));
 }
 
 /** Sessions passing the current filter + search, sorted. */

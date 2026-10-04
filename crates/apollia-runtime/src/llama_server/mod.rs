@@ -25,7 +25,7 @@ mod explicit;
 mod guard;
 mod load_settings;
 mod loaded;
-mod locate;
+pub(crate) mod locate;
 mod log_level;
 mod ngl;
 mod parallel;
@@ -256,6 +256,9 @@ pub struct LlamaServerSupervisor {
     residency: std::sync::OnceLock<Arc<crate::residency::Residency>>,
     /// The guardrail settings the organisation policy fixes, over the file.
     imposed: apollia_core::config::PolicySettings,
+    /// The window each model gets from the default of the settings, kept so a
+    /// request to a resident model does not probe its file again.
+    sized_windows: Arc<crate::local_engine::context_default::SizedWindows>,
     /// Where each line the processes print goes besides tracing: the logs of
     /// the compatible server, once it is started.
     line_sink: OnceLock<crate::compat_server::ServerLogsHandle>,
@@ -302,6 +305,7 @@ impl LlamaServerSupervisor {
             config_file,
             residency: std::sync::OnceLock::new(),
             imposed,
+            sized_windows: Arc::default(),
             line_sink: OnceLock::new(),
         }))
     }
@@ -311,17 +315,16 @@ impl LlamaServerSupervisor {
         self.n_ctx
     }
 
-    /// The window a backend asking for `requested` is actually launched with.
-    ///
-    /// The backend's own `context_window` (chosen at onboarding or in the
-    /// settings) wins over the default; `APOLLIA_LLAMA_N_CTX` wins over both.
-    /// A preset's window comes in as `requested`, see `window_for`.
+    /// The window a launch asking for `requested` gets, `model_default` being
+    /// what the model receives when nothing asks: `APOLLIA_LLAMA_N_CTX` wins
+    /// over both. A preset's window comes in as `requested`, see `window_for`.
     #[must_use]
-    fn effective_n_ctx(&self, requested: Option<u32>) -> u32 {
-        if self.n_ctx_pinned {
-            return self.n_ctx;
-        }
-        requested.filter(|n| *n > 0).unwrap_or(self.n_ctx)
+    fn effective_n_ctx(&self, requested: Option<u32>, model_default: u32) -> u32 {
+        crate::local_engine::context_default::resolve(
+            self.n_ctx_pinned.then_some(self.n_ctx),
+            requested,
+            model_default,
+        )
     }
 
     /// The explicit ceiling on resident models, `None` when the load
@@ -498,6 +501,7 @@ impl LlamaServerSupervisor {
             config_file: None,
             residency: std::sync::OnceLock::new(),
             imposed: apollia_core::config::PolicySettings::none(),
+            sized_windows: Arc::default(),
             line_sink: OnceLock::new(),
         }
     }
@@ -530,6 +534,7 @@ impl LlamaServerSupervisor {
             config_file: None,
             residency: std::sync::OnceLock::new(),
             imposed: apollia_core::config::PolicySettings::none(),
+            sized_windows: Arc::default(),
             line_sink: OnceLock::new(),
         })
     }
@@ -821,6 +826,7 @@ mod test_support {
             config_file: None,
             residency: std::sync::OnceLock::new(),
             imposed: apollia_core::config::PolicySettings::none(),
+            sized_windows: Arc::default(),
             line_sink: std::sync::OnceLock::new(),
         }
     }

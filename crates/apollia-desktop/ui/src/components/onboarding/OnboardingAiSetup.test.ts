@@ -2,7 +2,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, test, expect } from "vitest";
 import { parse } from "svelte/compiler";
-import { llmSectionView, sttSectionView } from "./aiSetupRules";
+import {
+  LANGUAGE_DATA_EXTENSION,
+  isLanguageData,
+  llmSectionView,
+  sttSectionView,
+} from "./aiSetupRules";
 
 // DOM rendering is exercised by the gestural corpus of scripts/automation
 // (vitest runs in `node`). These tests lock the branch decisions the template
@@ -592,5 +597,35 @@ describe("OnboardingAiSetup - the click handler delegates that lifecycle", () =>
     // THEN none of them sets the lock to a literal: the only writes left mirror
     // the state the run publishes, and every run publishes a released lock
     expect(writers).toEqual([]);
+  });
+});
+
+describe("OnboardingAiSetup - recognition language data", () => {
+  test("the import from disk offers the language data beside the model files", () => {
+    // GIVEN the function behind the "load a model" button, as written
+    const source = LLM.functionSource("loadLlmModel") ?? "";
+
+    // THEN its picker lists the GGUF files and the language data, and the
+    // button that opens it is one of the add means that never disappear
+    expect(source).toMatch(/extensions: \["gguf"\]/);
+    expect(source).toMatch(/extensions: \[LANGUAGE_DATA_EXTENSION\]/);
+    expect(LANGUAGE_DATA_EXTENSION).toBe("traineddata");
+    expect(LLM.conditionsAbove("llm-load-model-btn")).toEqual(["llmView.showAddMeans"]);
+  });
+
+  test("an imported language data file is confirmed, never wired as an engine", () => {
+    // GIVEN the destinations the import answers, on either path separator
+    const data = ["/home/u/.apollia/models/tessdata/fra.traineddata", "C:\\models\\tessdata\\ENG.TRAINEDDATA"];
+    const models = ["/home/u/.apollia/models/phi.gguf", "/models/traineddata/phi.gguf"];
+
+    // THEN only the language data is told apart from a model
+    expect(data.map(isLanguageData)).toEqual([true, true]);
+    expect(models.map(isLanguageData)).toEqual([false, false]);
+    // AND the function returns before the scan and the wiring of an engine,
+    // the confirmation hanging off what it stored
+    const source = LLM.functionSource("loadLlmModel") ?? "";
+    expect(source.indexOf("isLanguageData(dest)")).toBeGreaterThan(-1);
+    expect(source.indexOf("isLanguageData(dest)")).toBeLessThan(source.indexOf("selectGgufModel"));
+    expect(LLM.conditionsAbove("llm-language-data-imported")).toEqual(["languageDataImported"]);
   });
 });

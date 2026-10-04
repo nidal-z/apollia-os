@@ -47,7 +47,10 @@ export const pendingChatSessionId = writable<string | null>(null);
  */
 export const openNewChatRequested = writable<number>(0);
 
-/** Whether user memory injection is enabled for the current session. */
+/**
+ * Profile switch of the current session, as the session stores it: whether
+ * the built-in assistant receives the profile of the conversation.
+ */
 export const useUserMemory = writable<boolean>(true);
 
 /** Number of user memory entries injected into the current session. */

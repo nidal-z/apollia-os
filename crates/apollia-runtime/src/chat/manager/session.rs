@@ -191,6 +191,7 @@ impl ChatSessionManager {
             plan_mode,
             plan_phase,
             profile_id: None,
+            use_profile: true,
         };
 
         let info = session_to_info(&session);
@@ -248,6 +249,9 @@ impl ChatSessionManager {
         }
         if let Some(profile) = update.profile_id {
             session.profile_id = profile;
+        }
+        if let Some(use_profile) = update.use_profile {
+            session.use_profile = use_profile;
         }
 
         info!(session_id = %session_id, "chat.session.config.updated");
@@ -441,6 +445,7 @@ impl ChatSessionManager {
             plan_mode,
             plan_phase,
             profile_id: row.profile_id,
+            use_profile: row.use_profile,
         };
 
         Some(SessionDetail {

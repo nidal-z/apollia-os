@@ -184,6 +184,27 @@ fn test_agent_defaults_carry_the_declared_autonomy() {
 }
 
 #[test]
+fn test_agent_defaults_carry_the_declared_planning_mode() {
+    // GIVEN the complete fixture, whose agent always plans, and the same
+    // agent declaring a mode that does not exist
+    let unknown = COMPLETE.replace("planning = \"always\"", "planning = \"sometimes\"");
+
+    // WHEN both are read
+    let m = complete();
+    let err = parse(&unknown);
+
+    // THEN the declared mode is read, and the unknown one is refused at its key
+    assert_eq!(
+        m.agents[0].defaults.planning,
+        Some(crate::PlanningMode::Always)
+    );
+    assert!(
+        matches!(&err, Err(ApolliaManifestError::Schema { path, .. }) if path == "agents[0].defaults.planning"),
+        "{err:?}"
+    );
+}
+
+#[test]
 fn test_action_family_sensitive_is_every_family_but_read() {
     // GIVEN the five families
     let all = [
