@@ -46,7 +46,7 @@
     regenerateChatResponse,
     sendChatMessage,
   } from "$lib/ipc/chat";
-  import { getProfile } from "$lib/ipc/profile";
+  import { DEFAULT_PROFILE, getProfileById } from "$lib/ipc/profile";
   import { type PendingAttachment, composeUserPayload } from "$lib/chat/attachments";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
   import ContextIndicator from "./ContextIndicator.svelte";
@@ -491,8 +491,10 @@
       conversationStats = null;
     }
     try {
-      const profile = await getProfile();
-      memoryEntryCount.set(profile.entries.length);
+      const profile = await getProfileById(DEFAULT_PROFILE);
+      memoryEntryCount.set(
+        profile.fields.filter((f) => f.value.trim()).length + profile.facts.length,
+      );
     } catch {
       memoryEntryCount.set(0);
     }

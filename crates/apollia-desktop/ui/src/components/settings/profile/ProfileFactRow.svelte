@@ -77,7 +77,7 @@
    * the parent list is updated through `onUpdated` / `onDeleted`.
    *
    * The three delete paths (keystroke, trash button, menu entry) all open the
-   * same confirmation; only its confirm button reaches `deleteProfileEntry`.
+   * same confirmation; only its confirm button reaches `deleteProfileFact`.
    */
   import { t } from "svelte-i18n";
   import { Brain, Pencil, Trash2, Copy, Check, X } from "lucide-svelte";
@@ -92,17 +92,20 @@
     requestDestruction,
   } from "$lib/components/ui/dialog/destructiveGate";
   import { reportError } from "$lib/errors/reportError";
-  import { setProfileEntry, deleteProfileEntry } from "$lib/ipc/profile";
+  import { setProfileFact, deleteProfileFact } from "$lib/ipc/profile";
   import { developerMode } from "$lib/stores/developerMode";
   import ProfileSourceBadge from "./ProfileSourceBadge.svelte";
+  import { copyFactValue, editFact } from "./profileForm";
 
   interface Props {
+    /** Identifier of the profile the fact belongs to. */
+    profileId: string;
     fact: ProfileEntryView;
     onUpdated: (updated: ProfileEntryView) => void;
     onDeleted: (key: string) => void;
   }
 
-  let { fact, onUpdated, onDeleted }: Props = $props();
+  let { profileId, fact, onUpdated, onDeleted }: Props = $props();
 
   let editing = $state(false);
   let editValue = $state("");
@@ -121,14 +124,10 @@
   }
 
   async function saveEdit(): Promise<void> {
-    const next = editValue.trim();
-    if (!next || next === fact.value) {
-      cancelEdit();
-      return;
-    }
     busy = true;
     try {
-      onUpdated(await setProfileEntry(fact.key, next));
+      const updated = await editFact(profileId, fact, editValue, { set: setProfileFact });
+      if (updated) onUpdated(updated);
       cancelEdit();
     } catch (err) {
       reportError(err, { surface: "toast" });
@@ -144,7 +143,7 @@
   async function remove(): Promise<void> {
     busy = true;
     try {
-      await forgetFact(fact.key, deleteProfileEntry, onDeleted);
+      await forgetFact(fact.key, (key) => deleteProfileFact(profileId, key), onDeleted);
     } catch (err) {
       reportError(err, { surface: "toast" });
     } finally {
@@ -154,7 +153,7 @@
 
   async function copyValue(): Promise<void> {
     try {
-      await navigator.clipboard.writeText(fact.value);
+      await copyFactValue(fact, navigator.clipboard);
     } catch (err) {
       reportError(err, { surface: "toast" });
     }

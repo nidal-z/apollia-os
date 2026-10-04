@@ -105,6 +105,7 @@ from .create_llm_backend_request_config_json import CreateLlmBackendRequestConfi
 from .create_preset_request import CreatePresetRequest
 from .create_preset_request_load import CreatePresetRequestLoad
 from .create_preset_request_request import CreatePresetRequestRequest
+from .create_profile_body import CreateProfileBody
 from .create_server_request import CreateServerRequest
 from .create_server_token_request import CreateServerTokenRequest
 from .create_session_request import CreateSessionRequest
@@ -126,6 +127,7 @@ from .delete_server_response import DeleteServerResponse
 from .deleted_artifact import DeletedArtifact
 from .deleted_credential import DeletedCredential
 from .deleted_installed_model import DeletedInstalledModel
+from .deleted_profile import DeletedProfile
 from .deleted_profile_entry import DeletedProfileEntry
 from .dictation_configured import DictationConfigured
 from .dictation_models_response import DictationModelsResponse
@@ -312,8 +314,13 @@ from .preset_response import PresetResponse
 from .preset_response_load import PresetResponseLoad
 from .preset_response_request import PresetResponseRequest
 from .presets_list_response import PresetsListResponse
+from .profile_detail_view import ProfileDetailView
 from .profile_entry_view import ProfileEntryView
+from .profile_field_view import ProfileFieldView
 from .profile_reset import ProfileReset
+from .profile_summary_view import ProfileSummaryView
+from .profile_update import ProfileUpdate
+from .profile_update_fields import ProfileUpdateFields
 from .proposed_rule_view import ProposedRuleView
 from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
@@ -600,6 +607,7 @@ __all__ = (
     "CreatePresetRequest",
     "CreatePresetRequestLoad",
     "CreatePresetRequestRequest",
+    "CreateProfileBody",
     "CreateServerRequest",
     "CreateServerTokenRequest",
     "CreateSessionRequest",
@@ -617,6 +625,7 @@ __all__ = (
     "DeletedArtifact",
     "DeletedCredential",
     "DeletedInstalledModel",
+    "DeletedProfile",
     "DeletedProfileEntry",
     "DeletePresetResponse",
     "DeleteResponse",
@@ -804,8 +813,13 @@ __all__ = (
     "PresetResponseLoad",
     "PresetResponseRequest",
     "PresetsListResponse",
+    "ProfileDetailView",
     "ProfileEntryView",
+    "ProfileFieldView",
     "ProfileReset",
+    "ProfileSummaryView",
+    "ProfileUpdate",
+    "ProfileUpdateFields",
     "ProposedRuleView",
     "PurgeMemoryBody",
     "PutMcpSecretBody",

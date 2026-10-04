@@ -27,7 +27,8 @@
     "settings-nav-llm",
     "settings-nav-model-hub",
     "settings-nav-permissions",
-    "settings-nav-profile"
+    "settings-nav-profile",
+    "profile-menu-reset"
   ],
   "steps": [
     {
@@ -1160,7 +1161,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "profile-reset-button",
+      "testid": "profile-row-menu",
       "timeoutMs": 15000
     },
     {
@@ -1169,11 +1170,17 @@
     },
     {
       "kind": "click",
-      "testid": "profile-reset-button"
+      "testid": "profile-row-menu",
+      "nth": 0
+    },
+    {
+      "kind": "click",
+      "testid": "profile-menu-reset",
+      "timeoutMs": 5000
     },
     {
       "kind": "waitFor",
-      "testid": "profile-reset-confirm",
+      "testid": "profile-reset-dialog",
       "timeoutMs": 15000
     },
     {
@@ -1182,11 +1189,11 @@
     },
     {
       "kind": "click",
-      "testid": "profile-reset-confirm-confirm"
+      "testid": "profile-reset-only"
     },
     {
       "kind": "waitGone",
-      "testid": "profile-reset-confirm",
+      "testid": "profile-reset-dialog",
       "timeoutMs": 15000
     },
     {
