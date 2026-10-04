@@ -118,6 +118,7 @@ pub(crate) fn valid_verdict_with_inference(inference: &str) -> Arc<PolicyVerdict
             signed_at: policy.signed_at,
             policy,
             key_fingerprint: "00".into(),
+            policy_digest: "00".into(),
             publisher: "it".into(),
         },
     )))

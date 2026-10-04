@@ -15,7 +15,11 @@
 //! What cannot be read never becomes a permission: a database that cannot be
 //! read, or a policy deposited and refused, puts the state in fail-closed (see
 //! [`crate::governance::FailClosed`]), and the actor announces each change of
-//! that state on the event bus.
+//! that state on the event bus and records each entry into it in the journal.
+//!
+//! The rules and the consents another process changed leave their events in
+//! the outbox of `governance.db`; the actor moves them to the journal when it
+//! starts and whenever it reads the files again.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -113,7 +117,12 @@ impl GovernanceHandle {
     /// current. Must be called from within a Tokio runtime.
     pub fn spawn(sources: GovernanceSources) -> Self {
         let initial = load_state(&sources, None);
-        announce(None, initial.fail_closed.as_ref(), sources.events.as_ref());
+        announce(
+            None,
+            initial.fail_closed.as_ref(),
+            sources.events.as_ref(),
+            sources.journal.as_ref(),
+        );
         let (state_tx, state) = watch::channel(Arc::new(initial));
         let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
         let journal = sources.journal.clone();
@@ -269,6 +278,7 @@ struct GovernanceActor {
 
 impl GovernanceActor {
     async fn run(mut self, mut rx: mpsc::Receiver<Command>) {
+        self.drain_outbox().await;
         let mut tick = tokio::time::interval(REFRESH_PERIOD);
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
@@ -321,7 +331,17 @@ impl GovernanceActor {
         Ok(written)
     }
 
+    /// Moves the events the stores of `governance.db` left in its outbox to
+    /// the journal. Without a journal they wait for the next start that has
+    /// one.
+    async fn drain_outbox(&self) {
+        if let (Some(db), Some(journal)) = (&self.sources.governance_db, &self.sources.journal) {
+            crate::governance::journal::drain_outbox(db, journal).await;
+        }
+    }
+
     async fn publish(&mut self) {
+        self.drain_outbox().await;
         let sources = GovernanceSources {
             governance_db: self.sources.governance_db.clone(),
             config_path: self.sources.config_path.clone(),
@@ -344,6 +364,7 @@ impl GovernanceActor {
                     previous.fail_closed.as_ref(),
                     state.fail_closed.as_ref(),
                     self.sources.events.as_ref(),
+                    self.sources.journal.as_ref(),
                 );
                 self.state_tx.send_replace(Arc::new(state));
             }
@@ -485,14 +506,19 @@ fn disabled_tools(db: &Path) -> Result<Vec<String>, String> {
 }
 
 /// Announces a change of the fail-closed state, from `before` to `after`, in
-/// the log and on `events`. Nothing changes, nothing is announced.
+/// the log and on `events`, and records an entry into fail-closed in
+/// `journal`. Nothing changes, nothing is announced.
 fn announce(
     before: Option<&FailClosed>,
     after: Option<&FailClosed>,
     events: Option<&EventBusSender>,
+    journal: Option<&AuditJournalHandle>,
 ) {
     if before == after {
         return;
+    }
+    if let (Some(state), Some(journal)) = (after, journal) {
+        crate::governance::journal::record_fail_closed(journal, state);
     }
     match after {
         Some(state) => tracing::event!(

@@ -30,7 +30,9 @@ use std::path::Path;
 use rusqlite::{params, Connection, OpenFlags};
 
 use crate::error::PermissionError;
+use crate::journal_outbox::{enqueue, RuleRecord, StoreEvent};
 
+mod journaled;
 mod matching;
 mod types;
 
@@ -48,6 +50,9 @@ const RULE_COLUMNS: &str =
     "id, tool_name, arg_prefix, action, created_at, created_by, scope, agent_id, expires_at";
 
 /// Engine for prefix rules persisted in SQLite (layer 2).
+///
+/// Every rule added or removed, whoever calls (the interface, the command
+/// line, the HTTP API), leaves its event in the journal outbox.
 ///
 /// Handles rule CRUD and evaluates tool invocations by looking for the most
 /// specific rule (longest prefix) first.
@@ -169,7 +174,8 @@ impl PrefixRuleEngine {
             ));
         }
 
-        self.db.execute(
+        let tx = self.db.transaction()?;
+        tx.execute(
             "INSERT INTO permission_rules \
              (tool_name, arg_prefix, action, created_at, created_by, scope, agent_id, expires_at) \
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -184,8 +190,10 @@ impl PrefixRuleEngine {
                 rule.expires_at,
             ],
         )?;
-
-        Ok(self.db.last_insert_rowid())
+        let id = tx.last_insert_rowid();
+        enqueue(&tx, &StoreEvent::RuleAdded(RuleRecord::of(id, rule)))?;
+        tx.commit()?;
+        Ok(id)
     }
 
     /// Removes the rule identified by `id`.
@@ -197,9 +205,7 @@ impl PrefixRuleEngine {
     ///
     /// Returns [`PermissionError::Database`] on SQLite error.
     pub fn remove_rule(&mut self, id: i64) -> Result<(), PermissionError> {
-        self.db
-            .execute("DELETE FROM permission_rules WHERE id = ?", params![id])?;
-        Ok(())
+        self.remove_rule_checked(id).map(|_| ())
     }
 
     /// Removes the rule identified by `id` and returns `true` if a row was deleted.
@@ -208,10 +214,12 @@ impl PrefixRuleEngine {
     ///
     /// Returns [`PermissionError::Database`] on SQLite error.
     pub fn remove_rule_checked(&mut self, id: i64) -> Result<bool, PermissionError> {
-        let affected = self
-            .db
-            .execute("DELETE FROM permission_rules WHERE id = ?", params![id])?;
-        Ok(affected > 0)
+        let removed = journaled::remove_where(
+            &mut self.db,
+            "id = ?",
+            &[rusqlite::types::Value::Integer(id)],
+        )?;
+        Ok(removed > 0)
     }
 
     /// Removes all persisted rules of *scope*.
@@ -225,11 +233,11 @@ impl PrefixRuleEngine {
         &mut self,
         scope: PermissionScope,
     ) -> Result<u32, PermissionError> {
-        let affected = self.db.execute(
-            "DELETE FROM permission_rules WHERE scope = ?",
-            params![scope.as_str()],
-        )?;
-        Ok(affected as u32)
+        journaled::remove_where(
+            &mut self.db,
+            "scope = ?",
+            &[rusqlite::types::Value::Text(scope.as_str().to_string())],
+        )
     }
 
     /// Removes all rules whose `created_by` field matches `created_by`.
@@ -243,11 +251,11 @@ impl PrefixRuleEngine {
     ///
     /// Returns [`PermissionError::Database`] on SQLite error.
     pub fn remove_rules_by_creator(&mut self, created_by: &str) -> Result<u32, PermissionError> {
-        let affected = self.db.execute(
-            "DELETE FROM permission_rules WHERE created_by = ?",
-            params![created_by],
-        )?;
-        Ok(affected as u32)
+        journaled::remove_where(
+            &mut self.db,
+            "created_by = ?",
+            &[rusqlite::types::Value::Text(created_by.to_string())],
+        )
     }
 
     /// Lists `scope = 'agent'` rules filtered by `agent_id`.

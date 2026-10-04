@@ -27,6 +27,8 @@
 //! [`FamilyConsentStore`] holds the standing consents ("always" for one agent
 //! and one action family, permanent or for one batch run), and
 //! [`run_access_upgrade`] converts, once, the rules persisted before them.
+//! Every change these two stores make to a rule or a consent leaves its event
+//! in a [`JournalOutbox`], which the runtime empties into the signed journal.
 //! [`read_legacy_chat_config`] reads, once, the settings of the built-in chat
 //! that the runtime carries over to the Apollia agent.
 //!
@@ -41,6 +43,7 @@ pub mod error;
 pub mod executor_guard;
 pub mod family_consent;
 pub mod governance_schema;
+pub mod journal_outbox;
 pub mod org_policy;
 pub mod prefix_rule_engine;
 
@@ -59,6 +62,9 @@ pub use family_consent::{
 pub use governance_schema::{
     open_governance_schema, GOVERNANCE_MIGRATIONS, GOVERNANCE_SCHEMA_VERSION,
     TOOL_CREDENTIALS_UPGRADE,
+};
+pub use journal_outbox::{
+    JournalOutbox, OutboxEntry, RuleRecord, StoreEvent, OUTBOX_EVENT_VERSION,
 };
 pub use org_policy::{
     load_policy, parse_policy, policy_location, OrgPolicy, OwnerRequirement, PackagesPolicy,

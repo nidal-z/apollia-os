@@ -6,8 +6,8 @@ use super::*;
 use apollia_tools::ActionFamily;
 
 use crate::governance::{
-    answered_once, once_grant, AccessCall, AccessDecision, DecisionReason, GovernanceContract,
-    ALL_ANSWERS,
+    answered_once, once_grant, AccessCall, AccessDecision, ConsentAnswer, DecisionReason,
+    GovernanceContract, GovernanceEvent, ALL_ANSWERS,
 };
 
 /// What governance asked about a call, carried to the answer.
@@ -29,6 +29,17 @@ pub(super) fn family_of(
         Some(descriptor) => descriptor.family,
         None if name == apollia_mcp::tool_search::TOOL_SEARCH_NAME => ActionFamily::Exempt,
         None => ActionFamily::Unclassified,
+    }
+}
+
+/// The answer `decision` takes effect as: "always" where governance did not
+/// offer it holds for this call only.
+pub(super) fn answer_taken(decision: &ToolDecision, asked: &AskedConsent) -> ConsentAnswer {
+    match decision {
+        ToolDecision::Accept => ConsentAnswer::Once,
+        ToolDecision::AlwaysAccept { .. } if asked.always_offered => ConsentAnswer::Always,
+        ToolDecision::AlwaysAccept { .. } => ConsentAnswer::Once,
+        ToolDecision::Refuse { .. } => ConsentAnswer::Refuse,
     }
 }
 
@@ -86,6 +97,58 @@ impl BuiltInChatAgent {
                 answered_once(other)
             }
             other => other,
+        }
+    }
+
+    /// Records in the journal a call governance refused because of the
+    /// policy or a rule. Neither the call's argument nor its result is
+    /// recorded.
+    pub(super) fn journal_refusal(
+        &self,
+        call: &ToolCall,
+        family: ActionFamily,
+        reason: &DecisionReason,
+    ) {
+        let event = match reason {
+            DecisionReason::Policy { detail } => GovernanceEvent::PolicyRefused {
+                agent_id: self.agent_id.clone(),
+                access_id: call.name.clone(),
+                family,
+                detail: detail.clone(),
+            },
+            DecisionReason::Rule { rule_id } => GovernanceEvent::RuleRefused {
+                agent_id: self.agent_id.clone(),
+                access_id: call.name.clone(),
+                family,
+                rule_id: *rule_id,
+            },
+            _ => return,
+        };
+        self.journal(&event);
+    }
+
+    /// Records in the journal the answer the user gave to a consent prompt,
+    /// as it took effect. A reason typed with a refusal stays out of it.
+    pub(super) fn journal_answer(
+        &self,
+        call: &ToolCall,
+        family: ActionFamily,
+        answer: ConsentAnswer,
+    ) {
+        self.journal(&GovernanceEvent::ConsentAnswered {
+            agent_id: self.agent_id.clone(),
+            access_id: call.name.clone(),
+            family,
+            answer,
+        });
+    }
+
+    fn journal(&self, event: &GovernanceEvent) {
+        if !self.governance.journaled() {
+            return;
+        }
+        if let Err(error) = self.governance.record(event) {
+            tracing::warn!(error = %error, "chat.tool.governance_unjournaled");
         }
     }
 }
