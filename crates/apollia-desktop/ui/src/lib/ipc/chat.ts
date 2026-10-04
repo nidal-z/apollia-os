@@ -8,6 +8,8 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  ChatImageData,
+  ChatModelCapabilities,
   ChatSessionDetail,
   ConversationStatsView,
   UpdateSessionRequest,
@@ -23,9 +25,26 @@ export function pauseChatSession(sessionId: string): Promise<void> {
   return invoke<void>("pause_chat_session", { sessionId });
 }
 
-/** Send a user message; resolves with the created message id. */
-export function sendChatMessage(sessionId: string, content: string): Promise<string> {
-  return invoke<string>("send_chat_message", { sessionId, content });
+/**
+ * Send a user message; resolves with the created message id. `images` travel
+ * after the text, for a model that reads images.
+ */
+export function sendChatMessage(
+  sessionId: string,
+  content: string,
+  images: ChatImageData[] = [],
+): Promise<string> {
+  return invoke<string>("send_chat_message", { sessionId, content, images });
+}
+
+/** What the model of a conversation can do: images and their formats. */
+export function getChatModelCapabilities(sessionId: string): Promise<ChatModelCapabilities> {
+  return invoke<ChatModelCapabilities>("get_chat_model_capabilities", { sessionId });
+}
+
+/** One stored image of a conversation, by the file name its message lists. */
+export function readChatImage(sessionId: string, file: string): Promise<ChatImageData> {
+  return invoke<ChatImageData>("read_chat_image", { sessionId, file });
 }
 
 /** Regenerate the assistant answer that follows `messageId`. */

@@ -33,16 +33,17 @@
     "package-detail-tab-overview",
     "package-detail-tab-triggers",
     "period-7d",
+    "profile-menu-reset",
     "settings-nav-appearance",
     "settings-nav-chat",
     "settings-nav-developer",
     "settings-nav-general",
     "settings-nav-model-hub",
+    "settings-nav-notifications",
     "settings-nav-permissions",
     "settings-nav-profile",
     "settings-nav-stt",
-    "trigger-logs-filter-all",
-    "profile-menu-reset"
+    "trigger-logs-filter-all"
   ],
   "steps": [
     {
@@ -792,33 +793,6 @@
     {
       "kind": "click",
       "testid": "onboarding-welcome-cta"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "onboarding-profile-selector",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-card-operator",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-card-builder",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "installation-configurer-votre-profil-2"
-    },
-    {
-      "kind": "click",
-      "testid": "profile-card-operator"
     },
     {
       "kind": "waitFor",
@@ -1789,7 +1763,16 @@
     },
     {
       "kind": "goto",
-      "route": "notifications"
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-notifications"
     },
     {
       "kind": "waitFor",
@@ -1839,7 +1822,16 @@
     },
     {
       "kind": "goto",
-      "route": "notifications"
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-notifications"
     },
     {
       "kind": "waitFor",

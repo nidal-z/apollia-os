@@ -50,7 +50,7 @@ describe("sidebar and breadcrumb name every common route identically", () => {
   test("the extraction still sees both surfaces", () => {
     // GIVEN the sidebar item list and the routeMeta registry
     // WHEN their route/labelKey pairs are extracted
-    // THEN the crossing covers the 14 routes both surfaces declare, so a
+    // THEN the crossing covers the 12 routes both surfaces declare, so a
     // refactor that blinds the extraction fails here instead of passing silently
     expect(commonRoutes).toEqual([
       "agents",
@@ -61,7 +61,6 @@ describe("sidebar and breadcrumb name every common route identically", () => {
       "integrations",
       "llm",
       "memory",
-      "notifications",
       "observability",
       "settings",
       "tasks",

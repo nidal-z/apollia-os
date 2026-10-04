@@ -12,6 +12,7 @@ fn config(data_dir: &std::path::Path) -> Arc<ChatToolsConfig> {
         tools_config: apollia_core::ToolsConfig::default(),
         tool_turn_temperature: None,
         source_registry: None,
+        governance: None,
     })
 }
 
@@ -50,7 +51,6 @@ async fn apollia_invoker(data_dir: &std::path::Path) -> NativeChatToolInvoker {
     let (_, folders) = granted_folders(tools, Some(&cfg));
     resolve_workspace_for_session(WorkspaceResolutionParams {
         folders,
-        hitl: Some(super::tests::preapproved_hitl("s-folders")),
         pending_user_inputs: None,
         mcp_handle: None,
         chat_tools_config: Some(cfg),

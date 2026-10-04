@@ -177,6 +177,8 @@ pub(crate) async fn update_profile<B: ExecutionBackend + Clone>(
 }
 
 /// `DELETE /api/v1/profiles/{id}`: deletes a profile and its facts.
+///
+/// The conversations that designated it return to the default profile.
 #[utoipa::path(
     delete,
     path = "/api/v1/profiles/{id}",
@@ -193,9 +195,13 @@ pub(crate) async fn delete_profile<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
 ) -> Result<Json<DeletedProfile>, ApiError> {
-    profile::delete_profile(repository(&state)?, id.clone())
-        .await
-        .map_err(refusal)?;
+    profile::delete_profile_and_release(
+        repository(&state)?,
+        state.chat_manager.as_ref(),
+        id.clone(),
+    )
+    .await
+    .map_err(refusal)?;
     Ok(Json(DeletedProfile { deleted: id }))
 }
 

@@ -42,6 +42,11 @@ def _parse_response(
 
         return response_202
 
+    if response.status_code == 400:
+        response_400 = ApiErrorBody.from_dict(response.json())
+
+        return response_400
+
     if response.status_code == 404:
         response_404 = ApiErrorBody.from_dict(response.json())
 
@@ -51,6 +56,11 @@ def _parse_response(
         response_409 = ApiErrorBody.from_dict(response.json())
 
         return response_409
+
+    if response.status_code == 422:
+        response_422 = ApiErrorBody.from_dict(response.json())
+
+        return response_422
 
     if response.status_code == 503:
         response_503 = ApiErrorBody.from_dict(response.json())

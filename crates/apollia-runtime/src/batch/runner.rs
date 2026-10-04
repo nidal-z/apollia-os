@@ -3,7 +3,8 @@
 //! Each item runs unattended: the accesses of the agent that are not
 //! sensitive, and the sensitive ones granted to it (for this batch or for
 //! good), run without asking; the first other access the agent reaches for
-//! stops the item, which then waits for a decision.
+//! stops the item, which then waits for a decision. An item the user allowed
+//! to execute code once runs again with one call of that tool let through.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -170,9 +171,13 @@ impl<B: ExecutionBackend> ItemRunner for AgentItemRunner<B> {
         batch_id: &str,
         agent: &str,
         input: &serde_json::Value,
+        once: Option<&str>,
     ) -> Result<StartedItem, String> {
         let resolved = self.resolve(agent).await?;
-        let authorized = self.authorized(&resolved, batch_id).await?;
+        let mut authorized = self.authorized(&resolved, batch_id).await?;
+        if let Some(access) = once {
+            authorized.push(crate::governance::once_grant(access));
+        }
         let (task_id, outcome) = self
             .launcher
             .launch_unattended(&resolved, input, item_message(input), authorized)

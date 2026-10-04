@@ -99,13 +99,18 @@ pub async fn update_profile(
     }
 }
 
-/// Deletes a profile and its facts; the default profile is refused.
+/// Deletes a profile and its facts, and returns the conversations that
+/// designated it to the default profile; the default profile is refused.
 #[tauri::command]
 pub async fn delete_profile(link: State<'_, RuntimeLink>, id: String) -> Result<(), String> {
     match link.inner() {
-        RuntimeLink::Embedded(state) => profile::delete_profile(embedded_repo(state)?, id)
-            .await
-            .map_err(|e| e.to_string()),
+        RuntimeLink::Embedded(state) => profile::delete_profile_and_release(
+            embedded_repo(state)?,
+            state.chat_manager.as_ref(),
+            id,
+        )
+        .await
+        .map_err(|e| e.to_string()),
         RuntimeLink::Attached(remote) => {
             let _: DeletedProfile = remote.delete(&profile_path(&id)).await?;
             Ok(())

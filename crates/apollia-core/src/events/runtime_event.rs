@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::mcp_health::McpHealth;
 
-use super::{AgentId, FilesystemPreview, ModelUnloadReason, RunId, TaskId, ToolCallRationale};
+use super::{AgentId, ModelUnloadReason, RunId, TaskId, ToolCallRationale};
 
 /// Complete catalogue of Apollia OS runtime events.
 ///
@@ -981,8 +981,6 @@ pub enum RuntimeEvent {
     /// The frontend uses this event to permanently hide the resume banner and
     /// enable all application features.
     OnboardingCompleted {
-        /// Profile chosen by the user (`"operator"` or `"builder"`).
-        profile: String,
         /// Total onboarding duration in seconds.
         duration_sec: u64,
         /// Total number of actions completed during the flow.
@@ -1287,6 +1285,22 @@ pub enum RuntimeEvent {
         request_id: String,
     },
 
+    /// Governance started or stopped failing closed.
+    ///
+    /// Emitted by the governance actor when what it decides from can no longer
+    /// be read (`governance.db` unreadable, or a deposited policy refused) and
+    /// again when it can. While it fails closed, every sensitive tool call and
+    /// every new connection is refused; reading continues.
+    GovernanceFailClosed {
+        /// `true` while governance fails closed, `false` once it recovered.
+        active: bool,
+        /// `store_unreadable` or `policy_invalid` while active, `None` once
+        /// recovered.
+        cause: Option<String>,
+        /// What could not be read, `None` once recovered.
+        detail: Option<String>,
+    },
+
     // ── File Timestamp Cache events ──────────────────
     /// A previously read file was modified between two accesses.
     ///
@@ -1324,27 +1338,6 @@ pub enum RuntimeEvent {
     DecisionPointRecorded {
         /// The decision point, chosen plus alternatives (<= 3).
         point: crate::decision_point::DecisionPoint,
-    },
-
-    // ── HITL filesystem events ───────────────────────────────────────────
-    /// A filesystem operation by an agent requires a human approval.
-    ///
-    /// Emitted by `NativeChatToolInvoker` when `RiskClassifier::classify_filesystem`
-    /// returns `RiskLevel::Medium` or higher. The frontend intercepts this event
-    /// via the dedicated Tauri bridge to show `HitlFilesystemModal`.
-    HitlFilesystemRequired {
-        /// Unique identifier of this request (UUID v4).
-        request_id: String,
-        /// Chat session that triggered the operation.
-        session_id: String,
-        /// Risk level: `"medium"` | `"high"` | `"critical"`.
-        level: String,
-        /// Operation type: `"write"` | `"delete"` | `"chmod"`.
-        op: String,
-        /// Canonicalized path of the target.
-        path: String,
-        /// Before/after content preview for display in the modal.
-        preview: FilesystemPreview,
     },
 
     // ── Memory namespaces ─────────────────────
@@ -1660,7 +1653,6 @@ impl RuntimeEvent {
                 | RuntimeEvent::StepCompleted { .. }
                 | RuntimeEvent::LlmCallCompleted { .. }
                 | RuntimeEvent::PermissionRequired { .. }
-                | RuntimeEvent::HitlFilesystemRequired { .. }
         )
     }
 }

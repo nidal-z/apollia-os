@@ -34,6 +34,28 @@ pub fn nearest<'a>(input: &str, candidates: &[&'a str], max_distance: usize) -> 
     best.map(|(c, _)| c)
 }
 
+/// Prints a "did you mean" hint when `err` reports an unknown top-level
+/// command, the first positional argument, near one of `names`.
+pub fn hint_unknown_command(err: &clap::Error, names: &[&str]) {
+    use clap::error::ErrorKind;
+    if !matches!(
+        err.kind(),
+        ErrorKind::InvalidSubcommand | ErrorKind::UnknownArgument
+    ) {
+        return;
+    }
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let Some(bad) = args.iter().find(|a| !a.starts_with('-')) else {
+        return;
+    };
+    if names.contains(&bad.as_str()) {
+        return;
+    }
+    if let Some(sugg) = nearest(bad, names, 3) {
+        eprintln!("apollia-os: unknown command `{bad}`. Did you mean `{sugg}`?");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

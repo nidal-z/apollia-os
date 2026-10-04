@@ -18,11 +18,14 @@ class UpdateSessionBody:
 
         Attributes:
             llm_backend (None | str | Unset): Inference server of the session.
+            profile_id (None | str | Unset): Profile the conversation designates; `null` returns it to the current
+                default profile.
             system_prompt (None | str | Unset): New system prompt.
             tools (list[str] | None | Unset): New list of tools available in the session.
     """
 
     llm_backend: None | str | Unset = UNSET
+    profile_id: None | str | Unset = UNSET
     system_prompt: None | str | Unset = UNSET
     tools: list[str] | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -33,6 +36,12 @@ class UpdateSessionBody:
             llm_backend = UNSET
         else:
             llm_backend = self.llm_backend
+
+        profile_id: None | str | Unset
+        if isinstance(self.profile_id, Unset):
+            profile_id = UNSET
+        else:
+            profile_id = self.profile_id
 
         system_prompt: None | str | Unset
         if isinstance(self.system_prompt, Unset):
@@ -54,6 +63,8 @@ class UpdateSessionBody:
         field_dict.update({})
         if llm_backend is not UNSET:
             field_dict["llm_backend"] = llm_backend
+        if profile_id is not UNSET:
+            field_dict["profile_id"] = profile_id
         if system_prompt is not UNSET:
             field_dict["system_prompt"] = system_prompt
         if tools is not UNSET:
@@ -73,6 +84,15 @@ class UpdateSessionBody:
             return cast(None | str | Unset, data)
 
         llm_backend = _parse_llm_backend(d.pop("llm_backend", UNSET))
+
+        def _parse_profile_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        profile_id = _parse_profile_id(d.pop("profile_id", UNSET))
 
         def _parse_system_prompt(data: object) -> None | str | Unset:
             if data is None:
@@ -102,6 +122,7 @@ class UpdateSessionBody:
 
         update_session_body = cls(
             llm_backend=llm_backend,
+            profile_id=profile_id,
             system_prompt=system_prompt,
             tools=tools,
         )

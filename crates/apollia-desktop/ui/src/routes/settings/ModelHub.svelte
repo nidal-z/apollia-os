@@ -2,8 +2,8 @@
   /**
    * Model Hub - browse, download, and manage local GGUF models.
    *
-   * An action-oriented settings sub-page (no explicit-save footer): a hardware
-   * profile, the installed-models manager, the live download queue, and a
+   * An action-oriented settings sub-page (no explicit-save footer): the
+   * installed-models manager, the live download queue, and a
    * HuggingFace search with per-variant fit verdicts. State and IPC live here;
    * each section renders through a `model-hub/*` subcomponent.
    */
@@ -15,13 +15,11 @@
   import { reportError } from "$lib/errors/reportError";
   import type { HumanizedError } from "$lib/errors/humanize";
   import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
-  import HardwareCard from "../../components/settings/model-hub/HardwareCard.svelte";
   import InstalledModelsCard from "../../components/settings/model-hub/InstalledModelsCard.svelte";
   import ActiveDownloadsCard from "../../components/settings/model-hub/ActiveDownloadsCard.svelte";
   import ModelFilterBar from "../../components/settings/model-hub/ModelFilterBar.svelte";
   import ModelResults from "../../components/settings/model-hub/ModelResults.svelte";
   import {
-    getHardwareProfile,
     searchHfModels,
     getHfModel,
     startVariantDownload,
@@ -30,7 +28,6 @@
     deleteInstalledModel,
     listenDownloadProgress,
     listModelCards,
-    type HardwareProfile,
     type HfModelCard,
     type DownloadProgress,
     type InstalledModel,
@@ -49,8 +46,6 @@
 
   const PAGE_LIMIT = 50;
 
-  let hardware = $state<HardwareProfile | null>(null);
-  let hardwareLoading = $state(true);
 
   let searchQuery = $state("");
   let searchResults = $state<HfModelCard[]>([]);
@@ -109,7 +104,6 @@
     getHfToken()
       .then((token) => (tokenStored = token !== null))
       .catch((e) => reportError(e, { surface: "toast" }));
-    await loadHardware();
     await loadInstalledModels();
     await search();
 
@@ -144,17 +138,6 @@
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return;
     event.preventDefault();
     document.getElementById("model-hub-search-input")?.focus();
-  }
-
-  async function loadHardware(): Promise<void> {
-    hardwareLoading = true;
-    try {
-      hardware = await getHardwareProfile();
-    } catch (e) {
-      reportError(e, { surface: "toast" });
-    } finally {
-      hardwareLoading = false;
-    }
   }
 
   async function search(append = false): Promise<void> {
@@ -270,8 +253,6 @@
 </script>
 
 <SettingsSubPage route="model-hub" data-testid="model-hub-page">
-  <HardwareCard {hardware} loading={hardwareLoading} />
-
   <InstalledModelsCard
     models={installedModels}
     loading={installedLoading}

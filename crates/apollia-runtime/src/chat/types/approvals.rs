@@ -1,17 +1,16 @@
 //! Pending-approval stores for the chat subsystem.
 //!
-//! Holds the two waiting rooms a chat turn can park in: tool approvals keyed
-//! by call, and filesystem HITL requests keyed by operation.
+//! Holds the waiting room a chat turn parks in: tool approvals keyed by call.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 
 use crate::chat::types::ToolDecision;
 use crate::eventbus::EventBusSender;
+use crate::governance::ConsentAnswer;
 use apollia_core::RuntimeEvent;
 
 /// Parameters for [`PendingChatApprovals::start_timeout`].
@@ -32,17 +31,53 @@ pub struct ApprovalTimeoutParams {
     pub tool_name: String,
 }
 
+/// What a pending tool approval asks, as the list of decisions waiting for the
+/// user shows it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatApprovalAsked {
+    /// Session that asked, or the task of a run outside any conversation.
+    pub session_id: String,
+    /// Message that triggered the approval.
+    pub message_id: String,
+    /// Unique id of the tool call awaiting approval.
+    pub tool_call_id: String,
+    /// Name of the tool awaiting approval.
+    pub tool_name: String,
+    /// Agent whose run asked, when known.
+    pub agent_id: Option<String>,
+    /// Action family of the tool, as governance names it.
+    pub family: Option<String>,
+    /// Prompt shown to the user.
+    pub prompt: String,
+    /// The answers offered: once, always and refuse, or no always for code.
+    pub answers: Vec<ConsentAnswer>,
+    /// RFC 3339 timestamp of the request.
+    pub asked_at: String,
+}
+
+/// One approval waiting for its decision.
+struct Waiting {
+    tx: oneshot::Sender<ToolDecision>,
+    /// What it asks; `None` for an approval nobody is shown, such as the call
+    /// of an unattended run, which stops instead of waiting.
+    asked: Option<ChatApprovalAsked>,
+}
+
+type WaitingMap = HashMap<String, Waiting>;
+
 /// Thread-safe store for pending chat tool approvals.
 ///
 /// Used by `ChatSessionManager` to track oneshot channels for tool approval
-/// requests that are waiting for a user decision.
+/// requests that are waiting for a user decision, and read by the API to list
+/// them with what they ask.
 ///
-/// Key format: `"session_id::message_id::tool_name"`.
+/// Key format: `"session_id::message_id::tool_call_id"`.
 ///
-/// This uses `Arc<Mutex<>>` which is acceptable here because it is a local
-/// data structure within the `ChatSessionManager` actor, not shared cross-actors.
+/// The map is a local data structure of the `ChatSessionManager` actor; the
+/// handle reads it to list what waits, and every decision still goes through
+/// the actor.
 pub struct PendingChatApprovals {
-    inner: Arc<Mutex<HashMap<String, oneshot::Sender<ToolDecision>>>>,
+    inner: Arc<Mutex<WaitingMap>>,
 }
 
 impl PendingChatApprovals {
@@ -53,9 +88,7 @@ impl PendingChatApprovals {
     /// written. Recovering the guard keeps one panic from turning every later
     /// approval into a second panic, which would strand every ReAct loop
     /// waiting on a decision.
-    fn locked(
-        inner: &Mutex<HashMap<String, oneshot::Sender<ToolDecision>>>,
-    ) -> MutexGuard<'_, HashMap<String, oneshot::Sender<ToolDecision>>> {
+    fn locked(inner: &Mutex<WaitingMap>) -> MutexGuard<'_, WaitingMap> {
         inner.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
@@ -68,12 +101,49 @@ impl PendingChatApprovals {
 
     /// Register a pending approval and return a receiver to await the decision.
     ///
-    /// The key should follow the format `"session_id::message_id::tool_name"`.
+    /// The key should follow the format `"session_id::message_id::tool_call_id"`.
+    /// An approval registered this way is not listed: [`Self::register_asked`]
+    /// registers one the user is shown.
     pub fn register(&self, key: String) -> oneshot::Receiver<ToolDecision> {
+        self.insert(key, None)
+    }
+
+    /// Register a pending approval with what it asks, so the list of decisions
+    /// waiting for the user shows it, and return a receiver to await the
+    /// decision.
+    pub fn register_asked(
+        &self,
+        key: String,
+        asked: ChatApprovalAsked,
+    ) -> oneshot::Receiver<ToolDecision> {
+        self.insert(key, Some(asked))
+    }
+
+    fn insert(
+        &self,
+        key: String,
+        asked: Option<ChatApprovalAsked>,
+    ) -> oneshot::Receiver<ToolDecision> {
         let (tx, rx) = oneshot::channel();
         let mut map = Self::locked(&self.inner);
-        map.insert(key, tx);
+        map.insert(key, Waiting { tx, asked });
         rx
+    }
+
+    /// What every listed approval asks, oldest first.
+    pub fn asked(&self) -> Vec<ChatApprovalAsked> {
+        let map = Self::locked(&self.inner);
+        let mut asked: Vec<ChatApprovalAsked> =
+            map.values().filter_map(|w| w.asked.clone()).collect();
+        asked.sort_by(|a, b| a.asked_at.cmp(&b.asked_at));
+        asked
+    }
+
+    /// What the approval `key` asks, when it waits and is listed.
+    pub fn asked_for(&self, key: &str) -> Option<ChatApprovalAsked> {
+        Self::locked(&self.inner)
+            .get(key)
+            .and_then(|w| w.asked.clone())
     }
 
     /// Resolve a pending approval by sending the decision to the waiting receiver.
@@ -81,9 +151,9 @@ impl PendingChatApprovals {
     /// Returns `true` if the key was found and the decision was sent, `false` otherwise.
     pub fn resolve(&self, key: &str, decision: ToolDecision) -> bool {
         let mut map = Self::locked(&self.inner);
-        if let Some(tx) = map.remove(key) {
+        if let Some(waiting) = map.remove(key) {
             // If the receiver has been dropped, we silently ignore the error.
-            let _ = tx.send(decision);
+            let _ = waiting.tx.send(decision);
             true
         } else {
             false
@@ -99,7 +169,7 @@ impl PendingChatApprovals {
 
     /// Refuse and drop every pending approval belonging to a session.
     ///
-    /// Keys follow `"session_id::message_id::tool_name"`, so every entry whose
+    /// Keys follow `"session_id::message_id::tool_call_id"`, so every entry whose
     /// key starts with `"{session_id}::"` is removed and its waiting receiver
     /// gets a plain [`ToolDecision::refuse()`]. Used when a session closes so an
     /// in-flight ReAct loop blocked on approval unblocks instead of leaking.
@@ -115,8 +185,8 @@ impl PendingChatApprovals {
             .collect();
         let mut refused = 0;
         for key in keys {
-            if let Some(tx) = map.remove(&key) {
-                let _ = tx.send(ToolDecision::refuse());
+            if let Some(waiting) = map.remove(&key) {
+                let _ = waiting.tx.send(ToolDecision::refuse());
                 refused += 1;
             }
         }
@@ -147,8 +217,8 @@ impl PendingChatApprovals {
             // Try to resolve, returns false if already resolved
             let still_pending = {
                 let mut map = Self::locked(&inner);
-                if let Some(tx) = map.remove(&key) {
-                    let _ = tx.send(ToolDecision::refuse());
+                if let Some(waiting) = map.remove(&key) {
+                    let _ = waiting.tx.send(ToolDecision::refuse());
                     true
                 } else {
                     false
@@ -180,154 +250,6 @@ impl Default for PendingChatApprovals {
         Self::new()
     }
 }
-
-// ─────────────────────────────────────────────
-// FsHitlDecision + PendingFilesystemApprovals
-// ─────────────────────────────────────────────
-
-/// Decision returned by the user for a filesystem HITL request.
-#[derive(Debug, Clone)]
-pub enum FsHitlDecision {
-    /// Approve this specific operation.
-    Approve,
-    /// Deny this specific operation.
-    ///
-    /// `reason` is required when the caller tool flagged `reject_reason_required`
-    /// and is forwarded to the agent so it can adapt its plan. Callers that do
-    /// not require a reason pass `None`.
-    Deny { reason: Option<String> },
-    /// Approve this operation and also install an "always accept" rule.
-    ///
-    /// The rule scope is encoded by [`AlwaysAcceptScope`], from the most
-    /// restrictive (this tool only) to the most permissive (global).
-    ///
-    /// `op` and `level` identify the filesystem rule bucket (e.g., `"write"` +
-    /// `"medium"`). They are kept alongside the scope so `PrefixRuleEngine` can
-    /// persist the correct row.
-    AlwaysAllow {
-        /// Scope picked by the operator in the approval card.
-        scope: AlwaysAcceptScope,
-        /// Filesystem operation bucket (`write` / `delete` / `chmod` / `read`).
-        op: String,
-        /// Risk level bucket (`medium` / `high` / `critical`).
-        level: String,
-    },
-}
-
-impl FsHitlDecision {
-    /// Convenience constructor: Deny without a reason (legacy code path).
-    #[must_use]
-    pub fn deny() -> Self {
-        Self::Deny { reason: None }
-    }
-}
-
-/// Scope of a user-issued "always accept" approval.
-///
-/// Ordered from least to most permissive. The persistence layer is free to
-/// interpret each scope differently:
-///
-/// - `ThisTool` and `ThisAgent` are persisted as `PrefixRuleEngine` rows keyed
-///   by `tool_name`; later sessions re-read those rows to seed the name-only
-///   authorization set (no argument-prefix matching happens on the chat path).
-/// - `ThisSession` stays in-memory for the current `ChatManager` session.
-/// - `ThisProject` and `Global` are persisted in the user-wide
-///   `governance.db`, with the project's canonical path attached for
-///   `ThisProject`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum AlwaysAcceptScope {
-    /// Auto-approve only this exact tool name for the rest of the session.
-    ThisTool,
-    /// Auto-approve matching ops for the rest of the current chat session.
-    /// This is the **default** scope, least sticky, safest.
-    ThisSession,
-    /// Auto-approve matching ops whenever the requesting agent runs.
-    ThisAgent,
-    /// Auto-approve matching ops inside the current project workspace.
-    ThisProject,
-    /// Auto-approve matching ops machine-wide.
-    Global,
-}
-
-impl AlwaysAcceptScope {
-    /// Safe default picked by the UI when the operator clicks "Always accept"
-    /// without opening the scope disclosure.
-    #[must_use]
-    pub fn safe_default() -> Self {
-        Self::ThisSession
-    }
-}
-
-/// Thread-safe store for pending filesystem HITL requests.
-///
-/// Keyed by `request_id` (UUID v4). Shared between `NativeChatToolInvoker`
-/// (which registers and awaits decisions) and `ChatSessionManager` (which resolves
-/// them when a `respond_hitl_filesystem` Tauri command arrives).
-///
-/// This uses `Arc<Mutex<>>`, acceptable because it is an internal data structure
-/// coordinating two concurrent async tasks, not a cross-actor shared state.
-pub struct PendingFilesystemApprovals {
-    inner: Arc<Mutex<HashMap<String, oneshot::Sender<FsHitlDecision>>>>,
-}
-
-impl PendingFilesystemApprovals {
-    /// The map guard, recovered when a panic poisoned the mutex.
-    ///
-    /// Poisoning records that a previous holder panicked; the map it protects
-    /// is a `HashMap` of oneshot senders, which no panic can leave half
-    /// written. Recovering the guard keeps one panic from turning every later
-    /// approval into a second panic, which would strand every ReAct loop
-    /// waiting on a decision.
-    fn locked(
-        inner: &Mutex<HashMap<String, oneshot::Sender<FsHitlDecision>>>,
-    ) -> MutexGuard<'_, HashMap<String, oneshot::Sender<FsHitlDecision>>> {
-        inner.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
-    /// Create a new empty store.
-    pub fn new() -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-
-    /// Register a pending HITL request and return a receiver to await the decision.
-    pub fn register(&self, request_id: String) -> oneshot::Receiver<FsHitlDecision> {
-        let (tx, rx) = oneshot::channel();
-        let mut map = Self::locked(&self.inner);
-        map.insert(request_id, tx);
-        rx
-    }
-
-    /// Resolve a pending request by sending the decision.
-    ///
-    /// Returns `true` if the request was found and resolved, `false` otherwise.
-    pub fn resolve(&self, request_id: &str, decision: FsHitlDecision) -> bool {
-        let mut map = Self::locked(&self.inner);
-        if let Some(tx) = map.remove(request_id) {
-            let _ = tx.send(decision);
-            true
-        } else {
-            false
-        }
-    }
-}
-
-impl Clone for PendingFilesystemApprovals {
-    fn clone(&self) -> Self {
-        Self {
-            inner: Arc::clone(&self.inner),
-        }
-    }
-}
-
-impl Default for PendingFilesystemApprovals {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -397,13 +319,12 @@ mod tests {
 
         // WHEN register then resolve(AlwaysAccept)
         let rx = approvals.register("sess-1::msg-1::bash".to_string());
-        let resolved =
-            approvals.resolve("sess-1::msg-1::bash", ToolDecision::always_accept_default());
+        let resolved = approvals.resolve("sess-1::msg-1::bash", ToolDecision::AlwaysAccept);
 
         // THEN receiver gets AlwaysAccept
         assert!(resolved);
         let decision = rx.await.expect("decision");
-        assert_eq!(decision, ToolDecision::always_accept_default());
+        assert_eq!(decision, ToolDecision::AlwaysAccept);
     }
 
     #[tokio::test]
@@ -489,5 +410,35 @@ mod tests {
         // THEN the authorized tool is found and the other one is not
         assert!(authorized.contains("bash_executor"));
         assert!(!authorized.contains("file_io"));
+    }
+
+    #[tokio::test]
+    async fn test_only_an_approval_registered_with_what_it_asks_is_listed() {
+        // GIVEN one approval registered with what it asks, one without
+        let approvals = PendingChatApprovals::new();
+        let asked = ChatApprovalAsked {
+            session_id: "s".into(),
+            message_id: "m".into(),
+            tool_call_id: "c".into(),
+            tool_name: "file_write".into(),
+            agent_id: Some("apollia-chat".into()),
+            family: Some("write_or_delete".into()),
+            prompt: "Tool 'file_write' asks to run".into(),
+            answers: crate::governance::ALL_ANSWERS.to_vec(),
+            asked_at: "2026-10-03T09:00:00Z".into(),
+        };
+        let _shown = approvals.register_asked("s::m::c".into(), asked.clone());
+        let _hidden = approvals.register("t::m::c".into());
+
+        // WHEN the waiting approvals are listed, then the shown one is resolved
+        let listed = approvals.asked();
+        let found = approvals.asked_for("s::m::c");
+        approvals.resolve("s::m::c", ToolDecision::Accept);
+
+        // THEN only the one registered with what it asks was listed, until resolved
+        assert_eq!(listed, vec![asked.clone()]);
+        assert_eq!(found, Some(asked));
+        assert!(approvals.asked().is_empty());
+        assert!(approvals.asked_for("t::m::c").is_none());
     }
 }

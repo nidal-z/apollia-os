@@ -12,17 +12,19 @@ pub struct ChatSessionManagerHandle {
     /// are routed to this manager's background drainer task.
     pub(in crate::chat::manager) pending_user_inputs:
         apollia_tools::tools::ask_user::PendingUserInputs,
+    /// The tool approvals the actor waits on, the same store it resolves:
+    /// read to list what they ask, never resolved through the handle.
+    pub(in crate::chat::manager) pending_chat_approvals: PendingChatApprovals,
     /// The lifecycle hook executor in force, exposed so the API can list the
     /// active handlers. `None` when no hooks are configured.
     pub(in crate::chat::manager) hook_executor:
         tokio::sync::watch::Receiver<Option<Arc<HookExecutor>>>,
-    /// The filesystem requests the actor waits on, the same store it
-    /// resolves. Read by the route tests to stand in for a tool call.
-    #[cfg(test)]
-    pub(in crate::chat::manager) pending_fs_approvals: PendingFilesystemApprovals,
     /// Plan-mode state a new session starts in, the `[chat] plan_mode_default`
     /// key of `apollia.toml` in force.
     pub(in crate::chat::manager) plan_mode_default: tokio::sync::watch::Receiver<bool>,
+    /// The data directory `chat.db` lives in, where the images of the
+    /// conversations are kept and the models are indexed.
+    pub(in crate::chat::manager) data_dir: Option<std::path::PathBuf>,
 }
 
 impl ChatSessionManagerHandle {
@@ -36,6 +38,25 @@ impl ChatSessionManagerHandle {
         self.pending_user_inputs.clone()
     }
 
+    /// What every tool approval waiting for the user asks, oldest first: those
+    /// of the conversations and those of the runs outside any conversation.
+    pub fn pending_tool_approvals(&self) -> Vec<crate::chat::ChatApprovalAsked> {
+        self.pending_chat_approvals.asked()
+    }
+
+    /// What the tool approval `key` (`session::message::tool_call`) asks, when
+    /// it waits and is listed.
+    pub fn pending_tool_approval(&self, key: &str) -> Option<crate::chat::ChatApprovalAsked> {
+        self.pending_chat_approvals.asked_for(key)
+    }
+
+    /// The tool approvals store the actor waits on, for a test that plays the
+    /// tool asking for one.
+    #[cfg(test)]
+    pub(crate) fn pending_chat_approvals(&self) -> PendingChatApprovals {
+        self.pending_chat_approvals.clone()
+    }
+
     /// Return a summary of every registered lifecycle hook handler, in
     /// declaration order. Empty when no hooks are configured.
     pub fn hook_summaries(&self) -> Vec<crate::hooks::HookHandlerSummary> {
@@ -44,13 +65,6 @@ impl ChatSessionManagerHandle {
             .as_ref()
             .map(|exec| exec.registry().list_all())
             .unwrap_or_default()
-    }
-
-    /// The filesystem requests the actor waits on, for a test that plays the
-    /// tool asking for one.
-    #[cfg(test)]
-    pub(crate) fn pending_fs_approvals(&self) -> PendingFilesystemApprovals {
-        self.pending_fs_approvals.clone()
     }
 
     /// The plan-mode state a new session starts in, the
@@ -122,9 +136,7 @@ impl ChatSessionManagerHandle {
         );
 
         let pending_chat_approvals = PendingChatApprovals::new();
-        let pending_fs_approvals = PendingFilesystemApprovals::new();
-        #[cfg(test)]
-        let test_pending_fs = pending_fs_approvals.clone();
+        let handle_chat_approvals = pending_chat_approvals.clone();
         let pending_user_inputs = apollia_tools::tools::ask_user::PendingUserInputs::new();
 
         let enrichment_extractor = match (&llm_router, &user_memory) {
@@ -164,7 +176,6 @@ impl ChatSessionManagerHandle {
             runtime_budget,
             plan_mode_default,
             pending_chat_approvals,
-            pending_fs_approvals,
             user_memory,
             enrichment_extractor,
             tx: tx.clone(),
@@ -224,10 +235,10 @@ impl ChatSessionManagerHandle {
         Ok(Self {
             tx,
             pending_user_inputs,
+            pending_chat_approvals: handle_chat_approvals,
             hook_executor: hook_executor_for_handle,
-            #[cfg(test)]
-            pending_fs_approvals: test_pending_fs,
             plan_mode_default: plan_mode_default_rx,
+            data_dir: db_path.parent().map(Path::to_path_buf),
         })
     }
 
@@ -241,6 +252,7 @@ impl ChatSessionManagerHandle {
             agent_name,
             system_prompt,
             tools,
+            model,
         } = params;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -249,6 +261,7 @@ impl ChatSessionManagerHandle {
                 agent_name,
                 system_prompt,
                 tools,
+                model,
                 reply: reply_tx,
             })
             .await
@@ -265,34 +278,27 @@ impl ChatSessionManagerHandle {
         session_id: SessionId,
         content: String,
     ) -> Result<MessageId, ChatError> {
+        self.send_message_with_images(session_id, content, Vec::new())
+            .await
+    }
+
+    /// Send a user message carrying images after its text.
+    ///
+    /// The images are refused with [`ChatError::ImagesNotSupported`] when the
+    /// model of the conversation does not read images, and with
+    /// [`ChatError::ImageRejected`] when one breaks a limit or a format.
+    pub async fn send_message_with_images(
+        &self,
+        session_id: SessionId,
+        content: String,
+        images: Vec<apollia_llm::message_image::MessageImage>,
+    ) -> Result<MessageId, ChatError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(ChatCommand::SendMessage {
                 session_id,
                 content,
-                reply: reply_tx,
-            })
-            .await
-            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
-
-        reply_rx
-            .await
-            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
-    }
-
-    /// Resolve a pending filesystem HITL request.
-    ///
-    /// Called by the `respond_hitl_filesystem` Tauri command.
-    pub async fn resolve_fs_hitl(
-        &self,
-        request_id: String,
-        decision: super::super::types::FsHitlDecision,
-    ) -> Result<(), ChatError> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        self.tx
-            .send(ChatCommand::ResolveFsHitl {
-                request_id,
-                decision,
+                images,
                 reply: reply_tx,
             })
             .await
@@ -389,21 +395,18 @@ impl ChatSessionManagerHandle {
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))
     }
 
-    /// Update session configuration (system_prompt, tools, llm_backend).
+    /// Update session configuration (system_prompt, tools, llm_backend,
+    /// profile); an absent field keeps its value.
     pub async fn update_session(
         &self,
         session_id: SessionId,
-        system_prompt: Option<String>,
-        available_tools: Option<Vec<String>>,
-        llm_backend: Option<Option<String>>,
+        update: SessionConfigUpdate,
     ) -> Result<(), ChatError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(ChatCommand::UpdateSession {
                 session_id,
-                system_prompt,
-                available_tools,
-                llm_backend,
+                update,
                 reply: reply_tx,
             })
             .await

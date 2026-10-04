@@ -43,13 +43,14 @@ pub enum McpRepoError {
 }
 
 /// Current schema version of `mcp.db`.
-const MCP_SCHEMA_VERSION: u32 = 3;
+const MCP_SCHEMA_VERSION: u32 = 4;
 
 /// Numbered migration steps of `mcp.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`MCP_SCHEMA_VERSION`].
-const MCP_MIGRATIONS: &[apollia_core::schema::Migration] = &[migrate_v1, migrate_v2, migrate_v3];
+const MCP_MIGRATIONS: &[apollia_core::schema::Migration] =
+    &[migrate_v1, migrate_v2, migrate_v3, migrate_v4];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -110,6 +111,16 @@ fn migrate_v3(conn: &Connection) -> Result<(), rusqlite::Error> {
     )
 }
 
+/// v4: the curated selection entry a connection was made from, which an
+/// organisation policy names it by. A row added before it has none until the
+/// desktop writes one (see [`McpServerRepository::set_selection_entry_if_missing`]).
+fn migrate_v4(conn: &Connection) -> Result<(), rusqlite::Error> {
+    apollia_core::schema::add_column_if_missing(
+        conn,
+        "ALTER TABLE mcp_servers ADD COLUMN selection_entry TEXT;",
+    )
+}
+
 /// SQLite-backed repository for [`McpServerConfig`] entries.
 ///
 /// Each instance owns a single `rusqlite::Connection`. The connection is
@@ -140,7 +151,8 @@ impl McpServerRepository {
     /// Inserts or replaces a server configuration.
     ///
     /// A configuration without an origin keeps the one already stored for its
-    /// name; one with an origin replaces it, official flag included.
+    /// name; one with an origin replaces it, official flag and selection entry
+    /// included.
     ///
     /// The server name must match `[a-z0-9_-]+`; otherwise
     /// [`McpRepoError::InvalidName`] is returned before touching the database.
@@ -161,9 +173,9 @@ impl McpServerRepository {
                 (name, command, args_json, env_json, transport, url,
                  requires_approval, init_timeout_secs, call_timeout_secs,
                  max_response_bytes, max_tools, tags_json, tool_families_json,
-                 provenance, official, enabled, updated_at)
+                 provenance, official, selection_entry, enabled, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14,
-                     ?15, 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+                     ?15, ?16, 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
              ON CONFLICT(name) DO UPDATE SET
                 command            = excluded.command,
                 args_json          = excluded.args_json,
@@ -181,6 +193,9 @@ impl McpServerRepository {
                 official           = CASE WHEN excluded.provenance IS NULL
                                           THEN mcp_servers.official
                                           ELSE excluded.official END,
+                selection_entry    = CASE WHEN excluded.provenance IS NULL
+                                          THEN mcp_servers.selection_entry
+                                          ELSE excluded.selection_entry END,
                 updated_at         = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
             params![
                 config.name,
@@ -196,8 +211,9 @@ impl McpServerRepository {
                 config.max_tools as i64,
                 tags_json,
                 tool_families_json,
-                config.origin.map(|o| o.provenance.as_str()),
-                config.origin.is_some_and(|o| o.official) as i64,
+                config.origin.as_ref().map(|o| o.provenance.as_str()),
+                config.origin.as_ref().is_some_and(|o| o.official) as i64,
+                config.origin.as_ref().and_then(|o| o.entry.as_deref()),
             ],
         )?;
         Ok(())
@@ -209,7 +225,7 @@ impl McpServerRepository {
             "SELECT name, command, args_json, env_json, transport, url,
                     requires_approval, init_timeout_secs, call_timeout_secs,
                     tags_json, max_response_bytes, max_tools, tool_families_json,
-                    provenance, official
+                    provenance, official, selection_entry
              FROM mcp_servers
              ORDER BY name",
         )?;
@@ -224,7 +240,7 @@ impl McpServerRepository {
             "SELECT name, command, args_json, env_json, transport, url,
                     requires_approval, init_timeout_secs, call_timeout_secs,
                     tags_json, max_response_bytes, max_tools, tool_families_json,
-                    provenance, official
+                    provenance, official, selection_entry
              FROM mcp_servers
              WHERE name = ?1",
         )?;
@@ -245,9 +261,31 @@ impl McpServerRepository {
         origin: ConnectionOrigin,
     ) -> Result<bool, McpRepoError> {
         let affected = self.conn.execute(
-            "UPDATE mcp_servers SET provenance = ?1, official = ?2
-             WHERE name = ?3 AND provenance IS NULL",
-            params![origin.provenance.as_str(), origin.official as i64, name],
+            "UPDATE mcp_servers SET provenance = ?1, official = ?2, selection_entry = ?3
+             WHERE name = ?4 AND provenance IS NULL",
+            params![
+                origin.provenance.as_str(),
+                origin.official as i64,
+                origin.entry,
+                name
+            ],
+        )?;
+        Ok(affected > 0)
+    }
+
+    /// Writes `entry` as the selection entry of the server with `name` when it
+    /// comes from the selection and carries none yet.
+    ///
+    /// Returns `true` when a row was written; any other row is left alone.
+    pub fn set_selection_entry_if_missing(
+        &self,
+        name: &str,
+        entry: &str,
+    ) -> Result<bool, McpRepoError> {
+        let affected = self.conn.execute(
+            "UPDATE mcp_servers SET selection_entry = ?1
+             WHERE name = ?2 AND provenance = 'selection' AND selection_entry IS NULL",
+            params![entry, name],
         )?;
         Ok(affected > 0)
     }
@@ -346,12 +384,14 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<McpServerConfig> {
     let tool_families = json_column(12, &tool_families_json)?;
     let provenance: Option<String> = row.get(13)?;
     let official: i64 = row.get(14)?;
+    let entry: Option<String> = row.get(15)?;
     let origin = provenance
         .as_deref()
         .and_then(Provenance::parse)
         .map(|provenance| ConnectionOrigin {
             provenance,
             official: official != 0,
+            entry,
         });
 
     Ok(McpServerConfig {
@@ -604,6 +644,7 @@ mod tests {
             origin: Some(ConnectionOrigin {
                 provenance: Provenance::Registry,
                 official: true,
+                entry: None,
             }),
         };
 
@@ -724,6 +765,7 @@ mod tests {
         ConnectionOrigin {
             provenance,
             official,
+            entry: None,
         }
     }
 
@@ -815,5 +857,102 @@ mod tests {
         // THEN the existing row reads back with no origin
         let found = repo.find_by_name("legacy").unwrap().unwrap();
         assert_eq!(found.origin, None);
+    }
+
+    #[test]
+    fn test_selection_entry_round_trips_and_follows_the_origin() {
+        // GIVEN a server saved from a selection entry
+        let dir = TempDir::new().unwrap();
+        let repo = McpServerRepository::open(&dir.path().join("mcp.db")).unwrap();
+        let mut config = stdio_config("notion");
+        config.origin = Some(ConnectionOrigin {
+            entry: Some("@notionhq/notion-mcp-server".into()),
+            ..origin(Provenance::Selection, true)
+        });
+        repo.save(&config).unwrap();
+
+        // WHEN it is saved again by a caller that does not know its origin
+        let mut unknown = stdio_config("notion");
+        unknown.origin = None;
+        repo.save(&unknown).unwrap();
+
+        // THEN the selection entry is kept with the rest of the origin
+        let found = repo.find_by_name("notion").unwrap().unwrap();
+        assert_eq!(found.origin, config.origin);
+
+        // WHEN an edit gives it an origin of the user's own
+        let mut custom = stdio_config("notion");
+        custom.origin = Some(origin(Provenance::Custom, false));
+        repo.save(&custom).unwrap();
+
+        // THEN the selection entry goes with the selection origin
+        let found = repo.find_by_name("notion").unwrap().unwrap();
+        assert_eq!(found.origin, Some(origin(Provenance::Custom, false)));
+    }
+
+    #[test]
+    fn test_set_selection_entry_if_missing_writes_only_a_selection_row_without_one() {
+        // GIVEN a selection server without an entry, a custom one, and a
+        // selection server that has one
+        let dir = TempDir::new().unwrap();
+        let repo = McpServerRepository::open(&dir.path().join("mcp.db")).unwrap();
+        for (name, provenance, entry) in [
+            ("bare", Provenance::Selection, None),
+            ("mine", Provenance::Custom, None),
+            ("named", Provenance::Selection, Some("first")),
+        ] {
+            let mut config = stdio_config(name);
+            config.origin = Some(ConnectionOrigin {
+                entry: entry.map(str::to_owned),
+                ..origin(provenance, false)
+            });
+            repo.save(&config).unwrap();
+        }
+
+        // WHEN each is given an entry
+        let wrote: Vec<bool> = ["bare", "mine", "named"]
+            .iter()
+            .map(|name| repo.set_selection_entry_if_missing(name, "second").unwrap())
+            .collect();
+
+        // THEN only the selection server without one changes
+        assert_eq!(wrote, vec![true, false, false]);
+        let entry = |name: &str| {
+            repo.find_by_name(name)
+                .unwrap()
+                .unwrap()
+                .origin
+                .and_then(|o| o.entry)
+        };
+        assert_eq!(entry("bare").as_deref(), Some("second"));
+        assert_eq!(entry("mine"), None);
+        assert_eq!(entry("named").as_deref(), Some("first"));
+    }
+
+    #[test]
+    fn test_selection_entry_column_is_added_to_a_v3_db() {
+        // GIVEN a db written at schema version 3, before the selection entry
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("mcp.db");
+        {
+            let conn = Connection::open(&path).unwrap();
+            migrate_v1(&conn).unwrap();
+            migrate_v2(&conn).unwrap();
+            migrate_v3(&conn).unwrap();
+            conn.execute_batch("PRAGMA user_version = 3;").unwrap();
+            conn.execute(
+                "INSERT INTO mcp_servers (name, command, provenance) \
+                 VALUES ('legacy', 'npx', 'selection')",
+                [],
+            )
+            .unwrap();
+        }
+
+        // WHEN the repository opens it
+        let repo = McpServerRepository::open(&path).unwrap();
+
+        // THEN the row keeps its origin and has no selection entry yet
+        let found = repo.find_by_name("legacy").unwrap().unwrap();
+        assert_eq!(found.origin, Some(origin(Provenance::Selection, false)));
     }
 }

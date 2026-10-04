@@ -1,14 +1,12 @@
-//! Permission rules and filesystem approvals over HTTP:
+//! Permission rules over HTTP:
 //! `GET /api/v1/permissions/proposals`,
 //! `POST /api/v1/permissions/proposals/{index}/apply`,
-//! `DELETE /api/v1/permissions/proposals/{index}`,
-//! `POST /api/v1/permissions/rules`, and
-//! `POST /api/v1/approvals/filesystem/{request_id}`.
+//! `DELETE /api/v1/permissions/proposals/{index}`, and
+//! `POST /api/v1/permissions/rules`.
 //!
 //! These had no route: only the desktop running the runtime in its own
-//! process could apply a proposed rule or answer a request to touch a file.
-//! The routes serve the functions of [`crate::permission_rules`] and the chat
-//! manager's filesystem approvals to any client of the daemon, the attached
+//! process could apply a proposed rule. The routes serve the functions of
+//! [`crate::permission_rules`] to any client of the daemon, the attached
 //! desktop first.
 
 use axum::extract::{Path, State};
@@ -19,7 +17,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::openapi::ApiErrorBody;
 use crate::api::server::AppState;
-use crate::chat::{AlwaysAcceptScope, FsHitlDecision};
 use crate::coordinator::ExecutionBackend;
 use crate::permission_rules::{
     add_global_rule, apply_proposal, dismiss_proposal, list_proposals, PermissionRuleError,
@@ -63,70 +60,6 @@ pub struct AddedPermissionRule {
     pub rule_id: i64,
 }
 
-/// The user's answer to a request to touch a file, as the approval card sends
-/// it. The `decision` discriminant is snake_case; the breadth of an "always
-/// allow" is a separate `scope`, so earlier builds that sent only `op` and
-/// `level` keep working.
-#[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
-#[serde(tag = "decision", rename_all = "snake_case")]
-pub enum FsHitlDecisionBody {
-    /// The user approves this operation.
-    Approve,
-    /// The user denies; the operation is cancelled and `reason`, when given,
-    /// reaches the agent.
-    Deny {
-        /// Free-text reason entered by the user.
-        #[serde(default)]
-        reason: Option<String>,
-    },
-    /// The user approves and installs an "always allow" rule.
-    AlwaysAllow {
-        /// Filesystem operation (`write`, `delete`...).
-        op: String,
-        /// Risk level (`medium`, `high`...).
-        level: String,
-        /// Breadth of the rule; absent means this session only.
-        #[serde(default)]
-        #[schema(value_type = Option<String>)]
-        scope: Option<AlwaysAcceptScope>,
-    },
-    /// Legacy form of `always_allow` with the session scope.
-    AlwaysAllowSession {
-        /// Filesystem operation.
-        op: String,
-        /// Risk level.
-        level: String,
-    },
-}
-
-impl FsHitlDecisionBody {
-    /// The decision the chat manager resolves the request with.
-    #[must_use]
-    pub fn into_decision(self) -> FsHitlDecision {
-        match self {
-            Self::Approve => FsHitlDecision::Approve,
-            Self::Deny { reason } => FsHitlDecision::Deny { reason },
-            Self::AlwaysAllow { op, level, scope } => FsHitlDecision::AlwaysAllow {
-                scope: scope.unwrap_or_else(AlwaysAcceptScope::safe_default),
-                op,
-                level,
-            },
-            Self::AlwaysAllowSession { op, level } => FsHitlDecision::AlwaysAllow {
-                scope: AlwaysAcceptScope::ThisSession,
-                op,
-                level,
-            },
-        }
-    }
-}
-
-/// Answer of `POST /api/v1/approvals/filesystem/{request_id}`.
-#[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
-pub struct ResolvedFilesystemApproval {
-    /// The request answered.
-    pub request_id: String,
-}
-
 /// Build the permissions router.
 pub fn permissions_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
@@ -143,10 +76,6 @@ pub fn permissions_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> 
             delete(dismiss_proposed_permission_rule::<B>),
         )
         .route("/api/v1/permissions/rules", post(add_permission_rule::<B>))
-        .route(
-            "/api/v1/approvals/filesystem/:request_id",
-            post(respond_filesystem_approval::<B>),
-        )
 }
 
 fn refusal(status: StatusCode, error: impl ToString) -> ApiError {
@@ -263,38 +192,6 @@ pub(crate) async fn add_permission_rule<B: ExecutionBackend + Clone>(
     .await
     .map_err(rule_refusal)?;
     Ok(Json(AddedPermissionRule { rule_id }))
-}
-
-/// `POST /api/v1/approvals/filesystem/{request_id}`: answers a request to
-/// touch a file, which resumes the turn waiting on it.
-#[utoipa::path(
-    post,
-    path = "/api/v1/approvals/filesystem/{request_id}",
-    tag = "governance",
-    params(("request_id" = String, Path, description = "Id of the pending request")),
-    request_body = FsHitlDecisionBody,
-    responses(
-        (status = 200, description = "The request is answered", body = ResolvedFilesystemApproval),
-        (status = 404, description = "No pending request has this id", body = ApiErrorBody),
-        (status = 503, description = "Chat subsystem unavailable", body = ApiErrorBody),
-    )
-)]
-pub(crate) async fn respond_filesystem_approval<B: ExecutionBackend + Clone>(
-    State(state): State<AppState<B>>,
-    Path(request_id): Path<String>,
-    Json(body): Json<FsHitlDecisionBody>,
-) -> Result<Json<ResolvedFilesystemApproval>, ApiError> {
-    let manager = state.chat_manager.as_ref().ok_or_else(|| {
-        refusal(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "chat subsystem not available",
-        )
-    })?;
-    manager
-        .resolve_fs_hitl(request_id.clone(), body.into_decision())
-        .await
-        .map_err(|e| refusal(StatusCode::NOT_FOUND, e))?;
-    Ok(Json(ResolvedFilesystemApproval { request_id }))
 }
 
 #[cfg(test)]

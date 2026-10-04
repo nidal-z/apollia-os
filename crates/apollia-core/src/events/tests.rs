@@ -299,7 +299,6 @@ fn test_all_variants_exist_and_clone() {
             topic: None,
         },
         RuntimeEvent::OnboardingCompleted {
-            profile: "operator".into(),
             duration_sec: 1200,
             actions_count: 18,
         },
@@ -367,19 +366,6 @@ fn test_all_variants_exist_and_clone() {
             path: std::path::PathBuf::from("/tmp/config.toml"),
             old_mtime_ms: 1_700_000_000_000,
             new_mtime_ms: 1_700_000_060_000,
-        },
-        // ── HITL filesystem ───────────────────────────────
-        RuntimeEvent::HitlFilesystemRequired {
-            request_id: "req-001".into(),
-            session_id: "sess-001".into(),
-            level: "medium".into(),
-            op: "write".into(),
-            path: "/home/alice/notes.md".into(),
-            preview: FilesystemPreview::Diff {
-                before: "old content".into(),
-                after: "new content".into(),
-                truncated: false,
-            },
         },
         RuntimeEvent::AgentLog {
             task_id: "task-1".into(),

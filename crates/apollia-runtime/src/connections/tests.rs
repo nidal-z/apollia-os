@@ -26,6 +26,7 @@ fn with_origin(
     config.origin = Some(ConnectionOrigin {
         provenance,
         official,
+        entry: None,
     });
     config
 }
@@ -92,6 +93,7 @@ fn test_two_mcp_servers_and_one_google_account_are_three_connections_with_tools(
             vec!["ada@example.com".to_owned()],
         )],
         imap_accounts: Vec::new(),
+        forbidden: HashSet::new(),
         folders: Vec::new(),
     };
 
@@ -371,4 +373,43 @@ fn test_the_wire_shape_is_camel_case() {
     assert_eq!(c["tools"][0]["familySource"], "server");
     assert_eq!(c["tools"][0]["family"], "read");
     assert_eq!(c["tools"][0]["prechecked"], false);
+}
+
+// A connection the policy forbade at boot is marked so, whatever its state
+// would otherwise be; the others keep theirs.
+#[test]
+fn test_a_forbidden_connection_is_marked_forbidden_by_policy() {
+    // GIVEN a live server, a stopped one and an account, the stopped server
+    // and the account forbidden at boot
+    let sources = ConnectionSources {
+        mcp_configs: vec![
+            server("files", "stdio", None),
+            server("fetch", "stdio", None),
+        ],
+        mcp_statuses: vec![healthy("files")],
+        native_accounts: vec![(
+            ConnectorProvider::Google,
+            vec!["ada@example.com".to_owned()],
+        )],
+        forbidden: HashSet::from([
+            "mcp:fetch".to_owned(),
+            "native:google:ada@example.com".to_owned(),
+        ]),
+        ..ConnectionSources::default()
+    };
+
+    // WHEN the connections are listed
+    let list = assemble(&sources);
+
+    // THEN both forbidden ones are listed, never dropped, and marked
+    assert_eq!(list.len(), 3);
+    assert_eq!(
+        by_id(&list, "mcp:fetch").state,
+        ConnectionState::ForbiddenByPolicy
+    );
+    assert_eq!(
+        by_id(&list, "native:google:ada@example.com").state,
+        ConnectionState::ForbiddenByPolicy
+    );
+    assert_eq!(by_id(&list, "mcp:files").state, ConnectionState::Connected);
 }

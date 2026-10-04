@@ -114,6 +114,7 @@ pub struct Table {
 pub fn read_table(path: &Path) -> Result<Table, ReadError> {
     let format = TableFormat::of(path).ok_or_else(|| ReadError::UnsupportedFormat {
         path: path.to_path_buf(),
+        supported: "xlsx, xlsm, xlsb, xls, ods, csv",
     })?;
     let sheets = if format == TableFormat::Csv {
         vec![read_csv(path)?.sheet]

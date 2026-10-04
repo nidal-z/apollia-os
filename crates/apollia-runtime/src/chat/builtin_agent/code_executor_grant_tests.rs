@@ -6,7 +6,6 @@
 //! tool twice in one exchange and count the approval prompts it raises.
 
 use super::*;
-use crate::chat::types::AlwaysAcceptScope;
 use crate::test_support::poll_until;
 use apollia_llm::types::{
     CompletionModel, CompletionRequest, CompletionResponse, StreamChunk as LlmStreamChunk,
@@ -138,12 +137,7 @@ async fn run_two_call_exchange(
         let second_resolved = second_resolved.clone();
         async move {
             poll_until(PROMPT_WAIT, || {
-                approvals.resolve(
-                    "sess-1::msg-1::c0",
-                    ToolDecision::AlwaysAccept {
-                        scope: AlwaysAcceptScope::safe_default(),
-                    },
-                )
+                approvals.resolve("sess-1::msg-1::c0", ToolDecision::AlwaysAccept)
             })
             .await;
             let resolved = poll_until(PROMPT_WAIT, || {
@@ -236,6 +230,8 @@ async fn always_on_a_writing_tool_is_a_family_consent() {
             config_path: None,
             policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
             journal: None,
+            events: None,
+            forbidden_connections: Default::default(),
         });
 
     // WHEN the exchange runs
