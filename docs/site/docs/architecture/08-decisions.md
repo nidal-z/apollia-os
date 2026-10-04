@@ -432,6 +432,29 @@ release exists to move to, so the advisory is exempted in `deny.toml`, dated
 release. It lifts when `pdf_oxide` drops `ttf-parser` or a maintained release
 of it appears.
 
+Word documents and PowerPoint presentations are read in Rust, by code of our
+own over two crates: `zip`, the one that opens the package archive (see
+[Package archive](#package-archive)), opens the file, and `quick-xml` (MIT), a
+streaming XML reader, reads its parts. A Word document yields the paragraphs
+and the table rows of its body, one row per segment, in the order of the
+document and each with its rank; a presentation yields the text and the speaker
+notes of each slide, slides in numeric order, each with its number. Headers,
+footers, comments and floating text boxes are not read. A file in the legacy
+binary formats, `.doc` or `.ppt`, is a typed error naming the formats that are
+read. The archive comes from elsewhere, so reading it is bounded: more than
+10,000 entries, or more than 64 MiB decompressed across the parts read, and the
+file is refused, the bytes being counted as they are inflated rather than as
+the archive declares them. A dedicated crate was not taken: `docx-rs`, the
+one weighed for Word, is oriented to writing and does not read PowerPoint, and
+`office_oxide`, which the PDF reader brings, is held at an old release (see
+above) and is not called directly.
+
+The cost is named: no crate enters the lock file. `quick-xml` 0.41 was already
+built for the spreadsheet reader and the desktop bundle, and is now a direct
+dependency with its default features off; `zip` was already a direct
+dependency. What these crates do not cover is ours to maintain: the structure
+of the two formats, read here only as far as their text.
+
 A mailbox connects over IMAP with an application password, so any provider is
 reachable, Gmail included, without an OAuth client and without a relay. The
 client is `async-imap` (MIT or Apache-2.0), on the Tokio runtime, over the
