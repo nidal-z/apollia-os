@@ -17,7 +17,6 @@ fn session(id: &str) -> SessionInfo {
         status: SessionStatus::Active,
         created_at: "2026-10-01T00:00:00Z".to_owned(),
         title: Some("Une conversation".to_owned()),
-        project_id: None,
     }
 }
 
@@ -164,7 +163,6 @@ async fn test_a_session_is_created_over_http_from_the_interface_request() {
         agent_name: None,
         system_prompt: None,
         tools: Vec::new(),
-        project_id: None,
     };
 
     // WHEN the attached arm creates a free conversation
@@ -541,51 +539,67 @@ fn test_the_proposed_rules_and_the_file_answers_pass_the_gate_attached() {
 // ── The profile ──────────────────────────────────────────────────────────
 
 #[tokio::test]
-async fn test_the_daemon_profile_reads_as_the_page_draws_it_and_an_entry_is_put_by_key() {
-    // GIVEN a daemon holding one profile entry, and accepting a write to a
-    // dotted key
+async fn test_the_daemon_profiles_read_by_identifier_and_a_fact_is_put_in_one_profile() {
+    // GIVEN a daemon holding a profile "Formateur" with one fact, and
+    // accepting a fact written to it under a dotted key
     let server = MockServer::start().await;
-    let entry = serde_json::json!({
-        "key": "tools.daily", "value": "tableur", "written_by": "user",
-        "created_at": "2026-10-02T00:00:00Z", "updated_at": "2026-10-02T00:00:00Z",
-        "in_schema": true,
+    let fact = serde_json::json!({
+        "key": "client.main", "value": "Atelier Morel", "written_by": "user",
+        "created_at": "2026-10-04T00:00:00Z", "updated_at": "2026-10-04T00:00:00Z",
+        "in_schema": false,
+    });
+    let summary = serde_json::json!({
+        "id": "p-1", "name": "Formateur", "is_default": false, "detail": null,
+        "created_at": "2026-10-04T00:00:00Z", "updated_at": "2026-10-04T00:00:00Z",
     });
     Mock::given(method("GET"))
-        .and(path("/api/v1/profile"))
+        .and(path("/api/v1/profiles/p-1"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "schema_entries": [entry.clone()], "extras": [], "entries": [entry.clone()],
-            "last_updated_at": "2026-10-02T00:00:00Z",
+            "profile": summary, "fields": [], "facts": [fact.clone()],
         })))
         .mount(&server)
         .await;
     Mock::given(method("PUT"))
-        .and(path("/api/v1/profile/entries/tools.daily"))
-        .and(body_json(serde_json::json!({ "value": "tableur" })))
-        .respond_with(ResponseTemplate::new(200).set_body_json(entry))
+        .and(path("/api/v1/profiles/p-1/facts/client.main"))
+        .and(body_json(serde_json::json!({ "value": "Atelier Morel" })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(fact))
         .expect(1)
         .mount(&server)
         .await;
     let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
 
-    // WHEN the attached arm reads the profile and writes the entry
-    let profile: apollia_runtime::profile::UserProfileView =
-        client.get("/api/v1/profile").await.unwrap();
+    // WHEN the attached arm reads the profile and writes the fact
+    let profile: apollia_runtime::profile::ProfileDetailView =
+        client.get("/api/v1/profiles/p-1").await.unwrap();
     let body = apollia_runtime::api::routes_profile::SetProfileEntryBody {
-        value: "tableur".to_owned(),
+        value: "Atelier Morel".to_owned(),
     };
     let stored: apollia_runtime::profile::ProfileEntryView = client
         .put(
-            &format!("/api/v1/profile/entries/{}", segment("tools.daily")),
+            &format!("/api/v1/profiles/p-1/facts/{}", segment("client.main")),
             &body,
         )
         .await
         .unwrap();
 
-    // THEN both read as the view the profile page draws
-    assert_eq!(profile.schema_entries.len(), 1);
-    assert_eq!(profile.entries[0].key, "tools.daily");
-    assert_eq!(stored.value, "tableur");
-    assert!(gate(LinkMode::Attached, "set_profile_entry").is_ok());
+    // THEN both read as the views the profile screen draws, and every profile
+    // command is routed
+    assert_eq!(profile.profile.name, "Formateur");
+    assert_eq!(profile.facts[0].key, "client.main");
+    assert_eq!(stored.value, "Atelier Morel");
+    for command in [
+        "list_profiles",
+        "create_profile",
+        "get_profile_by_id",
+        "update_profile",
+        "delete_profile",
+        "set_default_profile",
+        "reset_profile",
+        "set_profile_fact",
+        "delete_profile_fact",
+    ] {
+        assert!(gate(LinkMode::Attached, command).is_ok(), "{command}");
+    }
 }
 
 // ── The conversations ────────────────────────────────────────────────────
@@ -616,11 +630,6 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
             "/api/v1/sessions/s%201/title",
             serde_json::json!({ "title": "Plan" }),
         ),
-        (
-            "PUT",
-            "/api/v1/sessions/s%201/project",
-            serde_json::json!({ "project_id": "p-1" }),
-        ),
     ];
     for (verb, route, body) in routes {
         Mock::given(method(verb))
@@ -642,13 +651,6 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
         .expect(1)
         .mount(&server)
         .await;
-    Mock::given(method("GET"))
-        .and(path("/api/v1/projects/p%2F1/sessions"))
-        .and(header("authorization", auth.as_str()))
-        .respond_with(ResponseTemplate::new(200).set_body_json(vec![session("s-2")]))
-        .expect(1)
-        .mount(&server)
-        .await;
     let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
     let update = crate::commands::chat::UpdateSessionRequest {
         system_prompt: Some("Brief.".to_owned()),
@@ -663,21 +665,13 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
         .unwrap();
     conversations::erase(&client, "s 1").await.unwrap();
     conversations::rename(&client, "s 1", "Plan").await.unwrap();
-    conversations::link_project(&client, "s 1", Some("p-1"))
-        .await
-        .unwrap();
     let title = conversations::name(&client, "s 1", "Help me")
         .await
         .unwrap();
-    let sessions = conversations::project_sessions(&client, "p/1")
-        .await
-        .unwrap();
 
-    // THEN each reached its own route once (the mocks verify it on drop), the
-    // generated title and the project's sessions come back as the daemon said
+    // THEN each reached its own route once (the mocks verify it on drop), and
+    // the generated title comes back as the daemon said
     assert_eq!(title, "CV help");
-    assert_eq!(sessions.len(), 1);
-    assert_eq!(sessions[0].id, "s-2");
 }
 
 #[tokio::test]
@@ -719,8 +713,6 @@ fn test_the_conversation_commands_pass_the_gate_attached() {
     let commands = [
         "delete_chat_session",
         "generate_chat_session_name",
-        "link_chat_to_project",
-        "list_chats_by_project",
         "rename_chat_session",
         "update_chat_session",
     ];

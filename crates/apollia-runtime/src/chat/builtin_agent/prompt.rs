@@ -49,10 +49,10 @@ impl BuiltInChatAgent {
             host_environment_block()
         );
 
-        // The working directory is an anchor for relative paths, never a
-        // boundary: the chat invoker runs unrestricted and the HITL layer is
-        // what stops an operation. The note says so in both cases, including
-        // the one where there is no workspace at all.
+        // The working directory is the first folder granted to the agent, the
+        // anchor of relative paths; the file tools reach the granted folders
+        // alone. The note says so in both cases, including the one where no
+        // folder is granted.
         let workspace_display = self
             .workspace_path
             .as_deref()

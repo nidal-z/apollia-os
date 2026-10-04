@@ -86,8 +86,6 @@ fn spawn_test_manager_with_plan_default(
         None, // no user memory in basic tests
         registry_handle,
         None, // no A2A invoker in basic tests
-        None, // no project context in basic tests
-        None, // no project repo in basic tests
         None, // no mcp handle in basic tests
         None, // no chat tools config in basic tests
         LoadingMode::Eager,
@@ -109,7 +107,6 @@ fn libre_session_params() -> CreateSessionParams {
         agent_name: None,
         system_prompt: None,
         tools: vec![],
-        project_id: None,
     }
 }
 
@@ -126,7 +123,6 @@ async fn test_create_session_libre() {
             agent_name: None,
             system_prompt: None,
             tools: vec!["bash_executor".into()],
-            project_id: None,
         })
         .await
         .expect("create_session");
@@ -152,7 +148,6 @@ async fn test_create_session_agent_without_name() {
             agent_name: None,
             system_prompt: None,
             tools: vec![],
-            project_id: None,
         })
         .await;
 
@@ -279,8 +274,6 @@ async fn test_close_session() {
         None,
         None,
         None,
-        None,
-        None,
         LoadingMode::Eager,
         20,
         None,  // no hooks in tests
@@ -389,8 +382,6 @@ async fn test_resolve_tool_approval() {
         enrichment_extractor: None,
         tx,
         a2a_invoker: None,
-        project_context: None,
-        project_repo: None,
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
         todo_handle: None,
@@ -421,8 +412,6 @@ async fn test_resolve_tool_approval() {
         title: None,
         parent_session_id: None,
         fork_depth: 0,
-        project_id: None,
-        force_project_context_inject: false,
         fs_allow_rules: std::sync::Arc::new(
             std::sync::Mutex::new(std::collections::HashSet::new()),
         ),
@@ -478,8 +467,6 @@ async fn test_always_accept_grants_no_tool_by_name() {
         enrichment_extractor: None,
         tx,
         a2a_invoker: None,
-        project_context: None,
-        project_repo: None,
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
         todo_handle: None,
@@ -509,8 +496,6 @@ async fn test_always_accept_grants_no_tool_by_name() {
         title: None,
         parent_session_id: None,
         fork_depth: 0,
-        project_id: None,
-        force_project_context_inject: false,
         fs_allow_rules: std::sync::Arc::new(
             std::sync::Mutex::new(std::collections::HashSet::new()),
         ),
@@ -619,7 +604,7 @@ async fn test_cross_session_context_substantive_message() {
         ),
     ] {
         repository
-            .create_session(id, &ChatMode::Libre, None, "", &[], ts, None, None)
+            .create_session(id, &ChatMode::Libre, None, "", &[], ts, None)
             .expect("create");
         repository.close_session(id, ts).expect("close");
         repository.update_summary(id, summary).expect("summary");
@@ -647,8 +632,6 @@ async fn test_cross_session_context_substantive_message() {
         enrichment_extractor: None,
         tx,
         a2a_invoker: None,
-        project_context: None,
-        project_repo: None,
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
         todo_handle: None,
@@ -693,7 +676,6 @@ async fn test_cross_session_context_trivial_message() {
             &[],
             "2026-03-20T10:00:00Z",
             None,
-            None,
         )
         .expect("create");
     repository
@@ -725,8 +707,6 @@ async fn test_cross_session_context_trivial_message() {
         enrichment_extractor: None,
         tx,
         a2a_invoker: None,
-        project_context: None,
-        project_repo: None,
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
         todo_handle: None,
@@ -781,8 +761,6 @@ async fn test_cross_session_context_no_relevant_sessions() {
         enrichment_extractor: None,
         tx,
         a2a_invoker: None,
-        project_context: None,
-        project_repo: None,
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
         todo_handle: None,
@@ -950,7 +928,6 @@ pub(super) fn manager_with_session_in_phase(
             &["bash".to_string()],
             "2026-03-20T10:00:00Z",
             None,
-            None,
         )
         .expect("create row");
     repository
@@ -980,8 +957,6 @@ pub(super) fn manager_with_session_in_phase(
         enrichment_extractor: None,
         tx,
         a2a_invoker: None,
-        project_context: None,
-        project_repo: None,
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
         todo_handle: None,
@@ -1010,8 +985,6 @@ pub(super) fn manager_with_session_in_phase(
         title: None,
         parent_session_id: None,
         fork_depth: 0,
-        project_id: None,
-        force_project_context_inject: false,
         fs_allow_rules: std::sync::Arc::new(
             std::sync::Mutex::new(std::collections::HashSet::new()),
         ),
@@ -1545,7 +1518,6 @@ async fn test_create_session_agent_invalid_agent() {
             agent_name: Some("nonexistent".into()),
             system_prompt: None,
             tools: vec![],
-            project_id: None,
         })
         .await;
 

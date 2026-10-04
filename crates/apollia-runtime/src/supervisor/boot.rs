@@ -112,6 +112,14 @@ impl Supervisor {
             )
             .await;
 
+        // Phase 8e: the folders the former settings named, added once as
+        // folder connections through the admission and the journal.
+        crate::connections::folder_import::import_legacy_folders(
+            self.config.config_path.as_deref(),
+            &self.config.data_dir,
+            &governance.connection,
+        );
+
         // Phases 9 to 13b: the stores the API server is built over.
         let stores = self.open_stores(&core.event_sender).await?;
 
@@ -230,7 +238,6 @@ impl Supervisor {
             stt_engine: stt.engine,
             stt_repository: stt.repository,
             mcp_handle: core.mcp_handle,
-            project_repository: stores.project_repository,
             runner_supervisor: inference.runner_supervisor,
             llama_server_supervisor: inference.llama_server_supervisor,
             mlx_engine: inference.mlx_engine,

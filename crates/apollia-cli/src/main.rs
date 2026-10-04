@@ -39,7 +39,6 @@ use commands::notify::NotifyCommand;
 use commands::package::PackageCommand;
 use commands::permissions::PermissionsCommand;
 use commands::policy::PolicyCommand;
-use commands::project::ProjectCommand;
 use commands::resilience::ResilienceCommand;
 use commands::source::SourceCommand;
 use commands::stt::SttCommand;
@@ -241,7 +240,7 @@ enum Commands {
         command: ModelCommand,
     },
 
-    /// Sources an agent may consult once checked (list, create, delete).
+    /// The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete, inspect)
     Source {
         #[command(subcommand)]
         command: SourceCommand,
@@ -427,16 +426,6 @@ enum Commands {
         /// Profile subcommand.
         #[command(subcommand)]
         command: UserMemoryCommand,
-    },
-
-    /// Project management (list, create, show, update, delete, agents, templates).
-    ///
-    /// Operates locally on `~/.apollia/projects.db`; the runtime does not need
-    /// to be running.
-    Project {
-        /// Project subcommand.
-        #[command(subcommand)]
-        command: ProjectCommand,
     },
 
     /// Print the event-sourced trace of a task.
@@ -765,7 +754,6 @@ fn main() {
             Commands::Connector { command } => commands::connector::run(&command, json).await,
             Commands::Config { command } => commands::config::run(&command, json),
             Commands::Profile { command } => commands::user_memory::run(&command, json),
-            Commands::Project { command } => commands::project::run(&command, json),
             Commands::Trace { task_id, format } => {
                 let format_json = format == "json";
                 commands::trace::run(&task_id, format_json, cli.socket, json).await

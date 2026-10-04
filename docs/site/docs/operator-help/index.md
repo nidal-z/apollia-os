@@ -23,8 +23,8 @@ actions, and follow what happens.
 
 ## The main blocks
 
-- **Get going** : [connect a model](./installation/connecter-un-modele-distant.md), [install an agent](./agents/install-an-agent.md), [create a project](./projets/create-a-project.md).
-- **Talk** : [free conversation and voice dictation](./chat/chat-with-your-ai.md), automatic project context.
+- **Get going** : [connect a model](./installation/connecter-un-modele-distant.md), [install an agent](./agents/install-an-agent.md), [what became of projects](./projets/what-became-of-projects.md).
+- **Talk** : [free conversation and voice dictation](./chat/chat-with-your-ai.md).
 - **Automate** : [schedule a trigger](./automatisations/schedule-a-trigger.md), follow the firing history.
 - **Keep control** : [approve or refuse an action](./controle/approve-or-reject-an-action.md), [set file permissions](./controle/manage-tool-permissions.md), [inspect a tool](./controle/inspect-a-tool.md), [choose an autonomy tier](./agents/choose-an-autonomy-level.md), [measure an agent with eval](./agents/measure-an-agent-with-eval.md).
 - **Connect** : wire your tools through the [MCP catalog](./integrations/connecter-un-serveur-mcp.md).

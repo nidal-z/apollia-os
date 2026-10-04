@@ -15,7 +15,6 @@ export interface ChatSessionSummary {
   created_at: string;
   closed_at: string | null;
   title: string | null;
-  project_id: string | null;
 }
 
 /** Full detail of one chat session, with its messages. */
@@ -32,7 +31,6 @@ export interface ChatSessionDetail {
   closed_at: string | null;
   llm_backend: string | null;
   title: string | null;
-  project_id: string | null;
   /** Whether the session runs in first-class conversational plan mode. */
   plan_mode: boolean;
   /** Plan-mode lifecycle phase as a stable lowercase string. */
@@ -127,7 +125,6 @@ export interface CreateSessionRequest {
   agent_name?: string;
   system_prompt?: string;
   tools?: string[];
-  project_id?: string;
 }
 
 /** Request sending a message inside a chat session. */

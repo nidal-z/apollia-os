@@ -35,7 +35,6 @@ pub const MAX_NEXT_STEPS: usize = 3;
 const ALLOWED_ROUTES: &[&str] = &[
     "/dashboard",
     "/agents",
-    "/projects",
     "/tasks",
     "/chat",
     "/automations",

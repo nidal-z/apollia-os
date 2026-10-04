@@ -48,7 +48,6 @@ function libreSession(): ChatSessionDetail {
     closed_at: null,
     llm_backend: null,
     title: null,
-    project_id: null,
     plan_mode: false,
     plan_phase: "discovery",
   };

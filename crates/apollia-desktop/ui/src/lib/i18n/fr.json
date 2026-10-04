@@ -73,7 +73,6 @@
     "or": "ou",
     "no_input": "Aucune entrée",
     "delete": "Supprimer",
-    "edit": "Modifier",
     "clear": "Effacer",
     "status": {
       "ready": "PRÊT",
@@ -89,7 +88,6 @@
     "saving": "Enregistrement…",
     "finalize": "Finaliser",
     "finalizing": "Finalisation…",
-    "error_details": "Détails",
     "copy": "Copier",
     "relative": {
       "just_now": "à l'instant",
@@ -195,12 +193,10 @@
     "close_sidebar": "Fermer la navigation",
     "sidebar_label": "Navigation principale",
     "developer_group": "Mode développeur",
-    "projects": "Projets",
     "sidebar": {
       "dashboard": "Accueil",
       "chat": "Chat",
       "agents": "Assistants",
-      "projects": "Projets",
       "tasks": "Mon travail",
       "automations": "Automatisations",
       "inbox": "Boîte de réception",
@@ -349,7 +345,7 @@
       "no_results_title": "Aucun résultat pour « {query} »",
       "no_results_description": "Essayez d'autres mots-clés ou effacez les filtres actifs.",
       "no_suggestions_title": "Pas de suggestions pour le moment",
-      "no_suggestions_description": "Installez des assistants pour recevoir des recommandations adaptées."
+      "no_suggestions_description": "Installez des agents pour recevoir des recommandations adaptées."
     },
     "native_section_tag": "curés · OAuth managé",
     "custom_mcp": {
@@ -367,10 +363,10 @@
     "sync_hours_ago": "il y a {hours} h",
     "sync_days_ago": "il y a {days} j",
     "custom_error_command_required": "Indiquez la commande à lancer (ex. npx, uvx, /usr/local/bin/myserver).",
-    "custom_error_url_required": "Indiquez l'URL du serveur MCP (HTTP ou SSE).",
+    "custom_error_url_required": "Indiquez l'adresse de la connexion.",
     "custom_test_tools_detected": "{count} outil(s) détecté(s).",
     "custom_error_oauth_required": "Ce serveur exige une authentification OAuth. Installez-le depuis le catalogue plutôt que via le formulaire personnalisé.",
-    "sidebar_my_connectors": "Mes connecteurs · {count}",
+    "sidebar_my_connectors": "Connexions · {count}",
     "sidebar_filter_placeholder": "Filtrer…",
     "status_chip_all": "Tous",
     "status_chip_active": "Actifs",
@@ -378,14 +374,12 @@
     "status_chip_error": "Erreur",
     "status_chip_idle": "Inactif",
     "status_filter_label": "Filtre statut",
-    "sidebar_native_section": "Apollia natifs",
     "sidebar_accounts_active": "{count} compte(s) actif(s)",
     "not_connected": "Non connecté",
     "needs_configuration": "Configuration requise",
-    "sidebar_mcp_section": "Serveurs MCP · {count}",
-    "sidebar_no_servers": "Aucun serveur installé.",
+    "sidebar_no_servers": "Aucune connexion pour l'instant.",
     "sidebar_no_results": "Aucun résultat.",
-    "sidebar_no_servers_status": "Aucun serveur dans ce statut.",
+    "sidebar_no_servers_status": "Aucune connexion dans ce statut.",
     "tools_count_label": "{count} outil(s)",
     "badge_active_count": "{count} actif(s)",
     "add_account": "Ajouter un compte",
@@ -405,13 +399,12 @@
     "settings_scope_outlook_cal": "Outlook Calendar - lecture + écriture",
     "settings_scope_onedrive": "OneDrive - fichiers utilisateur",
     "settings_provider_title": "Provider",
-    "settings_token_rotation": "Tokens stockés via keyring système. Rotation gérée automatiquement par le runtime.",
+    "settings_token_rotation": "Les jetons sont conservés dans le trousseau du système et renouvelés automatiquement.",
     "loading": "Chargement…",
     "badge_status_active": "actif",
     "badge_status_attention": "attention",
     "badge_status_error": "erreur",
     "badge_status_idle": "inactif",
-    "mcp_installed_fallback": "Serveur MCP installé",
     "testing": "Test…",
     "test": "Tester",
     "reconnect": "Reconnecter",
@@ -423,7 +416,11 @@
     "tools_exposed": "Outils exposés",
     "disconnecting": "Déconnexion…",
     "confirm_disconnect": "Confirmer la déconnexion",
-    "select_connector_prompt": "Sélectionnez un connecteur dans la sidebar.",
+    "builtin_section": "Outils intégrés",
+    "builtin_name": "Apollia, outils intégrés",
+    "builtin_count": "{active} sur {total} activés",
+    "builtin_description": "Recherche web, lecture de page et exécution de code, fournies avec Apollia. Activez chaque outil, configurez-le et gérez ses clés.",
+    "select_connector_prompt": "Sélectionnez une connexion dans la liste.",
     "oauth_drive_folder_title": "Dossier Google Drive",
     "oauth_connect_title": "Connecter {provider}",
     "oauth_drive_folder_body_html": "Apollia ne pourra voir, lire et écrire QUE dans le dossier que vous indiquez ici (scope <code>drive.file</code>, gratuit, sans audit CASA). Vos autres fichiers Drive lui resteront invisibles. Le dossier est créé automatiquement à la première écriture s'il n'existe pas encore. Modifiable plus tard sur la fiche Google, dans Connexions.",
@@ -450,33 +447,34 @@
     "saving": "Enregistrement…",
     "save": "Enregistrer",
     "configure_credentials": "Configurer les identifiants",
-    "catalogue_subtitle": "Découvrez le catalogue MCP public ou enregistrez un serveur personnalisé.",
-    "catalogue_tab_discover": "Catalogue MCP",
-    "catalogue_tab_custom": "MCP personnalisé",
+    "catalogue_subtitle": "Choisissez une connexion dans la sélection d'Apollia ou le catalogue public, ou ajoutez une connexion personnalisée.",
+    "catalogue_tab_discover": "Catalogue des connexions",
+    "catalogue_tab_custom": "Connexion personnalisée",
     "mcp_chip_all": "Tous",
     "mcp_chip_installed": "Installés",
     "mcp_chip_official": "Officiels",
     "mcp_chip_community": "Communauté",
     "mcp_filter_label": "Filtre type",
-    "catalogue_loading": "Chargement du catalogue MCP…",
+    "catalogue_loading": "Chargement du catalogue…",
     "badge_official": "Officiel",
     "badge_community": "Communauté",
+    "badge_rule": "Officiel : publiée par l'éditeur du service, sous un domaine vérifié par le catalogue public, ou marquée ainsi dans la sélection d'Apollia. Tout le reste est communauté.",
+    "catalogue_search_placeholder": "Rechercher une connexion…",
+    "catalogue_explore_note": "Le catalogue public n'est interrogé que si vous le demandez.",
+    "catalogue_explore_all": "Explorer tout",
+    "catalogue_back_to_selection": "Revenir à la sélection",
     "badge_installed": "Installé",
     "catalogue_by": "par",
     "catalogue_manage": "Gérer →",
     "catalogue_loading_public": "Chargement du catalogue public… ({count} entrées)",
     "catalogue_more_hint": "{count} entrées restantes - continuez à scroller",
     "catalogue_end": "Fin du catalogue · {count} entrées",
-    "custom_intro": "Pour brancher un MCP server interne, communautaire, ou en cours de développement. Pour un service curé (Notion, GitHub, Local Files…), utilisez plutôt une carte du catalogue.",
+    "custom_intro": "Pour brancher un service à vous, joint à son adresse : un outil interne, un service communautaire, un service en développement. Pour un service du catalogue, utilisez plutôt sa carte.",
     "custom_name_label": "Nom (interne, unique)",
     "custom_name_placeholder": "ex. acme-internal",
-    "custom_transport_label": "Transport",
-    "custom_transport_stdio": "stdio (subprocess local)",
-    "custom_transport_http": "Streamable HTTP (MCP 2025-11-25)",
-    "custom_transport_sse": "SSE (legacy 2024-11-05)",
     "custom_command_label": "Commande",
     "custom_args_label": "Arguments (espace-séparé)",
-    "custom_url_label": "URL du serveur",
+    "custom_url_label": "Adresse",
     "custom_env_label": "Variables d'environnement",
     "custom_headers_label": "Headers HTTP",
     "custom_env_hint_html": "(une par ligne, <code>NOM=valeur</code>)",
@@ -516,7 +514,6 @@
       "hint_postgres": "URI de connexion PostgreSQL (`postgres://user:pass@host:5432/db`) en premier argument.",
       "hint_sqlite": "Chemin absolu vers le fichier `.sqlite` à exposer."
     },
-    "add_connector": "Ajouter un connecteur",
     "ctx_configure": "Configurer",
     "tool_schema": "Schéma",
     "oauth_client": {
@@ -547,25 +544,81 @@
       "drive_folder_edit": "Modifier",
       "drive_folder_reset": "Revenir au défaut"
     },
-    "open_connection_client": "Saisir le client OAuth"
+    "open_connection_client": "Saisir le client OAuth",
+    "add_connection": "Ajouter une connexion",
+    "custom_connection": "Connexion personnalisée",
+    "native_google_name": "Google Workspace",
+    "native_microsoft_name": "Microsoft 365",
+    "remote": "Distant",
+    "refusal": {
+      "organisation_title": "Refusé par la politique de l'organisation",
+      "permissions_title": "Refusé par vos autorisations",
+      "remote_denied": "Votre organisation n'autorise pas les connexions à des services en ligne.",
+      "policy_unreadable": "La politique de votre organisation n'a pas pu être lue : aucune connexion ne peut être ajoutée tant qu'elle n'est pas corrigée.",
+      "nothing_installed": "Rien n'a été installé ni téléchargé.",
+      "ask_administrator": "Pour changer cette règle, adressez-vous à l'administrateur de votre organisation.",
+      "open_policy": "Voir la politique",
+      "open_permissions": "Voir les autorisations"
+    },
+    "mailbox": {
+      "entry_name": "Boîte mail",
+      "entry_description": "Gmail, iCloud, Yahoo, Orange, Free, La Poste ou toute boîte qui accepte un mot de passe d'application",
+      "title": "Ajouter une boîte mail",
+      "subtitle": "Par son adresse et un mot de passe d'application",
+      "email_label": "Adresse",
+      "email_placeholder": "claire@exemple.fr",
+      "email_hint": "Le serveur de messagerie est déduit de l'adresse.",
+      "password_label": "Mot de passe d'application",
+      "password_hint": "Un mot de passe d'application est un code que votre messagerie crée pour Apollia, à la place de votre mot de passe habituel.",
+      "advanced": "Avancé",
+      "advanced_hint": "Préremplis depuis l'adresse, modifiables.",
+      "host_label": "Serveur de réception",
+      "port_label": "Port",
+      "add": "Ajouter",
+      "add_hint": "Apollia essaie la connexion avant de l'ajouter.",
+      "trying": "Essai de la connexion à la boîte mail…",
+      "added": "Essai réussi : {email} est ajoutée à vos connexions.",
+      "added_where": "Vos agents peuvent maintenant la lire, sans jamais rien y envoyer ni supprimer. Elle figure dans la liste des connexions.",
+      "error": {
+        "credentials_rejected": "Le serveur refuse le mot de passe. Vérifiez le mot de passe d'application, puis réessayez.",
+        "unreachable": "Le serveur de messagerie ne répond pas. Vérifiez l'adresse, ou le serveur et le port sous « Avancé ».",
+        "tls": "La connexion sécurisée au serveur a échoué. Vérifiez le serveur et le port sous « Avancé ».",
+        "invalid_email": "Cette adresse n'est pas une adresse mail.",
+        "invalid_host": "Indiquez le serveur de réception sous « Avancé ».",
+        "invalid_port": "Le port indiqué sous « Avancé » n'est pas valide.",
+        "invalid_password": "Le mot de passe est vide ou trop long.",
+        "protocol": "Le serveur a répondu d'une façon inattendue. Vérifiez qu'il s'agit bien d'un serveur de réception (IMAP).",
+        "secret_store": "Le mot de passe n'a pas pu être rangé dans le trousseau de cet ordinateur. Rien n'a été ajouté.",
+        "runtime": "Apollia ne répond pas pour l'instant. Réessayez dans un moment.",
+        "generic": "La boîte mail n'a pas pu être ajoutée. Réessayez."
+      }
+    },
+    "folder": {
+      "name": "Dossier",
+      "description": "Un dossier de votre ordinateur, ouvert aux agents",
+      "picker_title": "Choisir le dossier à ouvrir aux agents",
+      "added_title": "Dossier ajouté : {name}",
+      "added_subtitle": "Sur cet ordinateur · rien à télécharger",
+      "abilities_title": "Ce que les agents pourront y faire",
+      "ability_read": "Lire : ouvrir et rechercher les fichiers du dossier",
+      "ability_write": "Écrire ou supprimer : seulement avec votre accord",
+      "bounds": "Rien en dehors de ce dossier. Vous choisissez quels agents y ont accès depuis leur fiche.",
+      "not_added_title": "Dossier non ajouté",
+      "add_failed": "Ce dossier n'a pas pu être ajouté.",
+      "choose_another": "Choisir un autre dossier",
+      "done": "Terminé",
+      "remove": "Retirer",
+      "remove_confirm": "Retirer le dossier {name} des connexions ? Ses fichiers restent sur votre ordinateur."
+    },
+    "badge_builtin": "Intégrée"
   },
   "integrations": {
     "disclaimer": {
-      "title": "Connexions externes - Lisez avant de continuer",
-      "step_title": "Ce que vous devez savoir avant de connecter",
-      "step_subtitle": "Cochez chaque point pour confirmer votre compréhension.",
-      "items": {
-        "code_on_machine": "Je comprends que ce connecteur exécute du code sur ma machine",
-        "code_on_machine_desc": "Le serveur MCP fonctionne comme un logiciel tiers sur votre ordinateur, avec les mêmes droits que vous.",
-        "external_data": "Je comprends que ce connecteur peut accéder à des données externes via API",
-        "external_data_desc": "Vos données peuvent être envoyées au service connecté (Notion, GitHub, etc.) via leurs API.",
-        "revocable": "Je peux révoquer cette connexion à tout moment",
-        "revocable_desc": "Rendez-vous dans Connexions → Gérer pour déconnecter et supprimer les secrets stockés.",
-        "read_capabilities": "J'ai lu les capacités proposées par ce connecteur",
-        "read_capabilities_desc": "Les outils exposés seront listés après le test de connexion."
-      },
-      "learn_more": "En savoir plus : Sécurité des connexions",
-      "continue": "Continuer"
+      "title": "Avant d'ajouter cette connexion",
+      "agents": "Vos agents pourront utiliser ce que propose {name}. Une action qui envoie, modifie ou supprime quelque chose vous demande d'abord votre accord.",
+      "data": "Ce que vos agents lisent ou envoient par cette connexion passe par {name}, selon ses propres conditions.",
+      "responsibility": "Apollia teste les connexions de sa sélection ; il ne répond pas du service lui-même, que vous pouvez retirer à tout moment depuis Connexions.",
+      "journal": "Votre accord est inscrit au Journal."
     },
     "status": {
       "connected": "Connecté",
@@ -581,11 +634,6 @@
     },
     "wizard": {
       "title": "Configurer {name}",
-      "step_auth": "Authentification",
-      "step_test": "Test",
-      "step_disclaimer": "Ce que ça fait",
-      "step_coaching": "Réglages",
-      "confirm_exit": "Fermer le wizard ? Les informations non sauvegardées seront perdues.",
       "encrypted_locally": "Chiffré et stocké localement",
       "test_retry": "Réessayer",
       "test_err": {
@@ -594,26 +642,21 @@
         "forbidden": "Accès interdit - votre clé n'a pas les droits requis.",
         "not_found": "Service introuvable - vérifiez l'URL ou le nom du serveur.",
         "network": "Erreur réseau - le service n'a pas répondu à temps.",
-        "handshake_timeout": "Le serveur a démarré mais n'a pas répondu au handshake MCP. Causes typiques : URL incorrecte, paquet npm/pypi en cours de téléchargement (réessayez), ou serveur incompatible avec la spec MCP.",
+        "handshake_timeout": "Le service a démarré mais n'a pas répondu au premier échange. Causes typiques : adresse incorrecte, paquet en cours de téléchargement (réessayez), ou service qui ne parle pas le protocole attendu.",
         "transport_closed": "Le serveur s'est fermé avant la fin du handshake. Causes typiques : paquet introuvable sur npm/pypi (vérifiez l'identifiant), URL distante injoignable (DNS/firewall), ou commande locale absente.",
         "command_missing": "Commande introuvable - le paquet n'est probablement pas installé.",
         "generic": "La connexion a échoué. Vérifiez vos identifiants et réessayez.",
-        "raw_details": "Voir le détail technique",
-        "fix_auth": "Modifier l'authentification"
+        "raw_details": "Voir le détail technique"
       },
       "coaching": {
-        "approval_title": "Autorisations",
-        "approval_subtitle": "Choisissez comment cette connexion demande la permission d'agir dans une tâche d'agent. Dans une conversation, un outil que vous n'avez pas autorisé demande toujours d'abord.",
-        "auto_write_warning": "Risque de sécurité : avec « Autoriser automatiquement », une tâche d'agent peut modifier vos données via ce connecteur sans confirmation.",
         "examples_title": "Que pouvez-vous faire maintenant ?",
         "examples_subtitle": "Quelques exemples d'utilisation pour démarrer.",
         "loading": "Génération des suggestions…",
         "error": "Les suggestions ne sont pas disponibles pour l'instant.",
         "empty": "Aucune suggestion - explorez les outils depuis le chat.",
         "try": "Essayer",
-        "no_tools": "Aucun outil n'est disponible pour ce connecteur pour l'instant, l'exemple ne peut pas s'exécuter."
+        "no_tools": "Aucun outil n'est disponible pour cette connexion pour l'instant, l'exemple ne peut pas s'exécuter."
       },
-      "next": "Suivant",
       "optional": "optionnel",
       "auth_help_link": "Où trouver votre clé",
       "auth_help_default": "Vous avez besoin d'une clé API ou d'un token pour connecter ce service.",
@@ -622,7 +665,7 @@
       "no_auth_required": "Aucune authentification requise pour ce serveur.",
       "local_loopback_badge": "Local",
       "local_loopback_title": "Application locale requise",
-      "local_loopback_body": "Ce serveur MCP est hébergé par une application installée sur votre machine, accessible uniquement en local. Vérifiez qu'elle est lancée et que son intégration MCP est activée avant de continuer.",
+      "local_loopback_body": "Cette connexion est hébergée par une application installée sur votre machine, accessible uniquement en local. Vérifiez qu'elle est lancée et que son option de connexion est activée avant de continuer.",
       "oauth_probing": "Détection de l'authentification…",
       "oauth_required_title": "Connexion OAuth requise",
       "oauth_required_body": "Ce serveur exige une authentification standard OAuth 2.1. Vous allez être redirigé vers la page de connexion de l'éditeur pour autoriser Apollia, puis ramené ici.",
@@ -638,25 +681,27 @@
       "oauth_discovery_failed": "Impossible de découvrir la configuration OAuth du serveur. Si vous possédez un jeton statique, utilisez le mode personnalisé pour le coller manuellement.",
       "oauth_settings_connected": "Connecté via OAuth",
       "oauth_preregistered_scope_note": "Les permissions sont fixées sur la page de votre app OAuth chez l'éditeur (figma.com/developers/apps, etc.). Pour les modifier, éditez l'app puis revenez ici.",
-      "test_button": "Tester la connexion",
-      "test_testing": "Test en cours…",
-      "test_hint": "Vérifiez que la configuration est correcte avant de sauvegarder.",
-      "test_success": "{count} outils découverts",
-      "test_duration": "Temps de réponse : {ms} ms",
       "approval_auto_label": "Autoriser automatiquement (recommandé lecture seule)",
       "approval_auto_desc": "Dans une tâche d'agent, les actions sont exécutées sans vous demander à chaque fois.",
       "approval_ask_label": "Me demander à chaque fois",
       "approval_ask_desc": "Dans une tâche d'agent, chaque action nécessite votre confirmation (recommandé).",
-      "confirm_button": "Ajouter la connexion",
-      "adding": "Ajout en cours…",
-      "test_unavailable": "Test de connexion indisponible - aucune configuration trouvée pour ce serveur.",
-      "no_package_title": "Serveur non configurable",
+      "confirm_button": "Ajouter",
       "no_package_body": "Ce serveur ne possède ni paquet installable ni point d'accès distant. Il ne peut pas être ajouté automatiquement.",
-      "connector_not_configured": "Ce connecteur n'est pas encore configuré dans ce build d'Apollia. Voir l'aide ci-dessus."
+      "connector_not_configured": "Cette connexion n'est pas encore configurée dans ce build d'Apollia. Voir l'aide ci-dessus.",
+      "preparing": "Préparation de la connexion…",
+      "component_downloading": "Téléchargement d'un composant nécessaire",
+      "component_verified": "Son intégrité est vérifiée avant son installation.",
+      "trying": "Essai de la connexion…",
+      "added_success": "Connexion ajoutée et fonctionnelle : {count, plural, one {# outil disponible} other {# outils disponibles}}",
+      "added_where": "Vous la retrouvez dans Connexions, prête à être accordée à vos agents.",
+      "added_failed": "La connexion est ajoutée, mais son essai a échoué",
+      "failed_badge": "En échec",
+      "remove": "Retirer",
+      "add_failed": "La connexion n'a pas pu être ajoutée"
     },
     "manage": {
       "approval_section": "Approbation",
-      "tools_empty": "Le serveur n'expose aucun outil pour l'instant.",
+      "tools_empty": "Cette connexion n'offre aucun outil pour l'instant.",
       "tools_count": "{count} outils disponibles",
       "last_call": "Dernier appel {time}",
       "no_activity": "Aucune activité pour l’instant",
@@ -697,24 +742,18 @@
     "subtitle_deliverables_one": "{count} livrable prêt",
     "subtitle_deliverables_other": "{count} livrables prêts",
     "subtitle_calm": "Tout est calme. Lancez une conversation quand vous êtes prêt.",
-    "header_action_projects": "Projets",
     "header_action_new_chat": "Nouvelle conversation",
     "card_pending_title": "Décisions en attente",
     "card_deliverables_title": "Livrables prêts",
     "card_agents_title": "Au travail",
     "see_all_arrow": "Voir tout →",
     "see_all_short_arrow": "Tout voir →",
-    "see_all_projects_arrow": "Tous les projets →",
     "see_all_pending_aria": "Voir toutes les décisions en attente",
     "pending_empty_title": "Rien ne vous attend",
     "pending_empty_desc": "Vous êtes à jour. Les décisions en attente apparaîtront ici.",
     "deliverables_empty": "Aucun livrable terminé aujourd'hui.",
     "agents_empty": "Aucun agent actif pour l'instant.",
     "recent_activity_title": "Activité récente",
-    "pinned_projects_title": "Projets épinglés",
-    "projects_empty_title": "Pas encore de projet",
-    "projects_empty_desc": "Créez un projet pour grouper conversations, agents et livrables.",
-    "open_projects": "Ouvrir Projets",
     "inbox_more_one": "+ {count} autre dans la boîte de réception →",
     "inbox_more_other": "+ {count} autres dans la boîte de réception →",
     "open_task_aria": "Ouvrir la tâche {name}",
@@ -724,8 +763,7 @@
     "ctx_open_deliverable": "Ouvrir le livrable",
     "ctx_agent_detail": "Ouvrir le détail de l'agent",
     "ctx_agent_logs": "Voir les journaux",
-    "ctx_open_task": "Ouvrir la tâche",
-    "ctx_open_project": "Ouvrir le projet"
+    "ctx_open_task": "Ouvrir la tâche"
   },
   "agents": {
     "install": {
@@ -1140,8 +1178,6 @@
       "this_session_desc": "Approuve les actions similaires jusqu'à la fin de cette session.",
       "this_agent": "Cet agent",
       "this_agent_desc": "Approuve les actions similaires chaque fois que cet agent s'exécute.",
-      "this_project": "Ce projet",
-      "this_project_desc": "Approuve les actions similaires dans ce workspace projet.",
       "global": "Globalement",
       "global_desc": "Approuve les actions similaires partout sur cette machine."
     }
@@ -1493,7 +1529,8 @@
     "entry_actions": "Actions de l'entrée",
     "error_details": "Détails techniques",
     "embeddings": {
-      "vector": "vecteur · nomic-embed-text 768-d · FTS5",
+      "vector": "vecteur · {model} {dimensions}-d · FTS5",
+      "keywords": "mots-clés",
       "none": "aucun vecteur · texte brut"
     },
     "data": {
@@ -2326,163 +2363,85 @@
     "cli_needs_privilege": "Privilèges administrateur requis.",
     "profile": {
       "title": "Profil",
-      "enrichment": {
-        "title": "Complète ton profil",
-        "detail": "Quelques informations optionnelles aideraient tes agents. L'assistant peut reprendre là où tu t'es arrêté, sans perdre ce que tu as déjà partagé.",
-        "resume": "Continuer avec l'assistant",
-        "dismiss": "Plus tard"
+      "profiles": {
+        "title": "Profils",
+        "description": "Plusieurs profils pour décrire les facettes de votre travail. Le profil par défaut est celui que vos agents utilisent ; ce qu'ils retiennent reste propre à chaque profil.",
+        "default_badge": "Par défaut",
+        "new": "Nouveau profil",
+        "actions": "Actions du profil {name}"
       },
-      "sensitive_badge": "Sensible",
-      "sensitive_notice": "Modifier ces choix n'ajuste pas tes règles de permissions automatiquement - relance l'onboarding pour que l'agent te propose les ajustements correspondants.",
+      "menu": {
+        "rename": "Renommer",
+        "set_default": "Définir par défaut",
+        "reset": "Réinitialiser…",
+        "delete": "Supprimer…",
+        "delete_refused": "Le profil par défaut ne peut pas être supprimé. Choisissez d'abord un autre profil par défaut."
+      },
+      "create_dialog": {
+        "title": "Nouveau profil",
+        "label": "Nom du profil",
+        "placeholder": "Par exemple : Formateur",
+        "confirm": "Créer"
+      },
+      "rename_dialog": {
+        "title": "Renommer « {name} »",
+        "confirm": "Renommer"
+      },
+      "delete_dialog": {
+        "title": "Supprimer « {name} » ?",
+        "message": "Ses champs, son texte libre et ce que vos agents ont retenu dans ce profil seront supprimés. Cette action ne peut pas être annulée.",
+        "confirm": "Supprimer le profil"
+      },
+      "reset_dialog": {
+        "title": "Réinitialiser « {name} » ?",
+        "title_default": "Réinitialiser « {name} », votre profil par défaut ?",
+        "message": "Les champs, le texte libre et ce que vos agents ont retenu dans ce profil seront vidés. Le profil reste dans la liste.",
+        "message_default": "Les champs, le texte libre et ce que vos agents ont retenu dans ce profil seront vidés. Vous pouvez ensuite refaire connaissance avec un agent : il vous pose quelques questions et vous propose un profil à relire.",
+        "confirm": "Réinitialiser",
+        "reset_only": "Réinitialiser seulement",
+        "reset_and_onboard": "Réinitialiser et refaire connaissance"
+      },
+      "form": {
+        "title": "Informations du profil « {name} »",
+        "description": "Tous les champs sont facultatifs. Vos agents s'en servent pour adapter leur travail.",
+        "optional": "(facultatif)",
+        "free_text_hint": "Lu par vos agents quand ce profil est utilisé."
+      },
+      "toast": {
+        "created": "Profil « {name} » créé",
+        "default_set": "« {name} » est maintenant votre profil par défaut",
+        "deleted": "Profil supprimé",
+        "reset_done": "Profil réinitialisé"
+      },
+      "enrichment": {
+        "title": "Complétez ce profil avec un agent",
+        "detail": "Un agent vous pose quelques questions et vous propose des réponses à relire ; rien n'est écrit sans votre accord.",
+        "resume": "Compléter avec un agent",
+        "dismiss": "Ignorer"
+      },
       "source": {
         "onboarding": "onboarding",
         "user": "vous",
         "agent": "agent",
         "tooltip": "Source : {source}"
       },
-      "option": {
-        "none": "-"
-      },
-      "identity": {
-        "title": "Identité",
-        "subtitle": "Qui tu es et ce que tu cherches à faire.",
-        "unnamed": "Sans nom",
-        "fill_prompt": "Renseigne ton identité ci-dessous"
-      },
-      "fields": {
-        "name": "Prénom / alias",
-        "role": "Rôle",
-        "sector": "Secteur",
-        "team_size": "Taille d'équipe",
-        "goals": "Objectifs (max 2 phrases)",
-        "hitl": "Niveau HITL (Human-in-the-Loop)",
-        "agent_domains": "Domaines où vos agents travaillent en autonomie",
-        "trigger": "Comment vos agents démarrent par défaut",
-        "tools_daily": "Outils du quotidien (séparés par virgules)",
-        "tech_stack": "Stack technique",
-        "proficiency": "Aisance avec l'outillage tech",
-        "integrations": "Connecter Apollia à",
-        "sovereignty": "Souveraineté des données",
-        "compliance": "Conformité",
-        "language": "Langue des agents",
-        "llm": "Backend LLM préféré"
-      },
-      "placeholder": {
-        "name": "Votre prénom",
-        "role": "CTO, dev fullstack, ops…",
-        "goals": "Ex. Automatiser ma veille concurrentielle et pré-traiter mes emails.",
-        "agent_domains": "veille, email, reporting",
-        "tools_daily": "Excel, Notion, Salesforce, Gmail, VS Code…",
-        "tech_stack": "Python, TypeScript, React, Postgres…"
-      },
-      "sector": {
-        "fintech": "Fintech",
-        "sante": "Santé",
-        "ecommerce": "E-commerce",
-        "industrie": "Industrie",
-        "education": "Éducation",
-        "autre": "Autre"
-      },
-      "team_size": {
-        "solo": "Solo",
-        "2_5": "2–5",
-        "6_20": "6–20",
-        "20_plus": "20+"
-      },
-      "proficiency": {
-        "debutant": "Débutant",
-        "intermediaire": "Intermédiaire",
-        "avance": "Avancé",
-        "expert": "Expert"
-      },
-      "language": {
-        "fr": "Français",
-        "en": "English"
-      },
-      "llm": {
-        "local": "Local (llama.cpp)",
-        "ollama": "Ollama"
-      },
-      "supervision": {
-        "title": "Supervision des agents"
-      },
-      "hitl": {
-        "always": {
-          "label": "Toujours valider",
-          "hint": "Chaque action sensible nécessite ton accord explicite."
-        },
-        "critical_only": {
-          "label": "Critique seulement",
-          "hint": "Validation requise uniquement pour les actions à fort impact (paiement, suppression…)."
-        },
-        "never": {
-          "label": "Jamais",
-          "hint": "Les agents agissent sans confirmation. Recommandé uniquement pour des outils en lecture seule."
-        }
-      },
-      "hint": {
-        "agent_domains": "Liste libre des domaines (veille, email, reporting…) où tu laisses tes agents agir sans validation manuelle, sous réserve du niveau de supervision ci-dessus.",
-        "tools_daily": "Liste libre - applications métier, IDE, outils de bureau, plateformes SaaS.",
-        "integrations": "Activer une intégration ouvre des permissions par défaut sur les API associées. Relance l'onboarding pour adapter les règles correspondantes."
-      },
-      "trigger": {
-        "manuel": "Manuel",
-        "planifie": "Planifié",
-        "evenementiel": "Événementiel"
-      },
-      "tools": {
-        "title": "Outils & contexte métier",
-        "subtitle": "Aide les agents à parler ton langage et à utiliser les outils que tu connais déjà."
-      },
-      "constraints": {
-        "title": "Contraintes"
-      },
-      "sovereignty": {
-        "local_only": {
-          "label": "Local strict",
-          "hint": "Bloque les connecteurs cloud. Ne coupe pas le réseau de la machine."
-        },
-        "local_preferred": {
-          "label": "Local préféré",
-          "hint": "Local par défaut, cloud autorisé en dernier recours après accord."
-        },
-        "cloud_ok": {
-          "label": "Cloud autorisé",
-          "hint": "Les agents peuvent utiliser des LLM cloud sans demander."
-        }
-      },
-      "preferences": {
-        "title": "Préférences",
-        "subtitle": "Langue et backend par défaut pour les agents."
-      },
-      "danger": {
-        "title": "Zone danger",
-        "description": "Réinitialiser ton profil supprime toute la mémoire utilisateur et relance l'onboarding depuis zéro.",
-        "reset_button": "Réinitialiser le profil"
-      },
-      "reset_dialog": {
-        "title": "Réinitialiser le profil ?",
-        "message": "Cela supprimera tout le profil mémorisé et relancera l'onboarding. Cette action est irréversible.",
-        "confirm": "Réinitialiser"
-      },
-      "toast": {
-        "reset_done": "Profil réinitialisé"
-      },
       "memory": {
-        "title": "Ce que vos agents ont retenu sur vous",
-        "subtitle": "Les détails que vos agents ont gardés de vos conversations. Vous pouvez corriger ou supprimer chacun.",
+        "title": "Ce que vos agents ont retenu dans « {name} »",
+        "subtitle": "Des faits notés par vos agents quand ils travaillent avec ce profil, ou ajoutés par vous. Ils ne servent qu'à ce profil. Corrigez ou supprimez ce qui n'est plus juste.",
         "empty": {
           "title": "Aucun fait pour l'instant",
-          "detail": "Vos agents noteront ici ce qu'ils retiennent sur vous au fil des conversations."
+          "detail": "Vos agents noteront ici ce qu'ils retiennent quand ils travaillent avec ce profil."
         },
         "add": "Ajouter un fait",
+        "add_confirm": "Ajouter",
+        "add_hint": "Par exemple : « Je facture mes clients le 5 du mois ». Vos agents liront ce fait comme ceux qu'ils ont retenus eux-mêmes, dans ce profil seulement.",
         "key_placeholder": "Clé (ex. prefs.horaires)",
-        "value_placeholder": "Valeur",
-        "edit": "Éditer le fait",
+        "value_placeholder": "Ce que vos agents doivent retenir",
+        "edit": "Modifier",
         "copy_value": "Copier la valeur",
         "delete_dialog": {
           "title": "Supprimer ce fait ?",
-          "message": "« {value} » sera oublié par tous vos agents. Cette action ne peut pas être annulée.",
+          "message": "« {value} » sera oublié par vos agents dans ce profil. Cette action ne peut pas être annulée.",
           "confirm": "Supprimer le fait"
         }
       }
@@ -3480,15 +3439,8 @@
     "a2a_no_workers": "Aucun agent worker disponible",
     "mode_auto": "Auto",
     "scroll_to_bottom": "Revenir en bas",
-    "link_project": "Lier à un projet",
-    "unlink_project": "Délier de {name}",
-    "no_project_to_link": "Aucun projet disponible",
-    "linked_project_tooltip": "Lié au projet « {name} » - cliquer pour ouvrir",
-    "project_linked_toast": "Conversation liée au projet « {name} »",
-    "project_unlinked_toast": "Conversation déliée du projet",
     "exchange_error": "Erreur : {error}",
     "exchange_error_generic": "la réponse n'a pas pu être complétée",
-    "project_link_failed": "Échec de la liaison au projet",
     "toggle_context_drawer": "Afficher le panneau de contexte",
     "a2a_delegating": "Délégation vers {agent} ({skill})…",
     "reasoning": {
@@ -3529,8 +3481,6 @@
     "tool_empty_results": "Aucun résultat.",
     "a2a_authorize_skill": "Autoriser le skill",
     "a2a_via_worker": "via l'agent worker",
-    "project_selector": "Projet",
-    "no_project": "Sans projet",
     "quickpicker": {
       "title": "Démarrer une conversation",
       "prompt_label": "Que veux-tu faire ?",
@@ -3778,6 +3728,8 @@
       "web_search": "Recherche web",
       "web_read": "Article web",
       "memory_search": "Recherche en mémoire",
+      "code_context": "Dossier de code",
+      "source_search": "Recherche dans les sources",
       "todo_write": "Liste de tâches",
       "ask_user": "Question",
       "plan_propose": "Proposition de plan",
@@ -3818,7 +3770,9 @@
       "web_search_backend": "Recherche via {backend} de « {query} »",
       "web_read": "Lecture de {hostname}",
       "memory_search": "Recherche en mémoire de « {query} »",
+      "code_context": "Lecture de l'état d'un dossier de code",
       "memory_search_ns": "Recherche de « {query} » dans la mémoire {namespace}",
+      "source_search": "Recherche dans les sources cochées",
       "connector": "{provider} : {action}",
       "plan_propose": "Proposition d'un plan",
       "plan_add_step": "Ajout d'une étape au plan",
@@ -4027,144 +3981,48 @@
       "reveal_aria": "Afficher dans le gestionnaire de fichiers"
     }
   },
-  "projects": {
-    "title": "Projets",
-    "subtitle": "Organisez le contexte des agents avec instructions, documents et providers",
-    "kicker": "ESPACES DE TRAVAIL · {count} {label}",
-    "kicker_singular": "PROJET",
-    "new_project": "Nouveau projet",
-    "new_project_short": "Nouveau",
-    "status_active": "actif",
-    "tab_conversations": "Conversations",
-    "tab_tasks": "Tâches",
-    "tab_memory": "Mémoire",
-    "tab_context": "Contexte",
-    "tab_settings": "Paramètres",
-    "no_conversations": "Aucune conversation pour ce projet",
-    "start_conversation_hint": "Démarrez un nouveau chat pour cadrer le travail.",
-    "no_tasks": "Aucune tâche planifiée",
-    "empty_memory_title": "Aucun document attaché",
-    "field_id": "Identifiant",
-    "search_placeholder": "Rechercher un projet...",
-    "no_match": "Aucun projet ne correspond aux filtres",
-    "create_project": "Créer le projet",
-    "edit_project": "Modifier",
-    "created_toast": "Projet « {name} » créé",
-    "deleted_toast": "Projet « {name} » supprimé",
-    "document_removed": "Document supprimé",
-    "empty_title": "Aucun projet",
-    "empty_subtitle": "Créez un projet pour organiser le contexte de vos agents",
-    "name_required": "Le nom du projet est requis",
-    "field_name": "Nom",
-    "field_description": "Description",
-    "delete_confirm_title": "Supprimer le projet",
-    "delete_confirm_message": "Voulez-vous vraiment supprimer le projet « {name} » ? Cette action est irréversible.",
-    "delete_confirm_yes": "Supprimer",
-    "section_agents": "Agents liés",
-    "new_chat": "Nouveau chat",
-    "add_agent": "Ajouter un agent",
-    "no_agents": "Aucun agent lié à ce projet",
-    "agent_added": "Agent ajouté au projet",
-    "agent_removed": "Agent retiré du projet",
-    "field_workspace": "Dossier de travail",
-    "field_workspace_placeholder": "Cliquez sur Parcourir pour choisir un dossier",
-    "template_blank": "Projet vierge",
-    "template_blank_desc": "Démarrer sans configuration prédéfinie.",
-    "template_developer": "Projet développeur",
-    "template_developer_desc": "Pré-configure les providers de contexte orientés code : git, arborescence, APOLLIA.md.",
-    "template_developer_provider_failed": "Impossible d'ajouter le provider « {name} » : {err}",
-    "template_developer_provider_git": "Statut Git",
-    "template_developer_provider_tree": "Arborescence des fichiers",
-    "template_developer_provider_rules": "Règles APOLLIA.md",
-    "context_intro": "Les providers de contexte alimentent chaque agent en informations vivantes sur ce projet : statut git, arborescence, règles internes, scripts custom. Ils sont collectés à chaque exécution.",
-    "context_empty_title": "Aucun provider configuré",
-    "context_empty_desc": "Ajoutez un provider pour enrichir le contexte donné aux agents de ce projet.",
-    "context_add_provider": "Ajouter un provider",
-    "context_priority_label": "Priorité",
-    "context_enabled_label": "Activé",
-    "context_snapshot_preview": "Aperçu du contexte",
-    "context_snapshot_refresh": "Rafraîchir",
-    "context_snapshot_empty": "Aucun provider applicable au répertoire courant.",
-    "context_snapshot_errors": "{count} provider(s) en erreur lors de la collecte.",
-    "context_snapshot_cwd_hint": "Collecté depuis le répertoire de travail courant du processus.",
-    "provider_type_git": "Git",
-    "provider_type_git_desc": "État du dépôt git : branche courante, fichiers modifiés, commits récents.",
-    "provider_type_tree": "Arborescence",
-    "provider_type_tree_desc": "Structure du workspace (jusqu'à N lignes). Aide l'agent à se repérer dans l'arbre.",
-    "provider_type_rules": "Règles projet",
-    "provider_type_rules_desc": "Charge automatiquement APOLLIA.md, .cursorrules, AGENTS.md ou un fichier de règles équivalent.",
-    "provider_type_script": "Script",
-    "provider_type_script_desc": "Exécute un script shell ou binaire qui produit du JSON sur stdout.",
-    "provider_type_style": "Style",
-    "provider_type_style_desc": "Détecte automatiquement le style de code via LLM (langue, conventions, formatage).",
-    "provider_type_style_warning": "Nécessite un routeur LLM configuré ; sera ignoré sinon.",
-    "provider_unknown_desc": "Provider de type inconnu : {type}.",
-    "provider_disabled_label": "désactivé",
-    "provider_pick_subtitle": "Choisissez le type de provider à ajouter à ce projet.",
-    "provider_pick_script": "Choisir le script…",
-    "provider_priority_hint": "1 = collecté en premier",
-    "provider_edit_title": "Éditer le provider",
-    "provider_create_title": "Nouveau provider",
-    "provider_field_type": "Type",
-    "provider_field_name": "Nom",
-    "provider_field_max_lines": "Lignes max",
-    "provider_field_script_path": "Chemin du script",
-    "provider_field_timeout_ms": "Timeout (ms)",
-    "provider_saved_toast": "Provider enregistré.",
-    "provider_deleted_toast": "Provider supprimé.",
-    "provider_delete_confirm_title": "Supprimer le provider",
-    "provider_delete_confirm_message": "Voulez-vous vraiment supprimer le provider « {name} » ?",
-    "settings_saved_toast": "Projet mis à jour.",
-    "settings_field_name": "Nom",
-    "settings_field_description": "Description",
-    "settings_field_instructions": "Instructions système",
-    "settings_field_instructions_placeholder": "Instructions injectées dans chaque exécution d'agent pour ce projet…",
-    "settings_field_workspace_pick": "Choisir un dossier…",
-    "dialog": {
-      "step_1_of_2": "ÉTAPE 1 / 2",
-      "step_2_of_2": "ÉTAPE 2 / 2 · {name}",
-      "step1_title": "Partir d'un template ?",
-      "step1_subtitle": "Les templates pré-configurent agents, connexions et jalons. Vous pouvez tout modifier après.",
-      "step2_title": "Nommez votre projet.",
-      "manual_config": "À configurer manuellement",
-      "name_placeholder": "Mon projet",
-      "color_label": "Couleur",
-      "ready_title": "Prêt à démarrer",
-      "ready_detail": "{count} agents pré-assignés · prêt à être configuré."
+  "project_migration": {
+    "title_done": "Vos projets sont maintenant des sources",
+    "title_failed": "La migration de vos projets n’a pas abouti",
+    "subtitle_done": "Cette mise à jour retire l’écran Projets. Voici ce qu’est devenu leur contenu, et où le retrouver.",
+    "subtitle_failed": "Cette mise à jour retire l’écran Projets, mais leur contenu n’a pas pu être repris cette fois.",
+    "became_title": "Ce que sont devenus vos {count, plural, one {# projet} other {# projets}}",
+    "row_documents_title": "Documents",
+    "row_documents_desc": "{count, plural, one {# document, devenu une source} other {# documents, devenus des sources}} de l’agent « Apollia », rangés sous le nom de leur projet",
+    "row_instructions_title": "Instructions",
+    "row_instructions_desc": "Une source par projet : cherchables, jamais ajoutées d’office à vos conversations",
+    "row_folders_title": "Dossiers de travail",
+    "row_folders_desc": "{count, plural, one {# dossier, devenu une connexion dossier} other {# dossiers, devenus des connexions dossier}} à autoriser dans Connexions",
+    "row_conversations_title": "Conversations et mémoire",
+    "row_conversations_desc": "Conversations rattachées à l’agent « Apollia », mémoire des projets conservée",
+    "badge_done": "Repris",
+    "badge_to_grant": "À autoriser",
+    "gaps_title": "{count, plural, one {# élément n’a pas été repris} other {# éléments n’ont pas été repris}}",
+    "gap_line": "« {subject} », du projet « {project} » : {reason}",
+    "gap_line_no_project": "« {subject} » : {reason}",
+    "reason": {
+      "missing": "introuvable à son emplacement",
+      "unreadable": "illisible",
+      "wrong_kind": "ce n’est pas un fichier ou un dossier attendu",
+      "agent_not_installed": "cet agent n’est plus installé",
+      "failed": "n’a pas pu être enregistré",
+      "not_carried_over": "rien ne le remplace dans les sources"
     },
-    "memory_documents": "Documents en mémoire",
-    "memory_namespaces": "Espaces de mémoire",
-    "no_project_memory": "Aucune mémoire de projet",
-    "no_project_memory_desc": "Les agents de ce projet n'ont pas encore stocké de mémoire.",
-    "no_tasks_desc": "Les tâches créées par les agents apparaîtront ici.",
-    "tasks_need_agents": "Les tâches ont besoin d'au moins un agent",
+    "gaps_complete_hint": "Si vous retrouvez un document, ajoutez-le comme source depuis la fiche de l’agent.",
+    "gaps_partial_hint": "Apollia réessaiera au prochain démarrage. D’ici là, vos anciens Projets restent conservés.",
+    "failed_title": "Rien n’a été repris",
+    "failed_body": "La base des Projets n’a pas pu être lue. Rien n’a été déplacé ni supprimé : vos anciens Projets restent conservés tels quels.",
+    "where_title": "Où les retrouver",
+    "where_sources_title": "Agents › Apollia › Sources",
+    "where_sources_desc": "Les documents et les instructions, groupés par projet",
+    "where_connections_title": "Connexions",
+    "where_connections_desc": "{count, plural, one {Le dossier de travail, à autoriser} other {Les # dossiers de travail, à autoriser}}",
+    "where_chat_title": "Chat",
+    "where_chat_desc": "Les conversations des projets, avec l’agent « Apollia »",
     "open": "Ouvrir",
-    "no_match_hint": "Aucun projet ne correspond à votre recherche. Ajustez ou effacez le filtre.",
-    "tab_agents": "Agents",
-    "agents_hint": "Rattacher un agent le regroupe sous ce projet et restreint l'onglet Tâches à ses tâches. Cela ne change rien à son exécution : les instructions, les documents et les providers de contexte du projet sont injectés dans les conversations ouvertes depuis ce projet, jamais dans les tâches des agents.",
-    "agent_pick_placeholder": "Choisir un agent à rattacher...",
-    "agents_all_attached": "Tous les agents installés sont déjà rattachés",
-    "no_agents_desc": "Rattachez un agent installé pour le regrouper sous ce projet et suivre ses tâches depuis l'onglet Tâches.",
-    "agent_not_installed": "Agent non installé sur cette machine",
-    "remove_agent": "Retirer cet agent",
-    "attach_document": "Attacher un fichier",
-    "attaching_document": "Ajout en cours...",
-    "empty_documents_desc": "Attachez un fichier texte pour que les conversations ouvertes depuis ce projet puissent le lire.",
-    "document_added": "Document « {name} » attaché",
-    "remove_document": "Retirer ce document",
-    "detach_agent_confirm": "Retirer « {name} » de ce projet ?",
-    "detach_agent_confirm_action": "Retirer",
-    "detach_document_confirm": "Retirer « {name} » de ce projet ? Le fichier reste sur le disque.",
-    "detach_document_confirm_action": "Retirer",
-    "document_filter_text": "Fichier texte",
-    "card_status": {
-      "active": "actif",
-      "paused": "en pause",
-      "blocked": "bloqué",
-      "done": "terminé"
-    },
-    "card_delivered": "livré",
-    "card_agents": "{n, plural, one {# agent} other {# agents}}"
+    "note_once": "Cet avis ne s’affiche qu’une fois.",
+    "note_retry": "Apollia réessaiera au prochain démarrage.",
+    "understood": "J’ai compris"
   },
   "hitl": {
     "impact": {
@@ -4314,10 +4172,6 @@
       "agent_title": "Toujours pour cet assistant",
       "agent_desc": "L'assistant courant ne demandera plus.",
       "agent_desc_apollia": "Apollia Chat (ou l'agent courant) ne demandera plus.",
-      "project_title": "Toujours pour ce projet",
-      "project_desc": "Tous les assistants utilisés dans ce projet.",
-      "project_unavailable": "Indisponible - la session n'est rattachée à aucun projet.",
-      "project_no_project": "Cette session n'est rattachée à aucun projet.",
       "global_title": "Toujours, partout",
       "global_desc": "Tous les assistants, tous les projets."
     }
@@ -4511,5 +4365,25 @@
     "unsigned": "Non signé, éditeur : {publisher}",
     "required": "Demande les connexions : {list}",
     "removed": "Laissés hors du paquet (autre paquet, agent ou workflow) : {list}"
+  },
+  "dev": {
+    "connections": {
+      "catalogue_subtitle": "Découvrez le catalogue MCP public ou enregistrez un serveur personnalisé.",
+      "catalogue_tab_discover": "Catalogue MCP",
+      "catalogue_tab_custom": "MCP personnalisé",
+      "catalogue_loading": "Chargement du catalogue MCP…",
+      "custom_intro": "Pour brancher un serveur MCP interne, communautaire ou en cours de développement. Pour un service de la sélection (Notion, Linear, Brave Search…), utilisez plutôt une carte du catalogue.",
+      "custom_transport_label": "Transport",
+      "custom_transport_stdio": "stdio (subprocess local)",
+      "custom_transport_http": "Streamable HTTP (MCP 2025-11-25)",
+      "custom_transport_sse": "SSE (legacy 2024-11-05)",
+      "mcp_installed_fallback": "Serveur MCP installé",
+      "tool_provenance": "Serveur MCP {server} · {name}"
+    },
+    "integrations": {
+      "wizard": {
+        "node_downloading": "Téléchargement d'un composant nécessaire : Node.js"
+      }
+    }
   }
 }

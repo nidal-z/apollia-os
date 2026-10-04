@@ -164,10 +164,7 @@ pub const KEYS: &[ConfigKey] = &[
     key("hooks.handlers", TableArray, Some("[]"), Reloadable, "Lifecycle hook handlers, a command or an HTTP endpoint each."),
     // [chat]
     key("chat.plan_mode_default", Boolean, Some("false"), Reloadable, "Start every new conversation in plan mode."),
-    key("chat.default_workspace", Path, None, Reloadable, "Working folder of a conversation outside a project."),
     key("chat.tool_turn_temperature", Float, None, Reloadable, "Model temperature of a turn that offers tools; none means 0.3."),
-    // [filesystem]
-    key("filesystem.trusted_paths", StringArray, Some("[\"~\"]"), Reloadable, "Folders an agent may work in without asking."),
     // [models]
     locked(key("models.registry_url", KeyType::String, Some("\"https://registry.apollia.fr/models/stable/index.json\""), Reloadable, "Address of the signed index of model cards.")),
     locked(key("models.registry_mirror_url", KeyType::String, Some("\"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json\""), Reloadable, "Address tried when the index does not answer; empty disables it.")),
@@ -212,7 +209,8 @@ pub const KEYS: &[ConfigKey] = &[
     withdrawn("notifications", "use the desktop app or the API to manage it"),
     withdrawn("stt", "use the desktop app or the API to manage it"),
     withdrawn("tools.file_path_extraction_pattern", "nothing reads it; remove the key"),
-    withdrawn("filesystem.journal", "nothing reads it; remove the section"),
+    withdrawn("filesystem", "the file tools reach the folders granted to each agent; the paths listed here were added once as folder connections, grant them on the agent's sheet"),
+    withdrawn("chat.default_workspace", "the folder was added once as a folder connection; grant it to an agent on its sheet"),
     withdrawn("ui", "moved: write desktop.link_preview_enabled; ui.link_preview_enabled is still read while it is absent"),
 ];
 

@@ -11,7 +11,6 @@ sidebar_position: 1
 ## Prerequisites
 
 - An AI provider is connected (green pill in the top bar).
-- (Optional) A project is linked so your working context is injected automatically.
 - (Optional) An Assistant agent is started if you want to talk to a specialised agent.
 
 ## Steps
@@ -54,6 +53,6 @@ Your conversation shows up in the list on the left with a title and the date of 
 
 - **No answer:** check that the provider pill is green in the top bar.
 - **Answer in error or truncated:** switch models in the configuration panel, or read [The AI provider does not respond](../troubleshooting/the-ai-provider-does-not-answer.md).
-- **The AI does not know about your files:** link the conversation to a project and enable the context providers.
+- **The AI does not know about your files:** check the sources of the agent you talk to, and grant it the folder that holds them in **Connections**.
 
 > **Concept:** [Apollia explanation](/explanation) - understand how context is injected and how the Free and Agent modes differ.

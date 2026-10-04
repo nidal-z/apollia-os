@@ -1,41 +1,31 @@
-//! Tauri IPC commands for the user profile and conversation statistics.
+//! Tauri IPC commands for the user profiles and conversation statistics.
 //!
-//! Surface:
-//! - [`get_profile`]: schema entries + extras for the Settings → Profile page.
-//! - [`set_profile_entry`]: upsert (always `WrittenBy::User`).
-//! - [`delete_profile_entry`]: remove a single entry by key.
-//! - [`reset_user_profile`]: purge every user-visible entry.
+//! Surface, each profile named by its identifier or by `default`:
+//! - [`list_profiles`], [`create_profile`], [`get_profile_by_id`],
+//!   [`update_profile`], [`delete_profile`], [`set_default_profile`],
+//!   [`reset_profile`]: the profiles of Settings > Profile.
+//! - [`set_profile_fact`], [`delete_profile_fact`]: the facts retained in one
+//!   profile.
 //! - [`get_conversation_stats`]: per-session chat statistics.
+//!
+//! Every profile command serves both modes: the embedded arm calls
+//! [`apollia_runtime::profile`], the attached arm the `/api/v1/profiles`
+//! routes that serve the same functions.
 
 use apollia_runtime::api::routes_profile::{
     DeletedProfileEntry, ProfileReset, SetProfileEntryBody,
 };
+use apollia_runtime::api::routes_profiles::{CreateProfileBody, DeletedProfile};
 use apollia_runtime::conversation_stats::conversation_stats;
 pub use apollia_runtime::conversation_stats::ConversationStatsView;
 use apollia_runtime::embedded::RuntimeHandle;
 use apollia_runtime::profile::{self, ProfileError, ProfileStore};
-pub use apollia_runtime::profile::{ProfileEntryView, UserProfileView};
-use serde::Deserialize;
+pub use apollia_runtime::profile::{
+    ProfileDetailView, ProfileEntryView, ProfileSummaryView, ProfileUpdate,
+};
 use tauri::State;
 
 use crate::attached::{segment, RuntimeLink};
-
-// ---------------------------------------------------------------------------
-// View types serialised to the Svelte frontend
-// ---------------------------------------------------------------------------
-
-/// Request payload for [`set_profile_entry`].
-#[derive(Debug, Deserialize)]
-pub struct SetProfileEntryRequest {
-    /// Flat storage key.
-    pub key: String,
-    /// Plain-text value.
-    pub value: String,
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 /// The profile repository of the runtime running in this process.
 fn embedded_repo(state: &RuntimeHandle) -> Result<ProfileStore<'_>, String> {
@@ -46,78 +36,153 @@ fn embedded_repo(state: &RuntimeHandle) -> Result<ProfileStore<'_>, String> {
         .ok_or_else(|| ProfileError::Unavailable.to_string())
 }
 
-// ---------------------------------------------------------------------------
-// Commands
-// ---------------------------------------------------------------------------
-
-/// Returns the user profile (schema entries + extras) for the
-/// Settings → Profile page. Attached to a daemon, `GET /api/v1/profile`
-/// answers the same view.
-#[tauri::command]
-pub async fn get_profile(link: State<'_, RuntimeLink>) -> Result<UserProfileView, String> {
-    match link.inner() {
-        RuntimeLink::Embedded(state) => Ok(profile::read_profile(embedded_repo(state)?)
-            .await
-            .map_err(|e| e.to_string())?),
-        RuntimeLink::Attached(remote) => Ok(remote.get("/api/v1/profile").await?),
-    }
+fn profile_path(id: &str) -> String {
+    format!("/api/v1/profiles/{}", segment(id))
 }
 
-/// Creates or updates a single profile entry.
-///
-/// Always written with `WrittenBy::User`; the source represents the
-/// frontend operator action.
+/// Lists every profile, the default first.
 #[tauri::command]
-pub async fn set_profile_entry(
+pub async fn list_profiles(
     link: State<'_, RuntimeLink>,
-    request: SetProfileEntryRequest,
-) -> Result<ProfileEntryView, String> {
-    if request.key.is_empty() {
-        return Err(ProfileError::EmptyKey.to_string());
-    }
+) -> Result<Vec<ProfileSummaryView>, String> {
     match link.inner() {
-        RuntimeLink::Embedded(state) => {
-            Ok(
-                profile::write_entry(embedded_repo(state)?, request.key, request.value)
-                    .await
-                    .map_err(|e| e.to_string())?,
-            )
-        }
-        RuntimeLink::Attached(remote) => {
-            let path = format!("/api/v1/profile/entries/{}", segment(&request.key));
-            let body = SetProfileEntryBody {
-                value: request.value,
-            };
-            Ok(remote.put(&path, &body).await?)
-        }
+        RuntimeLink::Embedded(state) => profile::list_profiles(embedded_repo(state)?)
+            .await
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => Ok(remote.get("/api/v1/profiles").await?),
     }
 }
 
-/// Deletes a single profile entry by key.
+/// Creates a profile with empty fields, not the default.
 #[tauri::command]
-pub async fn delete_profile_entry(link: State<'_, RuntimeLink>, key: String) -> Result<(), String> {
+pub async fn create_profile(
+    link: State<'_, RuntimeLink>,
+    name: String,
+) -> Result<ProfileSummaryView, String> {
     match link.inner() {
-        RuntimeLink::Embedded(state) => Ok(profile::delete_entry(embedded_repo(state)?, key)
+        RuntimeLink::Embedded(state) => profile::create_profile(embedded_repo(state)?, name)
             .await
-            .map_err(|e| e.to_string())?),
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => Ok(remote
+            .post("/api/v1/profiles", &CreateProfileBody { name })
+            .await?),
+    }
+}
+
+/// Reads one profile in full: its fields, in the order of the schema, and
+/// its facts.
+#[tauri::command]
+pub async fn get_profile_by_id(
+    link: State<'_, RuntimeLink>,
+    id: String,
+) -> Result<ProfileDetailView, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(state) => profile::read_profile_by_id(embedded_repo(state)?, id)
+            .await
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => Ok(remote.get(&profile_path(&id)).await?),
+    }
+}
+
+/// Renames a profile and writes its fields.
+#[tauri::command]
+pub async fn update_profile(
+    link: State<'_, RuntimeLink>,
+    id: String,
+    update: ProfileUpdate,
+) -> Result<ProfileDetailView, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(state) => profile::update_profile(embedded_repo(state)?, id, update)
+            .await
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => Ok(remote.patch(&profile_path(&id), &update).await?),
+    }
+}
+
+/// Deletes a profile and its facts; the default profile is refused.
+#[tauri::command]
+pub async fn delete_profile(link: State<'_, RuntimeLink>, id: String) -> Result<(), String> {
+    match link.inner() {
+        RuntimeLink::Embedded(state) => profile::delete_profile(embedded_repo(state)?, id)
+            .await
+            .map_err(|e| e.to_string()),
         RuntimeLink::Attached(remote) => {
-            let path = format!("/api/v1/profile/entries/{}", segment(&key));
-            let _: DeletedProfileEntry = remote.delete(&path).await?;
+            let _: DeletedProfile = remote.delete(&profile_path(&id)).await?;
             Ok(())
         }
     }
 }
 
-/// Deletes every user-visible profile entry, preserving onboarding markers.
+/// Makes a profile the default.
 #[tauri::command]
-pub async fn reset_user_profile(link: State<'_, RuntimeLink>) -> Result<usize, String> {
+pub async fn set_default_profile(
+    link: State<'_, RuntimeLink>,
+    id: String,
+) -> Result<ProfileSummaryView, String> {
     match link.inner() {
-        RuntimeLink::Embedded(state) => Ok(profile::reset_profile(embedded_repo(state)?)
+        RuntimeLink::Embedded(state) => profile::set_default_profile(embedded_repo(state)?, id)
             .await
-            .map_err(|e| e.to_string())?),
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => Ok(remote
+            .post(&format!("{}/default", profile_path(&id)), &())
+            .await?),
+    }
+}
+
+/// Empties a profile and deletes its facts; returns how many entries went.
+#[tauri::command]
+pub async fn reset_profile(link: State<'_, RuntimeLink>, id: String) -> Result<usize, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(state) => profile::reset_profile_by_id(embedded_repo(state)?, id)
+            .await
+            .map_err(|e| e.to_string()),
         RuntimeLink::Attached(remote) => {
-            let reset: ProfileReset = remote.post("/api/v1/profile/reset", &()).await?;
+            let reset: ProfileReset = remote
+                .post(&format!("{}/reset", profile_path(&id)), &())
+                .await?;
             Ok(reset.removed)
+        }
+    }
+}
+
+/// Retains a fact in a profile, written by the user.
+#[tauri::command]
+pub async fn set_profile_fact(
+    link: State<'_, RuntimeLink>,
+    id: String,
+    key: String,
+    value: String,
+) -> Result<ProfileEntryView, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(state) => {
+            profile::set_profile_fact(embedded_repo(state)?, id, key, value)
+                .await
+                .map_err(|e| e.to_string())
+        }
+        RuntimeLink::Attached(remote) => {
+            let path = format!("{}/facts/{}", profile_path(&id), segment(&key));
+            Ok(remote.put(&path, &SetProfileEntryBody { value }).await?)
+        }
+    }
+}
+
+/// Forgets a fact of a profile.
+#[tauri::command]
+pub async fn delete_profile_fact(
+    link: State<'_, RuntimeLink>,
+    id: String,
+    key: String,
+) -> Result<(), String> {
+    match link.inner() {
+        RuntimeLink::Embedded(state) => {
+            profile::delete_profile_fact(embedded_repo(state)?, id, key)
+                .await
+                .map_err(|e| e.to_string())
+        }
+        RuntimeLink::Attached(remote) => {
+            let path = format!("{}/facts/{}", profile_path(&id), segment(&key));
+            let _: DeletedProfileEntry = remote.delete(&path).await?;
+            Ok(())
         }
     }
 }

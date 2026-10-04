@@ -9,7 +9,6 @@
 //! settings, and two of its keys have no default, so no single line of it could
 //! be uncommented on its own.
 
-use std::io::Write as _;
 use std::path::Path;
 
 use super::keys::{ConfigKey, KEYS};
@@ -66,7 +65,7 @@ pub(crate) fn default_file_text_with_socket(socket: &Path) -> String {
 }
 
 /// Writes the default `apollia.toml` at `path` when no file is there, creating
-/// its folder. Never writes over an existing file, even one created between
+/// its folder, through the configuration writer. Never writes over an existing file, even one created between
 /// the check and the write.
 ///
 /// Returns `true` when the file was written, `false` when one was already
@@ -76,29 +75,15 @@ pub(crate) fn default_file_text_with_socket(socket: &Path) -> String {
 ///
 /// The I/O error of creating the folder or writing the file.
 pub fn write_default_file_if_absent(path: &Path) -> std::io::Result<bool> {
-    if path.exists() {
-        return Ok(false);
+    let written = super::writer::create_if_absent(path, &default_file_text())?;
+    if written {
+        tracing::event!(
+            tracing::Level::INFO,
+            path = %path.display(),
+            "config.default_file.written"
+        );
     }
-    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
-        std::fs::create_dir_all(parent)?;
-    }
-    let mut file = match std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-    {
-        Ok(file) => file,
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => return Ok(false),
-        Err(e) => return Err(e),
-    };
-    file.write_all(default_file_text().as_bytes())?;
-    file.sync_all()?;
-    tracing::event!(
-        tracing::Level::INFO,
-        path = %path.display(),
-        "config.default_file.written"
-    );
-    Ok(true)
+    Ok(written)
 }
 
 /// The top-level sections of the live keys, in registry order.
