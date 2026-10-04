@@ -6,6 +6,7 @@
   import { reachableRoute } from "$lib/navigation/developerRoutes";
   import { PageTransition } from "$lib/components/motion";
   import Topbar from "./Topbar.svelte";
+  import DetailSidebar from "./DetailSidebar.svelte";
   import { GovernanceFailClosedBanner, RuntimeStatusBanner } from "$lib/components/feedback";
   import { startRuntimeHealthMonitor } from "$lib/stores/runtimeHealth";
   import Dashboard from "../../../routes/Dashboard.svelte";
@@ -72,52 +73,55 @@
   <!-- Governance failing closed: sensitive actions blocked, reading continues. -->
   <GovernanceFailClosedBanner />
 
-  <!-- Route content: responsive padding plus a centred container. -->
-  <div class="w-full flex-1 overflow-auto">
-    {#key shownRoute}
-      <PageTransition>
-        {#if shownRoute === "dashboard"}
-          <Dashboard />
-        {:else if shownRoute === "agents"}
-          <Agents />
-        {:else if shownRoute === "tasks"}
-          <Tasks />
-        {:else if shownRoute === "chat"}
-          <Chat />
-        {:else if shownRoute === "inbox"}
-          <Inbox />
-        {:else if shownRoute === "llm"}
-          <Llm />
-        {:else if shownRoute === "automations"}
-          <Automations />
-        {:else if shownRoute === "memory"}
-          <Memory />
-        {:else if shownRoute === "transcriptions"}
-          <Transcriptions />
-        {:else if shownRoute === "notifications"}
-          <Notifications />
-        {:else if shownRoute === "observability"}
-          <Observability />
-        {:else if shownRoute === "integrations"}
-          <Connections />
-        {:else if isDev && shownRoute === "design"}
-          <Design />
-        {:else if isDev && shownRoute === "design-motion"}
-          <DesignMotion />
-        {:else if isDev && shownRoute === "design-empty-states"}
-          <DesignEmptyStates />
-        {:else if isDev && shownRoute === "design-dark-mode"}
-          <DesignDarkMode />
-        {:else}
-          <!-- No branch matched. Without this fallback the window renders empty,
-               which is what an unknown route produced: the companion maps
-               `/onboarding` (onboarding is a modal, not a route), so its button
-               opened a blank screen. Any route the switch does not know now
-               lands on the dashboard instead of nothing. -->
-          <Dashboard />
-        {/if}
-      </PageTransition>
-    {/key}
+  <!-- Route content, with the detail sidebar on its right. -->
+  <div class="flex min-h-0 w-full flex-1 overflow-hidden">
+    <div class="min-w-0 flex-1 overflow-auto">
+      {#key shownRoute}
+        <PageTransition>
+          {#if shownRoute === "dashboard"}
+            <Dashboard />
+          {:else if shownRoute === "agents"}
+            <Agents />
+          {:else if shownRoute === "tasks"}
+            <Tasks />
+          {:else if shownRoute === "chat"}
+            <Chat />
+          {:else if shownRoute === "inbox"}
+            <Inbox />
+          {:else if shownRoute === "llm"}
+            <Llm />
+          {:else if shownRoute === "automations"}
+            <Automations />
+          {:else if shownRoute === "memory"}
+            <Memory />
+          {:else if shownRoute === "transcriptions"}
+            <Transcriptions />
+          {:else if shownRoute === "notifications"}
+            <Notifications />
+          {:else if shownRoute === "observability"}
+            <Observability />
+          {:else if shownRoute === "integrations"}
+            <Connections />
+          {:else if isDev && shownRoute === "design"}
+            <Design />
+          {:else if isDev && shownRoute === "design-motion"}
+            <DesignMotion />
+          {:else if isDev && shownRoute === "design-empty-states"}
+            <DesignEmptyStates />
+          {:else if isDev && shownRoute === "design-dark-mode"}
+            <DesignDarkMode />
+          {:else}
+            <!-- No branch matched. Without this fallback the window renders empty,
+                 which is what an unknown route produced: the companion maps
+                 `/onboarding` (onboarding is a modal, not a route), so its button
+                 opened a blank screen. Any route the switch does not know now
+                 lands on the dashboard instead of nothing. -->
+            <Dashboard />
+          {/if}
+        </PageTransition>
+      {/key}
+    </div>
+    <DetailSidebar />
   </div>
 
   <!-- The settings open above the screen, which stays mounted underneath: the

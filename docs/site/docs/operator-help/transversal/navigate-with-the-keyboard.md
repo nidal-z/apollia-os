@@ -49,7 +49,7 @@ To browse every shortcut (global, navigation, chat, settings, companion, approva
 - **Cmd+B / Ctrl+B** - collapse / expand the sidebar.
 - **Cmd+[ / Ctrl+[** - previous page (history navigation).
 - **Cmd+] / Ctrl+]** - next page.
-- **Cmd+/ / Ctrl+/** - toggle **Apollia Help** (the Companion).
+- **Cmd+/ / Ctrl+/** - open or collapse the **Guide** tab on the current screen.
 - **Cmd+Enter / Ctrl+Enter** - send the current message (inside a chat).
 - **Esc** - close the current dialog / chat input.
 

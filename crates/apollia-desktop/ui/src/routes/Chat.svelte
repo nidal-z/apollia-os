@@ -44,7 +44,6 @@
   import { developerMode } from "$lib/stores/developerMode";
   import { registerShortcuts } from "$lib/stores/shortcuts";
   import CommandPalette from "../components/chat/CommandPalette.svelte";
-  import ShortcutsHelpDialog from "../components/chat/ShortcutsHelpDialog.svelte";
 
   // Operator design-system primitives - V3 Chat Refonte v2.
   import {
@@ -60,7 +59,6 @@
 
   let selectedSessionId = $state<string | null>(null);
   let showNewChatPicker = $state(false);
-  let showShortcutsHelp = $state(false);
   let sessionSearchQuery = $state("");
   // The journal follows the developer mode: the technical reading when it
   // is on, the plain one otherwise. There is no per-screen switch.
@@ -132,15 +130,6 @@
       run: () => toggleSessionsSidebar(),
     },
     {
-      id: "chat.help",
-      chord: { code: "Slash", modifiers: ["mod"] },
-      group: "chat.shortcut_group.navigation",
-      descriptionKey: "chat.shortcut.help",
-      keys: [MOD_LABEL, "/"],
-      allowInTextarea: true,
-      run: () => (showShortcutsHelp = !showShortcutsHelp),
-    },
-    {
       id: "chat.next_message",
       chord: { code: "KeyJ", forbid: ["mod", "shift", "alt"] },
       group: "chat.shortcut_group.messages",
@@ -165,10 +154,6 @@
       run: () => {
         if ($commandPaletteOpen) {
           commandPaletteOpen.set(false);
-          return;
-        }
-        if (showShortcutsHelp) {
-          showShortcutsHelp = false;
           return;
         }
         // Streaming abort + per-modal Esc are handled by the owning
@@ -422,7 +407,6 @@
   onnewChat={openNewChatPicker}
   onslashCommand={appendSlashCommand}
 />
-<ShortcutsHelpDialog bind:open={showShortcutsHelp} />
 
 <!--
   V3 Operator chat layout: left sessions rail / center thread / right journal.
