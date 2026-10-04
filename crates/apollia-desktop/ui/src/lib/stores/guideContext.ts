@@ -85,10 +85,12 @@ export function guideContextKey(context: GuideContext): string {
  */
 export function guidePromptDetails(context: GuideContext): string {
   const lines: string[] = [];
+  // i18n-ignore-start: model-facing instructions, English by design
   if (context.subscreen) lines.push(`Current sub-screen: ${context.subscreen}.`);
   if (context.object) {
     lines.push(`Open item: "${context.object.name}" (id: ${context.object.id}).`);
   }
+  // i18n-ignore-end
   return lines.join("\n");
 }
 
