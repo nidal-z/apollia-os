@@ -891,7 +891,8 @@
     "update_restart_stop_failed_action": "Stop the agent, then start it again to load the new version.",
     "update_restart_start_failed": "{name} was stopped to load the new version and did not start again: it is running nothing right now.",
     "update_restart_start_failed_action": "Start the agent again from its row. The cause below says what the runtime refused.",
-    "automate": "Automate"
+    "automate": "Automate",
+    "install_apo_button": "Install a .apo package"
   },
   "tasks": {
     "subtitle": "Track requests sent to your assistants and their results",
@@ -4429,6 +4430,132 @@
       "retry": "Retry",
       "view_policy": "View the policy",
       "retry_failed": "The state of permissions could not be read again."
+    }
+  },
+  "packages": {
+    "preview": {
+      "loading_title": "Package preview",
+      "loading": "Reading the package…",
+      "load_error": "This file cannot be read as a package.",
+      "title_install": "Install “{name}”",
+      "title_update": "Update “{name}”",
+      "title_refused": "Installation refused",
+      "version": "version {version}",
+      "version_change": "from version {from} to version {to}",
+      "origin_files": "opened from your files",
+      "origin_update": "chosen with “Update…”",
+      "nothing_before_consent": "Nothing is installed before you agree.",
+      "install_error": "The installation did not complete.",
+      "installed_toast": "“{name}” {version} is installed.",
+      "updated_toast": "“{name}” is updated to version {version}.",
+      "publisher": {
+        "title": "Publisher",
+        "unknown": "Unknown publisher",
+        "declared": "Presents itself as “{name}”, with no signature to confirm it.",
+        "trusted": "Trusted publisher, signed package",
+        "signed_untrusted": "Signed package, publisher not trusted yet",
+        "unsigned": "Unsigned package",
+        "invalid": "Invalid signature",
+        "fingerprint": "Fingerprint",
+        "trust_button": "Trust this publisher",
+        "trust_note": "The list of trusted publishers is managed in Permissions.",
+        "trusted_toast": "“{name}” is now a trusted publisher."
+      },
+      "content": {
+        "title": "What the package brings",
+        "counts": "{agents, plural, =0 {no agent} one {# agent} other {# agents}}, {workflows, plural, =0 {no workflow} one {# workflow} other {# workflows}}, {tools, plural, =0 {no tool} one {# tool} other {# tools}}",
+        "kind_agent": "Agent",
+        "kind_workflow": "Workflow",
+        "kind_tool": "Tool",
+        "python": "Also installs {count, plural, one {# Python component} other {# Python components}} for its tools."
+      },
+      "access": {
+        "title": "Accesses asked for, by family",
+        "none": "No agent of this package asks for an access. Its tools and workflows are granted to your agents afterwards.",
+        "sensitive": "Sensitive",
+        "family": {
+          "read": {
+            "title": "Read",
+            "hint": "Look at data without changing anything."
+          },
+          "read_personal": {
+            "title": "Read personal data",
+            "hint": "Your mail, your calendar, your documents."
+          },
+          "write_or_delete": {
+            "title": "Write or delete",
+            "hint": "Create, change or erase data."
+          },
+          "send_external": {
+            "title": "Send outside",
+            "hint": "Send a message or a request off this machine."
+          },
+          "execute_code": {
+            "title": "Run code",
+            "hint": "Run code on this machine."
+          },
+          "unclassified": {
+            "title": "Other accesses",
+            "hint": "Nothing classifies them yet: they are treated as sensitive."
+          }
+        }
+      },
+      "connections": {
+        "title": "Connections",
+        "none": "This package asks for no connection.",
+        "missing": "Missing",
+        "present": "Connected",
+        "brought": "Brought",
+        "add": "Add"
+      },
+      "unsigned": {
+        "title": "This package is not signed",
+        "body": "Nothing says who made it or that it was not altered. Install it only if you know where it comes from."
+      },
+      "update": {
+        "title_access": "New accesses, to accept before updating",
+        "title_connection": "New connections, to accept before updating",
+        "accept_hint": "Tick every new access and every new connection to update. A missing connection can be added now or later.",
+        "nothing_new": "This update adds no access and no connection.",
+        "overrides_kept": "Your settings on the agent sheet are kept.",
+        "new_badge": "New"
+      },
+      "refusal": {
+        "invalid_signature": {
+          "title": "The signature of this package does not match its content",
+          "body": "The file may have been altered after it was signed. Nothing was installed: ask its publisher for a new copy."
+        },
+        "signature_required": {
+          "title": "Your organisation requires signed packages",
+          "body": "This package is not signed: it cannot be installed here. Ask its publisher for a signed version."
+        },
+        "publisher_not_trusted": {
+          "title": "Your organisation does not recognise this publisher",
+          "body": "This package is signed by a publisher the policy of your organisation does not count among its own."
+        },
+        "downgrade": {
+          "title": "This version is older",
+          "body": "Version {incoming} is older than version {installed}, already installed."
+        },
+        "agent_taken": {
+          "title": "An agent already has this name",
+          "body": "The agent “{agent}” already exists on this machine, created in the application."
+        },
+        "agent_taken_owned": {
+          "body": "The agent “{agent}” already exists on this machine, installed by the package “{owner}”."
+        }
+      },
+      "policy": {
+        "see_policy": "See the policy"
+      },
+      "action": {
+        "install": "Install",
+        "install_anyway": "Install anyway",
+        "update": "Update",
+        "installing": "Installing…",
+        "copy_detail": "Copy the detail",
+        "copied": "Detail copied."
+      }
     }
   }
 }

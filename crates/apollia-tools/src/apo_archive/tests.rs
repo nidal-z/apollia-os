@@ -387,6 +387,24 @@ fn test_valid_signature_names_publisher_and_fingerprint() {
 }
 
 #[test]
+fn test_signing_public_key_is_the_key_entry_and_none_when_unsigned() {
+    // GIVEN a signed archive and an unsigned one
+    let key = SigningKeyPair::from_seed(&[7u8; 32]);
+    let mut signed = open(signed_archive(&ENTRIES, &ENTRIES, &key)).unwrap();
+    let mut unsigned = open(archive(&ENTRIES)).unwrap();
+
+    // WHEN the public key of each is read
+    let signed_key = signed.signing_public_key().unwrap();
+    let unsigned_key = unsigned.signing_public_key().unwrap();
+
+    // THEN the signed one gives its key in hexadecimal, the unsigned one none
+    let expected = render_public_key(&key.public_key());
+    assert_eq!(signed_key.as_deref(), Some(expected.trim_end()));
+    assert_eq!(signed_key.map(|k| k.len()), Some(64));
+    assert_eq!(unsigned_key, None);
+}
+
+#[test]
 fn test_entry_modified_after_signing_is_refused() {
     // GIVEN an archive signed over one content and holding another
     let key = SigningKeyPair::from_seed(&[7u8; 32]);

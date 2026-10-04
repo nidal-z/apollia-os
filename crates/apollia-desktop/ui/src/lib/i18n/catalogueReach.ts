@@ -62,6 +62,12 @@ const SEG = "[A-Za-z0-9_]+";
  */
 export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
   {
+    pattern: new RegExp(
+      `^packages\\.preview\\.(access\\.family\\.${SEG}\\.(title|hint)|connections\\.(missing|present|brought)|content\\.kind_${SEG}|publisher\\.(trusted|signed_untrusted|unsigned|invalid)|refusal\\.${SEG}\\.(title|body)|origin_${SEG}|title_(install|update)|(installed|updated)_toast)$`,
+    ),
+    builtBy: "components/packages/*.svelte",
+  },
+  {
     pattern: new RegExp(`^agents\\.update_restart_(stop|start)_failed_action$`),
     builtBy: "components/agents/useAgentActions.svelte.ts",
   },

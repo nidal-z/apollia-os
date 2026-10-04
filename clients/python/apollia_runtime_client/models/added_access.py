@@ -16,12 +16,15 @@ class AddedAccess:
     Attributes:
         access_id (str): Identifier of the access.
         agent_id (str): Agent that gains it.
+        family (str): Action family: `read`, `read_personal`, `write_or_delete`,
+            `send_external`, `execute_code`, or `unclassified`.
         permits (str): What it lets the agent do.
         sensitive (bool): Using it is sensitive.
     """
 
     access_id: str
     agent_id: str
+    family: str
     permits: str
     sensitive: bool
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -30,6 +33,8 @@ class AddedAccess:
         access_id = self.access_id
 
         agent_id = self.agent_id
+
+        family = self.family
 
         permits = self.permits
 
@@ -41,6 +46,7 @@ class AddedAccess:
             {
                 "accessId": access_id,
                 "agentId": agent_id,
+                "family": family,
                 "permits": permits,
                 "sensitive": sensitive,
             }
@@ -55,6 +61,8 @@ class AddedAccess:
 
         agent_id = d.pop("agentId")
 
+        family = d.pop("family")
+
         permits = d.pop("permits")
 
         sensitive = d.pop("sensitive")
@@ -62,6 +70,7 @@ class AddedAccess:
         added_access = cls(
             access_id=access_id,
             agent_id=agent_id,
+            family=family,
             permits=permits,
             sensitive=sensitive,
         )
