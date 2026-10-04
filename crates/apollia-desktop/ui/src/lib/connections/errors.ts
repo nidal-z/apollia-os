@@ -43,6 +43,7 @@ export function isRefusedByPolicy(e: unknown): boolean {
  * words it. A command that relays the runtime's refusal as text (adding an
  * MCP server) is recognised by it.
  */
+// i18n-ignore: prefix of the runtime refusal text, matched on the wire, never shown
 const POLICY_REFUSAL_PREFIX = "refused by the organisation policy";
 
 /** True when a raw error, structured or plain text, is a policy refusal. */
