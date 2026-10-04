@@ -610,7 +610,12 @@
       "choose_another": "Choisir un autre dossier",
       "done": "Terminé",
       "remove": "Retirer",
-      "remove_confirm": "Retirer le dossier {name} des connexions ? Ses fichiers restent sur votre ordinateur."
+      "remove_title": "Retirer la connexion « {name} » ?",
+      "remove_plain": "Les agents perdent l'accès à ce dossier. Ses fichiers restent sur votre ordinateur.",
+      "remove_with_sources": "{count, plural, one {Une source en dépend. Elle sera retirée} other {# sources en dépendent. Elles seront retirées}} avec la connexion : les agents qui les consultent n'y auront plus accès. Les fichiers du dossier ne sont pas touchés.",
+      "dependent_sources": "Sources qui en dépendent · {count}",
+      "remove_confirm_plain": "Retirer la connexion",
+      "remove_confirm_sources": "Retirer la connexion et {count, plural, one {sa source} other {ses # sources}}"
     },
     "badge_builtin": "Intégrée"
   },
@@ -4534,6 +4539,10 @@
     "removed": "Laissés hors du paquet (autre paquet, agent ou workflow) : {list}"
   },
   "dev": {
+    "agent_sources": {
+      "add_code_folder": "Un dossier de code",
+      "add_code_folder_hint": "Parmi vos connexions dossier, lu comme du code"
+    },
     "connections": {
       "catalogue_subtitle": "Découvrez le catalogue MCP public ou enregistrez un serveur personnalisé.",
       "catalogue_tab_discover": "Catalogue MCP",
@@ -4871,5 +4880,52 @@
     "revoke_all_done": "{rules, plural, =0 {Aucune règle fine} one {# règle fine} other {# règles fines}} et {always, plural, =0 {aucun « toujours »} other {# « toujours »}} retirés, inscrits au Journal.",
     "builtin_tools_note": "Les outils intégrés (recherche web, lecture de page, Python…) s'activent et se règlent dans Connexions, section Outils intégrés. Ici, vous voyez à quels agents ils sont accordés.",
     "open_connections": "Ouvrir Connexions"
+  },
+  "agent_sources": {
+    "add": "Ajouter une source",
+    "add_folder": "Un dossier",
+    "add_folder_hint": "Parmi vos connexions dossier",
+    "add_file": "Un fichier",
+    "add_file_hint": "Un document de cet ordinateur",
+    "add_mail": "Une boîte mail",
+    "add_mail_hint": "Parmi vos connexions de messagerie",
+    "add_profile": "Le profil",
+    "add_memory": "La mémoire",
+    "about_profile": "Ce que vous avez dit de vous et de votre travail",
+    "about_memory": "Ce que l'agent a retenu",
+    "name_folder": "Dossier « {name} »",
+    "name_file": "Fichier « {name} »",
+    "name_mail": "Boîte mail {name}",
+    "name_code_folder": "Dossier de code « {name} »",
+    "status_pending": "En attente de lecture",
+    "status_indexing": "Lecture en cours : {count, plural, =0 {aucun fichier lu pour l'instant} one {# fichier lu} other {# fichiers lus}}",
+    "status_ready": "{count, plural, =0 {Aucun fichier lu} one {# fichier lu} other {# fichiers lus}}",
+    "status_keywords_only": "Recherche par mots-clés seulement : aucun modèle de recherche par le sens n'est installé.",
+    "status_error": "Cette source n'a pas pu être lue : le dossier ou le fichier n'est plus accessible, ou sa connexion a été retirée.",
+    "status_missing": "Cette source a été retirée. Décochez-la.",
+    "state_ready": "Prêt",
+    "state_indexing": "En cours",
+    "state_error": "Erreur",
+    "state_keywords_only": "Mots-clés seuls",
+    "state_pending": "En attente",
+    "state_missing": "Retirée",
+    "skipped": "{count, plural, one {# fichier ignoré} other {# fichiers ignorés}} (plus de 50 Mo ou illisibles)",
+    "skipped_too_large": "plus de 50 Mo",
+    "skipped_unreadable": "illisible",
+    "open_ai": "Installer un modèle dans IA",
+    "reading_note": "L'agent peut chercher dans ce dossier, pas en ouvrir les fichiers.",
+    "grant_reading": "Accorder aussi la lecture",
+    "pick_folder_title": "Choisir une connexion dossier",
+    "pick_folder_empty": "Aucune connexion dossier pour l'instant. Ajoutez un dossier dans Connexions, puis revenez à cette fiche.",
+    "pick_mail_title": "Choisir une boîte mail",
+    "pick_mail_empty": "Aucune boîte mail connectée pour l'instant. Ajoutez-en une dans Connexions, puis revenez à cette fiche.",
+    "pick_file_title": "Choisir le fichier que l'agent consultera",
+    "open_connections": "Aller dans Connexions",
+    "add_failed": "Cette source n'a pas pu être ajoutée.",
+    "remove_label": "Retirer la source {name}",
+    "remove_title": "Retirer cette source ?",
+    "remove_message": "« {name} » est retirée pour tous les agents qui la consultent, et ce qu'Apollia en avait lu est effacé. Vos fichiers et vos messages ne sont pas touchés.",
+    "remove_confirm": "Retirer la source",
+    "remove_failed": "Cette source n'a pas pu être retirée."
   }
 }

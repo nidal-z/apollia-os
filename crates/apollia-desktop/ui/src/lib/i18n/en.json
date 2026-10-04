@@ -610,7 +610,12 @@
       "choose_another": "Choose another folder",
       "done": "Done",
       "remove": "Remove",
-      "remove_confirm": "Remove the folder {name} from the connections? Its files stay on your computer."
+      "remove_title": "Remove the connection “{name}”?",
+      "remove_plain": "The agents lose access to this folder. Its files stay on your computer.",
+      "remove_with_sources": "{count, plural, one {One source depends on it. It will be removed} other {# sources depend on it. They will be removed}} with the connection: the agents that consult them will no longer reach them. The files of the folder are not touched.",
+      "dependent_sources": "Sources that depend on it · {count}",
+      "remove_confirm_plain": "Remove the connection",
+      "remove_confirm_sources": "Remove the connection and {count, plural, one {its source} other {its # sources}}"
     },
     "badge_builtin": "Built in"
   },
@@ -4534,6 +4539,10 @@
     "removed": "Left out of the package (another package, agent or workflow): {list}"
   },
   "dev": {
+    "agent_sources": {
+      "add_code_folder": "A code folder",
+      "add_code_folder_hint": "Among your folder connections, read as code"
+    },
     "connections": {
       "catalogue_subtitle": "Browse the public MCP catalogue or register a custom server.",
       "catalogue_tab_discover": "MCP catalogue",
@@ -4871,5 +4880,52 @@
     "revoke_all_done": "{rules, plural, =0 {No fine rule} one {# fine rule} other {# fine rules}} and {always, plural, =0 {no \"always\"} other {# \"always\"}} withdrawn, recorded in the Activity log.",
     "builtin_tools_note": "The built-in tools (web search, page reading, Python…) are turned on and set up in Connections, section Built-in tools. Here you see which agents they are granted to.",
     "open_connections": "Open Connections"
+  },
+  "agent_sources": {
+    "add": "Add a source",
+    "add_folder": "A folder",
+    "add_folder_hint": "Among your folder connections",
+    "add_file": "A file",
+    "add_file_hint": "A document on this computer",
+    "add_mail": "A mailbox",
+    "add_mail_hint": "Among your mailbox connections",
+    "add_profile": "The profile",
+    "add_memory": "The memory",
+    "about_profile": "What you said about yourself and your work",
+    "about_memory": "What the agent retained",
+    "name_folder": "Folder “{name}”",
+    "name_file": "File “{name}”",
+    "name_mail": "Mailbox {name}",
+    "name_code_folder": "Code folder “{name}”",
+    "status_pending": "Waiting to be read",
+    "status_indexing": "Reading: {count, plural, =0 {no file read yet} one {# file read} other {# files read}}",
+    "status_ready": "{count, plural, =0 {No file read} one {# file read} other {# files read}}",
+    "status_keywords_only": "Keyword search only: no model for searching by meaning is installed.",
+    "status_error": "This source could not be read: the folder or the file is no longer reachable, or its connection was removed.",
+    "status_missing": "This source was removed. Uncheck it.",
+    "state_ready": "Ready",
+    "state_indexing": "In progress",
+    "state_error": "Error",
+    "state_keywords_only": "Keywords only",
+    "state_pending": "Waiting",
+    "state_missing": "Removed",
+    "skipped": "{count, plural, one {# file skipped} other {# files skipped}} (over 50 MB or unreadable)",
+    "skipped_too_large": "over 50 MB",
+    "skipped_unreadable": "unreadable",
+    "open_ai": "Install a model in AI",
+    "reading_note": "The agent can search this folder, not open its files.",
+    "grant_reading": "Grant reading too",
+    "pick_folder_title": "Choose a folder connection",
+    "pick_folder_empty": "No folder connection yet. Add a folder in Connections, then come back to this sheet.",
+    "pick_mail_title": "Choose a mailbox",
+    "pick_mail_empty": "No mailbox connected yet. Add one in Connections, then come back to this sheet.",
+    "pick_file_title": "Choose the file the agent will consult",
+    "open_connections": "Go to Connections",
+    "add_failed": "This source could not be added.",
+    "remove_label": "Remove the source {name}",
+    "remove_title": "Remove this source?",
+    "remove_message": "“{name}” is removed for every agent that consults it, and what Apollia had read of it is erased. Your files and messages are not touched.",
+    "remove_confirm": "Remove the source",
+    "remove_failed": "This source could not be removed."
   }
 }

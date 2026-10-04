@@ -3917,6 +3917,38 @@
       "testid": "apollia-chat-pinned"
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_sources",
+      "resolve": [
+        {
+          "id": "src-automation",
+          "kind": "folder",
+          "label": "Automation folder",
+          "group": null,
+          "reference": "folder:automation",
+          "indexState": "keywords_only",
+          "addedAt": "2026-10-01T08:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_source_index",
+      "resolve": {
+        "id": "src-automation",
+        "indexState": "keywords_only",
+        "documents": 12,
+        "chunks": 40,
+        "skipped": [
+          {
+            "path": "/automation/recording.mov",
+            "sizeBytes": 60000000,
+            "reason": "too_large"
+          }
+        ]
+      }
+    },
+    {
       "kind": "click",
       "testid": "agent-adjust-open",
       "timeoutMs": 2500
@@ -3958,7 +3990,115 @@
       "kind": "click",
       "testidPrefix": "agent-adjust-source-check",
       "timeoutMs": 2500,
+      "nth": -1
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-sheet-source-state",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-sheet-source"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-sheet-source-status"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-source-skipped",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-sheet-source-skipped-list",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-sheet-source-open-ai"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03a-apollia-adjust-sources (stubbed registry: one folder searched by keywords only, one file left out)"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-adjust-source-remove",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-source-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-source-remove-dialog-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-source-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": []
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sources-add",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-sources-add-menu",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-sources-add-choice",
+      "timeoutMs": 2500,
       "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-source-pick-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-source-pick-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-source-pick-connections"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-source-pick-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-source-pick-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_connections"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_sources"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_source_index"
     },
     {
       "kind": "click",

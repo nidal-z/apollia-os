@@ -19,7 +19,6 @@ import {
   modelOptions,
   presetsOf,
   revoke,
-  sourceChoices,
   toggleSource,
 } from "./agentAdjust";
 import { createAgentAdjust } from "./useAgentAdjust.svelte";
@@ -206,19 +205,6 @@ describe("accesses granted with agent:", () => {
     // THEN both stay listed and only the agent is granted
     expect(listedAccesses(inForce, draft)).toEqual(["file_read", "agent:veille"]);
     expect(draft).toEqual(["agent:veille"]);
-  });
-
-  test("the profile and the memory are always offered as sources", () => {
-    // GIVEN an agent consulting one folder only
-    // WHEN the sources are listed
-    const choices = sourceChoices(["folder:/docs"], ["folder:/docs"]);
-
-    // THEN profile and memory are offered unchecked, the folder checked
-    expect(choices).toEqual([
-      { id: "profile", checked: false },
-      { id: "memory", checked: false },
-      { id: "folder:/docs", checked: true },
-    ]);
   });
 });
 

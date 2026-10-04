@@ -2,7 +2,8 @@
   /**
    * ConnectionSummaryDetail - the page of a connection that has no dedicated
    * page yet (a mailbox, a folder): its name, account, state, the "Remote"
-   * badge, and what it offers. A folder shows its path and can be removed.
+   * badge, and what it offers. A folder shows its path and can be removed,
+   * after a confirmation that lists the sources made on it.
    * With the developer mode on, the provenance of the connection and of each
    * of its tools.
    */
@@ -12,6 +13,9 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { removeFolderConnection } from "$lib/ipc/connections";
+  import { listSources } from "$lib/ipc/sources";
+  import { dependentSources, type DependentSource } from "$lib/connections/folderRemoval";
+  import FolderRemovalDialog from "./FolderRemovalDialog.svelte";
   import { reportError } from "$lib/errors/reportError";
   import { Card } from "$lib/components/ui/card";
   import { developerMode } from "$lib/stores/developerMode";
@@ -31,13 +35,29 @@
   let { connection, label, onremoved }: Props = $props();
 
   let removing = $state(false);
+  let confirming = $state(false);
+  let dependents = $state<DependentSource[]>([]);
 
-  /** Remove a folder connection; its files stay where they are. */
+  /** Read the sources made on the folder, then ask before removing it. */
+  async function askRemoval(): Promise<void> {
+    try {
+      dependents = dependentSources(await listSources(), connection.id);
+      confirming = true;
+    } catch (err: unknown) {
+      reportError(err, { surface: "toast", testid: "connection-folder-remove-error" });
+    }
+  }
+
+  /**
+   * Remove the folder connection; its files stay where they are. The sources
+   * listed go with it. A source made on it since the list was read is not
+   * covered by the confirmation: the runtime then keeps the folder and says why.
+   */
   async function removeFolder(): Promise<void> {
-    if (!confirm($t("connections.folder.remove_confirm", { values: { name: label } }))) return;
     removing = true;
     try {
-      await removeFolderConnection(connection.id);
+      await removeFolderConnection(connection.id, dependents.length > 0);
+      confirming = false;
       onremoved?.();
     } catch (err: unknown) {
       reportError(err, { surface: "toast", testid: "connection-folder-remove-error" });
@@ -71,7 +91,7 @@
         variant="outline"
         size="sm"
         disabled={removing}
-        onclick={() => void removeFolder()}
+        onclick={() => void askRemoval()}
         data-testid="connection-folder-remove"
       >
         {$t("connections.folder.remove")}
@@ -113,3 +133,12 @@
     </p>
   {/if}
 </div>
+
+<FolderRemovalDialog
+  open={confirming}
+  name={label}
+  {dependents}
+  {removing}
+  onclose={() => (confirming = false)}
+  onconfirm={() => void removeFolder()}
+/>
