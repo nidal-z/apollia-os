@@ -3600,8 +3600,6 @@
     "toggle_context_drawer": "Toggle context drawer",
     "a2a_delegating": "Delegating to {agent} ({skill})…",
     "reasoning": {
-      "toggle_tool": "Toggle tool call details",
-      "thinking_label": "Thinking",
       "rationale_label": "Rationale",
       "retry_label": "Retry ({n} attempts)",
       "see_all": "See all",
@@ -3609,13 +3607,11 @@
       "group_collapse": "Hide steps",
       "input_label": "Input",
       "output_label": "Output",
-      "target_label": "Target",
-      "command_label": "Command",
       "result_label": "Result",
-      "error_label": "Error",
-      "running_hint": "Running…",
       "toggle_thought": "Toggle reasoning details",
-      "exit_code": "exit {code}"
+      "thought_for": "Thought for {duration}",
+      "thought": "Thought",
+      "thinking_live": "Thinking…"
     },
     "retry": {
       "badge_title": "{n} retries",
@@ -3626,12 +3622,6 @@
       "fallback": "fallback"
     },
     "activity": {
-      "toggle": "Show agent activity",
-      "lead_reflected": "Thought",
-      "lead_used": "Used",
-      "live_lead": "Working",
-      "reasoning_count": "{n, plural, one {# thought} other {# thoughts}}",
-      "tool_count": "{n, plural, one {# tool} other {# tools}}",
       "sources": "Sources"
     },
     "tool_empty_results": "No results.",
@@ -3763,6 +3753,14 @@
       "role_system": "System"
     },
     "plan_abandoned_reason": "plan abandoned",
+    "step": {
+      "toggle": "Show or hide the step detail",
+      "failed": "Failed: {reason}",
+      "failed_plain": "The step failed.",
+      "refused": "Step refused.",
+      "running": "Running",
+      "raw_label": "Raw data"
+    },
     "target_selector": {
       "placeholder": "Choose an agent or a model",
       "aria": "Agent or model of the conversation",
@@ -4149,7 +4147,40 @@
       "status_failed": "Failed",
       "todo_count": "{n, plural, one {# task} other {# tasks}}",
       "progress_fraction": "{done} / {total}",
-      "reveal_aria": "Reveal in file manager"
+      "reveal_aria": "Reveal in file manager",
+      "text_read": "Text read: {count}",
+      "quoted": "“{text}”",
+      "lines_range": "lines {from} to {to}",
+      "edit_summary": "{added, plural, one {# line added} other {# lines added}}, {removed, plural, one {# line removed} other {# lines removed}}",
+      "files_found": "{n, plural, one {# file found} other {# files found}}",
+      "searched_words_label": "Words searched",
+      "grep_found": "{m, plural, one {# passage} other {# passages}} in {f, plural, one {# file} other {# files}}",
+      "file_line": "{file}, line {n}",
+      "command_finished": "Finished",
+      "command_failed": "Failed",
+      "exit_code_label": "exit code {code}",
+      "in_duration": "in {duration}",
+      "response_status": "Response {status}",
+      "remembered_on": "remembered on {date}",
+      "todos_done": "{done} of {total} done",
+      "done_of_total": "{done} of {total}",
+      "code_lines": "{n, plural, one {# line} other {# lines}}",
+      "params_label": "Parameters"
+    },
+    "actions": {
+      "web_search": "Web search",
+      "web_read": "Read a page",
+      "file_list": "List a folder",
+      "file_read": "Read a file",
+      "file_write": "Write a file",
+      "file_edit": "Edit a file",
+      "file_glob": "Find files",
+      "file_grep": "Search in files",
+      "bash_executor": "Run a command",
+      "python_executor": "Run Python",
+      "http_fetch": "Call a web address",
+      "memory_search": "Search memory",
+      "todo_write": "Keep the task list"
     }
   },
   "project_migration": {

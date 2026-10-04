@@ -1,85 +1,53 @@
 <script lang="ts">
   /**
-   * Per-tool expanded body for `web_search`.
-   *
-   * Operator layer: the query as a chip plus a compact "N results" line. The
-   * rich, clickable result cards are deliberately deferred to the message-level
-   * `SourceCards` at the end of the turn, so the trace stays calm.
-   * Builder layer: the raw input (query) and output (results) as pretty JSON.
+   * Body of a web search step: the query, the number of results, then each
+   * result by its title and its site. A title opens the page.
    */
 
   import type { ReasoningItem } from "$lib/chat/reasoning";
   import { parseWebSearchOutput } from "$lib/chat/reasoning";
-  import { stringifyValue, prettyJson } from "$lib/chat/toolBodies";
+  import { hostOf } from "$lib/chat/toolStep";
+  import { handleExternalLinkClick } from "$lib/utils/externalLink";
   import { t } from "svelte-i18n";
-  import { fly, fade } from "svelte/transition";
+  import { Globe } from "lucide-svelte";
+  import BodyField from "./BodyField.svelte";
+  import BodyRow from "./BodyRow.svelte";
 
   type ToolCallItem = Extract<ReasoningItem, { kind: "tool_call" }>;
 
-  interface Props {
-    item: ToolCallItem;
-    skin: "builder" | "operator";
-  }
+  let { item }: { item: ToolCallItem } = $props();
 
-  let { item, skin }: Props = $props();
+  /** Results listed at most; the rest are counted, not shown. */
+  const SHOWN = 8;
 
   const parsed = $derived(
-    parseWebSearchOutput({
-      input: item.args,
-      output: item.output,
-      duration_ms: item.duration_ms,
-    }),
+    parseWebSearchOutput({ input: item.args, output: item.output, duration_ms: item.duration_ms }),
   );
-
   const query = $derived(
-    parsed?.query ??
-      (typeof item.args.query === "string" ? item.args.query : ""),
+    parsed?.query ?? (typeof item.args.query === "string" ? item.args.query : ""),
   );
-  const resultCount = $derived(
-    parsed?.total_results ?? parsed?.results.length ?? 0,
-  );
-
-  const inputJson = $derived(stringifyValue(item.args));
-  const outputJson = $derived(prettyJson(item.output));
+  const results = $derived((parsed?.results ?? []).slice(0, SHOWN));
+  const count = $derived(parsed?.total_results ?? parsed?.results.length ?? 0);
 </script>
 
-<div class="text-body-xs" in:fly={{ y: 8, duration: 200 }}>
-  {#key skin}
-    <div in:fade={{ duration: 150 }}>
-      {#if skin === "operator"}
-        <div class="flex flex-col gap-2">
-          {#if query}
-            <span class="tb-chip">
-              <span class="tb-chip-key">{$t("tools.body.search_label")}</span>
-              <span class="tb-chip-val">{query}</span>
-            </span>
-          {/if}
-          {#if parsed}
-            <p class="tb-metric">
-              {$t("tools.body.results_count", {
-                values: { n: resultCount },
-              })}
-            </p>
-          {/if}
-        </div>
-      {:else}
-        <div class="flex flex-col gap-2">
-          <div class="flex flex-col gap-1">
-            <div class="tb-iolabel">
-              {$t("chat.reasoning.input_label")}
-            </div>
-            <pre class="tb-code font-mono"><code>{inputJson}</code></pre>
-          </div>
-          {#if outputJson}
-            <div class="flex flex-col gap-1">
-              <div class="tb-iolabel">
-                {$t("chat.reasoning.output_label")}
-              </div>
-              <pre class="tb-code font-mono"><code>{outputJson}</code></pre>
-            </div>
-          {/if}
-        </div>
-      {/if}
-    </div>
-  {/key}
+<div class="flex flex-col gap-2" data-testid="tool-body-web_search">
+  {#if query}
+    <BodyField label={$t("tools.body.search_label")} value={query} />
+  {/if}
+  {#if parsed}
+    <p class="text-caption text-muted-foreground">
+      {$t("tools.body.results_count", { values: { n: count } })}
+    </p>
+    {#each results as result (result.url)}
+      <BodyRow icon={Globe} sub={hostOf(result.url)}>
+        <a
+          href={result.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onclick={handleExternalLinkClick}
+          class="hover:underline">{result.title || hostOf(result.url)}</a
+        >
+      </BodyRow>
+    {/each}
+  {/if}
 </div>

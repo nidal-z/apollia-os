@@ -3600,8 +3600,6 @@
     "toggle_context_drawer": "Afficher le panneau de contexte",
     "a2a_delegating": "Délégation vers {agent} ({skill})…",
     "reasoning": {
-      "toggle_tool": "Afficher/masquer les détails de l'appel outil",
-      "thinking_label": "Réflexion",
       "rationale_label": "Raisonnement",
       "retry_label": "Tentatives ({n})",
       "see_all": "Tout afficher",
@@ -3609,13 +3607,11 @@
       "group_collapse": "Masquer les étapes",
       "input_label": "Entrée",
       "output_label": "Sortie",
-      "target_label": "Cible",
-      "command_label": "Commande",
       "result_label": "Résultat",
-      "error_label": "Erreur",
-      "running_hint": "En cours…",
       "toggle_thought": "Afficher ou masquer le détail du raisonnement",
-      "exit_code": "sortie {code}"
+      "thought_for": "A réfléchi {duration}",
+      "thought": "A réfléchi",
+      "thinking_live": "Réfléchit…"
     },
     "retry": {
       "badge_title": "{n} réessais",
@@ -3626,12 +3622,6 @@
       "fallback": "repli"
     },
     "activity": {
-      "toggle": "Afficher l'activité de l'agent",
-      "lead_reflected": "Réfléchi",
-      "lead_used": "Utilisé",
-      "live_lead": "En cours",
-      "reasoning_count": "{n, plural, one {# réflexion} other {# réflexions}}",
-      "tool_count": "{n, plural, one {# outil} other {# outils}}",
       "sources": "Sources"
     },
     "tool_empty_results": "Aucun résultat.",
@@ -3763,6 +3753,14 @@
       "role_system": "Système"
     },
     "plan_abandoned_reason": "plan abandonné",
+    "step": {
+      "toggle": "Afficher ou masquer le détail de l'étape",
+      "failed": "Échec : {reason}",
+      "failed_plain": "L'étape a échoué.",
+      "refused": "Étape refusée.",
+      "running": "En cours",
+      "raw_label": "Données brutes"
+    },
     "target_selector": {
       "placeholder": "Choisir un agent ou un modèle",
       "aria": "Agent ou modèle de la conversation",
@@ -4149,7 +4147,40 @@
       "status_failed": "Échoué",
       "todo_count": "{n, plural, one {# tâche} other {# tâches}}",
       "progress_fraction": "{done} / {total}",
-      "reveal_aria": "Afficher dans le gestionnaire de fichiers"
+      "reveal_aria": "Afficher dans le gestionnaire de fichiers",
+      "text_read": "Texte lu : {count}",
+      "quoted": "« {text} »",
+      "lines_range": "lignes {from} à {to}",
+      "edit_summary": "{added, plural, one {# ligne ajoutée} other {# lignes ajoutées}}, {removed, plural, one {# ligne retirée} other {# lignes retirées}}",
+      "files_found": "{n, plural, one {# fichier trouvé} other {# fichiers trouvés}}",
+      "searched_words_label": "Mots cherchés",
+      "grep_found": "{m, plural, one {# passage} other {# passages}} dans {f, plural, one {# fichier} other {# fichiers}}",
+      "file_line": "{file}, ligne {n}",
+      "command_finished": "Terminée",
+      "command_failed": "Échouée",
+      "exit_code_label": "code de sortie {code}",
+      "in_duration": "en {duration}",
+      "response_status": "Réponse {status}",
+      "remembered_on": "retenu le {date}",
+      "todos_done": "{done} sur {total} terminées",
+      "done_of_total": "{done} sur {total}",
+      "code_lines": "{n, plural, one {# ligne} other {# lignes}}",
+      "params_label": "Paramètres"
+    },
+    "actions": {
+      "web_search": "Recherche sur le web",
+      "web_read": "Lire une page",
+      "file_list": "Lister un dossier",
+      "file_read": "Lire un fichier",
+      "file_write": "Écrire un fichier",
+      "file_edit": "Modifier un fichier",
+      "file_glob": "Chercher des fichiers",
+      "file_grep": "Chercher dans les fichiers",
+      "bash_executor": "Lancer une commande",
+      "python_executor": "Exécuter du Python",
+      "http_fetch": "Appeler une adresse web",
+      "memory_search": "Chercher en mémoire",
+      "todo_write": "Tenir la liste de tâches"
     }
   },
   "project_migration": {
