@@ -51,6 +51,25 @@ SCFG="$SCRATCH/apollia.toml"
 check        "config validate (absent file ok)"         "$BIN" config validate --file "$SCFG"
 check        "config set llm.default local"             "$BIN" config set llm.default local --file "$SCFG"
 check_grep   "config get llm.default = local" "local"   "$BIN" config get llm.default --file "$SCFG"
+# One schema, strict at every level: a typo inside a known section is refused
+# and nothing is written; an invalid file is named at its line, by
+# `config validate` and by a daemon that refuses to start on it.
+cp "$SCFG" "$SCRATCH/apollia.toml.before"
+check_exit   "config set api.typo refused → 1"  1      "$BIN" config set api.typo 1 --file "$SCFG"
+if cmp -s "$SCFG" "$SCRATCH/apollia.toml.before"; then
+    _pass "config set api.typo left the file unchanged"
+else
+    _fail "config set api.typo left the file unchanged" "the file changed"
+fi
+BADCFG="$SCRATCH/invalid.toml"
+printf '[api]\nbind = "127.0.0.1"\ntypo = 1\n' > "$BADCFG"
+check_exit   "config validate (unknown key) → 1"  1    "$BIN" config validate --file "$BADCFG"
+bad_out=$("$BIN" --socket "$SCRATCH/invalid.sock" start --port 47917 --config "$BADCFG" 2>&1 >/dev/null); bad_rc=$?
+if [[ $bad_rc -eq 1 ]] && /usr/bin/grep -qF "invalid.toml:3:1: api.typo" <<<"$bad_out"; then
+    _pass "start refuses an invalid config, fault at its line on stderr"
+else
+    _fail "start refuses an invalid config, fault at its line on stderr" "rc=$bad_rc | out: ${bad_out:0:300}"
+fi
 check_exit   "config edit refuses non-TTY"  1           "$BIN" config edit --file "$SCFG"
 check_exit   "config reset (no --confirm)"  1           "$BIN" config reset
 # reset dry-run/confirm on a disposable home dir (config reset wipes ~/.apollia).
@@ -58,6 +77,17 @@ RH="$SCRATCH/reset-home"; /bin/mkdir -p "$RH/nested"; /usr/bin/touch "$RH/dummy"
 check        "config reset --dry-run"                   "$BIN" config reset --dry-run --home "$RH"
 [[ -f "$RH/dummy" ]] && _pass "config reset --dry-run preserved files" || _fail "config reset --dry-run preserved files" "deleted"
 check        "config reset --confirm"                   "$BIN" config reset --confirm --home "$RH"
+# A first `config` command under an empty home writes the documented default
+# file at ~/.apollia/apollia.toml; a present file is never written over.
+FH="$SCRATCH/first-home"; /bin/mkdir -p "$FH"
+check        "config show (empty home)"                 env HOME="$FH" "$BIN" config show
+if [[ -f "$FH/.apollia/apollia.toml" ]] && /usr/bin/head -1 "$FH/.apollia/apollia.toml" | /usr/bin/grep -q "^# apollia.toml, the configuration of Apollia OS"; then
+    _pass "config show wrote the default file with its header"
+else
+    _fail "config show wrote the default file with its header" "absent or without its header"
+fi
+check_json   "config keys --json"                       "$BIN" config keys --json
+check_grep   "config keys lists api.port" "api.port"    "$BIN" config keys
 check        "hooks list --dry-run"                     "$BIN" hooks list --dry-run
 check_json   "hooks list --dry-run --json"              "$BIN" --json hooks list --dry-run
 
@@ -297,12 +327,8 @@ check_json   "chat export .json is valid JSON"       /bin/cat "$SCRATCH/c.json"
 check_exit   "chat export unknown session"  1        "$BIN" chat export ghost-sess-id
 check        "chat delete seed-session-4 --confirm"  "$BIN" chat delete seed-session-4 --confirm
 
-# ── A.11 llm (threshold + setup validation, no daemon) ──────────────────────
+# ── A.11 llm (setup validation, no daemon) ──────────────────────────────────
 section "A.11 llm (offline)"
-LCFG="$SCRATCH/llm.toml"
-check        "llm costs --get-threshold (absent)"    "$BIN" llm costs --get-threshold --config "$LCFG"
-check        "llm costs --threshold 0.5"             "$BIN" llm costs --threshold 0.5 --config "$LCFG"
-check_grep   "llm costs threshold = 0.5" "0.5"       "$BIN" llm costs --get-threshold --config "$LCFG"
 check_exit   "llm setup without --local"  1          "$BIN" llm setup --model /tmp/never.gguf
 check_exit   "llm setup --local missing model"  1    "$BIN" llm setup --local --model /definitely/missing.gguf
 
@@ -448,6 +474,13 @@ check_exit   "model recommend (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model re
 # identifier against the registry: daemon off, both leaves refuse with 2.
 check_exit   "model embeddings show (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model embeddings show
 check_exit   "model embeddings set-default (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model embeddings set-default multilingual-e5-small
+# The registry of sources lives in the daemon's system.db, owned by its actor:
+# daemon off, each leaf refuses with 2; a deletion without --confirm outside a
+# terminal is refused with 1 before any call.
+check_exit   "source list (off) → 2"           2     "$BIN" --socket "$OFFSOCK" source list
+check_exit   "source create (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source create --kind folder --label Contracts --reference conn-contracts
+check_exit   "source delete (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source delete src-absent --confirm
+check_exit   "source delete without --confirm → 1" 1 "$BIN" --socket "$OFFSOCK" source delete src-absent
 check        "agent list (off, local fallback)"      "$BIN" --socket "$OFFSOCK" agent list
 check_content "agent list shows 4 seeded agents" "apollia-chat" "$BIN" --socket "$OFFSOCK" agent list
 check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK" agent install /tmp/never-exists.py

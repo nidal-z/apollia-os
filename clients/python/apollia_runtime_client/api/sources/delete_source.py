@@ -1,19 +1,25 @@
 from http import HTTPStatus
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.cost_alert_threshold_response import CostAlertThresholdResponse
+from ...models.api_error_body import ApiErrorBody
+from ...models.source_response import SourceResponse
 from ...types import Response
 
 
-def _get_kwargs() -> dict[str, Any]:
+def _get_kwargs(
+    id: str,
+) -> dict[str, Any]:
 
     _kwargs: dict[str, Any] = {
-        "method": "get",
-        "url": "/api/v1/llm/cost-alert-threshold",
+        "method": "delete",
+        "url": "/api/v1/sources/{id}".format(
+            id=quote(str(id), safe=""),
+        ),
     }
 
     return _kwargs
@@ -21,11 +27,21 @@ def _get_kwargs() -> dict[str, Any]:
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> CostAlertThresholdResponse | None:
+) -> ApiErrorBody | SourceResponse | None:
     if response.status_code == 200:
-        response_200 = CostAlertThresholdResponse.from_dict(response.json())
+        response_200 = SourceResponse.from_dict(response.json())
 
         return response_200
+
+    if response.status_code == 404:
+        response_404 = ApiErrorBody.from_dict(response.json())
+
+        return response_404
+
+    if response.status_code == 503:
+        response_503 = ApiErrorBody.from_dict(response.json())
+
+        return response_503
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -35,7 +51,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[CostAlertThresholdResponse]:
+) -> Response[ApiErrorBody | SourceResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -45,24 +61,26 @@ def _build_response(
 
 
 def sync_detailed(
+    id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[CostAlertThresholdResponse]:
-    """Handler for `GET /api/v1/llm/cost-alert-threshold`.
+) -> Response[ApiErrorBody | SourceResponse]:
+    """`DELETE /api/v1/sources/{id}`: remove a source.
 
-     Reads the threshold of the router the runtime serves now, the one a reload
-    swapped in. A runtime without a router has no threshold, which is an answer
-    and not an error, as the desktop has always read it.
+    Args:
+        id (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CostAlertThresholdResponse]
+        Response[ApiErrorBody | SourceResponse]
     """
 
-    kwargs = _get_kwargs()
+    kwargs = _get_kwargs(
+        id=id,
+    )
 
     response = client.get_httpx_client().request(
         **kwargs,
@@ -72,47 +90,50 @@ def sync_detailed(
 
 
 def sync(
+    id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> CostAlertThresholdResponse | None:
-    """Handler for `GET /api/v1/llm/cost-alert-threshold`.
+) -> ApiErrorBody | SourceResponse | None:
+    """`DELETE /api/v1/sources/{id}`: remove a source.
 
-     Reads the threshold of the router the runtime serves now, the one a reload
-    swapped in. A runtime without a router has no threshold, which is an answer
-    and not an error, as the desktop has always read it.
+    Args:
+        id (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CostAlertThresholdResponse
+        ApiErrorBody | SourceResponse
     """
 
     return sync_detailed(
+        id=id,
         client=client,
     ).parsed
 
 
 async def asyncio_detailed(
+    id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[CostAlertThresholdResponse]:
-    """Handler for `GET /api/v1/llm/cost-alert-threshold`.
+) -> Response[ApiErrorBody | SourceResponse]:
+    """`DELETE /api/v1/sources/{id}`: remove a source.
 
-     Reads the threshold of the router the runtime serves now, the one a reload
-    swapped in. A runtime without a router has no threshold, which is an answer
-    and not an error, as the desktop has always read it.
+    Args:
+        id (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[CostAlertThresholdResponse]
+        Response[ApiErrorBody | SourceResponse]
     """
 
-    kwargs = _get_kwargs()
+    kwargs = _get_kwargs(
+        id=id,
+    )
 
     response = await client.get_async_httpx_client().request(**kwargs)
 
@@ -120,25 +141,26 @@ async def asyncio_detailed(
 
 
 async def asyncio(
+    id: str,
     *,
     client: AuthenticatedClient | Client,
-) -> CostAlertThresholdResponse | None:
-    """Handler for `GET /api/v1/llm/cost-alert-threshold`.
+) -> ApiErrorBody | SourceResponse | None:
+    """`DELETE /api/v1/sources/{id}`: remove a source.
 
-     Reads the threshold of the router the runtime serves now, the one a reload
-    swapped in. A runtime without a router has no threshold, which is an answer
-    and not an error, as the desktop has always read it.
+    Args:
+        id (str):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        CostAlertThresholdResponse
+        ApiErrorBody | SourceResponse
     """
 
     return (
         await asyncio_detailed(
+            id=id,
             client=client,
         )
     ).parsed

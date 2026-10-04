@@ -86,6 +86,10 @@ pub struct LlmRouter {
     /// The router a reload put in place of this one, and the last fallback
     /// of each agent. Shared by the clones of this router.
     pub(super) live: Arc<agent_model::LiveState>,
+    /// `[llm.observability]`, grafted after construction by the supervisor
+    /// through [`with_observability`](Self::with_observability). Combined with
+    /// the per-call configuration: a prompt is logged when either asks.
+    pub(super) observability: ObservabilityConfig,
 }
 
 /// Validate `[llm.routing]` consistency: the named backends must exist.
@@ -152,9 +156,9 @@ mod tests {
     use apollia_core::{CeilingAction, LlmBackendConfig, LlmProvider};
 
     use super::backends::{extract_base_url, resolve_context_window, resolve_default_backend};
-    use super::config::infer_api_provider_from_url;
     use crate::routing_level::{EscalationSignal, LlmRoutingLevel};
     use crate::types::ChatMessage;
+    use apollia_core::config::infer_api_provider_from_url;
 
     use std::pin::Pin;
 
@@ -272,6 +276,7 @@ mod tests {
             routing: None,
             cancellation_token: CancellationToken::new(),
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
+            observability: ObservabilityConfig::default(),
         }
     }
 
@@ -295,6 +300,7 @@ mod tests {
             routing,
             cancellation_token: CancellationToken::new(),
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
+            observability: ObservabilityConfig::default(),
         }
     }
 
@@ -720,13 +726,12 @@ mod tests {
     async fn test_from_config_errors_if_default_missing() {
         // GIVEN
         let config = LlmConfig {
+            format_version: 1,
             default: "local".to_owned(),
             backends: vec![],
             observability: ObservabilityConfig::default(),
             routing: None,
-            pricing_overrides: HashMap::new(),
-            cost_alert_threshold_usd: None,
-            runner: Default::default(),
+            guardrails: Default::default(),
         };
 
         // WHEN
@@ -925,7 +930,6 @@ mod tests {
         // GIVEN
         let obs = ObservabilityConfig {
             debug_log_prompt: false,
-            ..Default::default()
         };
         let req = CompletionRequest {
             messages: vec![crate::types::ChatMessage::user("secret_payload_xyz")],
@@ -962,13 +966,12 @@ mod tests {
         // GIVEN
         let (tx, _rx) = broadcast::channel::<RuntimeEvent>(16);
         let config = LlmConfig {
+            format_version: 1,
             default: "local".to_owned(),
             backends: vec![],
             observability: ObservabilityConfig::default(),
             routing: None,
-            pricing_overrides: HashMap::new(),
-            cost_alert_threshold_usd: None,
-            runner: Default::default(),
+            guardrails: Default::default(),
         };
 
         // WHEN
@@ -1221,6 +1224,7 @@ mod tests {
             routing,
             cancellation_token: CancellationToken::new(),
             session_budget,
+            observability: ObservabilityConfig::default(),
         }
     }
 
@@ -1237,6 +1241,7 @@ mod tests {
             routing: None,
             cancellation_token: CancellationToken::new(),
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
+            observability: ObservabilityConfig::default(),
         };
 
         // WHEN reading the ceiling action and ceiling
@@ -1273,6 +1278,7 @@ mod tests {
             routing,
             cancellation_token: CancellationToken::new(),
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
+            observability: ObservabilityConfig::default(),
         };
 
         // WHEN reading the ceiling action and ceiling

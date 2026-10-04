@@ -1,5 +1,6 @@
 //! `client-id`, `client-secret` and `api-key`: where each value comes from.
 
+use apollia_auth::oauth_client_secrets::{self, OauthClientSecret};
 use apollia_auth::ConnectorProvider;
 
 use crate::exit_codes;
@@ -37,8 +38,9 @@ pub(super) fn detect_client_secret_source(provider: ConnectorProvider) -> &'stat
     {
         return "env";
     }
-    if apollia_auth::oauth_clients_file::lookup_client_secret(provider.id()).is_some() {
-        return "file";
+    if oauth_client_secrets::load_default(provider.id(), OauthClientSecret::ClientSecret).is_some()
+    {
+        return "store";
     }
     if !provider.default_client_secret().is_empty() {
         return "builtin";
@@ -55,8 +57,8 @@ pub(super) fn detect_api_key_source(provider: ConnectorProvider) -> &'static str
     {
         return "env";
     }
-    if apollia_auth::oauth_clients_file::lookup_api_key(provider.id()).is_some() {
-        return "file";
+    if oauth_client_secrets::load_default(provider.id(), OauthClientSecret::ApiKey).is_some() {
+        return "store";
     }
     if !provider.default_api_key().is_empty() {
         return "builtin";
@@ -177,13 +179,13 @@ pub(super) fn run_client_secret(cmd: &ClientSecretCommand, json: bool) -> i32 {
                 }
             };
             let trimmed = client_secret.trim();
-            match apollia_auth::oauth_clients_file::set_client_secret(provider_id.id(), trimmed) {
+            match save_secret(provider_id, OauthClientSecret::ClientSecret, trimmed) {
                 Ok(()) => {
                     emit_set_ok(provider_id.id(), "client_secret", trimmed.is_empty(), json);
                     exit_codes::SUCCESS
                 }
                 Err(e) => {
-                    emit_error(format!("failed to write oauth-clients.toml: {e}"), json);
+                    emit_error(format!("failed to write the secret store: {e}"), json);
                     exit_codes::GENERAL_ERROR
                 }
             }
@@ -202,18 +204,29 @@ pub(super) fn run_api_key(cmd: &ApiKeyCommand, json: bool) -> i32 {
                 }
             };
             let trimmed = api_key.trim();
-            match apollia_auth::oauth_clients_file::set_api_key(provider_id.id(), trimmed) {
+            match save_secret(provider_id, OauthClientSecret::ApiKey, trimmed) {
                 Ok(()) => {
                     emit_set_ok(provider_id.id(), "api_key", trimmed.is_empty(), json);
                     exit_codes::SUCCESS
                 }
                 Err(e) => {
-                    emit_error(format!("failed to write oauth-clients.toml: {e}"), json);
+                    emit_error(format!("failed to write the secret store: {e}"), json);
                     exit_codes::GENERAL_ERROR
                 }
             }
         }
     }
+}
+
+/// Writes `value` as the `secret` of `provider` in the secret store selected
+/// by `APOLLIA_TOKEN_STORAGE`; an empty value removes it.
+fn save_secret(
+    provider: ConnectorProvider,
+    secret: OauthClientSecret,
+    value: &str,
+) -> Result<(), apollia_auth::AuthError> {
+    let store = apollia_auth::select_secret_store()?;
+    oauth_client_secrets::save(store.as_ref(), provider.id(), secret, value)
 }
 
 pub(super) fn emit_set_ok(provider_id: &str, key: &str, cleared: bool, json: bool) {

@@ -24,6 +24,12 @@ pub struct DesktopConfig {
     /// logs, engines, debugging details. Off by default.
     #[serde(default)]
     pub developer_mode: bool,
+    /// Fetches the Open Graph preview of a link shown in a conversation. Off
+    /// by default: the fetch leaves the machine. Read through
+    /// [`DesktopConfig::link_preview_enabled_in`], which still honours the
+    /// key's former place, `[ui] link_preview_enabled`.
+    #[serde(default)]
+    pub link_preview_enabled: bool,
     /// The update channel the application asks for a new version. Stable by
     /// default; the organization policy can impose it.
     #[serde(default)]
@@ -45,6 +51,7 @@ impl Default for DesktopConfig {
     fn default() -> Self {
         Self {
             developer_mode: false,
+            link_preview_enabled: false,
             update_channel: UpdateChannel::default(),
             background_service_allowed: allowed(),
         }
@@ -83,6 +90,39 @@ impl DesktopConfig {
         }
         let sections: Sections = toml::from_str(content)?;
         Ok(sections.desktop.unwrap_or_default())
+    }
+
+    /// Whether the link preview is on, read from a whole `apollia.toml`.
+    ///
+    /// `[desktop] link_preview_enabled` wins. While it is absent, the key's
+    /// former place, `[ui] link_preview_enabled`, is still read, with a
+    /// `config.key.moved` warning, so a file written for an earlier version
+    /// keeps its choice. A document that does not parse, or names neither,
+    /// leaves the preview off.
+    pub fn link_preview_enabled_in(content: &str) -> bool {
+        let Ok(doc) = toml::from_str::<toml::Table>(content) else {
+            return false;
+        };
+        let read = |section: &str| {
+            doc.get(section)
+                .and_then(|s| s.get("link_preview_enabled"))
+                .and_then(toml::Value::as_bool)
+        };
+        if let Some(enabled) = read("desktop") {
+            return enabled;
+        }
+        match read("ui") {
+            Some(enabled) => {
+                tracing::warn!(
+                    key = "ui.link_preview_enabled",
+                    detail = "read until desktop.link_preview_enabled is written",
+                    moved_to = "desktop.link_preview_enabled",
+                    "config.key.moved"
+                );
+                enabled
+            }
+            None => false,
+        }
     }
 }
 
@@ -200,5 +240,61 @@ mod tests {
 
         // THEN it is refused
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_link_preview_is_read_under_desktop() {
+        // GIVEN the key in its place, and a file that names it nowhere
+        let set = "[desktop]\nlink_preview_enabled = true\n";
+        let absent = "[chat]\nplan_mode_default = true\n";
+
+        // WHEN the link preview switch is read from each
+        let on = DesktopConfig::link_preview_enabled_in(set);
+        let off = DesktopConfig::link_preview_enabled_in(absent);
+
+        // THEN the file's value is read, and the default leaves it off
+        assert!(on);
+        assert!(!off);
+        assert!(
+            DesktopConfig::from_toml_str(set)
+                .unwrap()
+                .link_preview_enabled
+        );
+    }
+
+    #[test]
+    fn test_the_former_ui_key_is_read_while_the_new_one_is_absent() {
+        // GIVEN a file written for an earlier version, under [ui], and one
+        // carrying both places with opposite values
+        let former = "[ui]\nlink_preview_enabled = true\n";
+        let both = "[ui]\nlink_preview_enabled = true\n[desktop]\nlink_preview_enabled = false\n";
+
+        // WHEN the switch is read from each
+        let from_former = DesktopConfig::link_preview_enabled_in(former);
+        let from_both = DesktopConfig::link_preview_enabled_in(both);
+
+        // THEN the former place is honoured until the new one is written, and
+        // the new one wins once it is
+        assert!(from_former);
+        assert!(!from_both);
+    }
+
+    #[test]
+    fn test_the_former_ui_key_is_accepted_by_the_validation() {
+        // GIVEN a file that still carries [ui] link_preview_enabled
+        let former = "[ui]\nlink_preview_enabled = true\n";
+
+        // WHEN the whole file is validated
+        let result = crate::config::validate(former);
+
+        // THEN it is accepted (set aside as a withdrawn key, with its warning),
+        // and the registry points to the new place
+        assert!(result.is_ok(), "{result:?}");
+        let entry = crate::config::keys::withdrawn_covering("ui.link_preview_enabled")
+            .expect("the former key is withdrawn");
+        assert!(entry
+            .withdrawn
+            .unwrap_or_default()
+            .contains("desktop.link_preview_enabled"));
     }
 }

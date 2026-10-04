@@ -28,17 +28,16 @@
     "mcp-detail-tab-overview",
     "mcp-detail-tab-settings",
     "mcp-detail-tab-tools",
+    "native-client-google",
+    "native-client-microsoft",
     "native-detail-tab-accounts",
     "native-detail-tab-capabilities",
     "native-detail-tab-settings",
     "native-needs-config-google",
     "oauth-add-account-google",
     "oauth-add-account-microsoft",
-    "oauth-card-google",
-    "oauth-card-microsoft",
     "oauth-configure-google",
     "settings-nav-developer",
-    "settings-nav-integrations",
     "sidebar-mcp-automation-stub-mcp",
     "sidebar-mcp-seed-stub",
     "sidebar-native-google",
@@ -235,17 +234,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "settings-integrations-oauth",
+      "testid": "native-client-google",
       "timeoutMs": 8000
     },
     {
-      "kind": "waitFor",
-      "testid": "oauth-card-google",
-      "timeoutMs": 4000
-    },
-    {
       "kind": "screenshot",
-      "label": "07-oauth-configure-lands-on-credential-settings"
+      "label": "07-oauth-configure-lands-on-connection-client"
     },
     {
       "kind": "goto",
@@ -1134,39 +1128,6 @@
       "kind": "waitGone",
       "testid": "custom-mcp-name-input",
       "timeoutMs": 6000
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-integrations",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-integrations-oauth",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "oauth-card-google",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "oauth-card-microsoft",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "28-settings-integrations-oauth"
     },
     {
       "kind": "goto",
@@ -2249,13 +2210,8 @@
     },
     {
       "kind": "waitFor",
-      "testid": "settings-integrations-oauth",
+      "testid": "native-client-microsoft",
       "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "oauth-card-microsoft",
-      "timeoutMs": 4000
     },
     {
       "kind": "clearStubs",

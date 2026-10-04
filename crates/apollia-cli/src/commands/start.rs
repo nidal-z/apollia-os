@@ -21,7 +21,7 @@ use apollia_runtime::supervisor::{Supervisor, SupervisorConfig};
 use apollia_tools::tools::ask_user::PendingUserInputs;
 use apollia_tools::{AuditTrailHandle, TaskRepository, ToolCredentialStore, ToolRegistryHandle};
 
-use crate::client::{default_socket_path, DEFAULT_TCP_PORT};
+use crate::client::default_socket_path;
 
 mod chat_runner;
 mod engine;
@@ -34,7 +34,8 @@ mod bootstrap;
 mod factory;
 
 use bootstrap::{
-    load_start_config, rewire_auto_loaded_agents, set_lock_if_some, wait_for_shutdown_event,
+    load_start_config, resolve_tcp_port, rewire_auto_loaded_agents, set_lock_if_some,
+    wait_for_shutdown_event,
 };
 use chat_runner::{AIPChatAgentRunner, NoopBackend};
 use factory::{cleanup_stale_socket, port_is_in_use, socket_is_in_use, ProductionBackendFactory};
@@ -102,8 +103,7 @@ fn open_secret_store(data_dir: &Path) -> Option<Arc<std::sync::Mutex<ToolCredent
     if !db_path.exists() {
         return None;
     }
-    let keyfile_path = data_dir.join(".keyfile");
-    match ToolCredentialStore::new(&db_path, &keyfile_path) {
+    match ToolCredentialStore::open(&db_path) {
         Ok(store) => Some(Arc::new(std::sync::Mutex::new(store))),
         Err(e) => {
             tracing::warn!(
@@ -135,7 +135,13 @@ pub async fn run(
 ) -> Result<bool, StartError> {
     let start = Instant::now();
     let socket_path = socket.unwrap_or_else(default_socket_path);
-    let tcp_port = port.unwrap_or(DEFAULT_TCP_PORT);
+
+    // Load apollia.toml if found. Agents, triggers, pipelines, notifications, and stt
+    // are loaded from SQLite by the Supervisor; only static sections are parsed here.
+    // Read before the port check, since `[api].port` names the port to check.
+    let (loaded_config, config_path) = load_start_config(config.as_deref())?;
+    let file_config = loaded_config.unwrap_or_default();
+    let tcp_port = resolve_tcp_port(port, &file_config.api);
 
     // Detect an already-running runtime before attempting to bind, so the user
     // gets a clear message instead of a low-level "Address already in use" error.
@@ -154,36 +160,8 @@ pub async fn run(
 
     let home = apollia_core::paths::home_dir_or_temp();
 
-    // Load apollia.toml if found. Agents, triggers, pipelines, notifications, and stt
-    // are loaded from SQLite by the Supervisor; only static sections are parsed here.
-    let (loaded_config, config_path) = load_start_config(config.as_deref())?;
-    let (
-        llm_config,
-        api_file_config,
-        runtime_file_config,
-        hitl_file_config,
-        tools_file_config,
-        mcp_file_config,
-        hooks_file_config,
-        chat_file_config,
-        filesystem_file_config,
-        workflows_file_config,
-    ) = match loaded_config {
-        Some(cfg) => (
-            cfg.llm,
-            cfg.api,
-            cfg.runtime,
-            cfg.hitl,
-            cfg.tools,
-            cfg.mcp,
-            cfg.hooks,
-            cfg.chat,
-            cfg.filesystem,
-            cfg.workflows,
-        ),
-        None => (None, None, None, None, None, None, None, None, None, None),
-    };
-
+    let daemon_settings = bootstrap::daemon_file_settings(&file_config);
+    let llm_config = file_config.llm;
     let llm_label = llm_config
         .as_ref()
         .map(|l| format!("backend \"{}\"", l.default))
@@ -193,6 +171,7 @@ pub async fn run(
     let data_dir = apollia_core::paths::data_dir_under(home);
     let data_dir_for_chat = data_dir.clone();
     let data_dir_for_package_tools = data_dir.clone();
+    let data_dir_for_port = data_dir.clone();
     let agent_repository: Option<apollia_tools::AgentRepository> = {
         let db_path = data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
         match apollia_tools::AgentRepository::open(&db_path) {
@@ -232,7 +211,7 @@ pub async fn run(
     };
 
     // Resolve [api] section (absent = all defaults).
-    let api_cfg = api_file_config.unwrap_or_default();
+    let api_cfg = file_config.api;
     let bind_addr = api_cfg.bind.clone();
 
     // Load or generate the API token when require_token = true.
@@ -248,14 +227,14 @@ pub async fn run(
     };
 
     // Start all actors via Supervisor (ordered, with timeout + rollback)
-    let runtime_config = runtime_file_config.unwrap_or_default();
+    let runtime_config = file_config.runtime;
     let agent_idle_unload = std::time::Duration::from_secs(runtime_config.agent_idle_unload_secs);
-    let hitl_config = hitl_file_config.unwrap_or_default();
-    let tools_config = tools_file_config.unwrap_or_default();
-    let mcp_config = mcp_file_config.unwrap_or_default();
-    let hooks_config = hooks_file_config.unwrap_or_default();
-    let chat_config = chat_file_config.unwrap_or_default();
-    let filesystem_config = filesystem_file_config.unwrap_or_default();
+    let hitl_config = file_config.hitl;
+    let tools_config = file_config.tools;
+    let mcp_config = file_config.mcp;
+    let hooks_config = file_config.hooks;
+    let chat_config = file_config.chat;
+    let filesystem_config = file_config.filesystem;
     let config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: socket_path.clone(),
@@ -266,13 +245,13 @@ pub async fn run(
             tls_cert_path: api_cfg.tls_cert.clone(),
             tls_key_path: api_cfg.tls_key.clone(),
         },
-        startup_timeout_secs: 10,
+        startup_timeout_secs: daemon_settings.startup_timeout_secs,
         llm_config,
         config_path,
         runtime_config,
         hitl_config,
         data_dir,
-        obs_config: apollia_core::ObservabilityConfig::default(),
+        obs_config: daemon_settings.observability,
         agent_repository,
         package_repository,
         bundled_agents_path: {
@@ -294,7 +273,7 @@ pub async fn run(
         plan_mode_default: chat_config.plan_mode_default,
         chat_default_workspace: chat_config.default_workspace.clone(),
         chat_tool_turn_temperature: chat_config.tool_turn_temperature,
-        workflows_config: workflows_file_config.unwrap_or_default(),
+        workflows_config: file_config.workflows,
         filesystem_trusted_paths: filesystem_config.resolved_trusted_paths(),
     };
     let supervisor = Supervisor::new(config);
@@ -463,6 +442,11 @@ pub async fn run(
     println!("  * Runtime ready in {:.1}s", elapsed.as_secs_f64());
     println!();
     println!("  Press Ctrl+C or run `apollia-os stop` to shut down.");
+    // The desktop application finds a daemon by this record, whatever port it
+    // was given.
+    if let Err(e) = apollia_runtime::api::write_port_file(&data_dir_for_port, tcp_port) {
+        tracing::warn!(error = %e, port = tcp_port, "api.port_file.write_failed");
+    }
 
     // Wait for shutdown signal (Ctrl+C, SIGTERM, or ShutdownRequested via API)
     let mut shutdown_rx = subscribe_resilient(&handles.event_sender, "cli.start.shutdown");
@@ -500,6 +484,8 @@ pub async fn run(
 
     // Stop the tool registry after the main shutdown sequence
     tool_registry_handle.shutdown().await;
+
+    apollia_runtime::api::remove_port_file(&data_dir_for_port);
 
     // Clean up socket file
     if socket_path.exists() {

@@ -28,7 +28,7 @@ endpoints. Most of the project's day-to-day Rust changes land here.
 | `TimeoutWatcher` | expiry of `input_required` tasks | no channel; a `tokio::time::interval` scan loop | n/a | `src/timeout_watcher.rs` |
 | `OnDemandBackend` | one per installed agent: builds its backend on the first task, drops it after `[runtime] agent_idle_unload_secs` without a call or when the agent is parked | mpsc | 64 | `src/on_demand.rs` |
 | `BatchActor` | progress of every running batch: starts items up to their concurrency, counts their ends, interrupts past the failure threshold, pauses, resumes, stops and retries a batch, records and withdraws its grants, publishes waiting items and the end of a batch, resumes running batches at start | two mpsc | 64 commands, 256 item ends | `src/batch/actor.rs` |
-| `CompatServerHandle` | the compatible server's listener: opens it at start when `[server] enabled` says so, starts and stops it on request and writes the switch, keeps the last start error, closes it on `ShutdownRequested` without touching the switch | mpsc | 64 | `src/compat_server/actor.rs` |
+| `CompatServerHandle` | the compatible server's listener: opens it at start when `[server] enabled` says so, starts, stops and restarts it on request (binding the loopback interface, or every interface when `[server] serve_on_lan` says so) and writes the switch, keeps the last start error, closes it on `ShutdownRequested` without touching the switch | mpsc | 64 | `src/compat_server/actor.rs` |
 | `GovernanceActor` | what every tool call is decided from: the organisation policy read at boot, the fine rules and standing consents of `governance.db`, the developer mode; publishes it as one state on a `watch` channel that a decision reads without waiting, writes an "always" answered at a prompt as a standing consent, rereads the files when another process changed them | mpsc | 64 | `src/governance/actor.rs` |
 | `ServerTokensHandle` | the tokens of the compatible server in `system.db`: creates one (`apo_` value answered once, only its SHA-256 kept), lists and revokes them, counts those in use, checks a presented token in constant time and stamps its last use; spawned by `CompatServerHandle`, stops when its handles drop | mpsc | 256 | `src/compat_server/tokens.rs` |
 | `ServerLogsHandle` | the logs of the compatible server: a ring of the last 2000 lines (one per request it answered, one per line a local `llama-server` printed), oldest out first; streams them to each subscriber at its level, then the new ones, through a bounded channel of 256 that drops what a slow reader cannot hold; clears the ring and nothing else; writers never wait (`try_send`); spawned by `CompatServerHandle`, stops on `ShutdownRequested` | mpsc | 1024 | `src/compat_server/logs.rs` |
@@ -131,13 +131,17 @@ local models only, relayed to the engine that runs them; a remote backend is
 never relayed. Their authentication is
 not the native API's: with `[server] require_auth`, a request presents a token
 of the server (`apo_...`, `Authorization: Bearer` or `x-api-key`), and the
-internal token never opens them. None of the rules of this section
+internal token never opens them. Each request carries its `CallOrigin`
+(loopback or local network, read from the peer address at accept), and a call
+to an agent or a workflow from the local network goes through
+`admit_agent_call`, which wants a token in use whatever `require_auth` says.
+None of the rules of this section
 applies to them. They live in `src/compat_server/`, never in `src/api/` and
 never under `/api/v1/`, so `scripts/check_openapi_routes.py` does not read them
 and `clients/openapi.json` does not declare them. Their contract is the public
 page `docs/site/docs/reference/compatible-endpoints.md`, and
 `scripts/check_compat_routes.py` holds every path the module's router serves
-against that page's table, in both languages. Only the routes that start, stop and
+against that page's table, in both languages. Only the routes that start, stop, restart and
 read the server, and those that create, list and revoke its tokens, live in the
 native API (`src/api/routes_server.rs`, `/api/v1/server`), under its rules.
 

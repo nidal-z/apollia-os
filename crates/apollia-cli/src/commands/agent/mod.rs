@@ -87,10 +87,12 @@ pub enum AgentCommand {
     /// Fields: `name`, `mission`, `autonomy` and `profile` (a profile
     /// identifier, see `profile list`) take one value; `examples`, `access`
     /// and `sources` take the whole list, one value per item (none for an
-    /// empty list). The source `profile` lets the agent read your profile
-    /// through `ctx.profile`: `agent set <id> sources profile` checks it, a
-    /// list without it unchecks it, and `agent reset --field sources` goes
-    /// back to the package default. Recorded in the audit journal.
+    /// empty list). A source is an identifier of `source list`, `profile` or
+    /// `memory`; the runtime refuses any other. The source `profile` lets the
+    /// agent read your profile through `ctx.profile`: `agent set <id> sources
+    /// profile` checks it, a list without it unchecks it, and `agent reset
+    /// --field sources` goes back to the package default. Recorded in the
+    /// audit journal.
     Set {
         /// Agent identifier.
         agent_id: String,
