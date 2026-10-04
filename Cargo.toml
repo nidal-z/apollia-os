@@ -161,6 +161,19 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 # feature of zip brings `zopfli` and `zlib-rs`. See the `package-archive`
 # decision.
 rust_xlsxwriter = { version = "=0.92.0", default-features = false }
+# Reads workbooks (.xlsx, .xlsm, .xlsb, .xls, .ods) and CSV files
+# (apollia-sources). Readers only, pure Rust, no network, no system library.
+# calamine depends on zip 8, a second major of zip beside the one above. See
+# the `documents-and-sources` decision.
+calamine = { version = "=0.36.1", default-features = false }
+csv = "1.4.0"
+# Extracts the text of a PDF page by page (apollia-sources). Pure Rust, no
+# network, no system library. Default features off: the colour-profile engine
+# is of no use to text extraction; `legacy-crypto` stays so that a PDF locked
+# with an owner password only still opens. Its dependency `office_oxide` is held
+# at 0.1.11 in Cargo.lock: 0.1.12 no longer compiles under pdf_oxide 0.3.78. See
+# the `documents-and-sources` decision.
+pdf_oxide = { version = "=0.3.78", default-features = false, features = ["legacy-crypto"] }
 
 # --- Random ---
 # rand 0.9 = the latest widely adopted stable major (0.10 has only just

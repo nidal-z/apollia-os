@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 use apollia_runtime::memory_view;
 pub use apollia_runtime::memory_view::{
-    InjectedMemoryEntryView, MemoryEntryView as MemoryEntry,
+    InjectedMemoryEntryView, MemoryEmbeddingsView, MemoryEntryView as MemoryEntry,
     MemorySearchResultView as MemorySearchResult,
 };
 use tauri::State;
@@ -23,6 +23,46 @@ fn memory_base_dir() -> Result<PathBuf, String> {
     let home = apollia_core::paths::home_string_or_err()
         .map_err(|_| "cannot determine home directory: $HOME not set".to_string())?;
     Ok(apollia_core::paths::data_dir_under(home).join("memory"))
+}
+
+/// The data directory (`~/.apollia/`).
+fn data_dir() -> Result<PathBuf, String> {
+    memory_base_dir()?
+        .parent()
+        .map(PathBuf::from)
+        .ok_or_else(|| "the memory directory has no parent".to_string())
+}
+
+/// What the daemon answers for its default embeddings model.
+#[derive(serde::Deserialize)]
+struct EmbeddingDefault {
+    model: Option<String>,
+    installed: bool,
+}
+
+/// The embeddings model the memory searches with, which the Memory screen
+/// names beside each entry; no model when the memory is searched by its words
+/// alone. Attached to a daemon, read from `GET /api/v1/llm/embeddings/default`.
+#[tauri::command]
+pub async fn get_memory_embeddings_model(
+    link: State<'_, RuntimeLink>,
+) -> Result<MemoryEmbeddingsView, String> {
+    embeddings_on(link.inner()).await
+}
+
+pub(crate) async fn embeddings_on(link: &RuntimeLink) -> Result<MemoryEmbeddingsView, String> {
+    match link {
+        RuntimeLink::Embedded(_) => memory_view::embeddings_model(data_dir()?)
+            .await
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => {
+            let answer: EmbeddingDefault = remote.get("/api/v1/llm/embeddings/default").await?;
+            Ok(memory_view::embeddings_view(
+                answer.model.as_deref(),
+                answer.installed,
+            ))
+        }
+    }
 }
 
 /// Lists the available memory namespaces (one `.db` file = one namespace).

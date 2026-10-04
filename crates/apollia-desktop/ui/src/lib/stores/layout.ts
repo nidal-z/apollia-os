@@ -10,7 +10,7 @@
  * `localStorage` under the key `apollia.ui.sidebar`.
  */
 import { derived, get, readable, writable, type Readable } from "svelte/store";
-import { companionStore } from "./companion";
+import { guideVisible } from "$lib/stores/detailSidebar";
 
 /** Effective state of the sidebar at a given moment. */
 export type SidebarState = "expanded" | "icon" | "drawer";
@@ -128,11 +128,8 @@ export const drawerOpen: Readable<boolean> = derived(
   ([$s, $o]) => $s === "drawer" && $o,
 );
 
-/** Mirror of the companion, to observe sidebar and companion together. */
-export const companionOpen: Readable<boolean> = derived(
-  companionStore,
-  ($c) => $c.visible && !$c.minimized,
-);
+/** Mirror of the Guide tab, to observe sidebar and guide together. */
+export const companionOpen: Readable<boolean> = guideVisible;
 
 /** Aggregated view - useful for the tests, the telemetry and debugging. */
 export const layout: Readable<{

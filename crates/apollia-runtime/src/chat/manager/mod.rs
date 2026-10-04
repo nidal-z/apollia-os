@@ -24,13 +24,13 @@ use apollia_mcp::session::LoadingMode;
 use apollia_mcp::tool_search::{ToolIndexSnapshot, ToolSearchExecutor};
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_tools::governance_db::GOVERNANCE_DB_FILENAME;
-use apollia_tools::{ProjectRepository, ToolRegistryHandle};
+use apollia_tools::ToolRegistryHandle;
 
 use super::a2a_tools::CompositeToolInvoker;
 use super::agent_chat::{AgentChatExecutor, AgentChatRequest, ChatAgentRunner};
 use super::agent_executor::{
-    AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, Composition,
-    ProjectContextSource, RunInput, SessionWiring,
+    AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, Composition, RunInput,
+    SessionWiring,
 };
 use super::builtin_agent::{ChatAgentResponse, NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE};
 use super::extractor::UserMemoryExtractor;
@@ -40,9 +40,8 @@ use super::todo_actor::spawn_todo_actor;
 use super::todo_handle::TodoHandle;
 use super::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, InjectedInstruction,
-    MessageId, PauseState, PendingChatApprovals, PlanPhase, ProjectContextProvider,
-    RecentSessionSummary, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
-    ToolCallRecord, ToolDecision,
+    MessageId, PauseState, PendingChatApprovals, PlanPhase, RecentSessionSummary, SessionDetail,
+    SessionId, SessionInfo, SessionMetrics, SessionStatus, ToolCallRecord, ToolDecision,
 };
 use crate::a2a::A2AInvoker;
 use crate::api::routes_agents::AgentLoader;
@@ -122,10 +121,6 @@ struct ChatSessionManager {
     tx: mpsc::Sender<ChatCommand>,
     /// Optional A2A invoker, when present, worker agent skills are exposed as virtual tools.
     a2a_invoker: Option<Arc<A2AInvoker>>,
-    /// Optional project context provider for injecting project context into system prompts.
-    project_context: Option<Arc<dyn ProjectContextProvider>>,
-    /// Optional project repository for resolving workspace_path per session.
-    project_repo: Option<Arc<ProjectRepository>>,
     /// Pending user input registry for the `ask_user` tool.
     pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs,
     /// MCP manager handle, populated when the supervisor's MCP bootstrap
@@ -210,12 +205,23 @@ struct ChatSessionManager {
     /// approved plans unexecuted), it is parked here. At most one is held per
     /// session, latest decision wins.
     pending_plan_continuations: HashMap<SessionId, String>,
+    /// The live sections of the configuration this actor follows, once the
+    /// supervisor handed them over; `None` keeps the values it was spawned
+    /// with.
+    config_feed: Option<crate::config_reload::ConfigFeed>,
+    /// Sends the plan-mode default to the handles, which answer it without a
+    /// round trip.
+    plan_mode_default_tx: tokio::sync::watch::Sender<bool>,
+    /// Sends the hook executor in force to the handles, which list its
+    /// handlers.
+    hook_executor_tx: tokio::sync::watch::Sender<Option<Arc<HookExecutor>>>,
 }
 
 mod actor;
 mod agent_task;
 mod apollia_agent;
 mod authz;
+mod code_context;
 mod command;
 mod control;
 mod declarative;
@@ -225,11 +231,15 @@ mod exchange;
 mod handle;
 mod handle_ext;
 mod libre;
+mod live_config;
 mod plan;
 mod session;
+mod sources;
 mod types;
 mod user_input;
 
+#[cfg(test)]
+mod live_config_tests;
 #[cfg(test)]
 mod plan_regression_tests;
 #[cfg(test)]

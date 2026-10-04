@@ -115,6 +115,8 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os source list`↴](#apollia-os-source-list)
 * [`apollia-os source create`↴](#apollia-os-source-create)
 * [`apollia-os source delete`↴](#apollia-os-source-delete)
+* [`apollia-os source inspect`↴](#apollia-os-source-inspect)
+* [`apollia-os source report`↴](#apollia-os-source-report)
 * [`apollia-os trigger`↴](#apollia-os-trigger)
 * [`apollia-os trigger list`↴](#apollia-os-trigger-list)
 * [`apollia-os trigger status`↴](#apollia-os-trigger-status)
@@ -291,21 +293,6 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os profile schema`↴](#apollia-os-profile-schema)
 * [`apollia-os profile export`↴](#apollia-os-profile-export)
 * [`apollia-os profile import`↴](#apollia-os-profile-import)
-* [`apollia-os project`↴](#apollia-os-project)
-* [`apollia-os project list`↴](#apollia-os-project-list)
-* [`apollia-os project create`↴](#apollia-os-project-create)
-* [`apollia-os project show`↴](#apollia-os-project-show)
-* [`apollia-os project update`↴](#apollia-os-project-update)
-* [`apollia-os project delete`↴](#apollia-os-project-delete)
-* [`apollia-os project agents`↴](#apollia-os-project-agents)
-* [`apollia-os project agents list`↴](#apollia-os-project-agents-list)
-* [`apollia-os project agents add`↴](#apollia-os-project-agents-add)
-* [`apollia-os project agents remove`↴](#apollia-os-project-agents-remove)
-* [`apollia-os project templates`↴](#apollia-os-project-templates)
-* [`apollia-os project templates list`↴](#apollia-os-project-templates-list)
-* [`apollia-os project templates seed-builtins`↴](#apollia-os-project-templates-seed-builtins)
-* [`apollia-os project link`↴](#apollia-os-project-link)
-* [`apollia-os project chats`↴](#apollia-os-project-chats)
 * [`apollia-os trace`↴](#apollia-os-trace)
 * [`apollia-os digest`↴](#apollia-os-digest)
 * [`apollia-os completions`↴](#apollia-os-completions)
@@ -335,7 +322,7 @@ Apollia OS CLI binary (apollia-os)
 * `memory` - Memory management
 * `llm` - LLM backend diagnostics (status, ping, chat, costs, backends, reload)
 * `model` - Local model file management
-* `source` - The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete)
+* `source` - The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete, inspect)
 * `trigger` - Trigger management (list, status, fire, enable, disable, logs, reload, create, update, delete)
 * `notify` - Notification channel management (test, list, logs, create, update, delete, events)
 * `stt` - Speech-to-Text management (status, transcribe, transcriptions, model, config)
@@ -360,7 +347,6 @@ Apollia OS CLI binary (apollia-os)
 * `connector` - Native SaaS connector management (list, accounts, test, revoke)
 * `config` - Global apollia.toml management (get, set, validate, edit, show)
 * `profile` - User profile management (show, set, forget, reset, export, import)
-* `project` - Project management (list, create, show, update, delete, agents, templates)
 * `trace` - Print the event-sourced trace of a task
 * `digest` - Aggregated activity overview (tasks + LLM costs + audit stats)
 * `completions` - Generate a shell completion script (bash, zsh, fish, powershell, ...)
@@ -1628,17 +1614,9 @@ Send a direct prompt to an LLM backend and print the response
 
 ## `apollia-os llm costs`
 
-Display aggregated usage and costs (tokens and estimated cost per backend).
+Display aggregated usage and costs (tokens and estimated cost per backend)
 
-Without flags, prints the cost table. Use `--get-threshold` to print `[llm] cost_alert_threshold_usd` from `apollia.toml`, or `--threshold N` to set it.
-
-**Usage:** `apollia-os llm costs [OPTIONS]`
-
-###### **Options:**
-
-* `--get-threshold` - Read the cost alert threshold from `apollia.toml` instead of the cost table
-* `--threshold <USD>` - Set the cost alert threshold (USD). Writes `[llm] cost_alert_threshold_usd = N` to `apollia.toml`. Pass `0` or a negative value to clear the threshold
-* `--config <PATH>` - Optional `apollia.toml` path override. Without it, the same file the runtime loads at startup: `~/.apollia/apollia.toml`
+**Usage:** `apollia-os llm costs`
 
 
 
@@ -1938,7 +1916,7 @@ Remove a local model file from `~/.apollia/models/`
 
 ## `apollia-os source`
 
-The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete)
+The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete, inspect)
 
 **Usage:** `apollia-os source <COMMAND>`
 
@@ -1947,6 +1925,8 @@ The sources an agent may consult once checked: folders, files, mailboxes, the pr
 * `list` - List the sources, oldest first
 * `create` - Add a source
 * `delete` - Remove a source. Agents that list it stop seeing it
+* `inspect` - Preview a workbook or a CSV file as a batch would read it: the sheet and header row proposed, the first twenty rows, the columns
+* `report` - Show the report of the migration of the former projects into sources: what each project became, and what could not be carried over
 
 
 
@@ -1986,6 +1966,31 @@ Remove a source. Agents that list it stop seeing it
 ###### **Options:**
 
 * `--confirm` - Skip the interactive confirmation prompt
+
+
+
+## `apollia-os source inspect`
+
+Preview a workbook or a CSV file as a batch would read it: the sheet and header row proposed, the first twenty rows, the columns
+
+**Usage:** `apollia-os source inspect [OPTIONS] <FILE>`
+
+###### **Arguments:**
+
+* `<FILE>` - The .xlsx, .xlsm, .xlsb, .xls, .ods or .csv file
+
+###### **Options:**
+
+* `--sheet <SHEET>` - Show this sheet instead of the proposed one
+* `--header-row <HEADER_ROW>` - Read the header on this row (from 1) instead of the proposed one
+
+
+
+## `apollia-os source report`
+
+Show the report of the migration of the former projects into sources: what each project became, and what could not be carried over
+
+**Usage:** `apollia-os source report`
 
 
 
@@ -4597,250 +4602,6 @@ Import entries from a JSON file produced by `export`
 * `--input <PATH>` - Source file (JSON array of `ProfileEntry`)
 * `--overwrite` - Overwrite existing entries with the same key
 * `--db <PATH>`
-
-
-
-## `apollia-os project`
-
-Project management (list, create, show, update, delete, agents, templates).
-
-Operates locally on `~/.apollia/projects.db`; the runtime does not need to be running.
-
-**Usage:** `apollia-os project <COMMAND>`
-
-###### **Subcommands:**
-
-* `list` - List every registered project (alphabetical)
-* `create` - Create a new project and print its id
-* `show` - Print the full detail of a project (documents, providers, agents)
-* `update` - Update one or more mutable fields on an existing project
-* `delete` - Delete a project and cascade its documents/providers
-* `agents` - List the agents linked to a project
-* `templates` - List or seed the available project templates
-* `link` - Link (or unlink) a chat session to a project
-* `chats` - List chat sessions linked to a project
-
-
-
-## `apollia-os project list`
-
-List every registered project (alphabetical)
-
-**Usage:** `apollia-os project list [OPTIONS]`
-
-###### **Options:**
-
-* `--db <PATH>`
-
-
-
-## `apollia-os project create`
-
-Create a new project and print its id
-
-**Usage:** `apollia-os project create [OPTIONS] <NAME>`
-
-###### **Arguments:**
-
-* `<NAME>` - Project display name
-
-###### **Options:**
-
-* `--description <DESCRIPTION>` - Optional one-line description
-* `--instructions <INSTRUCTIONS>` - Optional initial instructions (Markdown)
-* `--workspace <DIR>` - Optional workspace directory used by context providers
-* `--db <PATH>`
-
-
-
-## `apollia-os project show`
-
-Print the full detail of a project (documents, providers, agents)
-
-**Usage:** `apollia-os project show [OPTIONS] <ID>`
-
-###### **Arguments:**
-
-* `<ID>` - Project id (UUID)
-
-###### **Options:**
-
-* `--db <PATH>`
-
-
-
-## `apollia-os project update`
-
-Update one or more mutable fields on an existing project
-
-**Usage:** `apollia-os project update [OPTIONS] <ID>`
-
-###### **Arguments:**
-
-* `<ID>` - Project id
-
-###### **Options:**
-
-* `--name <NAME>`
-* `--description <DESCRIPTION>`
-* `--instructions <INSTRUCTIONS>`
-* `--workspace <DIR>`
-* `--db <PATH>`
-
-
-
-## `apollia-os project delete`
-
-Delete a project and cascade its documents/providers
-
-**Usage:** `apollia-os project delete [OPTIONS] <ID>`
-
-###### **Arguments:**
-
-* `<ID>` - Project id
-
-###### **Options:**
-
-* `--confirm` - Skip the confirmation prompt
-* `--db <PATH>`
-
-
-
-## `apollia-os project agents`
-
-List the agents linked to a project
-
-**Usage:** `apollia-os project agents <COMMAND>`
-
-###### **Subcommands:**
-
-* `list` - List agent names linked to a project
-* `add` - Link an agent to a project
-* `remove` - Unlink an agent from a project
-
-
-
-## `apollia-os project agents list`
-
-List agent names linked to a project
-
-**Usage:** `apollia-os project agents list [OPTIONS] <PROJECT>`
-
-###### **Arguments:**
-
-* `<PROJECT>` - Project id
-
-###### **Options:**
-
-* `--db <PATH>`
-
-
-
-## `apollia-os project agents add`
-
-Link an agent to a project
-
-**Usage:** `apollia-os project agents add [OPTIONS] <PROJECT> <AGENT>`
-
-###### **Arguments:**
-
-* `<PROJECT>` - Project id
-* `<AGENT>` - Agent name
-
-###### **Options:**
-
-* `--db <PATH>`
-
-
-
-## `apollia-os project agents remove`
-
-Unlink an agent from a project
-
-**Usage:** `apollia-os project agents remove [OPTIONS] <PROJECT> <AGENT>`
-
-###### **Arguments:**
-
-* `<PROJECT>` - Project id
-* `<AGENT>` - Agent name
-
-###### **Options:**
-
-* `--confirm` - Skip the interactive confirmation prompt
-* `--db <PATH>`
-
-
-
-## `apollia-os project templates`
-
-List or seed the available project templates
-
-**Usage:** `apollia-os project templates <COMMAND>`
-
-###### **Subcommands:**
-
-* `list` - List the available templates (builtin + custom)
-* `seed-builtins` - Re-seed the builtin templates into the database
-
-
-
-## `apollia-os project templates list`
-
-List the available templates (builtin + custom)
-
-**Usage:** `apollia-os project templates list [OPTIONS]`
-
-###### **Options:**
-
-* `--db <PATH>`
-
-
-
-## `apollia-os project templates seed-builtins`
-
-Re-seed the builtin templates into the database
-
-**Usage:** `apollia-os project templates seed-builtins [OPTIONS]`
-
-###### **Options:**
-
-* `--db <PATH>`
-
-
-
-## `apollia-os project link`
-
-Link (or unlink) a chat session to a project.
-
-Writes `chat_sessions.project_id` directly via `apollia_runtime::chat::ChatSessionRepository` so the runtime does not need to be running. Pass `--unlink` to clear the session's project link instead of setting it; the project_id positional is then ignored.
-
-**Usage:** `apollia-os project link [OPTIONS] --session <ID> <PROJECT_ID>`
-
-###### **Arguments:**
-
-* `<PROJECT_ID>` - Project id (UUID returned by `project list`)
-
-###### **Options:**
-
-* `--session <ID>` - Chat session id (returned by `chat --list`)
-* `--unlink` - Clear the session's project_id instead of setting it
-* `--chat-db <PATH>` - Override the chat database path (default: `~/.apollia/chat.db`)
-
-
-
-## `apollia-os project chats`
-
-List chat sessions linked to a project
-
-**Usage:** `apollia-os project chats [OPTIONS] <PROJECT_ID>`
-
-###### **Arguments:**
-
-* `<PROJECT_ID>` - Project id (UUID)
-
-###### **Options:**
-
-* `--chat-db <PATH>` - Override the chat database path
 
 
 

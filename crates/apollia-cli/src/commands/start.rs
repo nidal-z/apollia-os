@@ -141,6 +141,11 @@ pub async fn run(
     // Read before the port check, since `[api].port` names the port to check.
     let (loaded_config, config_path) = load_start_config(config.as_deref())?;
     let file_config = loaded_config.unwrap_or_default();
+    // The live sections of the configuration: the agent runners built below
+    // read [tools] from them at each run, and the runtime
+    // sends a saved change on them.
+    let config_channels = apollia_runtime::config_reload::ConfigChannels::new(&file_config);
+    let config_feed = config_channels.feed();
     let tcp_port = resolve_tcp_port(port, &file_config.api);
 
     // Detect an already-running runtime before attempting to bind, so the user
@@ -160,6 +165,7 @@ pub async fn run(
 
     let home = apollia_core::paths::home_dir_or_temp();
 
+    let daemon_settings = bootstrap::daemon_file_settings(&file_config);
     let llm_config = file_config.llm;
     let llm_label = llm_config
         .as_ref()
@@ -233,7 +239,6 @@ pub async fn run(
     let mcp_config = file_config.mcp;
     let hooks_config = file_config.hooks;
     let chat_config = file_config.chat;
-    let filesystem_config = file_config.filesystem;
     let config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: socket_path.clone(),
@@ -244,13 +249,13 @@ pub async fn run(
             tls_cert_path: api_cfg.tls_cert.clone(),
             tls_key_path: api_cfg.tls_key.clone(),
         },
-        startup_timeout_secs: 10,
+        startup_timeout_secs: daemon_settings.startup_timeout_secs,
         llm_config,
         config_path,
         runtime_config,
         hitl_config,
         data_dir,
-        obs_config: apollia_core::ObservabilityConfig::default(),
+        obs_config: daemon_settings.observability,
         agent_repository,
         package_repository,
         bundled_agents_path: {
@@ -270,10 +275,9 @@ pub async fn run(
         tool_search_limit: mcp_config.tool_search_limit,
         hooks_config,
         plan_mode_default: chat_config.plan_mode_default,
-        chat_default_workspace: chat_config.default_workspace.clone(),
         chat_tool_turn_temperature: chat_config.tool_turn_temperature,
         workflows_config: file_config.workflows,
-        filesystem_trusted_paths: filesystem_config.resolved_trusted_paths(),
+        config_channels: Some(config_channels),
     };
     let supervisor = Supervisor::new(config);
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(AIPAgentLoader);
@@ -324,8 +328,7 @@ pub async fn run(
         task_repository: task_repository_lock.clone(),
         registry: registry_lock.clone(),
         router: router_lock.clone(),
-        tools_config: tools_config.clone(),
-        trusted_paths: filesystem_config.resolved_trusted_paths(),
+        tools_config: config_feed.tools.clone(),
         data_dir: data_dir_for_chat.clone(),
         mcp_handle: mcp_handle_lock.clone(),
     });
@@ -343,8 +346,7 @@ pub async fn run(
             agent_registry: registry_lock.clone(),
             task_router: router_lock.clone(),
             data_dir: data_dir_for_chat,
-            tools_config,
-            trusted_paths: filesystem_config.resolved_trusted_paths(),
+            tools_config: config_feed.tools.clone(),
             mcp_handle: mcp_handle_lock.clone(),
         }));
 
@@ -779,8 +781,7 @@ agent = A()
             memory_base_dir: tmp.clone(),
             user_memory_write: false,
             a2a_invoker: None,
-            tools_config: apollia_core::ToolsConfig::default(),
-            trusted_paths: Vec::new(),
+            tools_config: apollia_core::ToolsConfig::default().into(),
             datasources_declared: vec![],
             templates_declared: vec![],
             agent_dir: Some(tmp.clone()),

@@ -117,11 +117,9 @@ pub(super) struct AIPProductionBackend {
     pub(super) user_memory_write: bool,
     /// High-level A2A orchestrator, `None` when registry or router are not initialized.
     pub(super) a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
-    /// Operator-supplied tools configuration loaded from `apollia.toml`.
-    pub(super) tools_config: apollia_core::ToolsConfig,
-    /// Filesystem roots an agent may reach (`[filesystem] trusted_paths`, `~`
-    /// already resolved). The first is the anchor for relative paths.
-    pub(super) trusted_paths: Vec<std::path::PathBuf>,
+    /// Operator-supplied tools configuration loaded from `apollia.toml`, read
+    /// at each run so a saved change applies to the next one.
+    pub(super) tools_config: apollia_runtime::config_reload::Live<apollia_core::ToolsConfig>,
     /// Datasources declared in the manifest (`manifest.datasources`). Empty
     /// when the agent declares none.
     pub(super) datasources_declared: Vec<String>,
@@ -162,7 +160,6 @@ impl Clone for AIPProductionBackend {
             task_repository: self.task_repository.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
             tools_config: self.tools_config.clone(),
-            trusted_paths: self.trusted_paths.clone(),
             user_memory_write: self.user_memory_write,
             datasources_declared: self.datasources_declared.clone(),
             templates_declared: self.templates_declared.clone(),

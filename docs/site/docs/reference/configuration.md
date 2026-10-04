@@ -10,8 +10,7 @@ Reference for the `apollia.toml` configuration surface.
 The file has one location, `~/.apollia/apollia.toml`, and every surface reads
 and writes that one: the daemon started by `apollia-os start`, the desktop
 application, and every command that touches the configuration
-(`apollia-os config`, `apollia-os llm costs`, `apollia-os tools config`,
-`apollia-os doctor`).
+(`apollia-os config`, `apollia-os tools config`, `apollia-os doctor`).
 A key set by one of them is the key the others read.
 
 Only a path given explicitly replaces it:
@@ -20,7 +19,6 @@ Only a path given explicitly replaces it:
 | --- | --- |
 | `apollia-os start` | `--config <PATH>`. The file must exist, or the start fails |
 | `apollia-os config get`, `set`, `show`, `validate`, `edit` | `--file <PATH>` |
-| `apollia-os llm costs` | `--config <PATH>` |
 
 The working directory is not searched: an agent package keeps its manifest under
 the same name, `apollia.toml`, and starting the daemon in a package folder does
@@ -62,6 +60,21 @@ database.
 path, type, default, documentation, reload class, whether the organization
 policy can fix it, and whether it is withdrawn.
 
+## Changes while the runtime runs
+
+The runtime follows its file. A text saved through `PUT /api/v1/config`, or the
+file changed on disk by any other means, is read again once it has stayed
+unchanged for a moment. A valid text is applied: a key whose reload class is
+`Reloadable` takes effect without a restart, at the next use of the setting (the
+next conversation, the next exchange, the next run of an agent, the next scan of
+the paused tasks). A key of class `Restart` keeps its former value until the
+runtime starts again; `GET /api/v1/config` lists it under `pendingRestart`, with
+its line, and the list is empty after a start. A text that does not validate
+changes nothing: the last valid configuration stays in force, the read route
+returns the faults at their line, and a `ConfigInvalid` event is published. Each
+application publishes a `ConfigReloaded` event with the sections applied and the
+keys waiting for a restart.
+
 ## Sections
 
 The file is read strictly, by the same validation everywhere. A key that no
@@ -77,24 +90,19 @@ still accepted, with a `config.key.retired` warning.
 |---|---|
 | `[llm]` | LLM backend configuration. |
 | `[api]` | TCP listener and authentication (`bind`, `require_token`, `tls_cert`, `tls_key`). |
-| `[runtime]` | EventBus and mailbox capacities. |
+| `[runtime]` | EventBus and mailbox capacities, and the time the runtime may take to start. |
 | `[hitl]` | Human-in-the-loop timeout and scan interval. |
 | `[tools]` | Native tools: limits, static disabling, and per-tool `[tools.web_search]` / `[tools.web_read]` configuration. |
 | `[mcp]` | MCP module configuration, including `[[mcp.servers]]` (see below). |
 | `[hooks]` | Lifecycle hook handlers (command or HTTP). |
 | `[chat]` | Chat subsystem session-level defaults (for example `plan_mode_default`). |
-| `[filesystem]` | The reversible journal, and the paths an agent works in without being asked (`trusted_paths`, see below). |
 | `[workflows]` | The budget a workflow run starts with, shared by every agent and workflow it runs. |
 | `[models]` | The signed index of model cards, the models folder (`dir`), and the rule applied to an imported file (`[models.import]`). |
-| `[desktop]` | Settings of the desktop application that the engine reads: `developer_mode`, `update_channel` (`stable` or `preview`), `background_service_allowed`. |
+| `[observability]` | Trace capture and retention, documented below. |
+| `[desktop]` | Settings of the desktop application: `developer_mode`, `update_channel` (`stable` or `preview`), `background_service_allowed`, and `link_preview_enabled`, which fetches the preview of a link shown in a conversation. Off by default, since the fetch leaves the machine. |
 | `[server]` | The compatible server: `enabled`, `port`, `require_auth`. |
 | `[engines]` | Settings of the local inference engines (`log_level`). |
 | `[author]` | The publisher name of the agents exported from this machine (`name`). |
-| `[observability]` | Trace capture and retention, documented below. |
-| `[ui]` | The opt-in link preview of the desktop application (`link_preview_enabled`). |
-
-`[observability]` is read by the desktop application only; the daemon uses its
-defaults. `apollia-os config set` writes it like any other key.
 
 The tables below are generated from the key registry of the engine, the list
 the default file and `apollia-os config keys` are made from, so a key cannot
@@ -135,15 +143,10 @@ attaches to that port when a daemon serves, and otherwise listens on this key.
 The port must differ from `[server] port`, the port of the compatible server: a
 file that gives both the same port is refused, at the line of `[api] port`.
 
-`[llm] pricing_overrides` is not applied. A running daemon builds its backends
-from the backends stored in its database, and that path hands the client an
-empty override table, so a price written here never reaches a cost calculation.
-
-`[llm.runner]` selects the speech-to-text sidecar, not the LLM engine. Its
-`backend` key decides which `apollia-runner-*` binary the daemon spawns for
-transcription. Local text inference runs through the bundled llama-server,
-which is tuned from
-[Environment variables](/reference/environment-variables) instead.
+Local text inference runs through the bundled llama-server, which is tuned
+from [Environment variables](/reference/environment-variables), not from this
+file. The speech-to-text runner is chosen from the detected hardware, with no
+key to override it.
 
 <!-- BEGIN GENERATED: config-fields -->
 
@@ -156,16 +159,11 @@ LLM backends, routing, and the speech-to-text runner. The default file leaves th
 | `llm.format_version` | integer | `1` | Version of the [llm] format; read as 1 when absent. |
 | `llm.default` | string | not set | Name of the backend used when none is asked for; must name an entry of llm.backends. |
 | `llm.backends` | table array | not set | OpenAI-compatible backends, migrated into the engine's database on a first start; required with llm.default. |
-| `llm.observability.log_token_usage` | boolean | `true` | Log the tokens consumed by each model call. |
-| `llm.observability.log_latency` | boolean | `true` | Log the latency of each model call. |
-| `llm.observability.log_cost` | boolean | `false` | Log the estimated cost of each cloud model call. |
 | `llm.observability.debug_log_prompt` | boolean | `false` | Log the full prompt at trace level. |
 | `llm.routing` | table | not set | Backends answering precise and fast requests, and the hybrid routing ceiling. |
-| `llm.pricing_overrides` | table | `{}` | Prices per million tokens, keyed by model identifier. |
-| `llm.cost_alert_threshold_usd` | float | not set | Cost in USD above which a token budget update is flagged. |
-| `llm.runner.backend` | string | `"auto"` | Speech-to-text runner binary: auto, cpu, cuda, metal or rocm. |
 | `llm.guardrails.level` | one of disabled, lenient, balanced, strict, ceiling | `"balanced"` | How strictly a local model launch is held to the machine's memory; an unknown level holds to balanced. The organization policy can fix it. |
 | `llm.guardrails.ceiling_gb` | float | not set | Largest estimate, in gigabytes, the ceiling level launches. The organization policy can fix it. |
+| `llm.residency.idle_unload_minutes` | integer | `60` | Minutes without a request after which a local model nothing holds is unloaded; 0 never unloads. The organization policy can fix it. |
 
 ### `[api]`
 
@@ -212,7 +210,6 @@ Native tools: limits, static disabling, and per-tool settings.
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `tools.max_output_chars` | integer | `30000` | Largest tool output passed to the model, in bytes (10 to 1000000). |
-| `tools.file_path_extraction_pattern` | string | not set | Regular expression extracting file paths from a command output. |
 | `tools.disabled` | string array | `[]` | Native tools removed from every agent. |
 | `tools.web_search.backend` | one of auto, duck_duck_go, brave | `"auto"` | Search engine of the web_search tool. |
 | `tools.web_search.require_configured` | boolean | `false` | Refuse a search when the chosen engine is not configured. |
@@ -252,19 +249,7 @@ Chat session defaults.
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `chat.plan_mode_default` | boolean | `false` | Start every new conversation in plan mode. |
-| `chat.default_workspace` | path | not set | Working folder of a conversation outside a project. |
 | `chat.tool_turn_temperature` | float | not set | Model temperature of a turn that offers tools; none means 0.3. |
-
-### `[filesystem]`
-
-The reversible journal, and the paths an agent works in without being asked. `trusted_paths` sets friction rather than a wall, and the two surfaces read it differently; see *Trusted paths, and what happens outside them* below.
-
-| Key | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `filesystem.journal.enabled` | boolean | `true` | Keep a reversible journal of file changes. |
-| `filesystem.journal.max_sessions` | integer | `50` | Journal sessions kept (1 to 10000). |
-| `filesystem.journal.root` | path | `"~/.apollia/journal"` | Folder of the reversible journal. |
-| `filesystem.trusted_paths` | string array | `["~"]` | Folders an agent may work in without asking. |
 
 ### `[models]`
 
@@ -295,6 +280,7 @@ Settings of the desktop application that the engine reads.
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `desktop.developer_mode` | boolean | `false` | Show the advanced surfaces of the application. The organization policy can fix it. |
+| `desktop.link_preview_enabled` | boolean | `false` | Fetch the preview of a link shown in a conversation. The organization policy can fix it. |
 | `desktop.update_channel` | one of stable, preview | `"stable"` | Update channel of the application: stable receives the published versions, preview the trial versions as well. The organization policy can fix it. |
 | `desktop.background_service_allowed` | boolean | `true` | Allow the application to install the engine as a service of the user's session. The organization policy can fix it. |
 
@@ -327,7 +313,7 @@ The publisher name of the agents exported from this machine.
 
 ### `[observability]`
 
-Trace capture and retention. Read by the desktop application only.
+Trace capture and retention. Read by the daemon and by the desktop application.
 
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -340,20 +326,18 @@ Trace capture and retention. Read by the desktop application only.
 | `observability.capture_agent_logs` | boolean | `true` | Keep agent logs in the run history. |
 | `observability.retention_days` | integer | `90` | Days the run history is kept. |
 
-### `[ui]`
-
-The opt-in link preview of the desktop application.
-
-| Key | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `ui.link_preview_enabled` | boolean | `false` | Fetch the preview of a link shown in a conversation. |
-
 ### Withdrawn keys
 
 Accepted in a file written for an earlier version, with a `config.key.retired` warning, and read by nothing.
 
 | Key | Instead |
 | --- | --- |
+| `llm.observability.log_token_usage` | The tokens of every model call are always logged; remove the key. |
+| `llm.observability.log_latency` | The latency of every model call is always logged; remove the key. |
+| `llm.observability.log_cost` | Nothing reads it; remove the key. |
+| `llm.pricing_overrides` | Nothing reads it; remove the section. |
+| `llm.cost_alert_threshold_usd` | Nothing reads it; remove the key. |
+| `llm.runner` | The engine is chosen from the detected hardware; remove the section. |
 | `llm.vertex` | The Google Vertex AI client was removed; declare an OpenAI-compatible server instead. |
 | `memory` | Nothing reads it; remove the section. |
 | `budget` | Nothing reads it; remove the section. |
@@ -364,6 +348,10 @@ Accepted in a file written for an earlier version, with a `config.key.retired` w
 | `triggers` | Use the desktop app or the API to manage it. |
 | `notifications` | Use the desktop app or the API to manage it. |
 | `stt` | Use the desktop app or the API to manage it. |
+| `tools.file_path_extraction_pattern` | Nothing reads it; remove the key. |
+| `filesystem` | The file tools reach the folders granted to each agent; the paths listed here were added once as folder connections, grant them on the agent's sheet. |
+| `chat.default_workspace` | The folder was added once as a folder connection; grant it to an agent on its sheet. |
+| `ui` | Moved: write desktop.link_preview_enabled; ui.link_preview_enabled is still read while it is absent. |
 <!-- END GENERATED: config-fields -->
 
 ### The Unix socket, in full
@@ -384,36 +372,22 @@ file, so it carries the same Bearer token the TCP listener carries, and the
 token is what gates access. The global `--socket` flag is accepted on Windows
 and ignored.
 
-### Trusted paths, and what happens outside them
+### The folders an agent reaches
 
-`[filesystem] trusted_paths` sets friction, not a boundary. A path under none of
-these roots, and outside the session's working directory, is not refused: the
-operation is suspended and the user is asked. Emptying the list therefore does
-not lock an agent out of the machine, it means every write outside the working
-directory raises an approval. Adding a path is a statement of trust, and the
-sensitive paths of the risk table (`~/.ssh`, `/etc`, stored credentials) keep
-their own classification whatever this list contains.
+No key of this file says which folders an agent reaches. A folder of the
+machine is a connection, added from the Connections screen with the system
+picker, and its file tools are granted to an agent on the agent's sheet. The
+file tools of an agent reach the union of the folders granted to it, the
+built-in chat agent included: the reading tools every granted folder, the
+writing tools only the folders granted for writing. The first folder granted,
+by the date it was added, is where a relative path lands. An agent granted no
+folder has file tools that refuse, saying how to grant one.
 
-The working directory itself, `[chat] default_workspace` or the project's, is
-where relative paths resolve. It is trusted like any entry in the list and is
-never a limit on its own.
-
-The two surfaces do not read the list the same way, and the difference is worth
-knowing before you empty it:
-
-| Surface | What the list does |
-| --- | --- |
-| Chat | Sets friction. Outside the roots, an operation is suspended and the user is asked. |
-| Agent mode | Sets a boundary. Outside the roots, a file tool refuses, naming this setting. |
-
-Agent mode has no approval prompt to fall back on: the filesystem approval event
-is emitted by the chat invoker alone, and an agent can run with nobody watching.
-Until that surface exists, a path an agent needs has to be named here.
-
-```toml
-[filesystem]
-trusted_paths = ["~", "/Volumes/work", "/opt/data"]
-```
+`[filesystem] trusted_paths` and `[chat] default_workspace` used to name these
+folders. Both are withdrawn. At the first start of a version that knows folder
+connections, each folder they named, the home folder excepted, was added once
+as a connection, granted to no agent; a file that still carries them loads with
+a `config.key.retired` warning.
 
 ### Sections that were withdrawn
 
@@ -424,9 +398,21 @@ They are read by nothing now: a file that still carries one is accepted, with a
 `config.key.retired` warning, and the table of withdrawn keys above names what
 to do instead. Removing them changed no behaviour, because they had none.
 
-`[filesystem]` was in that list. It is a live section again: `trusted_paths` is
-read at startup and reaches the risk classifier, which is what decides whether an
-operation runs or asks.
+Some keys were withdrawn for the same reason, because nothing read them. A file
+that still carries one is accepted, with a `config.key.retired` warning naming
+it, and `apollia-os config set` refuses to write it:
+
+| Withdrawn key | What to do instead |
+| --- | --- |
+| `[llm.runner]`, and its `backend` key | Nothing: the speech-to-text runner is chosen from the detected hardware. |
+| `[llm] pricing_overrides`, `cost_alert_threshold_usd` | Nothing: no running daemon applied them. `apollia-os llm costs` reads the cost history and no longer writes either. |
+| `[llm.observability] log_token_usage`, `log_latency`, `log_cost` | Nothing: tokens and latency are always logged. |
+| `[tools] file_path_extraction_pattern` | Nothing. |
+| `[filesystem.journal]` | Nothing. |
+| `[ui] link_preview_enabled` | Write `[desktop] link_preview_enabled`. Until it is written, the former key is still read, with a `config.key.moved` warning. |
+
+`[autonomy]` is not a section: no loader reads it, and a file that carries one
+is refused as an unknown key.
 
 `[permissions]` is worth spelling out, since its name suggests otherwise: not
 one of its four keys ever had a reader on an execution path. The governance that
@@ -440,8 +426,9 @@ Sampling parameters are documented separately in
 
 ## Trace capture (`[observability]`)
 
-Read by the desktop application only; the CLI daemon uses the defaults. Editable
-from Settings, Observability, or by hand.
+Read by the daemon started with `apollia-os start` and by the desktop
+application. Editable from Settings, Observability, with
+`apollia-os config set observability.<key> <value>`, or by hand.
 
 These switches decide what an agent's execution leaves behind on disk, in
 `runtime_events.db`. Everything stays on the machine, so the question is not who
@@ -484,9 +471,12 @@ out. Seeing it requires both `debug_log_prompt = true` and a trace-level filter,
 for instance `RUST_LOG=apollia=trace`. That is a deliberate second lock, not an
 oversight, and it is why the setting is safe to leave visible in the interface.
 
-A `debug_log_prompt` written under `[observability]` is read by nothing: the two
-sections deserialize into two different types, and only the `[llm.observability]`
-one reaches the router.
+The section is read when the runtime builds its router, so a change applies at
+the next start. A `debug_log_prompt` written under `[observability]` is refused
+as an unknown key: the two sections are two different types, and only the
+`[llm.observability]` one reaches the router. The other keys that section used
+to carry, `log_token_usage`, `log_latency` and `log_cost`, are withdrawn: the
+tokens and the latency of every model call are always logged.
 
 ### Keys that are declared but not implemented
 
@@ -529,6 +519,37 @@ names the estimate and the limit: `POST /api/v1/llm/chat` and
 level, or a `ceiling` level without a positive `ceiling_gb` holds to `balanced`:
 a typo never turns the guardrail off. A model whose footprint cannot be
 estimated is launched.
+
+Several models can stay loaded at once, as many as the guardrail admits: a
+model is judged with the footprints of the models already loaded added to its
+own. When that sum is refused, the loaded models nothing keeps (no open
+conversation, no pin, no answer in progress) are unloaded, least recently used
+first and only as many as needed; when even that would not be enough, nothing
+is unloaded and the load is refused.
+
+## Model residency (`[llm.residency]`)
+
+A local model nothing uses gives its memory back on its own.
+
+```toml
+[llm.residency]
+idle_unload_minutes = 60   # 0 keeps an unused model loaded
+```
+
+| Rule | Unloads |
+| --- | --- |
+| Idle delay | a model no request has used for `idle_unload_minutes`, checked every thirty seconds |
+| Last conversation closed | a model at once, when the last open conversation that uses it closes |
+
+A model the user pinned is unloaded by neither rule, and a model answering a
+request is never unloaded. The pin is kept in `system.db` and survives a
+restart. The key is read at every check, so a change applies without a restart.
+An interface says which conversations are open with
+`POST /api/v1/llm/leases` and `POST /api/v1/llm/leases/release`, and pins a
+model with `PUT /api/v1/llm/pins`. When the event stream it opened with
+`GET /api/v1/events?client=<id>` ends, the conversations of that client count
+as closed. Each unload is published on the event bus as `LlmModelUnloaded`,
+with its reason: `idle`, `last_conversation`, `requested` or `make_room`.
 
 ## Dictation (`system.db`, not `apollia.toml`)
 

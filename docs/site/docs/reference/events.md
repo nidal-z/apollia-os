@@ -205,6 +205,8 @@ the event carries announces a request that is already settled.
 | Variant | Payload | What it reports |
 |---|---|---|
 | `AllReady` | none | All components are ready, runtime operational. |
+| `ConfigInvalid` | named fields | The `apollia.toml` read at startup was refused: the embedded runtime |
+| `ConfigReloaded` | named fields | A new `apollia.toml`, saved through the configuration routes or changed |
 | `ContextCompacted` | named fields | Emitted by `ContextManager` when the conversation history was compacted. |
 | `FileModifiedSinceRead` | named fields | A previously read file was modified between two accesses. |
 | `McpServerHealthChanged` | named fields | An MCP server's operational health changed. |

@@ -124,15 +124,15 @@ fn every_section_carries_the_reload_class_of_the_measured_table() {
         ("mcp", ReloadClass::Reloadable),
         ("hooks", ReloadClass::Reloadable),
         ("chat", ReloadClass::Reloadable),
-        ("filesystem", ReloadClass::Reloadable),
         ("observability", ReloadClass::Reloadable),
-        ("ui", ReloadClass::Reloadable),
         ("desktop", ReloadClass::Reloadable),
         ("server", ReloadClass::Restart),
         ("engines", ReloadClass::Reloadable),
         ("author", ReloadClass::Reloadable),
         // Read again at every model launch, unlike the rest of `[llm]`.
         ("llm.guardrails", ReloadClass::Reloadable),
+        // Read again at every residency sweep.
+        ("llm.residency", ReloadClass::Reloadable),
     ];
 
     // WHEN every live key of those sections is read, against its longest
@@ -219,6 +219,7 @@ fn the_named_settings_are_lockable() {
         vec![
             "llm.guardrails.level",
             "llm.guardrails.ceiling_gb",
+            "llm.residency.idle_unload_minutes",
             "mcp.approval_ttl_hours",
             "mcp.tool_loading",
             "mcp.tool_search_limit",
@@ -229,6 +230,7 @@ fn the_named_settings_are_lockable() {
             "models.dir",
             "models.import.require_verified",
             "desktop.developer_mode",
+            "desktop.link_preview_enabled",
             "desktop.update_channel",
             "desktop.background_service_allowed",
             "server.enabled",
@@ -247,7 +249,7 @@ fn a_live_path_is_a_registered_key_or_lies_under_a_free_table() {
     // WHEN each is checked
     // THEN only the first two are live
     assert!(is_live_path("api.port"));
-    assert!(is_live_path("llm.pricing_overrides.m.input_per_mtok"));
+    assert!(!is_live_path("llm.pricing_overrides.m.input_per_mtok"));
     assert!(is_live_path("llm.routing.precise"));
     assert!(!is_live_path("api.typo"));
     assert!(!is_live_path("api"));

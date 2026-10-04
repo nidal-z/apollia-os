@@ -12,8 +12,6 @@ pub enum ChatCommand {
         system_prompt: Option<String>,
         /// Tool names available in this session.
         tools: Vec<String>,
-        /// Project to link this session to (None = standalone).
-        project_id: Option<String>,
         /// Response channel.
         reply: oneshot::Sender<Result<SessionInfo, ChatError>>,
     },
@@ -271,6 +269,12 @@ pub enum ChatCommand {
         /// Used by every run that starts afterwards.
         host: Arc<dyn crate::package_tools::PackageToolHost>,
     },
+    /// Hand the live sections of the configuration to the actor.
+    FollowConfig {
+        /// Read between two commands: a changed section applies to the next
+        /// conversation and the next exchange.
+        feed: crate::config_reload::ConfigFeed,
+    },
     /// Hand the composer of the granted agent and workflow calls to the actor.
     SetComposer {
         /// Used by every run that starts afterwards.
@@ -296,27 +300,6 @@ pub enum ChatCommand {
         session_id: SessionId,
         /// Response channel.
         reply: oneshot::Sender<Vec<SessionInfo>>,
-    },
-    /// Link or unlink a session to a project.
-    LinkSessionToProject {
-        /// Target session.
-        session_id: SessionId,
-        /// Project ID (None to unlink).
-        project_id: Option<String>,
-        /// Response channel.
-        reply: oneshot::Sender<Result<(), ChatError>>,
-    },
-    /// List sessions belonging to a specific project.
-    ListSessionsByProject {
-        /// Project identifier.
-        project_id: String,
-        /// Response channel.
-        reply: oneshot::Sender<Vec<SessionInfo>>,
-    },
-    /// Unlink all sessions from a project (orphan them on project deletion).
-    OrphanProjectSessions {
-        /// Project identifier.
-        project_id: String,
     },
     /// List in-memory tool authorizations across all active sessions
     /// (used by the desktop Settings > Permissions page to surface

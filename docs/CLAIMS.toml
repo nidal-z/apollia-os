@@ -1358,20 +1358,19 @@ parameter goes back to having no effect whatsoever.
 """
 
 [[claim]]
-id = "chat-file-root-is-home-without-project"
+id = "file-tools-root-is-the-granted-folders"
 scope = "public"
-symbol = "home_dir_or_temp"
+symbol = "granted_folders"
 status = "wired"
-proof = "crates/apollia-runtime/src/chat/manager/dispatcher.rs"
+proof = "crates/apollia-tools/src/folder_access.rs"
 note = """
-A chat with no project used to root its file tools at the system temp directory,
-which made the assistant unable to reach anything the user owns while protecting
-nothing: the trust model already states that an installed agent runs with the
-user's rights, and the prompt tells the model in so many words that it may read
-and write elsewhere on the machine. The root is the home directory now, and temp
-is only the fallback when home cannot be resolved. If this call reverts to
-`std::env::temp_dir`, the reference page becomes false again and the assistant
-goes back to seeing an empty machine.
+The file tools of an agent reach the folders granted to it and nothing else, on
+the chat path and on the task path. They used to reach the home folder by
+default, and in the chat also the volume and the project's folder, so the list
+of folders on an agent's sheet bounded nothing. The roots are now read from the
+agent's granted accesses and the folder connections in system.db. If a runner
+stops calling this function, its file tools fall back to no root at all, and the
+reference page that says which folders an agent reaches becomes false.
 """
 
 [[claim]]

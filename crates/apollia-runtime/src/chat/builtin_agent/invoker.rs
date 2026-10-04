@@ -69,21 +69,6 @@ impl NativeChatToolInvoker {
         }
     }
 
-    /// Create a new invoker with unrestricted filesystem access.
-    ///
-    /// The sandbox root is set to `/`; what the file tools may reach is set by
-    /// the dispatcher attached with [`Self::with_fallback_dispatcher`], and
-    /// whether a call runs at all by the governance decision of the loop.
-    pub fn new_unrestricted(workspace_path: Option<std::path::PathBuf>) -> Self {
-        Self {
-            sandbox_root: std::path::PathBuf::from("/"),
-            workspace_path,
-            session_id: None,
-            pending_user_inputs: None,
-            fallback_dispatcher: None,
-        }
-    }
-
     /// Attach the dispatcher every tool call is resolved through, natives,
     /// MCP, connectors and future providers alike.
     pub fn with_fallback_dispatcher(mut self, invoker: Arc<dyn ToolInvoker>) -> Self {

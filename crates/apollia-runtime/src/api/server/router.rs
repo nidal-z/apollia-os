@@ -79,6 +79,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_a2a::{
         delegate, get_task_sidechains, invoke_by_skill, list_a2a_agents, list_a2a_skills,
     };
+    use crate::api::routes_agents::installed::lifecycle::update_agent;
     use crate::api::routes_agents::installed::{install_agent, list_installed_agents};
     use crate::api::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
     use crate::api::routes_app_lifecycle::app_lifecycle_router;
@@ -127,6 +128,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_permissions::permissions_router;
     use crate::api::routes_plan_cache::{clear_plan_cache, get_plan_cache_stats};
     use crate::api::routes_profile::profile_router;
+    use crate::api::routes_profiles::profiles_router;
     use crate::api::routes_resilience::resilience_router;
     use crate::api::routes_review::post_review;
     use crate::api::routes_sse::stream_task;
@@ -134,6 +136,8 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_stt::{
         delete_transcription, list_models, list_transcriptions, stt_status, transcribe_audio,
     };
+    use crate::api::routes_tasks::delegation::get_delegation_tree;
+    use crate::api::routes_tasks::record::delete_task_record;
     use crate::api::routes_tasks::summaries::list_task_summaries;
     use crate::api::routes_tasks::{
         cancel_task, get_task, list_tasks, resume_task, submit_plan_decision, submit_task,
@@ -174,6 +178,14 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
             post(submit_plan_decision::<B>),
         )
         .route("/api/v1/tasks/:id/review", post(post_review::<B>))
+        .route(
+            "/api/v1/tasks/:id/record",
+            axum::routing::delete(delete_task_record::<B>),
+        )
+        .route(
+            "/api/v1/tasks/:id/delegation-tree",
+            get(get_delegation_tree::<B>),
+        )
         // Timeline route (legacy, deprecation candidate)
         .route("/api/v1/tasks/:id/timeline", get(get_task_timeline::<B>))
         // Event-sourced trace
@@ -199,6 +211,10 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route(
             "/api/v1/agents/installed",
             get(list_installed_agents::<B>).post(install_agent::<B>),
+        )
+        .route(
+            "/api/v1/agents/installed/:name",
+            axum::routing::put(update_agent::<B>),
         )
         .route(
             "/api/v1/agents/:id",
@@ -374,6 +390,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         // Native connector consent routes
         .merge(connections_router::<B>())
         .merge(profile_router::<B>())
+        .merge(profiles_router::<B>())
         .merge(companion_router::<B>())
         .merge(local_ai_router::<B>())
         .merge(tool_credentials_router::<B>())
@@ -382,6 +399,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(memory_maintenance_router::<B>())
         .merge(app_lifecycle_router::<B>())
         .merge(crate::api::routes_server::server_router::<B>())
+        .merge(crate::api::routes_config::config_router::<B>())
         .merge(conversations_router::<B>())
         .merge(memory_router::<B>())
         .merge(permissions_router::<B>())

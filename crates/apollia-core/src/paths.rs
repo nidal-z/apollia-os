@@ -150,6 +150,30 @@ impl DataFile {
     }
 }
 
+/// Name of the directory, under the data directory, holding one index
+/// database per source.
+pub const SOURCES_DIR_NAME: &str = "sources";
+
+/// The index database of the source `source_id`:
+/// `<data_dir>/sources/<source_id>.db`.
+///
+/// Like the memory stores, these files are named by data rather than by the
+/// layout, so they are not in [`DataFile`]. Returns `None` for an identifier
+/// that is empty or holds anything but ASCII letters, digits, `-` and `_`: an
+/// identifier must never name a path outside that directory.
+#[must_use]
+pub fn source_index_path(data_dir: &Path, source_id: &str) -> Option<PathBuf> {
+    let safe = !source_id.is_empty()
+        && source_id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
+    safe.then(|| {
+        data_dir
+            .join(SOURCES_DIR_NAME)
+            .join(format!("{source_id}.db"))
+    })
+}
+
 /// The current user's home directory.
 ///
 /// `%USERPROFILE%` on Windows, `$HOME` on Unix. Returns `None` when neither is
@@ -515,6 +539,33 @@ mod tests {
         assert_eq!(pipe_name_for(None), bare);
         assert_eq!(pipe_name_for(Some("")), bare);
         assert_eq!(pipe_name_for(Some("   ")), bare);
+    }
+    #[test]
+    fn test_a_source_index_sits_under_the_sources_directory() {
+        // GIVEN a data directory and a registry identifier
+        let data = Path::new("/home/tester/.apollia");
+
+        // WHEN the index path of the source is resolved
+        let path = source_index_path(data, "src-0a1b2c");
+
+        // THEN it is `<data>/sources/<id>.db`
+        assert_eq!(path, Some(data.join("sources").join("src-0a1b2c.db")));
+    }
+
+    #[test]
+    fn test_a_source_identifier_never_names_a_path_outside() {
+        // GIVEN identifiers that are empty or carry separators and dots
+        let data = Path::new("/home/tester/.apollia");
+        let hostile = ["", "..", "../system", "a/b", "a\\b", "a.b"];
+
+        // WHEN their index paths are resolved
+        let resolved: Vec<_> = hostile
+            .iter()
+            .map(|id| source_index_path(data, id))
+            .collect();
+
+        // THEN none of them resolves
+        assert!(resolved.iter().all(Option::is_none), "{resolved:?}");
     }
 }
 

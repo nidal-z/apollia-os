@@ -29,7 +29,7 @@ describe("CompanionContextProvider - route context", () => {
     });
 
     // WHEN updateContext is called for the memory route
-    await companionStore.updateContext("memory");
+    await companionStore.updateContext({ route: "memory", subscreen: null, object: null });
 
     // THEN the store reflects the returned context
     expect(get(companionStore).currentContext).toBe(memoryContext);
@@ -45,7 +45,7 @@ describe("CompanionContextProvider - route context", () => {
     });
 
     // WHEN updateContext is called with an unknown route
-    await companionStore.updateContext("unknown-page");
+    await companionStore.updateContext({ route: "unknown-page", subscreen: null, object: null });
 
     // THEN the fallback context is stored
     expect(get(companionStore).currentContext).toBe(fallback);

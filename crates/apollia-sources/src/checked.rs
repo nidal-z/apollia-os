@@ -46,6 +46,24 @@ pub fn checked_sources(agent: &str, entries: &[String], registry: &[Source]) -> 
     checked
 }
 
+/// The identifiers of the checked sources `source_search` reads: the folders
+/// and files, whose documents an index holds. A mailbox is searched once its
+/// reading is governed as personal data; the profile, the memory and a code
+/// folder each have a tool of their own.
+pub fn searchable_sources(checked: &[CheckedSource]) -> Vec<String> {
+    checked
+        .iter()
+        .filter_map(|source| match source {
+            CheckedSource::Registered(source)
+                if matches!(source.kind, SourceKind::Folder | SourceKind::File) =>
+            {
+                Some(source.id.clone())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -85,6 +103,30 @@ mod tests {
                 CheckedSource::Registered(folder("src-1")),
                 CheckedSource::Profile,
             ]
+        );
+    }
+
+    #[test]
+    fn test_only_folders_and_files_are_searchable() {
+        // GIVEN a checked folder, file, mailbox and code folder, the profile
+        // and the memory
+        let of_kind = |id: &str, kind: SourceKind| Source { kind, ..folder(id) };
+        let checked = vec![
+            CheckedSource::Registered(folder("src-folder")),
+            CheckedSource::Registered(of_kind("src-file", SourceKind::File)),
+            CheckedSource::Registered(of_kind("src-mail", SourceKind::Mail)),
+            CheckedSource::Registered(of_kind("src-code", SourceKind::CodeFolder)),
+            CheckedSource::Profile,
+            CheckedSource::Memory,
+        ];
+
+        // WHEN the searchable ones are drawn
+        let searchable = searchable_sources(&checked);
+
+        // THEN the folder and the file remain, in order
+        assert_eq!(
+            searchable,
+            vec!["src-folder".to_owned(), "src-file".to_owned()]
         );
     }
 

@@ -29,10 +29,12 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "connections.capabilities.group_onedrive", // OneDrive
   "connections.capabilities.group_outlook_mail", // Outlook Mail
   "connections.capabilities.group_youtube", // YouTube
-  "connections.custom_transport_http", // Streamable HTTP (MCP 2025-11-25)
-  "connections.custom_transport_sse", // SSE (legacy 2024-11-05)
+  "connections.native_google_name", // Google Workspace
   "connections.native_microsoft_description", // Outlook Mail, Outlook Calendar, OneDrive
+  "connections.native_microsoft_name", // Microsoft 365
   "dashboard.headline_greeting", // {greeting}.
+  "dev.connections.custom_transport_http", // Streamable HTTP (MCP 2025-11-25)
+  "dev.connections.custom_transport_sse", // SSE (legacy 2024-11-05)
   "inbox.activity.filter.llm", // LLM
   "llm.loaded.engine_mlx", // MLX
   "notifications.field_headers_placeholder", // {"Authorization": "Bearer ..."}
@@ -40,7 +42,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "observability.timeline_window_30min", // 30 min
   "observability.type_llm", // LLM
   "onboarding_permissions.scope_label", // {scope}
-  "projects.provider_type_git", // Git
   "settings.integrations.drive.placeholder", // Apollia
   "settings.integrations.field.client_id", // Client ID
   "settings.integrations.placeholder.api_key", // AIzaSy…
@@ -58,14 +59,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "settings.model_hub.filters.lang_fr", // Français
   "settings.model_hub.filters.lang_pt", // Português
   "settings.model_hub.hardware.ram", // RAM
-  "settings.profile.language.en", // English
-  "settings.profile.language.fr", // Français
-  "settings.profile.llm.local", // Local (llama.cpp)
-  "settings.profile.llm.ollama", // Ollama
-  "settings.profile.placeholder.tech_stack", // Python, TypeScript, React, Postgres…
-  "settings.profile.placeholder.tools_daily", // Excel, Notion, Salesforce, Gmail, VS Code…
-  "settings.profile.sector.ecommerce", // E-commerce
-  "settings.profile.sector.fintech", // Fintech
   "settings.stt_cuda", // CUDA
   "settings.stt_metal", // Metal
   "settings.tools_page.bash_executor_title", // Bash
@@ -134,11 +127,12 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "commandPalette.groups.actions", // Actions
   "commandPalette.groups.pages", // Pages
   "commandPalette.groups.sessions", // Sessions
-  "companion.title", // Companion
   "connections.badge_status_attention", // attention
   "connections.custom_test_ok", // Test OK - {result}
-  "connections.custom_transport_label", // Transport
   "connections.mcp_settings.transport", // Transport
+  "connections.mailbox.port_label", // Port
+  "detailSidebar.tab_guide", // Guide
+  "dev.connections.custom_transport_label", // Transport
   "connections.settings_provider_title", // Provider
   "connections.status_chip_attention", // Attention
   "inbox.chips.questions", // Questions
@@ -148,7 +142,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "inbox.row.type_question", // question
   "inbox.row.type_trigger", // trigger
   "integrations.wizard.local_loopback_badge", // Local
-  "integrations.wizard.step_test", // Test
   "llm.ping_ok", // Ping OK ({latency}ms)
   "llm.table.backend", // Backend
   "llm.table.tokens", // Tokens
@@ -188,15 +181,10 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "plan_session.origin_initial", // Initial
   "plan_session.tab_journal", // Journal
   "plan_session.tab_plan", // Plan
-  "projects.card_agents", // {n, plural, one {# agent} other {# agents}}
-  "projects.field_description", // Description
-  "projects.provider_field_timeout_ms", // Timeout (ms)
-  "projects.provider_field_type", // Type
-  "projects.provider_type_script", // Script
-  "projects.provider_type_style", // Style
-  "projects.settings_field_description", // Description
-  "projects.tab_agents", // Agents
-  "projects.tab_conversations", // Conversations
+  "project_migration.row_documents_title", // Documents
+  "project_migration.row_instructions_title", // Instructions
+  "project_migration.where_chat_title", // Chat
+  "project_migration.where_sources_title", // Agents › Apollia › Sources
   "settings.about.contact_title", // Contact
   "settings.about.diag_transcription", // Transcription
   "settings.about.docs_title", // Documentation
@@ -221,10 +209,8 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.permissions.add.action_label", // Action
   "settings.permissions.scope_agent", // Chat / agent
   "settings.permissions.session_badge", // Session
-  "settings.profile.proficiency.expert", // Expert
   "settings.profile.source.agent", // agent
   "settings.profile.source.onboarding", // onboarding
-  "settings.profile.team_size.solo", // Solo
   "settings.shortcuts.category.chat", // Chat
   "settings.shortcuts.category.companion", // Companion
   "settings.shortcuts.category.global", // Global

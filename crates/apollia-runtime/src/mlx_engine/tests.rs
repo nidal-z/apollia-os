@@ -340,10 +340,16 @@ impl MlxEngineSupervisor {
                 loaded_at: now,
                 last_used_at: now,
                 in_flight: Arc::new(AtomicUsize::new(0)),
+                footprint_gb: None,
             };
             sup.instances.lock().await.push(instance);
         }
         Arc::new(sup)
+    }
+
+    /// Take a lease on a resident model the way a request does.
+    pub(crate) async fn lease_for_test(&self, model_path: &str) -> Option<ModelLease> {
+        self.touch_live_instance(model_path).await
     }
 }
 

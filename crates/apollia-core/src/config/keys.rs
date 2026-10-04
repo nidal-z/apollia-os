@@ -110,16 +110,17 @@ pub const KEYS: &[ConfigKey] = &[
     key("llm.format_version", Integer, Some("1"), Restart, "Version of the [llm] format; read as 1 when absent."),
     key("llm.default", KeyType::String, None, Restart, "Name of the backend used when none is asked for; must name an entry of llm.backends."),
     key("llm.backends", TableArray, None, Restart, "OpenAI-compatible backends, migrated into the engine's database on a first start; required with llm.default."),
-    key("llm.observability.log_token_usage", Boolean, Some("true"), Restart, "Log the tokens consumed by each model call."),
-    key("llm.observability.log_latency", Boolean, Some("true"), Restart, "Log the latency of each model call."),
-    key("llm.observability.log_cost", Boolean, Some("false"), Restart, "Log the estimated cost of each cloud model call."),
     key("llm.observability.debug_log_prompt", Boolean, Some("false"), Restart, "Log the full prompt at trace level."),
     key("llm.routing", Table, None, Restart, "Backends answering precise and fast requests, and the hybrid routing ceiling."),
-    key("llm.pricing_overrides", Table, Some("{}"), Restart, "Prices per million tokens, keyed by model identifier."),
-    key("llm.cost_alert_threshold_usd", Float, None, Restart, "Cost in USD above which a token budget update is flagged."),
-    key("llm.runner.backend", KeyType::String, Some("\"auto\""), Restart, "Speech-to-text runner binary: auto, cpu, cuda, metal or rocm."),
+    withdrawn("llm.observability.log_token_usage", "the tokens of every model call are always logged; remove the key"),
+    withdrawn("llm.observability.log_latency", "the latency of every model call is always logged; remove the key"),
+    withdrawn("llm.observability.log_cost", "nothing reads it; remove the key"),
+    withdrawn("llm.pricing_overrides", "nothing reads it; remove the section"),
+    withdrawn("llm.cost_alert_threshold_usd", "nothing reads it; remove the key"),
+    withdrawn("llm.runner", "the engine is chosen from the detected hardware; remove the section"),
     locked(key("llm.guardrails.level", Enum(&["disabled", "lenient", "balanced", "strict", "ceiling"]), Some("\"balanced\""), Reloadable, "How strictly a local model launch is held to the machine's memory; an unknown level holds to balanced.")),
     locked(key("llm.guardrails.ceiling_gb", Float, None, Reloadable, "Largest estimate, in gigabytes, the ceiling level launches.")),
+    locked(key("llm.residency.idle_unload_minutes", Integer, Some("60"), Reloadable, "Minutes without a request after which a local model nothing holds is unloaded; 0 never unloads.")),
     withdrawn("llm.vertex", "the Google Vertex AI client was removed; declare an OpenAI-compatible server instead"),
     // [api]
     key("api.bind", KeyType::String, Some("\"127.0.0.1\""), Restart, "Address the daemon's TCP listener binds to."),
@@ -143,7 +144,6 @@ pub const KEYS: &[ConfigKey] = &[
     key("hitl.scan_interval_secs", Integer, Some("60"), Reloadable, "Seconds between two scans for expired approvals (10 to 3600)."),
     // [tools]
     key("tools.max_output_chars", Integer, Some("30000"), Reloadable, "Largest tool output passed to the model, in bytes (10 to 1000000)."),
-    key("tools.file_path_extraction_pattern", KeyType::String, None, Reloadable, "Regular expression extracting file paths from a command output."),
     key("tools.disabled", StringArray, Some("[]"), Reloadable, "Native tools removed from every agent."),
     key("tools.web_search.backend", Enum(&["auto", "duck_duck_go", "brave"]), Some("\"auto\""), Reloadable, "Search engine of the web_search tool."),
     key("tools.web_search.require_configured", Boolean, Some("false"), Reloadable, "Refuse a search when the chosen engine is not configured."),
@@ -165,13 +165,7 @@ pub const KEYS: &[ConfigKey] = &[
     key("hooks.handlers", TableArray, Some("[]"), Reloadable, "Lifecycle hook handlers, a command or an HTTP endpoint each."),
     // [chat]
     key("chat.plan_mode_default", Boolean, Some("false"), Reloadable, "Start every new conversation in plan mode."),
-    key("chat.default_workspace", Path, None, Reloadable, "Working folder of a conversation outside a project."),
     key("chat.tool_turn_temperature", Float, None, Reloadable, "Model temperature of a turn that offers tools; none means 0.3."),
-    // [filesystem]
-    key("filesystem.journal.enabled", Boolean, Some("true"), Reloadable, "Keep a reversible journal of file changes."),
-    key("filesystem.journal.max_sessions", Integer, Some("50"), Reloadable, "Journal sessions kept (1 to 10000)."),
-    key("filesystem.journal.root", Path, Some("\"~/.apollia/journal\""), Reloadable, "Folder of the reversible journal."),
-    key("filesystem.trusted_paths", StringArray, Some("[\"~\"]"), Reloadable, "Folders an agent may work in without asking."),
     // [models]
     locked(key("models.registry_url", KeyType::String, Some("\"https://registry.apollia.fr/models/stable/index.json\""), Reloadable, "Address of the signed index of model cards.")),
     locked(key("models.registry_mirror_url", KeyType::String, Some("\"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json\""), Reloadable, "Address tried when the index does not answer; empty disables it.")),
@@ -184,6 +178,7 @@ pub const KEYS: &[ConfigKey] = &[
     key("workflows.wall_clock_secs", Integer, Some("3600"), Restart, "Seconds a workflow run may last."),
     // [desktop]
     locked(key("desktop.developer_mode", Boolean, Some("false"), Reloadable, "Show the advanced surfaces of the application.")),
+    locked(key("desktop.link_preview_enabled", Boolean, Some("false"), Reloadable, "Fetch the preview of a link shown in a conversation.")),
     locked(key("desktop.update_channel", Enum(&["stable", "preview"]), Some("\"stable\""), Reloadable, "Update channel of the application: stable receives the published versions, preview the trial versions as well.")),
     locked(key("desktop.background_service_allowed", Boolean, Some("true"), Reloadable, "Allow the application to install the engine as a service of the user's session.")),
     // [server]
@@ -204,8 +199,6 @@ pub const KEYS: &[ConfigKey] = &[
     key("observability.capture_tool_outputs", Boolean, Some("true"), Reloadable, "Keep tool outputs in the run history."),
     key("observability.capture_agent_logs", Boolean, Some("true"), Reloadable, "Keep agent logs in the run history."),
     key("observability.retention_days", Integer, Some("90"), Reloadable, "Days the run history is kept."),
-    // [ui]
-    key("ui.link_preview_enabled", Boolean, Some("false"), Reloadable, "Fetch the preview of a link shown in a conversation."),
     // Withdrawn sections.
     withdrawn("memory", "nothing reads it; remove the section"),
     withdrawn("budget", "nothing reads it; remove the section"),
@@ -216,6 +209,10 @@ pub const KEYS: &[ConfigKey] = &[
     withdrawn("triggers", "use the desktop app or the API to manage it"),
     withdrawn("notifications", "use the desktop app or the API to manage it"),
     withdrawn("stt", "use the desktop app or the API to manage it"),
+    withdrawn("tools.file_path_extraction_pattern", "nothing reads it; remove the key"),
+    withdrawn("filesystem", "the file tools reach the folders granted to each agent; the paths listed here were added once as folder connections, grant them on the agent's sheet"),
+    withdrawn("chat.default_workspace", "the folder was added once as a folder connection; grant it to an agent on its sheet"),
+    withdrawn("ui", "moved: write desktop.link_preview_enabled; ui.link_preview_enabled is still read while it is absent"),
 ];
 
 /// The entry of `path`, live or withdrawn.
@@ -232,8 +229,7 @@ pub fn withdrawn_covering(path: &str) -> Option<&'static ConfigKey> {
 }
 
 /// `true` when `path` names a live key, or lies under a live key whose own
-/// keys are free (a map such as `llm.pricing_overrides`, or an optional table
-/// such as `llm.routing`).
+/// keys are free (an optional table such as `llm.routing`).
 pub fn is_live_path(path: &str) -> bool {
     KEYS.iter()
         .filter(|k| k.withdrawn.is_none())

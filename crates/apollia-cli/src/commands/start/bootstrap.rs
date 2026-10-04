@@ -205,6 +205,24 @@ pub(super) async fn rewire_auto_loaded_agents(
     }
 }
 
+/// The two settings of `apollia.toml` the daemon used to replace by constants:
+/// `[runtime] startup_timeout_secs` and the `[observability]` section.
+pub(super) struct DaemonFileSettings {
+    /// Seconds the supervisor gives every actor to start.
+    pub(super) startup_timeout_secs: u64,
+    /// Truncation and capture of persisted run data.
+    pub(super) observability: apollia_core::ObservabilityConfig,
+}
+
+/// Reads [`DaemonFileSettings`] from the validated file, or from the defaults
+/// when there is none.
+pub(super) fn daemon_file_settings(file: &crate::config::ApolliaConfig) -> DaemonFileSettings {
+    DaemonFileSettings {
+        startup_timeout_secs: file.runtime.startup_timeout_secs,
+        observability: file.observability.clone(),
+    }
+}
+
 /// Wait until a `RuntimeEvent::ShutdownRequested` event is received on the bus.
 pub(super) async fn wait_for_shutdown_event(rx: &mut ResilientReceiver) {
     while let Some(event) = rx.recv().await {

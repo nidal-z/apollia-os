@@ -271,56 +271,28 @@ async fn test_erase_of_an_unknown_session_is_a_404() {
 }
 
 #[tokio::test]
-async fn test_a_linked_session_is_listed_under_its_project_and_leaves_it_unlinked() {
+async fn test_a_session_can_no_longer_be_linked_to_a_project() {
     // GIVEN a runtime holding one session
     let dir = tempfile::tempdir().unwrap();
     let (router, id) = router_with_session(chat_state(&dir)).await;
 
-    // WHEN it is linked to a project, listed, then unlinked
-    let uri = format!("/api/v1/sessions/{id}/project");
-    let (linked, _) = call(&router, "PUT", &uri, Some(json!({ "project_id": "p-1" }))).await;
-    let (_, listed) = call(&router, "GET", "/api/v1/projects/p-1/sessions", None).await;
-    let (unlinked, _) = call(&router, "PUT", &uri, Some(json!({ "project_id": null }))).await;
-    let (_, after) = call(&router, "GET", "/api/v1/projects/p-1/sessions", None).await;
-
-    // THEN the project lists it while linked, and no longer after
-    assert_eq!(linked, StatusCode::OK);
-    assert_eq!(unlinked, StatusCode::OK);
-    assert_eq!(listed[0]["id"], id.as_str(), "{listed}");
-    assert_eq!(after, json!([]));
-}
-
-#[tokio::test]
-async fn test_link_of_an_unknown_session_is_a_404() {
-    // GIVEN a runtime holding no session
-    let dir = tempfile::tempdir().unwrap();
-    let router = APIServer::build_router_for_test(chat_state(&dir));
-
-    // WHEN a session nobody created is linked
-    let (status, _) = call(
+    // WHEN a client creates a session naming a project, links one to a
+    // project, or lists the sessions of a project
+    let (created, session) = call(
         &router,
-        "PUT",
-        "/api/v1/sessions/ghost/project",
-        Some(json!({ "project_id": "p-1" })),
+        "POST",
+        "/api/v1/sessions",
+        Some(json!({ "mode": "libre", "project_id": "p-1" })),
     )
     .await;
+    let uri = format!("/api/v1/sessions/{id}/project");
+    let (linked, _) = call(&router, "PUT", &uri, Some(json!({ "project_id": "p-1" }))).await;
+    let (listed, _) = call(&router, "GET", "/api/v1/projects/p-1/sessions", None).await;
 
-    // THEN the runtime says it does not know it
-    assert_eq!(status, StatusCode::NOT_FOUND);
-}
-
-#[tokio::test]
-async fn test_project_sessions_without_a_chat_subsystem_is_a_503() {
-    // GIVEN a runtime whose chat subsystem did not start
-    let dir = tempfile::tempdir().unwrap();
-    let mut state = chat_state(&dir);
-    state.chat_manager = None;
-    let router = APIServer::build_router_for_test(state);
-
-    // WHEN the sessions of a project are listed
-    let (status, body) = call(&router, "GET", "/api/v1/projects/p-1/sessions", None).await;
-
-    // THEN the refusal says the chat is unavailable
-    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
-    assert_eq!(body["error"], "chat subsystem not available");
+    // THEN the session is created without a project, and neither route
+    // exists any more
+    assert_eq!(created, StatusCode::CREATED, "{session}");
+    assert!(session.get("project_id").is_none(), "{session}");
+    assert!(linked.is_client_error(), "{linked}");
+    assert_eq!(listed, StatusCode::NOT_FOUND);
 }

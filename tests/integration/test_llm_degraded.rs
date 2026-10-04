@@ -9,7 +9,6 @@
 //! No Python dependency - CI friendly.
 
 use apollia_e2e_tests::reserve_port;
-use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -101,6 +100,7 @@ async fn test_runtime_starts_without_llm_router() {
         tool_registry_handle: None,
         audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),
+        config_reload: None,
         llm_call_repository: None,
         trigger_def_repo: None,
         notification_repo: None,
@@ -224,10 +224,8 @@ async fn test_runtime_continues_after_llm_init_failure() {
         backends: vec![],
         observability: ObservabilityConfig::default(),
         routing: None,
-        pricing_overrides: HashMap::new(),
-        cost_alert_threshold_usd: None,
-        runner: apollia_core::config::LlmRunnerConfig::default(),
         guardrails: Default::default(),
+        residency: Default::default(),
     };
 
     // WHEN LlmRouter::from_config() fails (the backend is absent)
@@ -270,6 +268,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         tool_registry_handle: None,
         audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),
+        config_reload: None,
         llm_call_repository: None,
         trigger_def_repo: None,
         notification_repo: None,

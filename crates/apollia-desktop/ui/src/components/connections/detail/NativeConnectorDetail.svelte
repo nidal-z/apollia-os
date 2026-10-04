@@ -28,6 +28,8 @@
 
   interface Props {
     connector: NativeConnectorCard;
+    /** One of its accounts sends data off this machine. */
+    remote?: boolean;
     accounts: OauthAccountInfo[];
     loading: boolean;
     error: string | null;
@@ -48,6 +50,7 @@
 
   let {
     connector,
+    remote = false,
     accounts,
     loading,
     error,
@@ -83,6 +86,9 @@
       />
     {:else}
       <StatusBadge status="idle" label={$t("connections.not_connected")} />
+    {/if}
+    {#if remote}
+      <Badge size="sm" variant="info" data-testid="native-detail-remote">{$t("connections.remote")}</Badge>
     {/if}
     <Badge variant="primary" size="sm">{$t("connections.native_section_tag")}</Badge>
   {/snippet}

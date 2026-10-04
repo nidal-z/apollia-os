@@ -153,7 +153,7 @@ async fn test_the_loaded_list_shows_the_embeddings_instance_with_its_kind() {
             ("chat".to_owned(), ModelKind::Chat),
         ]
     );
-    assert_eq!(sup.max_loaded(), 1);
+    assert_eq!(sup.max_loaded(), Some(1));
 
     // AND it unloads like any model
     assert_eq!(sup.unload_model("/models/e5.gguf").await, Ok(1));

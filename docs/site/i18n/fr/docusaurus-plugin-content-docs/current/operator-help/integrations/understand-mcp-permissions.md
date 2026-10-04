@@ -23,7 +23,7 @@ Chaque outil exposé par un connecteur ou un MCP a une **policy d'approbation** 
 | `always_require_approval` | Une popup HITL apparaît, vous décidez. | Écritures, `gmail.send`, `outlook.send`, `gcal.create_event`. |
 | `confirm_phrase` | Popup HITL + il faut taper une phrase de confirmation (le nom de la chose à supprimer par exemple). | Suppressions irréversibles, `gcal.delete_event`, `outlook_cal.delete_event`. |
 
-La carte porte trois boutons, **Autoriser une fois**, **Refuser** et **Toujours autoriser**. La portée est un choix distinct, proposé à côté : *Pour cette session*, *Toujours pour cet assistant*, *Toujours pour ce projet* (indisponible si la session n'est rattachée à aucun projet) ou *Toujours, partout*. Répondre **Toujours autoriser** sur une portée autre que la session crée une **règle persistante** que vous retrouverez et pourrez révoquer dans **Paramètres, Permissions**.
+La carte porte trois boutons, **Autoriser une fois**, **Refuser** et **Toujours autoriser**. La portée est un choix distinct, proposé à côté : *Pour cette session*, *Toujours pour cet assistant* ou *Toujours, partout*. Répondre **Toujours autoriser** sur une portée autre que la session crée une **règle persistante** que vous retrouverez et pourrez révoquer dans **Paramètres, Permissions**.
 
 Il n'existe pas d'écran d'approbations propre au MCP, ni de file d'attente de demandes MCP à traiter. Un outil exposé par un serveur MCP passe par la même porte qu'un outil natif, celle qu'ouvre la boucle d'exécution : la carte dans la conversation si vous y êtes, la **Boîte de réception** pour une tâche d'agent en attente. Tout ce que le reste de ce centre d'aide dit sur l'approbation d'une action s'y applique sans changement.
 
@@ -77,7 +77,7 @@ elles arriveront.
 
 - Ouvrez **Paramètres, Permissions**, les quatre sections s'affichent.
 - Dans le chat, déclenchez une écriture (envoi de mail), la popup apparaît.
-- Répondez **Toujours autoriser** avec la portée *Toujours pour ce projet*, confirmez, vérifiez qu'une nouvelle ligne apparaît dans **Règles**.
+- Répondez **Toujours autoriser** avec la portée *Toujours pour cet assistant*, confirmez, vérifiez qu'une nouvelle ligne apparaît dans **Règles**.
 
 ## Si ça ne marche pas
 

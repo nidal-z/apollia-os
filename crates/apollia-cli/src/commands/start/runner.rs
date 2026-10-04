@@ -5,9 +5,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use apollia_aip::bridge::AIPBridge;
-use apollia_aip::context::{
-    effective_memory_namespace, DispatcherExecutor, RuntimeContext, ToolProxy, ToolProxyConfig,
-};
+use apollia_aip::context::{DispatcherExecutor, RuntimeContext, ToolProxy, ToolProxyConfig};
 use apollia_aip::memory::MemoryInterface;
 use apollia_core::{AIPResult, AIPTask, AgentManifest};
 use apollia_llm::{LlmRouter, ObservabilityConfig, StepBudgetView, ToolCallHelper};
@@ -22,7 +20,7 @@ use apollia_tools::{
 use pyo3::prelude::*;
 
 use super::chat_runner::task_tool_executors;
-use super::llm_glue::{merge_disabled, sandbox_roots_for_agent, NoopToolInvoker, RouterModel};
+use super::llm_glue::{file_tool_access, merge_disabled, NoopToolInvoker, RouterModel};
 use super::open_secret_store;
 
 // ─────────────────────────────────────────────────────────────
@@ -49,11 +47,9 @@ pub(super) struct BridgeRunner {
     pub(super) memory_base_dir: PathBuf,
     /// High-level A2A invoker, `None` if not available.
     pub(super) a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
-    /// Operator-supplied tools configuration loaded from `apollia.toml`.
-    pub(super) tools_config: apollia_core::ToolsConfig,
-    /// Filesystem roots an agent may reach, from `[filesystem] trusted_paths`
-    /// with `~` already resolved. The first is the anchor for relative paths.
-    pub(super) trusted_paths: Vec<std::path::PathBuf>,
+    /// Operator-supplied tools configuration loaded from `apollia.toml`, read
+    /// at each run so a saved change applies to the next one.
+    pub(super) tools_config: apollia_runtime::config_reload::Live<apollia_core::ToolsConfig>,
     /// Manifest opt-in for `ctx.memory.remember_user()` writes into `__user__`.
     pub(super) user_memory_write: bool,
     /// Datasources declared in the manifest.
@@ -117,6 +113,7 @@ impl BridgeRunner {
             .parent()
             .map(Path::to_path_buf)
             .unwrap_or_else(|| self.memory_base_dir.clone());
+        let (allowed_tools, folders) = file_tool_access(allowed_tools, &governance_base);
         let snapshot = load_governance_snapshot(&governance_base).unwrap_or_else(|e| {
             tracing::warn!(
                 error = %e,
@@ -125,16 +122,26 @@ impl BridgeRunner {
             );
             Default::default()
         });
-        let disabled_tools = merge_disabled(&self.tools_config.disabled, snapshot.disabled_tools);
-        let extra_executors = task_tool_executors(
+        let tools_config = self.tools_config.get();
+        let disabled_tools = merge_disabled(&tools_config.disabled, snapshot.disabled_tools);
+        let mut extra_executors = task_tool_executors(
             &self.mcp_handle,
             task,
             self.manifest.tools_requiring_approval.clone(),
         )
         .await;
+        // A code folder checked for the agent grants `code_context`.
+        let code_context =
+            apollia_runtime::agents::sources::code_context_for(&governance_base, &self.agent_id);
+        let allowed_tools =
+            apollia_tools::granted_with_code_folders(allowed_tools, code_context.is_some());
+        if let Some(tool) = code_context {
+            extra_executors.push(Box::new(tool));
+        }
         let dispatcher = Arc::new(build_dispatcher_with(
             &NativeDispatcherConfig {
-                sandbox_roots: sandbox_roots_for_agent(&self.trusted_paths),
+                sandbox_roots: folders.read,
+                write_roots: folders.write,
                 agent_id: self.agent_id.clone(),
                 venv_base_dir: self
                     .memory_base_dir
@@ -149,9 +156,14 @@ impl BridgeRunner {
                 session_id: None,
                 disabled_tools,
                 brave_api_key: snapshot.brave_api_key,
-                web_search_config: self.tools_config.web_search.clone(),
-                web_read_config: self.tools_config.web_read.clone(),
-                python_interpreter: self.tools_config.python_interpreter.clone(),
+                web_search_config: tools_config.web_search.clone(),
+                web_read_config: tools_config.web_read.clone(),
+                python_interpreter: tools_config.python_interpreter.clone(),
+                max_output_chars: tools_config.max_output_chars,
+                // `memory_search` only when the agent's memory is checked.
+                sources: apollia_tools::SourceAccess::memory_only(
+                    apollia_tools::memory_is_checked(&governance_base, &self.agent_id),
+                ),
             },
             extra_executors,
         ));
@@ -194,8 +206,7 @@ impl AgentRunner for BridgeRunner {
         let task_for_gate = task.clone();
         let memory_base_dir = self.memory_base_dir.clone();
         let a2a_invoker = self.a2a_invoker.clone();
-        let tools_config = self.tools_config.clone();
-        let trusted_paths = self.trusted_paths.clone();
+        let tools_config = self.tools_config.get();
         let user_memory_write = self.user_memory_write;
         let datasources_declared = self.datasources_declared.clone();
         let templates_declared = self.templates_declared.clone();
@@ -229,6 +240,8 @@ impl AgentRunner for BridgeRunner {
                 .parent()
                 .map(Path::to_path_buf)
                 .unwrap_or_else(|| memory_base_dir.clone());
+            // The folders granted to the agent are the roots of its file tools.
+            let (allowed_tools, folders) = file_tool_access(allowed_tools, &governance_base);
             let snapshot = load_governance_snapshot(&governance_base).unwrap_or_else(|e| {
                 tracing::warn!(
                     error = %e,
@@ -241,11 +254,20 @@ impl AgentRunner for BridgeRunner {
             // Inject one MCP executor per registered tool so `ctx.tools.call("mcp:...")`
             // routes through the MCP client manager instead of returning UnknownTool,
             // plus the SaaS connector executors.
-            let extra_executors =
+            let mut extra_executors =
                 task_tool_executors(&mcp_handle, &task_for_gate, tools_requiring_approval).await;
+            // A code folder checked for the agent grants `code_context`.
+            let code_context =
+                apollia_runtime::agents::sources::code_context_for(&governance_base, &agent_id);
+            let allowed_tools =
+                apollia_tools::granted_with_code_folders(allowed_tools, code_context.is_some());
+            if let Some(tool) = code_context {
+                extra_executors.push(Box::new(tool));
+            }
             let dispatcher = Arc::new(build_dispatcher_with(
                 &NativeDispatcherConfig {
-                    sandbox_roots: sandbox_roots_for_agent(&trusted_paths),
+                    sandbox_roots: folders.read,
+                    write_roots: folders.write,
                     agent_id: agent_id.clone(),
                     venv_base_dir: memory_base_dir
                         .parent()
@@ -262,6 +284,11 @@ impl AgentRunner for BridgeRunner {
                     web_search_config: tools_config.web_search.clone(),
                     web_read_config: tools_config.web_read.clone(),
                     python_interpreter: tools_config.python_interpreter.clone(),
+                    max_output_chars: tools_config.max_output_chars,
+                    // `memory_search` only when the agent's memory is checked.
+                    sources: apollia_tools::SourceAccess::memory_only(
+                        apollia_tools::memory_is_checked(&governance_base, &agent_id),
+                    ),
                 },
                 extra_executors,
             ));
@@ -302,7 +329,7 @@ impl AgentRunner for BridgeRunner {
 
             let memory_interface: Option<MemoryInterface> =
                 memory_namespace.as_deref().and_then(|ns| {
-                    let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
+                    let eff_ns = ns.to_owned();
                     let mut manager =
                         MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
                     if let Some(ref memory_config) = memory_config {

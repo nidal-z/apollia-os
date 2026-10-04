@@ -12,12 +12,13 @@ pub struct ChatSessionManagerHandle {
     /// are routed to this manager's background drainer task.
     pub(in crate::chat::manager) pending_user_inputs:
         apollia_tools::tools::ask_user::PendingUserInputs,
-    /// Shared lifecycle hook executor, exposed so the API can list the active
-    /// handlers. `None` when no hooks are configured.
-    pub(in crate::chat::manager) hook_executor: Option<Arc<HookExecutor>>,
+    /// The lifecycle hook executor in force, exposed so the API can list the
+    /// active handlers. `None` when no hooks are configured.
+    pub(in crate::chat::manager) hook_executor:
+        tokio::sync::watch::Receiver<Option<Arc<HookExecutor>>>,
     /// Plan-mode state a new session starts in, the `[chat] plan_mode_default`
-    /// key of `apollia.toml` this manager was spawned with.
-    pub(in crate::chat::manager) plan_mode_default: bool,
+    /// key of `apollia.toml` in force.
+    pub(in crate::chat::manager) plan_mode_default: tokio::sync::watch::Receiver<bool>,
 }
 
 impl ChatSessionManagerHandle {
@@ -35,15 +36,16 @@ impl ChatSessionManagerHandle {
     /// declaration order. Empty when no hooks are configured.
     pub fn hook_summaries(&self) -> Vec<crate::hooks::HookHandlerSummary> {
         self.hook_executor
+            .borrow()
             .as_ref()
             .map(|exec| exec.registry().list_all())
             .unwrap_or_default()
     }
 
-    /// The plan-mode state a new session starts in, read from the
-    /// `[chat] plan_mode_default` key of `apollia.toml` at boot.
+    /// The plan-mode state a new session starts in, the
+    /// `[chat] plan_mode_default` key of `apollia.toml` in force.
     pub fn plan_mode_default(&self) -> bool {
-        self.plan_mode_default
+        *self.plan_mode_default.borrow()
     }
 }
 
@@ -68,8 +70,6 @@ impl ChatSessionManagerHandle {
         user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
         registry_handle: AgentRegistryHandle,
         a2a_invoker: Option<Arc<A2AInvoker>>,
-        project_context: Option<Arc<dyn ProjectContextProvider>>,
-        project_repo: Option<Arc<ProjectRepository>>,
         mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
         // Supervisor-built config so the chat dispatcher can include
         // config-dependent natives (web_search, web_read, http_fetch,
@@ -123,8 +123,12 @@ impl ChatSessionManagerHandle {
 
         let (tx, rx) = mpsc::channel(256);
 
-        // Keep a handle-side clone so the API can list active hook handlers.
-        let hook_executor_for_handle = hook_executor.clone();
+        // The handles read the hook executor and the plan-mode default the
+        // actor holds, which follow the configuration once it is handed over.
+        let (hook_executor_tx, hook_executor_for_handle) =
+            tokio::sync::watch::channel(hook_executor.clone());
+        let (plan_mode_default_tx, plan_mode_default_rx) =
+            tokio::sync::watch::channel(plan_mode_default);
 
         // The governance database lives beside the other runtime databases.
         // Deriving the path here, from the injected data directory, is what
@@ -150,8 +154,6 @@ impl ChatSessionManagerHandle {
             enrichment_extractor,
             tx: tx.clone(),
             a2a_invoker,
-            project_context,
-            project_repo,
             pending_user_inputs: pending_user_inputs.clone(),
             mcp_handle,
             chat_tools_config,
@@ -170,6 +172,9 @@ impl ChatSessionManagerHandle {
             pause_states: HashMap::new(),
             pending_injections: HashMap::new(),
             pending_plan_continuations: HashMap::new(),
+            config_feed: None,
+            plan_mode_default_tx,
+            hook_executor_tx,
         };
 
         // Restore active sessions from SQLite before entering the actor loop
@@ -205,7 +210,7 @@ impl ChatSessionManagerHandle {
             tx,
             pending_user_inputs,
             hook_executor: hook_executor_for_handle,
-            plan_mode_default,
+            plan_mode_default: plan_mode_default_rx,
         })
     }
 
@@ -219,7 +224,6 @@ impl ChatSessionManagerHandle {
             agent_name,
             system_prompt,
             tools,
-            project_id,
         } = params;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -228,7 +232,6 @@ impl ChatSessionManagerHandle {
                 agent_name,
                 system_prompt,
                 tools,
-                project_id,
                 reply: reply_tx,
             })
             .await

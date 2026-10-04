@@ -11,9 +11,15 @@ use std::sync::{Arc, Mutex};
 use apollia_memory::user_memory::{ProfileEntry, UserMemoryError, UserMemoryRepository, WrittenBy};
 use serde::{Deserialize, Serialize};
 
+mod manage;
 mod resolve;
 mod source;
 
+pub use manage::{
+    create_profile, delete_profile, delete_profile_fact, list_profiles, read_profile_by_id,
+    reset_profile_by_id, set_default_profile, set_profile_fact, update_profile, ProfileDetailView,
+    ProfileFieldView, ProfileSummaryView, ProfileUpdate, DEFAULT_PROFILE_ALIAS,
+};
 pub use resolve::{profile_for_agent, profile_for_execution};
 pub use source::{profile_source_checked, profile_source_checked_in};
 
@@ -67,6 +73,16 @@ pub enum ProfileError {
     /// No entry has this key.
     #[error("NOT_FOUND: Profile entry not found: {0}")]
     NotFound(String),
+    /// No profile has this identifier.
+    #[error("NOT_FOUND: Profile not found: {0}")]
+    ProfileNotFound(String),
+    /// The default profile cannot be deleted.
+    #[error("DEFAULT_PROFILE: '{0}' is the default profile and cannot be deleted: make another profile the default first")]
+    IsDefault(String),
+    /// The key is reserved, outside the schema where a field is expected, or
+    /// a field where a fact is expected; or the name is empty.
+    #[error("VALIDATION_ERROR: Invalid key or name: {0}")]
+    InvalidKey(String),
     /// The repository refused the operation.
     #[error("{0}")]
     Storage(#[source] UserMemoryError),

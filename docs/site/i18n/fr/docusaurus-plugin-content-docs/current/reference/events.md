@@ -218,6 +218,8 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 | Variante | Charge utile |
 |---|---|
 | `AllReady` | aucune |
+| `ConfigInvalid` | champs nommés |
+| `ConfigReloaded` | champs nommés |
 | `ContextCompacted` | champs nommés |
 | `FileModifiedSinceRead` | champs nommés |
 | `McpServerHealthChanged` | champs nommés |

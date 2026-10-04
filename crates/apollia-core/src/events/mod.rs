@@ -2,6 +2,7 @@ mod ids;
 mod rationale;
 mod resilient;
 mod runtime_event;
+mod unload_reason;
 
 #[cfg(test)]
 mod tests;
@@ -12,6 +13,7 @@ pub use ids::{AgentId, RunId, TaskId};
 pub use rationale::ToolCallRationale;
 pub use resilient::{resilient, subscribe_resilient, Received, ResilientReceiver};
 pub use runtime_event::RuntimeEvent;
+pub use unload_reason::ModelUnloadReason;
 
 /// Write handle on the EventBus: clonable, shareable between actors.
 ///

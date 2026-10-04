@@ -64,7 +64,7 @@ A lock prevents two simultaneous updates.
 ## What happens to your data
 
 **Nothing.** The update replaces an executable, not your `~/.apollia`
-directory. Your sessions, projects, agents, memory, audit journal and
+directory. Your sessions, sources, agents, memory, audit journal and
 `apollia.toml` are kept as they are.
 
 One point to know before updating a machine you could not easily reinstall:

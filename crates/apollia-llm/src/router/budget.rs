@@ -12,12 +12,6 @@ use crate::router::LlmRouter;
 use crate::types::{message_char_len, BackendInfo, ChatMessage};
 
 impl LlmRouter {
-    /// Return the configured LLM cost alert threshold in USD, or `None`.
-    ///
-    /// Maps to `[llm] cost_alert_threshold_usd` in `apollia.toml`.
-    pub fn cost_alert_threshold_usd(&self) -> Option<f64> {
-        self.session_budget.lock().ok()?.threshold_usd()
-    }
     /// Return `true` when hybrid routing is configured and the per-session cost
     /// has reached or exceeded the configured ceiling.
     ///

@@ -1,28 +1,6 @@
 use super::*;
 
 impl ChatSessionManager {
-    /// Clear the `project_id` of cached sessions after their project is deleted.
-    pub(in crate::chat::manager) fn handle_orphan_project_sessions(&mut self, project_id: &str) {
-        match self.repository.orphan_project_sessions(project_id) {
-            Ok(count) => {
-                if count > 0 {
-                    info!(project_id = %project_id, count, "chat.sessions.orphaned");
-                    // Also update in-memory cache
-                    for session in self.sessions.values_mut() {
-                        if session.project_id.as_deref() == Some(project_id) {
-                            session.project_id = None;
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                warn!(project_id = %project_id, error = %e, "chat.sessions.orphan.failed");
-            }
-        }
-    }
-}
-
-impl ChatSessionManager {
     /// Build a cross-session context block from past session summaries.
     ///
     /// Returns `None` if the first message is too short (trivial greeting)
@@ -120,7 +98,6 @@ impl ChatSessionManager {
             agent_name,
             system_prompt,
             tools,
-            project_id,
         } = params;
         let declarative = match (&mode, agent_name.as_deref()) {
             (ChatMode::Agent, Some(name)) => {
@@ -172,7 +149,6 @@ impl ChatSessionManager {
             &resolved_tools,
             &now,
             None,
-            project_id.as_deref(),
         )?;
 
         // A new session inherits the runtime-level plan-mode default. When it is
@@ -206,8 +182,6 @@ impl ChatSessionManager {
             title: None,
             parent_session_id: None,
             fork_depth: 0,
-            project_id,
-            force_project_context_inject: false,
             // Plan mode is seeded from the runtime-level default; the per-session
             // toggle overrides it afterwards.
             plan_mode,
@@ -273,57 +247,28 @@ impl ChatSessionManager {
 }
 
 impl ChatSessionManager {
-    /// Resolve a session's project id to its workspace path, if any.
-    pub(in crate::chat::manager) fn resolve_project_workspace(
-        &self,
-        project_id: Option<&str>,
-    ) -> Option<std::path::PathBuf> {
-        let pid = project_id?;
-        let repo = self.project_repo.as_ref()?;
-        repo.get_project(pid)
-            .ok()
-            .and_then(|d| d.workspace_path.map(std::path::PathBuf::from))
-    }
-
-    /// Resolve the effective working directory for a session.
+    /// Resolve the effective working directory for a session: the folder its
+    /// relative paths land in, the first folder granted to its agent (the
+    /// Apollia agent for a free chat). Kept synchronous (SQLite reads only, no await) so the
+    /// actor loop never holds a connection borrow across a suspension point.
     ///
-    /// Mirrors [`resolve_workspace_path`] applied per message: the project's
-    /// `workspace_path` when the session is linked to a project, otherwise the
-    /// operator-configured `[chat] default_workspace`, then `~/.apollia`. Kept
-    /// synchronous (SQLite fallback lookup only, no await) so the actor loop
-    /// never holds a connection borrow across a suspension point.
-    ///
-    /// Returns `None` for an unknown session, or a free chat with neither a
-    /// configured default workspace nor an existing `~/.apollia`.
+    /// Returns `None` for an unknown session, or an agent granted no folder.
     pub(in crate::chat::manager) fn handle_resolve_session_workspace(
         &self,
         session_id: &str,
     ) -> Option<std::path::PathBuf> {
-        // Resolve the session's project link in-memory first, then fall back to
-        // SQLite. An unknown session yields `None` so the caller reveals the
-        // raw path best-effort instead of a wrong location.
-        let project_id: Option<String> = if let Some(session) = self.sessions.get(session_id) {
-            session.project_id.clone()
+        let agent: Option<String> = if let Some(session) = self.sessions.get(session_id) {
+            session.agent_name.clone()
         } else {
             match self.repository.get_session(session_id) {
-                Ok(Some(row)) => row.project_id,
+                Ok(Some(row)) => row.agent_name,
                 _ => return None,
             }
         };
-
-        match project_id {
-            Some(pid) => self.resolve_project_workspace(Some(&pid)),
-            None => {
-                let default_workspace = self
-                    .chat_tools_config
-                    .as_ref()
-                    .and_then(|c| c.default_workspace.clone());
-                if let Some(p) = default_workspace.filter(|p| p.is_dir()) {
-                    return Some(p);
-                }
-                apollia_core::paths::data_dir().filter(|p| p.is_dir())
-            }
-        }
+        super::apollia_agent::granted_folder_anchor(
+            self.governance_db_path.as_deref(),
+            agent.as_deref(),
+        )
     }
 
     /// List sessions with optional status filter.
@@ -345,7 +290,6 @@ impl ChatSessionManager {
                         status,
                         created_at: row.created_at,
                         title: row.title,
-                        project_id: row.project_id,
                     })
                 })
                 .collect(),
@@ -469,8 +413,6 @@ impl ChatSessionManager {
             title: row.title,
             parent_session_id: row.parent_session_id,
             fork_depth: row.fork_depth,
-            project_id: row.project_id,
-            force_project_context_inject: false,
             plan_mode,
             plan_phase,
         };
@@ -711,64 +653,11 @@ impl ChatSessionManager {
                         status,
                         created_at: row.created_at,
                         title: row.title,
-                        project_id: row.project_id,
                     })
                 })
                 .collect(),
             Err(e) => {
                 error!(parent_id = %parent_id, error = %e, "chat.session.children.list.failed");
-                Vec::new()
-            }
-        }
-    }
-
-    /// Link or unlink a session to a project.
-    pub(in crate::chat::manager) fn handle_link_session_to_project(
-        &mut self,
-        session_id: &str,
-        project_id: Option<&str>,
-    ) -> Result<(), ChatError> {
-        self.repository
-            .set_session_project(session_id, project_id)?;
-
-        // Update in-memory cache and flag the next user message so the
-        // project-context provider re-runs (the initial-injection path is
-        // gated on `is_first_message`, which is false for already-active
-        // sessions).
-        if let Some(session) = self.sessions.get_mut(session_id) {
-            let new_pid = project_id.map(|s| s.to_string());
-            if session.project_id != new_pid {
-                session.force_project_context_inject = new_pid.is_some();
-            }
-            session.project_id = new_pid;
-        }
-        Ok(())
-    }
-
-    /// List sessions belonging to a specific project.
-    pub(in crate::chat::manager) fn handle_list_sessions_by_project(
-        &self,
-        project_id: &str,
-    ) -> Vec<SessionInfo> {
-        match self.repository.list_sessions_by_project(project_id) {
-            Ok(rows) => rows
-                .into_iter()
-                .filter_map(|row| {
-                    let mode = ChatMode::from_sql(&row.mode)?;
-                    let status = SessionStatus::from_sql(&row.status)?;
-                    Some(SessionInfo {
-                        id: row.id,
-                        mode,
-                        agent_name: row.agent_name,
-                        status,
-                        created_at: row.created_at,
-                        title: row.title,
-                        project_id: row.project_id,
-                    })
-                })
-                .collect(),
-            Err(e) => {
-                error!(project_id = %project_id, error = %e, "chat.sessions.list.failed");
                 Vec::new()
             }
         }

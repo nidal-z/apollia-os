@@ -321,6 +321,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agents/installed/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Handler for `PUT /api/v1/agents/installed/{name}`.
+         * @description Validates the new module, replaces the installed one, records the new
+         *     version, and cycles the runtime instance when there is one. The cycle is the
+         *     point of the route: the interpreter holds the module it imported at start
+         *     time, so without the stop and the start the window would report a new
+         *     version while the old one keeps answering. Emits
+         *     `RuntimeEvent::AgentInstalled` once the runtime has settled.
+         */
+        put: operations["update_agent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agents/installed/{name}/uninstall": {
         parameters: {
             query?: never;
@@ -950,6 +975,114 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/config`: the text of `apollia.toml`, its fingerprint, its
+         *     faults, the keys the policy fixes and the keys waiting for a restart.
+         */
+        get: operations["read_config"];
+        /** `PUT /api/v1/config`: saves a whole text through the writer. */
+        put: operations["save_config"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/config/default`: the default text of the file, the keys the
+         *     policy fixes written at their value.
+         */
+        get: operations["default_config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/observability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/config/observability`: the capture and retention policy. */
+        get: operations["read_observability"];
+        /**
+         * `PUT /api/v1/config/observability`: writes the policy, applied at the next
+         *     start of the runtime.
+         */
+        put: operations["save_observability"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/python-interpreter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/config/python-interpreter`: the chosen interpreter and the
+         *     one this runtime ships.
+         */
+        get: operations["read_python_interpreter"];
+        /**
+         * `PUT /api/v1/config/python-interpreter`: chooses an interpreter, checked
+         *     before it is written (it exists, starts, and has the minor version of the
+         *     bundled standard library), or returns to the bundled one. Applies to the
+         *     agents started after it.
+         */
+        put: operations["save_python_interpreter"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/config/validate`: what the writer would say of a text,
+         *     without writing it.
+         */
+        post: operations["validate_config"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connections": {
         parameters: {
             query?: never;
@@ -965,6 +1098,40 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connections/folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/connections/folders`: add a folder of this machine. */
+        post: operations["add_folder_connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connections/folders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** `DELETE /api/v1/connections/folders/{id}`: remove a folder connection. */
+        delete: operations["remove_folder_connection"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1062,6 +1229,27 @@ export interface paths {
         put?: never;
         /** `POST /api/v1/connectors/imap/accounts`: verify a mailbox, then store it. */
         post: operations["add_imap_mailbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connectors/imap/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/connectors/imap/providers`: the providers whose server and
+         *     port are filled from the address. Reads a table compiled into the runtime;
+         *     nothing is reached, nothing is stored.
+         */
+        get: operations["list_imap_providers"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1232,7 +1420,8 @@ export interface paths {
          * `GET /api/v1/events`, every runtime event as SSE.
          * @description Each `runtime` frame carries one event of the bus serialized as the bus
          *     carries it; a `lagged` frame reports how many events this subscriber
-         *     missed. The stream stays open until the client disconnects.
+         *     missed. The stream stays open until the client disconnects, which releases
+         *     the leases of the `client` it names.
          */
         get: operations["stream_events"];
         put?: never;
@@ -1599,28 +1788,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/llm/cost-alert-threshold": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Handler for `GET /api/v1/llm/cost-alert-threshold`.
-         * @description Reads the threshold of the router the runtime serves now, the one a reload
-         *     swapped in. A runtime without a router has no threshold, which is an answer
-         *     and not an error, as the desktop has always read it.
-         */
-        get: operations["get_cost_alert_threshold"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/llm/costs": {
         parameters: {
             query?: never;
@@ -1781,6 +1948,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/leases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/llm/leases`.
+         * @description A conversation moved to another model releases its lease on the previous
+         *     one, which is unloaded when nothing else holds it.
+         */
+        post: operations["open_model_lease"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/leases/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/llm/leases/release`.
+         * @description Releasing the last lease on a model unloads it at once, unless it is
+         *     pinned or answering a request.
+         */
+        post: operations["release_model_lease"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/loaded-models": {
         parameters: {
             query?: never;
@@ -1899,6 +2108,28 @@ export interface paths {
          *     - The backend call fails (key missing, network error, etc.).
          */
         post: operations["ping_llm_backend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/pins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/llm/pins`. */
+        get: operations["list_model_pins"];
+        /**
+         * Handler for `PUT /api/v1/llm/pins`.
+         * @description A pinned model is never unloaded on its own. Unpinning a model that nothing
+         *     else holds leaves it to the idle delay; it is not unloaded at once.
+         */
+        put: operations["set_model_pin"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3684,20 +3915,95 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{id}/sessions": {
+    "/api/v1/profiles": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * Handler for `GET /api/v1/projects/{id}/sessions`, the sessions of a
-         *     project.
-         */
-        get: operations["list_project_sessions"];
+        /** `GET /api/v1/profiles`: every profile, the default first. */
+        get: operations["list_profiles"];
+        put?: never;
+        /** `POST /api/v1/profiles`: creates a profile with empty fields. */
+        post: operations["create_profile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profiles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/profiles/{id}`: one profile, its fields and its facts. */
+        get: operations["get_profile_by_id"];
         put?: never;
         post?: never;
+        /** `DELETE /api/v1/profiles/{id}`: deletes a profile and its facts. */
+        delete: operations["delete_profile"];
+        options?: never;
+        head?: never;
+        /** `PATCH /api/v1/profiles/{id}`: renames a profile and writes its fields. */
+        patch: operations["update_profile"];
+        trace?: never;
+    };
+    "/api/v1/profiles/{id}/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/profiles/{id}/default`: makes a profile the default. */
+        post: operations["set_default_profile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profiles/{id}/facts/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /api/v1/profiles/{id}/facts/{key}`: retains a fact in a profile, as
+         *     written by the user.
+         */
+        put: operations["set_profile_fact"];
+        post?: never;
+        /** `DELETE /api/v1/profiles/{id}/facts/{key}`: forgets a fact of a profile. */
+        delete: operations["delete_profile_fact"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profiles/{id}/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/profiles/{id}/reset`: empties a profile and deletes its
+         *     facts.
+         */
+        post: operations["reset_profile"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3747,6 +4053,26 @@ export interface paths {
         };
         /** `GET /api/v1/resilience/status/:tool`, single-tool snapshot. */
         get: operations["get_breaker"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security-posture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/security-posture`: the confinement of native tools and the
+         *     trust model of agent code where this runtime runs them.
+         */
+        get: operations["security_posture"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4298,26 +4624,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/sessions/{id}/project": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Handler for `PUT /api/v1/sessions/{id}/project`, link the session to a
-         *     project or, with `null`, unlink it.
-         */
-        put: operations["link_session_project"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/sessions/{id}/resume": {
         parameters: {
             query?: never;
@@ -4509,6 +4815,66 @@ export interface paths {
         put?: never;
         /** `POST /api/v1/sources`: add a source. */
         post: operations["create_source"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/folder-kinds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/sources/folder-kinds`: the kinds offered for a source made
+         *     on a folder connection.
+         * @description The code folder is offered only when the developer mode is on. This is
+         *     what the user is offered, not a check: `POST /api/v1/sources` accepts a
+         *     code folder whatever the mode.
+         */
+        get: operations["folder_kinds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/sources/preview`: the preview of a workbook or a CSV file. */
+        post: operations["preview_source"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/project-migration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/sources/project-migration`: what the migration of the former
+         *     projects carried over, and what it listed instead.
+         */
+        get: operations["project_migration_report"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4791,6 +5157,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tasks/{id}/delegation-tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/tasks/{id}/delegation-tree`.
+         * @description A task with no recorded delegation answers its root with no children.
+         */
+        get: operations["get_delegation_tree"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tasks/{id}/plan-decision": {
         parameters: {
             query?: never;
@@ -4814,6 +5200,23 @@ export interface paths {
          */
         post: operations["submit_plan_decision"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}/record": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Handler for `DELETE /api/v1/tasks/{id}/record`. */
+        delete: operations["delete_task_record"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5477,6 +5880,13 @@ export interface components {
             permits: string;
             /** @description Using it is sensitive. */
             sensitive: boolean;
+        };
+        /** @description Body of `POST /api/v1/connections/folders`. */
+        AddFolderBody: {
+            /** @description Name shown to the user; the folder's own name when absent. */
+            label?: string | null;
+            /** @description Absolute path of the folder, as the system picker answered it. */
+            path: string;
         };
         /** @description Request body for `POST /api/v1/permissions/rules`. */
         AddPermissionRuleBody: {
@@ -6264,6 +6674,76 @@ export interface components {
              */
             temperature?: number | null;
         };
+        /** @description The default text of the file. */
+        ConfigDefaultText: {
+            /**
+             * @description Every key commented at its default, the keys the policy fixes written
+             *     at their value.
+             */
+            text: string;
+        };
+        /** @description One fault of a configuration text, at its line. */
+        ConfigDiagnosticBody: {
+            /** @description 1-based column, in characters. */
+            column: number;
+            /** @description 1-based line. */
+            line: number;
+            /** @description What is wrong, in English. */
+            message: string;
+            /** @description Dotted path of the key at fault; empty at the root. */
+            path: string;
+        };
+        /** @description The error of a configuration route. */
+        ConfigErrorBody: {
+            /** @description `modified`, `invalid`, `locked`, `unavailable` or `internal`. */
+            code: string;
+            /** @description The faults of the text, for `invalid` and `locked`. */
+            diagnostics: components["schemas"]["ConfigDiagnosticBody"][];
+            /**
+             * @description What went wrong, for the user; the same sentence the command line
+             *     prints for the same refusal.
+             */
+            error: string;
+        };
+        /** @description A text to save, with the fingerprint of the text it was made from. */
+        ConfigSaveRequest: {
+            /** @description SHA-256 of the text the change was made from, as `GET` returned it. */
+            sha256: string;
+            /** @description The whole text of the new `apollia.toml`. */
+            text: string;
+        };
+        /** @description A text to check. */
+        ConfigValidateRequest: {
+            /** @description The whole text of a candidate `apollia.toml`. */
+            text: string;
+        };
+        /** @description The verdict on a text. */
+        ConfigValidation: {
+            /** @description Every fault, each at its line. */
+            diagnostics: components["schemas"]["ConfigDiagnosticBody"][];
+            /** @description Whether the writer would accept the text. */
+            valid: boolean;
+        };
+        /** @description `apollia.toml` as the runtime reads it. */
+        ConfigView: {
+            /** @description The faults of the text, each at its line; empty when it is valid. */
+            diagnostics: components["schemas"]["ConfigDiagnosticBody"][];
+            /** @description Whether the file exists; an absent file reads as an empty text. */
+            exists: boolean;
+            /** @description The keys the organisation policy fixes, with their value. */
+            locked: components["schemas"]["LockedKeyBody"][];
+            /** @description Where the file lives. */
+            path: string;
+            /**
+             * @description Keys changed since the runtime started that wait for its restart, each
+             *     with its line; empty in a runtime that does not follow its file.
+             */
+            pendingRestart: components["schemas"]["PendingRestartKey"][];
+            /** @description SHA-256 of `text`, to present when saving. */
+            sha256: string;
+            /** @description The text of the file. */
+            text: string;
+        };
         /** @description Answer of `POST /api/v1/connectors/oauth/complete`. */
         ConnectedAccountResponse: {
             /** @description Account identifier: the Google email, or the Microsoft principal name. */
@@ -6279,7 +6759,7 @@ export interface components {
             account?: string | null;
             /**
              * @description Stable identifier: `mcp:<server>`, `native:<provider>:<account>`,
-             *     `imap:<address>`.
+             *     `imap:<address>`, `folder:<id>`.
              */
             id: string;
             /** @description Kind of connection. */
@@ -6288,6 +6768,8 @@ export interface components {
             label: string;
             /** @description Published by the service's own publisher. */
             official: boolean;
+            /** @description Folder of this machine the connection opens, for a folder. */
+            path?: string | null;
             /** @description Where the connection was found before it was added. */
             provenance: string;
             /** @description Sends data off this machine. Computed, see [`is_remote`]. */
@@ -6343,15 +6825,6 @@ export interface components {
             summarized_count: number;
             /** @description Whether the user profile was injected into the system prompt. */
             user_memory_injected: boolean;
-        };
-        /** @description Response body for `GET /api/v1/llm/cost-alert-threshold`. */
-        CostAlertThresholdResponse: {
-            /**
-             * Format: double
-             * @description The cost alert threshold of the live router in USD, `null` when none is
-             *     set or no router is configured.
-             */
-            threshold_usd?: number | null;
         };
         /** @description A single backend/model cost summary row. */
         CostSummaryRow: {
@@ -6455,6 +6928,11 @@ export interface components {
             /** @description Request settings. Unknown fields, a system prompt among them, are refused. */
             request?: Record<string, never>;
         };
+        /** @description Request body for `POST /api/v1/profiles`. */
+        CreateProfileBody: {
+            /** @description Display name of the new profile. */
+            name: string;
+        };
         /** @description Body of `POST /api/v1/llm/servers`. */
         CreateServerRequest: {
             /** @description Key, when the server asks for one. Written to the secret store. */
@@ -6480,8 +6958,6 @@ export interface components {
             agent_name?: string | null;
             /** @description Session mode: `"libre"` or `"agent"`. */
             mode: string;
-            /** @description Project to link this session to. */
-            project_id?: string | null;
             /** @description Custom system prompt. */
             system_prompt?: string | null;
             /** @description List of tool names available in this session. */
@@ -6495,7 +6971,10 @@ export interface components {
             kind: string;
             /** @description The name the user sees. */
             label: string;
-            /** @description What the source points at; required for `folder`, `file` and `mail`. */
+            /**
+             * @description What the source points at; required for `folder`, `file`, `mail` and
+             *     `code_folder`, whose reference is a folder connection.
+             */
             reference?: string | null;
         };
         /** @description Request body for `POST /api/v1/triggers`, trigger creation. */
@@ -6591,6 +7070,19 @@ export interface components {
              */
             timeout_secs?: number | null;
         };
+        /** @description One node of the delegation tree. */
+        DelegationTreeNode: {
+            /** @description Agent identifier (runtime UUID, or name if resolution fails). */
+            agent_id: string;
+            /** @description Human-readable agent name. */
+            agent_name: string;
+            /** @description Child delegations (A2A subtasks). */
+            children: components["schemas"]["DelegationTreeNode"][];
+            /** @description ISO 8601 start timestamp (None for the root if unknown). */
+            started_at?: string | null;
+            /** @description Current status: `submitted`, `working`, `completed`, `failed`, `running`, etc. */
+            status: string;
+        };
         /** @description Response body for `DELETE /api/v1/llm/backends/:name`. */
         DeleteBackendResponse: {
             /** @description Name of the deleted backend. */
@@ -6627,6 +7119,11 @@ export interface components {
         /** @description Answer of `DELETE /api/v1/llm/installed-models`. */
         DeletedInstalledModel: {
             /** @description The path removed, as it was asked for. */
+            deleted: string;
+        };
+        /** @description Answer of `DELETE /api/v1/profiles/{id}`. */
+        DeletedProfile: {
+            /** @description The identifier removed, as the request named it. */
             deleted: string;
         };
         /** @description Answer of `DELETE /api/v1/profile/entries/{key}`. */
@@ -6825,6 +7322,19 @@ export interface components {
          * @enum {string}
          */
         FitDto: "fits" | "might_fit" | "too_large";
+        /** @description A refused folder: the message and its stable code. */
+        FolderErrorBody: {
+            /**
+             * @description Stable code: `not_a_folder`, `already_added`, `admission_refused`,
+             *     `not_found`, `store`.
+             */
+            code: string;
+            /**
+             * @description What went wrong, for a person. For `admission_refused`, the reason
+             *     the admission gave, as is.
+             */
+            error: string;
+        };
         /** @description Request body for `POST /api/v1/sessions/:id/fork`. */
         ForkSessionRequest: {
             /** @description Number of messages to copy from the parent (None = all). */
@@ -6993,6 +7503,30 @@ export interface components {
             code: string;
             /** @description What went wrong, for a person. */
             error: string;
+        };
+        /** @description A provider whose IMAP server is known from the address. */
+        ImapProviderResponse: {
+            /** @description Address domains it serves, lowercase. */
+            domains: string[];
+            /** @description IMAP server. */
+            host: string;
+            /** @description Name of the provider. */
+            name: string;
+            /**
+             * Format: int32
+             * @description IMAP port, implicit TLS.
+             */
+            port: number;
+        };
+        /** @description The providers known from the address, and the port of any other server. */
+        ImapProvidersResponse: {
+            /**
+             * Format: int32
+             * @description Port of a server outside the list, implicit TLS.
+             */
+            defaultPort: number;
+            /** @description Every provider prefilled from the address. */
+            providers: components["schemas"]["ImapProviderResponse"][];
         };
         /** @description Request body for `POST /api/v1/memory/namespaces/{namespace}/import`. */
         ImportMemoryBody: {
@@ -7229,6 +7763,16 @@ export interface components {
              */
             timeout_secs?: number | null;
         };
+        /**
+         * @description What an issue is about.
+         * @enum {string}
+         */
+        IssueItem: "store" | "document" | "instructions" | "agent" | "folder" | "provider" | "memory" | "conversations";
+        /**
+         * @description Why an item was not carried over.
+         * @enum {string}
+         */
+        IssueReason: "missing" | "unreadable" | "wrong_kind" | "agent_not_installed" | "failed" | "not_carried_over";
         /** @description One Python tool of the package. */
         ItemPreview: {
             /** @description What it does. */
@@ -7291,10 +7835,12 @@ export interface components {
             /** @description The model, by the identifier the model index gives it. */
             modelId: string;
         };
-        /** @description Request body for `PUT /api/v1/sessions/{id}/project`. */
-        LinkProjectBody: {
-            /** @description The project to link, `null` to unlink. */
-            project_id?: string | null;
+        /** @description Response body for `POST /api/v1/llm/leases`. */
+        LeaseResponse: {
+            /** @description Open conversations designating it, this one included. */
+            leases: number;
+            /** @description The model the lease holds. */
+            modelPath: string;
         };
         /** @description Response body for a single backend. */
         LlmBackendResponse: {
@@ -7415,7 +7961,8 @@ export interface components {
             engine: components["schemas"]["EngineName"];
             /**
              * @description What the model serves: `chat`, or `embeddings` for the instance that
-             *     serves search by meaning, which does not count against `maxLoaded`.
+             *     serves search by meaning, which counts neither against `maxLoaded` nor
+             *     against the memory the guardrail weighs.
              */
             kind: components["schemas"]["ModelKind"];
             /** @description When a request last used the model, RFC 3339. */
@@ -7455,10 +8002,21 @@ export interface components {
              *     ever be loaded, not merely that nothing is.
              */
             engineAvailable: boolean;
-            /** @description How many models may stay resident at once; `0` without an engine. */
-            maxLoaded: number;
+            /**
+             * @description The explicit ceiling on resident models (`APOLLIA_LLAMA_MAX_LOADED`);
+             *     `null` when the load guardrail alone decides how many stay loaded, and
+             *     without an engine.
+             */
+            maxLoaded?: number | null;
             /** @description The resident models, most recently used first. */
             models: components["schemas"]["LoadedModelDto"][];
+        };
+        /** @description A key the organisation policy fixes, with its value. */
+        LockedKeyBody: {
+            /** @description Dotted key. */
+            key: string;
+            /** @description The value the policy imposes. */
+            value: Record<string, never>;
         };
         /** @description Response for `GET /api/v1/triggers/:id/logs`. */
         LogsResponse: {
@@ -7613,6 +8171,24 @@ export interface components {
             /** @description How many entries went in. */
             imported: number;
         };
+        /** @description A memory space of a project merged into the space of the same name. */
+        MemoryMerge: {
+            /**
+             * @description Entries this run added; 0 when they were already there.
+             * @default 0
+             */
+            entriesAdded: number;
+            /**
+             * @description The space of the project, `<project id>:<space>`.
+             * @default
+             */
+            from: string;
+            /**
+             * @description The space it was merged into.
+             * @default
+             */
+            into: string;
+        };
         /** @description Answer of the clear and purge routes. */
         MemoryRemoved: {
             /**
@@ -7658,6 +8234,75 @@ export interface components {
             /** @description Role of the message sender. */
             role: string;
         };
+        /** @description One item the migration did not carry over. */
+        MigrationIssue: {
+            /**
+             * @description Whether the issue keeps the migration partial. A missing document is
+             *     listed and does not: running again would not bring it back.
+             * @default false
+             */
+            blocking: boolean;
+            /**
+             * @description The underlying error, when there is one.
+             * @default null
+             */
+            detail: string | null;
+            /** @default store */
+            item: components["schemas"]["IssueItem"];
+            /**
+             * @description Identifier of the project, if the issue belongs to one.
+             * @default null
+             */
+            projectId: string | null;
+            /**
+             * @description Name of the project, if the issue belongs to one.
+             * @default null
+             */
+            projectName: string | null;
+            /** @default failed */
+            reason: components["schemas"]["IssueReason"];
+            /**
+             * @description The path, agent or space concerned.
+             * @default
+             */
+            subject: string;
+        };
+        /** @description The report of a run of the migration. */
+        MigrationReport: {
+            /**
+             * @description Conversations detached from a project by this run.
+             * @default 0
+             */
+            conversationsDetached: number;
+            /**
+             * Format: int32
+             * @description Version of this format.
+             * @default 0
+             */
+            formatVersion: number;
+            /**
+             * @description What was not carried over.
+             * @default []
+             */
+            issues: components["schemas"]["MigrationIssue"][];
+            /**
+             * @description One entry per project found.
+             * @default []
+             */
+            projects: components["schemas"]["ProjectOutcome"][];
+            /**
+             * @description When the run ended, RFC 3339 in UTC.
+             * @default
+             */
+            ranAt: string;
+            /** @default partial */
+            status: components["schemas"]["MigrationStatus"];
+        };
+        /**
+         * @description Where a run of the migration ended.
+         * @enum {string}
+         */
+        MigrationStatus: "complete" | "partial";
         /** @description The catalogue's cards, or why there are none. */
         ModelCardsResponse: {
             /** @description Every card, in the asked language. */
@@ -7695,6 +8340,13 @@ export interface components {
          * @enum {string}
          */
         ModelKind: "chat" | "embeddings";
+        /** @description Request and response body for `PUT /api/v1/llm/pins`. */
+        ModelPin: {
+            /** @description Path of the model, as the resident list reports it. */
+            modelPath: string;
+            /** @description `true` keeps it loaded until it is unloaded by hand. */
+            pinned: boolean;
+        };
         /**
          * @description Where a model runs.
          * @enum {string}
@@ -7806,6 +8458,62 @@ export interface components {
             /** @description Provider id (`"google"` / `"microsoft"`). */
             provider: string;
         };
+        /**
+         * @description The observability policy, one form over the two sections that hold it.
+         *
+         *     Every field but `debug_log_prompt` is a key of `[observability]`;
+         *     `debug_log_prompt` is the key of `[llm.observability]`, read by a different
+         *     type, and is written there: under `[observability]` nothing would read it.
+         *     An absent field reads as its default.
+         */
+        ObservabilitySettings: {
+            /**
+             * @description Whether the logs an agent writes are kept on its trace.
+             * @default true
+             */
+            capture_agent_logs: boolean;
+            /**
+             * @description Whether the reasoning of an agent is kept on its trace.
+             * @default true
+             */
+            capture_thoughts: boolean;
+            /**
+             * @description Whether the arguments of tool calls are kept.
+             * @default true
+             */
+            capture_tool_args: boolean;
+            /**
+             * @description Whether the outputs of tool calls are kept.
+             * @default true
+             */
+            capture_tool_outputs: boolean;
+            /**
+             * @description Logs the whole prompt at `TRACE`, and persists nothing.
+             * @default false
+             */
+            debug_log_prompt: boolean;
+            /**
+             * @description Max size of task and step inputs, in bytes.
+             * @default 32768
+             */
+            max_input_bytes: number;
+            /**
+             * @description Max size of task, step and completion outputs, in bytes.
+             * @default 32768
+             */
+            max_output_bytes: number;
+            /**
+             * @description Max size of a tool's stdout and stderr, in bytes.
+             * @default 10240
+             */
+            max_tool_output_bytes: number;
+            /**
+             * Format: int32
+             * @description Days the trace is kept before it is purged.
+             * @default 90
+             */
+            retention_days: number;
+        };
         /** @description Response for enable/disable. */
         OkResponse: {
             /** @description Confirmation flag. */
@@ -7890,6 +8598,21 @@ export interface components {
              * @description Total time spent in the onboarding flow, in seconds.
              */
             total_time_sec: number;
+        };
+        /** @description Request body for `POST /api/v1/llm/leases`. */
+        OpenLeaseRequest: {
+            /**
+             * @description The interface holding the conversation, the `client` it passes to
+             *     `GET /api/v1/events`.
+             */
+            clientId: string;
+            /** @description The conversation on screen. */
+            conversationId: string;
+            /**
+             * @description Path of the model the conversation designates, as the resident list
+             *     reports it.
+             */
+            modelPath: string;
         };
         /**
          * @description Error body of the package routes: the message, and a stable code a client
@@ -8006,6 +8729,19 @@ export interface components {
             suspended_at: string;
             task_id: string;
         };
+        /**
+         * @description A key changed since the start that waits for a restart, with its line in
+         *     the file.
+         */
+        PendingRestartKey: {
+            /** @description Dotted key. */
+            key: string;
+            /**
+             * @description 1-based line of the key, or of its table, in the file; `None` when the
+             *     file no longer writes it (removed, back to its default).
+             */
+            line?: number | null;
+        };
         /** @description Snapshot of a pending `ask_user` request, safe to send across the IPC boundary. */
         PendingUserInputView: {
             /** @description Optional context string from the agent. */
@@ -8061,6 +8797,11 @@ export interface components {
              * @description Round-trip latency in milliseconds (only set when `available` is `true`).
              */
             latency_ms?: number | null;
+        };
+        /** @description Response body for `GET /api/v1/llm/pins`. */
+        PinsResponse: {
+            /** @description Paths of the pinned models, in path order. */
+            pins: string[];
         };
         /** @description Response body of the plan-mode writes. */
         PlanActionResponse: {
@@ -8151,6 +8892,54 @@ export interface components {
             /** @description Presets, sorted by model then name. */
             presets: components["schemas"]["PresetResponse"][];
         };
+        /** @description One column of the table under the header row. */
+        PreviewColumn: {
+            /** @description Column letter, as the spreadsheet shows it; a batch checks a column by it. */
+            letter: string;
+            /** @description The name its header cell gives it, made unique. */
+            name: string;
+        };
+        /** @description One row of the preview. */
+        PreviewRowView: {
+            /** @description The text of each cell, column A first. */
+            cells: string[];
+            /**
+             * Format: int32
+             * @description Row number, from 1.
+             */
+            row: number;
+        };
+        /** @description One sheet of the file. */
+        PreviewSheet: {
+            /** @description Name of the sheet. */
+            name: string;
+            /**
+             * Format: int64
+             * @description How many of its rows hold at least one non-blank cell.
+             */
+            nonEmptyRows: number;
+        };
+        /** @description Body of `POST /api/v1/sources/preview`. */
+        PreviewSourceBody: {
+            /**
+             * Format: int32
+             * @description The header row, from 1, on the shown sheet; the proposed row when absent.
+             */
+            headerRow?: number | null;
+            /** @description Absolute path of a `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.ods` or `.csv` file. */
+            path: string;
+            /** @description The sheet to show; the proposed sheet when absent. */
+            sheet?: string | null;
+        };
+        /** @description One profile in full: its summary, its fields in schema order, its facts. */
+        ProfileDetailView: {
+            /** @description The facts retained about the user in this profile. */
+            facts: components["schemas"]["ProfileEntryView"][];
+            /** @description Every field of the schema, filled or not. */
+            fields: components["schemas"]["ProfileFieldView"][];
+            /** @description The profile as the list shows it. */
+            profile: components["schemas"]["ProfileSummaryView"];
+        };
         /** @description One profile entry, as the profile page draws it. */
         ProfileEntryView: {
             /** @description ISO 8601 creation timestamp. */
@@ -8166,10 +8955,98 @@ export interface components {
             /** @description Provenance tag (`onboarding`, `user`, `agent:<name>`). */
             written_by: string;
         };
+        /** @description One field of a profile, with what a form needs to draw it. */
+        ProfileFieldView: {
+            /** @description English help or example. */
+            help_en: string;
+            /** @description French help or example. */
+            help_fr: string;
+            /** @description Storage key of the field. */
+            key: string;
+            /** @description English label. */
+            label_en: string;
+            /** @description French label. */
+            label_fr: string;
+            /** @description `true` when the field takes several lines. */
+            long_text: boolean;
+            /** @description Current value, empty when the field is not filled. */
+            value: string;
+        };
         /** @description Answer of `POST /api/v1/profile/reset`. */
         ProfileReset: {
             /** @description How many entries were removed. */
             removed: number;
+        };
+        /** @description One profile in the list of the profile screen. */
+        ProfileSummaryView: {
+            /** @description ISO 8601 creation timestamp. */
+            created_at: string;
+            /** @description A line that tells the profile apart: its role, else its function. */
+            detail?: string | null;
+            /** @description Stable identifier. */
+            id: string;
+            /** @description `true` for the one default profile. */
+            is_default: boolean;
+            /** @description Display name of the profile. */
+            name: string;
+            /** @description ISO 8601 last-update timestamp. */
+            updated_at: string;
+        };
+        /**
+         * @description A change to a profile: a new name, new field values, or both. An empty
+         *     value empties its field.
+         */
+        ProfileUpdate: {
+            /** @description New values, by field key. */
+            fields?: {
+                [key: string]: string;
+            };
+            /** @description New display name. */
+            name?: string | null;
+        };
+        /** @description What the migration did for one project. */
+        ProjectOutcome: {
+            /**
+             * @description Agents its sources are checked for.
+             * @default []
+             */
+            agentsChecked: string[];
+            /**
+             * @description Identifier of the code folder source made on that connection, when
+             *     the project read its git state, its rules or its tree.
+             * @default null
+             */
+            codeFolderSource: string | null;
+            /**
+             * @description Identifiers of the sources made of its documents.
+             * @default []
+             */
+            documentSources: string[];
+            /**
+             * @description Identifier of the folder connection made of its working folder.
+             * @default null
+             */
+            folderConnection: string | null;
+            /**
+             * @description Identifier of the project.
+             * @default
+             */
+            id: string;
+            /**
+             * @description Identifier of the source made of its instructions, if it had any.
+             * @default null
+             */
+            instructionsSource: string | null;
+            /**
+             * @description Its memory spaces, merged.
+             * @default []
+             */
+            memory: components["schemas"]["MemoryMerge"][];
+            /**
+             * @description Name of the project, which is also the group of its sources.
+             * @default
+             */
+            name: string;
         };
         /** @description One proposed permission rule, as the approval card draws it. */
         ProposedRuleView: {
@@ -8202,6 +9079,36 @@ export interface components {
             /** @description The secret. Stored, never answered back. */
             value: string;
         };
+        /**
+         * @description The interpreter to use: an absolute path, or none to return to the bundled
+         *     one.
+         */
+        PythonInterpreterRequest: {
+            /**
+             * @description Absolute path of an interpreter; `null` or blank returns to the bundled
+             *     interpreter.
+             */
+            path?: string | null;
+        };
+        /** @description The Python interpreter setting. */
+        PythonInterpreterSetting: {
+            /**
+             * @description Absolute path of the interpreter this runtime ships, when it knows it;
+             *     `None` in a development tree, where no bundle is staged.
+             */
+            bundled?: string | null;
+            /**
+             * @description The absolute path in `[tools] python_interpreter`, or `None` when the
+             *     bundled interpreter is in use.
+             */
+            chosen?: string | null;
+            /**
+             * Format: int32
+             * @description Minor version the bundled standard library requires of any chosen
+             *     interpreter.
+             */
+            required_minor: number;
+        };
         /** @description A README, as text. */
         ReadmeResponse: {
             /** @description Its owner. */
@@ -8229,6 +9136,26 @@ export interface components {
         RejectUserInputRequest: {
             /** @description Why the user declined to answer. */
             reason: string;
+        };
+        /** @description Request body for `POST /api/v1/llm/leases/release`. */
+        ReleaseLeaseRequest: {
+            /** @description The interface that opened the lease. */
+            clientId: string;
+            /** @description The conversation that left the screen. */
+            conversationId: string;
+        };
+        /** @description Response body for `POST /api/v1/llm/leases/release`. */
+        ReleaseLeaseResponse: {
+            /**
+             * @description The model no open conversation designates any more; absent when the
+             *     lease did not exist or another conversation still holds the model.
+             */
+            released?: string | null;
+            /**
+             * @description Whether that model was unloaded. It stays loaded when pinned or
+             *     answering a request.
+             */
+            unloaded: boolean;
         };
         /** @description Body of `POST /api/v1/llm/loaded-models/last/reload`. */
         ReloadLastRequest: {
@@ -8873,6 +9800,45 @@ export interface components {
          * @enum {string}
          */
         SourceKindDto: "folder" | "file" | "mail" | "profile" | "memory" | "code_folder";
+        /** @description What a batch on the file would read. */
+        SourcePreviewResponse: {
+            /** @description True for `.xlsx` and `.xlsm`: results may be written into the original. */
+            canModifyOriginal: boolean;
+            /** @description The columns under the header row. */
+            columns: components["schemas"]["PreviewColumn"][];
+            /**
+             * Format: int64
+             * @description How many items a batch would read: the non-empty rows below the header.
+             */
+            estimatedItems: number;
+            /** @description `xlsx`, `xlsm`, `xlsb`, `xls`, `ods` or `csv`. */
+            format: string;
+            /**
+             * @description True for `.xls`, `.xlsb` and `.ods`: the copy of results is a new
+             *     workbook without the original formatting.
+             */
+            formattingNotKept: boolean;
+            /**
+             * Format: int32
+             * @description The header row used: the one asked for, or the proposed one.
+             */
+            headerRow?: number | null;
+            /**
+             * Format: int32
+             * @description The header row proposed on the shown sheet.
+             */
+            proposedHeaderRow?: number | null;
+            /** @description The sheet proposed: the only one, or the one with the most non-empty rows. */
+            proposedSheet?: string | null;
+            /** @description The first twenty rows of the shown sheet, from its top. */
+            rows: components["schemas"]["PreviewRowView"][];
+            /** @description The sheet shown: the one asked for, or the proposed one. */
+            sheet?: string | null;
+            /** @description Every sheet, in the file's order; a CSV file has one, named after it. */
+            sheets: components["schemas"]["PreviewSheet"][];
+            /** @description The batch source type that reads the file: `spreadsheet` or `csv`. */
+            sourceType: string;
+        };
         /** @description A source of the registry. */
         SourceResponse: {
             /** @description When it was added, RFC 3339 in UTC. */
@@ -9062,6 +10028,14 @@ export interface components {
         TaskListResponse: {
             /** @description All tasks matching the optional filter. */
             tasks: components["schemas"]["TaskListItem"][];
+        };
+        /** @description Response to a deletion. */
+        TaskRecordDeleted: {
+            /**
+             * @description `true` when a record was removed, `false` when no stored task matched
+             *     (already gone, or never persisted).
+             */
+            deleted: boolean;
         };
         /** @description Response body for task operations. */
         TaskResponse: {
@@ -9547,6 +10521,29 @@ export interface components {
              *     context windows.
              */
             stopped: number;
+        };
+        /** @description Request body for `PUT /api/v1/agents/installed/{name}`. */
+        UpdateAgentRequest: {
+            /** @description Path of the new Python module on this machine. */
+            path: string;
+        };
+        /**
+         * @description Response to an agent update.
+         *
+         *     Distinct from the install answer because an update has an outcome an
+         *     install cannot have: a runtime instance that had to be cycled.
+         */
+        UpdateAgentResponse: {
+            /** @description Install path on disk. */
+            install_path: string;
+            /** @description Unique name of the updated agent. */
+            name: string;
+            /** @description Raw cause when the stop or the start failed, `None` otherwise. */
+            restart_error?: string | null;
+            /** @description One of the [`restart_outcome`] constants. */
+            restart_outcome: string;
+            /** @description Semver version read from the new module's manifest. */
+            version: string;
         };
         /** @description The fields of an artifact a change may replace; an absent one is kept. */
         UpdateArtifactRequest: {
@@ -10673,6 +11670,60 @@ export interface operations {
                 };
             };
             /** @description The install cannot be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    update_agent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Name of the installed agent */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description Agent updated, with what happened to its running instance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateAgentResponse"];
+                };
+            };
+            /** @description File absent or module refused */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No installed agent of that name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The update cannot be written */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -12085,6 +13136,344 @@ export interface operations {
             };
         };
     };
+    read_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The configuration file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigView"];
+                };
+            };
+            /** @description The file cannot be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description No configuration file in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+        };
+    };
+    save_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfigSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description The file as saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigView"];
+                };
+            };
+            /** @description A line gives a key the policy fixes another value (`locked`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description The file changed since it was read (`modified`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description The text does not validate (`invalid`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description The file cannot be read or written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description No configuration file in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+        };
+    };
+    default_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The default text */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigDefaultText"];
+                };
+            };
+        };
+    };
+    read_observability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The observability policy */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObservabilitySettings"];
+                };
+            };
+            /** @description The file cannot be read or parsed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description No configuration file in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+        };
+    };
+    save_observability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ObservabilitySettings"];
+            };
+        };
+        responses: {
+            /** @description The policy as saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObservabilitySettings"];
+                };
+            };
+            /** @description The policy fixes one of the keys (`locked`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description A value is refused (`invalid`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description The file cannot be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description No configuration file in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+        };
+    };
+    read_python_interpreter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Python interpreter setting */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PythonInterpreterSetting"];
+                };
+            };
+            /** @description No configuration file in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+        };
+    };
+    save_python_interpreter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PythonInterpreterRequest"];
+            };
+        };
+        responses: {
+            /** @description The setting as saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PythonInterpreterSetting"];
+                };
+            };
+            /** @description The policy fixes the key (`locked`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description The interpreter is refused, with the condition it failed (`invalid`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description The file cannot be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description No configuration file in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+        };
+    };
+    validate_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfigValidateRequest"];
+            };
+        };
+        responses: {
+            /** @description The verdict, with every fault at its line */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigValidation"];
+                };
+            };
+        };
+    };
     list_connections: {
         parameters: {
             query?: never;
@@ -12110,6 +13499,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    add_folder_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddFolderBody"];
+            };
+        };
+        responses: {
+            /** @description Folder added as a connection */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Connection"];
+                };
+            };
+            /** @description The path is not a folder of this machine */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+            /** @description Refused by the connection admission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+            /** @description The folder is already a connection */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+            /** @description system.db could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+        };
+    };
+    remove_folder_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifier of the stored folder, the part of the connection identifier after `folder:` */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Folder connection removed; the connection it was */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Connection"];
+                };
+            };
+            /** @description No folder connection has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+            /** @description system.db could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
                 };
             };
         };
@@ -12364,6 +13854,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImapErrorBody"];
+                };
+            };
+        };
+    };
+    list_imap_providers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The providers known from the address */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapProvidersResponse"];
                 };
             };
         };
@@ -12848,7 +14358,13 @@ export interface operations {
     };
     stream_events: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description The client holding the stream, as it names itself when it opens
+                 *     leases on local models. When the stream ends, its leases are released.
+                 */
+                client?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -13908,26 +15424,6 @@ export interface operations {
             };
         };
     };
-    get_cost_alert_threshold: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The cost alert threshold of the live router */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CostAlertThresholdResponse"];
-                };
-            };
-        };
-    };
     get_llm_costs: {
         parameters: {
             query?: {
@@ -14340,6 +15836,90 @@ export interface operations {
             };
         };
     };
+    open_model_lease: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenLeaseRequest"];
+            };
+        };
+        responses: {
+            /** @description Lease open */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaseResponse"];
+                };
+            };
+            /** @description A blank field */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No local engine on this host */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    release_model_lease: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseLeaseRequest"];
+            };
+        };
+        responses: {
+            /** @description Lease released, or none was open */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleaseLeaseResponse"];
+                };
+            };
+            /** @description A blank field */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No local engine on this host */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     list_loaded_models: {
         parameters: {
             query?: never;
@@ -14649,6 +16229,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PingResponse"];
+                };
+            };
+        };
+    };
+    list_model_pins: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pinned models */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PinsResponse"];
+                };
+            };
+            /** @description No local engine on this host */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_model_pin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelPin"];
+            };
+        };
+        responses: {
+            /** @description Pin saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelPin"];
+                };
+            };
+            /** @description Empty model path */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The pin could not be saved */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No local engine on this host */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };
@@ -18541,26 +20201,393 @@ export interface operations {
             };
         };
     };
-    list_project_sessions: {
+    list_profiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The profiles */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileSummaryView"][];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    create_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateProfileBody"];
+            };
+        };
+        responses: {
+            /** @description The profile created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileSummaryView"];
+                };
+            };
+            /** @description Empty name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_profile_by_id: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                /** @description Project id */
+                /** @description Profile identifier, or `default` */
                 id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Session list */
+            /** @description The profile in full */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ProfileDetailView"];
+                };
             };
-            /** @description Chat subsystem unavailable */
+            /** @description No profile has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The profile is gone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedProfile"];
+                };
+            };
+            /** @description No profile has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The default profile cannot be deleted */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    update_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile identifier, or `default` */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileUpdate"];
+            };
+        };
+        responses: {
+            /** @description The profile in full */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileDetailView"];
+                };
+            };
+            /** @description Empty name or key outside the schema */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No profile has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_default_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The new default profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileSummaryView"];
+                };
+            };
+            /** @description No profile has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_profile_fact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile identifier, or `default` */
+                id: string;
+                /** @description Key of the fact */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetProfileEntryBody"];
+            };
+        };
+        responses: {
+            /** @description The fact as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileEntryView"];
+                };
+            };
+            /** @description Empty, reserved or schema key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No profile has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_profile_fact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile identifier, or `default` */
+                id: string;
+                /** @description Key of the fact */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The fact is gone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedProfileEntry"];
+                };
+            };
+            /** @description No such profile or fact */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    reset_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile identifier, or `default` */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many entries were removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileReset"];
+                };
+            };
+            /** @description No profile has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -18667,6 +20694,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    security_posture: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The active security posture */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description The probe did not finish */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
                 };
             };
         };
@@ -20070,49 +22126,6 @@ export interface operations {
             };
         };
     };
-    link_session_project: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Session id */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LinkProjectBody"];
-            };
-        };
-        responses: {
-            /** @description Link stored */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Session or project not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description Chat subsystem unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
     resume_session: {
         parameters: {
             query?: never;
@@ -20545,7 +22558,7 @@ export interface operations {
                     "application/json": components["schemas"]["SourceResponse"];
                 };
             };
-            /** @description Unknown kind, blank label, or a folder, file or mailbox without a reference */
+            /** @description Unknown kind, blank label, or a folder, file, mailbox or code folder without a reference */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -20556,6 +22569,121 @@ export interface operations {
             };
             /** @description Source registry not available */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    folder_kinds: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Whether the developer mode is on, as `[desktop] developer_mode`
+                 *     says; off when absent.
+                 */
+                developerMode?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The kinds offered on a folder connection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceKindDto"][];
+                };
+            };
+        };
+    };
+    preview_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewSourceBody"];
+            };
+        };
+        responses: {
+            /** @description The proposed sheet and header row, the first rows and the write flags */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourcePreviewResponse"];
+                };
+            };
+            /** @description The path is not absolute */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No file at that path */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Not a workbook or a CSV file, protected, damaged, or a sheet or row the file lacks */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    project_migration_report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report of the last run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MigrationReport"];
+                };
+            };
+            /** @description No migration of projects has run */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The report cannot be read */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -21114,6 +23242,47 @@ export interface operations {
             };
         };
     };
+    get_delegation_tree: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Parent task id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The task and its delegations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DelegationTreeNode"];
+                };
+            };
+            /** @description The delegations cannot be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Sidechain logging not initialized */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     submit_plan_decision: {
         parameters: {
             query?: never;
@@ -21158,6 +23327,47 @@ export interface operations {
                 };
             };
             /** @description Plan gate not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_task_record: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Task id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether a stored record was removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskRecordDeleted"];
+                };
+            };
+            /** @description The task store refused the deletion */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Task persistence is not available */
             503: {
                 headers: {
                     [name: string]: unknown;

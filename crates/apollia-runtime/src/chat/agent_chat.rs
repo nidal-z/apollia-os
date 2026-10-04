@@ -402,7 +402,6 @@ fn session_to_task(session: &ChatSession, user_message: &str) -> AIPTask {
         // No skill_id: conversational chat-mode invocation, not an A2A
         // delegation to a targeted skill.
         skill_id: None,
-        project_id: session.project_id.clone(),
         input: AIPInput {
             parts: vec![AIPPart::Text(TextPart {
                 text: user_message.to_string(),
@@ -632,8 +631,6 @@ mod tests {
             title: None,
             parent_session_id: None,
             fork_depth: 0,
-            project_id: None,
-            force_project_context_inject: false,
             plan_mode: false,
             plan_phase: super::super::types::PlanPhase::Done,
         }
@@ -706,8 +703,6 @@ mod tests {
             title: None,
             parent_session_id: None,
             fork_depth: 0,
-            project_id: None,
-            force_project_context_inject: false,
             plan_mode: false,
             plan_phase: super::super::types::PlanPhase::Done,
         }

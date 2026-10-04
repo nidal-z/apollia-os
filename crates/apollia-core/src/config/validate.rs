@@ -136,9 +136,6 @@ fn section_checks(config: &ApolliaConfig, written: &[String]) -> Vec<ConfigError
     if wrote("hooks") {
         check(config.hooks.validate());
     }
-    if wrote("filesystem") {
-        check(config.filesystem.validate());
-    }
     if wrote("workflows") {
         check(config.workflows.validate());
     }

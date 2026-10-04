@@ -3,12 +3,15 @@
 
 use crate::supervisor::*;
 
-use crate::supervisor::bootstrap::spawn_runner_supervisor;
+use crate::supervisor::bootstrap::{spawn_runner_supervisor, start_local_engines};
 
 /// The inference engines and the router built over them.
 pub(super) struct Inference {
     pub(super) runner_supervisor: Option<Arc<crate::runner_supervisor::RunnerSupervisor>>,
     pub(super) system_db_path: std::path::PathBuf,
+    /// The registry of sources over `system_db_path`, shared by the routes
+    /// and by the source tools of the chat.
+    pub(super) source_registry: Option<apollia_sources::SourceRegistryHandle>,
     pub(super) llama_server_supervisor: Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
     pub(super) mlx_engine: Option<Arc<crate::mlx_engine::MlxEngineSupervisor>>,
     pub(super) llm_router: Option<Arc<LlmRouter>>,
@@ -64,33 +67,17 @@ impl Supervisor {
             .data_dir
             .join(apollia_core::paths::DataFile::System.file_name());
         // `apollia.toml`, whose `[llm.guardrails]` both engines read at every
-        // launch: the file the runtime was started with, else the one in its
-        // data directory.
+        // launch and whose `[llm.residency]` the residency sweep reads at every
+        // pass: the file the runtime was started with, else the one in its data
+        // directory.
         let guardrails_file = self.config.config_path.clone().unwrap_or_else(|| {
             self.config
                 .data_dir
                 .join(apollia_core::paths::CONFIG_FILE_NAME)
         });
-        let llama_server_supervisor = crate::llama_server::LlamaServerSupervisor::new(
-            crate::llama_server::LlamaServerConfig::default(),
-            Some(system_db_path.clone()),
-            Some(event_sender.clone()),
-            Some(guardrails_file.clone()),
-            org_policy.imposed_settings(),
-        )
-        .ok();
-        if let Some(supervisor) = &llama_server_supervisor {
-            Arc::clone(supervisor).spawn_supervision();
-        }
-        // The MLX engine, on a Mac with Apple Silicon whose build carries it.
-        // An MLX model elsewhere is refused with its reason by the router.
-        let mlx_engine = crate::mlx_engine::MlxEngineSupervisor::for_this_machine(
-            Some(guardrails_file),
-            org_policy.imposed_settings(),
-        );
-        if let Some(engine) = &mlx_engine {
-            Arc::clone(engine).spawn_supervision();
-        }
+        let (llama_server_supervisor, mlx_engine) =
+            start_local_engines(&system_db_path, guardrails_file, event_sender, org_policy);
+        crate::memory_vectors::start(&self.config.data_dir, llama_server_supervisor.clone());
 
         // Phase 4 (pos 5): LlmRouter + LlmBackendRepository, loads backends from system.db
         let (llm_router, llm_backend_repo) = self
@@ -109,9 +96,11 @@ impl Supervisor {
             None
         };
 
+        let source_registry = crate::agents::sources::open_registry(&system_db_path);
         Inference {
             runner_supervisor,
             system_db_path,
+            source_registry,
             llama_server_supervisor,
             mlx_engine,
             llm_router,

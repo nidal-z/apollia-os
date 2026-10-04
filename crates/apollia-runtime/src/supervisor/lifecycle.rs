@@ -112,7 +112,11 @@ impl Supervisor {
 
     /// Phase 4c: open `runtime_events.db` and spawn the runtime-events
     /// subscriber. Best-effort: failures are logged, never fatal.
-    pub(in crate::supervisor) async fn spawn_event_persistor(&self, event_sender: &EventBusSender) {
+    pub(in crate::supervisor) async fn spawn_event_persistor(
+        &self,
+        event_sender: &EventBusSender,
+        observability: &crate::config_reload::Live<apollia_core::ObservabilityConfig>,
+    ) {
         let db_path = self
             .config
             .data_dir
@@ -132,7 +136,7 @@ impl Supervisor {
                 crate::observability::spawn_runtime_events_subscriber(
                     handle,
                     event_sender,
-                    self.config.obs_config.clone(),
+                    observability.clone(),
                 );
                 info!(
                     path = %db_path.display(),
@@ -330,10 +334,18 @@ impl Supervisor {
         }
     }
 
-    /// Propagate the `[llm.routing]` TOML section onto the freshly built router
-    /// and log the ready backends. `system.db` does not store routing.
-    fn finalize_llm_router(&self, mut router: LlmRouter) -> LlmRouter {
+    /// Propagate the `[llm.routing]` and `[llm.observability]` TOML sections
+    /// onto the freshly built router and log the ready backends. `system.db`
+    /// stores neither.
+    pub(in crate::supervisor) fn finalize_llm_router(&self, mut router: LlmRouter) -> LlmRouter {
         if let Some(llm_cfg) = self.config.llm_config.as_ref() {
+            router = router.with_observability(llm_cfg.observability.clone());
+            if llm_cfg.observability.debug_log_prompt {
+                tracing::info!(
+                    detail = "every prompt is logged at trace level",
+                    "llm.observability.debug_log_prompt.on"
+                );
+            }
             if let Some(routing) = llm_cfg.routing.as_ref() {
                 router = router.with_routing(routing.clone());
                 tracing::info!(

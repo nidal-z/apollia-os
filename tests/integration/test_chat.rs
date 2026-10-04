@@ -238,8 +238,6 @@ fn build_chat_app_state(
         None, // no user memory in tests
         registry_handle.clone(),
         None, // no A2A invoker in tests
-        None, // no project context in tests
-        None, // no project repo in tests
         None, // no MCP handle in tests
         None, // no chat tools config in tests
         apollia_mcp::session::LoadingMode::Eager,
@@ -270,6 +268,7 @@ fn build_chat_app_state(
         tool_registry_handle: Some(tool_registry),
         audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),
+        config_reload: None,
         llm_call_repository: None,
         trigger_def_repo: None,
         notification_repo: None,

@@ -94,6 +94,7 @@ async fn router(dir: &TempDir) -> Router {
         governance: None,
         inference_governance: Default::default(),
         obs_config: apollia_core::ObservabilityConfig::default(),
+        config_reload: None,
         llm_call_repository: None,
         trigger_def_repo: None,
         notification_repo: None,

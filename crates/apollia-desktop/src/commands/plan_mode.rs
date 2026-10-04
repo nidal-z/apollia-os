@@ -126,13 +126,13 @@ pub async fn submit_plan_decision(
 
 /// Returns the runtime-level default plan-mode state for new chat sessions.
 ///
-/// Read from the `[chat] plan_mode_default` key of `apollia.toml` at boot. The
-/// desktop seeds its per-user preference from this value so the config stays the
-/// single source of truth for the default.
+/// The `[chat] plan_mode_default` key of `apollia.toml` in force, a saved
+/// change included. The desktop seeds its per-user preference from this value
+/// so the config stays the single source of truth for the default.
 #[tauri::command]
 pub async fn get_plan_mode_default(link: State<'_, RuntimeLink>) -> Result<bool, String> {
     match link.inner() {
-        RuntimeLink::Embedded(runtime) => Ok(runtime.plan_mode_default),
+        RuntimeLink::Embedded(runtime) => Ok(runtime.config_feed.chat.get().plan_mode_default),
         RuntimeLink::Attached(remote) => Ok(plan_mode_default(remote).await?),
     }
 }

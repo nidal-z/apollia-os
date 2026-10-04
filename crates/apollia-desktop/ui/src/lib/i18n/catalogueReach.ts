@@ -121,9 +121,8 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
     builtBy: "components/observability/PlanMutationRow.svelte",
   },
   {
-    pattern: new RegExp(`^projects\\.provider_type_${SEG}$`),
-    builtBy:
-      "components/project/ProviderEditDialog.svelte, components/project/ProviderCard.svelte",
+    pattern: new RegExp(`^project_migration\\.reason\\.${SEG}$`),
+    builtBy: "components/projectMigration/ProjectMigrationNotice.svelte",
   },
   {
     pattern: new RegExp(`^settings\\.about\\.local_${SEG}$`),

@@ -41,7 +41,6 @@ mod handlers;
 pub mod i18n;
 pub mod mcp;
 mod process_job;
-mod project_context;
 mod startup;
 pub mod stt;
 mod token_coalescer;
@@ -215,10 +214,9 @@ fn main() {
         Arc::new(std::sync::OnceLock::new());
     // Tools config (`[tools]` from apollia.toml) drives web_search/web_read
     // params and statically-disabled tools. Populated from RuntimeHandle.
-    let trusted_paths_lock: Arc<std::sync::OnceLock<Vec<std::path::PathBuf>>> =
-        Arc::new(std::sync::OnceLock::new());
-    let tools_config_lock: Arc<std::sync::OnceLock<ToolsConfig>> =
-        Arc::new(std::sync::OnceLock::new());
+    let tools_config_lock: Arc<
+        std::sync::OnceLock<apollia_runtime::config_reload::Live<ToolsConfig>>,
+    > = Arc::new(std::sync::OnceLock::new());
     // Plan-gate registry, forwarded to per-agent engines so the desktop UI can
     // resolve a pending plan gate via submit_plan_decision.
     let plan_gates_lock: Arc<std::sync::OnceLock<Arc<apollia_oria::PendingPlanGates>>> =
@@ -244,7 +242,6 @@ fn main() {
             task_router: task_router_lock.clone(),
             mailbox_handle: mailbox_handle_lock.clone(),
             tools_config: tools_config_lock.clone(),
-            trusted_paths: trusted_paths_lock.clone(),
             plan_gates: plan_gates_lock.clone(),
             plan_cache: plan_cache_lock.clone(),
             agents_db: Some(
@@ -305,7 +302,6 @@ fn main() {
                 task_router: task_router_lock.clone(),
                 mailbox_handle: mailbox_handle_lock.clone(),
                 tools_config: tools_config_lock.clone(),
-                trusted_paths: trusted_paths_lock.clone(),
             })),
             Err(e) => {
                 tracing::warn!(
@@ -400,11 +396,6 @@ fn main() {
             apollia_aip::package_tools::workflows::attach(&data_dir, workflows.as_ref()).await;
         });
     }
-    // The agent-mode file tools read these roots. They come from the same
-    // `[filesystem] trusted_paths` the chat classifies against, so one setting
-    // governs both surfaces instead of the hardcoded home directory this used
-    // to be.
-    let _ = trusted_paths_lock.set(runtime_handle.filesystem_trusted_paths.clone());
     if let Some(gates) = runtime_handle.plan_gates.clone() {
         let _ = plan_gates_lock.set(gates);
     }

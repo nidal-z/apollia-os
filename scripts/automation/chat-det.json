@@ -125,21 +125,6 @@
       "label": "04-quickpicker"
     },
     {
-      "kind": "waitFor",
-      "testid": "quickpicker-project",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "selectOption",
-      "testid": "quickpicker-project",
-      "index": 1,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-quickpicker-project-selected"
-    },
-    {
       "kind": "sleep",
       "ms": 200
     },
@@ -853,45 +838,12 @@
       "testid": "chat-header-menu-delete"
     },
     {
-      "kind": "expect",
-      "testid": "chat-header-menu-link-project"
-    },
-    {
       "kind": "screenshot",
-      "label": "21-header-overflow-menu (drawer = md:hidden, unlink = only when linked, link submenu = closes-on-click: screenshot only)"
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-menu-link-project",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-link-project-menu",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-link-project-item",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-link-project-item",
-      "timeoutMs": 3000
+      "label": "21-header-overflow-menu (drawer = md:hidden)"
     },
     {
       "kind": "sleep",
       "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-meta-project",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "22-header-project-linked"
     },
     {
       "kind": "click",
@@ -899,27 +851,8 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
-      "testid": "chat-header-overflow-menu",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-menu-unlink-project",
-      "timeoutMs": 3000
-    },
-    {
       "kind": "sleep",
       "ms": 400
-    },
-    {
-      "kind": "waitGone",
-      "testid": "chat-header-meta-project",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "22b-header-project-unlinked"
     },
     {
       "kind": "click",
@@ -1598,21 +1531,23 @@
     },
     {
       "kind": "waitFor",
-      "testid": "shortcuts-help-dialog",
+      "testid": "detail-sidebar",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "37-shortcuts-help"
+      "label": "37-guide-shortcut"
     },
     {
-      "kind": "click",
-      "testid": "shortcuts-help-close",
-      "timeoutMs": 3000
+      "kind": "press",
+      "testid": "chat-input",
+      "key": "/",
+      "timeoutMs": 3000,
+      "mod": true
     },
     {
       "kind": "waitGone",
-      "testid": "shortcuts-help-dialog",
+      "testid": "detail-sidebar",
       "timeoutMs": 4000
     },
     {
@@ -1640,54 +1575,6 @@
       "kind": "waitGone",
       "testid": "keyboard-hint-overlay",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-overflow-button",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-overflow-menu",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-menu-link-project",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-link-project-menu",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-link-project-item",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-meta-project",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-meta-project",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "projects-page",
-      "timeoutMs": 10000
-    },
-    {
-      "kind": "screenshot",
-      "label": "39-project-chip-opens-project"
     },
     {
       "kind": "goto",
@@ -2236,7 +2123,7 @@
     "The narrow block keeps to store toggles (backdrops, drawers, the overflow item) and contains no picker or window.confirm; it ends with resizeWindow 1280x800 and reopens the inspector so the row-menu configure item and the builder section find the rail inline as before.",
     "Seeded sessions are opened with goto + sessionId rather than through the palette: the palette's session items come from the recent-sessions store, whose localStorage key is not reset at boot, so their presence depended on the previous run (absent on d1-chat).",
     "chat-mic-button is played through the harness: dictation.toggle() (useComposerDictation.svelte.ts:59-77) calls start_tour_recording and stop_tour_recording (commands/stt.rs:976-1005, both Result<(), String>) with no getUserMedia in front, so no cpal capture and no microphone prompt are ever reached. First click: start rejected once, the string lands in dictation.error and InputHints renders it as chat-input-hint-status. Second click: start resolves null, recording flips true (the lit button has no text, so it is asserted by the third click). Third click: the stop branch, reachable only when recording is true, is rejected, which the catch turns into recording=false, busy=false and a new message in the hints line. The success branch (stt-transcribed, stt-dictation-failed) is a Tauri event no stub can emit, so a stop that resolves would leave busy armed for the rest of the boot; the rejection is the only scripted end of course. The last message stays in the hints line until the next toggle, which is cosmetic.",
-    "link-preview-card is played on seed-session-1 through a stub: the real link_preview command refuses without [ui].link_preview_enabled and then needs a public HTTP fetch (crates/apollia-desktop/src/commands/link_preview.rs), and lib/chat/linkPreview.ts caches a null answer per URL for fifteen minutes, so the URL the fallback block relies on can never turn into a card in the same boot. seed-msg-2 therefore carries two standalone URLs (tests/cli/seed/fragments/chat.sql): the first still reaches the backend and renders link-preview-fallback, the second is answered by a link_preview stub under argsMatch (the type it imitates: LinkPreview, url/title/description/favicon/image/site_name, same file) armed before the session is first mounted in the boot. The card click goes to the plugin:opener|open_url stub already armed for the fallback, so the host browser stays closed; nothing in the DOM changes on that click, so the card's rendering (waitFor plus the expect on the stubbed title) is what can fail, and the click itself is covered only by the fact that it fires. The link_preview stub is cleared before the block moves on; the opener stub is dropped by the block's closing clearStubs.",
+    "link-preview-card is played on seed-session-1 through a stub: the real link_preview command refuses without [desktop] link_preview_enabled and then needs a public HTTP fetch (crates/apollia-desktop/src/commands/link_preview.rs), and lib/chat/linkPreview.ts caches a null answer per URL for fifteen minutes, so the URL the fallback block relies on can never turn into a card in the same boot. seed-msg-2 therefore carries two standalone URLs (tests/cli/seed/fragments/chat.sql): the first still reaches the backend and renders link-preview-fallback, the second is answered by a link_preview stub under argsMatch (the type it imitates: LinkPreview, url/title/description/favicon/image/site_name, same file) armed before the session is first mounted in the boot. The card click goes to the plugin:opener|open_url stub already armed for the fallback, so the host browser stays closed; nothing in the DOM changes on that click, so the card's rendering (waitFor plus the expect on the stubbed title) is what can fail, and the click itself is covered only by the fact that it fires. The link_preview stub is cleared before the block moves on; the opener stub is dropped by the block's closing clearStubs.",
     "Attachments are played twice: a fill on chat-attach-input (the runner builds one text/plain file in the webview and fires change, nothing is read from disk) and a click on chat-attach-button (under automation the runner replaces a file input's click() with the same immediate pick, because the real chooser is a modal NSOpenPanel that would freeze the boot). The chip then its removal are asserted each time.",
     "The consent card is delivered by an emitEvent step imitating the bridge's runtime-event envelope of RuntimeEvent::ChatApprovalRequired (TauriRuntimeEvent in crates/apollia-desktop/src/events.rs, category chat-changed, read by handleChatApprovalRequired in stores/sse.ts), on seed-session-2 so the inline card mounts. authorize_chat_tool is stubbed to resolve because the call id is unknown to the backend, and a second emitEvent of ChatApprovalResolved clears the card as the runtime would. The card must show the three answers (once, always for this agent, refuse with an optional reason typed beside it) and nothing else: no scope menu, no confirm word.",
     "The reasoning list's show-more and collapse are played on a seeded turn (seed-session-4, twelve thinking fragments and four tool calls in tests/cli/seed/fragments/chat.sql), not on a model answer: the list collapses past COLLAPSE_ITEM_THRESHOLD = 10 items (lib/chat/reasoning.ts), a count a model reaches only when it happens to take enough steps.",
