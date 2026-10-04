@@ -26,7 +26,7 @@ use super::agent_call::{admitted, chat_with_exposed, Caller};
 use super::agents::{ExposedAgents, MODEL_PREFIX};
 use super::errors::{error_response, ErrorKind, Family};
 use super::logs::RequestedModel;
-use super::models::{HeldModel, LocalModels, ServedModel};
+use super::models::{HeldModel, LocalModels, ServedModel, Unheld};
 use super::origin::CallOrigin;
 use super::tokens::ServerTokensHandle;
 use crate::engine_store::Engine;
@@ -156,7 +156,8 @@ fn entry(model: ServedModel) -> ModelEntry {
     }
 }
 
-/// `GET /v1/models`: the resident models, by their registry identifier, then
+/// `GET /v1/models`: the resident models and, while on-demand loading is on,
+/// the language models of this machine, by their registry identifier, then
 /// the exposed agents and workflows, `apollia/<id>`. A caller of the local
 /// network without a token in use is not told the agents and workflows.
 pub(crate) async fn list_models(
@@ -164,7 +165,7 @@ pub(crate) async fn list_models(
     origin: Option<Extension<CallOrigin>>,
     headers: HeaderMap,
 ) -> Response {
-    let mut data: Vec<ModelEntry> = state.models.served().await.into_iter().map(entry).collect();
+    let mut data: Vec<ModelEntry> = state.models.listed().await.into_iter().map(entry).collect();
     if admitted(origin_of(origin), &headers, state.tokens.as_ref()).await {
         data.extend(
             state
@@ -232,15 +233,21 @@ async fn relay_model(
     id: &str,
 ) -> Response {
     let family = endpoint.family();
-    let Some(held) = state.models.hold(id).await else {
-        return error_response(
-            family,
-            ErrorKind::ModelNotLoaded,
-            format!(
-                "The model '{id}' is not loaded. Load it in Apollia first; \
-                 GET /v1/models lists the loaded models."
-            ),
-        );
+    let held = match state.models.hold(id).await {
+        Ok(held) => held,
+        Err(Unheld::NotLoaded) => {
+            return error_response(
+                family,
+                ErrorKind::ModelNotLoaded,
+                format!(
+                    "The model '{id}' is not loaded. Load it in Apollia first; \
+                     GET /v1/models lists the models it serves."
+                ),
+            )
+        }
+        Err(Unheld::LoadFailed(message)) => {
+            return error_response(family, ErrorKind::EngineUnavailable, message)
+        }
     };
     if !endpoint.served_by(held.served.engine, held.served.kind) {
         return error_response(

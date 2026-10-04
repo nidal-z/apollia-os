@@ -7,6 +7,7 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..models.engine_name import EngineName
+from ..models.load_origin import LoadOrigin
 from ..models.model_kind import ModelKind
 from ..types import UNSET, Unset
 
@@ -27,6 +28,7 @@ class LoadedModelDto:
         model_path (str): Path the model was loaded from; the key an unload takes.
         n_ctx (int): Context window in tokens.
         n_gpu_layers (int): Layers placed on the GPU.
+        origin (LoadOrigin): Who loaded a resident model.
         port (int): Loopback port of the process serving it.
         n_parallel (int | None | Unset): Requests the process may serve in parallel; absent when the engine
             default applies.
@@ -41,6 +43,7 @@ class LoadedModelDto:
     model_path: str
     n_ctx: int
     n_gpu_layers: int
+    origin: LoadOrigin
     port: int
     n_parallel: int | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -64,6 +67,8 @@ class LoadedModelDto:
 
         n_gpu_layers = self.n_gpu_layers
 
+        origin = self.origin.value
+
         port = self.port
 
         n_parallel: int | None | Unset
@@ -85,6 +90,7 @@ class LoadedModelDto:
                 "modelPath": model_path,
                 "nCtx": n_ctx,
                 "nGpuLayers": n_gpu_layers,
+                "origin": origin,
                 "port": port,
             }
         )
@@ -114,6 +120,8 @@ class LoadedModelDto:
 
         n_gpu_layers = d.pop("nGpuLayers")
 
+        origin = LoadOrigin(d.pop("origin"))
+
         port = d.pop("port")
 
         def _parse_n_parallel(data: object) -> int | None | Unset:
@@ -135,6 +143,7 @@ class LoadedModelDto:
             model_path=model_path,
             n_ctx=n_ctx,
             n_gpu_layers=n_gpu_layers,
+            origin=origin,
             port=port,
             n_parallel=n_parallel,
         )

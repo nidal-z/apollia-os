@@ -15,21 +15,24 @@
 //! ([`TableSource`], [`register_table_sources`]), and the index of a source
 //! ([`index`]): its documents cut into chunks ([`chunk`]), searched by their
 //! words and by their meaning, alone or several at once ([`search_sources`],
-//! served by the actor to the `source_search` tool).
+//! served by the actor to the `source_search` tool), kept in step with the
+//! files of each folder and file source by the indexer ([`indexer`]).
 
 mod actor;
 mod checked;
 pub mod chunk;
 pub mod index;
+pub mod indexer;
 mod reader;
 mod search;
 mod table;
 
-pub use actor::{SourceRegistryHandle, SourcesError, COMMAND_CAPACITY};
+pub use actor::{IndexStatus, SourceRegistryHandle, SourcesError, COMMAND_CAPACITY};
 pub use apollia_core::source_registry::{
     IndexState, NewSource, Source, SourceKind, SourceRegistryError,
 };
 pub use checked::{checked_sources, searchable_sources, CheckedSource};
+pub use indexer::{PassOutcome, PassageEmbedder, MAX_INDEXED_FILE_BYTES};
 pub use reader::{
     read_csv, read_pdf, read_presentation, read_word, read_workbook, Cell, CellLocation, CsvFile,
     Delimiter, PageText, PdfDocument, PdfPage, Presentation, ReadError, SegmentKind, Sheet, Slide,

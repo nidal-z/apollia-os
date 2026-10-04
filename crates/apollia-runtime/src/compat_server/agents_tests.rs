@@ -211,6 +211,7 @@ impl Fixture {
             )
             .unwrap(),
             ServerLogsHandle::spawn(&crate::eventbus::EventBus::new().0),
+            false,
         )
     }
 }
