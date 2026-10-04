@@ -287,6 +287,13 @@ impl ChatSessionManager {
                     info!("chat.package_tools.set");
                     self.package_tools = Some(host);
                 }
+                ChatCommand::RetirePackageTools { package } => {
+                    info!(package = %package, "chat.package_tools.retired");
+                    self.package_tools = self.package_tools.take().map(|host| {
+                        Arc::new(crate::package_tools::WithoutPackage::new(host, &package))
+                            as Arc<dyn crate::package_tools::PackageToolHost>
+                    });
+                }
                 ChatCommand::FollowConfig { feed } => {
                     info!("chat.config.followed");
                     self.config_feed = Some(feed);

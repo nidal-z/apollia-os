@@ -167,3 +167,112 @@ async fn test_uninstall_route_refuses_without_a_journal() {
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(body["code"], "journal_unavailable");
 }
+
+fn lookup_tool() -> apollia_tools::ToolDescriptor {
+    apollia_tools::ToolDescriptor {
+        name: "pkg:crm/lookup".into(),
+        version: "1.0.0".into(),
+        description: "Look up a lead by name.".into(),
+        kind: apollia_tools::ToolKind::Native,
+        input_schema: json!({ "type": "object" }),
+        output_schema: None,
+        sandbox_profile: apollia_core::SandboxProfile::NetworkRestricted,
+        tags: vec![],
+        family: apollia_tools::ActionFamily::Read,
+        family_source: apollia_tools::FamilySource::Builtin,
+        is_read_only: false,
+        risk_score: 1,
+        approval_risk_level: None,
+        impact_description: None,
+        reject_reason_required: false,
+    }
+}
+
+#[tokio::test]
+async fn test_an_installed_package_reads_in_full_then_its_tool_leaves_the_running_runtime() {
+    // GIVEN the crm package installed, requiring a connection; one automation
+    // on its agent and one on another agent; its tool in the tool registry as
+    // the runtime entered it at start
+    let dir = TempDir::new().unwrap();
+    let (mut state, _journal) = state(&dir, true).await;
+    let triggers = TriggerDefinitionRepository::open(
+        &apollia_core::paths::DataFile::Triggers.path(dir.path()),
+    )
+    .unwrap();
+    triggers.insert(&trigger("crm-daily", "crm-agent")).unwrap();
+    triggers.insert(&trigger("other-daily", "other")).unwrap();
+    state.trigger_def_repo = Some(Arc::new(Mutex::new(triggers)));
+    let registry = apollia_tools::ToolRegistryHandle::start();
+    state.tool_registry_handle = Some(registry.clone());
+    let manifest =
+        format!("{MANIFEST}\n[[requires]]\ntype = \"gmail\"\nreason = \"Read the requests\"\n");
+    let apo = archive(dir.path(), "crm.apo", &manifest, None);
+    let (installed, body) = call(
+        state.clone(),
+        "POST",
+        "/api/v1/packages/install",
+        Some(json!({ "path": apo })),
+    )
+    .await;
+    assert_eq!(installed, StatusCode::CREATED, "{body}");
+    registry.register(lookup_tool()).await.unwrap();
+
+    // WHEN the installed packages are listed, the package is read, then
+    // uninstalled
+    let (_, list) = call(
+        state.clone(),
+        "GET",
+        "/api/v1/agent-packages/installed",
+        None,
+    )
+    .await;
+    let (read, detail) = call(
+        state.clone(),
+        "GET",
+        "/api/v1/agent-packages/installed/crm",
+        None,
+    )
+    .await;
+    let (status, body) = call(
+        state,
+        "POST",
+        "/api/v1/packages/crm/uninstall",
+        Some(json!({ "clearMemory": false, "clearHistory": false })),
+    )
+    .await;
+
+    // THEN the listing names the publisher, the signature and the counts
+    assert_eq!(list[0]["name"], "crm");
+    assert_eq!(
+        list[0]["signature"],
+        json!({ "publisher": "Acme", "signed": false, "trusted": false, "key_fingerprint": null })
+    );
+    assert_eq!(list[0]["embedded"], false);
+    assert_eq!(
+        list[0]["counts"],
+        json!({ "agents": 1, "workflows": 0, "tools": 1, "connections": 1 })
+    );
+    // AND the detail describes the content by kind and the automation that
+    // goes with the package, not the one of another agent
+    assert_eq!(read, StatusCode::OK, "{detail}");
+    assert_eq!(
+        detail["content"]["agents"],
+        json!([{ "id": "crm-agent", "name": "CRM", "description": "Track leads." }])
+    );
+    assert_eq!(
+        detail["content"]["tools"],
+        json!([{ "name": "lookup", "description": "Look up a lead by name.", "family": "read" }])
+    );
+    assert_eq!(
+        detail["content"]["connections_required"],
+        json!([{ "type": "gmail", "reason": "Read the requests" }])
+    );
+    assert_eq!(
+        detail["automations"],
+        json!([{ "id": "crm-daily", "target": "crm-agent" }])
+    );
+    // AND once uninstalled its tool is gone from the registry, with no restart
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["tools"], json!(["lookup"]));
+    assert!(registry.get("pkg:crm/lookup").await.unwrap().is_none());
+}

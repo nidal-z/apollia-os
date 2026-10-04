@@ -15,6 +15,7 @@
   import Inbox from "../../../routes/Inbox.svelte";
   import Llm from "../../../routes/Llm.svelte";
   import Automations from "../../../routes/Automations.svelte";
+  import Library from "../../../routes/Library.svelte";
   import Memory from "../../../routes/Memory.svelte";
   import Observability from "../../../routes/Observability.svelte";
   import Chat from "../../../routes/Chat.svelte";
@@ -90,6 +91,8 @@
             <Inbox />
           {:else if shownRoute === "llm"}
             <Llm />
+          {:else if shownRoute === "library"}
+            <Library />
           {:else if shownRoute === "automations"}
             <Automations />
           {:else if shownRoute === "memory"}

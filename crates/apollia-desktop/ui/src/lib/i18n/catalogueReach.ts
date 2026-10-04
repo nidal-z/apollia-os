@@ -68,6 +68,10 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
     builtBy: "components/packages/*.svelte",
   },
   {
+    pattern: new RegExp(`^library\\.(kind\\.${SEG}|uninstall\\.leaving\\.${SEG})$`),
+    builtBy: "components/library/*.svelte",
+  },
+  {
     pattern: new RegExp(`^agents\\.update_restart_(stop|start)_failed_action$`),
     builtBy: "components/agents/useAgentActions.svelte.ts",
   },

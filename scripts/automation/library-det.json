@@ -1,0 +1,704 @@
+{
+ "name": "library-det (the Library: the packages provided with Apollia as one entry, an installed package of every kind opened, updated through a cancelled file chooser, uninstalled with cancel, refusal and success, the empty state and the unreadable list)",
+ "stopOnError": false,
+ "notes": [
+  "Code-verified against routes/Library.svelte, components/library/LibraryPackageRow.svelte, LibraryPackageDetail.svelte, LibraryContentGroup.svelte, LibraryUninstallDialog.svelte and lib/library/libraryState.ts.",
+  "Sections 1 and 2 read the real store: the packages of the seed, and the two packages the desktop ships and installs at boot, which the list shows as one entry, first, with no update nor uninstall gesture. Row 0 is that entry as long as the desktop ships a package.",
+  "Sections 3 to 5 stub list_agent_packages and get_agent_package_detail, so the book holds a signed package of every kind whatever the seed installs. The stubbed values imitate AgentPackageListItem and AgentPackageDetail of crates/apollia-runtime/src/agent_packages.rs, and UninstallReport of crates/apollia-runtime/src/packages/uninstall.rs: a field renamed there drifts here silently.",
+  "The list is read when the route mounts, so each new list stub is followed by a round trip through the dashboard.",
+  "uninstall_agent_package is always stubbed: nothing is uninstalled, and the book leaves the store as it found it. The real uninstallation is held by the runtime tests.",
+  "plugin:dialog|open resolves null, a cancelled chooser, so neither Update nor Install opens the package preview; the preview opened as an update is played by the Playwright spec tests/library/library.spec.ts.",
+  "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run."
+ ],
+ "dynamicTestids": [
+  "nav-library",
+  "library-content-agent",
+  "library-content-workflow",
+  "library-content-tool",
+  "library-content-connection",
+  "library-uninstall-leaving-agents",
+  "library-uninstall-leaving-workflows",
+  "library-uninstall-leaving-tools",
+  "library-uninstall-leaving-automations",
+  "library-uninstall-leaving-connections"
+ ],
+ "steps": [
+  {
+   "kind": "click",
+   "testid": "onboarding-skip",
+   "timeoutMs": 3000
+  },
+  {
+   "kind": "waitGone",
+   "testid": "onboarding-skip",
+   "timeoutMs": 3000
+  },
+  {
+   "kind": "waitFor",
+   "testid": "app-main",
+   "timeoutMs": 30000
+  },
+  {
+   "kind": "click",
+   "testid": "nav-library"
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-page",
+   "timeoutMs": 10000
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-list",
+   "timeoutMs": 10000
+  },
+  {
+   "kind": "expect",
+   "testid": "library-install-button"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-tally"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-footnote"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-package-row",
+   "nth": 0
+  },
+  {
+   "kind": "expect",
+   "testid": "library-package-name",
+   "nth": 0
+  },
+  {
+   "kind": "expect",
+   "testid": "library-package-origin",
+   "nth": 0
+  },
+  {
+   "kind": "expect",
+   "testid": "library-package-content",
+   "nth": 0
+  },
+  {
+   "kind": "expect",
+   "testid": "library-package-signature",
+   "nth": 0
+  },
+  {
+   "kind": "screenshot",
+   "label": "01-library-list-provided"
+  },
+  {
+   "kind": "fill",
+   "testid": "library-filter",
+   "text": "no-such-package-zz"
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-no-match",
+   "timeoutMs": 4000
+  },
+  {
+   "kind": "fill",
+   "testid": "library-filter",
+   "text": ""
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-list",
+   "timeoutMs": 4000
+  },
+  {
+   "kind": "click",
+   "testid": "library-package-row",
+   "nth": 0
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-detail",
+   "timeoutMs": 8000
+  },
+  {
+   "kind": "expect",
+   "testid": "library-detail-title"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-detail-meta"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-detail-provided"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-detail-signature"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-content-agent"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-content-item",
+   "nth": 0
+  },
+  {
+   "kind": "expect",
+   "testid": "library-detail-update-note"
+  },
+  {
+   "kind": "waitGone",
+   "testid": "library-update-button",
+   "timeoutMs": 1000
+  },
+  {
+   "kind": "waitGone",
+   "testid": "library-uninstall-button",
+   "timeoutMs": 1000
+  },
+  {
+   "kind": "screenshot",
+   "label": "02-library-provided-open"
+  },
+  {
+   "kind": "click",
+   "testid": "library-open-sheet",
+   "nth": 0
+  },
+  {
+   "kind": "waitFor",
+   "testid": "agents-page",
+   "timeoutMs": 8000
+  },
+  {
+   "kind": "expect",
+   "testid": "agent-detail-title"
+  },
+  {
+   "kind": "goto",
+   "route": "library"
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-list",
+   "timeoutMs": 10000
+  },
+  {
+   "kind": "click",
+   "testid": "library-package-row",
+   "nth": 0
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-detail",
+   "timeoutMs": 8000
+  },
+  {
+   "kind": "click",
+   "testid": "library-detail-back"
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-list",
+   "timeoutMs": 4000
+  },
+  {
+   "kind": "stubInvoke",
+   "command": "list_agent_packages",
+   "resolve": [
+    {
+     "name": "crm",
+     "version": "1.0.0",
+     "description": "Qualifies the incoming requests",
+     "agent_count": 1,
+     "agents": [],
+     "installed_at": "2026-10-01T08:00:00Z",
+     "root_path": "${HOME}/.apollia/agents/packages/crm",
+     "root_missing": false,
+     "signature": {
+      "publisher": "Acme",
+      "signed": true,
+      "trusted": true,
+      "key_fingerprint": "0123456789abcdef0123456789abcdef"
+     },
+     "embedded": false,
+     "counts": {
+      "agents": 1,
+      "workflows": 1,
+      "tools": 1,
+      "connections": 2
+     }
+    },
+    {
+     "name": "veille",
+     "version": "0.4.0",
+     "description": "Morning watch",
+     "agent_count": 1,
+     "agents": [],
+     "installed_at": "2026-10-01T08:00:00Z",
+     "root_path": "${HOME}/.apollia/agents/packages/veille",
+     "root_missing": false,
+     "signature": {
+      "publisher": "Ada",
+      "signed": false,
+      "trusted": false,
+      "key_fingerprint": null
+     },
+     "embedded": false,
+     "counts": {
+      "agents": 1,
+      "workflows": 0,
+      "tools": 0,
+      "connections": 0
+     }
+    }
+   ]
+  },
+  {
+   "kind": "stubInvoke",
+   "command": "get_agent_package_detail",
+   "resolve": {
+    "name": "crm",
+    "version": "1.0.0",
+    "description": "Qualifies the incoming requests",
+    "author": "",
+    "agents": [],
+    "installed_at": "2026-10-01T08:00:00Z",
+    "updated_at": "2026-10-01T08:00:00Z",
+    "root_path": "${HOME}/.apollia/agents/packages/crm",
+    "root_missing": false,
+    "manifest": {},
+    "signature": {
+     "publisher": "Acme",
+     "signed": true,
+     "trusted": true,
+     "key_fingerprint": "0123456789abcdef0123456789abcdef"
+    },
+    "embedded": false,
+    "content": {
+     "agents": [
+      {
+       "id": "crm-agent",
+       "name": "Qualifier",
+       "description": "Qualify the requests."
+      }
+     ],
+     "workflows": [
+      {
+       "id": "weekly",
+       "name": "weekly",
+       "description": "Weekly digest."
+      }
+     ],
+     "tools": [
+      {
+       "name": "lookup",
+       "description": "Look up a lead.",
+       "family": "read"
+      }
+     ],
+     "connections_brought": [
+      "ledger"
+     ],
+     "connections_required": [
+      {
+       "type": "gmail",
+       "reason": "Read the requests"
+      }
+     ]
+    },
+    "automations": [
+     {
+      "id": "crm-daily",
+      "target": "crm-agent"
+     }
+    ]
+   },
+   "argsMatch": {
+    "name": "crm"
+   }
+  },
+  {
+   "kind": "goto",
+   "route": "dashboard"
+  },
+  {
+   "kind": "goto",
+   "route": "library"
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-list",
+   "timeoutMs": 10000
+  },
+  {
+   "kind": "expect",
+   "testid": "library-package-name",
+   "nth": 0,
+   "contains": "crm"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-package-origin",
+   "nth": 0,
+   "contains": "Acme"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-package-name",
+   "nth": 1,
+   "contains": "veille"
+  },
+  {
+   "kind": "fill",
+   "testid": "library-filter",
+   "text": "ada"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-package-name",
+   "nth": 0,
+   "contains": "veille"
+  },
+  {
+   "kind": "fill",
+   "testid": "library-filter",
+   "text": ""
+  },
+  {
+   "kind": "screenshot",
+   "label": "03-library-list-installed"
+  },
+  {
+   "kind": "click",
+   "testid": "library-package-row",
+   "nth": 0
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-detail",
+   "timeoutMs": 8000
+  },
+  {
+   "kind": "expect",
+   "testid": "library-detail-title",
+   "contains": "crm"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-detail-signature",
+   "contains": "Acme"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-detail-fingerprint"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-content-agent",
+   "contains": "Qualifier"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-content-workflow",
+   "contains": "weekly"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-content-tool",
+   "contains": "lookup"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-content-tag",
+   "nth": 0
+  },
+  {
+   "kind": "expect",
+   "testid": "library-content-connection",
+   "contains": "ledger"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-content-connection",
+   "contains": "gmail"
+  },
+  {
+   "kind": "screenshot",
+   "label": "04-library-package-open"
+  },
+  {
+   "kind": "stubInvoke",
+   "command": "plugin:dialog|open",
+   "resolve": null
+  },
+  {
+   "kind": "click",
+   "testid": "library-update-button"
+  },
+  {
+   "kind": "sleep",
+   "ms": 400
+  },
+  {
+   "kind": "waitGone",
+   "testid": "package-preview-dialog",
+   "timeoutMs": 1000
+  },
+  {
+   "kind": "click",
+   "testid": "library-uninstall-button"
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-uninstall-dialog",
+   "timeoutMs": 4000
+  },
+  {
+   "kind": "expect",
+   "testid": "library-uninstall-title",
+   "contains": "crm"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-uninstall-leaving"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-uninstall-leaving-agents",
+   "contains": "Qualifier"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-uninstall-leaving-workflows",
+   "contains": "weekly"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-uninstall-leaving-tools",
+   "contains": "lookup"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-uninstall-leaving-automations",
+   "contains": "crm-daily"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-uninstall-leaving-connections",
+   "contains": "ledger"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-uninstall-staying",
+   "contains": "gmail"
+  },
+  {
+   "kind": "expect",
+   "testid": "library-uninstall-choice"
+  },
+  {
+   "kind": "click",
+   "testid": "library-uninstall-erase"
+  },
+  {
+   "kind": "screenshot",
+   "label": "05-library-uninstall-erase"
+  },
+  {
+   "kind": "click",
+   "testid": "library-uninstall-keep"
+  },
+  {
+   "kind": "click",
+   "testid": "library-uninstall-cancel"
+  },
+  {
+   "kind": "waitGone",
+   "testid": "library-uninstall-dialog",
+   "timeoutMs": 4000
+  },
+  {
+   "kind": "stubInvoke",
+   "command": "uninstall_agent_package",
+   "reject": "audit journal not available: nothing is uninstalled without its record",
+   "once": true
+  },
+  {
+   "kind": "click",
+   "testid": "library-uninstall-button"
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-uninstall-dialog",
+   "timeoutMs": 4000
+  },
+  {
+   "kind": "click",
+   "testid": "library-uninstall-confirm"
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-uninstall-error",
+   "timeoutMs": 4000
+  },
+  {
+   "kind": "stubInvoke",
+   "command": "uninstall_agent_package",
+   "resolve": {
+    "name": "crm",
+    "version": "1.0.0",
+    "agents": [
+     "crm-agent"
+    ],
+    "workflows": [
+     "weekly"
+    ],
+    "tools": [
+     "lookup"
+    ],
+    "triggersRemoved": [
+     "crm-daily"
+    ],
+    "mcpServersRemoved": [
+     "ledger"
+    ],
+    "connectionsKept": [
+     "gmail"
+    ],
+    "memoryCleared": false,
+    "historyCleared": false,
+    "leftovers": []
+   }
+  },
+  {
+   "kind": "click",
+   "testid": "library-uninstall-confirm"
+  },
+  {
+   "kind": "waitGone",
+   "testid": "library-uninstall-dialog",
+   "timeoutMs": 4000
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-list",
+   "timeoutMs": 8000
+  },
+  {
+   "kind": "stubInvoke",
+   "command": "get_agent_package_detail",
+   "reject": "package 'veille' not found",
+   "argsMatch": {
+    "name": "veille"
+   }
+  },
+  {
+   "kind": "click",
+   "testid": "library-package-row",
+   "nth": 1
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-detail-error",
+   "timeoutMs": 8000
+  },
+  {
+   "kind": "click",
+   "testid": "library-detail-error-back"
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-list",
+   "timeoutMs": 4000
+  },
+  {
+   "kind": "clearStubs",
+   "command": "list_agent_packages"
+  },
+  {
+   "kind": "stubInvoke",
+   "command": "list_agent_packages",
+   "resolve": []
+  },
+  {
+   "kind": "goto",
+   "route": "dashboard"
+  },
+  {
+   "kind": "goto",
+   "route": "library"
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-empty",
+   "timeoutMs": 10000
+  },
+  {
+   "kind": "screenshot",
+   "label": "06-library-empty"
+  },
+  {
+   "kind": "click",
+   "testid": "library-empty-install"
+  },
+  {
+   "kind": "sleep",
+   "ms": 400
+  },
+  {
+   "kind": "waitGone",
+   "testid": "package-preview-dialog",
+   "timeoutMs": 1000
+  },
+  {
+   "kind": "click",
+   "testid": "library-empty-examples"
+  },
+  {
+   "kind": "waitFor",
+   "testid": "agents-page",
+   "timeoutMs": 8000
+  },
+  {
+   "kind": "clearStubs",
+   "command": "list_agent_packages"
+  },
+  {
+   "kind": "stubInvoke",
+   "command": "list_agent_packages",
+   "reject": "database error: agents.db is locked"
+  },
+  {
+   "kind": "goto",
+   "route": "library"
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-load-error",
+   "timeoutMs": 10000
+  },
+  {
+   "kind": "clearStubs"
+  },
+  {
+   "kind": "goto",
+   "route": "dashboard"
+  },
+  {
+   "kind": "goto",
+   "route": "library"
+  },
+  {
+   "kind": "waitFor",
+   "testid": "library-list",
+   "timeoutMs": 10000
+  }
+ ]
+}

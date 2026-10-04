@@ -278,6 +278,12 @@ pub enum ChatCommand {
         /// Used by every run that starts afterwards.
         host: Arc<dyn crate::package_tools::PackageToolHost>,
     },
+    /// Take the tools of an uninstalled package out of what the source of
+    /// the package tool executors hands out.
+    RetirePackageTools {
+        /// The package uninstalled.
+        package: String,
+    },
     /// Hand the live sections of the configuration to the actor.
     FollowConfig {
         /// Read between two commands: a changed section applies to the next

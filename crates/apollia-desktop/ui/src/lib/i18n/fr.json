@@ -200,9 +200,11 @@
       "llm": "Modèles LLM",
       "transcriptions": "Transcriptions",
       "integrations": "Connexions",
-      "settings": "Paramètres"
+      "settings": "Paramètres",
+      "library": "Bibliothèque"
     },
-    "policy": "Politique de l'organisation"
+    "policy": "Politique de l'organisation",
+    "library": "Bibliothèque"
   },
   "sidebar": {},
   "topbar": {
@@ -4621,6 +4623,87 @@
         "copy_detail": "Copier le détail",
         "copied": "Détail copié."
       }
+    }
+  },
+  "library": {
+    "kicker": "Paquets installés",
+    "title": "Bibliothèque",
+    "subtitle": "Ce que vous avez installé : agents, workflows, outils et connexions, avec leur éditeur et leur signature.",
+    "install": "Installer un paquet",
+    "filter_placeholder": "Filtrer les paquets…",
+    "tally": "{total, plural, one {# paquet installé} other {# paquets installés}} · {signed, plural, =0 {aucun signé} one {# signé} other {# signés}}, {unsigned, plural, =0 {aucun non signé} one {# non signé} other {# non signés}}",
+    "no_match": "Aucun paquet ne correspond à « {query} ».",
+    "load_error": "La liste des paquets installés ne peut pas être lue.",
+    "footnote": "Les agents et les workflows d'un paquet restent visibles dans Agents.",
+    "publisher_unknown": "Éditeur inconnu",
+    "signed": "Signé",
+    "unsigned": "Non signé",
+    "content_summary": "{agents, plural, =0 {aucun agent} one {# agent} other {# agents}}, {workflows, plural, =0 {aucun workflow} one {# workflow} other {# workflows}}, {tools, plural, =0 {aucun outil} one {# outil} other {# outils}}, {connections, plural, =0 {aucune connexion} one {# connexion} other {# connexions}}",
+    "kind": {
+      "agent": "agent",
+      "workflow": "workflow",
+      "tool": "outil",
+      "connection": "connexion"
+    },
+    "provided": {
+      "name": "Agents fournis avec Apollia",
+      "origin": "Fourni avec Apollia",
+      "badge": "Fourni avec Apollia",
+      "signature_title": "Fourni avec Apollia",
+      "signature_body": "Ces agents font partie de l'application : c'est elle qui est signée, et ils ne se désinstallent pas.",
+      "update_note": "Ces agents se mettent à jour avec l'application."
+    },
+    "empty": {
+      "title": "Aucun paquet installé",
+      "description": "Un paquet apporte des agents, des workflows, des outils et des connexions prêts à l'emploi, dans un seul fichier .apo.",
+      "examples": "Voir les exemples dans Agents"
+    },
+    "detail": {
+      "back": "Revenir à la Bibliothèque",
+      "load_error": "Ce paquet ne peut pas être lu.",
+      "installed_on": "installé le {date}",
+      "update": "Mettre à jour…",
+      "uninstall": "Désinstaller…",
+      "signed_title": "Signé par {publisher}",
+      "signed_trusted": "Éditeur de confiance. La signature a été vérifiée à l'installation.",
+      "signed_untrusted": "La signature a été vérifiée à l'installation. Cet éditeur n'est pas dans vos éditeurs de confiance.",
+      "unsigned_title": "Paquet non signé",
+      "unsigned_body": "Rien ne confirme qui a publié ce paquet. L'avertissement a été accepté à l'installation.",
+      "content_title": "Contenu",
+      "agents": "Agents",
+      "workflows": "Workflows",
+      "tools": "Outils",
+      "connections": "Connexions",
+      "open_sheet": "Ouvrir la fiche",
+      "connection_brought": "Apportée par le paquet : elle part avec lui.",
+      "connection_required": "Requise, à vous",
+      "none": "Aucun {kinds} dans ce paquet.",
+      "none_joiner": "ni",
+      "update_note": "Pour mettre à jour ce paquet, ouvrez un fichier .apo plus récent : un aperçu montre ce qui change avant toute installation, et vos ajustements sont gardés."
+    },
+    "uninstall": {
+      "title": "Désinstaller « {name} » ?",
+      "leaving_title": "Ce qui part",
+      "leaving": {
+        "agents": "{count, plural, one {# agent} other {# agents}}",
+        "workflows": "{count, plural, one {# workflow} other {# workflows}}",
+        "tools": "{count, plural, one {# outil} other {# outils}}",
+        "automations": "{count, plural, one {# automatisation qui lance ces agents} other {# automatisations qui lancent ces agents}}",
+        "connections": "{count, plural, one {# connexion apportée par le paquet} other {# connexions apportées par le paquet}}"
+      },
+      "staying_title": "Reste en place",
+      "staying_connections": "{count, plural, one {# connexion requise, qui est à vous} other {# connexions requises, qui sont à vous}}",
+      "data_title": "Mémoire et historique des agents",
+      "keep_title": "Garder",
+      "keep_body": "Si vous réinstallez ce paquet, ses agents retrouvent leur mémoire et leur historique.",
+      "erase_title": "Effacer",
+      "erase_body": "La mémoire et l'historique de ces agents sont effacés. Cette action est irréversible.",
+      "confirm": "Désinstaller",
+      "confirm_erase": "Désinstaller et effacer",
+      "error": "La désinstallation n'a pas abouti.",
+      "done": "« {name} » est désinstallé.",
+      "done_leftovers": "« {name} » est désinstallé, mais {count, plural, one {# élément n'a pas pu être retiré} other {# éléments n'ont pas pu être retirés}}.",
+      "names": " : {names}"
     }
   }
 }

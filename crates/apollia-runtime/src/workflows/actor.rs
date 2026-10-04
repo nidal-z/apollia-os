@@ -54,6 +54,17 @@ impl WorkflowActor {
                     self.host = Some(host);
                     tracing::event!(tracing::Level::INFO, "workflow.host.attached");
                 }
+                WorkflowCommand::RetirePackage(package) => {
+                    self.host = self.host.take().map(|host| {
+                        Arc::new(super::WithoutPackage::new(host, &package))
+                            as Arc<dyn WorkflowHost>
+                    });
+                    tracing::event!(
+                        tracing::Level::INFO,
+                        package = %package,
+                        "workflow.package.retired"
+                    );
+                }
                 WorkflowCommand::Launch {
                     workflow,
                     inputs,
