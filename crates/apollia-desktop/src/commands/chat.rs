@@ -320,19 +320,24 @@ pub async fn rename_chat_session(
 /// Sends a user message and launches the async response generation.
 ///
 /// `images` travel after the text, for a model that reads images; the runtime
-/// refuses them when the model of the conversation does not.
+/// refuses them when the model of the conversation does not. `documents` are
+/// read by the runtime on reception: their text joins the message.
 #[tauri::command]
 pub async fn send_chat_message(
     link: State<'_, RuntimeLink>,
     session_id: String,
     content: String,
     images: Option<Vec<apollia_runtime::chat::images::ImageAttachment>>,
+    documents: Option<Vec<apollia_runtime::chat::documents::DocumentAttachment>>,
 ) -> Result<String, String> {
     let images = images.unwrap_or_default();
+    let documents = documents.unwrap_or_default();
     let state = match link.inner() {
         RuntimeLink::Embedded(runtime) => runtime,
         RuntimeLink::Attached(remote) => {
-            return Ok(remote.send_message(&session_id, &content, &images).await?);
+            return Ok(remote
+                .send_message(&session_id, &content, &images, &documents)
+                .await?);
         }
     };
     let manager = state
@@ -342,8 +347,10 @@ pub async fn send_chat_message(
 
     let decoded =
         apollia_runtime::chat::images::decode_attachments(&images).map_err(|e| e.to_string())?;
+    let decoded_documents = apollia_runtime::chat::documents::decode_attachments(&documents)
+        .map_err(|e| e.to_string())?;
     let message_id = manager
-        .send_message_with_images(session_id, content, decoded)
+        .send_message_with_attachments(session_id, content, decoded, decoded_documents)
         .await
         .map_err(|e| e.to_string())?;
 

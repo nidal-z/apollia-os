@@ -313,7 +313,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route(
             "/api/v1/sessions/:id/messages",
             post(send_message::<B>).layer(axum::extract::DefaultBodyLimit::max(
-                crate::chat::images::max_message_body_bytes(),
+                crate::chat::documents::max_message_body_bytes(),
             )),
         )
         .route(

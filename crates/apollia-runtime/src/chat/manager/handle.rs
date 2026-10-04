@@ -299,6 +299,7 @@ impl ChatSessionManagerHandle {
                 session_id,
                 content,
                 images,
+                documents: None,
                 reply: reply_tx,
             })
             .await

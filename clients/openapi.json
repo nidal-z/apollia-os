@@ -13393,7 +13393,7 @@
             }
           },
           "400": {
-            "description": "An image is refused: too many, too large, or not decodable",
+            "description": "An image or a document is refused: too many, too large, not decodable, or a document its reader cannot read",
             "content": {
               "application/json": {
                 "schema": {
@@ -20976,6 +20976,24 @@
           }
         }
       },
+      "DocumentAttachment": {
+        "type": "object",
+        "description": "One document as a client sends it.",
+        "required": [
+          "name",
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "string",
+            "description": "Bytes of the document, in standard base64."
+          },
+          "name": {
+            "type": "string",
+            "description": "File name of the document, with its extension, such as `invoice.pdf`."
+          }
+        }
+      },
       "DriveFolderStatus": {
         "type": "object",
         "description": "The Drive folder of one connected Google account.",
@@ -26107,6 +26125,13 @@
           "content": {
             "type": "string",
             "description": "Text content of the user message."
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentAttachment"
+            },
+            "description": "Documents sent with the message (PDF, Word, PowerPoint, workbook, CSV):\nthe runtime extracts their text on reception. At most four, each at\nmost 20 MiB once decoded."
           },
           "images": {
             "type": "array",

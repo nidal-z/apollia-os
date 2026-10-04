@@ -10,6 +10,8 @@
   import SourceCards from "./SourceCards.svelte";
   import LinkPreviewList from "./LinkPreviewList.svelte";
   import MessageImages from "./MessageImages.svelte";
+  import MessageDocuments from "./MessageDocuments.svelte";
+  import { documentsText, typedText } from "$lib/chat/messageDocuments";
   import { parseStream } from "$lib/chat/streamParser";
   import { extractSources } from "$lib/chat/reasoning";
   import {
@@ -47,6 +49,9 @@
   }: Props = $props();
 
   const isUser = $derived(message.role === "user");
+  // What the user typed: the text of an attached document, which the runtime
+  // writes after it, is shown as a chip instead.
+  const userText = $derived(typedText(message.content ?? "", message.metadata));
   const isOperator = $derived(!$developerMode);
 
   const formattedTime = $derived.by(() => {
@@ -125,7 +130,7 @@
   async function handleCopy(): Promise<void> {
     if (!message.content) return;
     try {
-      await navigator.clipboard.writeText(message.content);
+      await navigator.clipboard.writeText(isUser ? userText : message.content);
       copied = true;
       setTimeout(() => { copied = false; }, 1500);
     } catch {
@@ -143,7 +148,7 @@
   const canEdit = $derived(isUser && !!onedit && !!message.content);
 
   function startEdit(): void {
-    editValue = message.content ?? "";
+    editValue = isUser ? userText : (message.content ?? "");
     editing = true;
   }
 
@@ -155,7 +160,9 @@
     const next = editValue.trim();
     if (!next) return;
     editing = false;
-    onedit?.(message.id, next);
+    // The text of an attached document stays behind the edited text, so the
+    // agent still reads it.
+    onedit?.(message.id, next + documentsText(message.content ?? "", message.metadata));
   }
 </script>
 
@@ -186,6 +193,11 @@
     <div class="{widthClass}">
       <ReasoningSequence {message} {sessionId} {isOperator} section="approvals" />
     </div>
+  {/if}
+
+  <!-- The documents attached to a user turn sit above its bubble. -->
+  {#if isUser}
+    <MessageDocuments messageId={message.id} metadata={message.metadata} />
   {/if}
 
   <div
@@ -231,8 +243,8 @@
         </div>
       {:else}
         <MessageImages {sessionId} messageId={message.id} metadata={message.metadata} />
-        {#if message.content}
-          <p class="whitespace-pre-wrap break-words">{message.content}</p>
+        {#if userText}
+          <p class="whitespace-pre-wrap break-words">{userText}</p>
         {/if}
       {/if}
     {:else if isEmptyAgentResponse}

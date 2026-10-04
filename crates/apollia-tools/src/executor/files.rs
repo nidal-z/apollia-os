@@ -44,6 +44,9 @@ impl ToolExecutor for FileRead {
                     FileReadError::NotFound { .. } => "not_found",
                     FileReadError::IoError { .. } => "io_error",
                     FileReadError::BinaryFile { .. } => "binary_file",
+                    FileReadError::UnreadableDocument { .. } => "unreadable_document",
+                    FileReadError::PartNotFound { .. } => "part_not_found",
+                    FileReadError::NoParts { .. } => "no_parts",
                 };
                 ToolExecutionError::ExecutionFailed {
                     code: code.to_string(),

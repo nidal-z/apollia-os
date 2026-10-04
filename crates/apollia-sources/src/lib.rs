@@ -18,11 +18,14 @@
 //! ([`index`]): its documents cut into chunks ([`chunk`]), searched by their
 //! words and by their meaning, alone or several at once ([`search_sources`],
 //! served by the actor to the `source_search` tool), kept in step with the
-//! files of each folder and file source by the indexer ([`indexer`]).
+//! files of each folder and file source by the indexer ([`indexer`]), and the
+//! reading of one office document as the text of its pages, slides or sheets
+//! ([`read_document`]).
 
 mod actor;
 mod checked;
 pub mod chunk;
+mod document;
 pub mod index;
 pub mod indexer;
 mod reader;
@@ -34,6 +37,9 @@ pub use apollia_core::source_registry::{
     IndexState, NewSource, Source, SourceKind, SourceRegistryError,
 };
 pub use checked::{checked_sources, searchable_sources, CheckedSource};
+pub use document::{
+    is_office_document, is_readable_document, read_document, DocumentPart, DocumentText, PartUnit,
+};
 pub use indexer::{PassOutcome, PassageEmbedder, MAX_INDEXED_FILE_BYTES};
 pub use reader::{
     read_csv, read_pdf, read_presentation, read_word, read_workbook, Cell, CellLocation, CsvFile,

@@ -3538,8 +3538,21 @@
         "image_unreadable": "{name} n'est pas une image lisible, elle n'a pas été jointe.",
         "image_format": "{name} : le modèle de cette conversation ne lit pas ce format d'image.",
         "too_large_without_path": "{name} dépasse 512 ko, et un fichier choisi de cette façon ne porte aucun chemin. Déposez-le dans la conversation pour le joindre.",
-        "binary_not_text": "{name} n'est pas un fichier texte : ses octets ne portent aucun texte lisible, rien d'utile ne serait envoyé. Déposez-le dans la conversation pour envoyer son chemin."
+        "document_limit": "{name} refusé : {max} documents au plus par message. Déposez-le dans la conversation pour envoyer son chemin.",
+        "document_too_large": "{name} refusé : un document pèse au plus {mb} Mo. Déposez-le dans la conversation pour envoyer son chemin.",
+        "binary_not_text": "{name} refusé : ce format n'est pas lu. Les fichiers PDF, Word, PowerPoint, Excel, CSV et texte le sont. Déposez-le dans la conversation pour envoyer son chemin."
       }
+    },
+    "documents": {
+      "read_pages": "{count, plural, one {# page} other {# pages}}, texte lu",
+      "read_slides": "{count, plural, one {# diapositive} other {# diapositives}}, texte lu",
+      "read_sheets": "{count, plural, one {# feuille} other {# feuilles}}, texte lu",
+      "read_whole": "texte lu",
+      "on_demand_pages": "{count, plural, one {# page} other {# pages}}, lu à la demande",
+      "on_demand_slides": "{count, plural, one {# diapositive} other {# diapositives}}, lu à la demande",
+      "on_demand_sheets": "{count, plural, one {# feuille} other {# feuilles}}, lu à la demande",
+      "on_demand_whole": "lu à la demande",
+      "no_text": "aucun texte trouvé"
     },
     "images": {
       "open": "Ouvrir l'image {position}",

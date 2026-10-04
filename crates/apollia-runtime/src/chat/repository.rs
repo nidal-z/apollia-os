@@ -314,6 +314,11 @@ impl ChatSessionRepository {
         if let Some(dir) = self.session_images_dir(id) {
             super::images::remove_session_images(&dir);
         }
+        if let Some(data_dir) = self.data_dir.as_deref() {
+            super::documents::remove_session_documents(&super::documents::session_documents_dir(
+                data_dir, id,
+            ));
+        }
         Ok(())
     }
 

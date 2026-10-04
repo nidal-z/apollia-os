@@ -10,6 +10,7 @@ pub mod a2a_tools;
 pub mod agent_chat;
 pub mod agent_executor;
 pub mod builtin_agent;
+pub mod documents;
 pub mod extractor;
 pub mod generation;
 pub mod images;

@@ -495,6 +495,7 @@ use security::BearerToken;
         crate::api::routes_chat::CreateSessionRequest,
         crate::api::routes_chat::SendMessageRequest,
         crate::chat::images::ImageAttachment,
+        crate::chat::documents::DocumentAttachment,
         crate::api::routes_chat::SendMessageResponse,
         crate::api::routes_chat::AuthorizeToolRequest,
         crate::api::routes_chat::turns::ResendMessageRequest,

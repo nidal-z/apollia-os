@@ -8,6 +8,7 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  ChatDocumentData,
   ChatImageData,
   ChatModelCapabilities,
   ChatSessionDetail,
@@ -27,14 +28,16 @@ export function pauseChatSession(sessionId: string): Promise<void> {
 
 /**
  * Send a user message; resolves with the created message id. `images` travel
- * after the text, for a model that reads images.
+ * after the text, for a model that reads images. `documents` are read by the
+ * runtime on reception: their text joins the message.
  */
 export function sendChatMessage(
   sessionId: string,
   content: string,
   images: ChatImageData[] = [],
+  documents: ChatDocumentData[] = [],
 ): Promise<string> {
-  return invoke<string>("send_chat_message", { sessionId, content, images });
+  return invoke<string>("send_chat_message", { sessionId, content, images, documents });
 }
 
 /** What the model of a conversation can do: images and their formats. */

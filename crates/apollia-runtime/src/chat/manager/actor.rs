@@ -29,9 +29,10 @@ impl ChatSessionManager {
                     session_id,
                     content,
                     images,
+                    documents,
                     reply,
                 } => {
-                    let result = self.handle_send_message(&session_id, &content, images);
+                    let result = self.handle_send_message(&session_id, &content, images, documents);
                     let _ = reply.send(result);
                 }
                 ChatCommand::ResolveTool {
