@@ -53,7 +53,9 @@ pub use contract::{
     AccessCall, AccessDecision, ConsentAnswer, DecisionReason, DeclaredAccess, EffectiveAccess,
     GovernanceContract, GovernanceError, InstallSubject, ALL_ANSWERS, NO_ALWAYS_ANSWERS,
 };
-pub use decision::{decide, GovernanceState, PolicyRefusals};
+pub use decision::{
+    answered_once, decide, is_once_grant, once_grant, GovernanceState, PolicyRefusals,
+};
 pub use inference_policy::{
     InferenceGovernance, REMOTE_SERVER_DENIED_REASON, SERVER_NOT_ALLOWED_REASON,
 };

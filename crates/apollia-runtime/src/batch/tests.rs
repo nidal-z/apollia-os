@@ -13,7 +13,8 @@ use crate::test_support::poll_until_async;
 pub(super) const WAIT: Duration = Duration::from_secs(10);
 
 /// What the scripted runner does with an item, read from its `outcome` field:
-/// `ok`, `fail`, `hang` until cancelled, or `await` an access.
+/// `ok`, `fail`, `hang` until cancelled, `await` an access, or `code`: wait to
+/// execute code unless allowed one call of it.
 #[derive(Default)]
 pub(super) struct Scripted {
     pub(super) started: AtomicU32,
@@ -28,6 +29,8 @@ pub(super) struct Scripted {
     pub(super) released: Mutex<Vec<String>>,
     /// The tasks cancelled.
     pub(super) cancelled: Mutex<Vec<String>>,
+    /// The access each start was allowed one call of, in order.
+    pub(super) once: Mutex<Vec<Option<String>>>,
 }
 
 /// The sensitive accesses of the scripted agent: one to grant, one never.
@@ -80,9 +83,11 @@ impl ItemRunner for Arc<Scripted> {
         _batch_id: &str,
         _agent: &str,
         input: &serde_json::Value,
+        once: Option<&str>,
     ) -> Result<StartedItem, String> {
         let n = self.started.fetch_add(1, Ordering::SeqCst);
         self.inputs.lock().unwrap().push(input.clone());
+        self.once.lock().unwrap().push(once.map(str::to_owned));
         let task_id = format!("task-{n}");
         let (tx, end) = oneshot::channel();
         let outcome = input["outcome"].as_str().unwrap_or("ok");
@@ -92,6 +97,9 @@ impl ItemRunner for Arc<Scripted> {
             let (status, awaiting) = match outcome {
                 "fail" => (ItemStatus::Failed, None),
                 "await" => (ItemStatus::Awaiting, Some("send_email".to_string())),
+                "code" if once != Some("bash_executor") => {
+                    (ItemStatus::Awaiting, Some("bash_executor".to_string()))
+                }
                 _ => (ItemStatus::Completed, None),
             };
             let _ = tx.send(ItemEnd {

@@ -202,8 +202,8 @@ fn batch_refusal(e: BatchError) -> PendingError {
 }
 
 /// A batch item waiting for an access, answered as the batch is: once grants
-/// the access for the rest of the batch and runs its waiting items again;
-/// always gives the agent a standing consent for the family and runs again
+/// the access for the rest of the batch and runs its waiting items again,
+/// or, for executing code, runs this item again allowed one call; always gives the agent a standing consent for the family and runs again
 /// every waiting item of that agent it covers; refuse fails the item.
 async fn decide_batch_item<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
@@ -236,6 +236,25 @@ async fn decide_batch_item<B: ExecutionBackend + Clone>(
     offered(request.answer, &batch_answers(known.as_ref()))?;
 
     match (request.answer, known, access) {
+        (PendingAnswer::Once, Some(known), Some(access)) if known.executes_code() => {
+            batches
+                .control(
+                    batch_id,
+                    BatchControl::RunOnce {
+                        rank,
+                        access: access.clone(),
+                    },
+                )
+                .await
+                .map_err(batch_refusal)?;
+            Ok(response(
+                request,
+                1,
+                format!(
+                    "'{access}' is allowed once; the item runs again and asks at its next call."
+                ),
+            ))
+        }
         (PendingAnswer::Once, _, Some(access)) => {
             batches
                 .control(

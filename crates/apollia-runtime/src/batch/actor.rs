@@ -44,6 +44,9 @@ pub(super) struct BatchActor<R: ItemRunner> {
     sources: Arc<SourceRegistry>,
     pub(super) runner: Arc<R>,
     pub(super) active: HashMap<String, Active>,
+    /// The access each item answered "once" may call one time on its next
+    /// run, by batch and rank; spent when the item starts.
+    pub(super) once: HashMap<(String, u64), String>,
     event_bus: EventBusSender,
 }
 
@@ -64,6 +67,7 @@ impl<R: ItemRunner> BatchActor<R> {
             sources,
             runner,
             active: HashMap::new(),
+            once: HashMap::new(),
             event_bus,
         }
     }
@@ -274,7 +278,12 @@ impl<R: ItemRunner> BatchActor<R> {
         rank: u64,
         input: &serde_json::Value,
     ) {
-        match self.runner.start(batch_id, agent, input).await {
+        let once = self.once.remove(&(batch_id.to_string(), rank));
+        match self
+            .runner
+            .start(batch_id, agent, input, once.as_deref())
+            .await
+        {
             Ok(started) => {
                 if let Err(e) = self
                     .repository

@@ -18,6 +18,12 @@
 //! A tool nobody classified skips line 5 and is asked without "always". An
 //! unattended run waits where an attended one would ask. Governance that
 //! cannot read what it decides from refuses every sensitive call.
+//!
+//! A run may also hold a grant for one call only ([`once_grant`]): the answer
+//! "once" given to a batch item that stopped on executing code. The next call
+//! of that access that would ask goes through ([`answered_once`]), the one
+//! after asks again; a refusal of lines 1, 2 or of fail-closed governance
+//! stays a refusal.
 
 use std::collections::HashSet;
 
@@ -30,6 +36,41 @@ use apollia_tools::ActionFamily;
 use crate::governance::contract::{
     AccessCall, AccessDecision, ConsentAnswer, DecisionReason, ALL_ANSWERS, NO_ALWAYS_ANSWERS,
 };
+
+/// Prefix of a run grant that lets one call of an access through.
+const ONCE_PREFIX: &str = "once:";
+
+/// The run grant that lets the next call of `access_id` through, and no
+/// later one.
+#[must_use]
+pub fn once_grant(access_id: &str) -> String {
+    format!("{ONCE_PREFIX}{access_id}")
+}
+
+/// Whether the run grant `grant` lets one call through only.
+#[must_use]
+pub fn is_once_grant(grant: &str) -> bool {
+    grant.starts_with(ONCE_PREFIX)
+}
+
+/// `decision` for a call the user already answered "once": a call that would
+/// ask or wait for a consent goes through; any other decision is kept.
+#[must_use]
+pub fn answered_once(decision: AccessDecision) -> AccessDecision {
+    match decision {
+        AccessDecision::AskUser {
+            reason: DecisionReason::Consent,
+            ..
+        }
+        | AccessDecision::Pending {
+            reason: DecisionReason::Consent,
+            ..
+        } => AccessDecision::Allowed {
+            reason: DecisionReason::Consent,
+        },
+        other => other,
+    }
+}
 
 /// What the organisation policy refuses at the moment of a call.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

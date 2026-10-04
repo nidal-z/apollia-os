@@ -137,9 +137,9 @@ fn task_pause(pause: crate::api::routes_approvals::PendingApprovalResponse) -> P
 }
 
 /// The answers of a batch item waiting for `access`: once, always and refuse
-/// for an access a batch can be granted; refuse alone for executing code, an
-/// access nobody classified or one the agent no longer holds, which no grant
-/// can let through.
+/// for an access a batch can be granted; once and refuse for executing code,
+/// as everywhere code asks; refuse alone for an access nobody classified or
+/// one the agent no longer holds, which no answer can let through.
 pub(super) fn batch_answers(access: Option<&BatchAccess>) -> Vec<PendingAnswer> {
     match access {
         Some(a) if a.grantable => vec![
@@ -147,6 +147,7 @@ pub(super) fn batch_answers(access: Option<&BatchAccess>) -> Vec<PendingAnswer> 
             PendingAnswer::Always,
             PendingAnswer::Refuse,
         ],
+        Some(a) if a.executes_code() => vec![PendingAnswer::Once, PendingAnswer::Refuse],
         _ => vec![PendingAnswer::Refuse],
     }
 }

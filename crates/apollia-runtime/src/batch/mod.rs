@@ -208,12 +208,14 @@ pub trait ItemRunner: Send + Sync + 'static {
     fn release(&self, batch_id: &str) -> impl Future<Output = Result<(), String>> + Send;
 
     /// Starts `agent` on one item of the batch `batch_id` whose input is
-    /// `input`, with the accesses granted to it now.
+    /// `input`, with the accesses granted to it now, and `once`, an access
+    /// the user allowed for one call of this run alone.
     fn start(
         &self,
         batch_id: &str,
         agent: &str,
         input: &serde_json::Value,
+        once: Option<&str>,
     ) -> impl Future<Output = Result<StartedItem, String>> + Send;
 
     /// Cancels the run of the task `task_id`; its end is reported as usual.
@@ -246,6 +248,14 @@ pub enum BatchControl {
         /// Why, when the user said.
         reason: Option<String>,
     },
+    /// The item at `rank`, which waits to execute code, runs again alone,
+    /// allowed one call of `access`: the next one asks again.
+    RunOnce {
+        /// Position of the item in its source.
+        rank: u64,
+        /// The access it waits for, a tool of the agent that executes code.
+        access: String,
+    },
 }
 
 impl BatchControl {
@@ -257,6 +267,7 @@ impl BatchControl {
             Self::Stop => "stop",
             Self::Retry(_) => "retry",
             Self::Refuse { .. } => "refuse",
+            Self::RunOnce { .. } => "run_once",
         }
     }
 }

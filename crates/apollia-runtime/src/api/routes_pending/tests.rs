@@ -86,7 +86,7 @@ async fn test_a_chat_consent_is_listed_with_its_three_answers_and_once_resumes_i
     let dir = tempfile::tempdir().unwrap();
     let state = seeded_chat(dir.path());
     let chat = state.chat_manager.clone().unwrap();
-    let waiting = chat.pending_chat_approvals().register_asked(
+    let mut waiting = chat.pending_chat_approvals().register_asked(
         "s-1::a-1::c-1".into(),
         asked("c-1", "file_write", &ALL_ANSWERS),
     );
@@ -110,7 +110,7 @@ async fn test_a_chat_consent_is_listed_with_its_three_answers_and_once_resumes_i
     // AND the conversation waiting on it goes on with the answer
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["resumed"], 1);
-    let decision = tokio::time::timeout(WAIT, waiting).await.unwrap().unwrap();
+    let decision = waiting.try_recv().unwrap();
     assert_eq!(decision, ToolDecision::Accept);
     // AND it no longer waits
     assert!(items(&state).await.is_empty());
@@ -122,7 +122,7 @@ async fn test_executing_code_offers_two_answers_and_refuses_always() {
     let dir = tempfile::tempdir().unwrap();
     let state = seeded_chat(dir.path());
     let chat = state.chat_manager.clone().unwrap();
-    let waiting = chat.pending_chat_approvals().register_asked(
+    let mut waiting = chat.pending_chat_approvals().register_asked(
         "s-1::a-1::c-2".into(),
         asked("c-2", "bash_executor", &NO_ALWAYS_ANSWERS),
     );
@@ -150,7 +150,7 @@ async fn test_executing_code_offers_two_answers_and_refuses_always() {
     assert_eq!(refused_body["code"], "ANSWER_NOT_OFFERED");
     // AND the refusal reached the run with its reason
     assert_eq!(refuse, StatusCode::OK);
-    let decision = tokio::time::timeout(WAIT, waiting).await.unwrap().unwrap();
+    let decision = waiting.try_recv().unwrap();
     assert_eq!(
         decision,
         ToolDecision::Refuse {
@@ -187,7 +187,7 @@ async fn test_a_task_pause_is_listed_and_once_resumes_the_task() {
     // GIVEN a task paused for an approval, its run waiting on the pause
     let dir = tempfile::tempdir().unwrap();
     let state = paused_task(&dir, None).await;
-    let waiting = state.pending_approvals.as_ref().unwrap().register("t-1");
+    let mut waiting = state.pending_approvals.as_ref().unwrap().register("t-1");
 
     // WHEN the decisions are listed, then the pause is answered once
     let listed = items(&state).await;
@@ -206,7 +206,7 @@ async fn test_a_task_pause_is_listed_and_once_resumes_the_task() {
     assert_eq!(listed[0]["answers"], json!(["once", "refuse"]));
     // AND the task goes on, approved, through the resume of the task
     assert_eq!(status, StatusCode::OK, "{body}");
-    let response = tokio::time::timeout(WAIT, waiting).await.unwrap().unwrap();
+    let response = waiting.try_recv().unwrap();
     assert!(response.approved);
     let repo = state.task_repository.as_ref().unwrap();
     assert_eq!(
@@ -225,7 +225,7 @@ async fn test_a_task_question_takes_its_answer_checked_as_the_resume_checks_it()
         "propositions": [{"id": "a", "libelle": "A"}, {"id": "b", "libelle": "B"}]
     });
     let state = paused_task(&dir, Some(payload)).await;
-    let waiting = state.pending_approvals.as_ref().unwrap().register("t-1");
+    let mut waiting = state.pending_approvals.as_ref().unwrap().register("t-1");
 
     // WHEN it is answered with an id it does not propose, then with one it does
     let listed = items(&state).await;
@@ -252,7 +252,7 @@ async fn test_a_task_question_takes_its_answer_checked_as_the_resume_checks_it()
     assert_eq!(bad_body["code"], "INVALID_ANSWER");
     // AND the right one reached the task
     assert_eq!(good, StatusCode::OK);
-    let response = tokio::time::timeout(WAIT, waiting).await.unwrap().unwrap();
+    let response = waiting.try_recv().unwrap();
     assert_eq!(response.answer, Some(json!("b")));
 }
 
@@ -261,12 +261,14 @@ async fn test_a_task_question_takes_its_answer_checked_as_the_resume_checks_it()
 const AGENT: &str = "clerk";
 
 /// Each item waits for `send_email` the first time it runs, and completes
-/// every later time.
+/// every later time; an item on `bash_executor` waits unless allowed one call
+/// of it.
 #[derive(Default)]
 struct WaitsOnce {
     seen: Mutex<HashSet<String>>,
     started: Mutex<u32>,
     granted: Mutex<Vec<(String, Vec<String>)>>,
+    once: Mutex<Vec<Option<String>>>,
 }
 
 impl ItemRunner for Arc<WaitsOnce> {
@@ -312,6 +314,7 @@ impl ItemRunner for Arc<WaitsOnce> {
         batch_id: &str,
         _agent: &str,
         input: &Value,
+        once: Option<&str>,
     ) -> Result<StartedItem, String> {
         let n = {
             let mut started = self.started.lock().unwrap();
@@ -321,8 +324,14 @@ impl ItemRunner for Arc<WaitsOnce> {
         let key = format!("{batch_id}/{input}");
         let first = self.seen.lock().unwrap().insert(key);
         let access = input["access"].as_str().unwrap_or("send_email").to_string();
+        self.once.lock().unwrap().push(once.map(str::to_owned));
+        let waits = if access == "bash_executor" {
+            once != Some("bash_executor")
+        } else {
+            first
+        };
         let (tx, end) = oneshot::channel();
-        let _ = tx.send(if first {
+        let _ = tx.send(if waits {
             ItemEnd {
                 status: ItemStatus::Awaiting,
                 output: "stopped".into(),
@@ -468,10 +477,10 @@ async fn test_a_waiting_batch_item_is_listed_and_once_runs_it_again_with_the_gra
 }
 
 #[tokio::test]
-async fn test_an_item_waiting_on_code_takes_only_a_refusal_which_fails_it() {
-    // GIVEN a batch whose one item waits for executing code
+async fn test_an_item_waiting_on_code_takes_once_or_refuse_and_once_resumes_it() {
+    // GIVEN a batch whose two items wait for executing code
     let dir = tempfile::tempdir().unwrap();
-    let (state, repo, _) = batch_state(&dir, &["bash_executor"]).await;
+    let (state, repo, runner) = batch_state(&dir, &["bash_executor", "bash_executor"]).await;
     let batch = state
         .batches
         .clone()
@@ -479,35 +488,73 @@ async fn test_an_item_waiting_on_code_takes_only_a_refusal_which_fails_it() {
         .launch(launch())
         .await
         .unwrap();
-    awaiting(&state, &batch.batch_id, 1).await;
-    let id = format!("batch:{}:0", batch.batch_id);
+    awaiting(&state, &batch.batch_id, 2).await;
+    let first = format!("batch:{}:0", batch.batch_id);
+    let second = format!("batch:{}:1", batch.batch_id);
 
-    // WHEN it is listed, answered once, then refused
+    // WHEN they are listed; the first is answered "always", then once; the
+    // second is refused with a reason
     let listed = items(&state).await;
-    let (once, _) = call(
+    let (always, always_body) = call(
         state.clone(),
         "POST",
         DECIDE,
-        Some(json!({"id": id, "answer": "once"})),
+        Some(json!({"id": first, "answer": "always"})),
     )
     .await;
-    let (refuse, body) = call(
+    let (once, once_body) = call(
         state.clone(),
         "POST",
         DECIDE,
-        Some(json!({"id": id, "answer": "refuse", "reason": "no scripts"})),
+        Some(json!({"id": first, "answer": "once"})),
+    )
+    .await;
+    let (refuse, refuse_body) = call(
+        state.clone(),
+        "POST",
+        DECIDE,
+        Some(json!({"id": second, "answer": "refuse", "reason": "no scripts"})),
     )
     .await;
 
-    // THEN no grant could let it through: refuse is its only answer
-    assert_eq!(listed[0]["answers"], json!(["refuse"]));
-    assert_eq!(once, StatusCode::UNPROCESSABLE_ENTITY);
-    // AND the refusal failed the item, with the reason, and it left the list
-    assert_eq!(refuse, StatusCode::OK, "{body}");
-    let items_now = repo.batch_items(&batch.batch_id).await.unwrap();
-    assert_eq!(items_now[0].status, "failed");
+    // THEN each took the two answers code takes, "always" left it waiting
+    assert_eq!(listed.len(), 2, "{listed:?}");
+    assert_eq!(listed[0]["access"], "bash_executor");
+    assert_eq!(listed[0]["family"], "execute_code");
+    assert_eq!(listed[0]["answers"], json!(["once", "refuse"]));
+    assert_eq!(always, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(always_body["code"], "ANSWER_NOT_OFFERED");
+    // AND once ran the first item again, allowed one call of the tool, to its end
+    assert_eq!(once, StatusCode::OK, "{once_body}");
+    assert_eq!(once_body["resumed"], 1);
+    let reached = poll_until_async(WAIT, || async {
+        item_status(&repo, &batch.batch_id, 0).await == "completed"
+    })
+    .await;
+    assert!(reached, "the item allowed once never completed");
     assert_eq!(
-        items_now[0].output.as_deref(),
+        runner
+            .once
+            .lock()
+            .unwrap()
+            .last()
+            .cloned()
+            .flatten()
+            .as_deref(),
+        Some("bash_executor")
+    );
+    assert!(runner
+        .granted
+        .lock()
+        .unwrap()
+        .iter()
+        .all(|(_, g)| g.is_empty()));
+    // AND the refusal failed the second item, with the reason
+    assert_eq!(refuse, StatusCode::OK, "{refuse_body}");
+    let items_now = repo.batch_items(&batch.batch_id).await.unwrap();
+    assert_eq!(items_now[1].status, "failed");
+    assert_eq!(
+        items_now[1].output.as_deref(),
         Some("Refused by the user: no scripts")
     );
     assert!(items(&state).await.is_empty());
@@ -575,7 +622,7 @@ async fn test_a_question_is_listed_with_its_choices_and_takes_a_free_answer() {
     let dir = tempfile::tempdir().unwrap();
     let state = seeded_chat(dir.path());
     let chat = state.chat_manager.clone().unwrap();
-    let (reply_tx, reply_rx) = oneshot::channel();
+    let (reply_tx, mut reply_rx) = oneshot::channel();
     chat.pending_user_inputs()
         .register(
             "r-1".into(),
@@ -622,6 +669,6 @@ async fn test_a_question_is_listed_with_its_choices_and_takes_a_free_answer() {
     assert_eq!(listed[0]["answers"], json!(["answer", "refuse"]));
     // AND the agent waiting on it received the free answer
     assert_eq!(status, StatusCode::OK, "{body}");
-    let output = tokio::time::timeout(WAIT, reply_rx).await.unwrap().unwrap();
+    let output = reply_rx.try_recv().unwrap();
     assert_eq!(output.answers[0].value.as_deref(), Some("Markdown"));
 }

@@ -399,3 +399,38 @@ fn test_expired_and_foreign_rules_are_ignored() {
     // THEN neither refuses it: it asks
     assert_eq!(decision, asked_with_all());
 }
+
+// A code call the user answered "once" for goes through; a deny rule still
+// refuses it, and the grant names one call only.
+#[test]
+fn test_a_code_call_answered_once_goes_through_and_a_deny_rule_still_refuses() {
+    // GIVEN an unattended code call that waits, and the same call under a deny rule
+    let mut code = call("bash_executor", ActionFamily::ExecuteCode, Some("ls"));
+    code.unattended = true;
+    let waits = decide(&GovernanceState::default(), &code, NOW);
+    let denied_state = GovernanceState {
+        rules: vec![rule(9, "bash_executor", Some("ls"), RuleAction::Deny)],
+        ..GovernanceState::default()
+    };
+    let denied = decide(&denied_state, &code, NOW);
+
+    // WHEN both are read as answered "once"
+    let once = answered_once(waits);
+    assert!(
+        matches!(denied, AccessDecision::Denied { .. }),
+        "{denied:?}"
+    );
+    let still_denied = answered_once(denied.clone());
+
+    // THEN the waiting call goes through on the consent, the refusal stays
+    assert_eq!(
+        once,
+        AccessDecision::Allowed {
+            reason: DecisionReason::Consent
+        }
+    );
+    assert_eq!(still_denied, denied);
+    // AND the grant of one call is told apart from a grant of the run
+    assert!(is_once_grant(&once_grant("bash_executor")));
+    assert!(!is_once_grant("bash_executor"));
+}

@@ -460,6 +460,9 @@ impl BuiltInChatAgent {
                     reason = ?reason,
                     "chat.tool.governance_allowed"
                 );
+                // A grant of one call is spent by the call it let through.
+                acc.authorized
+                    .remove(&crate::governance::once_grant(&call.name));
                 let (record, tool_result, success) = self
                     .execute_tool_call(session_id, message_id, call, run_id)
                     .await;

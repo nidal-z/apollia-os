@@ -7,7 +7,7 @@ use apollia_tools::BatchRow;
 
 use super::access::resolve_grants;
 use super::actor::BatchActor;
-use super::{BatchControl, BatchError, BatchRetry, ItemRunner, ItemStatus};
+use super::{BatchAccess, BatchControl, BatchError, BatchRetry, ItemRunner, ItemStatus};
 
 /// Output of an item canceled because its batch was stopped before it ran.
 const STOPPED_BEFORE_RUN: &str = "The batch was stopped before this item ran";
@@ -42,6 +42,7 @@ impl<R: ItemRunner> BatchActor<R> {
             BatchControl::Refuse { rank, reason } => {
                 self.refuse_item(&row, rank, reason.as_deref()).await?
             }
+            BatchControl::RunOnce { rank, access } => self.run_once(&row, rank, access).await?,
         }
         if verb != "pause" {
             self.advance(batch_id).await;
@@ -162,9 +163,71 @@ impl<R: ItemRunner> BatchActor<R> {
             .await
             .map_err(BatchError::Agent)?;
         let added = resolve_grants(&sensitive, &retry.grants)?;
-        // The grants of the launch are given again: a batch run again is in
-        // progress, and its consents were withdrawn when it ended. Those the
-        // agent no longer holds are dropped.
+        let grants = self.grant_again(row, &sensitive, added).await?;
+        let requeued = self
+            .repository
+            .requeue_for_retry(
+                &row.batch_id,
+                grants.iter().map(|g| g.access_id.clone()).collect(),
+            )
+            .await?;
+        tracing::event!(
+            Level::INFO,
+            batch_id = %row.batch_id,
+            requeued,
+            "batch.retry.requeued"
+        );
+        self.reopen(row).await
+    }
+
+    /// Runs again the item at `rank`, which waits to execute code, alone,
+    /// allowed one call of `access`. The grants of the batch are given again
+    /// as a retry gives them; no consent is recorded for the code itself.
+    async fn run_once(
+        &mut self,
+        row: &BatchRow,
+        rank: u64,
+        access: String,
+    ) -> Result<(), BatchError> {
+        let sensitive = self
+            .runner
+            .check(&row.agent)
+            .await
+            .map_err(BatchError::Agent)?;
+        if !sensitive
+            .iter()
+            .any(|a| a.access_id == access && a.executes_code())
+        {
+            return Err(BatchError::Invalid(format!(
+                "'{access}' is not an access of this agent that executes code; \
+                 only those are allowed once"
+            )));
+        }
+        self.grant_again(row, &sensitive, Vec::new()).await?;
+        if !self
+            .repository
+            .requeue_awaiting_item(&row.batch_id, rank)
+            .await?
+        {
+            return Err(BatchError::State(format!(
+                "item {rank} of batch '{}' does not wait for a decision",
+                row.batch_id
+            )));
+        }
+        self.once.insert((row.batch_id.clone(), rank), access);
+        tracing::event!(Level::INFO, batch_id = %row.batch_id, rank, "batch.item.allowed_once");
+        self.reopen(row).await
+    }
+
+    /// Records again the grants of the launch, plus `added`: a batch run again
+    /// is in progress, and its consents were withdrawn when it ended. Those
+    /// the agent no longer holds are dropped. Returns the grants in force.
+    async fn grant_again(
+        &self,
+        row: &BatchRow,
+        sensitive: &[BatchAccess],
+        added: Vec<BatchAccess>,
+    ) -> Result<Vec<BatchAccess>, BatchError> {
         let mut grants: Vec<_> = sensitive
             .iter()
             .filter(|a| a.grantable && row.grants.contains(&a.access_id))
@@ -179,19 +242,12 @@ impl<R: ItemRunner> BatchActor<R> {
             .grant(&row.batch_id, &row.agent, &grants)
             .await
             .map_err(BatchError::Invalid)?;
-        let requeued = self
-            .repository
-            .requeue_for_retry(
-                &row.batch_id,
-                grants.iter().map(|g| g.access_id.clone()).collect(),
-            )
-            .await?;
-        tracing::event!(
-            Level::INFO,
-            batch_id = %row.batch_id,
-            requeued,
-            "batch.retry.requeued"
-        );
+        Ok(grants)
+    }
+
+    /// Puts a batch that has items to run again back in progress, unless it
+    /// is paused, and takes it back in this process when it had ended.
+    async fn reopen(&mut self, row: &BatchRow) -> Result<(), BatchError> {
         if row.state != "paused" {
             self.repository
                 .set_batch_state(&row.batch_id, "running", false)
