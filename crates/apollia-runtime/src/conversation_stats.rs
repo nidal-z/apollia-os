@@ -6,21 +6,15 @@
 //! `GET /api/v1/sessions/{id}/stats`. Both answer the same view and refuse
 //! with the same words.
 
+use std::sync::Mutex;
+
+use apollia_memory::user_memory::UserMemoryRepository;
 use serde::{Deserialize, Serialize};
 
-use crate::chat::{ChatSessionManagerHandle, DEFAULT_CONTEXT_WINDOW_SIZE};
+use crate::chat::{profile_injection, ChatSessionManagerHandle, DEFAULT_CONTEXT_WINDOW_SIZE};
 
 /// The marker of the block that lists the past conversations.
 const CROSS_SESSION_MARKER: &str = "## Previous conversations (for reference)";
-
-/// The section headers the profile block writes into a system prompt.
-const PROFILE_SECTIONS: [&str; 5] = [
-    "Section: identity",
-    "Section: work",
-    "Section: preferences",
-    "Section: notes",
-    "Section: other",
-];
 
 /// Statistics of one chat conversation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
@@ -31,7 +25,7 @@ pub struct ConversationStatsView {
     pub summarized_count: usize,
     /// Approximate context window usage percentage.
     pub context_usage_pct: f64,
-    /// Whether the user profile was injected into the system prompt.
+    /// Whether the assistant's prompt carries the profile of the conversation.
     pub user_memory_injected: bool,
     /// Number of past sessions referenced via cross-session recall.
     pub cross_sessions_referenced: usize,
@@ -57,8 +51,8 @@ pub(crate) fn count_cross_session_refs(system_prompt: &str) -> usize {
     system_prompt.matches("- [").count()
 }
 
-/// The statistics of `session_id`. `profile_open` says whether the profile
-/// store opened, without which no profile can have been injected.
+/// The statistics of `session_id`. `profiles` is the profile store, without
+/// which no profile can be injected.
 ///
 /// # Errors
 ///
@@ -66,7 +60,7 @@ pub(crate) fn count_cross_session_refs(system_prompt: &str) -> usize {
 /// [`ConversationStatsError::NotFound`] for an unknown session.
 pub async fn conversation_stats(
     manager: Option<&ChatSessionManagerHandle>,
-    profile_open: bool,
+    profiles: Option<&Mutex<UserMemoryRepository>>,
     session_id: String,
 ) -> Result<ConversationStatsView, ConversationStatsError> {
     let manager = manager.ok_or(ConversationStatsError::Unavailable)?;
@@ -95,10 +89,7 @@ pub async fn conversation_stats(
         .map(|pct| pct.min(100.0))
         .unwrap_or(0.0);
 
-    let user_memory_injected = profile_open
-        && PROFILE_SECTIONS
-            .iter()
-            .any(|section| prompt.contains(section));
+    let user_memory_injected = profile_injection::injected(&detail.session, profiles);
 
     Ok(ConversationStatsView {
         message_count,
@@ -140,7 +131,7 @@ mod tests {
     async fn test_stats_without_a_chat_manager_are_refused_as_unavailable() {
         // GIVEN a runtime whose chat subsystem did not start
         // WHEN the statistics of a session are asked
-        let error = conversation_stats(None, true, "s-1".to_owned())
+        let error = conversation_stats(None, None, "s-1".to_owned())
             .await
             .unwrap_err();
         // THEN the refusal names the subsystem, in the words the desktop showed

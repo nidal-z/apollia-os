@@ -6914,7 +6914,7 @@ export interface components {
             message_count: number;
             /** @description Number of messages that have been summarized. */
             summarized_count: number;
-            /** @description Whether the user profile was injected into the system prompt. */
+            /** @description Whether the assistant's prompt carries the profile of the conversation. */
             user_memory_injected: boolean;
         };
         /** @description A single backend/model cost summary row. */
@@ -10884,6 +10884,11 @@ export interface components {
             system_prompt?: string | null;
             /** @description New list of tools available in the session. */
             tools?: string[] | null;
+            /**
+             * @description Profile switch of the conversation: whether the built-in assistant
+             *     receives the profile in its prompt.
+             */
+            use_profile?: boolean | null;
         };
         /** @description Request body for `PUT /api/v1/triggers/:id`, trigger update. */
         UpdateTriggerRequest: {

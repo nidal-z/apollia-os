@@ -1,6 +1,7 @@
 //! A conversation designates its profile: empty, it follows the current
 //! default; designated, it keeps its profile across a restart; the deletion of
-//! the profile returns it to empty.
+//! the profile returns it to empty. Its profile switch is on until turned
+//! off, survives a restart, and the gauge of the conversation follows it.
 
 use std::sync::{Arc, Mutex};
 
@@ -177,4 +178,83 @@ async fn deleting_a_profile_empties_the_conversations_designating_it() {
         profile_of(&reopened, &c).await.as_deref(),
         Some(juriste.id.as_str())
     );
+}
+
+async fn switch(handle: &ChatSessionManagerHandle, id: &str, on: bool) {
+    handle
+        .update_session(
+            id.to_owned(),
+            SessionConfigUpdate {
+                use_profile: Some(on),
+                ..SessionConfigUpdate::default()
+            },
+        )
+        .await
+        .expect("switch written");
+}
+
+async fn switch_of(handle: &ChatSessionManagerHandle, id: &str) -> bool {
+    handle
+        .get_session(id.to_owned())
+        .await
+        .expect("session exists")
+        .session
+        .use_profile
+}
+
+#[tokio::test]
+async fn the_profile_switch_is_on_at_birth_and_survives_a_restart_once_turned_off() {
+    // GIVEN two new conversations
+    let dir = tempfile::tempdir().expect("tempdir");
+    let handle = spawn(&dir);
+    let a = new_session(&handle).await;
+    let b = new_session(&handle).await;
+    assert!(switch_of(&handle, &a).await);
+
+    // WHEN the switch of A is turned off and the chat restarts
+    switch(&handle, &a, false).await;
+    assert!(!switch_of(&handle, &a).await);
+    handle.shutdown().await;
+    let reopened = spawn(&dir);
+
+    // THEN A is still off, B still on, and A can be turned back on
+    assert!(!switch_of(&reopened, &a).await);
+    assert!(switch_of(&reopened, &b).await);
+    switch(&reopened, &a, true).await;
+    assert!(switch_of(&reopened, &a).await);
+}
+
+#[tokio::test]
+async fn the_gauge_says_injected_only_while_the_switch_is_on_and_the_profile_filled() {
+    // GIVEN a conversation on "Formateur", whose role is filled
+    let dir = tempfile::tempdir().expect("tempdir");
+    let store = profiles(&dir);
+    let formateur = {
+        let repo = store.lock().expect("lock");
+        let profile = repo.create_profile("Formateur").expect("created");
+        repo.set_profile_field(&profile.id, "role", Some("formateur"))
+            .expect("role written");
+        profile
+    };
+    let handle = spawn(&dir);
+    let a = new_session(&handle).await;
+    let stats = |id: String| async {
+        crate::conversation_stats::conversation_stats(Some(&handle), Some(&store), id)
+            .await
+            .expect("stats")
+            .user_memory_injected
+    };
+
+    // WHEN the gauge is read before a profile is designated, once it is, and
+    // once the switch is off
+    let on_blank_default = stats(a.clone()).await;
+    designate(&handle, &a, Some(&formateur.id)).await;
+    let on_filled = stats(a.clone()).await;
+    switch(&handle, &a, false).await;
+    let off = stats(a.clone()).await;
+
+    // THEN it is true only while the switch is on and the profile holds something
+    assert!(!on_blank_default);
+    assert!(on_filled);
+    assert!(!off);
 }

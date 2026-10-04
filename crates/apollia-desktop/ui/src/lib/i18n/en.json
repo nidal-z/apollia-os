@@ -3546,6 +3546,8 @@
     "context_window": "Context window",
     "context_messages": "Messages: {pct}%",
     "context_memory": "User memory: {pct}%",
+    "context_profile_on": "Profile included in the prompt",
+    "context_profile_off": "Profile not included in the prompt",
     "context_free": "Free: {pct}%",
     "legend_messages": "Messages",
     "legend_memory": "Memory",

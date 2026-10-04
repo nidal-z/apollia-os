@@ -209,7 +209,7 @@ pub(crate) async fn stats_on(
     match link {
         RuntimeLink::Embedded(state) => conversation_stats(
             state.chat_manager.as_ref(),
-            state.user_memory.is_some(),
+            state.user_memory.as_deref(),
             session_id,
         )
         .await

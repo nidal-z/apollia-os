@@ -9,6 +9,7 @@ impl BuiltInChatAgent {
             tool_invoker: deps.tool_invoker,
             event_bus: deps.event_bus,
             user_memory: deps.user_memory,
+            conversation_profile: None,
             composer: None,
             context_manager: ContextManager::from_config(&ORIAConfig::default()),
             meta_handle: None,
@@ -142,6 +143,13 @@ impl BuiltInChatAgent {
     /// reopening discovery (see [`session_plan_phase`](Self::session_plan_phase)).
     pub fn with_plan_phase_start(mut self, phase: PlanPhase) -> Self {
         self.session_plan_phase = phase;
+        self
+    }
+
+    /// Name the profile the conversation designates, the one the profile
+    /// block is read from. `None` reads the default profile.
+    pub fn with_conversation_profile(mut self, profile_id: Option<String>) -> Self {
+        self.conversation_profile = profile_id;
         self
     }
 
