@@ -70,6 +70,7 @@ use security::BearerToken;
         (name = "lifecycle", description = "Resets and erasures of the installation"),
         (name = "server", description = "Starting and stopping the compatible server, the second listener"),
         (name = "sources", description = "The registry of sources an agent may consult once checked"),
+        (name = "config", description = "The configuration file apollia.toml: read, validate, save, default text"),
         (name = "connectors", description = "Native connector accounts and their consent"),
         (name = "webhooks", description = "Inbound webhooks")
     ),
@@ -337,6 +338,10 @@ use security::BearerToken;
         crate::api::routes_sources::delete_source,
         crate::api::routes_server::logs::stream_server_logs,
         crate::api::routes_server::logs::clear_server_logs,
+        crate::api::routes_config::read_config,
+        crate::api::routes_config::save_config,
+        crate::api::routes_config::validate_config,
+        crate::api::routes_config::default_config,
         crate::api::routes_memory::list_memory_namespaces,
         crate::api::routes_memory::list_memory_entries,
         crate::api::routes_memory::search_memory,
