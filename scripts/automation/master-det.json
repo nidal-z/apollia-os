@@ -3434,13 +3434,13 @@
     },
     {
       "kind": "waitFor",
-      "testid": "activity-strip",
+      "testid": "reasoning-sequence",
       "timeoutMs": 10000
     },
     {
       "kind": "expect",
-      "testid": "activity-reasoning-count",
-      "contains": "12"
+      "testid": "reasoning-show-more",
+      "contains": "6"
     },
     {
       "kind": "click",
@@ -3486,18 +3486,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "49b-activity-strip-collapsed (seeded turn: twelve thinking fragments, four tool calls)"
-    },
-    {
-      "kind": "click",
-      "testid": "activity-tool-count",
-      "nth": -1,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "activity-trace",
-      "timeoutMs": 6000
+      "label": "49b-reasoning-blocks (seeded turn: twelve reasoning blocks and four steps, folded past ten)"
     },
     {
       "kind": "waitFor",
@@ -3506,7 +3495,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "49c-activity-trace-open (sixteen items, the list collapses past ten)"
+      "label": "49c-reasoning-list-folded (sixteen items, the list folds past ten)"
     },
     {
       "kind": "click",
@@ -3544,13 +3533,54 @@
     },
     {
       "kind": "click",
-      "testid": "activity-tool-count",
-      "nth": -1,
-      "timeoutMs": 8000
+      "testid": "reasoning-block-toggle",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reasoning-thought",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "49e-reasoning-block-unfolded"
+    },
+    {
+      "kind": "click",
+      "testid": "reasoning-block-toggle",
+      "nth": 0,
+      "timeoutMs": 5000
     },
     {
       "kind": "waitGone",
-      "testid": "activity-trace",
+      "testid": "reasoning-thought",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "tool-step-toggle",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-step-body",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "49f-tool-step-unfolded"
+    },
+    {
+      "kind": "click",
+      "testid": "tool-step-toggle",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tool-step-body",
       "timeoutMs": 6000
     },
     {

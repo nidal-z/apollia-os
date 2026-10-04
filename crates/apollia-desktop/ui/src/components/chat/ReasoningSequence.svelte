@@ -4,7 +4,8 @@
    * time via the `section` prop:
    *
    * - `timeline` renders the turn in the order it happened: thought, action,
-   *   thought, action, each row expandable to its details. Splitting it into a
+   *   thought, action, each row expandable to its details. Each thought is its
+   *   own block, titled by the time it took when that time was measured. Splitting it into a
    *   thoughts block and a tools block, as an earlier revision did, threw away
    *   the ordering that `buildReasoningSequence` had just reconstructed, and
    *   with it the only readable account of how the agent reached its answer.
@@ -14,6 +15,7 @@
 
   import type { ChatMessageView, ToolCallView } from "$lib/types";
   import { buildReasoningSequence, COLLAPSE_ITEM_THRESHOLD } from "$lib/chat/reasoning";
+  import { reasoningDurationFor } from "$lib/chat/reasoningTiming";
   import ReasoningCard from "./ReasoningCard.svelte";
   import ApprovalCard from "./ApprovalCard.svelte";
   import OperatorApprovalCard from "./OperatorApprovalCard.svelte";
@@ -56,7 +58,14 @@
   });
   // The sequence is rendered as built: thoughts and actions interleaved in the
   // order the ReAct loop produced them.
-  const items = $derived(buildReasoningSequence(nonPendingMessage, content));
+  // A thought takes the duration measured while it streamed, when there was one.
+  const items = $derived(
+    buildReasoningSequence(nonPendingMessage, content).map((item) =>
+      item.kind === "thinking"
+        ? { ...item, duration_ms: item.duration_ms ?? reasoningDurationFor(item.content) }
+        : item,
+    ),
+  );
 
   // Cap visible rows, paginate by 30 on demand. Persist `visibleCount`
   // per-message in sessionStorage so scroll-back preserves pagination state.
@@ -105,10 +114,9 @@
 
 {#if section === "timeline"}
   {#if items.length > 0}
-    <!-- The turn in the order it happened. Thought rows and tool rows share the
-         same shape; each expands to its own detail (the narrated thought, or
-         the bespoke per-tool body: operator abstraction / builder raw). -->
-    <div class="chat-flow-tools" data-testid="reasoning-sequence">
+    <!-- The turn in the order it happened: each thought a foldable block, each
+         action a foldable step that opens on the tool's own body. -->
+    <div class="mb-1 flex flex-col gap-0.5" data-testid="reasoning-sequence">
       {#each visibleItems as item (item.id)}
         <div in:fly={{ x: -12, duration: 260 }}>
           <ReasoningCard {item} {skin} {sessionId} />
