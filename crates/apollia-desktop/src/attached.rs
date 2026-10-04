@@ -58,6 +58,8 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "update_chat_session",
     // The agents and the models the selector of a conversation offers.
     "list_chat_targets",
+    // The model calls behind the total of one answer.
+    "list_turn_llm_calls",
     // The chat: a turn played again, a decision on a tool call, the history
     // of those decisions, and the skills of the worker agents.
     "authorize_chat_tool",
@@ -275,10 +277,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "apply_proposed_permission_rule",
     "dismiss_proposed_permission_rule",
     "list_proposed_permission_rules",
-    // Tool governance: the tools, their configuration, the permission rules
-    // and the audit, over `/api/v1/governance`.
+    // Tool governance: the tools, their configuration and the permission
+    // rules, over `/api/v1/governance`.
     "governance_get_tool_config",
-    "governance_list_audit",
     "governance_list_permission_rules",
     "governance_list_tools",
     "governance_revoke_all_rules",

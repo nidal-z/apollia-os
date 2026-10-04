@@ -29,6 +29,7 @@ import {
   Paintbrush,
   Landmark,
   Library,
+  KeyRound,
 } from "lucide-svelte";
 import type { Route } from "$lib/stores/navigation";
 
@@ -54,6 +55,7 @@ export const routeMeta: Record<Route, RouteMeta> = {
   transcriptions: { labelKey: "nav.transcriptions", parent: null, icon: Mic },
   observability: { labelKey: "nav.observability", parent: null, icon: Activity },
   policy: { labelKey: "nav.policy", parent: null, icon: Landmark },
+  authorizations: { labelKey: "nav.authorizations", parent: null, icon: KeyRound },
   settings: { labelKey: "nav.settings", parent: null, icon: Settings },
   design: { labelKey: "topbar.route.design", parent: null, icon: Paintbrush },
   "design-motion": { labelKey: "topbar.route.design_motion", parent: "design", icon: Paintbrush },

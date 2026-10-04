@@ -319,22 +319,6 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Vec<SessionInfo>>,
     },
-    /// List in-memory tool authorizations across all active sessions
-    /// (used by the desktop Settings > Permissions page to surface
-    /// session-only auths that don't live in `governance.db`).
-    ListSessionAuthorizations {
-        /// Response channel.
-        reply: oneshot::Sender<Vec<SessionAuthorizationView>>,
-    },
-    /// Remove an in-memory tool authorization from a specific session.
-    RevokeSessionAuthorization {
-        /// Target session.
-        session_id: SessionId,
-        /// Tool name to remove from `authorized_tools`.
-        tool_name: String,
-        /// Response channel, `true` if the entry existed and was removed.
-        reply: oneshot::Sender<Result<bool, ChatError>>,
-    },
     /// List all A2A skills available from active worker agents.
     ListA2ASkills {
         /// Response channel.

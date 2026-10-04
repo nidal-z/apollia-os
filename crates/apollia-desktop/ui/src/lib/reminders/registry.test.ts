@@ -93,7 +93,7 @@ beforeEach(() => {
 });
 
 async function dismissOneNextStep(): Promise<void> {
-  nextSteps.load(GLOBAL_SCOPE, "global_context", "operator", {});
+  nextSteps.load(GLOBAL_SCOPE, "global_context", {});
   await vi.waitFor(() => {
     expect(get(nextSteps.visible(GLOBAL_SCOPE)).steps).toHaveLength(1);
   });

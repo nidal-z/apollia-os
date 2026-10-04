@@ -1,5 +1,5 @@
 //! `GenerateNextSteps`: meta-LLM routine producing up to 3 actionable
-//! "next steps" cards for the operator Dashboard and for end-of-session
+//! "next steps" cards for the Dashboard and for end-of-session
 //! debriefs.
 //!
 //! # Principles
@@ -70,25 +70,37 @@ const ALLOWED_COMMANDS: &[&str] = &[
 #[serde(rename_all = "snake_case")]
 #[derive(Default)]
 pub enum NextStepsContext {
-    /// Operator Dashboard: rolling context of the last few days.
+    /// Dashboard: rolling context of the last few days.
     #[default]
     GlobalContext,
     /// End of a chat session: contextualised to the session that just closed.
     SessionEnd,
 }
 
-/// UX persona the panel is rendered for. Controls prompt tone and the type
-/// of suggestions the LLM focuses on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[derive(Default)]
+/// Audience the suggestions are worded for. Never sent on the wire: it is
+/// derived from the developer mode of the application, which the request
+/// carries. Controls prompt tone and the type of suggestions the LLM focuses
+/// on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum NextStepsMode {
-    /// Non-technical operator: pragmatic, outcome-oriented suggestions.
+    /// Developer mode off: pragmatic, outcome-oriented suggestions in plain
+    /// language.
     #[default]
-    Operator,
-    /// Builder/developer: technical vocabulary and observability-flavoured
+    Standard,
+    /// Developer mode on: technical vocabulary and observability-flavoured
     /// suggestions ("see logs", "export session").
-    Builder,
+    Developer,
+}
+
+impl NextStepsMode {
+    /// The audience that matches the state of the developer mode.
+    pub fn from_developer_mode(developer_mode: bool) -> Self {
+        if developer_mode {
+            Self::Developer
+        } else {
+            Self::Standard
+        }
+    }
 }
 
 /// Facts the frontend already computed; the LLM only narrates, it never
@@ -172,12 +184,20 @@ pub struct NextStepsRequest {
     /// Panel this payload targets.
     #[serde(default)]
     pub context: NextStepsContext,
-    /// Persona: operator vs builder.
+    /// Whether the developer mode of the application is on. Off when the
+    /// caller does not say.
     #[serde(default)]
-    pub mode: NextStepsMode,
+    pub developer_mode: bool,
     /// Frontend-computed facts.
     #[serde(default)]
     pub facts: NextStepsFacts,
+}
+
+impl NextStepsRequest {
+    /// The audience this request is worded for.
+    pub fn mode(&self) -> NextStepsMode {
+        NextStepsMode::from_developer_mode(self.developer_mode)
+    }
 }
 
 /// Result returned to the caller. `from_llm` is `true` when the LLM path
@@ -240,13 +260,13 @@ fn allowed_commands_line() -> String {
 
 fn mode_line(mode: NextStepsMode) -> &'static str {
     match mode {
-        NextStepsMode::Operator => {
-            "Audience: operator (non-technical). Prefer pragmatic, outcome \
+        NextStepsMode::Standard => {
+            "Audience: non-technical user. Prefer pragmatic, outcome \
             oriented suggestions (capture memory, automate a routine, install \
             a helpful assistant)."
         }
-        NextStepsMode::Builder => {
-            "Audience: builder (developer). Technical suggestions welcome \
+        NextStepsMode::Developer => {
+            "Audience: developer. Technical suggestions welcome \
             (inspect logs, export session JSON, tune a pipeline)."
         }
     }
@@ -255,7 +275,7 @@ fn mode_line(mode: NextStepsMode) -> &'static str {
 fn context_line(ctx: NextStepsContext) -> &'static str {
     match ctx {
         NextStepsContext::GlobalContext => {
-            "Panel: operator Dashboard - rolling context of the last few days."
+            "Panel: Dashboard - rolling context of the last few days."
         }
         NextStepsContext::SessionEnd => {
             "Panel: session end - suggestions must relate to the session that \
@@ -310,7 +330,7 @@ fn build_system_prompt(req: &NextStepsRequest) -> String {
     format!(
         "{header}\n\n{mode}\n{ctx}\n\n{routes}\n{commands}\n\n## Facts\n{facts}",
         header = PROMPT_HEADER,
-        mode = mode_line(req.mode),
+        mode = mode_line(req.mode()),
         ctx = context_line(req.context),
         routes = allowed_routes_line(),
         commands = allowed_commands_line(),
@@ -479,9 +499,9 @@ pub fn heuristic_fallback(req: &NextStepsRequest) -> Vec<NextStep> {
         },
     });
 
-    // Builder-only bonus: keep 3 total, swap in an observability suggestion
+    // Developer-mode bonus: keep 3 total, swap in an observability suggestion
     // when we still have room.
-    if matches!(req.mode, NextStepsMode::Builder) && steps.len() < MAX_NEXT_STEPS {
+    if matches!(req.mode(), NextStepsMode::Developer) && steps.len() < MAX_NEXT_STEPS {
         steps.push(NextStep {
             id: "view-logs".into(),
             title: "View the logs".into(),
@@ -519,9 +539,7 @@ pub async fn generate_next_steps(
 
     let system = build_system_prompt(&request);
     let user = match request.context {
-        NextStepsContext::GlobalContext => {
-            "Propose 2-3 Next Steps for the operator Dashboard.".to_string()
-        }
+        NextStepsContext::GlobalContext => "Propose 2-3 Next Steps for the Dashboard.".to_string(),
         NextStepsContext::SessionEnd => {
             "Propose 2-3 Next Steps for the session that just ended.".to_string()
         }
@@ -660,18 +678,76 @@ mod tests {
     }
 
     #[test]
-    fn fallback_builder_mode_includes_observability_hint() {
-        // GIVEN a request in builder mode
+    fn fallback_with_developer_mode_on_points_at_observability() {
+        // GIVEN a request with the developer mode on, and a memory already
+        // captured so the fallback has room for a third card
         let req = NextStepsRequest {
-            mode: NextStepsMode::Builder,
+            developer_mode: true,
+            facts: NextStepsFacts {
+                memories_created: 1,
+                ..Default::default()
+            },
             ..Default::default()
         };
         // WHEN the heuristic fallback runs
         let steps = heuristic_fallback(&req);
-        // THEN one of the steps points the builder at an observability surface
-        assert!(steps
-            .iter()
-            .any(|s| s.id == "view-logs" || s.id == "ask-apollia"));
+        // THEN one of the steps points at the observability surface
+        assert!(steps.iter().any(|s| s.id == "view-logs"));
+    }
+
+    #[test]
+    fn fallback_with_developer_mode_off_never_points_at_observability() {
+        // GIVEN the same facts with the developer mode off
+        let req = NextStepsRequest {
+            facts: NextStepsFacts {
+                memories_created: 1,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        // WHEN the heuristic fallback runs
+        let steps = heuristic_fallback(&req);
+        // THEN no step sends the user to the observability surface
+        assert!(steps.iter().all(|s| s.id != "view-logs"));
+    }
+
+    #[test]
+    fn prompt_with_developer_mode_off_takes_the_default_audience() {
+        // GIVEN a request that leaves the developer mode off
+        let req = NextStepsRequest::default();
+        // WHEN the system prompt is built
+        let prompt = build_system_prompt(&req);
+        // THEN it is worded for the default audience, and only for it
+        assert_eq!(req.mode(), NextStepsMode::Standard);
+        assert!(prompt.contains(mode_line(NextStepsMode::Standard)));
+        assert!(!prompt.contains(mode_line(NextStepsMode::Developer)));
+    }
+
+    #[test]
+    fn prompt_with_developer_mode_on_takes_the_developer_audience() {
+        // GIVEN a request with the developer mode on
+        let req = NextStepsRequest {
+            developer_mode: true,
+            ..Default::default()
+        };
+        // WHEN the system prompt is built
+        let prompt = build_system_prompt(&req);
+        // THEN it is worded for developers, and only for them
+        assert_eq!(req.mode(), NextStepsMode::Developer);
+        assert!(prompt.contains(mode_line(NextStepsMode::Developer)));
+        assert!(!prompt.contains(mode_line(NextStepsMode::Standard)));
+    }
+
+    #[test]
+    fn request_reads_the_developer_mode_from_the_wire_and_defaults_to_off() {
+        // GIVEN one body naming the developer mode, and one that omits it
+        let on: NextStepsRequest =
+            serde_json::from_str(r#"{"developerMode":true}"#).expect("parse");
+        let silent: NextStepsRequest = serde_json::from_str("{}").expect("parse");
+        // WHEN the audience of each is derived
+        // THEN the first is worded for developers, the second for the default audience
+        assert_eq!(on.mode(), NextStepsMode::Developer);
+        assert_eq!(silent.mode(), NextStepsMode::Standard);
     }
 
     #[test]
@@ -685,9 +761,9 @@ mod tests {
 
     #[test]
     fn prompt_includes_allowed_routes_and_facts() {
-        // GIVEN an operator request carrying session facts
+        // GIVEN a request with the developer mode off, carrying session facts
         let req = NextStepsRequest {
-            mode: NextStepsMode::Operator,
+            developer_mode: false,
             context: NextStepsContext::GlobalContext,
             facts: NextStepsFacts {
                 memories_created: 2,

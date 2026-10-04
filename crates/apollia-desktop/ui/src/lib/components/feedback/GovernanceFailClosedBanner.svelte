@@ -6,12 +6,13 @@
    * Rendered under the top bar (see `Main.svelte`) while the permissions
    * database cannot be read or the organisation policy is refused. It follows
    * the `governanceFailClosed` store: an unreadable database is read again on
-   * retry; a refused policy opens the permissions, where the policy is shown.
+   * retry; a refused policy opens the authorizations screen, whose policy
+   * panel says why and leads to the policy itself.
    */
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
   import { addToast } from "$lib/components/ui/toast/store";
-  import { openSettingsWindow } from "$lib/stores/settingsWindow";
+  import { navigateTo } from "$lib/stores/navigation";
   import {
     governanceFailClosed,
     refreshGovernanceFailClosed,
@@ -35,7 +36,7 @@
   }
 
   function viewPolicy(): void {
-    openSettingsWindow("permissions");
+    navigateTo("authorizations");
   }
 </script>
 

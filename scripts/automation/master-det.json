@@ -18392,7 +18392,7 @@
     {
       "kind": "waitFor",
       "testid": "settings-page",
-      "timeoutMs": 4000
+      "timeoutMs": 15000
     },
     {
       "kind": "click",
@@ -18435,371 +18435,347 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "screenshot",
-      "label": "01-permissions-operator"
+      "kind": "waitFor",
+      "testid": "settings-permissions-moved",
+      "timeoutMs": 6000
     },
     {
-      "kind": "expect",
-      "testid": "settings-permissions"
+      "kind": "screenshot",
+      "label": "01-settings-permissions-pointer"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-permissions-open"
     },
     {
       "kind": "waitFor",
-      "testid": "permissions-count",
+      "testid": "authorizations-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-policy",
       "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 4000
+      "testid": "authorizations-policy-body",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "permission-rule-card",
+      "testid": "authorizations-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-list-all",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-detail",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-detail-selection",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rules",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "authorizations-rule",
       "nth": 0,
-      "timeoutMs": 4000
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "permission-rule-scope",
-      "timeoutMs": 4000
+      "testid": "authorizations-rule-effect",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "permission-rule-revoke",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "02-permission-rules (4 seeded rules; revoke present but NOT clicked)"
+      "testid": "authorizations-rule-withdraw",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "permissions-filter-scope",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-filter-tool",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permissions-filter-scope",
-      "value": "project",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "03-filter-scope-project (file_edit rule)"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permissions-filter-scope",
-      "value": "agent",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permissions-filter-scope",
-      "value": "global",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permissions-filter-scope",
-      "value": "",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permissions-filter-tool",
-      "value": "web_search",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "04-filter-tool-web-search"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permissions-filter-tool",
-      "value": "",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-count",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "permission-rule-add-toggle"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-add-form",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-add-tool",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-add-action",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-add-scope",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-add-arg-prefix",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-rule-add-form"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permission-rule-add-tool",
-      "value": "web_search",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "permission-rule-add-action-deny",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "permission-rule-add-action-allow",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 150
-    },
-    {
-      "kind": "click",
-      "testid": "permission-rule-add-action-deny",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permission-rule-add-scope",
-      "value": "project",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-add-project-path",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "fill",
-      "testid": "permission-rule-add-project-path",
-      "text": "/tmp/apollia-demo-project",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "fill",
-      "testid": "permission-rule-add-arg-prefix",
-      "text": "rm",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-add-submit",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "expect",
-      "testid": "permission-rule-add-submit"
-    },
-    {
-      "kind": "click",
-      "testid": "permission-rule-add-submit",
-      "timeoutMs": 4000
+      "testid": "authorizations-builtin-tools",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitGone",
-      "testid": "permission-rule-add-form",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "screenshot",
-      "label": "06b-rule-added"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-session-auths",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "session-auths-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "session-auth-row",
-      "nth": 0,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "session-auth-revoke",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-session-auths (3 seeded chat auths; revoke present but NOT clicked)"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-chat",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-permission-rules-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-chat-permissions (apollia:chat agent rule)"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-audit",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "screenshot",
-      "label": "09-permissions-audit (5 seeded audit rows)"
-    },
-    {
-      "kind": "click",
-      "testid": "permissions-reload",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 700
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-permissions-reloaded"
-    },
-    {
-      "kind": "click",
-      "testid": "permissions-revoke-all",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-revoke-all-dialog",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-revoke-all-scope-select",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "11-revoke-all-dialog-open"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permissions-revoke-all-scope-select",
-      "value": "all",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 300
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-revoke-all-confirm",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12-revoke-all-scope-all-not-confirmed (confirm present but NEVER clicked)"
-    },
-    {
-      "kind": "click",
-      "testid": "dialog-close",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
+      "testid": "authorizations-add-rule",
+      "timeoutMs": 2000
     },
     {
       "kind": "waitGone",
-      "testid": "permissions-revoke-all-dialog",
-      "timeoutMs": 4000
+      "testid": "authorizations-rule-edit",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-rule-duplicate",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-rule-detail",
+      "timeoutMs": 2000
     },
     {
       "kind": "screenshot",
-      "label": "13-revoke-all-cancelled"
+      "label": "02-authorizations-rules-for-every-agent (withdraw present, no add, no edit)"
+    },
+    {
+      "kind": "fill",
+      "testid": "authorizations-filter",
+      "text": "zzz-no-such-agent"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-list-empty",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-filter-no-match"
+    },
+    {
+      "kind": "fill",
+      "testid": "authorizations-filter",
+      "text": ""
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "authorizations-list-agent",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "authorizations-list-agent",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-open-sheet",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-always-empty",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rules",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "authorizations-rule",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-agent-apollia (web_search rule of the seeded agent)"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-withdraw"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-undo",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-rule-withdrawn-in-place"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-undo"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-rule-undo",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-withdraw",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-rule-withdrawal-undone"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-revoke-all"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-revoke-all-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-revoke-all-what-rules"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-revoke-all-what-always"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-revoke-all-what-both"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-revoke-all-scope-agent"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "authorizations-revoke-all-agent",
+      "value": "apollia:chat",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-revoke-all-summary",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-revoke-all-one-agent"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-revoke-all-scope-all"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-revoke-all-confirm",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-revoke-all-every-agent-not-confirmed (confirm present but NEVER clicked)"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-revoke-all-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-revoke-all-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-policy-open"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "policy-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "goto",
+      "route": "authorizations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "governance_list_permission_rules",
+      "reject": "seeded governance failure",
+      "once": true
+    },
+    {
+      "kind": "goto",
+      "route": "policy"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "policy-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "goto",
+      "route": "authorizations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-load-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-authorizations-load-error"
+    },
+    {
+      "kind": "goto",
+      "route": "policy"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "policy-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "goto",
+      "route": "authorizations"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-load-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "authorizations-list-agent",
+      "nth": 0
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-open-sheet"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-sheet",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-sheet-always",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-sheet-always-empty",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-agent-sheet-standing-consents"
     },
     {
       "kind": "goto",
@@ -18808,7 +18784,7 @@
     {
       "kind": "waitFor",
       "testid": "settings-page",
-      "timeoutMs": 4000
+      "timeoutMs": 15000
     },
     {
       "kind": "click",
@@ -18828,98 +18804,178 @@
       "ms": 800
     },
     {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
       "kind": "goto",
-      "route": "settings"
+      "route": "authorizations"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
+      "testid": "authorizations-page",
       "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-add-rule",
+      "timeoutMs": 6000
     },
     {
       "kind": "click",
-      "testid": "settings-nav-permissions"
+      "testid": "authorizations-list-all"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-permissions",
-      "timeoutMs": 15000
+      "testid": "authorizations-rule-edit",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-duplicate",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-detail",
+      "timeoutMs": 6000
     },
     {
       "kind": "screenshot",
-      "label": "14-permissions-builder"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-count",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-session-auths",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "session-auths-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-chat",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-permission-rules-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-audit",
-      "timeoutMs": 4000
+      "label": "11-developer-mode-rules (edit, duplicate, technical detail)"
     },
     {
       "kind": "click",
-      "testid": "permission-rule-add-toggle"
+      "testid": "authorizations-add-rule"
     },
     {
       "kind": "waitFor",
-      "testid": "permission-rule-add-form",
+      "testid": "authorizations-rule-dialog",
       "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-dialog-intro",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-family",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-prefix",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-save"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-problem",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-rule-dialog-add (no tool yet: the problem is said)"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-effect-allow"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-effect-deny"
     },
     {
       "kind": "selectOption",
-      "testid": "permission-rule-add-scope",
-      "value": "project",
-      "timeoutMs": 4000
+      "testid": "authorizations-rule-tool",
+      "value": "web_search",
+      "timeoutMs": 6000
     },
     {
-      "kind": "waitFor",
-      "testid": "permission-rule-add-project-path",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "15-rule-add-form-builder (scope=project reveals project-path)"
+      "kind": "fill",
+      "testid": "authorizations-rule-prefix",
+      "text": "rm"
     },
     {
       "kind": "click",
-      "testid": "permission-rule-add-cancel"
+      "testid": "authorizations-rule-scope-agent"
     },
     {
-      "kind": "sleep",
-      "ms": 300
+      "kind": "selectOption",
+      "testid": "authorizations-rule-agent",
+      "value": "apollia:chat",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-scope-all"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-save"
     },
     {
       "kind": "waitGone",
-      "testid": "permission-rule-add-form",
-      "timeoutMs": 4000
+      "testid": "authorizations-rule-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-rule-added-for-every-agent"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-duplicate"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-dialog-intro",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-rule-dialog-duplicate (prefilled from the rule)"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-rule-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-edit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-rule-dialog-edit"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-rule-dialog",
+      "timeoutMs": 6000
     },
     {
       "kind": "goto",
@@ -18928,7 +18984,7 @@
     {
       "kind": "waitFor",
       "testid": "settings-page",
-      "timeoutMs": 4000
+      "timeoutMs": 15000
     },
     {
       "kind": "click",
@@ -18948,160 +19004,36 @@
       "ms": 800
     },
     {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
       "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-permissions"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-permissions",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "screenshot",
-      "label": "16-back-operator"
+      "testid": "app-main",
+      "timeoutMs": 30000
     },
     {
       "kind": "goto",
-      "route": "settings"
+      "route": "authorizations"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
+      "testid": "authorizations-page",
       "timeoutMs": 15000
     },
     {
-      "kind": "click",
-      "testid": "settings-nav-permissions",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "permission-rule-revoke",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-revoke-confirm-cancel",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "permission-rule-revoke-confirm-cancel",
-      "timeoutMs": 3000
-    },
-    {
       "kind": "waitGone",
-      "testid": "permission-rule-revoke-confirm-cancel",
+      "testid": "authorizations-add-rule",
       "timeoutMs": 4000
     },
     {
+      "kind": "screenshot",
+      "label": "16-back-to-developer-mode-off"
+    },
+    {
       "kind": "click",
-      "testid": "permission-rule-revoke",
-      "timeoutMs": 4000
+      "testid": "authorizations-open-connections"
     },
     {
       "kind": "waitFor",
-      "testid": "permission-rule-revoke-confirm-cancel",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "permission-rule-revoke-confirm-confirm",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "permission-rule-revoke-confirm-cancel",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-rule-revoked"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "session-auth-revoke",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "click",
-      "testid": "session-auth-revoke",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "11-session-auth-revoked"
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "governance_list_permission_rules",
-      "reject": "seeded governance failure",
-      "once": true
-    },
-    {
-      "kind": "click",
-      "testid": "permissions-reload",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-error",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12-permissions-rules-load-error"
-    },
-    {
-      "kind": "click",
-      "testid": "permissions-error-details-toggle",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "12b-permissions-rules-load-error-details-open"
-    },
-    {
-      "kind": "click",
-      "testid": "permissions-error-details-toggle",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "permissions-reload",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "permissions-error",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12c-permissions-rules-reloaded"
+      "testid": "app-main",
+      "timeoutMs": 15000
     }
   ]
 }

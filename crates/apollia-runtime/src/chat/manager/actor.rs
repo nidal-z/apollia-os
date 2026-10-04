@@ -253,17 +253,6 @@ impl ChatSessionManager {
                     let result = self.handle_list_children(&session_id);
                     let _ = reply.send(result);
                 }
-                ChatCommand::ListSessionAuthorizations { reply } => {
-                    let _ = reply.send(self.handle_list_session_authorizations());
-                }
-                ChatCommand::RevokeSessionAuthorization {
-                    session_id,
-                    tool_name,
-                    reply,
-                } => {
-                    let _ = reply
-                        .send(self.handle_revoke_session_authorization(&session_id, &tool_name));
-                }
                 ChatCommand::ListA2ASkills { reply } => {
                     self.handle_list_a2a_skills(reply);
                 }
