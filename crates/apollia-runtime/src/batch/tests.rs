@@ -29,6 +29,10 @@ pub(super) struct Scripted {
     pub(super) released: Mutex<Vec<String>>,
     /// The tasks cancelled.
     pub(super) cancelled: Mutex<Vec<String>>,
+    /// Governance refuses writing into the original file.
+    pub(super) deny_original_write: bool,
+    /// The writes into the original file recorded, as `(batch, location)`.
+    pub(super) original_writes: Mutex<Vec<(String, String)>>,
     /// The access each start was allowed one call of, in order.
     pub(super) once: Mutex<Vec<Option<String>>>,
 }
@@ -73,6 +77,27 @@ impl ItemRunner for Arc<Scripted> {
         Ok(())
     }
 
+    async fn allow_original_write(&self, _agent: &str, _location: &str) -> Result<(), String> {
+        if self.deny_original_write {
+            Err("refused by the policy".into())
+        } else {
+            Ok(())
+        }
+    }
+
+    async fn record_original_write(
+        &self,
+        batch_id: &str,
+        _agent: &str,
+        location: &str,
+    ) -> Result<(), String> {
+        self.original_writes
+            .lock()
+            .unwrap()
+            .push((batch_id.to_string(), location.to_string()));
+        Ok(())
+    }
+
     async fn release(&self, batch_id: &str) -> Result<(), String> {
         self.released.lock().unwrap().push(batch_id.to_string());
         Ok(())
@@ -102,9 +127,12 @@ impl ItemRunner for Arc<Scripted> {
                 }
                 _ => (ItemStatus::Completed, None),
             };
+            let output = input["answer"]
+                .as_str()
+                .map_or_else(|| format!("{outcome} {n}"), str::to_owned);
             let _ = tx.send(ItemEnd {
                 status,
-                output: format!("{outcome} {n}"),
+                output,
                 awaiting,
             });
         }
@@ -161,6 +189,7 @@ pub(super) fn launch(concurrency: Option<u32>, max_failures: Option<u32>) -> Bat
             kind: "memory".into(),
             location: "/data/requests.csv".into(),
             options: BTreeMap::new(),
+            write: None,
         },
         grants: vec![],
         concurrency,

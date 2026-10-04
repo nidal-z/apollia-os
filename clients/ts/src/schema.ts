@@ -6575,7 +6575,8 @@ export interface components {
             concurrency?: number | null;
             /**
              * @description The sensitive accesses granted for the duration of the batch, by
-             *     their id as `GET /api/v1/batches/accesses` lists them.
+             *     their id as `GET /api/v1/batches/accesses` lists them, and
+             *     `source:write` when the results go into the original file.
              */
             grants?: string[];
             /**
@@ -10201,6 +10202,7 @@ export interface components {
             options?: {
                 [key: string]: string;
             };
+            write?: null | components["schemas"]["SourceWrite"];
         };
         /** @description Where the index of a source stands. */
         SourceIndexResponse: {
@@ -10284,6 +10286,16 @@ export interface components {
              *     connection, a memory space.
              */
             reference?: string | null;
+        };
+        /** @description What a launch writes back into its source. */
+        SourceWrite: {
+            /**
+             * @description The columns added, one per field of the answer, in order. An answer
+             *     that is not an object of these fields is written whole in the first.
+             */
+            columns: string[];
+            /** @description `copy` when absent. */
+            destination?: components["schemas"]["WriteDestination"];
         };
         /** @description SSE frame emitted by the mailbox observation stream. */
         SseMailboxEvent: Record<string, never> & {
@@ -11255,6 +11267,11 @@ export interface components {
             /** @description `<package>/<workflow>`. */
             workflowId: string;
         };
+        /**
+         * @description Where the results of a batch are written.
+         * @enum {string}
+         */
+        WriteDestination: "copy" | "original";
     };
     responses: never;
     parameters: never;

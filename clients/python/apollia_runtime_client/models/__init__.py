@@ -451,6 +451,7 @@ from .source_index_response import SourceIndexResponse
 from .source_kind_dto import SourceKindDto
 from .source_preview_response import SourcePreviewResponse
 from .source_response import SourceResponse
+from .source_write import SourceWrite
 from .sse_mailbox_event import SseMailboxEvent
 from .sse_task_event import SseTaskEvent
 from .start_agent_request import StartAgentRequest
@@ -559,6 +560,7 @@ from .workflow_run_view_inputs import WorkflowRunViewInputs
 from .workflow_run_view_output_type_0 import WorkflowRunViewOutputType0
 from .workflow_step_view import WorkflowStepView
 from .workflow_view import WorkflowView
+from .write_destination import WriteDestination
 
 __all__ = (
     "A2AAgentDto",
@@ -1008,6 +1010,7 @@ __all__ = (
     "SourceKindDto",
     "SourcePreviewResponse",
     "SourceResponse",
+    "SourceWrite",
     "SseMailboxEvent",
     "SseTaskEvent",
     "StartAgentRequest",
@@ -1112,4 +1115,5 @@ __all__ = (
     "WorkflowRunViewOutputType0",
     "WorkflowStepView",
     "WorkflowView",
+    "WriteDestination",
 )
