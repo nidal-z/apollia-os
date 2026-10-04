@@ -51,6 +51,7 @@ use crate::composition::Composer;
 use crate::eventbus::EventBusSender;
 use crate::hooks::executor::{HookDecision, HookExecutor};
 
+mod approval_request;
 mod builder;
 mod catalog;
 mod context_window;

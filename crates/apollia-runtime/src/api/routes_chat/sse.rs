@@ -128,6 +128,10 @@ pub(super) fn chat_event_to_sse(
             tool_call_id,
             tool_name,
             prompt,
+            answers,
+            detail,
+            code,
+            working_dir,
         } if sid == session_id => (
             SseChatEvent {
                 event: "approval_required".into(),
@@ -136,6 +140,10 @@ pub(super) fn chat_event_to_sse(
                     "tool_call_id": tool_call_id,
                     "tool_name": tool_name,
                     "prompt": prompt,
+                    "answers": answers,
+                    "detail": detail,
+                    "code": code,
+                    "working_dir": working_dir,
                 }),
             },
             false,

@@ -234,6 +234,33 @@ fn test_code_runs_on_allow_rule_in_developer_mode_only() {
     assert_eq!(compound, asked_without_always());
 }
 
+// Line 4: in developer mode, "always" is offered on a single simple command
+// no rule covers yet, never on a compound one, never outside the mode.
+#[test]
+fn test_code_offers_always_on_a_simple_command_in_developer_mode_only() {
+    // GIVEN no rule, and a simple and a chained shell command
+    let mut state = GovernanceState::default();
+    let simple = call("bash_executor", ActionFamily::ExecuteCode, Some("ls -la"));
+    let chained = call(
+        "bash_executor",
+        ActionFamily::ExecuteCode,
+        Some("ls -la && rm -rf build"),
+    );
+
+    // WHEN both are decided outside developer mode, then inside it
+    let simple_outside = decide(&state, &simple, NOW);
+    let chained_outside = decide(&state, &chained, NOW);
+    state.developer_mode = true;
+    let simple_inside = decide(&state, &simple, NOW);
+    let chained_inside = decide(&state, &chained, NOW);
+
+    // THEN only the simple command in developer mode is offered "always"
+    assert_eq!(simple_outside, asked_without_always());
+    assert_eq!(chained_outside, asked_without_always());
+    assert_eq!(simple_inside, asked_with_all());
+    assert_eq!(chained_inside, asked_without_always());
+}
+
 // Line 4: no standing consent and no grant of the run lets code run.
 #[test]
 fn test_code_ignores_consents_and_run_grants() {

@@ -900,6 +900,10 @@ mod tests {
                 tool_call_id: "c".into(),
                 tool_name: "t".into(),
                 prompt: "p".into(),
+                answers: Vec::new(),
+                detail: String::new(),
+                code: None,
+                working_dir: None,
             },
             RuntimeEvent::ChatApprovalResolved {
                 session_id: "s".into(),

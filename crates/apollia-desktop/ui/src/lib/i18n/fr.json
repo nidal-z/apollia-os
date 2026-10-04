@@ -4268,7 +4268,17 @@
     "cost_estimate": "Coût estimé : {cost}",
     "expires_in": "expire dans {expires}",
     "always_hint": "« Toujours pour cet agent » le laisse refaire ce type d'action sans vous redemander.",
-    "refuse_reason_placeholder": "Raison du refus (facultative), transmise à l'agent"
+    "refuse_reason_placeholder": "Raison du refus (facultative), transmise à l'agent",
+    "see_more": "Voir plus",
+    "see_less": "Voir moins",
+    "code": {
+      "family": "Exécuter du code",
+      "working_dir": "Dossier de travail : {dir}",
+      "always": "Toujours autoriser cette commande",
+      "always_hint": "« Toujours autoriser cette commande » laisse cet agent relancer exactement cette commande sans vous redemander. Vous pouvez le retirer dans Autorisations.",
+      "compound_hint": "Cette commande en enchaîne plusieurs : « Toujours » n'est pas proposé, chaque exécution demande votre accord.",
+      "each_time_hint": "Chaque exécution demande votre accord. Relisez la commande avant de répondre."
+    }
   },
   "stt_failure": {
     "no_microphone": "Aucun microphone n'a été détecté. Branchez-en un, puis réessayez.",

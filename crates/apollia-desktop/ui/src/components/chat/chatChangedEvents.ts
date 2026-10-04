@@ -34,6 +34,14 @@ export interface ChatChangedPort {
       toolCallId: string;
       toolName: string;
       inputPreview: string;
+      /** The answers the request offers, when it names them. */
+      answers?: string[];
+      /** The full arguments of the call, behind "see more". */
+      detail?: string;
+      /** The whole code of a tool that runs code. */
+      code?: string | null;
+      /** The folder the code runs in. */
+      workingDir?: string | null;
     } | null,
   ): void;
   forgetApproval(resolvedId: string | undefined): void;
@@ -92,6 +100,10 @@ export function handleChatChangedEvent(
       tool_call_id?: string;
       tool_name?: string;
       prompt?: string;
+      answers?: unknown;
+      detail?: string;
+      code?: string | null;
+      working_dir?: string | null;
     }>(evt, "ChatApprovalRequired");
     if (!p.session_id || p.session_id === port.sessionId) {
       port.setApproval({
@@ -100,6 +112,12 @@ export function handleChatChangedEvent(
         toolCallId: p.tool_call_id ?? p.tool_name ?? "",
         toolName: p.tool_name ?? "",
         inputPreview: p.prompt ?? "",
+        answers: Array.isArray(p.answers)
+          ? p.answers.filter((a): a is string => typeof a === "string")
+          : undefined,
+        detail: p.detail ?? "",
+        code: p.code ?? null,
+        workingDir: p.working_dir ?? null,
       });
       port.scrollToBottom();
     }

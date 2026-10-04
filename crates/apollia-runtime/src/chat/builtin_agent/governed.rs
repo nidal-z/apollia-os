@@ -32,6 +32,11 @@ pub(super) fn family_of(
     }
 }
 
+/// Whether `call`, of a tool in `family`, runs code.
+pub(super) fn is_code_call(call: &ToolCall, family: ActionFamily) -> bool {
+    family == ActionFamily::ExecuteCode || apollia_permissions::is_code_executor(&call.name)
+}
+
 /// What the model is told when governance refuses a call.
 pub(super) fn refusal_text(reason: &DecisionReason) -> String {
     match reason {
@@ -86,6 +91,32 @@ impl BuiltInChatAgent {
                 answered_once(other)
             }
             other => other,
+        }
+    }
+
+    /// Writes the fine rule an "always" on a command stands for, scoped to
+    /// this agent and to the whole command. A write governance refuses, or
+    /// one that fails, leaves the answer worth this call only.
+    pub(super) async fn allow_command_for_good(&self, call: &ToolCall) {
+        let Some(command) = apollia_permissions::extract_first_arg(&call.arguments) else {
+            tracing::warn!(tool = %call.name, "chat.tool.always_accept.downgraded");
+            return;
+        };
+        match self
+            .governance
+            .allow_command(&self.agent_id, &call.name, &command)
+            .await
+        {
+            Ok(rule_id) => tracing::info!(
+                tool = %call.name,
+                rule_id,
+                "chat.tool.always_accept.command_rule"
+            ),
+            Err(error) => tracing::warn!(
+                tool = %call.name,
+                error = %error,
+                "chat.tool.always_accept.not_recorded"
+            ),
         }
     }
 }

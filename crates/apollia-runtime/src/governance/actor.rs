@@ -22,7 +22,8 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use apollia_permissions::{
-    ConsentFamily, ConsentScope, FamilyConsentStore, PolicyVerdict, PrefixRuleEngine,
+    is_code_executor, is_single_simple_command, ConsentFamily, ConsentScope, FamilyConsentStore,
+    PermissionScope, PolicyVerdict, PrefixRule, PrefixRuleEngine, RuleAction,
 };
 use apollia_tools::ActionFamily;
 use tokio::sync::{mpsc, oneshot, watch};
@@ -77,6 +78,10 @@ pub enum GovernanceWriteError {
     /// classified, or a family that needs no consent.
     #[error("no standing consent covers the family {0:?}")]
     NotConsentable(ActionFamily),
+    /// "Always" on executing code writes a fine rule only for a single simple
+    /// command of a code executor, in developer mode.
+    #[error("no fine rule can allow this command: {0}")]
+    NotACommandRule(&'static str),
     /// The runtime has no governance database to write to.
     #[error("governance has no database to write to")]
     NoDatabase,
@@ -93,6 +98,12 @@ enum Command {
         agent_id: String,
         family: ConsentFamily,
         reply: oneshot::Sender<Result<bool, GovernanceWriteError>>,
+    },
+    WriteCommandRule {
+        agent_id: String,
+        tool_name: String,
+        command: String,
+        reply: oneshot::Sender<Result<i64, GovernanceWriteError>>,
     },
     Refresh {
         reply: oneshot::Sender<()>,
@@ -179,6 +190,53 @@ impl GovernanceHandle {
         tx.send(Command::GrantAlways {
             agent_id: agent_id.to_owned(),
             family: consent,
+            reply,
+        })
+        .await
+        .map_err(|_| GovernanceWriteError::ActorGone)?;
+        answer.await.map_err(|_| GovernanceWriteError::ActorGone)?
+    }
+
+    /// Writes the fine rule an "always" on executing code stands for: `allow`
+    /// for `agent_id`, on the code executor `tool_name`, with the whole
+    /// `command` as its prefix. Never a grant by tool name: the command must
+    /// be a single simple command and the developer mode must be on. Returns
+    /// the identifier of the rule; once it returns, the next decision reads
+    /// it.
+    ///
+    /// # Errors
+    ///
+    /// [`GovernanceWriteError::NotACommandRule`] for a tool that does not run
+    /// code, a compound command, or the developer mode off;
+    /// [`GovernanceWriteError::NoDatabase`], [`GovernanceWriteError::ActorGone`]
+    /// or [`GovernanceWriteError::Store`] when the write cannot be made.
+    pub async fn allow_command(
+        &self,
+        agent_id: &str,
+        tool_name: &str,
+        command: &str,
+    ) -> Result<i64, GovernanceWriteError> {
+        if !is_code_executor(tool_name) {
+            return Err(GovernanceWriteError::NotACommandRule(
+                "the tool does not run code",
+            ));
+        }
+        if command.trim().is_empty() || !is_single_simple_command(command) {
+            return Err(GovernanceWriteError::NotACommandRule(
+                "the command is not a single simple command",
+            ));
+        }
+        if !self.state().developer_mode {
+            return Err(GovernanceWriteError::NotACommandRule(
+                "the developer mode is off",
+            ));
+        }
+        let tx = self.tx.as_ref().ok_or(GovernanceWriteError::NoDatabase)?;
+        let (reply, answer) = oneshot::channel();
+        tx.send(Command::WriteCommandRule {
+            agent_id: agent_id.to_owned(),
+            tool_name: tool_name.to_owned(),
+            command: command.to_owned(),
             reply,
         })
         .await
@@ -279,6 +337,11 @@ impl GovernanceActor {
                         self.publish().await;
                         let _ = reply.send(written);
                     }
+                    Some(Command::WriteCommandRule { agent_id, tool_name, command, reply }) => {
+                        let written = self.allow(agent_id, tool_name, command).await;
+                        self.publish().await;
+                        let _ = reply.send(written);
+                    }
                     Some(Command::Refresh { reply }) => {
                         self.publish().await;
                         let _ = reply.send(());
@@ -319,6 +382,45 @@ impl GovernanceActor {
             "governance.consent.granted"
         );
         Ok(written)
+    }
+
+    async fn allow(
+        &self,
+        agent_id: String,
+        tool_name: String,
+        command: String,
+    ) -> Result<i64, GovernanceWriteError> {
+        let db = self
+            .sources
+            .governance_db
+            .clone()
+            .ok_or(GovernanceWriteError::NoDatabase)?;
+        let rule = PrefixRule {
+            tool_name,
+            arg_prefix: Some(command),
+            action: RuleAction::Allow,
+            created_at: chrono::Utc::now().timestamp(),
+            created_by_agent: None,
+            scope: PermissionScope::Agent,
+            agent_id: Some(agent_id),
+            expires_at: None,
+            ..PrefixRule::default()
+        };
+        let tool = rule.tool_name.clone();
+        let id = tokio::task::spawn_blocking(move || {
+            let mut engine = PrefixRuleEngine::new(&db)?;
+            engine.add_rule(&rule)
+        })
+        .await
+        .map_err(|e| GovernanceWriteError::Store(e.to_string()))?
+        .map_err(|e| GovernanceWriteError::Store(e.to_string()))?;
+        tracing::event!(
+            tracing::Level::INFO,
+            tool = %tool,
+            rule_id = id,
+            "governance.command_rule.written"
+        );
+        Ok(id)
     }
 
     async fn publish(&mut self) {
