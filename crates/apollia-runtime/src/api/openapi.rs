@@ -339,6 +339,7 @@ use security::BearerToken;
         crate::api::routes_sources::create_source,
         crate::api::routes_sources::delete_source,
         crate::api::routes_sources::preview::preview_source,
+        crate::api::routes_sources::project_migration::project_migration_report,
         crate::api::routes_server::logs::stream_server_logs,
         crate::api::routes_server::logs::clear_server_logs,
         crate::api::routes_config::read_config,
@@ -726,6 +727,13 @@ use security::BearerToken;
         crate::api::routes_imap::ImapErrorBody,
         crate::api::routes_connections::folders::AddFolderBody,
         crate::api::routes_connections::folders::FolderErrorBody,
+        crate::project_migration::MigrationReport,
+        crate::project_migration::MigrationStatus,
+        crate::project_migration::ProjectOutcome,
+        crate::project_migration::MemoryMerge,
+        crate::project_migration::MigrationIssue,
+        crate::project_migration::IssueItem,
+        crate::project_migration::IssueReason,
     ))
 )]
 pub struct ApiDoc;

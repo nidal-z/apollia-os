@@ -57,6 +57,7 @@ pub mod perf_trace;
 pub mod permission_rules;
 pub mod plan_approval;
 pub mod profile;
+pub mod project_migration;
 pub mod projects;
 pub mod recommendation;
 pub mod registry;
