@@ -32,6 +32,7 @@ fn manager_following(dir: &tempfile::TempDir, feed: ConfigFeed) -> ChatSessionMa
             source_registry: None,
         })),
         governance_db_path: None,
+        governance: None,
         pending_user_replies: HashMap::new(),
         metrics: HashMap::new(),
         user_memory: None,
