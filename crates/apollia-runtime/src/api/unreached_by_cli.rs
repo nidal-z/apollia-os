@@ -235,7 +235,7 @@ fn unreached_ops() -> Vec<UnreachedOp> {
             id: "list_loaded_models",
             method: Method::GET,
             path: "/api/v1/llm/loaded-models",
-            absent_method: Method::POST,
+            absent_method: Method::DELETE,
             live_probed: true,
         },
         UnreachedOp {
@@ -370,6 +370,7 @@ fn base_state(data_dir: &std::path::Path) -> AppState<MockBackend> {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     }
 }
 

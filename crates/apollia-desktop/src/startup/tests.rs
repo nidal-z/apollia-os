@@ -161,3 +161,106 @@ fn test_reading_the_token_never_creates_it() {
     assert_eq!(token, None);
     assert!(!dir.path().join("api-token").exists());
 }
+
+#[test]
+fn test_the_port_comes_from_the_file_then_the_default() {
+    // GIVEN a data folder no daemon recorded a port in
+    let dir = tempfile::tempdir().unwrap();
+
+    // WHEN the port is resolved with a file naming 8123, without a file, and
+    // with a refused file
+    let from_file = resolve_port(dir.path(), Some("[api]\nport = 8123\n"));
+    let without_file = resolve_port(dir.path(), None);
+    let refused_file = resolve_port(dir.path(), Some("[api]\nport = \"x\"\n"));
+
+    // THEN the file's port, then the default for both others
+    assert_eq!(from_file, 8123);
+    assert_eq!(without_file, 7771);
+    assert_eq!(refused_file, 7771);
+}
+
+#[test]
+fn test_a_port_recorded_by_a_listening_daemon_wins_over_the_file() {
+    // GIVEN a daemon serving a port it recorded, and a file naming another
+    let dir = tempfile::tempdir().unwrap();
+    let daemon = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let recorded = daemon.local_addr().unwrap().port();
+    apollia_runtime::api::write_port_file(dir.path(), recorded).unwrap();
+
+    // WHEN the port is resolved
+    let port = resolve_port(dir.path(), Some("[api]\nport = 8123\n"));
+
+    // THEN the daemon's port
+    assert_eq!(port, recorded);
+}
+
+#[test]
+fn test_a_port_recorded_by_a_daemon_that_is_gone_is_ignored() {
+    // GIVEN a record of a port nothing listens on any more
+    let dir = tempfile::tempdir().unwrap();
+    let gone = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let recorded = gone.local_addr().unwrap().port();
+    drop(gone);
+    apollia_runtime::api::write_port_file(dir.path(), recorded).unwrap();
+
+    // WHEN the port is resolved
+    let port = resolve_port(dir.path(), Some("[api]\nport = 8123\n"));
+
+    // THEN the file's port
+    assert_eq!(port, 8123);
+}
+
+// ── The runtime installed as a service ──────────────────────────────────
+
+#[test]
+fn test_the_service_step_follows_the_observed_service_and_the_port() {
+    // GIVEN the combinations of an installed service, its process, and an
+    // Apollia runtime already serving the port
+    // WHEN the step is chosen for each
+    // THEN no service decides at once, a stopped one is started, a running
+    // one is awaited, and a runtime already serving is attached to as is
+    assert_eq!(
+        service::service_step(false, false, false),
+        service::ServiceStep::Decide
+    );
+    assert_eq!(
+        service::service_step(true, false, false),
+        service::ServiceStep::StartThenAwait
+    );
+    assert_eq!(
+        service::service_step(true, true, false),
+        service::ServiceStep::Await
+    );
+    assert_eq!(
+        service::service_step(true, false, true),
+        service::ServiceStep::Decide
+    );
+}
+
+#[test]
+fn test_waiting_for_the_service_ends_when_an_apollia_runtime_answers() {
+    // GIVEN an Apollia runtime serving a loopback port, and a data directory
+    // without a token
+    let addr = serve_once(apollia_answer(env!("CARGO_PKG_VERSION")));
+    let data = tempfile::tempdir().unwrap();
+
+    // WHEN the application waits for it
+    let served = service::await_serving(addr, data.path(), Duration::ZERO);
+
+    // THEN it answers, and the decision that follows attaches
+    assert!(served);
+    assert!(matches!(decide(addr, None), StartupDecision::Attach { .. }));
+}
+
+#[test]
+fn test_waiting_for_a_service_that_never_answers_gives_up_at_the_bound() {
+    // GIVEN port 0, on which no runtime can ever answer
+    let addr = SocketAddr::from(([127, 0, 0, 1], 0));
+    let data = tempfile::tempdir().unwrap();
+
+    // WHEN the application waits for a runtime there, with no time left
+    let served = service::await_serving(addr, data.path(), Duration::ZERO);
+
+    // THEN it gives up and leaves the decision to the startup probe
+    assert!(!served);
+}

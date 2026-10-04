@@ -88,6 +88,7 @@ async fn test_runtime_starts_without_llm_router() {
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        governance: None,
         inference_governance: Default::default(),
         backend: NeverMockBackend,
         llm_router: empty_shared_llm_router(), // no LLM configured
@@ -124,6 +125,7 @@ async fn test_runtime_starts_without_llm_router() {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
 
     // WHEN the APIServer starts
@@ -217,6 +219,7 @@ async fn test_ctx_llm_is_none_when_no_backend() {
 async fn test_runtime_continues_after_llm_init_failure() {
     // GIVEN an LLM config whose default backend does not exist
     let config = LlmConfig {
+        format_version: 1,
         default: "backend-inexistant".to_owned(),
         backends: vec![],
         observability: ObservabilityConfig::default(),
@@ -224,6 +227,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         pricing_overrides: HashMap::new(),
         cost_alert_threshold_usd: None,
         runner: apollia_core::config::LlmRunnerConfig::default(),
+        guardrails: Default::default(),
     };
 
     // WHEN LlmRouter::from_config() fails (the backend is absent)
@@ -253,6 +257,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        governance: None,
         inference_governance: Default::default(),
         backend: NeverMockBackend,
         llm_router: empty_shared_llm_router(),
@@ -289,6 +294,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
 
     let api = APIServer::new(

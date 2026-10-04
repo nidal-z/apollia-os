@@ -20,6 +20,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os agent show`↴](#apollia-os-agent-show)
 * [`apollia-os agent set`↴](#apollia-os-agent-set)
 * [`apollia-os agent reset`↴](#apollia-os-agent-reset)
+* [`apollia-os agent export`↴](#apollia-os-agent-export)
 * [`apollia-os agent status`↴](#apollia-os-agent-status)
 * [`apollia-os agent messages`↴](#apollia-os-agent-messages)
 * [`apollia-os agent install`↴](#apollia-os-agent-install)
@@ -110,6 +111,10 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os model embeddings show`↴](#apollia-os-model-embeddings-show)
 * [`apollia-os model embeddings set-default`↴](#apollia-os-model-embeddings-set-default)
 * [`apollia-os model delete`↴](#apollia-os-model-delete)
+* [`apollia-os source`↴](#apollia-os-source)
+* [`apollia-os source list`↴](#apollia-os-source-list)
+* [`apollia-os source create`↴](#apollia-os-source-create)
+* [`apollia-os source delete`↴](#apollia-os-source-delete)
 * [`apollia-os trigger`↴](#apollia-os-trigger)
 * [`apollia-os trigger list`↴](#apollia-os-trigger-list)
 * [`apollia-os trigger status`↴](#apollia-os-trigger-status)
@@ -273,6 +278,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os config validate`↴](#apollia-os-config-validate)
 * [`apollia-os config edit`↴](#apollia-os-config-edit)
 * [`apollia-os config show`↴](#apollia-os-config-show)
+* [`apollia-os config keys`↴](#apollia-os-config-keys)
 * [`apollia-os config reset`↴](#apollia-os-config-reset)
 * [`apollia-os profile`↴](#apollia-os-profile)
 * [`apollia-os profile list`↴](#apollia-os-profile-list)
@@ -331,6 +337,7 @@ Apollia OS CLI binary (apollia-os)
 * `memory` - Memory management
 * `llm` - LLM backend diagnostics (status, ping, chat, costs, backends, reload)
 * `model` - Local model file management
+* `source` - The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete)
 * `trigger` - Trigger management (list, status, fire, enable, disable, logs, reload, create, update, delete)
 * `notify` - Notification channel management (test, list, logs, create, update, delete, events)
 * `stt` - Speech-to-Text management (status, transcribe, transcriptions, model, config)
@@ -391,7 +398,7 @@ Start the runtime in foreground
 
 ###### **Options:**
 
-* `--port <PORT>` - TCP port to listen on (default: 7771)
+* `--port <PORT>` - TCP port to listen on; overrides `[api].port` (default: 7771)
 * `--config <PATH>` - Configuration file to load instead of `~/.apollia/apollia.toml`
 
 
@@ -460,10 +467,11 @@ Agent management (list, start, stop, show, install, uninstall, enable, disable, 
 * `show` - Display detailed information about an agent, with its definition as resolved (package defaults, then your overrides)
 * `set` - Override one field of an agent's definition; a package update keeps it
 * `reset` - Go back to the package defaults: remove every override of an agent, or the override of one field. Recorded in the audit journal
+* `export` - Export an agent created in the interface as a `.apo` package
 * `status` - Show a compact runtime-status snapshot for `<agent_id>`
 * `messages` - List in-memory A2A messages for `<agent_id>` (oldest-first within window)
 * `install` - Install an agent permanently from a local path or a Git URL
-* `uninstall` - Uninstall a permanently installed agent
+* `uninstall` - Uninstall an agent installed on its own, through the runtime
 * `enable` - Enable an installed agent (will auto-start on boot)
 * `disable` - Disable an installed agent (will not auto-start on boot)
 * `update` - Update an installed agent with a new Python module
@@ -528,7 +536,7 @@ Display detailed information about an agent, with its definition as resolved (pa
 
 Override one field of an agent's definition; a package update keeps it.
 
-Fields: `name`, `mission`, `autonomy` and `profile` (a profile identifier, see `profile list`) take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). The source `profile` lets the agent read your profile through `ctx.profile`: `agent set <id> sources profile` checks it, a list without it unchecks it, and `agent reset --field sources` goes back to the package default. Recorded in the audit journal.
+Fields: `name`, `mission`, `autonomy` and `profile` (a profile identifier, see `profile list`) take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). A source is an identifier of `source list`, `profile` or `memory`; the runtime refuses any other. The source `profile` lets the agent read your profile through `ctx.profile`: `agent set <id> sources profile` checks it, a list without it unchecks it, and `agent reset --field sources` goes back to the package default. Recorded in the audit journal.
 
 **Usage:** `apollia-os agent set <AGENT_ID> <FIELD> [VALUES]...`
 
@@ -554,6 +562,26 @@ Go back to the package defaults: remove every override of an agent, or the overr
 
 * `--field <FIELD>` - Remove only the override of this field
 * `--confirm` - Skip the interactive confirmation prompt
+
+
+
+## `apollia-os agent export`
+
+Export an agent created in the interface as a `.apo` package.
+
+Its current values become the defaults of the package. No secret, no memory and no history is exported; the account of a connection stays here and becomes a required connection; an access to another package, agent or workflow is left out and listed. The publisher is the `author.name` setting, or `--publisher`. Needs the runtime.
+
+**Usage:** `apollia-os agent export [OPTIONS] <AGENT_ID>`
+
+###### **Arguments:**
+
+* `<AGENT_ID>` - Agent identifier
+
+###### **Options:**
+
+* `--sign` - Sign the package with the author key, generated in the secret store on the first signature
+* `--publisher <NAME>` - Publisher name for this export only
+* `-o`, `--output <FILE>` - File to write. Default: `<id>-<version>.apo` in the current folder
 
 
 
@@ -609,7 +637,9 @@ Accepts a local filesystem path (e.g. `./agents/my-agent.py`) or a Git remote UR
 
 ## `apollia-os agent uninstall`
 
-Uninstall a permanently installed agent
+Uninstall an agent installed on its own, through the runtime.
+
+Removes its definition, its overrides, its model, its triggers, its environment and its files. Its memory and its history are kept unless asked otherwise. An agent of an installed package goes with its package.
 
 **Usage:** `apollia-os agent uninstall [OPTIONS] <NAME>`
 
@@ -619,6 +649,8 @@ Uninstall a permanently installed agent
 
 ###### **Options:**
 
+* `--clear-memory` - Erase the agent's memory instead of keeping it
+* `--clear-history` - Erase the agent's history (tasks, batches) instead of keeping it
 * `--confirm` - Skip the interactive confirmation prompt
 
 
@@ -688,7 +720,7 @@ Manage agent packages (multi-agent bundles described by agent.toml)
 
 * `list` - List all installed agent packages
 * `show` - Show details for an installed package
-* `uninstall` - Uninstall a package and all its agents and triggers
+* `uninstall` - Uninstall a package and everything it installed, through the runtime
 
 
 
@@ -714,7 +746,9 @@ Show details for an installed package
 
 ## `apollia-os agent package uninstall`
 
-Uninstall a package and all its agents and triggers
+Uninstall a package and everything it installed, through the runtime.
+
+Removes its agents with their overrides, models and triggers, its workflows and tools, its environments, its files and the MCP servers it brought; the connections it required stay. The memory and the history of its agents are kept unless asked otherwise.
 
 **Usage:** `apollia-os agent package uninstall [OPTIONS] <NAME>`
 
@@ -724,6 +758,8 @@ Uninstall a package and all its agents and triggers
 
 ###### **Options:**
 
+* `--clear-memory` - Erase the memory of its agents instead of keeping it
+* `--clear-history` - Erase the history of its agents and workflows (tasks, batches, workflow runs) instead of keeping it
 * `--confirm` - Skip the interactive confirmation prompt
 
 
@@ -1769,7 +1805,7 @@ First-run helper: configure a local LLM in one step.
 
    It selects nothing today. The local engine offloads according to the llama-server build it ships with and to `APOLLIA_LLAMA_N_GPU_LAYERS`, and reads no device field.
 * `--system-db <PATH>` - Override the system database path (default: `~/.apollia/system.db`)
-* `--models-dir <DIR>` - Override the models directory (default: `~/.apollia/models/`)
+* `--models-dir <DIR>` - Override the models directory. Without it, `[models] dir` of `apollia.toml`, else `~/.apollia/models/`
 
 
 
@@ -1900,6 +1936,59 @@ Remove a local model file from `~/.apollia/models/`
 ###### **Options:**
 
 * `--confirm` - Skip the confirmation prompt
+
+
+
+## `apollia-os source`
+
+The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete)
+
+**Usage:** `apollia-os source <COMMAND>`
+
+###### **Subcommands:**
+
+* `list` - List the sources, oldest first
+* `create` - Add a source
+* `delete` - Remove a source. Agents that list it stop seeing it
+
+
+
+## `apollia-os source list`
+
+List the sources, oldest first
+
+**Usage:** `apollia-os source list`
+
+
+
+## `apollia-os source create`
+
+Add a source
+
+**Usage:** `apollia-os source create [OPTIONS] --kind <KIND> --label <LABEL>`
+
+###### **Options:**
+
+* `--kind <KIND>` - What the source is: folder, file, mail, profile, memory or code_folder
+* `--label <LABEL>` - The name the user sees
+* `--reference <REFERENCE>` - What the source points at: a folder connection, a file path, a mail connection, a memory space. Required for folder, file and mail
+* `--group <GROUP>` - A group the source belongs to, such as the files of one project
+
+
+
+## `apollia-os source delete`
+
+Remove a source. Agents that list it stop seeing it
+
+**Usage:** `apollia-os source delete [OPTIONS] <ID>`
+
+###### **Arguments:**
+
+* `<ID>` - Source identifier, as `source list` shows it
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -4220,6 +4309,7 @@ Edits the on-disk config without touching the runtime. The section helpers `tool
 * `validate` - Parse the config file and report any error
 * `edit` - Open the config file in `$EDITOR`
 * `show` - Print the resolved configuration (parsed struct as JSON)
+* `keys` - List every key of apollia.toml: path, type, default, reload class, whether the organization policy can fix it, and whether it is withdrawn
 * `reset` - Wipe `~/.apollia/`, an irreversible factory reset
 
 
@@ -4300,6 +4390,14 @@ Cascades through file > defaults. Environment overlay is performed at runtime st
 ###### **Options:**
 
 * `--file <PATH>` - Optional config file path override
+
+
+
+## `apollia-os config keys`
+
+List every key of apollia.toml: path, type, default, reload class, whether the organization policy can fix it, and whether it is withdrawn
+
+**Usage:** `apollia-os config keys`
 
 
 

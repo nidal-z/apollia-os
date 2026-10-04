@@ -78,6 +78,7 @@ from .chat_response_value_type_0 import ChatResponseValueType0
 from .clear_agent_model_response import ClearAgentModelResponse
 from .clear_cache_response import ClearCacheResponse
 from .clear_memory_body import ClearMemoryBody
+from .cleared_server_logs import ClearedServerLogs
 from .coaching_example import CoachingExample
 from .coaching_request import CoachingRequest
 from .companion_enabled import CompanionEnabled
@@ -108,7 +109,9 @@ from .create_preset_request_request import CreatePresetRequestRequest
 from .create_server_request import CreateServerRequest
 from .create_server_token_request import CreateServerTokenRequest
 from .create_session_request import CreateSessionRequest
+from .create_source_body import CreateSourceBody
 from .create_trigger_request import CreateTriggerRequest
+from .create_trigger_request_workflow_inputs_type_0 import CreateTriggerRequestWorkflowInputsType0
 from .created_server_token_view import CreatedServerTokenView
 from .credential_entry_view import CredentialEntryView
 from .credential_test_view import CredentialTestView
@@ -152,9 +155,11 @@ from .engine_source import EngineSource
 from .engine_variant import EngineVariant
 from .engines_response import EnginesResponse
 from .events_response import EventsResponse
+from .export_agent_request import ExportAgentRequest
 from .export_format import ExportFormat
 from .export_memory_namespace_response_200 import ExportMemoryNamespaceResponse200
 from .fire_response import FireResponse
+from .fit_dto import FitDto
 from .fork_session_request import ForkSessionRequest
 from .fs_hitl_decision_body_type_0 import FsHitlDecisionBodyType0
 from .fs_hitl_decision_body_type_0_decision import FsHitlDecisionBodyType0Decision
@@ -171,8 +176,10 @@ from .get_model_card_response_200 import GetModelCardResponse200
 from .gguf_model_info import GgufModelInfo
 from .global_timeline_event import GlobalTimelineEvent
 from .global_timeline_event_detail import GlobalTimelineEventDetail
+from .guardrail_check_dto import GuardrailCheckDto
 from .guardrail_level import GuardrailLevel
 from .guardrail_refused_body import GuardrailRefusedBody
+from .guardrail_verdict_dto import GuardrailVerdictDto
 from .hardware_response import HardwareResponse
 from .hardware_response_accelerator import HardwareResponseAccelerator
 from .health_response import HealthResponse
@@ -182,6 +189,7 @@ from .imap_error_body import ImapErrorBody
 from .import_memory_body import ImportMemoryBody
 from .import_memory_body_content import ImportMemoryBodyContent
 from .import_oauth_client_body import ImportOauthClientBody
+from .index_state_dto import IndexStateDto
 from .inject_message_body import InjectMessageBody
 from .inject_message_body_payload import InjectMessageBodyPayload
 from .inject_message_response import InjectMessageResponse
@@ -209,6 +217,8 @@ from .item_preview import ItemPreview
 from .journal_anchor import JournalAnchor
 from .journal_break import JournalBreak
 from .journal_break_reason import JournalBreakReason
+from .last_loaded_model_response import LastLoadedModelResponse
+from .last_loaded_model_response_load import LastLoadedModelResponseLoad
 from .link_project_body import LinkProjectBody
 from .list_plan_mutations_response_200_item import ListPlanMutationsResponse200Item
 from .llm_backend_response import LlmBackendResponse
@@ -216,6 +226,10 @@ from .llm_backend_response_config_json import LlmBackendResponseConfigJson
 from .llm_backends_list_response import LlmBackendsListResponse
 from .llm_status_response import LlmStatusResponse
 from .llm_status_response_backends_item import LlmStatusResponseBackendsItem
+from .load_estimate_response import LoadEstimateResponse
+from .load_model_request import LoadModelRequest
+from .load_model_request_advanced import LoadModelRequestAdvanced
+from .load_model_response import LoadModelResponse
 from .loaded_model_dto import LoadedModelDto
 from .loaded_models_response import LoadedModelsResponse
 from .logs_response import LogsResponse
@@ -234,6 +248,7 @@ from .mcp_exposed_item_state import McpExposedItemState
 from .mcp_exposure import McpExposure
 from .memory_entry_deleted import MemoryEntryDeleted
 from .memory_entry_view import MemoryEntryView
+from .memory_estimate_dto import MemoryEstimateDto
 from .memory_imported import MemoryImported
 from .memory_removed import MemoryRemoved
 from .memory_search_result_view import MemorySearchResultView
@@ -318,6 +333,7 @@ from .readme_response import ReadmeResponse
 from .reasoning_profile_dto import ReasoningProfileDto
 from .reject_plan_request import RejectPlanRequest
 from .reject_user_input_request import RejectUserInputRequest
+from .reload_last_request import ReloadLastRequest
 from .reload_response import ReloadResponse
 from .reload_router_response import ReloadRouterResponse
 from .reload_router_response_backends_item import ReloadRouterResponseBackendsItem
@@ -345,6 +361,9 @@ from .rewrite_reply import RewriteReply
 from .save_artifact_request import SaveArtifactRequest
 from .send_message_request import SendMessageRequest
 from .send_message_response import SendMessageResponse
+from .server_log_level import ServerLogLevel
+from .server_log_line import ServerLogLine
+from .server_log_source import ServerLogSource
 from .server_model import ServerModel
 from .server_models_response import ServerModelsResponse
 from .server_probe_error_response import ServerProbeErrorResponse
@@ -378,6 +397,8 @@ from .skill_listing import SkillListing
 from .skill_listing_input_schema_type_0 import SkillListingInputSchemaType0
 from .source_descriptor import SourceDescriptor
 from .source_descriptor_options import SourceDescriptorOptions
+from .source_kind_dto import SourceKindDto
+from .source_response import SourceResponse
 from .sse_mailbox_event import SseMailboxEvent
 from .sse_task_event import SseTaskEvent
 from .start_agent_request import StartAgentRequest
@@ -439,6 +460,9 @@ from .transcriptions_list_response_transcriptions_item import (
 )
 from .trigger_definition_response import TriggerDefinitionResponse
 from .trigger_definition_response_source_config import TriggerDefinitionResponseSourceConfig
+from .trigger_definition_response_workflow_inputs_type_0 import (
+    TriggerDefinitionResponseWorkflowInputsType0,
+)
 from .trigger_onboarding_body import TriggerOnboardingBody
 from .trigger_preview import TriggerPreview
 from .trigger_result import TriggerResult
@@ -447,6 +471,8 @@ from .trust_key_request import TrustKeyRequest
 from .trusted_key_view import TrustedKeyView
 from .turn_llm_call import TurnLlmCall
 from .turn_llm_calls_response import TurnLlmCallsResponse
+from .uninstall_report import UninstallReport
+from .uninstall_request import UninstallRequest
 from .unload_model_request import UnloadModelRequest
 from .unload_model_response import UnloadModelResponse
 from .update_artifact_request import UpdateArtifactRequest
@@ -461,6 +487,7 @@ from .update_preset_request_request import UpdatePresetRequestRequest
 from .update_session_body import UpdateSessionBody
 from .update_stt_config_body import UpdateSttConfigBody
 from .update_trigger_request import UpdateTriggerRequest
+from .update_trigger_request_workflow_inputs_type_0 import UpdateTriggerRequestWorkflowInputsType0
 from .user_profile_view import UserProfileView
 from .variant_update import VariantUpdate
 from .verify_chain_report import VerifyChainReport
@@ -556,6 +583,7 @@ __all__ = (
     "ChatResponseValueType0",
     "ClearAgentModelResponse",
     "ClearCacheResponse",
+    "ClearedServerLogs",
     "ClearMemoryBody",
     "CoachingExample",
     "CoachingRequest",
@@ -588,7 +616,9 @@ __all__ = (
     "CreateServerRequest",
     "CreateServerTokenRequest",
     "CreateSessionRequest",
+    "CreateSourceBody",
     "CreateTriggerRequest",
+    "CreateTriggerRequestWorkflowInputsType0",
     "CredentialEntryView",
     "CredentialTestView",
     "DailyCostEntry",
@@ -631,9 +661,11 @@ __all__ = (
     "EnginesResponse",
     "EngineVariant",
     "EventsResponse",
+    "ExportAgentRequest",
     "ExportFormat",
     "ExportMemoryNamespaceResponse200",
     "FireResponse",
+    "FitDto",
     "ForkSessionRequest",
     "FsHitlDecisionBodyType0",
     "FsHitlDecisionBodyType0Decision",
@@ -650,8 +682,10 @@ __all__ = (
     "GgufModelInfo",
     "GlobalTimelineEvent",
     "GlobalTimelineEventDetail",
+    "GuardrailCheckDto",
     "GuardrailLevel",
     "GuardrailRefusedBody",
+    "GuardrailVerdictDto",
     "HardwareResponse",
     "HardwareResponseAccelerator",
     "HealthResponse",
@@ -661,6 +695,7 @@ __all__ = (
     "ImportMemoryBody",
     "ImportMemoryBodyContent",
     "ImportOauthClientBody",
+    "IndexStateDto",
     "InjectedMemoryEntryView",
     "InjectMessageBody",
     "InjectMessageBodyPayload",
@@ -688,6 +723,8 @@ __all__ = (
     "JournalAnchor",
     "JournalBreak",
     "JournalBreakReason",
+    "LastLoadedModelResponse",
+    "LastLoadedModelResponseLoad",
     "LinkProjectBody",
     "ListPlanMutationsResponse200Item",
     "LlmBackendResponse",
@@ -697,6 +734,10 @@ __all__ = (
     "LlmStatusResponseBackendsItem",
     "LoadedModelDto",
     "LoadedModelsResponse",
+    "LoadEstimateResponse",
+    "LoadModelRequest",
+    "LoadModelRequestAdvanced",
+    "LoadModelResponse",
     "LogsResponse",
     "LogsResponseEntriesItem",
     "MailboxMessageRow",
@@ -713,6 +754,7 @@ __all__ = (
     "McpExposure",
     "MemoryEntryDeleted",
     "MemoryEntryView",
+    "MemoryEstimateDto",
     "MemoryImported",
     "MemoryRemoved",
     "MemorySearchResultView",
@@ -795,6 +837,7 @@ __all__ = (
     "ReasoningProfileDto",
     "RejectPlanRequest",
     "RejectUserInputRequest",
+    "ReloadLastRequest",
     "ReloadResponse",
     "ReloadRouterResponse",
     "ReloadRouterResponseBackendsItem",
@@ -820,6 +863,9 @@ __all__ = (
     "SaveArtifactRequest",
     "SendMessageRequest",
     "SendMessageResponse",
+    "ServerLogLevel",
+    "ServerLogLine",
+    "ServerLogSource",
     "ServerModel",
     "ServerModelsResponse",
     "ServerProbeErrorResponse",
@@ -853,6 +899,8 @@ __all__ = (
     "SkillListingInputSchemaType0",
     "SourceDescriptor",
     "SourceDescriptorOptions",
+    "SourceKindDto",
+    "SourceResponse",
     "SseMailboxEvent",
     "SseTaskEvent",
     "StartAgentRequest",
@@ -912,6 +960,7 @@ __all__ = (
     "TranscriptionsListResponseTranscriptionsItem",
     "TriggerDefinitionResponse",
     "TriggerDefinitionResponseSourceConfig",
+    "TriggerDefinitionResponseWorkflowInputsType0",
     "TriggerOnboardingBody",
     "TriggerPreview",
     "TriggerResult",
@@ -920,6 +969,8 @@ __all__ = (
     "TrustKeyRequest",
     "TurnLlmCall",
     "TurnLlmCallsResponse",
+    "UninstallReport",
+    "UninstallRequest",
     "UnloadModelRequest",
     "UnloadModelResponse",
     "UpdateArtifactRequest",
@@ -934,6 +985,7 @@ __all__ = (
     "UpdateSessionBody",
     "UpdateSttConfigBody",
     "UpdateTriggerRequest",
+    "UpdateTriggerRequestWorkflowInputsType0",
     "UserProfileView",
     "VariantUpdate",
     "VerifyChainReport",

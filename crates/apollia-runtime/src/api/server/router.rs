@@ -401,6 +401,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(connectors_router::<B>())
         .merge(drive_folders_router::<B>())
         .merge(imap_router::<B>())
+        .merge(crate::api::routes_sources::sources_router::<B>())
         .merge(crate::api::routes_batches::batch_routes::<B>())
         .merge(crate::api::routes_workflows::workflow_routes::<B>())
         .merge(crate::api::routes_mcp_bridge::mcp_bridge_routes::<B>())

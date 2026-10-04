@@ -602,6 +602,7 @@ async fn test_app_state_clone_with_llm_router_none() {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
 
     // WHEN the AppState is cloned
@@ -777,6 +778,8 @@ async fn test_trigger_engine_loads_from_sqlite() {
     repo.insert(&TriggerDefinitionRow {
         id: "test-trigger".into(),
         agent: Some("test-agent".into()),
+        workflow: None,
+        workflow_inputs: None,
         enabled: true,
         on_busy: apollia_triggers::OnBusy::Queue,
         source_type: "cron".into(),

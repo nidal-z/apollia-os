@@ -51,6 +51,25 @@ SCFG="$SCRATCH/apollia.toml"
 check        "config validate (absent file ok)"         "$BIN" config validate --file "$SCFG"
 check        "config set llm.default local"             "$BIN" config set llm.default local --file "$SCFG"
 check_grep   "config get llm.default = local" "local"   "$BIN" config get llm.default --file "$SCFG"
+# One schema, strict at every level: a typo inside a known section is refused
+# and nothing is written; an invalid file is named at its line, by
+# `config validate` and by a daemon that refuses to start on it.
+cp "$SCFG" "$SCRATCH/apollia.toml.before"
+check_exit   "config set api.typo refused → 1"  1      "$BIN" config set api.typo 1 --file "$SCFG"
+if cmp -s "$SCFG" "$SCRATCH/apollia.toml.before"; then
+    _pass "config set api.typo left the file unchanged"
+else
+    _fail "config set api.typo left the file unchanged" "the file changed"
+fi
+BADCFG="$SCRATCH/invalid.toml"
+printf '[api]\nbind = "127.0.0.1"\ntypo = 1\n' > "$BADCFG"
+check_exit   "config validate (unknown key) → 1"  1    "$BIN" config validate --file "$BADCFG"
+bad_out=$("$BIN" --socket "$SCRATCH/invalid.sock" start --port 47917 --config "$BADCFG" 2>&1 >/dev/null); bad_rc=$?
+if [[ $bad_rc -eq 1 ]] && /usr/bin/grep -qF "invalid.toml:3:1: api.typo" <<<"$bad_out"; then
+    _pass "start refuses an invalid config, fault at its line on stderr"
+else
+    _fail "start refuses an invalid config, fault at its line on stderr" "rc=$bad_rc | out: ${bad_out:0:300}"
+fi
 check_exit   "config edit refuses non-TTY"  1           "$BIN" config edit --file "$SCFG"
 check_exit   "config reset (no --confirm)"  1           "$BIN" config reset
 # reset dry-run/confirm on a disposable home dir (config reset wipes ~/.apollia).
@@ -58,6 +77,17 @@ RH="$SCRATCH/reset-home"; /bin/mkdir -p "$RH/nested"; /usr/bin/touch "$RH/dummy"
 check        "config reset --dry-run"                   "$BIN" config reset --dry-run --home "$RH"
 [[ -f "$RH/dummy" ]] && _pass "config reset --dry-run preserved files" || _fail "config reset --dry-run preserved files" "deleted"
 check        "config reset --confirm"                   "$BIN" config reset --confirm --home "$RH"
+# A first `config` command under an empty home writes the documented default
+# file at ~/.apollia/apollia.toml; a present file is never written over.
+FH="$SCRATCH/first-home"; /bin/mkdir -p "$FH"
+check        "config show (empty home)"                 env HOME="$FH" "$BIN" config show
+if [[ -f "$FH/.apollia/apollia.toml" ]] && /usr/bin/head -1 "$FH/.apollia/apollia.toml" | /usr/bin/grep -q "^# apollia.toml, the configuration of Apollia OS"; then
+    _pass "config show wrote the default file with its header"
+else
+    _fail "config show wrote the default file with its header" "absent or without its header"
+fi
+check_json   "config keys --json"                       "$BIN" config keys --json
+check_grep   "config keys lists api.port" "api.port"    "$BIN" config keys
 check        "hooks list --dry-run"                     "$BIN" hooks list --dry-run
 check_json   "hooks list --dry-run --json"              "$BIN" --json hooks list --dry-run
 
@@ -147,6 +177,12 @@ check_exit   "chat capabilities (runtime absent) → 2" 2 "$BIN" --socket "$CHAT
 check_exit   "chat capabilities --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1 --json
 # Apollia is built in: uninstalling it is refused, exit 1.
 check_exit   "agent uninstall apollia:chat (built in) → 1" 1 "$BIN" agent uninstall apollia:chat --confirm
+# Every other uninstall goes through the runtime, which unregisters the agents
+# and journals the removal: with no runtime nothing is removed, exit 2. The
+# real removal is in Track 2.
+check_exit   "agent uninstall (no --confirm) → 1" 1 "$BIN" --socket "$CHAT_OFF" agent uninstall e2e-notes
+check_exit   "agent uninstall --clear-memory (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" agent uninstall e2e-notes --clear-memory --confirm
+check_exit   "agent package uninstall --clear-history --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" agent package uninstall e2e-pack --clear-memory --clear-history --confirm --json
 check        "chat config permissions list (empty)"  "$BIN" chat config permissions list --db "$GDB"
 check_json   "chat config permissions list --json"   "$BIN" chat config permissions list --db "$GDB" --json
 check_exit   "chat config permissions delete (no id) → 1" 1 "$BIN" chat config permissions delete 9999 --confirm --db "$GDB"
@@ -446,6 +482,13 @@ check_exit   "model recommend (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model re
 # identifier against the registry: daemon off, both leaves refuse with 2.
 check_exit   "model embeddings show (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model embeddings show
 check_exit   "model embeddings set-default (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model embeddings set-default multilingual-e5-small
+# The registry of sources lives in the daemon's system.db, owned by its actor:
+# daemon off, each leaf refuses with 2; a deletion without --confirm outside a
+# terminal is refused with 1 before any call.
+check_exit   "source list (off) → 2"           2     "$BIN" --socket "$OFFSOCK" source list
+check_exit   "source create (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source create --kind folder --label Contracts --reference conn-contracts
+check_exit   "source delete (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source delete src-absent --confirm
+check_exit   "source delete without --confirm → 1" 1 "$BIN" --socket "$OFFSOCK" source delete src-absent
 check        "agent list (off, local fallback)"      "$BIN" --socket "$OFFSOCK" agent list
 check_content "agent list shows 4 seeded agents" "apollia-chat" "$BIN" --socket "$OFFSOCK" agent list
 check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK" agent install /tmp/never-exists.py
@@ -464,6 +507,12 @@ check_exit   "agent reset unknown field → 1"   1     "$BIN" --socket "$OFFSOCK
 # and in --json mode.
 check_exit   "agent set sources profile (off) → 2" 2 "$BIN" --socket "$OFFSOCK" agent set apollia-chat sources profile
 check_exit   "agent set sources profile --json (off) → 2" 2 "$BIN" --socket "$OFFSOCK" --json agent set apollia-chat sources profile
+# The export of an agent is built and signed by the runtime: daemon off, it
+# refuses with 2, in human and in --json mode; an output in a folder that does
+# not exist is refused with 1 before any call, and nothing is written.
+check_exit   "agent export (off) → 2"          2     "$BIN" --socket "$OFFSOCK" agent export seed-ledger
+check_exit   "agent export --sign --json (off) → 2" 2 "$BIN" --socket "$OFFSOCK" --json agent export seed-ledger --sign --publisher "Seed Author"
+check_exit   "agent export into a missing folder → 1" 1 "$BIN" --socket "$OFFSOCK" agent export seed-ledger -o "$SCRATCH/no-such-dir/seed-ledger.apo"
 # An agent without code runs in the runtime too, by the same `run` leaf: daemon
 # off, it refuses with 2 before any call, whatever the agent.
 check_exit   "run agent without code (off) → 2" 2    "$BIN" --socket "$OFFSOCK" run seed-ledger "Reconcile March."

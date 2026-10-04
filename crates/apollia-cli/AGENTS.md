@@ -29,7 +29,7 @@ the same commit as the command.
 | relationship | `add`, `remove`, `link` |
 | lifecycle | `install`, `uninstall`, `enable`, `disable`, `start`, `stop`, `restart`, `reset`, `reload`, `update`, `revoke`, `login`, `logout`, `setup`, `init`, `resume`, `cancel`, `pause` |
 | maintenance | `clear`, `evict`, `purge`, `repair`, `forget` |
-| report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `resolved`, `approvals`, `messages`, `skills`, `chats`, `accounts`, `accesses`, `capabilities`, `hardware`, `recommend`, `schema`, `anchor`, `inspect`, `preview`, `trace`, `version`, `digest` |
+| report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `resolved`, `approvals`, `messages`, `skills`, `chats`, `accounts`, `accesses`, `capabilities`, `hardware`, `recommend`, `schema`, `keys`, `anchor`, `inspect`, `preview`, `trace`, `version`, `digest` |
 | action | `run`, `build`, `keygen`, `sign`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `retry`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `seed-builtins`, `set-approval`, `revoke-approval`, `list-pending`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
 | interchange | `export`, `import` |
 
@@ -106,6 +106,21 @@ the history of a workflow, and `cancel` stops a run behind `--confirm`.
 keyring, the connections and the governance, adds the MCP servers a package
 brings and journals the installation. The archive is sent by its absolute
 path; a missing file is refused before the runtime is reached.
+
+**`source`** (`list`, `create`, `delete`) reads and writes the registry of
+sources an agent may consult once checked: a folder, a file or a mailbox,
+which name what they point at with `--reference`, the profile, the memory, a
+code folder. Every leaf goes through the runtime, whose actor owns the
+registry in `system.db`; daemon off, each refuses with exit 2. An agent checks
+a source by naming its identifier in `agent set <agent> sources ...`, and the
+runtime refuses an identifier the registry does not hold.
+
+**`agent uninstall`** and **`agent package uninstall`** go through the
+runtime, the same route the desktop calls: it removes the definitions,
+overrides, models, triggers, environments, files and the MCP servers a package
+brought, unregisters the agents and journals the removal. `--clear-memory` and
+`--clear-history` erase what is kept otherwise. Without a runtime nothing is
+removed, exit 2; Apollia is refused before the runtime is reached, exit 1.
 
 **`policy`** prepares the organisation policy on files alone (`keygen`,
 `init`, `sign`, `verify`, `show`) and never reaches the runtime: the policy is

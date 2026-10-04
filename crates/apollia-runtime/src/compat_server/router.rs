@@ -2,67 +2,79 @@
 //!
 //! Every path mounted here with `.route(...)` is a public endpoint, and
 //! `scripts/check_compat_routes.py` compares them with the table of
-//! `docs/site/docs/reference/compatible-endpoints.md`. No endpoint is served
-//! yet: every request falls through to an OpenAI-format 404.
+//! `docs/site/docs/reference/compatible-endpoints.md`. Any other path answers
+//! an OpenAI-format 404.
 
-use axum::http::{StatusCode, Uri};
-use axum::{Json, Router};
-use serde::Serialize;
+use std::sync::Arc;
+
+use axum::extract::connect_info::ConnectInfo;
+use axum::extract::DefaultBodyLimit;
+use axum::http::Uri;
+use axum::response::Response;
+use axum::routing::{get, post};
+use axum::Router;
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 
+use super::errors::{error_response, ErrorKind, Family};
+use super::logs::ServerLogsHandle;
+use super::origin::CallOrigin;
+use super::relay::{self, RelayState};
 use super::tokens::ServerTokensHandle;
 
-/// The error envelope of the OpenAI API, which the compatible server answers
-/// with whatever the client called.
-#[derive(Debug, Serialize)]
-pub(crate) struct OpenAiErrorBody {
-    pub(crate) error: OpenAiError,
-}
+/// Largest request body the server reads: a chat request carrying images
+/// inline is the largest a client sends.
+const MAX_REQUEST_BODY: usize = 32 * 1024 * 1024;
 
-/// The inner object of [`OpenAiErrorBody`].
-#[derive(Debug, Serialize)]
-pub(crate) struct OpenAiError {
-    /// What went wrong, for a person.
-    pub(crate) message: String,
-    /// The class of the error, as OpenAI names it (`invalid_request_error`).
-    #[serde(rename = "type")]
-    pub(crate) kind: &'static str,
-    /// A stable identifier of the error.
-    pub(crate) code: &'static str,
-}
-
-/// Builds the router of the compatible server.
+/// Builds the router of the compatible server over the local models `relay`
+/// reaches.
 ///
 /// With `tokens`, every request, the unknown paths included, must present a
-/// token in use (see [`super::auth`]); without, the server answers anyone on
-/// the loopback interface.
-pub fn compat_router(tokens: Option<ServerTokensHandle>) -> Router {
-    let router = Router::new().fallback(unknown_endpoint);
-    match tokens {
+/// token in use (see [`super::auth`]); without, the server answers anyone who
+/// reaches its listener, on the loopback interface or, with `[server]
+/// serve_on_lan`, on the local network. Every request, a refused one included, leaves one
+/// line in `logs`.
+pub(crate) fn compat_router(
+    tokens: Option<ServerTokensHandle>,
+    relay: Arc<RelayState>,
+    logs: ServerLogsHandle,
+) -> Router {
+    let router = Router::new()
+        .route("/v1/models", get(relay::list_models))
+        .route("/v1/chat/completions", post(relay::chat_completions))
+        .route("/v1/responses", post(relay::responses))
+        .route("/v1/embeddings", post(relay::embeddings))
+        .route("/v1/messages", post(relay::messages))
+        .route("/v1/messages/count_tokens", post(relay::count_tokens))
+        .fallback(unknown_endpoint)
+        .layer(DefaultBodyLimit::max(MAX_REQUEST_BODY))
+        .with_state(relay);
+    let router = match tokens {
         Some(tokens) => router.layer(axum::middleware::from_fn_with_state(
             tokens,
             super::auth::require_token,
         )),
         None => router,
-    }
+    };
+    router.layer(axum::middleware::from_fn_with_state(
+        logs,
+        super::logs::record_request,
+    ))
 }
 
 /// Answers a path no route serves, in the OpenAI error format.
-async fn unknown_endpoint(uri: Uri) -> (StatusCode, Json<OpenAiErrorBody>) {
-    (
-        StatusCode::NOT_FOUND,
-        Json(OpenAiErrorBody {
-            error: OpenAiError {
-                message: format!("Unknown endpoint: {}", uri.path()),
-                kind: "invalid_request_error",
-                code: "unknown_url",
-            },
-        }),
+async fn unknown_endpoint(uri: Uri) -> Response {
+    error_response(
+        Family::OpenAi,
+        ErrorKind::UnknownEndpoint,
+        format!("Unknown endpoint: {}", uri.path()),
     )
 }
 
 /// Serves `router` on `listener` until `cancel` fires.
+///
+/// Every request carries the address of its peer (`ConnectInfo`) and the
+/// [`CallOrigin`] read from it once, when the connection is accepted.
 ///
 /// When it fires, the listener is dropped, so the port refuses any new
 /// connection, and the connections still open are closed.
@@ -70,6 +82,7 @@ pub(super) async fn serve(listener: TcpListener, router: Router, cancel: Cancell
     use hyper_util::rt::{TokioExecutor, TokioIo};
     use hyper_util::server::conn::auto::Builder as ServerBuilder;
     use hyper_util::service::TowerToHyperService;
+    use tower::ServiceExt;
 
     let builder = ServerBuilder::new(TokioExecutor::new());
     loop {
@@ -77,8 +90,15 @@ pub(super) async fn serve(listener: TcpListener, router: Router, cancel: Cancell
             biased;
             () = cancel.cancelled() => break,
             accepted = listener.accept() => match accepted {
-                Ok((stream, _addr)) => {
-                    let service = TowerToHyperService::new(router.clone());
+                Ok((stream, peer)) => {
+                    let origin = CallOrigin::of_peer(peer);
+                    let service = TowerToHyperService::new(router.clone().map_request(
+                        move |mut request: axum::http::Request<_>| {
+                            request.extensions_mut().insert(ConnectInfo(peer));
+                            request.extensions_mut().insert(origin);
+                            request
+                        },
+                    ));
                     let builder = builder.clone();
                     let cancel = cancel.clone();
                     tokio::spawn(async move {

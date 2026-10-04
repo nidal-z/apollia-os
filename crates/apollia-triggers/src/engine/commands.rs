@@ -111,13 +111,13 @@ impl TriggerEngine {
             .definitions
             .iter()
             .find(|d| d.id == trigger_id)
-            .map(|d| d.agent.clone());
+            .map(|d| d.target.name().to_string());
 
         if let Some(agent) = agent {
             let now = Utc::now();
             let event = TriggerEvent {
                 trigger_id,
-                agent,
+                target: agent,
                 payload: TriggerPayload::Webhook { body, headers },
                 fired_at: now,
             };
@@ -138,7 +138,7 @@ impl TriggerEngine {
                 let now = Utc::now();
                 let event = TriggerEvent {
                     trigger_id: def.id.clone(),
-                    agent: def.agent.clone(),
+                    target: def.target.name().to_string(),
                     payload: TriggerPayload::Timer {
                         scheduled_at: now,
                         fired_at: now,
@@ -209,7 +209,8 @@ impl TriggerEngine {
             .iter()
             .map(|d| TriggerStatus {
                 id: d.id.clone(),
-                agent: d.agent.clone(),
+                agent: d.target.name().to_string(),
+                target_kind: d.target.kind().to_string(),
                 source_kind: source_kind_str(&d.source),
                 source_config: source_config_str(&d.source),
                 enabled: d.enabled,

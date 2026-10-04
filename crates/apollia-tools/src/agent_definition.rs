@@ -349,8 +349,9 @@ pub fn resolve(
 /// its decorator declares.
 ///
 /// The mission is the declared system prompt, or the description when there
-/// is none; the access is the required then optional tools; the sources are
-/// the declared data sources; the autonomy is the declared tier.
+/// is none; the access is the required then optional tools; the autonomy is
+/// the declared tier. The declared data sources are files the package carries,
+/// not sources of the registry, so they check no source.
 pub fn definition_from_manifest(manifest: &AgentManifest) -> Value {
     let mission = manifest
         .system_prompt
@@ -370,9 +371,6 @@ pub fn definition_from_manifest(manifest: &AgentManifest) -> Value {
     let mut defaults = Map::new();
     if !access.is_empty() {
         defaults.insert("access".into(), json!(access));
-    }
-    if !manifest.datasources.is_empty() {
-        defaults.insert("sources".into(), json!(manifest.datasources));
     }
     if let Some(level) = manifest.autonomy_level {
         defaults.insert("autonomy".into(), json!(level.as_str()));

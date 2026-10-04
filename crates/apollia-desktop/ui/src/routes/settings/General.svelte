@@ -1,13 +1,15 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { t, locale } from "svelte-i18n";
-  import { RefreshCw, Globe, FolderOpen, LifeBuoy, AlertTriangle, Lock } from "lucide-svelte";
+  import { RefreshCw, Globe, FolderOpen, LifeBuoy, AlertTriangle, Lock, SlidersHorizontal } from "lucide-svelte";
   import { systemInfoStore, settingsLoaders } from "$lib/stores/settings";
   import { setLocale } from "$lib/i18n";
   import { openExternalUrl } from "$lib/utils/externalLink";
   import { reportError } from "$lib/errors/reportError";
   import { Button } from "$lib/components/ui/button";
   import { Select } from "$lib/components/ui/select";
+  import { Toggle } from "$lib/components/ui/toggle";
+  import { openDownloadsOnStart, setOpenDownloadsOnStart } from "$lib/stores/downloads";
   import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
   import SettingsSection from "../../components/settings/SettingsSection.svelte";
   import SettingsFieldRow from "../../components/settings/SettingsFieldRow.svelte";
@@ -16,6 +18,10 @@
   import AboutBlock from "../../components/settings/about/AboutBlock.svelte";
   import HelpBlock from "../../components/settings/help/HelpBlock.svelte";
   import DangerZone from "../../components/settings/DangerZone.svelte";
+  import { developerMode } from "$lib/stores/developerMode";
+  import { openLogsDir } from "$lib/ipc/app";
+  import { addToast } from "$lib/components/ui/toast";
+  import ModelsBlock from "../../components/settings/general/ModelsBlock.svelte";
   import {
     UPDATE_CHANNELS,
     hydrateUpdateChannel,
@@ -56,6 +62,14 @@
   function selectLocale(value: string) {
     locale.set(value);
     setLocale(value);
+  }
+
+  async function openLogs(): Promise<void> {
+    try {
+      await openLogsDir();
+    } catch {
+      addToast($t("settings.general.logs_failed"), "error");
+    }
   }
 
   async function reportProblem(): Promise<void> {
@@ -164,6 +178,33 @@
     </SettingsFieldRow>
   </SettingsSection>
 
+  <!-- Behaviours -->
+  <SettingsSection
+    title={$t("settings.general.behaviours_title")}
+    bodyLayout="flush"
+    data-testid="general-behaviours"
+  >
+    {#snippet icon()}<SlidersHorizontal size={15} strokeWidth={1.75} />{/snippet}
+    <SettingsFieldRow
+      label={$t("settings.general.downloads_open_label")}
+      hint={$t("settings.general.downloads_open_hint")}
+      for="general-downloads-open"
+      border={false}
+    >
+      {#snippet control()}
+        <Toggle
+          id="general-downloads-open"
+          checked={$openDownloadsOnStart}
+          onchange={(next) => setOpenDownloadsOnStart(next)}
+          aria-label={$t("settings.general.downloads_open_label")}
+          data-testid="general-downloads-open-toggle"
+        />
+      {/snippet}
+    </SettingsFieldRow>
+  </SettingsSection>
+  <!-- Models: folder and Hugging Face token -->
+  <ModelsBlock />
+
   <!-- Application -->
   <SettingsSection
     title={$t("settings.general.application_title")}
@@ -171,6 +212,19 @@
     data-testid="general-application"
   >
     {#snippet icon()}<FolderOpen size={15} strokeWidth={1.75} />{/snippet}
+    {#if $developerMode}
+      <SettingsFieldRow
+        label={$t("settings.general.logs_label")}
+        hint={$t("settings.general.logs_hint")}
+        data-testid="general-logs"
+      >
+        {#snippet control()}
+          <Button variant="outline" size="sm" onclick={openLogs} data-testid="general-open-logs">
+            {$t("settings.general.logs_button")}
+          </Button>
+        {/snippet}
+      </SettingsFieldRow>
+    {/if}
     <SettingsFieldRow
       label={$t("settings.about.kv_data_dir")}
       hint={$t("settings.about.data_desc")}

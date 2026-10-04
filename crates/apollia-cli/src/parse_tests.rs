@@ -115,6 +115,58 @@ fn test_cli_parses_agent_reset() {
 }
 
 #[test]
+fn test_cli_parses_agent_export() {
+    // GIVEN "apollia-os agent export veille --sign --publisher Ada -o out.apo"
+    // WHEN the top-level parser reads it
+    let cli = parse(&[
+        "apollia-os",
+        "agent",
+        "export",
+        "veille",
+        "--sign",
+        "--publisher",
+        "Ada",
+        "-o",
+        "out.apo",
+    ]);
+    // THEN the agent, the signature, the publisher and the file are carried
+    let Commands::Agent {
+        command:
+            AgentCommand::Export {
+                agent_id,
+                sign,
+                publisher,
+                output,
+            },
+    } = cli.command
+    else {
+        panic!("expected agent export");
+    };
+    assert_eq!(agent_id, "veille");
+    assert!(sign);
+    assert_eq!(publisher.as_deref(), Some("Ada"));
+    assert_eq!(output, Some(std::path::PathBuf::from("out.apo")));
+}
+
+#[test]
+fn test_cli_parses_agent_export_unsigned_by_default() {
+    // GIVEN "apollia-os agent export veille"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "agent", "export", "veille"]);
+    // THEN nothing is signed and the setting names the publisher
+    let Commands::Agent {
+        command: AgentCommand::Export {
+            sign, publisher, ..
+        },
+    } = cli.command
+    else {
+        panic!("expected agent export");
+    };
+    assert!(!sign);
+    assert_eq!(publisher, None);
+}
+
+#[test]
 fn test_cli_parses_agent_list_definitions() {
     // GIVEN "apollia-os agent list --definitions"
     // WHEN the top-level parser reads it
@@ -181,11 +233,82 @@ fn test_cli_parses_agent_package_uninstall_with_confirm() {
     else {
         panic!("expected agent package");
     };
-    let PackageCommand::Uninstall { name, confirm } = cmd else {
+    let PackageCommand::Uninstall {
+        name,
+        confirm,
+        clear_memory,
+        clear_history,
+    } = cmd
+    else {
         panic!("expected package uninstall");
     };
     assert_eq!(name, "invoice-reader");
     assert!(confirm);
+    // AND the memory and the history are kept unless asked
+    assert!(!clear_memory && !clear_history);
+}
+
+#[test]
+fn test_cli_parses_agent_package_uninstall_erasing_memory_and_history() {
+    // GIVEN "apollia-os agent package uninstall invoice-reader --clear-memory
+    // --clear-history --confirm"
+    // WHEN the top-level parser reads it
+    let cli = parse(&[
+        "apollia-os",
+        "agent",
+        "package",
+        "uninstall",
+        "invoice-reader",
+        "--clear-memory",
+        "--clear-history",
+        "--confirm",
+    ]);
+    // THEN both erasures are carried
+    let Commands::Agent {
+        command: AgentCommand::Package { cmd },
+    } = cli.command
+    else {
+        panic!("expected agent package");
+    };
+    let PackageCommand::Uninstall {
+        clear_memory,
+        clear_history,
+        ..
+    } = cmd
+    else {
+        panic!("expected package uninstall");
+    };
+    assert!(clear_memory && clear_history);
+}
+
+#[test]
+fn test_cli_parses_agent_uninstall_erasing_memory_only() {
+    // GIVEN "apollia-os agent uninstall notes --clear-memory --confirm"
+    // WHEN the top-level parser reads it
+    let cli = parse(&[
+        "apollia-os",
+        "agent",
+        "uninstall",
+        "notes",
+        "--clear-memory",
+        "--confirm",
+    ]);
+    // THEN the memory is erased and the history kept
+    let Commands::Agent {
+        command:
+            AgentCommand::Uninstall {
+                name,
+                clear_memory,
+                clear_history,
+                ..
+            },
+    } = cli.command
+    else {
+        panic!("expected agent uninstall");
+    };
+    assert_eq!(name, "notes");
+    assert!(clear_memory);
+    assert!(!clear_history);
 }
 
 #[test]
@@ -1104,6 +1227,21 @@ fn test_cli_parses_config_show() {
         panic!("expected config show");
     };
     assert!(file.is_none());
+}
+
+#[test]
+fn test_cli_parses_config_keys() {
+    // GIVEN "apollia-os config keys --json"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "config", "keys", "--json"]);
+    // THEN ConfigCommand::Keys, with the global JSON switch on
+    assert!(cli.json);
+    assert!(matches!(
+        cli.command,
+        Commands::Config {
+            command: ConfigCommand::Keys
+        }
+    ));
 }
 
 // ─── profile ─────────────────────────────────────────────────────────────────

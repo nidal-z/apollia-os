@@ -106,6 +106,7 @@ pub mod resilience;
 pub mod review;
 pub mod run;
 pub mod service;
+pub mod source;
 pub mod start;
 pub mod status;
 pub mod stop;

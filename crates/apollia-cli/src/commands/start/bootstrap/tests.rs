@@ -2,7 +2,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use super::{load_start_config_from, StartError};
+use super::{load_start_config_from, resolve_tcp_port, StartError};
 use crate::config_location::legacy_files;
 
 /// A tracing writer that keeps what it is given, so a test can read the
@@ -32,7 +32,7 @@ fn write(path: &Path, body: &str) {
     std::fs::write(path, body).unwrap();
 }
 
-type Loaded = Result<(Option<crate::config::ApolliaCConfig>, Option<PathBuf>), StartError>;
+type Loaded = Result<(Option<crate::config::ApolliaConfig>, Option<PathBuf>), StartError>;
 
 /// Plays the daemon's config loading for a home and a working directory,
 /// returning its result and the log lines it emitted.
@@ -65,9 +65,12 @@ fn a_file_at_a_former_location_is_ignored_with_a_warning() {
     );
     // WHEN the daemon loads its configuration
     let (result, logs) = start_in(home.path(), cwd.path(), None);
-    // THEN it starts on the defaults, and each former file is named by a warning
+    // THEN it starts on the default file written at the canonical location, and
+    // each former file is named by a warning
     let (cfg, path) = result.unwrap();
-    assert!(cfg.is_none() && path.is_none());
+    let canonical = apollia_core::paths::config_file_under(home.path());
+    assert_eq!(path.as_deref(), Some(canonical.as_path()));
+    assert_eq!(cfg.unwrap().api.port, 7771);
     assert_eq!(
         logs.matches("config.legacy_location.ignored").count(),
         2,
@@ -90,7 +93,11 @@ fn a_package_manifest_in_the_working_directory_is_not_read() {
     let (result, logs) = start_in(home.path(), cwd.path(), None);
     // THEN the manifest is neither read nor reported as a misplaced config
     let (cfg, path) = result.unwrap();
-    assert!(cfg.is_none() && path.is_none());
+    assert!(cfg.unwrap().tools.disabled.is_empty());
+    assert_eq!(
+        path.as_deref(),
+        Some(apollia_core::paths::config_file_under(home.path()).as_path())
+    );
     assert!(!logs.contains("config.legacy_location.ignored"), "{logs}");
 }
 
@@ -108,7 +115,7 @@ fn the_canonical_file_is_the_one_loaded() {
     // THEN the canonical file answers
     let (cfg, path) = result.unwrap();
     assert_eq!(path.as_deref(), Some(canonical.as_path()));
-    assert_eq!(cfg.unwrap().api.unwrap().port, 7003);
+    assert_eq!(cfg.unwrap().api.port, 7003);
 }
 
 #[test]
@@ -127,7 +134,7 @@ fn an_explicit_config_replaces_the_canonical_location() {
     // THEN the explicit file is the one in force
     let (cfg, path) = result.unwrap();
     assert_eq!(path.as_deref(), Some(explicit.as_path()));
-    assert_eq!(cfg.unwrap().api.unwrap().port, 7006);
+    assert_eq!(cfg.unwrap().api.port, 7006);
 }
 
 #[test]
@@ -140,4 +147,114 @@ fn an_explicit_config_that_does_not_exist_stops_the_start() {
     let (result, _) = start_in(home.path(), cwd.path(), Some(&missing));
     // THEN it fails at startup rather than running on the defaults
     assert!(matches!(result, Err(StartError::Config { .. })));
+}
+
+#[test]
+fn an_invalid_file_stops_the_start_with_its_faults_at_their_line() {
+    // GIVEN a canonical configuration with an unknown key on line 3 and a
+    // value out of bounds on line 6
+    let home = tempfile::tempdir().unwrap();
+    let cwd = tempfile::tempdir().unwrap();
+    let canonical = apollia_core::paths::config_file_under(home.path());
+    write(&canonical, "[api]\nbind = \"127.0.0.1\"\ntypo = 1\n");
+    // WHEN the daemon loads its configuration
+    let (result, _) = start_in(home.path(), cwd.path(), None);
+    // THEN the start is refused, the message naming the file, line and key
+    let Err(StartError::Config { path, reason }) = result else {
+        panic!("an invalid file must stop the start");
+    };
+    assert_eq!(path, canonical);
+    let expected = format!("{}:3:1: api.typo", canonical.display());
+    assert!(reason.contains(&expected), "{reason}");
+}
+
+#[test]
+fn a_value_out_of_its_section_bounds_stops_the_start() {
+    // GIVEN a [hitl] section whose scan interval is below its bound
+    let home = tempfile::tempdir().unwrap();
+    let cwd = tempfile::tempdir().unwrap();
+    let canonical = apollia_core::paths::config_file_under(home.path());
+    write(&canonical, "[hitl]\nscan_interval_secs = 1\n");
+    // WHEN the daemon loads its configuration
+    let (result, _) = start_in(home.path(), cwd.path(), None);
+    // THEN HitlConfig::validate refuses it, at line 2
+    let Err(StartError::Config { reason, .. }) = result else {
+        panic!("a value out of bounds must stop the start");
+    };
+    assert!(reason.contains(":2:1: hitl.scan_interval_secs"), "{reason}");
+}
+
+#[test]
+fn a_first_start_writes_the_default_file_and_loads_it() {
+    // GIVEN a home with no data folder and no configuration
+    let home = tempfile::tempdir().unwrap();
+    let cwd = tempfile::tempdir().unwrap();
+    let canonical = apollia_core::paths::config_file_under(home.path());
+    // WHEN the daemon loads its configuration
+    let (result, _) = start_in(home.path(), cwd.path(), None);
+    // THEN the documented default file exists at ~/.apollia/apollia.toml and is
+    // the one loaded, on the defaults
+    let (cfg, path) = result.unwrap();
+    assert_eq!(path.as_deref(), Some(canonical.as_path()));
+    let text = std::fs::read_to_string(&canonical).unwrap();
+    assert!(text.starts_with("# apollia.toml, the configuration of Apollia OS."));
+    assert_eq!(cfg.unwrap().api.port, 7771);
+}
+
+#[test]
+fn a_start_over_an_existing_file_leaves_its_bytes() {
+    // GIVEN a configuration the user wrote
+    let home = tempfile::tempdir().unwrap();
+    let cwd = tempfile::tempdir().unwrap();
+    let canonical = apollia_core::paths::config_file_under(home.path());
+    write(&canonical, "[api]\nport = 7005\n# mine\n");
+    // WHEN the daemon loads its configuration
+    let (result, _) = start_in(home.path(), cwd.path(), None);
+    // THEN the file is read as it is and never rewritten
+    assert_eq!(result.unwrap().0.unwrap().api.port, 7005);
+    assert_eq!(
+        std::fs::read_to_string(&canonical).unwrap(),
+        "[api]\nport = 7005\n# mine\n"
+    );
+}
+
+/// The `[api]` section of a file, as the daemon reads it.
+fn api_section(text: &str) -> apollia_core::ApiConfig {
+    apollia_core::config::validate(text).unwrap().api
+}
+
+#[test]
+fn test_the_port_flag_wins_over_the_file() {
+    // GIVEN a file naming port 7781 and `--port 7790`
+    let api = api_section("[api]\nport = 7781\n");
+
+    // WHEN the daemon resolves its port
+    let port = resolve_tcp_port(Some(7790), &api);
+
+    // THEN the flag's
+    assert_eq!(port, 7790);
+}
+
+#[test]
+fn test_without_the_flag_the_file_names_the_port() {
+    // GIVEN a file naming port 7781 and no `--port`
+    let api = api_section("[api]\nport = 7781\n");
+
+    // WHEN the daemon resolves its port
+    let port = resolve_tcp_port(None, &api);
+
+    // THEN the file's
+    assert_eq!(port, 7781);
+}
+
+#[test]
+fn test_without_the_flag_or_the_key_the_port_is_7771() {
+    // GIVEN no `--port` and a file without `[api].port`
+    let api = api_section("[api]\nbind = \"127.0.0.1\"\n");
+
+    // WHEN the daemon resolves its port
+    let port = resolve_tcp_port(None, &api);
+
+    // THEN the default
+    assert_eq!(port, 7771);
 }

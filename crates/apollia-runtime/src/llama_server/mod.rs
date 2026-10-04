@@ -20,10 +20,12 @@
 mod config;
 mod embeddings;
 mod engine_facts;
+mod explicit;
 mod guard;
 mod load_settings;
 mod loaded;
 mod locate;
+mod log_level;
 mod ngl;
 mod parallel;
 mod projector;
@@ -33,14 +35,17 @@ pub use config::{FlashAttn, LlamaServerConfig, ParseFlashAttnError, SpecType};
 #[cfg(test)]
 pub(crate) use embeddings::tests::{fake_engine, launches as fake_engine_launches};
 pub use embeddings::{embedding_window, EMBEDDING_IDLE, EMBEDDING_MAX_CTX};
-pub use load_settings::LoadSettings;
+#[cfg(test)]
+pub(crate) use explicit::tests::recorded_gguf;
+pub use explicit::ExplicitEstimate;
+pub use load_settings::{LoadSettings, LOAD_KEYS};
 pub use loaded::{LoadedModel, ModelKind, ModelLease, UnloadError};
 
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
@@ -111,6 +116,10 @@ struct Instance {
     /// Requests currently holding a [`ModelLease`] on this process. An unload
     /// is refused while it is above zero.
     in_flight: Arc<AtomicUsize>,
+    /// Whether the user loaded this process by hand, with settings for it
+    /// alone. Such a process serves every request for its model, whatever
+    /// window the request asks for (see `explicit`).
+    explicit: bool,
 }
 
 impl Instance {
@@ -136,6 +145,7 @@ impl Instance {
             loaded_at: now,
             last_used_at: now,
             in_flight: Arc::new(AtomicUsize::new(0)),
+            explicit: false,
         }
     }
 
@@ -190,6 +200,10 @@ const HEALTH_TIMEOUT_SECS: u64 = 180;
 /// Interval between `/health` polls while waiting for startup.
 const HEALTH_POLL_INTERVAL: Duration = Duration::from_millis(500);
 
+/// What a dead instance is owed: its model, window, load settings, and
+/// whether it was loaded by hand, so a respawn launches it as it was.
+type Owed = (String, u32, LoadSettings, bool);
+
 /// Interval between liveness checks of the running child.
 const SUPERVISION_POLL: Duration = Duration::from_secs(2);
 
@@ -239,6 +253,9 @@ pub struct LlamaServerSupervisor {
     config_file: Option<PathBuf>,
     /// The guardrail settings the organisation policy fixes, over the file.
     imposed: apollia_core::config::PolicySettings,
+    /// Where each line the processes print goes besides tracing: the logs of
+    /// the compatible server, once it is started.
+    line_sink: OnceLock<crate::compat_server::ServerLogsHandle>,
 }
 
 impl LlamaServerSupervisor {
@@ -281,6 +298,7 @@ impl LlamaServerSupervisor {
             embedding: Mutex::new(None),
             config_file,
             imposed,
+            line_sink: OnceLock::new(),
         }))
     }
 
@@ -376,7 +394,7 @@ impl LlamaServerSupervisor {
             // not succeeded yet. Carried across iterations so a failure is
             // retried under backoff instead of being forgotten, which is what
             // keeps an endpoint alive between two requests.
-            let mut owed: Vec<(String, u32, LoadSettings)> = Vec::new();
+            let mut owed: Vec<Owed> = Vec::new();
 
             loop {
                 if *self.shutting_down.lock().await {
@@ -389,13 +407,12 @@ impl LlamaServerSupervisor {
                 // launches llama-server without a `-m`. An evicted model is
                 // absent from this list on purpose: it was stopped deliberately
                 // and must not come back on its own.
-                for (model_path, n_ctx, load, reason) in self.take_dead_instances().await {
+                for (entry, reason) in self.take_dead_instances().await {
                     tracing::error!(
-                        model = %model_path,
+                        model = %entry.0,
                         reason = %reason,
                         "llama.server.exited"
                     );
-                    let entry = (model_path, n_ctx, load);
                     if !owed.contains(&entry) {
                         owed.push(entry);
                     }
@@ -415,7 +432,7 @@ impl LlamaServerSupervisor {
                 // Serialise with ensure_model so two spawns never race.
                 let _guard = self.respawn_lock.lock().await;
                 let mut still_owed = Vec::new();
-                for (model_path, n_ctx, load) in owed.drain(..) {
+                for (model_path, n_ctx, load, explicit) in owed.drain(..) {
                     // A caller may have re-requested this model while we waited
                     // for the lock, in which case it is live again.
                     if self
@@ -426,7 +443,7 @@ impl LlamaServerSupervisor {
                         continue;
                     }
                     match self
-                        .spawn_instance(model_path.clone(), n_ctx, load.clone())
+                        .spawn_instance(model_path.clone(), n_ctx, load.clone(), explicit)
                         .await
                     {
                         Ok(_) => tracing::info!(model = %model_path, "llama.server.respawned"),
@@ -436,7 +453,7 @@ impl LlamaServerSupervisor {
                                 error = %e,
                                 "llama.server.respawn.failed"
                             );
-                            still_owed.push((model_path, n_ctx, load));
+                            still_owed.push((model_path, n_ctx, load, explicit));
                         }
                     }
                 }
@@ -471,6 +488,7 @@ impl LlamaServerSupervisor {
             embedding: Mutex::new(None),
             config_file: None,
             imposed: apollia_core::config::PolicySettings::none(),
+            line_sink: OnceLock::new(),
         }
     }
 
@@ -501,6 +519,7 @@ impl LlamaServerSupervisor {
             embedding: Mutex::new(None),
             config_file: None,
             imposed: apollia_core::config::PolicySettings::none(),
+            line_sink: OnceLock::new(),
         })
     }
 
@@ -520,29 +539,23 @@ impl LlamaServerSupervisor {
 
     /// Remove every instance whose process has exited, returning what they were
     /// serving and why they are gone, so the caller can respawn them.
-    async fn take_dead_instances(&self) -> Vec<(String, u32, LoadSettings, String)> {
+    async fn take_dead_instances(&self) -> Vec<(Owed, String)> {
         let mut instances = self.instances.lock().await;
         let mut dead = Vec::new();
-        instances.retain_mut(|instance| match instance.child.try_wait() {
-            Ok(None) => true,
-            Ok(Some(status)) => {
-                dead.push((
-                    instance.model_path.clone(),
-                    instance.n_ctx,
-                    instance.load.clone(),
-                    status.to_string(),
-                ));
-                false
-            }
-            Err(e) => {
-                dead.push((
-                    instance.model_path.clone(),
-                    instance.n_ctx,
-                    instance.load.clone(),
-                    format!("try_wait failed: {e}"),
-                ));
-                false
-            }
+        instances.retain_mut(|instance| {
+            let reason = match instance.child.try_wait() {
+                Ok(None) => return true,
+                Ok(Some(status)) => status.to_string(),
+                Err(e) => format!("try_wait failed: {e}"),
+            };
+            let owed = (
+                instance.model_path.clone(),
+                instance.n_ctx,
+                instance.load.clone(),
+                instance.explicit,
+            );
+            dead.push((owed, reason));
+            false
         });
         dead
     }
@@ -557,17 +570,20 @@ impl LlamaServerSupervisor {
         model_path: String,
         n_ctx: u32,
         load: LoadSettings,
+        explicit: bool,
     ) -> Result<ModelLease, LlamaServerError> {
         let config = self.launch_config(model_path, n_ctx, &load).await;
-        self.spawn_configured(config, load).await
+        self.spawn_configured(config, load, explicit).await
     }
 
     /// Launch `llama-server` with `config`, already composed by
-    /// [`Self::launch_config`], and wait until it is healthy.
+    /// [`Self::launch_config`], and wait until it is healthy. `explicit` says
+    /// whether the user loaded it by hand.
     async fn spawn_configured(
         &self,
         config: LlamaServerConfig,
         load: LoadSettings,
+        explicit: bool,
     ) -> Result<ModelLease, LlamaServerError> {
         let port = pick_free_port()?;
         let args = build_args(&config, port);
@@ -621,7 +637,8 @@ impl LlamaServerSupervisor {
         let mut child = self.spawn_child(&args)?;
         self.wait_until_healthy(&mut child, port).await?;
 
-        let instance = Instance::new(config, load, port, child, self.next_tick());
+        let mut instance = Instance::new(config, load, port, child, self.next_tick());
+        instance.explicit = explicit;
         let lease = ModelLease::new(
             instance.base_url(),
             instance.n_ctx,
@@ -630,6 +647,12 @@ impl LlamaServerSupervisor {
         tracing::info!(port, model = %instance.model_path, "llama.server.healthy");
         self.instances.lock().await.push(instance);
         Ok(lease)
+    }
+
+    /// Sends every line a process launched from now on prints to `logs` as
+    /// well as to tracing. Only the first call counts.
+    pub fn send_lines_to(&self, logs: crate::compat_server::ServerLogsHandle) {
+        let _ = self.line_sink.set(logs);
     }
 
     /// Launch the binary with `args`, its output drained into tracing.
@@ -653,10 +676,16 @@ impl LlamaServerSupervisor {
         // Drain the child's pipes into tracing so a load failure is visible and
         // the OS pipe buffer never fills (which would stall the load).
         if let Some(stdout) = child.stdout.take() {
-            tokio::spawn(drain_pipe(BufReader::new(stdout)));
+            tokio::spawn(drain_pipe(
+                BufReader::new(stdout),
+                self.line_sink.get().cloned(),
+            ));
         }
         if let Some(stderr) = child.stderr.take() {
-            tokio::spawn(drain_pipe(BufReader::new(stderr)));
+            tokio::spawn(drain_pipe(
+                BufReader::new(stderr),
+                self.line_sink.get().cloned(),
+            ));
         }
         Ok(child)
     }
@@ -708,12 +737,16 @@ pub(crate) fn pick_free_port() -> Result<u16, LlamaServerError> {
     Ok(port)
 }
 
-/// Forward a child pipe line-by-line into the daemon's tracing log.
+/// Forward a child pipe line-by-line into the daemon's tracing log, and into
+/// `sink`, the logs of the compatible server, when there is one.
 ///
 /// Uses lossy UTF-8 decoding and never stops on a decode error (llama.cpp can
 /// emit non-UTF-8 bytes): a stalled drain would fill the OS pipe buffer and
 /// block the server. Stops only on EOF or a read error (process gone).
-async fn drain_pipe<R: AsyncBufRead + Unpin>(mut reader: R) {
+pub(crate) async fn drain_pipe<R: AsyncBufRead + Unpin>(
+    mut reader: R,
+    sink: Option<crate::compat_server::ServerLogsHandle>,
+) {
     let mut buf = Vec::with_capacity(256);
     loop {
         buf.clear();
@@ -723,6 +756,9 @@ async fn drain_pipe<R: AsyncBufRead + Unpin>(mut reader: R) {
                 let line = String::from_utf8_lossy(&buf);
                 let line = line.trim_end_matches(['\r', '\n']);
                 tracing::info!(target: "llama-server", line = %line, "llama.server.line");
+                if let Some(sink) = &sink {
+                    sink.engine_line(line);
+                }
                 // The placement facts are the lines an operator needs when the
                 // default filter drops the target above: where the model
                 // loaded, and how much of it.
@@ -770,6 +806,7 @@ mod test_support {
             embedding: Mutex::new(None),
             config_file: None,
             imposed: apollia_core::config::PolicySettings::none(),
+            line_sink: std::sync::OnceLock::new(),
         }
     }
 
@@ -825,6 +862,20 @@ mod test_support {
                 let instance = live_instance(&sup, model, 9001 + offset).await;
                 sup.instances.lock().await.push(instance);
             }
+            Arc::new(sup)
+        }
+
+        /// A supervisor launching `bin`, reading the presets of the
+        /// `system.db` and the guardrail of the `apollia.toml` in `dir`, with
+        /// nothing resident, for the route tests that load by hand.
+        pub(crate) fn with_engine_in_dir_for_test(
+            bin: PathBuf,
+            dir: &std::path::Path,
+        ) -> Arc<Self> {
+            let mut sup = supervisor_with_ceiling(1);
+            sup.bin_path = bin;
+            sup.system_db = Some(dir.join("system.db"));
+            sup.config_file = Some(dir.join("apollia.toml"));
             Arc::new(sup)
         }
 
@@ -967,7 +1018,7 @@ mod tests {
         let collected = sup.take_dead_instances().await;
 
         assert_eq!(collected.len(), 1);
-        assert_eq!(collected[0].0, "/models/dead.gguf");
+        assert_eq!(collected[0].0 .0, "/models/dead.gguf");
         let instances = sup.instances.lock().await;
         assert_eq!(instances.len(), 1);
         assert_eq!(instances[0].model_path, "/models/live.gguf");

@@ -7,7 +7,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use apollia_core::AgentManifest;
-use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_runtime::api::routes_agents::AgentLoader;
 use apollia_tools::ToolCredentialStore;
 
@@ -96,8 +95,7 @@ fn open_secret_store(data_dir: &Path) -> Option<Arc<std::sync::Mutex<ToolCredent
     if !db_path.exists() {
         return None;
     }
-    let keyfile_path = data_dir.join(".keyfile");
-    match ToolCredentialStore::new(&db_path, &keyfile_path) {
+    match ToolCredentialStore::open(&db_path) {
         Ok(store) => Some(Arc::new(std::sync::Mutex::new(store))),
         Err(e) => {
             tracing::warn!(
@@ -121,22 +119,4 @@ fn merge_disabled(static_disabled: &[String], mut runtime_disabled: Vec<String>)
         }
     }
     runtime_disabled
-}
-
-/// Flattens a [`UserMemoryRepository`] into the `{"profile": [(k, v), ...]}`
-/// shape consumed by `RuntimeContext.user_context`. Returns `None` for an empty
-/// repo so chat-mode agents see no profile rather than an empty object.
-fn build_user_context_from_repo(
-    repo: &UserMemoryRepository,
-) -> Option<std::collections::HashMap<String, Vec<(String, String)>>> {
-    let entries = repo.list_all().unwrap_or_default();
-    if entries.is_empty() {
-        return None;
-    }
-    let mut map = std::collections::HashMap::new();
-    map.insert(
-        "profile".to_string(),
-        entries.into_iter().map(|e| (e.key, e.value)).collect(),
-    );
-    Some(map)
 }

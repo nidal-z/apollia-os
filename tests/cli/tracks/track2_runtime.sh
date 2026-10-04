@@ -52,6 +52,14 @@ check_content "model embeddings show (none set)" "keywords alone" "${Q[@]}" mode
 check_exit    "model embeddings set-default (chat model) → 1" 1 "${Q[@]}" model embeddings set-default qwen3-8b
 check_content "model embeddings set-default" "multilingual-e5-small" "${Q[@]}" model embeddings set-default multilingual-e5-small
 check_json    "model embeddings show --json"       "${Q[@]}" model embeddings show --json
+# The registry of sources: a folder is added, listed and removed by its
+# identifier; a mailbox without a reference is refused with 1.
+check_exit    "source create mail without reference → 1" 1 "${Q[@]}" source create --kind mail --label Inbox
+SRCID=$("${Q[@]}" -q source create --kind folder --label E2E-Contracts --reference conn-e2e 2>/dev/null)
+check_content "source list shows the folder" "E2E-Contracts" "${Q[@]}" source list
+check_json    "source list --json"                 "${Q[@]}" source list --json
+check_exit    "source delete the folder → 0" 0     "${Q[@]}" source delete "$SRCID" --confirm
+check_exit    "source delete again → 1"      1     "${Q[@]}" source delete "$SRCID" --confirm
 check         "digest --since 24h"                 "${Q[@]}" digest --since 24h
 check_json    "digest --json"                      "${Q[@]}" digest --since 24h --json
 
@@ -392,5 +400,10 @@ check            "package trust remove --confirm"   "${Q[@]}" package trust remo
 check_exit       "package trust remove (unknown) → 1" 1 "${Q[@]}" package trust remove "$RFP" --confirm
 check_exit       "package trust import (not a key) → 1" 1 "${Q[@]}" package trust import "not-a-key" --label "X"
 check            "audit verify (installation journaled)" "${Q[@]}" audit verify
+# The uninstall goes through the runtime too: the package and its history go,
+# the journal records it, and a second uninstall finds nothing.
+check_json_field "agent package uninstall: history erased" "d['name']+'/'+str(d['historyCleared'])" "e2e-runtime-pkg/True" "${Q[@]}" agent package uninstall e2e-runtime-pkg --clear-history --confirm --json
+check_exit       "agent package uninstall (already gone) → 1" 1 "${Q[@]}" agent package uninstall e2e-runtime-pkg --confirm
+check            "audit verify (uninstallation journaled)" "${Q[@]}" audit verify
 e2e_sqlite "$HOME/.apollia/agents.db" "DELETE FROM package_items WHERE package_name = 'e2e-runtime-pkg'; DELETE FROM installed_packages WHERE name = 'e2e-runtime-pkg';" >/dev/null 2>&1 || true
 /bin/rm -rf "$HOME/.apollia/agents/packages/e2e-runtime-pkg"

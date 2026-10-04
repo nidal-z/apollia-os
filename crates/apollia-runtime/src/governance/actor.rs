@@ -55,30 +55,6 @@ pub struct GovernanceSources {
     pub journal: Option<AuditJournalHandle>,
 }
 
-impl GovernanceSources {
-    /// The sources of a runtime booted on `data_dir`: its `governance.db`, and
-    /// the configuration file it was started with, else the one in `data_dir`.
-    pub(crate) fn at_boot(
-        data_dir: &std::path::Path,
-        config_path: Option<&std::path::Path>,
-        policy: Arc<PolicyVerdict>,
-        journal: Option<AuditJournalHandle>,
-    ) -> Self {
-        let config_path = config_path.map_or_else(
-            || data_dir.join(apollia_core::paths::CONFIG_FILE_NAME),
-            std::path::Path::to_path_buf,
-        );
-        Self {
-            governance_db: Some(
-                data_dir.join(apollia_core::paths::DataFile::Governance.file_name()),
-            ),
-            config_path: Some(config_path),
-            policy,
-            journal,
-        }
-    }
-}
-
 /// Errors of a write through the governance actor.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]

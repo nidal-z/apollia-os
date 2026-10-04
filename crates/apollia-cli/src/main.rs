@@ -41,6 +41,7 @@ use commands::permissions::PermissionsCommand;
 use commands::policy::PolicyCommand;
 use commands::project::ProjectCommand;
 use commands::resilience::ResilienceCommand;
+use commands::source::SourceCommand;
 use commands::stt::SttCommand;
 use commands::task::TaskCommand;
 use commands::tools::ToolsCommand;
@@ -95,7 +96,7 @@ struct Cli {
 enum Commands {
     /// Start the runtime in foreground.
     Start {
-        /// TCP port to listen on (default: 7771).
+        /// TCP port to listen on; overrides `[api].port` (default: 7771).
         #[arg(long, value_name = "PORT")]
         port: Option<u16>,
         /// Configuration file to load instead of `~/.apollia/apollia.toml`.
@@ -238,6 +239,12 @@ enum Commands {
         /// Model subcommand.
         #[command(subcommand)]
         command: ModelCommand,
+    },
+
+    /// Sources an agent may consult once checked (list, create, delete).
+    Source {
+        #[command(subcommand)]
+        command: SourceCommand,
     },
 
     /// Trigger management (list, status, fire, enable, disable, logs, reload, create, update, delete).
@@ -614,29 +621,11 @@ async fn run_run(dispatch: RunDispatch) -> i32 {
     .await
 }
 
-/// Run the embedded MCP server, mapping its result to an exit code.
 /// Print a "did you mean" hint when an unknown top-level command is typed.
 fn maybe_suggest_command(err: &clap::Error) {
-    use clap::error::ErrorKind;
-    if !matches!(
-        err.kind(),
-        ErrorKind::InvalidSubcommand | ErrorKind::UnknownArgument
-    ) {
-        return;
-    }
-    // First positional argument after the binary name.
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let Some(bad) = args.iter().find(|a| !a.starts_with('-')) else {
-        return;
-    };
     let cmd = Cli::command();
     let names: Vec<&str> = cmd.get_subcommands().map(clap::Command::get_name).collect();
-    if names.contains(&bad.as_str()) {
-        return;
-    }
-    if let Some(sugg) = commands::suggest::nearest(bad, &names, 3) {
-        eprintln!("apollia-os: unknown command `{bad}`. Did you mean `{sugg}`?");
-    }
+    commands::suggest::hint_unknown_command(err, &names);
 }
 
 fn main() {
@@ -717,6 +706,7 @@ fn main() {
             Commands::Memory { command } => commands::memory::run_and_print(&command, json),
             Commands::Llm { command } => commands::llm::run(&command, cli.socket, json).await,
             Commands::Model { command } => commands::model::run(&command, cli.socket, json).await,
+            Commands::Source { command } => commands::source::run(&command, cli.socket, json).await,
             Commands::Trigger { command } => {
                 commands::trigger::run(&command, cli.socket, json).await
             }
@@ -1432,7 +1422,7 @@ mod tests {
         // THEN Commands::Agent { command: AgentCommand::Uninstall { name } }
         match &cli.command {
             Commands::Agent { command } => match command {
-                AgentCommand::Uninstall { name, confirm } => {
+                AgentCommand::Uninstall { name, confirm, .. } => {
                     assert_eq!(name, "mon-agent");
                     assert!(!confirm, "the confirmation is opt-in, never the default");
                 }
@@ -1451,7 +1441,7 @@ mod tests {
         // THEN the flag is carried on the variant
         match &cli.command {
             Commands::Agent { command } => match command {
-                AgentCommand::Uninstall { name, confirm } => {
+                AgentCommand::Uninstall { name, confirm, .. } => {
                     assert_eq!(name, "mon-agent");
                     assert!(confirm);
                 }

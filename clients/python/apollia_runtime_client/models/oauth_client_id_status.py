@@ -21,8 +21,9 @@ class OauthClientIdStatus:
     a key, only their presence.
 
         Attributes:
-            api_key_source (str): Source for the resolved API key. Same semantics as `source`.
-            client_secret_source (str): Same source semantics as `source` but for the secret.
+            api_key_source (str): Source for the resolved API key. Same semantics as `client_secret_source`.
+            client_secret_source (str): Source of the secret: `"env"`, `"store"` (the secret store), `"builtin"`, or
+                `"none"`.
             effective_client_id (str): Effective client id used at runtime. Empty string when no source is configured.
             has_api_key (bool): True when an API key resolves through any source. Google Picker needs
                 one; Microsoft entries leave this false.

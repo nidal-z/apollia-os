@@ -26,6 +26,7 @@ pub mod events;
 pub mod hitl_payload;
 pub mod hitl_request;
 pub mod inference_server;
+pub mod last_loaded_model;
 pub mod llm_backend;
 pub mod manifest;
 pub mod mcp_health;
@@ -47,6 +48,7 @@ pub mod schema;
 pub mod security_posture;
 pub mod server_token;
 pub mod session_metrics;
+pub mod source_registry;
 pub mod stt_config;
 pub mod subprocess_env;
 pub mod subprocess_window;
@@ -82,6 +84,7 @@ pub use hitl_payload::{
 };
 pub use hitl_request::{HitlRequest, ImpactLevel, RiskAnalysis};
 pub use inference_server::InferenceServer;
+pub use last_loaded_model::LastLoadedModel;
 pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
 pub use manifest::{
     AgentManifest, AgentModelDefaults, AgentSkill, MemoryConfig, PackageRequestSettings,
@@ -107,6 +110,9 @@ pub use sandbox::SandboxProfile;
 pub use security_posture::{AgentExecution, SecurityPosture, ToolSandbox};
 pub use session_metrics::{
     BudgetAlertLevel, SessionMetrics, SessionThresholds, SummarizationEvent, ToolTiming,
+};
+pub use source_registry::{
+    IndexState, NewSource, Source, SourceKind, SourceRegistryError, SourceRegistryStore,
 };
 pub use stt_config::{SttConfigError, SttConfigRepository, SttConfigRow};
 pub use task::{AIPInput, AIPMessage, AIPPart, AIPTask, DataPart, FilePart, RunOptions, TextPart};

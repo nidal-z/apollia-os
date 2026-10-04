@@ -13,41 +13,13 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
 use crate::types::{
-    FileEventKind, InputTemplate, OnBusyPolicy, TriggerDefinition, TriggerSourceConfig,
+    FileEventKind, OnBusyPolicy, TriggerDefinition, TriggerSourceConfig, TriggerTarget,
 };
 use crate::validation;
 
-// --- Migration ---------------------------------------------------------------
+mod schema;
 
-/// Current schema version of the trigger-definition store.
-const TRIGGERS_SCHEMA_VERSION: u32 = 1;
-
-/// Numbered migration steps of the trigger-definition store.
-///
-/// Step `k` migrates the file from version `k` to `k + 1`; the list length
-/// always equals [`TRIGGERS_SCHEMA_VERSION`].
-const TRIGGERS_MIGRATIONS: &[apollia_core::schema::Migration] = &[migrate_v1];
-
-/// v1: the pre-versioning schema of the file, replayed idempotently.
-fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
-    conn.execute_batch(MIGRATION_008)
-}
-
-/// Idempotent migration for the `trigger_definitions` table.
-const MIGRATION_008: &str = "\
-CREATE TABLE IF NOT EXISTS trigger_definitions (
-    id              TEXT PRIMARY KEY,
-    agent           TEXT NOT NULL,
-    enabled         BOOLEAN NOT NULL DEFAULT 1,
-    on_busy         TEXT NOT NULL DEFAULT 'queue',
-    source_type     TEXT NOT NULL,
-    source_config   TEXT NOT NULL,
-    input_template  TEXT,
-    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    CHECK (on_busy IN ('queue', 'drop')),
-    CHECK (source_type IN ('cron', 'interval', 'oneshot', 'file_watch', 'webhook'))
-);";
+use schema::{TRIGGERS_MIGRATIONS, TRIGGERS_SCHEMA_VERSION};
 
 // --- Types -------------------------------------------------------------------
 
@@ -61,8 +33,15 @@ CREATE TABLE IF NOT EXISTS trigger_definitions (
 pub struct TriggerDefinitionRow {
     /// Unique trigger identifier (primary key).
     pub id: String,
-    /// Target agent.
+    /// Target agent, set for an agent target; exclusive with `workflow`.
     pub agent: Option<String>,
+    /// Target workflow, `<package>/<workflow>`; exclusive with `agent`.
+    #[serde(default)]
+    pub workflow: Option<String>,
+    /// For a workflow target, the JSON object of its input templates, one
+    /// string per field.
+    #[serde(default)]
+    pub workflow_inputs: Option<serde_json::Value>,
     /// Whether the trigger is active.
     pub enabled: bool,
     /// Behavior when the target agent is busy.
@@ -71,7 +50,7 @@ pub struct TriggerDefinitionRow {
     pub source_type: String,
     /// Source JSON configuration (structure depends on `source_type`).
     pub source_config: serde_json::Value,
-    /// Input message template (`{{variables}}` substitution).
+    /// The message of an agent target (`{{variables}}` substitution).
     pub input_template: Option<String>,
     /// Creation timestamp (ISO 8601, filled automatically).
     pub created_at: String,
@@ -107,6 +86,76 @@ impl OnBusy {
     }
 }
 
+/// The columns of a row that hold its target.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct TargetColumns {
+    /// The agent of an agent target.
+    pub agent: Option<String>,
+    /// The workflow of a workflow target.
+    pub workflow: Option<String>,
+    /// The input templates of a workflow target.
+    pub workflow_inputs: Option<serde_json::Value>,
+    /// The message of an agent target, `None` when empty.
+    pub input_template: Option<String>,
+}
+
+impl From<&TriggerTarget> for TargetColumns {
+    fn from(target: &TriggerTarget) -> Self {
+        match target {
+            TriggerTarget::Agent { agent, message } => Self {
+                agent: Some(agent.clone()),
+                input_template: (!message.0.is_empty()).then(|| message.0.clone()),
+                ..Self::default()
+            },
+            TriggerTarget::Workflow { workflow, inputs } => Self {
+                workflow: Some(workflow.clone()),
+                workflow_inputs: Some(serde_json::Value::Object(
+                    inputs
+                        .iter()
+                        .map(|(k, v)| (k.clone(), serde_json::Value::String(v.0.clone())))
+                        .collect(),
+                )),
+                ..Self::default()
+            },
+        }
+    }
+}
+
+impl TriggerDefinitionRow {
+    /// `"agent"` or `"workflow"`, as stored in `target_kind`.
+    pub fn target_kind(&self) -> &'static str {
+        if self.workflow.is_some() {
+            "workflow"
+        } else {
+            "agent"
+        }
+    }
+
+    /// The typed target this row describes.
+    ///
+    /// # Errors
+    ///
+    /// [`TriggerDefinitionError::ValidationError`] when a workflow input is
+    /// not a string.
+    pub fn target(&self) -> Result<TriggerTarget, TriggerDefinitionError> {
+        match &self.workflow {
+            Some(workflow) => Ok(TriggerTarget::Workflow {
+                workflow: workflow.clone(),
+                inputs: validation::workflow_input_templates(self.workflow_inputs.as_ref())?,
+            }),
+            None => Ok(TriggerTarget::agent(
+                self.agent.clone().unwrap_or_default(),
+                self.input_template.clone().unwrap_or_default(),
+            )),
+        }
+    }
+
+    /// `workflow_inputs` as stored: JSON text, `NULL` for an agent target.
+    fn workflow_inputs_sql(&self) -> Option<String> {
+        self.workflow_inputs.as_ref().map(|v| v.to_string())
+    }
+}
+
 // --- Conversion Row -> TriggerDefinition -------------------------------------
 
 impl TryFrom<TriggerDefinitionRow> for TriggerDefinition {
@@ -124,13 +173,13 @@ impl TryFrom<TriggerDefinitionRow> for TriggerDefinition {
             },
             OnBusy::Drop => OnBusyPolicy::Skip,
         };
+        let target = row.target()?;
         Ok(TriggerDefinition {
             id: row.id,
-            agent: row.agent.unwrap_or_default(),
+            target,
             enabled: row.enabled,
             on_busy,
             source,
-            input_template: InputTemplate(row.input_template.unwrap_or_default()),
         })
     }
 }
@@ -293,11 +342,15 @@ impl TriggerDefinitionRepository {
         self.conn
             .execute(
                 "INSERT INTO trigger_definitions \
-                 (id, agent, enabled, on_busy, source_type, source_config, input_template) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                 (id, target_kind, agent, workflow, workflow_inputs, enabled, on_busy, \
+                  source_type, source_config, input_template) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 params![
                     def.id,
+                    def.target_kind(),
                     def.agent,
+                    def.workflow,
+                    def.workflow_inputs_sql(),
                     def.enabled,
                     def.on_busy.as_sql(),
                     def.source_type,
@@ -336,12 +389,16 @@ impl TriggerDefinitionRepository {
 
         let rows = self.conn.execute(
             "UPDATE trigger_definitions \
-             SET agent = ?1, enabled = ?2, on_busy = ?3, \
-                 source_type = ?4, source_config = ?5, input_template = ?6, \
+             SET target_kind = ?1, agent = ?2, workflow = ?3, workflow_inputs = ?4, \
+                 enabled = ?5, on_busy = ?6, \
+                 source_type = ?7, source_config = ?8, input_template = ?9, \
                  updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \
-             WHERE id = ?7",
+             WHERE id = ?10",
             params![
+                def.target_kind(),
                 def.agent,
+                def.workflow,
+                def.workflow_inputs_sql(),
                 def.enabled,
                 def.on_busy.as_sql(),
                 def.source_type,
@@ -379,7 +436,8 @@ impl TriggerDefinitionRepository {
     pub fn get(&self, id: &str) -> Result<Option<TriggerDefinitionRow>, TriggerDefinitionError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, agent, enabled, on_busy, source_type, \
-                    source_config, input_template, created_at, updated_at \
+                    source_config, input_template, created_at, updated_at, \
+                    workflow, workflow_inputs \
              FROM trigger_definitions WHERE id = ?1",
         )?;
 
@@ -394,7 +452,8 @@ impl TriggerDefinitionRepository {
     pub fn list(&self) -> Result<Vec<TriggerDefinitionRow>, TriggerDefinitionError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, agent, enabled, on_busy, source_type, \
-                    source_config, input_template, created_at, updated_at \
+                    source_config, input_template, created_at, updated_at, \
+                    workflow, workflow_inputs \
              FROM trigger_definitions ORDER BY id",
         )?;
 
@@ -412,7 +471,7 @@ impl TriggerDefinitionRepository {
 /// The stored `source_config` is handed back in the form the runtime readers
 /// accept verbatim, through [`validation::normalized_source_config`]. The write
 /// path normalizes a cron schedule before storing it, but nothing rewrites the
-/// rows persisted before it did: `MIGRATION_008` creates the table and no
+/// rows persisted before it did: the schema creates the table and no
 /// statement updates `source_config` outside [`TriggerDefinitionRepository::update`].
 /// Such a row keeps its 5-field expression, which `sources/cron.rs` refuses,
 /// so the trigger stays listed, with a readable schedule, and never fires. The
@@ -434,9 +493,24 @@ fn row_to_definition(row: &rusqlite::Row) -> rusqlite::Result<TriggerDefinitionR
     let source_config =
         validation::normalized_source_config(&source_type, &stored_config).unwrap_or(stored_config);
 
+    let workflow_inputs = row
+        .get::<_, Option<String>>(10)?
+        .map(|text| {
+            serde_json::from_str::<serde_json::Value>(&text).map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    10,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })
+        })
+        .transpose()?;
+
     Ok(TriggerDefinitionRow {
         id: row.get(0)?,
         agent: row.get(1)?,
+        workflow: row.get(9)?,
+        workflow_inputs,
         enabled: row.get(2)?,
         on_busy: OnBusy::from_sql(&on_busy_str),
         source_type,
@@ -481,6 +555,8 @@ mod tests {
         TriggerDefinitionRow {
             id: id.to_string(),
             agent: Some(agent.to_string()),
+            workflow: None,
+            workflow_inputs: None,
             enabled: true,
             on_busy: OnBusy::Queue,
             source_type: "cron".to_string(),
@@ -704,6 +780,8 @@ mod tests {
         let def_no_agent = TriggerDefinitionRow {
             id: "test-no-agent".to_string(),
             agent: None,
+            workflow: None,
+            workflow_inputs: None,
             enabled: true,
             on_busy: OnBusy::Queue,
             source_type: "cron".to_string(),
@@ -724,6 +802,8 @@ mod tests {
         let def_empty_agent = TriggerDefinitionRow {
             id: "test-empty-agent".to_string(),
             agent: Some(String::new()),
+            workflow: None,
+            workflow_inputs: None,
             enabled: true,
             on_busy: OnBusy::Queue,
             source_type: "cron".to_string(),
@@ -749,6 +829,8 @@ mod tests {
         let def = TriggerDefinitionRow {
             id: "webhook-short".to_string(),
             agent: Some("agent".to_string()),
+            workflow: None,
+            workflow_inputs: None,
             enabled: true,
             on_busy: OnBusy::Queue,
             source_type: "webhook".to_string(),
@@ -808,6 +890,8 @@ mod tests {
         let def = TriggerDefinitionRow {
             id: "webhook-valid".to_string(),
             agent: Some("agent".to_string()),
+            workflow: None,
+            workflow_inputs: None,
             enabled: true,
             on_busy: OnBusy::Queue,
             source_type: "webhook".to_string(),

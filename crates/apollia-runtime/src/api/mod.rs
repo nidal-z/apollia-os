@@ -4,6 +4,7 @@
 
 pub mod middleware;
 pub mod openapi;
+mod port_file;
 pub mod routes_a2a;
 pub mod routes_agent_definitions;
 pub mod routes_agent_packages;
@@ -45,6 +46,7 @@ pub mod routes_profile;
 pub mod routes_resilience;
 pub mod routes_review;
 pub mod routes_server;
+pub mod routes_sources;
 pub mod routes_sse;
 pub mod routes_stt;
 pub mod routes_tasks;
@@ -74,6 +76,7 @@ mod tls_test_material;
 pub(crate) mod test_support;
 
 pub use middleware::{load_or_generate_token, AuthError, TokenAuthLayer, TokenFileError};
+pub use port_file::{read_port_file, remove_port_file, write_port_file};
 pub use server::{
     APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState, PRODUCT_MARKER,
 };

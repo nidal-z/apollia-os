@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use apollia_core::{PendingApprovals, SttConfigRepository, ToolsConfig};
 use apollia_llm::LlmRouter;
-use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_runtime::api::routes_agents::AgentBackendFactory;
 use apollia_runtime::coordinator::DynBackend;
 use apollia_runtime::embedded::{EmbeddedConfig, RuntimeHandle};
@@ -31,11 +30,36 @@ use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository, ToolRegis
 /// by the supervisor's TOML-to-`system.db` migration, resurrecting a backend
 /// the user never configured.
 ///
-/// Returns the config unchanged if no file is found.
+/// On a first start the file is absent: the documented default file is
+/// written first, every key commented at its default, then read like any
+/// other. An existing file is never written over.
+///
+/// Returns the config unchanged if no file can be found or written.
 pub(crate) fn load_toml_config(config: EmbeddedConfig) -> EmbeddedConfig {
-    let Some(path) = apollia_core::paths::config_file().filter(|p| p.exists()) else {
+    let Some(path) = apollia_core::paths::config_file() else {
         return config;
     };
+    load_toml_config_at(config, &path)
+}
+
+/// [`load_toml_config`] at an explicit location, for a test under a
+/// throwaway home.
+pub(crate) fn load_toml_config_at(
+    config: EmbeddedConfig,
+    path: &std::path::Path,
+) -> EmbeddedConfig {
+    if let Err(e) = apollia_core::config::write_default_file_if_absent(path) {
+        tracing::warn!(
+            path = %path.display(),
+            error = %e,
+            detail = "starting with the defaults",
+            "config.default_file.write_failed"
+        );
+    }
+    if !path.exists() {
+        return config;
+    }
+    let path = path.to_path_buf();
     match std::fs::read_to_string(&path) {
         Ok(content) => {
             let mut updated = config.apply_toml(&content);
@@ -224,7 +248,6 @@ pub(crate) struct RuntimeLocks<'a> {
     pub(crate) agent_registry: &'a std::sync::OnceLock<AgentRegistryHandle>,
     pub(crate) task_router: &'a std::sync::OnceLock<TaskRouterHandle<DynBackend>>,
     pub(crate) mailbox_handle: &'a std::sync::OnceLock<AgentMailboxHandle>,
-    pub(crate) user_memory: &'a std::sync::OnceLock<Arc<std::sync::Mutex<UserMemoryRepository>>>,
     pub(crate) tools_config: &'a std::sync::OnceLock<ToolsConfig>,
 }
 
@@ -232,7 +255,7 @@ pub(crate) struct RuntimeLocks<'a> {
 ///
 /// Required for parity between Chat Libre, Chat Agent, and task-mode flows.
 /// Without these, Python agents in non-chat-libre flows lose `ctx.a2a_invoke`,
-/// `ctx.mailbox`, `ctx.user_context`, and apollia.toml's `[tools]` overrides.
+/// `ctx.mailbox`, and apollia.toml's `[tools]` overrides.
 pub(crate) fn populate_runtime_locks(runtime_handle: &RuntimeHandle, locks: RuntimeLocks<'_>) {
     let _ = locks.event_bus.set(runtime_handle.event_sender.clone());
     *locks
@@ -263,9 +286,6 @@ pub(crate) fn populate_runtime_locks(runtime_handle: &RuntimeHandle, locks: Runt
     let _ = locks.task_router.set(runtime_handle.router_handle.clone());
     if let Some(mailbox) = runtime_handle.mailbox_handle.clone() {
         let _ = locks.mailbox_handle.set(mailbox);
-    }
-    if let Some(um) = runtime_handle.user_memory.clone() {
-        let _ = locks.user_memory.set(um);
     }
     let _ = locks.tools_config.set(runtime_handle.tools_config.clone());
 }
@@ -491,5 +511,44 @@ pub(crate) fn or_exit<T, E: std::fmt::Display>(result: Result<T, E>, step: &str)
             tracing::error!(error = %error, step = %step, "desktop.startup.failed");
             std::process::exit(1);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_first_start_of_the_application_writes_the_default_file() {
+        // GIVEN a home with no data folder
+        let home = tempfile::tempdir().unwrap();
+        let path = apollia_core::paths::config_file_under(home.path());
+
+        // WHEN the application reads its configuration
+        let config = load_toml_config_at(EmbeddedConfig::default(), &path);
+
+        // THEN the documented default file exists, and it is the file read
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.starts_with("# apollia.toml, the configuration of Apollia OS."));
+        assert_eq!(config.config_path.as_deref(), Some(path.as_path()));
+        assert!(config.config_diagnostics.is_empty());
+    }
+
+    #[test]
+    fn a_start_over_an_existing_file_leaves_its_bytes() {
+        // GIVEN a configuration the user wrote
+        let home = tempfile::tempdir().unwrap();
+        let path = apollia_core::paths::config_file_under(home.path());
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "[hitl]\nscan_interval_secs = 30\n").unwrap();
+
+        // WHEN the application reads its configuration
+        let _ = load_toml_config_at(EmbeddedConfig::default(), &path);
+
+        // THEN its bytes are unchanged
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "[hitl]\nscan_interval_secs = 30\n"
+        );
     }
 }

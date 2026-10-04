@@ -12,17 +12,18 @@ use apollia_runtime::on_demand::{BackendLoader, OnDemandBackend};
 use super::factory::find_config_file;
 use super::StartError;
 
-/// Locates and parses `apollia.toml` if present, validating the `[tools]`,
-/// `[mcp]`, and `[hooks]` sections. Returns the parsed config and its path, or
-/// `(None, None)` when no config file is found (defaults are then used by the
-/// caller).
+/// Locates and parses `apollia.toml`, through the shared validation of
+/// `apollia-core`. On a first start, without `--config`, the default file is
+/// written at `~/.apollia/apollia.toml` first. Returns the parsed config and its
+/// path, or `(None, None)` when no file could be read or written (defaults are
+/// then used by the caller).
 ///
 /// `explicit` is the path given with `--config`; it must exist. Without it the
 /// file is `~/.apollia/apollia.toml`. A file left at a former location is
 /// never read: it is named by a `config.legacy_location.ignored` warning.
 pub(super) fn load_start_config(
     explicit: Option<&Path>,
-) -> Result<(Option<crate::config::ApolliaCConfig>, Option<PathBuf>), StartError> {
+) -> Result<(Option<crate::config::ApolliaConfig>, Option<PathBuf>), StartError> {
     let legacy = crate::config_location::legacy_files_here();
     let canonical = crate::config_location::resolve(None);
     load_start_config_from(explicit, find_config_file(), &canonical, &legacy)
@@ -35,7 +36,7 @@ pub(super) fn load_start_config_from(
     canonical_if_present: Option<PathBuf>,
     canonical: &Path,
     legacy: &[PathBuf],
-) -> Result<(Option<crate::config::ApolliaCConfig>, Option<PathBuf>), StartError> {
+) -> Result<(Option<crate::config::ApolliaConfig>, Option<PathBuf>), StartError> {
     crate::config_location::warn_legacy_files(legacy, explicit, canonical);
     let found = match explicit {
         Some(p) if !p.is_file() => {
@@ -45,42 +46,52 @@ pub(super) fn load_start_config_from(
             });
         }
         Some(p) => Some(p.to_path_buf()),
-        None => canonical_if_present,
+        None => canonical_if_present.or_else(|| write_default_file(canonical)),
     };
     let Some(path) = found else {
         tracing::info!(detail = "starting with the defaults", "config.file.absent");
         return Ok((None, None));
     };
     tracing::info!(config = %path.display(), "config.loading");
+    // One validation for every surface: unknown keys, wrong types and values
+    // out of their section's bounds are all refused here, each at its line
+    // (principle 4). Withdrawn keys only warn.
     let cfg = crate::config::parse_apollia_toml(&path).map_err(|e| StartError::Config {
         path: path.clone(),
-        reason: e.to_string(),
+        reason: match e {
+            crate::config::ConfigError::Invalid(diagnostics) => diagnostics
+                .iter()
+                .map(|d| format!("\n  {}:{d}", path.display()))
+                .collect(),
+            other => other.to_string(),
+        },
     })?;
-    if let Some(tools) = cfg.tools.as_ref() {
-        tools.validate().map_err(|e| StartError::Config {
-            path: path.clone(),
-            reason: e.to_string(),
-        })?;
-    }
-    if let Some(mcp) = cfg.mcp.as_ref() {
-        mcp.validate().map_err(|e| StartError::Config {
-            path: path.clone(),
-            reason: e.to_string(),
-        })?;
-    }
-    if let Some(hooks) = cfg.hooks.as_ref() {
-        hooks.validate().map_err(|e| StartError::Config {
-            path: path.clone(),
-            reason: e.to_string(),
-        })?;
-    }
-    if let Some(workflows) = cfg.workflows.as_ref() {
-        workflows.validate().map_err(|e| StartError::Config {
-            path: path.clone(),
-            reason: e.to_string(),
-        })?;
-    }
     Ok((Some(cfg), Some(path)))
+}
+
+/// Writes the default `apollia.toml` at the canonical location on a first
+/// start, and returns it to be loaded. A failure to write leaves the start on
+/// the defaults, as before the file existed.
+fn write_default_file(canonical: &Path) -> Option<PathBuf> {
+    match apollia_core::config::write_default_file_if_absent(canonical) {
+        Ok(_) => Some(canonical.to_path_buf()).filter(|p| p.is_file()),
+        Err(e) => {
+            tracing::warn!(
+                path = %canonical.display(),
+                error = %e,
+                detail = "starting with the defaults",
+                "config.default_file.write_failed"
+            );
+            None
+        }
+    }
+}
+
+/// The TCP port the daemon listens on: `--port`, then `[api].port`, then
+/// [`DEFAULT_API_PORT`](apollia_core::config::DEFAULT_API_PORT), which is the
+/// default of `[api].port` when the file or the section is absent.
+pub(super) fn resolve_tcp_port(flag: Option<u16>, api: &apollia_core::ApiConfig) -> u16 {
+    flag.unwrap_or(api.port)
 }
 
 /// Populates a shared `OnceLock` from an optional value, ignoring the result

@@ -9,41 +9,19 @@
 
 use axum::body::Body;
 use axum::extract::{Request, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::HeaderMap;
 use axum::middleware::Next;
-use axum::response::{IntoResponse, Response};
-use axum::Json;
-use serde::Serialize;
+use axum::response::Response;
 
-use super::router::{OpenAiError, OpenAiErrorBody};
+use super::errors::{error_response, ErrorKind, Family};
 use super::tokens::ServerTokensHandle;
 
 const REFUSAL: &str = "Missing or invalid token. Create one in Apollia and send it in the \
                        Authorization header as a Bearer token, or in the x-api-key header.";
 
-/// The error envelope of the Anthropic API.
-#[derive(Debug, Serialize)]
-struct AnthropicErrorBody {
-    #[serde(rename = "type")]
-    kind: &'static str,
-    error: AnthropicError,
-}
-
-#[derive(Debug, Serialize)]
-struct AnthropicError {
-    #[serde(rename = "type")]
-    kind: &'static str,
-    message: &'static str,
-}
-
-/// Whether `path` is an endpoint of the Anthropic format.
-fn is_anthropic_path(path: &str) -> bool {
-    path == "/v1/messages" || path.starts_with("/v1/messages/")
-}
-
 /// The token a request presents: the `Authorization: Bearer` value first,
 /// then `x-api-key`.
-fn presented_token(headers: &HeaderMap) -> Option<String> {
+pub(super) fn presented_token(headers: &HeaderMap) -> Option<String> {
     let bearer = headers
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
@@ -60,30 +38,17 @@ fn presented_token(headers: &HeaderMap) -> Option<String> {
 
 /// The 401 answer, in the format of the endpoint `path` names.
 fn unauthorized(path: &str) -> Response {
-    if is_anthropic_path(path) {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(AnthropicErrorBody {
-                kind: "error",
-                error: AnthropicError {
-                    kind: "authentication_error",
-                    message: REFUSAL,
-                },
-            }),
-        )
-            .into_response();
-    }
-    (
-        StatusCode::UNAUTHORIZED,
-        Json(OpenAiErrorBody {
-            error: OpenAiError {
-                message: REFUSAL.to_owned(),
-                kind: "invalid_request_error",
-                code: "invalid_api_key",
-            },
-        }),
+    unauthorized_with(path, REFUSAL)
+}
+
+/// The 401 answer carrying `message`, in the format of the endpoint `path`
+/// names.
+pub(super) fn unauthorized_with(path: &str, message: &'static str) -> Response {
+    error_response(
+        Family::of_path(path),
+        ErrorKind::Unauthorized,
+        message.to_owned(),
     )
-        .into_response()
 }
 
 /// Lets through a request that presents a token in use, and answers 401 to
@@ -128,16 +93,5 @@ mod tests {
         // THEN the bearer is taken first, and x-api-key on its own
         assert_eq!(from_both.as_deref(), Some("apo_first"));
         assert_eq!(from_key.as_deref(), Some("apo_second"));
-    }
-
-    #[test]
-    fn test_only_the_messages_endpoint_reads_as_anthropic() {
-        // GIVEN the Anthropic endpoint and an OpenAI one
-        // WHEN each is classified
-        // THEN only the first is Anthropic's
-        assert!(is_anthropic_path("/v1/messages"));
-        assert!(is_anthropic_path("/v1/messages/count_tokens"));
-        assert!(!is_anthropic_path("/v1/chat/completions"));
-        assert!(!is_anthropic_path("/v1/messagesx"));
     }
 }

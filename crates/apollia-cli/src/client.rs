@@ -6,7 +6,7 @@
 //!
 //! On **Windows**: a named pipe, `\\.\pipe\apollia-runtime-<user>`. It plays
 //! the role the socket plays elsewhere. This used to be a TCP connection to
-//! `127.0.0.1:DEFAULT_TCP_PORT`, which obliged the runtime to hold a listening
+//! the native API port, which obliged the runtime to hold a listening
 //! port open for the CLI alone; the pipe removes it. Access control differs
 //! between the two: the socket is unauthenticated behind `0o600`, the pipe
 //! takes a default security descriptor and is guarded by the bearer token this
@@ -85,9 +85,6 @@ async fn connect_runtime(_socket_path: &Path) -> std::io::Result<RuntimeStream> 
 pub fn default_socket_path() -> PathBuf {
     apollia_core::paths::socket_path_or_temp()
 }
-
-/// Default TCP port for the Apollia runtime.
-pub const DEFAULT_TCP_PORT: u16 = 7771;
 
 /// Parameters for [`RuntimeClient::authorize_tool`].
 ///
@@ -232,6 +229,8 @@ mod chat;
 mod integrations;
 mod packages;
 mod workflows;
+
+pub use agents::ExportedAgent;
 
 impl RuntimeClient {
     /// Create a new client targeting the given Unix socket path.
@@ -398,6 +397,17 @@ impl RuntimeClient {
         })
     }
 
+    /// Send a POST request with a JSON body and return the status, the
+    /// headers and the body as bytes, for an answer that is a file described
+    /// by its headers.
+    pub async fn post_for_file(
+        &self,
+        uri: &str,
+        body: &serde_json::Value,
+    ) -> Result<(u16, hyper::HeaderMap, Bytes), ClientError> {
+        self.request_parts("POST", uri, Some(body)).await
+    }
+
     /// Internal: send an HTTP request over Unix socket, the body kept as bytes.
     async fn request_bytes(
         &self,
@@ -405,6 +415,18 @@ impl RuntimeClient {
         uri: &str,
         body: Option<&serde_json::Value>,
     ) -> Result<(u16, Bytes), ClientError> {
+        let (status, _, body) = self.request_parts(method, uri, body).await?;
+        Ok((status, body))
+    }
+
+    /// Internal: send an HTTP request over Unix socket, the headers and the
+    /// body of the answer kept.
+    async fn request_parts(
+        &self,
+        method: &str,
+        uri: &str,
+        body: Option<&serde_json::Value>,
+    ) -> Result<(u16, hyper::HeaderMap, Bytes), ClientError> {
         let stream = connect_runtime(&self.socket_path).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound
                 || e.kind() == std::io::ErrorKind::ConnectionRefused
@@ -455,13 +477,14 @@ impl RuntimeClient {
             .map_err(|e| ClientError::Http(e.to_string()))?;
 
         let status = resp.status().as_u16();
+        let headers = resp.headers().clone();
         let body_bytes = resp
             .into_body()
             .collect()
             .await
             .map_err(|e| ClientError::Http(e.to_string()))?
             .to_bytes();
-        Ok((status, body_bytes))
+        Ok((status, headers, body_bytes))
     }
 }
 

@@ -1,0 +1,20 @@
+[package]
+name = "apollia-sources"
+version = "0.2.0-preview"
+edition.workspace = true
+rust-version.workspace = true
+description = "Apollia OS - the sources an agent may consult: the registry and the actor that owns it"
+license.workspace = true
+
+[dependencies]
+apollia-core = { workspace = true }
+thiserror    = { workspace = true }
+tokio        = { workspace = true }
+tracing      = { workspace = true }
+
+[dev-dependencies]
+rusqlite = { workspace = true }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true
