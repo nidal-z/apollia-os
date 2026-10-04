@@ -22,6 +22,7 @@ mod security;
 use axum::Json;
 use utoipa::OpenApi;
 
+use super::openapi_local_models::LocalModels;
 pub use bodies::{ApiErrorBody, RawWebhookBody, TranscribeForm};
 use security::BearerToken;
 
@@ -36,7 +37,7 @@ use security::BearerToken;
         title = "Apollia OS Runtime API",
         description = "Host driving contract for the Apollia OS sovereign agent runtime. Stable under /api/v1; breaking changes ship under /api/v2."
     ),
-    modifiers(&BearerToken),
+    modifiers(&BearerToken, &LocalModels),
     security(("bearerAuth" = [])),
     tags(
         (name = "health", description = "Liveness and lifecycle"),
@@ -211,12 +212,6 @@ use security::BearerToken;
         crate::api::routes_llm::backends::delete_llm_backend,
         crate::api::routes_llm::backends::set_default_llm_backend,
         crate::api::routes_llm::backends::reload_llm_router,
-        crate::api::routes_llm::loaded::list_loaded_models,
-        crate::api::routes_llm::loaded::unload_loaded_model,
-        crate::api::routes_llm::load::estimate_model_load,
-        crate::api::routes_llm::load::load_model,
-        crate::api::routes_llm::load::get_last_loaded_model,
-        crate::api::routes_llm::load::reload_last_loaded_model,
         crate::api::routes_llm::servers::test_llm_server,
         crate::api::routes_llm::servers::list_llm_servers,
         crate::api::routes_llm::servers::create_llm_server,
@@ -577,22 +572,6 @@ use security::BearerToken;
         crate::api::routes_llm::backends::DeleteBackendResponse,
         crate::api::routes_llm::backends::SetDefaultResponse,
         crate::api::routes_llm::backends::ReloadRouterResponse,
-        crate::api::routes_llm::loaded::LoadedModelDto,
-        crate::llama_server::ModelKind,
-        crate::local_engine::guardrails::GuardrailRefusedBody,
-        crate::local_engine::guardrails::GuardrailLevel,
-        crate::api::routes_llm::loaded::LoadedModelsResponse,
-        crate::api::routes_llm::loaded::UnloadModelRequest,
-        crate::api::routes_llm::loaded::UnloadModelResponse,
-        crate::api::routes_llm::load::LoadModelRequest,
-        crate::api::routes_llm::load::ReloadLastRequest,
-        crate::api::routes_llm::load::FitDto,
-        crate::api::routes_llm::load::GuardrailVerdictDto,
-        crate::api::routes_llm::load::GuardrailCheckDto,
-        crate::api::routes_llm::load::MemoryEstimateDto,
-        crate::api::routes_llm::load::LoadEstimateResponse,
-        crate::api::routes_llm::load::LoadModelResponse,
-        crate::api::routes_llm::load::LastLoadedModelResponse,
         crate::api::routes_llm::servers::TestServerRequest,
         crate::api::routes_llm::servers::CreateServerRequest,
         crate::api::routes_llm::servers::ServerResponse,
