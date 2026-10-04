@@ -532,6 +532,11 @@ pub fn init_embedded(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedEr
     }
 }
 
+/// The interface the native API of an embedded runtime binds: the loopback
+/// one, always. Opening the compatible server to the local network
+/// (`[server] serve_on_lan`) never moves it.
+const EMBEDDED_API_BIND_ADDR: &str = "127.0.0.1";
+
 /// Internal: starts the Supervisor and waits for `AllReady`.
 async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedError> {
     let tcp_port = config.tcp_port;
@@ -547,7 +552,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
     let supervisor_config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: config.socket_path,
-            bind_addr: "127.0.0.1".to_owned(),
+            bind_addr: EMBEDDED_API_BIND_ADDR.to_owned(),
             tcp_port,
             tcp_listener: config.tcp_listener,
             api_token: config.api_token,
@@ -678,6 +683,17 @@ mod tests {
             apollia_core::paths::socket_path_under(apollia_core::paths::home_dir_or_temp())
         );
         assert_eq!(config.startup_timeout_secs, DEFAULT_STARTUP_TIMEOUT_SECS);
+    }
+
+    #[test]
+    fn test_the_native_api_of_an_embedded_runtime_stays_on_the_loopback_interface() {
+        // GIVEN the interface the embedded runtime gives its native API
+        // WHEN it is parsed
+        let ip: std::net::IpAddr = EMBEDDED_API_BIND_ADDR.parse().unwrap();
+
+        // THEN it is the loopback one: no setting of the compatible server
+        // reaches it
+        assert!(ip.is_loopback());
     }
 
     #[test]

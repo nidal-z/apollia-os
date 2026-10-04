@@ -3821,6 +3821,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/server/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/server/restart`: closes and reopens the compatible server so
+         *     it applies the `[server]` settings as they stand (port, local network,
+         *     token check). The native API is not reopened and keeps answering.
+         *     Restarting a stopped server changes nothing.
+         */
+        post: operations["restart_server"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/server/start": {
         parameters: {
             query?: never;
@@ -6178,6 +6200,11 @@ export interface components {
              * @description How many tokens of the server are in use (not revoked).
              */
             activeTokens: number;
+            /**
+             * @description The address a client copies: `http://127.0.0.1:<port>` on the machine
+             *     alone, `http://<IPv4 address on the local network>:<port>` otherwise.
+             */
+            address: string;
             /** @description Why the last start failed, cleared by the next successful start. */
             lastError?: string | null;
             /**
@@ -6187,6 +6214,11 @@ export interface components {
             port: number;
             /** @description Whether the listener is open. */
             running: boolean;
+            /**
+             * @description Whether it listens on every interface, reachable from the local
+             *     network, or the configured choice when it is stopped.
+             */
+            serveOnLan: boolean;
         };
         /** @description Body of `POST /api/v1/connectors/oauth/complete`. */
         CompleteConsentBody: {
@@ -18755,6 +18787,53 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClearedServerLogs"];
+                };
+            };
+            /** @description No compatible server in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    restart_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The compatible server applies its settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompatServerStatus"];
+                };
+            };
+            /** @description Another program holds the port */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The listener or the setting failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
             /** @description No compatible server in this runtime */

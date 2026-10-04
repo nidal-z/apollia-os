@@ -234,6 +234,7 @@ fn the_named_settings_are_lockable() {
             "server.enabled",
             "server.port",
             "server.require_auth",
+            "server.serve_on_lan",
             "engines.log_level",
             "author.name",
         ]
