@@ -143,6 +143,9 @@ export interface CreateSessionRequest {
   agent_name?: string;
   system_prompt?: string;
   tools?: string[];
+  /** The model of the session: the index identifier of a local language
+   * model, or `<server>/<model>`. Absent keeps the agent's model. */
+  model?: string;
 }
 
 /** Request sending a message inside a chat session. */

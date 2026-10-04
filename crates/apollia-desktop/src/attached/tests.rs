@@ -162,6 +162,7 @@ async fn test_a_session_is_created_over_http_from_the_interface_request() {
         agent_name: None,
         system_prompt: None,
         tools: Vec::new(),
+        model: None,
     };
 
     // WHEN the attached arm creates a free conversation
@@ -169,6 +170,36 @@ async fn test_a_session_is_created_over_http_from_the_interface_request() {
 
     // THEN the daemon's session is returned
     assert_eq!(info.id, "s-new");
+}
+
+#[tokio::test]
+async fn test_a_session_created_with_a_model_hands_the_model_to_the_daemon() {
+    // GIVEN a daemon creating sessions only when the request names the model
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/sessions"))
+        .and(wiremock::matchers::body_partial_json(serde_json::json!({
+            "mode": "libre",
+            "model": "Qwen3-4B-Q4_K_M.gguf"
+        })))
+        .respond_with(ResponseTemplate::new(201).set_body_json(session("s-model")))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+    let request = crate::commands::chat::CreateSessionRequest {
+        mode: "libre".to_owned(),
+        agent_name: None,
+        system_prompt: None,
+        tools: Vec::new(),
+        model: Some("Qwen3-4B-Q4_K_M.gguf".to_owned()),
+    };
+
+    // WHEN the attached arm creates a conversation on that model
+    let info = client.create_session(&request).await.unwrap();
+
+    // THEN the daemon received the model and answered its session
+    assert_eq!(info.id, "s-model");
 }
 
 #[tokio::test]

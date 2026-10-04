@@ -107,6 +107,7 @@ fn libre_session_params() -> CreateSessionParams {
         agent_name: None,
         system_prompt: None,
         tools: vec![],
+        model: None,
     }
 }
 
@@ -123,6 +124,7 @@ async fn test_create_session_libre() {
             agent_name: None,
             system_prompt: None,
             tools: vec!["bash_executor".into()],
+            model: None,
         })
         .await
         .expect("create_session");
@@ -148,6 +150,7 @@ async fn test_create_session_agent_without_name() {
             agent_name: None,
             system_prompt: None,
             tools: vec![],
+            model: None,
         })
         .await;
 
@@ -1520,6 +1523,7 @@ async fn test_create_session_agent_invalid_agent() {
             agent_name: Some("nonexistent".into()),
             system_prompt: None,
             tools: vec![],
+            model: None,
         })
         .await;
 

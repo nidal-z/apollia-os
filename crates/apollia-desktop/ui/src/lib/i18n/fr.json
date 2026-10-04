@@ -3420,7 +3420,8 @@
       "toggle_sidebar": "Afficher/masquer la barre des sessions",
       "next_message": "Message suivant",
       "prev_message": "Message précédent",
-      "stop_or_close": "Arrêter le streaming / fermer la modale"
+      "stop_or_close": "Arrêter le streaming / fermer la modale",
+      "target_selector": "Choisir l'agent ou le modèle"
     },
     "shortcut_group": {
       "chat": "Chat",
@@ -3733,7 +3734,23 @@
       "role_tool": "Outil",
       "role_system": "Système"
     },
-    "plan_abandoned_reason": "plan abandonné"
+    "plan_abandoned_reason": "plan abandonné",
+    "target_selector": {
+      "placeholder": "Choisir un agent ou un modèle",
+      "aria": "Agent ou modèle de la conversation",
+      "search_placeholder": "Rechercher un agent ou un modèle",
+      "search_aria": "Rechercher parmi les agents et les modèles",
+      "group_agents": "Agents",
+      "group_models": "Modèles",
+      "formats_help": "GGUF et MLX sont deux formats de modèle. Un modèle MLX ne tourne que sur un Mac à puce Apple ; un modèle GGUF tourne partout.",
+      "formats_help_aria": "Ce que veulent dire GGUF et MLX",
+      "default_model": "modèle par défaut",
+      "no_results": "Aucun agent ni modèle ne correspond.",
+      "loading": "Chargement des agents et des modèles…",
+      "behaviour": "Un agent choisi ouvre une nouvelle conversation avec lui ; un modèle devient celui de la conversation en cours.",
+      "server_unreachable": "{server} ne répond pas",
+      "choose_failed": "Le choix n'a pas abouti : {error}"
+    }
   },
   "transcriptions": {
     "title": "Transcriptions",

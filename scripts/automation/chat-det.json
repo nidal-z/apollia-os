@@ -125,6 +125,46 @@
       "label": "04-quickpicker"
     },
     {
+      "kind": "expect",
+      "testid": "chat-target-selector-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-panel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-target-selector-behaviour"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04a-target-selector-open"
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-target-selector-search",
+      "text": "zz-no-agent-no-model"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-no-results",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-button"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-target-selector-panel",
+      "timeoutMs": 2500
+    },
+    {
       "kind": "sleep",
       "ms": 200
     },

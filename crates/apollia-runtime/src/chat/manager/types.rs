@@ -216,6 +216,9 @@ pub struct CreateSessionParams {
     pub agent_name: Option<String>,
     pub system_prompt: Option<String>,
     pub tools: Vec<String>,
+    /// The model chosen for the session, by the name the router routes by.
+    /// `None` keeps the model of the agent, else the default.
+    pub model: Option<String>,
 }
 
 /// Parameters for [`ChatSessionManager::handle_register_user_input_reply`].

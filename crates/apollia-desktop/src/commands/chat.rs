@@ -20,6 +20,7 @@ pub mod export;
 pub mod images;
 pub mod naming;
 mod remote;
+pub mod targets;
 
 /// Request payload for creating a new chat session.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,6 +34,11 @@ pub struct CreateSessionRequest {
     /// Tools to make available in this session.
     #[serde(default)]
     pub tools: Vec<String>,
+    /// The model chosen for the session: the identifier of a language model
+    /// of the model index, or `<server>/<model>`. Absent keeps the model of
+    /// the agent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
 }
 
 /// Summary of a chat session for list responses (flat structure for frontend).
@@ -97,6 +103,7 @@ pub struct ChatMessageView {
 /// Creates a new chat session (Libre or Agent mode).
 #[tauri::command]
 pub async fn create_chat_session(
+    app: tauri::AppHandle,
     link: State<'_, RuntimeLink>,
     request: CreateSessionRequest,
 ) -> Result<ChatSessionSummary, String> {
@@ -112,6 +119,10 @@ pub async fn create_chat_session(
         .chat_manager
         .as_ref()
         .ok_or_else(|| "chat subsystem not available".to_string())?;
+    let model = match request.model.filter(|m| !m.trim().is_empty()) {
+        Some(model) => Some(targets::embedded_session_route(&app, state, model).await),
+        None => None,
+    };
 
     let info = manager
         .create_session(apollia_runtime::chat::manager::CreateSessionParams {
@@ -119,6 +130,7 @@ pub async fn create_chat_session(
             agent_name: request.agent_name,
             system_prompt: request.system_prompt,
             tools: request.tools,
+            model,
         })
         .await
         .map_err(|e| e.to_string())?;
@@ -215,6 +227,7 @@ pub(crate) fn metrics_path(session_id: &str) -> String {
 /// Updates session configuration (instructions, tools, LLM provider).
 #[tauri::command]
 pub async fn update_chat_session(
+    app: tauri::AppHandle,
     link: State<'_, RuntimeLink>,
     session_id: String,
     update: UpdateSessionRequest,
@@ -229,14 +242,15 @@ pub async fn update_chat_session(
         .chat_manager
         .as_ref()
         .ok_or_else(|| "chat subsystem not available".to_string())?;
+    let llm_backend = match update.llm_backend {
+        Some(Some(model)) if !model.trim().is_empty() => Some(Some(
+            targets::embedded_session_route(&app, state, model).await,
+        )),
+        other => other,
+    };
 
     manager
-        .update_session(
-            session_id,
-            update.system_prompt,
-            update.tools,
-            update.llm_backend,
-        )
+        .update_session(session_id, update.system_prompt, update.tools, llm_backend)
         .await
         .map_err(|e| e.to_string())
 }

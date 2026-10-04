@@ -20299,6 +20299,13 @@
             "type": "string",
             "description": "Session mode: `\"libre\"` or `\"agent\"`."
           },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model of the session: the identifier of a language model of the\nmodel index, `<server>/<model>` for a model of a declared server, or\nthe name of a backend. Absent keeps the model of the agent."
+          },
           "system_prompt": {
             "type": [
               "string",
@@ -28815,7 +28822,7 @@
               "string",
               "null"
             ],
-            "description": "Inference server of the session."
+            "description": "Model of the session: a backend, `<server>/<model>`, or the\nidentifier of a language model of the model index. `null` returns to\nthe model of the agent."
           },
           "system_prompt": {
             "type": [

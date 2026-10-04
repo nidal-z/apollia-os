@@ -98,7 +98,11 @@ impl ChatSessionManager {
             agent_name,
             system_prompt,
             tools,
+            model,
         } = params;
+        let model = model
+            .map(|name| name.trim().to_owned())
+            .filter(|name| !name.is_empty());
         let declarative = match (&mode, agent_name.as_deref()) {
             (ChatMode::Agent, Some(name)) => {
                 super::declarative::declarative_agent(self.governance_db_path.as_deref(), name)
@@ -148,7 +152,7 @@ impl ChatSessionManager {
             &prompt,
             &resolved_tools,
             &now,
-            None,
+            model.as_deref(),
         )?;
 
         // A new session inherits the runtime-level plan-mode default. When it is
@@ -178,7 +182,7 @@ impl ChatSessionManager {
             available_tools: resolved_tools,
             created_at: now.clone(),
             active_exchange: None,
-            llm_backend: libre_llm_backend,
+            llm_backend: model.clone().or(libre_llm_backend),
             title: None,
             parent_session_id: None,
             fork_depth: 0,
@@ -190,6 +194,14 @@ impl ChatSessionManager {
 
         let info = session_to_info(&session);
         self.sessions.insert(session_id.clone(), session);
+        if let Some(model) = model.as_deref() {
+            tracing::event!(
+                tracing::Level::INFO,
+                session_id = %session_id,
+                model = %model,
+                "chat.session.model.chosen"
+            );
+        }
 
         // Emit event
         let _ = self.event_bus.send(RuntimeEvent::ChatSessionCreated {

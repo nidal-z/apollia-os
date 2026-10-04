@@ -88,6 +88,7 @@ fn libre() -> CreateSessionParams {
         agent_name: None,
         system_prompt: None,
         tools: vec![],
+        model: None,
     }
 }
 

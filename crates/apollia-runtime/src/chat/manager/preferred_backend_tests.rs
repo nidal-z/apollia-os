@@ -121,6 +121,7 @@ async fn test_free_chat_turn_routes_to_the_preferred_backend() {
             agent_name: None,
             system_prompt: None,
             tools: vec![],
+            model: None,
         })
         .await
         .unwrap();
@@ -145,4 +146,77 @@ async fn test_free_chat_turn_routes_to_the_preferred_backend() {
     assert_eq!(default_streams.load(Ordering::SeqCst), 0);
 
     handle.shutdown().await;
+}
+
+/// A router whose default is `default`, also holding `chosen`, with the
+/// stream counters of both.
+fn two_backends() -> (Arc<LlmRouter>, Arc<AtomicU32>, Arc<AtomicU32>) {
+    let default_streams = Arc::new(AtomicU32::new(0));
+    let chosen_streams = Arc::new(AtomicU32::new(0));
+    let mut backends: std::collections::HashMap<String, Arc<dyn CompletionModel>> =
+        std::collections::HashMap::new();
+    backends.insert(
+        "default".into(),
+        Arc::new(Counting {
+            name: "default",
+            streams: Arc::clone(&default_streams),
+        }),
+    );
+    backends.insert(
+        "chosen".into(),
+        Arc::new(Counting {
+            name: "chosen",
+            streams: Arc::clone(&chosen_streams),
+        }),
+    );
+    (
+        Arc::new(LlmRouter::with_backends(backends, "default")),
+        default_streams,
+        chosen_streams,
+    )
+}
+
+// GIVEN a router whose default is `default`, also holding `chosen`
+// WHEN a free chat session is created with the model `chosen` and a message
+//      is sent, then the manager restarts on the same store
+// THEN the turn streams through `chosen`, and the session still names it
+#[tokio::test]
+async fn test_a_session_created_with_a_model_runs_on_it_and_keeps_it() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let (router, default_streams, chosen_streams) = two_backends();
+    let handle = spawn(&dir, Arc::clone(&router));
+
+    // WHEN
+    let info = handle
+        .create_session(CreateSessionParams {
+            mode: ChatMode::Libre,
+            agent_name: None,
+            system_prompt: None,
+            tools: vec![],
+            model: Some(" chosen ".into()),
+        })
+        .await
+        .unwrap();
+    handle
+        .send_message(info.id.clone(), "Bonjour".into())
+        .await
+        .unwrap();
+    let streamed = poll_until(Duration::from_secs(10), || {
+        chosen_streams.load(Ordering::SeqCst) + default_streams.load(Ordering::SeqCst) > 0
+    })
+    .await;
+    let live = handle.session_model(info.id.clone()).await.unwrap();
+    handle.shutdown().await;
+    let reopened = spawn(&dir, router);
+    let stored = reopened.session_model(info.id.clone()).await.unwrap();
+
+    // THEN
+    assert!(streamed, "the turn never reached a backend");
+    assert_eq!(chosen_streams.load(Ordering::SeqCst), 1);
+    assert_eq!(default_streams.load(Ordering::SeqCst), 0);
+    assert_eq!(live.as_deref(), Some("chosen"));
+    assert_eq!(stored.as_deref(), Some("chosen"));
+
+    reopened.shutdown().await;
 }

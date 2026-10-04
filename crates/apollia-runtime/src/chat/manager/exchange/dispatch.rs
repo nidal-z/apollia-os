@@ -57,8 +57,13 @@ impl ChatSessionManager {
                 .as_ref()
                 .and_then(|exchange| exchange.answer_id.clone());
             let session_plan_phase = session.plan_phase;
+            // A model chosen for the session wins over the agent's own: the
+            // agent stays the same, the next turns run on the chosen model.
             let preferred_backend = match &declarative {
-                Some(agent) => agent.model.as_ref().map(|m| m.model_id.clone()),
+                Some(agent) => session
+                    .llm_backend
+                    .clone()
+                    .or_else(|| agent.model.as_ref().map(|m| m.model_id.clone())),
                 None => session.llm_backend.clone(),
             };
             // A declarative agent is isolated as the companion is: no
