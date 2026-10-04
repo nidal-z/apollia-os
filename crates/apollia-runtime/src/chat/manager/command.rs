@@ -12,6 +12,8 @@ pub enum ChatCommand {
         system_prompt: Option<String>,
         /// Tool names available in this session.
         tools: Vec<String>,
+        /// The model chosen for the session, `None` for the agent's.
+        model: Option<String>,
         /// Response channel.
         reply: oneshot::Sender<Result<SessionInfo, ChatError>>,
     },
@@ -21,6 +23,9 @@ pub enum ChatCommand {
         session_id: SessionId,
         /// Text content.
         content: String,
+        /// Images attached after the text, already decoded and checked for
+        /// count and size.
+        images: Vec<apollia_llm::message_image::MessageImage>,
         /// Response channel.
         reply: oneshot::Sender<Result<MessageId, ChatError>>,
     },
@@ -90,18 +95,22 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
-    /// Update session configuration (system_prompt, tools, llm_backend).
+    /// Update session configuration (system_prompt, tools, llm_backend, profile).
     UpdateSession {
         /// Target session.
         session_id: SessionId,
-        /// New system prompt (if Some).
-        system_prompt: Option<String>,
-        /// New available tools (if Some).
-        available_tools: Option<Vec<String>>,
-        /// New LLM backend (if Some, inner None means "use default").
-        llm_backend: Option<Option<String>>,
+        /// The fields to change.
+        update: SessionConfigUpdate,
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
+    },
+    /// Empty the profile of every session designating `profile_id`, the
+    /// profile having been deleted.
+    ReleaseProfile {
+        /// The deleted profile.
+        profile_id: String,
+        /// Response channel: how many sessions designated it.
+        reply: oneshot::Sender<Result<usize, ChatError>>,
     },
     /// Delete a session and all its data.
     DeleteSession {
@@ -342,18 +351,6 @@ pub enum ChatCommand {
         required_version: String,
         /// Response channel.
         reply: oneshot::Sender<Option<crate::a2a::A2ACompatibilityWarning>>,
-    },
-    /// Resolve a pending filesystem HITL request.
-    ///
-    /// Called by the `respond_hitl_filesystem` Tauri command when the user
-    /// makes a decision in `HitlFilesystemModal`.
-    ResolveFsHitl {
-        /// Unique request identifier emitted in `HitlFilesystemRequired`.
-        request_id: String,
-        /// User decision.
-        decision: super::super::types::FsHitlDecision,
-        /// Response channel.
-        reply: oneshot::Sender<Result<(), ChatError>>,
     },
     /// List recently resolved chat tool approvals.
     ListApprovalHistory {

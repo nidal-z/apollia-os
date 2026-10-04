@@ -29,7 +29,11 @@ vi.mock("@tauri-apps/plugin-notification", () => ({
   sendNotification: vi.fn(),
 }));
 
-import ChatConfigPanelBody from "./ChatConfigPanelBody.svelte";
+import ChatConfigPanelBody, {
+  profileIdOf,
+  profileSelection,
+} from "./ChatConfigPanelBody.svelte";
+import type { ProfileSummaryView } from "$lib/ipc/profile";
 import { developerMode } from "$lib/stores/developerMode";
 import { isSensitiveFamily } from "$lib/tools/action-family";
 import type { ChatSessionDetail } from "$lib/types";
@@ -138,5 +142,62 @@ describe("ChatConfigPanelBody - tool sensitivity follows the action family", () 
     // THEN a sensitive tool is still flagged on its icon, without the glyph
     expect(sensitivityOf(html, "file_write")).toBe("true");
     expect(tagOf(html, "config-tool-sensitive-file_write")).toBeNull();
+  });
+});
+
+function profile(id: string, name: string, isDefault: boolean): ProfileSummaryView {
+  return {
+    id,
+    name,
+    is_default: isDefault,
+    detail: null,
+    created_at: "2026-10-01T00:00:00Z",
+    updated_at: "2026-10-01T00:00:00Z",
+  };
+}
+
+describe("ChatConfigPanelBody - the conversation designates its profile", () => {
+  test("the profile select sits beside the preferences toggle", () => {
+    // GIVEN the configuration panel of a libre session
+    developerMode.set(false);
+
+    // WHEN the panel renders
+    const html = render();
+    const select = html.indexOf('data-testid="config-profile-select"');
+    const toggle = html.indexOf('data-testid="toggle-user-memory"');
+
+    // THEN a profile select is offered, in the same card as the toggle
+    expect(select).toBeGreaterThan(-1);
+    expect(toggle).toBeGreaterThan(-1);
+    const between = html.slice(Math.min(select, toggle), Math.max(select, toggle));
+    expect(between).not.toContain('data-testid="context-window-bar"');
+    // AND its first choice is the default profile, stored as an empty value
+    expect(tagOf(html, "config-profile-option-default")).toContain('value=""');
+  });
+
+  test("a designated profile is selected while it exists", () => {
+    // GIVEN a default profile and a "Formateur" profile
+    const profiles = [profile("p-def", "Moi", true), profile("p-form", "Formateur", false)];
+
+    // WHEN a session designating "Formateur" and a session designating nothing are shown
+    const designated = profileSelection("p-form", profiles);
+    const bare = profileSelection(null, profiles);
+
+    // THEN the first selects "Formateur", the second the default choice
+    expect(designated).toBe("p-form");
+    expect(bare).toBe("");
+  });
+
+  test("a designation of a deleted profile reads as the default", () => {
+    // GIVEN a session designating a profile that no longer exists
+    const profiles = [profile("p-def", "Moi", true)];
+
+    // WHEN the select value is computed and saved
+    const selection = profileSelection("p-gone", profiles);
+
+    // THEN the default choice is shown and the session stores no profile
+    expect(selection).toBe("");
+    expect(profileIdOf(selection)).toBeNull();
+    expect(profileIdOf("p-form")).toBe("p-form");
   });
 });

@@ -402,7 +402,7 @@ pub(crate) async fn reload_runtime_router(link: &RuntimeLink) -> Result<(), Stri
 }
 
 /// Rebuilds the router of this process, then the embedded runtime's.
-async fn rebuild_desktop_router(
+pub(crate) async fn rebuild_desktop_router(
     shared: &SharedLlmRouter,
     runtime: &RuntimeHandle,
 ) -> Result<(), String> {

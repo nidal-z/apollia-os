@@ -57,8 +57,13 @@ impl ChatSessionManager {
                 .as_ref()
                 .and_then(|exchange| exchange.answer_id.clone());
             let session_plan_phase = session.plan_phase;
+            // A model chosen for the session wins over the agent's own: the
+            // agent stays the same, the next turns run on the chosen model.
             let preferred_backend = match &declarative {
-                Some(agent) => agent.model.as_ref().map(|m| m.model_id.clone()),
+                Some(agent) => session
+                    .llm_backend
+                    .clone()
+                    .or_else(|| agent.model.as_ref().map(|m| m.model_id.clone())),
                 None => session.llm_backend.clone(),
             };
             // A declarative agent is isolated as the companion is: no
@@ -126,6 +131,7 @@ impl ChatSessionManager {
             let user_msg = content.to_string();
             let tx = self.tx.clone();
             let context_window_size = DEFAULT_CONTEXT_WINDOW_SIZE;
+            let turn_images = self.turn_images(session_id, &session.history, context_window_size);
 
             let stored_summary = self.repository.get_summary(session_id).unwrap_or(None);
             let llm_for_summarize = self.llm_router.clone();
@@ -142,15 +148,6 @@ impl ChatSessionManager {
             let mcp_loading = self.mcp_loading;
             let tool_search_limit = self.tool_search_limit;
             let session_id_str = session_id.to_string();
-
-            // Capture HITL filesystem params for the invoker.
-            let hitl_params = HitlInvokerParams {
-                session_id: session_id.to_string(),
-                event_bus: self.event_bus.clone(),
-                pending_fs: self.pending_fs_approvals.clone(),
-                fs_allow_rules: std::sync::Arc::clone(&session.fs_allow_rules),
-                risk_config: apollia_core::FilesystemRiskConfig::default(),
-            };
 
             tokio::spawn(run_libre_exchange(LibreExchangeParams {
                 agent_id,
@@ -178,7 +175,6 @@ impl ChatSessionManager {
                 mcp_loading,
                 tool_search_limit,
                 session_id_str,
-                hitl_params,
                 sid,
                 mid,
                 run_id: run_id.clone(),
@@ -193,6 +189,7 @@ impl ChatSessionManager {
                 pending_injection,
                 preferred_backend,
                 turn_id,
+                turn_images,
             }));
         }
 

@@ -159,14 +159,11 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-runtime/src/api/routes_triggers/support.rs": 1,
     "crates/apollia-runtime/src/api/server.rs": 14,
     "crates/apollia-runtime/src/chat/agent_executor.rs": 1,
-    "crates/apollia-runtime/src/chat/builtin_agent/invoker.rs": 2,
     "crates/apollia-runtime/src/chat/builtin_agent/mod.rs": 2,
     "crates/apollia-runtime/src/chat/extractor.rs": 4,
     "crates/apollia-runtime/src/chat/manager/handle.rs": 1,
     "crates/apollia-runtime/src/chat/manager/mod.rs": 2,
-    "crates/apollia-runtime/src/chat/native_wrappers.rs": 1,
-    "crates/apollia-runtime/src/chat/types.rs": 1,
-    "crates/apollia-runtime/src/chat/types/approvals.rs": 2,
+    "crates/apollia-runtime/src/chat/types/approvals.rs": 1,
     "crates/apollia-runtime/src/embedded.rs": 3,
     "crates/apollia-runtime/src/llama_server/mod.rs": 4,
     "crates/apollia-runtime/src/observability/resilience_subscriber.rs": 1,
@@ -358,6 +355,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # body passed through). The fake engine holds a port-0 bind for the whole
     # test, never a port released.
     "crates/apollia-runtime/src/compat_server/relay_tests.rs": 1,
+    # The connection is the subject: a client that goes away has to stop the
+    # run it asked for, and only a real connection closed under the handler
+    # shows it. One helper, a port-0 bind held for the whole test.
+    "crates/apollia-runtime/src/compat_server/agents_tests.rs": 1,
     # The file on disk is the subject: a valid apollia.toml written by another
     # editor has to reach the running runtime through the folder watch. One
     # test, two sites: the wait while the watch is armed, and the poll for the

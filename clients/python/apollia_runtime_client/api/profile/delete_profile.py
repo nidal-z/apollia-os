@@ -72,6 +72,8 @@ def sync_detailed(
 ) -> Response[ApiErrorBody | DeletedProfile]:
     """`DELETE /api/v1/profiles/{id}`: deletes a profile and its facts.
 
+     The conversations that designated it return to the default profile.
+
     Args:
         id (str):
 
@@ -101,6 +103,8 @@ def sync(
 ) -> ApiErrorBody | DeletedProfile | None:
     """`DELETE /api/v1/profiles/{id}`: deletes a profile and its facts.
 
+     The conversations that designated it return to the default profile.
+
     Args:
         id (str):
 
@@ -124,6 +128,8 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[ApiErrorBody | DeletedProfile]:
     """`DELETE /api/v1/profiles/{id}`: deletes a profile and its facts.
+
+     The conversations that designated it return to the default profile.
 
     Args:
         id (str):
@@ -151,6 +157,8 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> ApiErrorBody | DeletedProfile | None:
     """`DELETE /api/v1/profiles/{id}`: deletes a profile and its facts.
+
+     The conversations that designated it return to the default profile.
 
     Args:
         id (str):

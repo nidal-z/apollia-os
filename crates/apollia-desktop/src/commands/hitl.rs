@@ -8,61 +8,12 @@
 //! which handles persistence, event emission, and resolution of the oneshot
 //! channel.
 
-use apollia_runtime::api::routes_permissions::{
-    AddPermissionRuleBody, AddedPermissionRule, FsHitlDecisionBody, ResolvedFilesystemApproval,
-};
+use apollia_runtime::api::routes_permissions::{AddPermissionRuleBody, AddedPermissionRule};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use super::http_post_json;
 use crate::attached::{segment, AttachedClient, RuntimeLink};
-
-/// The user's answer to a request to touch a file, as the approval card
-/// sends it. The same type is the body of the daemon's route, so the attached
-/// arm forwards it as received.
-pub type HitlFilesystemDecisionInput = FsHitlDecisionBody;
-
-/// Resolves a filesystem HITL approval request emitted by `HitlFilesystemRequired`.
-///
-/// The frontend calls this command after the user clicks Approve / Deny /
-/// Always allow in the HITL modal. Attached to a daemon, the daemon's
-/// `POST /api/v1/approvals/filesystem/{request_id}` resolves it.
-///
-/// # Errors
-///
-/// Returns an error if the chat manager is unavailable or if `request_id` is
-/// unknown (already resolved or expired).
-#[tauri::command]
-pub async fn respond_hitl_filesystem(
-    link: State<'_, RuntimeLink>,
-    request_id: String,
-    decision: HitlFilesystemDecisionInput,
-) -> Result<(), String> {
-    let state = match link.inner() {
-        RuntimeLink::Embedded(state) => state,
-        RuntimeLink::Attached(remote) => {
-            return respond_fs_attached(remote, &request_id, &decision).await
-        }
-    };
-    let manager = state
-        .chat_manager
-        .as_ref()
-        .ok_or_else(|| "chat subsystem not available".to_string())?;
-    manager
-        .resolve_fs_hitl(request_id, decision.into_decision())
-        .await
-        .map_err(|e| e.to_string())
-}
-
-async fn respond_fs_attached(
-    remote: &AttachedClient,
-    request_id: &str,
-    decision: &HitlFilesystemDecisionInput,
-) -> Result<(), String> {
-    let path = format!("/api/v1/approvals/filesystem/{}", segment(request_id));
-    let _: ResolvedFilesystemApproval = remote.post(&path, decision).await?;
-    Ok(())
-}
 
 /// Pending approval for display in the UI. A subset of the daemon's
 /// `GET /api/v1/approvals/pending` entry, so the attached arm reads it as is.
@@ -322,70 +273,12 @@ async fn add_rule_attached(
 
 #[cfg(test)]
 mod tests {
-    use apollia_runtime::chat::AlwaysAcceptScope;
     use wiremock::matchers::{body_json, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     use super::*;
 
     const TOKEN: &str = "token-of-this-installation";
-
-    #[tokio::test]
-    async fn test_attached_a_file_request_is_answered_on_the_daemon_with_the_token() {
-        // GIVEN a daemon waiting on a file request whose id needs encoding
-        let server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .and(path("/api/v1/approvals/filesystem/req%201"))
-            .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
-            .and(body_json(serde_json::json!({
-                "decision": "always_allow", "op": "write", "level": "high", "scope": "this_project"
-            })))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(serde_json::json!({ "request_id": "req 1" })),
-            )
-            .expect(1)
-            .mount(&server)
-            .await;
-        let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
-        let decision: HitlFilesystemDecisionInput = serde_json::from_value(serde_json::json!({
-            "decision": "always_allow", "op": "write", "level": "high", "scope": "this_project"
-        }))
-        .unwrap();
-
-        // WHEN the attached arm forwards the user's answer
-        let answered = respond_fs_attached(&client, "req 1", &decision).await;
-
-        // THEN the daemon received the answer as the card sent it
-        assert!(answered.is_ok(), "{answered:?}");
-    }
-
-    #[tokio::test]
-    async fn test_attached_an_unknown_file_request_shows_the_daemon_words() {
-        // GIVEN a daemon that waits on no file request
-        let server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .and(path("/api/v1/approvals/filesystem/gone"))
-            .respond_with(ResponseTemplate::new(404).set_body_json(serde_json::json!({
-                "error": "internal error: no pending fs HITL request for id 'gone'"
-            })))
-            .mount(&server)
-            .await;
-        let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
-        let decision: HitlFilesystemDecisionInput =
-            serde_json::from_value(serde_json::json!({ "decision": "approve" })).unwrap();
-
-        // WHEN the attached arm forwards an answer to it
-        let error = respond_fs_attached(&client, "gone", &decision)
-            .await
-            .unwrap_err();
-
-        // THEN the interface shows the daemon's refusal as is
-        assert!(
-            error.contains("no pending fs HITL request for id 'gone'"),
-            "{error}"
-        );
-    }
 
     #[tokio::test]
     async fn test_attached_a_rule_is_added_on_the_daemon_and_its_refusal_shown() {
@@ -503,80 +396,6 @@ mod tests {
 
         // THEN the validation passes
         assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_hitl_fs_decision_deny_with_reason_deserialises() {
-        // GIVEN a frontend JSON payload that carries a reject reason
-        let json = r#"{ "decision": "deny", "reason": "not safe" }"#;
-        // WHEN deserialised
-        let decoded: HitlFilesystemDecisionInput =
-            serde_json::from_str(json).expect("should deserialise");
-        // THEN the reason is preserved on the Deny variant
-        match decoded {
-            HitlFilesystemDecisionInput::Deny { reason } => {
-                assert_eq!(reason.as_deref(), Some("not safe"));
-            }
-            _ => panic!("expected Deny variant"),
-        }
-    }
-
-    #[test]
-    fn test_hitl_fs_decision_deny_without_reason_is_none() {
-        // GIVEN a frontend payload without a reason field
-        let json = r#"{ "decision": "deny" }"#;
-        // WHEN deserialised
-        let decoded: HitlFilesystemDecisionInput =
-            serde_json::from_str(json).expect("should deserialise");
-        // THEN reason defaults to None (no validation error)
-        match decoded {
-            HitlFilesystemDecisionInput::Deny { reason } => assert!(reason.is_none()),
-            _ => panic!("expected Deny variant"),
-        }
-    }
-
-    #[test]
-    fn test_hitl_fs_decision_always_allow_with_scope() {
-        // GIVEN an always-allow with an explicit scope picked by the operator
-        let json = r#"{
-            "decision": "always_allow",
-            "op": "write",
-            "level": "high",
-            "scope": "this_project"
-        }"#;
-        // WHEN deserialised
-        let decoded: HitlFilesystemDecisionInput =
-            serde_json::from_str(json).expect("should deserialise");
-        // THEN both op/level and scope are carried on the struct
-        match decoded {
-            HitlFilesystemDecisionInput::AlwaysAllow { op, level, scope } => {
-                assert_eq!(op, "write");
-                assert_eq!(level, "high");
-                assert_eq!(scope, Some(AlwaysAcceptScope::ThisProject));
-            }
-            other => panic!("expected AlwaysAllow, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_hitl_fs_decision_always_allow_session_legacy_path() {
-        // GIVEN the legacy discriminant still used by older frontends
-        let json = r#"{
-            "decision": "always_allow_session",
-            "op": "delete",
-            "level": "medium"
-        }"#;
-        // WHEN deserialised
-        let decoded: HitlFilesystemDecisionInput =
-            serde_json::from_str(json).expect("should deserialise");
-        // THEN the legacy variant is accepted for backward compatibility
-        match decoded {
-            HitlFilesystemDecisionInput::AlwaysAllowSession { op, level } => {
-                assert_eq!(op, "delete");
-                assert_eq!(level, "medium");
-            }
-            other => panic!("expected AlwaysAllowSession, got {other:?}"),
-        }
     }
 
     #[test]

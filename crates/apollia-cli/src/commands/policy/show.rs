@@ -4,10 +4,10 @@
 //! (`policy_location`), and the verdict is the one `load_policy` gives it, so
 //! what is shown is what a runtime started now would apply.
 
-use apollia_permissions::load_policy;
 use apollia_permissions::org_policy::{
     policy_location, DenyOnly, ExportDetail, OrgPolicy, PolicyVerdict,
 };
+use apollia_permissions::{load_policy, PolicyView};
 
 use crate::exit_codes;
 
@@ -16,23 +16,7 @@ pub(super) fn run(json: bool) -> i32 {
     let verdict = load_policy(&location.dir, location.owner);
     let dir = location.dir.display().to_string();
     if json {
-        let doc = match &verdict {
-            PolicyVerdict::Absent => serde_json::json!({"state": "none", "dir": dir}),
-            PolicyVerdict::Invalid(invalid) => serde_json::json!({
-                "state": "invalid",
-                "dir": dir,
-                "reason": invalid.reason.as_str(),
-                "detail": invalid.detail,
-            }),
-            PolicyVerdict::Valid(valid) => serde_json::json!({
-                "state": "active",
-                "dir": dir,
-                "key_fingerprint": valid.key_fingerprint,
-                "publisher": valid.publisher,
-                "signed_at": valid.signed_at.to_string(),
-                "policy": policy_json(&valid.policy),
-            }),
-        };
+        let doc = PolicyView::of(&verdict, &location.dir);
         println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
         return exit_codes::SUCCESS;
     }
@@ -63,18 +47,6 @@ pub(super) fn run(json: bool) -> i32 {
         }
     }
     exit_codes::SUCCESS
-}
-
-/// The policy as JSON, with `signed_at` as its TOML text.
-fn policy_json(policy: &OrgPolicy) -> serde_json::Value {
-    let mut value = serde_json::to_value(policy).unwrap_or(serde_json::Value::Null);
-    if let Some(object) = value.as_object_mut() {
-        object.insert(
-            "signed_at".to_owned(),
-            serde_json::Value::String(policy.signed_at.to_string()),
-        );
-    }
-    value
 }
 
 fn list(items: &[String]) -> String {
@@ -197,20 +169,5 @@ mod tests {
                 "Setting fixed: desktop.developer_mode = false".to_owned(),
             ]
         );
-    }
-
-    #[test]
-    fn test_policy_json_carries_signed_at_as_text() {
-        // GIVEN a parsed policy
-        let policy = apollia_permissions::parse_policy(
-            "schema_version = 1\nsigned_at = 2026-10-02T09:30:00Z\n",
-        )
-        .unwrap();
-        // WHEN it is turned into JSON
-        let value = policy_json(&policy);
-        // THEN signed_at is its TOML text and the sections are present
-        assert_eq!(value["signed_at"], "2026-10-02T09:30:00Z");
-        assert_eq!(value["schema_version"], 1);
-        assert!(value["journal"].is_object());
     }
 }
