@@ -115,6 +115,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os source list`↴](#apollia-os-source-list)
 * [`apollia-os source create`↴](#apollia-os-source-create)
 * [`apollia-os source delete`↴](#apollia-os-source-delete)
+* [`apollia-os source inspect`↴](#apollia-os-source-inspect)
 * [`apollia-os trigger`↴](#apollia-os-trigger)
 * [`apollia-os trigger list`↴](#apollia-os-trigger-list)
 * [`apollia-os trigger status`↴](#apollia-os-trigger-status)
@@ -335,7 +336,7 @@ Apollia OS CLI binary (apollia-os)
 * `memory` - Memory management
 * `llm` - LLM backend diagnostics (status, ping, chat, costs, backends, reload)
 * `model` - Local model file management
-* `source` - The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete)
+* `source` - The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete, inspect)
 * `trigger` - Trigger management (list, status, fire, enable, disable, logs, reload, create, update, delete)
 * `notify` - Notification channel management (test, list, logs, create, update, delete, events)
 * `stt` - Speech-to-Text management (status, transcribe, transcriptions, model, config)
@@ -1930,7 +1931,7 @@ Remove a local model file from `~/.apollia/models/`
 
 ## `apollia-os source`
 
-The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete)
+The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete, inspect)
 
 **Usage:** `apollia-os source <COMMAND>`
 
@@ -1939,6 +1940,7 @@ The sources an agent may consult once checked: folders, files, mailboxes, the pr
 * `list` - List the sources, oldest first
 * `create` - Add a source
 * `delete` - Remove a source. Agents that list it stop seeing it
+* `inspect` - Preview a workbook or a CSV file as a batch would read it: the sheet and header row proposed, the first twenty rows, the columns
 
 
 
@@ -1978,6 +1980,23 @@ Remove a source. Agents that list it stop seeing it
 ###### **Options:**
 
 * `--confirm` - Skip the interactive confirmation prompt
+
+
+
+## `apollia-os source inspect`
+
+Preview a workbook or a CSV file as a batch would read it: the sheet and header row proposed, the first twenty rows, the columns
+
+**Usage:** `apollia-os source inspect [OPTIONS] <FILE>`
+
+###### **Arguments:**
+
+* `<FILE>` - The .xlsx, .xlsm, .xlsb, .xls, .ods or .csv file
+
+###### **Options:**
+
+* `--sheet <SHEET>` - Show this sheet instead of the proposed one
+* `--header-row <HEADER_ROW>` - Read the header on this row (from 1) instead of the proposed one
 
 
 

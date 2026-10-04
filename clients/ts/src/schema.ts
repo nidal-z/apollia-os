@@ -4757,6 +4757,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sources/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/sources/preview`: the preview of a workbook or a CSV file. */
+        post: operations["preview_source"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sources/{id}": {
         parameters: {
             query?: never;
@@ -8584,6 +8601,45 @@ export interface components {
             /** @description Presets, sorted by model then name. */
             presets: components["schemas"]["PresetResponse"][];
         };
+        /** @description One column of the table under the header row. */
+        PreviewColumn: {
+            /** @description Column letter, as the spreadsheet shows it; a batch checks a column by it. */
+            letter: string;
+            /** @description The name its header cell gives it, made unique. */
+            name: string;
+        };
+        /** @description One row of the preview. */
+        PreviewRowView: {
+            /** @description The text of each cell, column A first. */
+            cells: string[];
+            /**
+             * Format: int32
+             * @description Row number, from 1.
+             */
+            row: number;
+        };
+        /** @description One sheet of the file. */
+        PreviewSheet: {
+            /** @description Name of the sheet. */
+            name: string;
+            /**
+             * Format: int64
+             * @description How many of its rows hold at least one non-blank cell.
+             */
+            nonEmptyRows: number;
+        };
+        /** @description Body of `POST /api/v1/sources/preview`. */
+        PreviewSourceBody: {
+            /**
+             * Format: int32
+             * @description The header row, from 1, on the shown sheet; the proposed row when absent.
+             */
+            headerRow?: number | null;
+            /** @description Absolute path of a `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.ods` or `.csv` file. */
+            path: string;
+            /** @description The sheet to show; the proposed sheet when absent. */
+            sheet?: string | null;
+        };
         /** @description One profile in full: its summary, its fields in schema order, its facts. */
         ProfileDetailView: {
             /** @description The facts retained about the user in this profile. */
@@ -9394,6 +9450,45 @@ export interface components {
          * @enum {string}
          */
         SourceKindDto: "folder" | "file" | "mail" | "profile" | "memory" | "code_folder";
+        /** @description What a batch on the file would read. */
+        SourcePreviewResponse: {
+            /** @description True for `.xlsx` and `.xlsm`: results may be written into the original. */
+            canModifyOriginal: boolean;
+            /** @description The columns under the header row. */
+            columns: components["schemas"]["PreviewColumn"][];
+            /**
+             * Format: int64
+             * @description How many items a batch would read: the non-empty rows below the header.
+             */
+            estimatedItems: number;
+            /** @description `xlsx`, `xlsm`, `xlsb`, `xls`, `ods` or `csv`. */
+            format: string;
+            /**
+             * @description True for `.xls`, `.xlsb` and `.ods`: the copy of results is a new
+             *     workbook without the original formatting.
+             */
+            formattingNotKept: boolean;
+            /**
+             * Format: int32
+             * @description The header row used: the one asked for, or the proposed one.
+             */
+            headerRow?: number | null;
+            /**
+             * Format: int32
+             * @description The header row proposed on the shown sheet.
+             */
+            proposedHeaderRow?: number | null;
+            /** @description The sheet proposed: the only one, or the one with the most non-empty rows. */
+            proposedSheet?: string | null;
+            /** @description The first twenty rows of the shown sheet, from its top. */
+            rows: components["schemas"]["PreviewRowView"][];
+            /** @description The sheet shown: the one asked for, or the proposed one. */
+            sheet?: string | null;
+            /** @description Every sheet, in the file's order; a CSV file has one, named after it. */
+            sheets: components["schemas"]["PreviewSheet"][];
+            /** @description The batch source type that reads the file: `spreadsheet` or `csv`. */
+            sourceType: string;
+        };
         /** @description A source of the registry. */
         SourceResponse: {
             /** @description When it was added, RFC 3339 in UTC. */
@@ -21886,6 +21981,57 @@ export interface operations {
             };
             /** @description Source registry not available */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    preview_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewSourceBody"];
+            };
+        };
+        responses: {
+            /** @description The proposed sheet and header row, the first rows and the write flags */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourcePreviewResponse"];
+                };
+            };
+            /** @description The path is not absolute */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No file at that path */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Not a workbook or a CSV file, protected, damaged, or a sheet or row the file lacks */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

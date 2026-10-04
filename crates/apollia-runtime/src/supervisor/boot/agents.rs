@@ -129,8 +129,9 @@ impl Supervisor {
     ) -> Executors {
         // The batch engine runs an agent without code on every item of a
         // source; it needs the task store and the agent executor, and resumes
-        // the batches left running as soon as it starts. No source reader is
-        // registered yet: a launch on any kind answers that it is unknown.
+        // the batches left running as soon as it starts. It reads workbooks
+        // (`spreadsheet`) and CSV files (`csv`); a launch on any other kind
+        // answers that it is unknown.
         // Governance says which accesses of the agent are sensitive.
         // One agent executor path, shared by batches, workflow steps and
         // triggers; `None` without the executor or the task store.
@@ -144,7 +145,7 @@ impl Supervisor {
         let batches = match (&stores.task_repository, &launcher) {
             (Some(repo), Some(launcher)) => Some(crate::batch::BatchHandle::spawn(
                 repo.clone(),
-                Arc::new(apollia_core::batch_source::SourceRegistry::new()),
+                Arc::new(batch_sources()),
                 batch_runner(
                     launcher.clone(),
                     self.config.data_dir.clone(),
@@ -261,4 +262,17 @@ fn batch_runner<B: crate::coordinator::ExecutionBackend>(
         )),
         None => runner,
     }
+}
+
+/// The batch source kinds this runtime reads.
+fn batch_sources() -> apollia_core::batch_source::SourceRegistry {
+    let mut registry = apollia_core::batch_source::SourceRegistry::new();
+    if let Err(error) = apollia_sources::register_table_sources(&mut registry) {
+        tracing::event!(
+            tracing::Level::ERROR,
+            error = %error,
+            "batch.source_registration_failed"
+        );
+    }
+    registry
 }
