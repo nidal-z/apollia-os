@@ -418,6 +418,7 @@ async fn test_asking_the_state_reads_a_repaired_database_again() {
             policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
             journal: None,
             events: None,
+            forbidden_connections: Default::default(),
         });
     assert!(governance.state().fail_closed.is_some());
     std::fs::set_permissions(&db, std::fs::Permissions::from_mode(0o644)).unwrap();

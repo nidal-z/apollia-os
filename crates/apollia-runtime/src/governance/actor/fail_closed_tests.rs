@@ -19,6 +19,7 @@ fn sources(
         policy,
         journal: None,
         events,
+        forbidden_connections: Default::default(),
     }
 }
 

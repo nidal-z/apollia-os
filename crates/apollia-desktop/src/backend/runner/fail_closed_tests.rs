@@ -49,6 +49,7 @@ async fn governance_on_unreadable_store(data_dir: &Path) -> GovernanceHandle {
         policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
         journal: None,
         events: None,
+        forbidden_connections: Default::default(),
     });
     for suffix in ["-wal", "-shm"] {
         let mut side = db.clone().into_os_string();

@@ -8779,6 +8779,16 @@
               }
             }
           },
+          "403": {
+            "description": "Refused by the connection admission, or forbidden since the last start",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Server not found",
             "content": {
@@ -8893,6 +8903,16 @@
           },
           "400": {
             "description": "Fallback connect failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden by the organisation policy since the last start",
             "content": {
               "application/json": {
                 "schema": {
@@ -19758,7 +19778,8 @@
           "degraded",
           "needs_reauth",
           "unavailable",
-          "stopped"
+          "stopped",
+          "forbidden_by_policy"
         ]
       },
       "ConnectionTool": {

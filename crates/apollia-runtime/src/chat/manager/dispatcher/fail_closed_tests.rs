@@ -31,6 +31,7 @@ async fn test_unreadable_store_keeps_disabled_tools_and_refuses() {
         policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
         journal: None,
         events: None,
+        forbidden_connections: Default::default(),
     });
     for suffix in ["-wal", "-shm"] {
         let mut side = db.clone().into_os_string();

@@ -6830,7 +6830,7 @@ export interface components {
          * @description Whether a connection can be used right now.
          * @enum {string}
          */
-        ConnectionState: "connected" | "degraded" | "needs_reauth" | "unavailable" | "stopped";
+        ConnectionState: "connected" | "degraded" | "needs_reauth" | "unavailable" | "stopped" | "forbidden_by_policy";
         /** @description One tool a connection brings. */
         ConnectionTool: {
             /** @description Action family of the tool. */
@@ -18055,6 +18055,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
+            /** @description Refused by the connection admission, or forbidden since the last start */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
             /** @description Server not found */
             404: {
                 headers: {
@@ -18153,6 +18162,15 @@ export interface operations {
             };
             /** @description Fallback connect failed */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Forbidden by the organisation policy since the last start */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

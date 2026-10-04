@@ -3,8 +3,8 @@ schema_version = 1
 signed_at = 2026-10-02T09:30:00+02:00
 
 [connections]
-allow = ["gmail", "mcp:filesystem", "native:file_io"]
-deny = ["mcp:slack"]
+allow = ["native:google", "selection:@notionhq/notion-mcp-server", "package:npm:server-memory"]
+deny = ["native:folder"]
 remote = "deny"
 
 [families]

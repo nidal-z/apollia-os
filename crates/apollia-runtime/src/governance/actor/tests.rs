@@ -26,6 +26,7 @@ fn sources(dir: &tempfile::TempDir, policy: Arc<PolicyVerdict>) -> GovernanceSou
         policy,
         journal: None,
         events: None,
+        forbidden_connections: Default::default(),
     }
 }
 

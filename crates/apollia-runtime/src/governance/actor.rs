@@ -64,6 +64,9 @@ pub struct GovernanceSources {
     /// The event bus a change of the fail-closed state is announced on;
     /// `None` announces nothing.
     pub events: Option<EventBusSender>,
+    /// The connections the policy forbade at boot, as tool identifiers name
+    /// them (see [`crate::governance::ForbiddenConnections::tool_connections`]).
+    pub forbidden_connections: std::collections::HashSet<String>,
 }
 
 /// Errors of a write through the governance actor.
@@ -325,6 +328,7 @@ impl GovernanceActor {
             policy: Arc::clone(&self.sources.policy),
             journal: None,
             events: None,
+            forbidden_connections: self.sources.forbidden_connections.clone(),
         };
         let previous = Arc::clone(&self.state_tx.borrow());
         let kept = Arc::clone(&previous);
@@ -389,7 +393,7 @@ pub(crate) fn load_state(
             PolicyRefusals {
                 families: valid.policy.families.deny.iter().copied().collect(),
                 denied: valid.policy.connections.deny.iter().cloned().collect(),
-                allowed: valid.policy.connections.allow.iter().cloned().collect(),
+                forbidden_connections: sources.forbidden_connections.clone(),
             },
             valid.policy.packages.require_signature,
         ),

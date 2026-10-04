@@ -37,11 +37,12 @@ use crate::governance::fail_closed::FailClosed;
 pub struct PolicyRefusals {
     /// Families refused whatever the agent or the consent.
     pub families: HashSet<PolicyFamily>,
-    /// Tools and connections refused by identifier.
+    /// Tools refused by identifier.
     pub denied: HashSet<String>,
-    /// Connections allowed; a non-empty list refuses every tool of a
-    /// connection it does not name.
-    pub allowed: HashSet<String>,
+    /// Connections the policy forbade at boot, as tool identifiers name them
+    /// (`mcp:<server>`, `conn:<provider>:<account>`): every tool of one is
+    /// refused.
+    pub forbidden_connections: HashSet<String>,
 }
 
 /// Everything a decision reads.
@@ -174,9 +175,7 @@ fn policy_refusal(
         return Some("refused by the organisation policy: this tool is not allowed".to_owned());
     }
     let connection = connection_of(access_id)?;
-    if policy.denied.contains(connection)
-        || (!policy.allowed.is_empty() && !policy.allowed.contains(connection))
-    {
+    if policy.denied.contains(connection) || policy.forbidden_connections.contains(connection) {
         return Some(
             "refused by the organisation policy: this connection is not allowed".to_owned(),
         );
