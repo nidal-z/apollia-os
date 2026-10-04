@@ -58,6 +58,7 @@ pub use family_consent::{
 };
 pub use governance_schema::{
     open_governance_schema, GOVERNANCE_MIGRATIONS, GOVERNANCE_SCHEMA_VERSION,
+    TOOL_CREDENTIALS_UPGRADE,
 };
 pub use org_policy::{
     load_policy, parse_policy, policy_location, OrgPolicy, OwnerRequirement, PackagesPolicy,

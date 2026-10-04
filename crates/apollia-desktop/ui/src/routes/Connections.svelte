@@ -37,7 +37,6 @@
   import { loadConnections, forbiddenConnections } from "$lib/connections/connectionList";
   import { sortServers, needsOauthSetup } from "$lib/connections/status";
   import { oauthListClientIds, type OauthClientIdStatus } from "$lib/ipc/oauthClients";
-  import { navigateToSettings } from "$lib/router";
   import { navigateTo } from "$lib/stores/navigation";
   import { pendingChatSessionId } from "$lib/stores/chat";
   import { createChatSession } from "$lib/ipc/agents";
@@ -88,6 +87,7 @@
   let oauthOpen = $state(false);
   let oauthProvider = $state<ProviderId | null>(null);
   let oauthClients = $state<OauthClientIdStatus[]>([]);
+  let oauthClientsError = $state<string | null>(null);
 
   const NATIVE_CONNECTORS: NativeConnectorCard[] = $derived([
     { id: "google", name: "Google Workspace", description: $t("connections.native_google_description") },
@@ -110,8 +110,17 @@
     return needsOauthSetup(oauthClients.find((c) => c.provider === provider));
   }
 
-  function openCredentialSettings(): void {
-    navigateToSettings("integrations");
+  /**
+   * Bring the OAuth client of the selected native connection into view: it
+   * sits on the connection's page, under its accounts.
+   */
+  function openClientSection(provider: ProviderId): void {
+    nativeTab = "accounts";
+    queueMicrotask(() => {
+      document
+        .getElementById(`oauth-client-${provider}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   // ── Catalogue + wizard ───────────────────────────────────────────────────────
@@ -198,9 +207,13 @@
     try {
       // Credential status is fetched alongside the accounts: an unconfigured
       // provider has no accounts and would otherwise look merely idle.
+      oauthClientsError = null;
       const [accounts, clients] = await Promise.all([
         oauthGetStatus(),
-        oauthListClientIds().catch(() => [] as OauthClientIdStatus[]),
+        oauthListClientIds().catch((e: unknown) => {
+          oauthClientsError = formatTauriError(e, $t);
+          return [] as OauthClientIdStatus[];
+        }),
       ]);
       nativeAccounts = accounts;
       oauthClients = clients;
@@ -367,8 +380,11 @@
         error={nativeError}
         needsSetup={needsSetup(selectedNativeConnector.id)}
         tab={nativeTab}
+        clientStatus={oauthClients.find((c) => c.provider === selectedNativeConnector.id)}
+        clientError={oauthClientsError}
+        onclientretry={() => void refreshNativeStatus()}
         onconnect={() => startNativeConnect(selectedNativeConnector.id)}
-        onconfigure={openCredentialSettings}
+        onconfigure={() => openClientSection(selectedNativeConnector.id)}
         ondisconnect={disconnectNative}
         ontabchange={(tab) => (nativeTab = tab)}
       />
@@ -427,6 +443,7 @@
   provider={oauthProvider}
   onclose={() => (oauthOpen = false)}
   oncompleted={refreshNativeStatus}
+  onopenclient={(provider) => openClientSection(provider)}
 />
 
 <CatalogueSheet

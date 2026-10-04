@@ -13,10 +13,8 @@ use std::path::{Path, PathBuf};
 use apollia_permissions::{
     PermissionAuditLog, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction,
 };
-use apollia_tools::{GovernanceDb, NativeToolRegistry, ToolCredentialStore};
+use apollia_tools::{list_credential_index, GovernanceDb, NativeToolRegistry};
 use serde::{Deserialize, Serialize};
-
-const KEYFILE_NAME: &str = ".keyfile";
 
 /// How many audit entries a page holds when the caller names no limit.
 pub const DEFAULT_AUDIT_LIMIT: u32 = 100;
@@ -212,12 +210,9 @@ pub async fn list_tools(base_dir: PathBuf) -> Result<Vec<ToolStatusDto>, ToolGov
         let db_path = governance_db(&base_dir)?;
         let registry =
             NativeToolRegistry::new(&db_path).map_err(storage("failed to open tool registry"))?;
-        let store = ToolCredentialStore::new(&db_path, &base_dir.join(KEYFILE_NAME))
-            .map_err(storage("failed to open credential store"))?;
         let statuses = registry.list().map_err(storage("failed to list tools"))?;
-        let creds = store
-            .list(None)
-            .map_err(storage("failed to list credentials"))?;
+        let creds =
+            list_credential_index(&db_path, None).map_err(storage("failed to list credentials"))?;
         Ok(statuses
             .into_iter()
             .map(|s| {

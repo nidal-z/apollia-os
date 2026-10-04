@@ -8,9 +8,8 @@ commit, which is the failure this whole pass exists to remove. So the tables are
 derived, and only the prose around them is written.
 
 Scope, deliberately narrow. This reads the eight sections a loader actually
-consults, listed in `SECTIONS` below and kept in step with
-`apollia-cli/src/config.rs::KNOWN_SECTIONS`, plus `[observability]`, which the
-desktop reads from its own struct. A section that no loader consults is not
+consults, listed in `SECTIONS` below and kept in step with the fields of
+`apollia_core::config::ApolliaConfig`, plus `[observability]`. A section that no loader consults is not
 documented as configuration: see the withdrawn-sections prose in the page.
 
 Output is spliced between two markers so the hand-written parts survive
@@ -47,7 +46,7 @@ END = "<!-- END GENERATED: config-fields -->"
 
 # (toml section, struct name, source file, one-line purpose)
 SECTIONS = [
-    ("llm", "LlmConfig", "crates/apollia-llm/src/router/config.rs",
+    ("llm", "LlmConfig", "crates/apollia-core/src/config/llm_section.rs",
      "LLM backends and routing."),
     ("runtime", "RuntimeConfig", "crates/apollia-core/src/config/runtime.rs",
      "EventBus and mailbox capacities."),

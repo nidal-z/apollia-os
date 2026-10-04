@@ -68,6 +68,8 @@ impl Supervisor {
             });
         crate::governance::access_upgrade::run_at_startup(&self.config.data_dir, &governance);
 
+        // Phase 8c': connection secrets kept outside the secret store move in.
+        crate::supervisor::legacy_secrets::move_legacy_secrets_into_store(&self.config.data_dir);
         // Phase 8d: the settings the chat kept before it was the Apollia
         // agent, carried over once the access upgrade has read them.
         let reading = apollia_tools::reading_family(
