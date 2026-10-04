@@ -8,6 +8,7 @@
    * verdict override, cleared on the next `McpServerHealthChanged` event.
    */
   import { t, locale } from "svelte-i18n";
+  import { developerMode } from "$lib/stores/developerMode";
   import { Spinner } from "$lib/components/ui/progress";
   import { TabBar } from "$lib/components/ui/tabs";
   import { formatRelativeTime } from "$lib/utils";
@@ -37,6 +38,8 @@
   interface Props {
     server: McpServerStatusView;
     enrichment: ConnectorEnrichmentView | null;
+    /** Sends data off this machine, as the connection list computes it. */
+    remote?: boolean;
     tab: McpTab;
     ontabchange: (tab: McpTab) => void;
     /** Refresh the sidebar list (post reconnect). */
@@ -45,7 +48,7 @@
     ondisconnected: () => void;
   }
 
-  let { server, enrichment, tab, ontabchange, onchanged, ondisconnected }: Props = $props();
+  let { server, enrichment, remote = false, tab, ontabchange, onchanged, ondisconnected }: Props = $props();
 
   let mcpDetail = $state<McpServerDetailView | null>(null);
   let loading = $state(false);
@@ -204,7 +207,10 @@
 {:else if mcpDetail}
   <McpDetailHeader
     {label}
-    meta={enrichment?.category ?? server.server_info ?? $t("connections.mcp_installed_fallback")}
+    meta={enrichment?.category ??
+      ($developerMode ? server.server_info : null) ??
+      ($developerMode ? $t("dev.connections.mcp_installed_fallback") : $t("connections.custom_connection"))}
+    {remote}
     status={displayStatus}
     {sync}
     testing={testState === "testing"}
@@ -241,7 +247,7 @@
         {reconnectError}
       />
     {:else if tab === "tools"}
-      <McpToolsTab tools={mcpDetail.tools} />
+      <McpToolsTab tools={mcpDetail.tools} serverName={server.name} />
     {:else}
       <McpSettingsTab
         serverName={server.name}

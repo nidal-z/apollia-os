@@ -43,6 +43,7 @@ pub mod routes_packages;
 pub mod routes_permissions;
 pub mod routes_plan_cache;
 pub mod routes_profile;
+pub mod routes_profiles;
 pub mod routes_resilience;
 pub mod routes_review;
 pub mod routes_server;

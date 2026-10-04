@@ -108,3 +108,39 @@ fn test_a_file_written_by_a_newer_binary_is_refused_at_open() {
         Err(SourcesError::Registry(SourceRegistryError::Schema(_)))
     ));
 }
+
+#[tokio::test]
+async fn test_removing_a_source_erases_its_index_file() {
+    // GIVEN a folder source of the registry with an index on disk, and the
+    //       index of another source beside it
+    let dir = tempfile::tempdir().unwrap();
+    let handle = SourceRegistryHandle::open(&dir.path().join("system.db")).unwrap();
+    let folder = handle
+        .create(NewSource {
+            kind: SourceKind::Folder,
+            label: "Contracts".to_owned(),
+            group: None,
+            reference: Some("folder-contracts".to_owned()),
+        })
+        .await
+        .unwrap();
+    let kept = handle.create(mailbox(Some("imap-cabinet"))).await.unwrap();
+    for id in [&folder.id, &kept.id] {
+        drop(crate::index::SourceIndex::open(dir.path(), id).unwrap());
+    }
+    let path = crate::index::index_path(dir.path(), &folder.id).unwrap();
+    let other = crate::index::index_path(dir.path(), &kept.id).unwrap();
+    assert!(path.exists());
+
+    // WHEN the folder source is removed
+    handle.delete(&folder.id).await.unwrap();
+
+    // THEN its index file and journals are gone, and the other index stays
+    let leftovers: Vec<_> = std::fs::read_dir(path.parent().unwrap())
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .filter(|name| name.starts_with(&folder.id))
+        .collect();
+    assert!(leftovers.is_empty(), "{leftovers:?}");
+    assert!(other.exists());
+}

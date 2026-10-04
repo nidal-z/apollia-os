@@ -43,7 +43,8 @@
     "settings-nav-permissions",
     "settings-nav-profile",
     "settings-nav-stt",
-    "trigger-logs-filter-all"
+    "trigger-logs-filter-all",
+    "profile-menu-reset"
   ],
   "steps": [
     {
@@ -329,11 +330,17 @@
     },
     {
       "kind": "click",
-      "testid": "profile-reset-button"
+      "testid": "profile-row-menu",
+      "nth": 0
+    },
+    {
+      "kind": "click",
+      "testid": "profile-menu-reset",
+      "timeoutMs": 5000
     },
     {
       "kind": "waitFor",
-      "testid": "profile-reset-confirm",
+      "testid": "profile-reset-dialog",
       "timeoutMs": 5000
     },
     {
@@ -463,6 +470,32 @@
     },
     {
       "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
       "route": "integrations"
     },
     {
@@ -585,6 +618,32 @@
     {
       "kind": "sleep",
       "ms": 300
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
     },
     {
       "kind": "goto",
