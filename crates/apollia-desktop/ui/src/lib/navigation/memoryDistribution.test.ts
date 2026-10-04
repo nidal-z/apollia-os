@@ -72,10 +72,11 @@ describe("memory distribution - each function at its destination", () => {
 
     // WHEN the facts card and the deletion are located
     // THEN the card is mounted for every user and each row forgets its fact
-    expect(profile).toContain("<ProfileMemoryFactsCard {facts} />");
+    expect(profile).toContain("<ProfileMemoryFactsCard");
+    expect(profile).toContain("facts={detail.facts}");
     expect(profile).not.toContain("{#if $developerMode}");
     expect(row).toContain('data-testid="profile-fact-delete"');
-    expect(row).toContain("deleteProfileEntry");
+    expect(row).toContain("deleteProfileFact(profileId, key)");
   });
 
   test("clearing every memory sits in the danger zone of General", () => {
