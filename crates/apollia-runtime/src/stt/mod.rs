@@ -7,6 +7,10 @@
 
 mod builder;
 pub(crate) mod engine;
+mod settings;
 
 pub use builder::build_stt_engine;
 pub use engine::{SttEngineError, SttEngineHandle, SttStatus, TranscriptSource};
+pub use settings::{
+    is_model_file, validate_language, UnsupportedLanguage, MODEL_EXTENSIONS, STT_LANGUAGES,
+};

@@ -118,7 +118,8 @@ export interface RegistryServerView {
 export interface RegistryPackageView {
   registryType: string;
   identifier: string;
-  version: string;
+  /** Exact version; `null` for a curated entry the selection does not pin. */
+  version: string | null;
   runtimeHint: string | null;
   /** Transport block (`{ "type": "stdio" }`), serialised by `RegistryTransport`. */
   transport: { type: string };
@@ -267,6 +268,8 @@ export interface Connection {
   kind: ConnectionKind;
   label: string;
   account: string | null;
+  /** Folder of this machine the connection opens, for a folder. */
+  path?: string;
   provenance: ConnectionProvenance;
   /** Sends data off this machine; computed by the runtime. */
   remote: boolean;

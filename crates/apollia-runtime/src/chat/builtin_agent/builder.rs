@@ -29,6 +29,7 @@ impl BuiltInChatAgent {
             approval_timeout: Some(CHAT_APPROVAL_TIMEOUT),
             tool_output_dir: None,
             resilience: apollia_oria::ResilienceLayer::default(),
+            turn_id: None,
         }
     }
 
@@ -36,6 +37,13 @@ impl BuiltInChatAgent {
     /// the model its beginning and the path. `None` cuts it instead.
     pub fn with_tool_output_dir(mut self, dir: Option<std::path::PathBuf>) -> Self {
         self.tool_output_dir = dir;
+        self
+    }
+
+    /// Name the conversation turn the run's model calls are made for, the
+    /// identifier of the answer. `None` outside a conversation.
+    pub fn with_turn_id(mut self, turn_id: Option<String>) -> Self {
+        self.turn_id = turn_id;
         self
     }
 

@@ -348,67 +348,6 @@ impl ChatSessionManagerHandle {
     /// List all A2A skills available from active worker agents.
     ///
     /// Returns an empty vec when A2A is not wired or the actor is unreachable.
-    /// Link or unlink a session to a project.
-    pub async fn link_session_to_project(
-        &self,
-        session_id: SessionId,
-        project_id: Option<String>,
-    ) -> Result<(), ChatError> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        self.tx
-            .send(ChatCommand::LinkSessionToProject {
-                session_id,
-                project_id,
-                reply: reply_tx,
-            })
-            .await
-            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
-
-        reply_rx
-            .await
-            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
-    }
-
-    /// List sessions belonging to a specific project.
-    pub async fn list_sessions_by_project(&self, project_id: String) -> Vec<SessionInfo> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        let sent = self
-            .tx
-            .send(ChatCommand::ListSessionsByProject {
-                project_id,
-                reply: reply_tx,
-            })
-            .await;
-
-        if sent.is_err() {
-            return Vec::new();
-        }
-
-        reply_rx.await.unwrap_or_default()
-    }
-
-    /// Orphan all sessions linked to a project (called on project deletion).
-    ///
-    /// Fire and forget: the caller has already deleted the project and must
-    /// not fail on this. A dropped command is traced here, a failed database
-    /// write is traced by the actor.
-    pub async fn orphan_project_sessions(&self, project_id: String) {
-        let sent = self
-            .tx
-            .send(ChatCommand::OrphanProjectSessions {
-                project_id: project_id.clone(),
-            })
-            .await;
-
-        if sent.is_err() {
-            warn!(
-                project_id = %project_id,
-                cause = "chat actor channel closed",
-                "chat.orphan_project_sessions.dropped"
-            );
-        }
-    }
-
     pub async fn list_a2a_skills(&self) -> Vec<crate::a2a::SkillListing> {
         let (reply_tx, reply_rx) = oneshot::channel();
         if self
@@ -442,6 +381,28 @@ impl ChatSessionManagerHandle {
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
     }
 
+    /// The model `session_id` runs on, as its next message would route it:
+    /// the model assigned to its declarative agent, else the backend the
+    /// session prefers. `Ok(None)` leaves the runtime default in force.
+    ///
+    /// # Errors
+    ///
+    /// - [`ChatError::SessionNotFound`] when the session is unknown.
+    /// - [`ChatError::InternalError`] when the manager is gone.
+    pub async fn session_model(&self, session_id: SessionId) -> Result<Option<String>, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::SessionModel {
+                session_id,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor unavailable".into()))?;
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
     /// Fetch aggregated metrics for a session.
     ///
     /// Returns `None` when the session is unknown or no exchange has completed
@@ -460,6 +421,17 @@ impl ChatSessionManagerHandle {
             return None;
         }
         reply_rx.await.ok().flatten()
+    }
+
+    /// The metrics the metrics panel draws, in both modes of the desktop.
+    ///
+    /// A zero-filled record for the session when no exchange has completed yet
+    /// (or the session is unknown), so the panel renders empty values instead
+    /// of an error.
+    pub async fn session_metrics_or_empty(&self, session_id: SessionId) -> SessionMetrics {
+        self.get_session_metrics(session_id.clone())
+            .await
+            .unwrap_or_else(|| SessionMetrics::new(session_id))
     }
 
     pub async fn shutdown(&self) {

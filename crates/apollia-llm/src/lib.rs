@@ -14,9 +14,12 @@
 //! regardless of which feature is enabled.
 
 pub mod backends;
+pub mod call_measure;
 pub mod capabilities;
 pub mod context_window;
 pub mod downloader;
+#[cfg(feature = "cloud")]
+pub mod embeddings_client;
 pub mod gguf_probe;
 pub mod grammar;
 pub mod hardware;
@@ -58,7 +61,8 @@ pub use meta_orchestrator::{
 };
 
 pub use apollia_core::config::LlmRoutingConfig;
-pub use capabilities::{Capabilities, VisionEngine};
+pub use call_measure::{generation_ms, CallContext, CallEnd, CallMeasure, CallMeter};
+pub use capabilities::{Capabilities, ReasoningProfile, VisionEngine};
 #[cfg(feature = "cloud")]
 pub use downloader::{
     DownloadError, DownloadId, DownloadManager, DownloadOutcome, DownloadProgress, DownloadRequest,
@@ -94,8 +98,8 @@ pub use repository::{
 };
 pub use retry::{IsCancelled, IsRetryable, RetryPolicy};
 pub use router::{
-    AgentModelBinding, AgentModelFallback, BackendConfig, BackendKind, LlmConfig, LlmRouter,
-    ObservabilityConfig, ServerEndpoint,
+    call_completed_event, observe_stream, AgentModelBinding, AgentModelFallback, BackendConfig,
+    BackendKind, LlmConfig, LlmRouter, ObservabilityConfig, ObservedCall, ServerEndpoint,
 };
 pub use routing_level::{EscalationSignal, LlmRoutingLevel};
 pub use schema_validate::{
@@ -105,6 +109,6 @@ pub use token_budget::SessionBudgetTracker;
 pub use tool_helper::{StepBudgetView, ToolCallHelper, ToolInvoker};
 pub use types::{
     estimate_tool_specs_tokens, BackendInfo, CacheControl, ChatMessage, CompletionModel,
-    CompletionRequest, CompletionResponse, FinishReason, LlmError, MessageContent, Role,
-    StreamChunk, TokenUsage, ToolCall, ToolSpec,
+    CompletionRequest, CompletionResponse, FinishReason, LlmError, MessageContent, ReasoningEffort,
+    Role, StreamChunk, TokenUsage, ToolCall, ToolSpec,
 };

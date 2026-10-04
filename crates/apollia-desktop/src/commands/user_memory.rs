@@ -1,55 +1,31 @@
-//! Tauri IPC commands for the user profile and conversation statistics.
+//! Tauri IPC commands for the user profiles and conversation statistics.
 //!
-//! Surface:
-//! - [`get_profile`]: schema entries + extras for the Settings → Profile page.
-//! - [`set_profile_entry`]: upsert (always `WrittenBy::User`).
-//! - [`delete_profile_entry`]: remove a single entry by key.
-//! - [`reset_user_profile`]: purge every user-visible entry.
+//! Surface, each profile named by its identifier or by `default`:
+//! - [`list_profiles`], [`create_profile`], [`get_profile_by_id`],
+//!   [`update_profile`], [`delete_profile`], [`set_default_profile`],
+//!   [`reset_profile`]: the profiles of Settings > Profile.
+//! - [`set_profile_fact`], [`delete_profile_fact`]: the facts retained in one
+//!   profile.
 //! - [`get_conversation_stats`]: per-session chat statistics.
+//!
+//! Every profile command serves both modes: the embedded arm calls
+//! [`apollia_runtime::profile`], the attached arm the `/api/v1/profiles`
+//! routes that serve the same functions.
 
 use apollia_runtime::api::routes_profile::{
     DeletedProfileEntry, ProfileReset, SetProfileEntryBody,
 };
-use apollia_runtime::chat::{ChatSessionManagerHandle, DEFAULT_CONTEXT_WINDOW_SIZE};
+use apollia_runtime::api::routes_profiles::{CreateProfileBody, DeletedProfile};
+use apollia_runtime::conversation_stats::conversation_stats;
+pub use apollia_runtime::conversation_stats::ConversationStatsView;
 use apollia_runtime::embedded::RuntimeHandle;
 use apollia_runtime::profile::{self, ProfileError, ProfileStore};
-pub use apollia_runtime::profile::{ProfileEntryView, UserProfileView};
-use serde::{Deserialize, Serialize};
+pub use apollia_runtime::profile::{
+    ProfileDetailView, ProfileEntryView, ProfileSummaryView, ProfileUpdate,
+};
 use tauri::State;
 
 use crate::attached::{segment, RuntimeLink};
-
-// ---------------------------------------------------------------------------
-// View types serialised to the Svelte frontend
-// ---------------------------------------------------------------------------
-
-/// Request payload for [`set_profile_entry`].
-#[derive(Debug, Deserialize)]
-pub struct SetProfileEntryRequest {
-    /// Flat storage key.
-    pub key: String,
-    /// Plain-text value.
-    pub value: String,
-}
-
-/// Statistics for a single chat conversation session.
-#[derive(Debug, Clone, Serialize)]
-pub struct ConversationStatsView {
-    /// Total number of messages in the session.
-    pub message_count: usize,
-    /// Number of messages that have been summarized.
-    pub summarized_count: usize,
-    /// Approximate context window usage percentage.
-    pub context_usage_pct: f64,
-    /// Whether user profile was injected into the system prompt.
-    pub user_memory_injected: bool,
-    /// Number of past sessions referenced via cross-session recall.
-    pub cross_sessions_referenced: usize,
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 /// The profile repository of the runtime running in this process.
 fn embedded_repo(state: &RuntimeHandle) -> Result<ProfileStore<'_>, String> {
@@ -60,179 +36,182 @@ fn embedded_repo(state: &RuntimeHandle) -> Result<ProfileStore<'_>, String> {
         .ok_or_else(|| ProfileError::Unavailable.to_string())
 }
 
-fn get_chat_manager(state: &RuntimeHandle) -> Result<&ChatSessionManagerHandle, String> {
-    state
-        .chat_manager
-        .as_ref()
-        .ok_or_else(|| "NOT_INITIALIZED: Chat subsystem is not available".to_string())
+fn profile_path(id: &str) -> String {
+    format!("/api/v1/profiles/{}", segment(id))
 }
 
-fn count_cross_session_refs(system_prompt: &str) -> usize {
-    let marker = "## Previous conversations (for reference)";
-    if !system_prompt.contains(marker) {
-        return 0;
-    }
-    system_prompt.matches("- [").count()
-}
-
-// ---------------------------------------------------------------------------
-// Commands
-// ---------------------------------------------------------------------------
-
-/// Returns the user profile (schema entries + extras) for the
-/// Settings → Profile page. Attached to a daemon, `GET /api/v1/profile`
-/// answers the same view.
+/// Lists every profile, the default first.
 #[tauri::command]
-pub async fn get_profile(link: State<'_, RuntimeLink>) -> Result<UserProfileView, String> {
-    match link.inner() {
-        RuntimeLink::Embedded(state) => Ok(profile::read_profile(embedded_repo(state)?)
-            .await
-            .map_err(|e| e.to_string())?),
-        RuntimeLink::Attached(remote) => Ok(remote.get("/api/v1/profile").await?),
-    }
-}
-
-/// Creates or updates a single profile entry.
-///
-/// Always written with `WrittenBy::User`; the source represents the
-/// frontend operator action.
-#[tauri::command]
-pub async fn set_profile_entry(
+pub async fn list_profiles(
     link: State<'_, RuntimeLink>,
-    request: SetProfileEntryRequest,
-) -> Result<ProfileEntryView, String> {
-    if request.key.is_empty() {
-        return Err(ProfileError::EmptyKey.to_string());
+) -> Result<Vec<ProfileSummaryView>, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(state) => profile::list_profiles(embedded_repo(state)?)
+            .await
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => Ok(remote.get("/api/v1/profiles").await?),
     }
+}
+
+/// Creates a profile with empty fields, not the default.
+#[tauri::command]
+pub async fn create_profile(
+    link: State<'_, RuntimeLink>,
+    name: String,
+) -> Result<ProfileSummaryView, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(state) => profile::create_profile(embedded_repo(state)?, name)
+            .await
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => Ok(remote
+            .post("/api/v1/profiles", &CreateProfileBody { name })
+            .await?),
+    }
+}
+
+/// Reads one profile in full: its fields, in the order of the schema, and
+/// its facts.
+#[tauri::command]
+pub async fn get_profile_by_id(
+    link: State<'_, RuntimeLink>,
+    id: String,
+) -> Result<ProfileDetailView, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(state) => profile::read_profile_by_id(embedded_repo(state)?, id)
+            .await
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => Ok(remote.get(&profile_path(&id)).await?),
+    }
+}
+
+/// Renames a profile and writes its fields.
+#[tauri::command]
+pub async fn update_profile(
+    link: State<'_, RuntimeLink>,
+    id: String,
+    update: ProfileUpdate,
+) -> Result<ProfileDetailView, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(state) => profile::update_profile(embedded_repo(state)?, id, update)
+            .await
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => Ok(remote.patch(&profile_path(&id), &update).await?),
+    }
+}
+
+/// Deletes a profile and its facts; the default profile is refused.
+#[tauri::command]
+pub async fn delete_profile(link: State<'_, RuntimeLink>, id: String) -> Result<(), String> {
+    match link.inner() {
+        RuntimeLink::Embedded(state) => profile::delete_profile(embedded_repo(state)?, id)
+            .await
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => {
+            let _: DeletedProfile = remote.delete(&profile_path(&id)).await?;
+            Ok(())
+        }
+    }
+}
+
+/// Makes a profile the default.
+#[tauri::command]
+pub async fn set_default_profile(
+    link: State<'_, RuntimeLink>,
+    id: String,
+) -> Result<ProfileSummaryView, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(state) => profile::set_default_profile(embedded_repo(state)?, id)
+            .await
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => Ok(remote
+            .post(&format!("{}/default", profile_path(&id)), &())
+            .await?),
+    }
+}
+
+/// Empties a profile and deletes its facts; returns how many entries went.
+#[tauri::command]
+pub async fn reset_profile(link: State<'_, RuntimeLink>, id: String) -> Result<usize, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(state) => profile::reset_profile_by_id(embedded_repo(state)?, id)
+            .await
+            .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => {
+            let reset: ProfileReset = remote
+                .post(&format!("{}/reset", profile_path(&id)), &())
+                .await?;
+            Ok(reset.removed)
+        }
+    }
+}
+
+/// Retains a fact in a profile, written by the user.
+#[tauri::command]
+pub async fn set_profile_fact(
+    link: State<'_, RuntimeLink>,
+    id: String,
+    key: String,
+    value: String,
+) -> Result<ProfileEntryView, String> {
     match link.inner() {
         RuntimeLink::Embedded(state) => {
-            Ok(
-                profile::write_entry(embedded_repo(state)?, request.key, request.value)
-                    .await
-                    .map_err(|e| e.to_string())?,
-            )
+            profile::set_profile_fact(embedded_repo(state)?, id, key, value)
+                .await
+                .map_err(|e| e.to_string())
         }
         RuntimeLink::Attached(remote) => {
-            let path = format!("/api/v1/profile/entries/{}", segment(&request.key));
-            let body = SetProfileEntryBody {
-                value: request.value,
-            };
-            Ok(remote.put(&path, &body).await?)
+            let path = format!("{}/facts/{}", profile_path(&id), segment(&key));
+            Ok(remote.put(&path, &SetProfileEntryBody { value }).await?)
         }
     }
 }
 
-/// Deletes a single profile entry by key.
+/// Forgets a fact of a profile.
 #[tauri::command]
-pub async fn delete_profile_entry(link: State<'_, RuntimeLink>, key: String) -> Result<(), String> {
+pub async fn delete_profile_fact(
+    link: State<'_, RuntimeLink>,
+    id: String,
+    key: String,
+) -> Result<(), String> {
     match link.inner() {
-        RuntimeLink::Embedded(state) => Ok(profile::delete_entry(embedded_repo(state)?, key)
-            .await
-            .map_err(|e| e.to_string())?),
+        RuntimeLink::Embedded(state) => {
+            profile::delete_profile_fact(embedded_repo(state)?, id, key)
+                .await
+                .map_err(|e| e.to_string())
+        }
         RuntimeLink::Attached(remote) => {
-            let path = format!("/api/v1/profile/entries/{}", segment(&key));
+            let path = format!("{}/facts/{}", profile_path(&id), segment(&key));
             let _: DeletedProfileEntry = remote.delete(&path).await?;
             Ok(())
         }
     }
 }
 
-/// Deletes every user-visible profile entry, preserving onboarding markers.
-#[tauri::command]
-pub async fn reset_user_profile(link: State<'_, RuntimeLink>) -> Result<usize, String> {
-    match link.inner() {
-        RuntimeLink::Embedded(state) => Ok(profile::reset_profile(embedded_repo(state)?)
-            .await
-            .map_err(|e| e.to_string())?),
-        RuntimeLink::Attached(remote) => {
-            let reset: ProfileReset = remote.post("/api/v1/profile/reset", &()).await?;
-            Ok(reset.removed)
-        }
-    }
-}
-
-/// Returns statistics for a chat conversation session.
+/// Returns statistics for a chat conversation session. Attached to a daemon,
+/// `GET /api/v1/sessions/{id}/stats` answers the same view.
 #[tauri::command]
 pub async fn get_conversation_stats(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     session_id: String,
 ) -> Result<ConversationStatsView, String> {
-    let manager = get_chat_manager(&state)?;
-
-    let detail = manager
-        .get_session(session_id.clone())
-        .await
-        .ok_or_else(|| format!("NOT_FOUND: Chat session not found: {session_id}"))?;
-
-    let message_count = detail.message_count as usize;
-    let context_window = DEFAULT_CONTEXT_WINDOW_SIZE;
-
-    let has_summary = detail
-        .session
-        .system_prompt
-        .contains("## Conversation summary");
-
-    let summarized_count = if has_summary && message_count > context_window {
-        message_count.saturating_sub(context_window)
-    } else {
-        0
-    };
-
-    // Token-based context gauge: current occupancy over the model's real window,
-    // read from the accumulated session metrics. Falls back to 0 (unknown) when
-    // no exchange has completed or the backend does not report a window, rather
-    // than the old message-count-over-20 saturation.
-    let metrics = manager.get_session_metrics(session_id.clone()).await;
-    let context_usage_pct = metrics
-        .filter(|m| m.context_window_tokens > 0)
-        .map(|m| (m.context_tokens_used as f64 / m.context_window_tokens as f64) * 100.0)
-        .map(|pct| pct.min(100.0))
-        .unwrap_or(0.0);
-
-    let prompt = &detail.session.system_prompt;
-    let user_memory_injected = state.user_memory.is_some()
-        && (prompt.contains("Section: identity")
-            || prompt.contains("Section: work")
-            || prompt.contains("Section: preferences")
-            || prompt.contains("Section: constraints")
-            || prompt.contains("Section: other"));
-
-    let cross_sessions_referenced = count_cross_session_refs(&detail.session.system_prompt);
-
-    Ok(ConversationStatsView {
-        message_count,
-        summarized_count,
-        context_usage_pct,
-        user_memory_injected,
-        cross_sessions_referenced,
-    })
+    stats_on(link.inner(), session_id).await
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cross_session_refs_with_marker() {
-        // GIVEN a prompt carrying the previous-conversations block and two entries
-        let prompt = "Hello.\n\n\
-            ## Previous conversations (for reference)\n\
-            - [2026-03-20T10:00:00Z] foo\n\
-            - [2026-03-19T14:00:00Z] bar\n";
-        // WHEN the cross-session references are counted
-        // THEN the count is two
-        assert_eq!(count_cross_session_refs(prompt), 2);
-    }
-
-    #[test]
-    fn cross_session_refs_without_marker() {
-        // GIVEN a prompt with no such block
-        // WHEN the cross-session references are counted
-        // THEN the count is zero rather than a false positive on a plain sentence
-        assert_eq!(count_cross_session_refs("Hi"), 0);
+pub(crate) async fn stats_on(
+    link: &RuntimeLink,
+    session_id: String,
+) -> Result<ConversationStatsView, String> {
+    match link {
+        RuntimeLink::Embedded(state) => conversation_stats(
+            state.chat_manager.as_ref(),
+            state.user_memory.is_some(),
+            session_id,
+        )
+        .await
+        .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => {
+            let path = format!("/api/v1/sessions/{}/stats", segment(&session_id));
+            Ok(remote.get(&path).await?)
+        }
     }
 }

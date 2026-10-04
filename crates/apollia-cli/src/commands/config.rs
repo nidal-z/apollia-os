@@ -1,17 +1,19 @@
 //! `apollia-os config` subcommands: manage the global `apollia.toml`.
 //!
 //! These commands operate directly on the on-disk configuration without
-//! touching the runtime. They are orthogonal to the section-specific helpers
+//! touching the runtime. Every one of them except `reset` first writes the
+//! default `~/.apollia/apollia.toml` when that file is absent (see `keys`). They are orthogonal to the section-specific helpers
 //! `tools config` and `stt config`, which target their own respective slices.
 
 use std::io::IsTerminal as _;
 use std::path::{Path, PathBuf};
 
 use clap::Subcommand;
-use toml_edit::{value, DocumentMut, Item};
 
 use crate::exit_codes;
 use crate::note;
+
+mod keys;
 
 /// Subcommands of `apollia-os config`.
 #[derive(Debug, Subcommand)]
@@ -71,6 +73,10 @@ pub enum ConfigCommand {
         file: Option<PathBuf>,
     },
 
+    /// List every key of apollia.toml: path, type, default, reload class,
+    /// whether the organization policy can fix it, and whether it is withdrawn.
+    Keys,
+
     /// Wipe `~/.apollia/`, an irreversible factory reset.
     ///
     /// Deletes every SQLite database, log, journal, memory file, OAuth client
@@ -114,11 +120,21 @@ fn validate_value_against_the_machine(key: &str, value: &str) -> Result<(), Stri
 /// Entry point for `apollia-os config <verb>`.
 pub fn run(cmd: &ConfigCommand, json: bool) -> i32 {
     match cmd {
+        ConfigCommand::Get { file, .. }
+        | ConfigCommand::Set { file, .. }
+        | ConfigCommand::Validate { file }
+        | ConfigCommand::Edit { file }
+        | ConfigCommand::Show { file } => keys::ensure_default_file(file.as_deref()),
+        ConfigCommand::Keys => keys::ensure_default_file(None),
+        ConfigCommand::Reset { .. } => {}
+    }
+    match cmd {
         ConfigCommand::Get { key, file } => run_get(key.as_deref(), file.as_deref(), json),
         ConfigCommand::Set { key, value, file } => run_set(key, value, file.as_deref(), json),
         ConfigCommand::Validate { file } => run_validate(file.as_deref(), json),
         ConfigCommand::Edit { file } => run_edit(file.as_deref(), json),
         ConfigCommand::Show { file } => run_show(file.as_deref(), json),
+        ConfigCommand::Keys => keys::run_keys(json),
         ConfigCommand::Reset {
             confirm,
             dry_run,
@@ -127,27 +143,14 @@ pub fn run(cmd: &ConfigCommand, json: bool) -> i32 {
     }
 }
 
-/// Resolve the apollia.toml location: explicit override wins, then `./apollia.toml`,
-/// then `$XDG_CONFIG_HOME/apollia/apollia.toml` (or `~/.config/apollia/apollia.toml`).
+/// Resolve the apollia.toml location: the `--file` override when given,
+/// otherwise `~/.apollia/apollia.toml`, the file every surface reads.
 ///
-/// This is the order the runtime itself walks when it starts, so every command
-/// that reads or writes `apollia.toml` goes through here rather than guessing a
-/// location of its own. A command writing somewhere else writes a file the
-/// daemon never reads.
+/// Every command that reads or writes `apollia.toml` goes through here rather
+/// than guessing a location of its own. A command writing somewhere else
+/// writes a file the daemon never reads.
 pub(crate) fn resolve_path(override_path: Option<&Path>) -> PathBuf {
-    if let Some(p) = override_path {
-        return p.to_path_buf();
-    }
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let local = cwd.join("apollia.toml");
-    if local.exists() {
-        return local;
-    }
-    let xdg = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
-    let base = xdg
-        .or_else(|| apollia_core::paths::home_dir().map(|h| h.join(".config")))
-        .unwrap_or_else(|| PathBuf::from("."));
-    base.join("apollia").join("apollia.toml")
+    crate::config_location::resolve(override_path)
 }
 
 fn emit_error(msg: impl Into<String>, json: bool) {
@@ -196,6 +199,12 @@ fn run_get(key: Option<&str>, file: Option<&Path>, json: bool) -> i32 {
                     emit_error(format!("invalid TOML: {e}"), json);
                     return exit_codes::GENERAL_ERROR;
                 }
+            }
+        } else if crate::output::is_quiet() {
+            // `--quiet` drops blank spacers; the default file has one between
+            // every key.
+            for line in content.lines().filter(|l| !l.trim().is_empty()) {
+                println!("{line}");
             }
         } else {
             print!("{content}");
@@ -283,61 +292,26 @@ fn toml_value_to_json(v: &toml::Value) -> serde_json::Value {
 // ─── set ─────────────────────────────────────────────────────────────────────
 
 fn run_set(key: &str, value_str: &str, file: Option<&Path>, json: bool) -> i32 {
+    let location = apollia_permissions::policy_location();
+    let policy = apollia_permissions::load_policy(&location.dir, location.owner);
+    run_set_under(key, value_str, file, json, &policy.imposed_settings())
+}
+
+/// `config set` against the settings `policy` fixes, through the one writer of
+/// the file: the daemon need not run, and a refusal is the sentence the
+/// runtime's routes answer for the same fault. A key the organisation policy
+/// imposes is refused before the file is opened, and the file is left as it
+/// was.
+fn run_set_under(
+    key: &str,
+    value_str: &str,
+    file: Option<&Path>,
+    json: bool,
+    policy: &apollia_core::config::PolicySettings,
+) -> i32 {
     let path = resolve_path(file);
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            if let Err(e) = std::fs::create_dir_all(parent) {
-                emit_error(format!("create {} failed: {e}", parent.display()), json);
-                return exit_codes::GENERAL_ERROR;
-            }
-        }
-    }
-    let content = std::fs::read_to_string(&path).unwrap_or_default();
-    let mut doc: DocumentMut = match content.parse() {
-        Ok(d) => d,
-        Err(e) => {
-            emit_error(format!("invalid TOML in {}: {e}", path.display()), json);
-            return exit_codes::GENERAL_ERROR;
-        }
-    };
-
-    let new_item = parse_scalar(value_str);
-    if let Err(e) = set_path(&mut doc, key, new_item) {
-        emit_error(e, json);
-        return exit_codes::GENERAL_ERROR;
-    }
-
-    // Validate the candidate document BEFORE persisting, so a typo'd key path or
-    // an invalid value is rejected (nonzero, no write) instead of silently
-    // bricking the next boot. A single `config set` legitimately leaves a section
-    // incomplete (e.g. `llm.default` before `llm.backends`); enforcing section
-    // completeness is `config validate`'s job, so "missing field" errors are
-    // tolerated here while invalid values / enum variants are rejected.
-    let top_level = key.split('.').next().unwrap_or(key);
-    if !crate::config::is_known_top_level_section(top_level) {
-        emit_error(format!("unknown config key: '{key}'"), json);
-        return exit_codes::GENERAL_ERROR;
-    }
-    if let Err(e) = crate::config::validate_apollia_toml_str(&doc.to_string()) {
-        let msg = e.to_string();
-        if !msg.contains("missing field") {
-            emit_error(format!("invalid config value for '{key}': {e}"), json);
-            return exit_codes::GENERAL_ERROR;
-        }
-    }
-
-    // A few values name something outside the file, and a shape check says
-    // nothing about them. An interpreter that does not exist, does not start,
-    // or reads a standard library it cannot, is refused here rather than at the
-    // point an agent runs: the operator is the one who can fix it, and they are
-    // in front of the terminal right now.
-    if let Err(e) = validate_value_against_the_machine(key, value_str) {
-        emit_error(e, json);
-        return exit_codes::GENERAL_ERROR;
-    }
-
-    if let Err(e) = std::fs::write(&path, doc.to_string()) {
-        emit_error(format!("write {} failed: {e}", path.display()), json);
+    if let Err(message) = set_key(&path, key, value_str, policy) {
+        emit_error(message, json);
         return exit_codes::GENERAL_ERROR;
     }
 
@@ -360,55 +334,49 @@ fn run_set(key: &str, value_str: &str, file: Option<&Path>, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
-/// Parse a CLI scalar string into the right `toml_edit::Item`.
-fn parse_scalar(raw: &str) -> Item {
-    if raw.eq_ignore_ascii_case("true") {
-        return value(true);
+/// Writes `key` to the file at `path` through the writer, or returns the
+/// sentence of the refusal.
+fn set_key(
+    path: &Path,
+    key: &str,
+    value_str: &str,
+    policy: &apollia_core::config::PolicySettings,
+) -> Result<(), String> {
+    use apollia_core::config::writer::{update_config, ConfigEdit, KeyChange};
+
+    // A few values name something outside the file, and a shape check says
+    // nothing about them. An interpreter that does not exist, does not start,
+    // or reads a standard library it cannot, is refused here rather than at the
+    // point an agent runs: the operator is the one who can fix it, and they are
+    // in front of the terminal right now.
+    if !policy.locks(key) {
+        validate_value_against_the_machine(key, value_str)?;
     }
-    if raw.eq_ignore_ascii_case("false") {
-        return value(false);
-    }
-    if let Ok(n) = raw.parse::<i64>() {
-        return value(n);
-    }
-    if let Ok(f) = raw.parse::<f64>() {
-        return value(f);
-    }
-    value(raw)
+    let change = KeyChange::set(key, parse_scalar(value_str));
+    update_config(path, ConfigEdit::Keys(vec![change]), policy)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
-/// Navigate `doc` along the dotted `key`, creating intermediate tables as needed,
-/// and replace the leaf value with `item`.
-fn set_path(doc: &mut DocumentMut, key: &str, item: Item) -> Result<(), String> {
-    let segments: Vec<&str> = key.split('.').collect();
-    if segments.is_empty() || segments.iter().any(|s| s.is_empty()) {
-        return Err("invalid key path".to_string());
+/// Parse a CLI scalar string into the value it most likely means.
+fn parse_scalar(raw: &str) -> serde_json::Value {
+    if raw.eq_ignore_ascii_case("true") {
+        return serde_json::Value::Bool(true);
     }
-    let mut node = doc.as_item_mut();
-    for (i, segment) in segments.iter().enumerate() {
-        let is_last = i + 1 == segments.len();
-        if is_last {
-            // Insert / replace the leaf.
-            let table = node
-                .as_table_like_mut()
-                .ok_or_else(|| format!("cannot descend into non-table at '{segment}'"))?;
-            table.insert(segment, item);
-            return Ok(());
-        }
-        // Descend, creating empty inline tables on the way if absent.
-        let table = node
-            .as_table_like_mut()
-            .ok_or_else(|| format!("cannot descend into non-table at '{segment}'"))?;
-        if table.get(segment).is_none() {
-            let mut new_table = toml_edit::Table::new();
-            new_table.set_implicit(true);
-            table.insert(segment, Item::Table(new_table));
-        }
-        node = table
-            .get_mut(segment)
-            .ok_or_else(|| format!("intermediate '{segment}' missing after insert"))?;
+    if raw.eq_ignore_ascii_case("false") {
+        return serde_json::Value::Bool(false);
     }
-    Ok(())
+    if let Ok(n) = raw.parse::<i64>() {
+        return serde_json::json!(n);
+    }
+    if let Some(f) = raw
+        .parse::<f64>()
+        .ok()
+        .and_then(serde_json::Number::from_f64)
+    {
+        return serde_json::Value::Number(f);
+    }
+    serde_json::Value::String(raw.to_owned())
 }
 
 // ─── validate ────────────────────────────────────────────────────────────────
@@ -443,16 +411,26 @@ fn run_validate(file: Option<&Path>, json: bool) -> i32 {
             exit_codes::SUCCESS
         }
         Err(e) => {
+            let diagnostics = match &e {
+                crate::config::ConfigError::Invalid(d) => d.clone(),
+                _ => Vec::new(),
+            };
             if json {
                 let out = serde_json::json!({
                     "path": path.display().to_string(),
                     "exists": true,
                     "valid": false,
                     "error": e.to_string(),
+                    "diagnostics": diagnostics,
                 });
                 println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
+            } else if diagnostics.is_empty() {
                 eprintln!("x {} invalid: {e}", path.display());
+            } else {
+                eprintln!("x {} invalid:", path.display());
+                for d in &diagnostics {
+                    eprintln!("  {}:{d}", path.display());
+                }
             }
             exit_codes::GENERAL_ERROR
         }
@@ -470,35 +448,80 @@ fn run_edit(file: Option<&Path>, json: bool) -> i32 {
         emit_error("edit requires a TTY", false);
         return exit_codes::GENERAL_ERROR;
     }
-    let path = resolve_path(file);
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            if let Err(e) = std::fs::create_dir_all(parent) {
-                emit_error(format!("create {} failed: {e}", parent.display()), false);
-                return exit_codes::GENERAL_ERROR;
-            }
+    let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
+    let location = apollia_permissions::policy_location();
+    let policy = apollia_permissions::load_policy(&location.dir, location.owner);
+    edit_through_the_writer(&resolve_path(file), &policy.imposed_settings(), |copy| {
+        match std::process::Command::new(&editor).arg(copy).status() {
+            Ok(s) if s.success() => Ok(()),
+            Ok(s) => Err(format!("editor exited with status {s}")),
+            Err(e) => Err(format!("failed to spawn editor '{editor}': {e}")),
         }
-    }
-    if !path.exists() {
-        // Create an empty file so the editor opens cleanly.
-        if let Err(e) = std::fs::write(&path, "") {
-            emit_error(format!("create {} failed: {e}", path.display()), false);
+    })
+}
+
+/// `config edit` without the terminal: the file is copied beside itself, the
+/// copy is handed to `edit`, and the edited text is submitted to the writer
+/// against the fingerprint read before the edit. The file is never edited in
+/// place, so a text the writer refuses never reaches the daemon; the copy is
+/// then kept, and its path printed, so the edit is not lost.
+fn edit_through_the_writer(
+    path: &Path,
+    policy: &apollia_core::config::PolicySettings,
+    edit: impl FnOnce(&Path) -> Result<(), String>,
+) -> i32 {
+    use apollia_core::config::writer::{read_snapshot, write_config, ConfigEdit};
+
+    let before = match read_snapshot(path) {
+        Ok(snapshot) => snapshot,
+        Err(e) => {
+            emit_error(e.to_string(), false);
             return exit_codes::GENERAL_ERROR;
         }
+    };
+    let copy = edit_copy_path(path);
+    if let Err(e) = std::fs::write(&copy, &before.text) {
+        emit_error(format!("create {} failed: {e}", copy.display()), false);
+        return exit_codes::GENERAL_ERROR;
     }
-    let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
-    let status = std::process::Command::new(&editor).arg(&path).status();
-    match status {
-        Ok(s) if s.success() => exit_codes::SUCCESS,
-        Ok(s) => {
-            eprintln!("editor exited with status {s}");
-            exit_codes::GENERAL_ERROR
+    if let Err(e) = edit(&copy) {
+        let _ = std::fs::remove_file(&copy);
+        emit_error(e, false);
+        return exit_codes::GENERAL_ERROR;
+    }
+    let edited = match std::fs::read_to_string(&copy) {
+        Ok(text) => text,
+        Err(e) => {
+            emit_error(format!("read {} failed: {e}", copy.display()), false);
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+    match write_config(path, ConfigEdit::Text(edited), &before.sha256, policy) {
+        Ok(_) => {
+            let _ = std::fs::remove_file(&copy);
+            exit_codes::SUCCESS
         }
         Err(e) => {
-            emit_error(format!("failed to spawn editor '{editor}': {e}"), false);
+            emit_error(
+                format!(
+                    "{e}\nyour edit is kept in {}; {} is unchanged",
+                    copy.display(),
+                    path.display()
+                ),
+                false,
+            );
             exit_codes::GENERAL_ERROR
         }
     }
+}
+
+/// The copy `config edit` hands to the editor, beside the file so it keeps its
+/// `.toml` extension and its folder.
+fn edit_copy_path(path: &Path) -> PathBuf {
+    let name = path
+        .file_name()
+        .map_or_else(|| "apollia.toml".into(), |n| n.to_string_lossy());
+    path.with_file_name(format!("{name}.edit.toml"))
 }
 
 // ─── show (resolved) ─────────────────────────────────────────────────────────
@@ -781,7 +804,7 @@ mod tests {
         // GIVEN a whole number
         // WHEN it is parsed as a scalar
         // THEN it becomes an integer rather than a string
-        assert_eq!(parse_scalar("42").as_integer(), Some(42));
+        assert_eq!(parse_scalar("42").as_i64(), Some(42));
     }
 
     #[test]
@@ -789,7 +812,7 @@ mod tests {
         // GIVEN a decimal number
         // WHEN it is parsed as a scalar
         // THEN it becomes a float rather than a string
-        assert_eq!(parse_scalar("2.5").as_float(), Some(2.5));
+        assert_eq!(parse_scalar("2.5").as_f64(), Some(2.5));
     }
 
     #[test]
@@ -823,27 +846,35 @@ mod tests {
     }
 
     #[test]
-    fn set_path_creates_intermediate_tables() {
-        // GIVEN an empty document
-        let mut doc: DocumentMut = "".parse().unwrap();
-        // WHEN a two-level key is set
-        set_path(&mut doc, "tools.web_search.timeout_secs", value(10)).unwrap();
-        // THEN the intermediate table is created rather than the write being refused
-        let rendered = doc.to_string();
-        assert!(rendered.contains("[tools.web_search]"));
-        assert!(rendered.contains("timeout_secs = 10"));
+    fn without_file_the_commands_use_the_shared_configuration() {
+        // GIVEN no --file on a `config` command, HOME held under the shared
+        // lock so a test swapping it cannot run between the two reads
+        let _guard = crate::commands::HOME_ENV_LOCK.blocking_lock();
+        // WHEN its file is resolved
+        let resolved = resolve_path(None);
+        // THEN it is ~/.apollia/apollia.toml, the file the daemon and the
+        // desktop read, never one relative to the working directory
+        assert!(resolved.is_absolute(), "{}", resolved.display());
+        assert!(
+            resolved.ends_with(Path::new(".apollia").join("apollia.toml")),
+            "{}",
+            resolved.display()
+        );
     }
 
     #[test]
-    fn set_path_replaces_existing_value() {
-        // GIVEN a document already holding a value at that key
-        let mut doc: DocumentMut = "[llm]\ndefault = \"openai\"\n".parse().unwrap();
-        // WHEN the key is set again
-        set_path(&mut doc, "llm.default", value("anthropic")).unwrap();
-        // THEN the new value replaces the old one, which does not survive anywhere
-        let rendered = doc.to_string();
-        assert!(rendered.contains("default = \"anthropic\""));
-        assert!(!rendered.contains("openai"));
+    fn file_option_replaces_the_shared_location() {
+        // GIVEN a throwaway directory holding a file named with --file
+        let dir = tempfile::tempdir().unwrap();
+        let explicit = dir.path().join("elsewhere.toml");
+        // WHEN a key is written through `config set --file`
+        let code = run_set("desktop.developer_mode", "true", Some(&explicit), true);
+        // THEN the explicit file holds it, and resolution answers it verbatim
+        assert_eq!(code, exit_codes::SUCCESS);
+        assert!(std::fs::read_to_string(&explicit)
+            .unwrap()
+            .contains("developer_mode = true"));
+        assert_eq!(resolve_path(Some(&explicit)), explicit);
     }
 
     #[test]
@@ -868,6 +899,241 @@ mod tests {
         std::fs::write(&path, "").unwrap();
         // WHEN setting an unknown top-level key path
         let code = run_set("not.a.real.key", "somevalue", Some(&path), true);
+        // THEN it fails and leaves the file unchanged
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "");
+    }
+
+    #[test]
+    fn run_set_writes_desktop_developer_mode() {
+        // GIVEN a throwaway home holding an empty apollia.toml
+        let home = tempfile::tempdir().unwrap();
+        let path = home.path().join(".apollia").join("apollia.toml");
+        // WHEN developer mode is set through the command
+        let code = run_set("desktop.developer_mode", "true", Some(&path), true);
+        // THEN it succeeds and the key is in the file, under its section
+        assert_eq!(code, exit_codes::SUCCESS);
+        let written = std::fs::read_to_string(&path).unwrap();
+        assert!(written.contains("[desktop]"), "{written}");
+        assert!(written.contains("developer_mode = true"), "{written}");
+        let typed = crate::config::validate_apollia_toml_str(&written).unwrap();
+        assert!(typed.desktop.developer_mode);
+    }
+
+    #[test]
+    fn run_set_writes_an_observability_key() {
+        // GIVEN a throwaway home holding an empty apollia.toml
+        let home = tempfile::tempdir().unwrap();
+        let path = home.path().join(".apollia").join("apollia.toml");
+        // WHEN a key of [observability] is set through the command
+        let code = run_set("observability.retention_days", "30", Some(&path), true);
+        // THEN it succeeds, and the daemon's schema reads the value back
+        assert_eq!(code, exit_codes::SUCCESS);
+        let written = std::fs::read_to_string(&path).unwrap();
+        let typed = crate::config::validate_apollia_toml_str(&written).unwrap();
+        assert_eq!(typed.observability.retention_days, 30);
+    }
+
+    #[test]
+    fn run_set_writes_the_link_preview_under_desktop_and_refuses_its_former_place() {
+        // GIVEN a throwaway home holding an empty apollia.toml
+        let home = tempfile::tempdir().unwrap();
+        let path = home.path().join(".apollia").join("apollia.toml");
+        // WHEN the link preview is set at its place, then at its former one
+        let moved = run_set("desktop.link_preview_enabled", "true", Some(&path), true);
+        let former = run_set("ui.link_preview_enabled", "true", Some(&path), true);
+        // THEN the first is written under [desktop], the second refused as a
+        // withdrawn key
+        assert_eq!(moved, exit_codes::SUCCESS);
+        assert_eq!(former, exit_codes::GENERAL_ERROR);
+        let written = std::fs::read_to_string(&path).unwrap();
+        assert!(!written.contains("[ui]"), "{written}");
+        let typed = crate::config::validate_apollia_toml_str(&written).unwrap();
+        assert!(typed.desktop.link_preview_enabled);
+    }
+
+    #[test]
+    fn run_set_refuses_a_key_the_policy_fixes() {
+        // GIVEN a file where the user turned developer mode on, and a policy
+        // fixing it off
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        std::fs::write(&path, "[desktop]\ndeveloper_mode = true\n").unwrap();
+        let policy = apollia_core::config::PolicySettings::none()
+            .impose("desktop.developer_mode", serde_json::json!(false));
+        // WHEN the command sets it
+        let code = run_set_under(
+            "desktop.developer_mode",
+            "false",
+            Some(&path),
+            true,
+            &policy,
+        );
+        // THEN it fails and the file is left as it was
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "[desktop]\ndeveloper_mode = true\n"
+        );
+    }
+
+    #[test]
+    fn with_the_daemon_stopped_set_writes_through_the_writer_with_its_sentences() {
+        // GIVEN a file with a comment, no daemon anywhere, and a policy that
+        // fixes the developer mode off
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("apollia.toml");
+        std::fs::write(&path, "# mine\n").unwrap();
+        let policy = apollia_core::config::PolicySettings::none()
+            .impose("desktop.developer_mode", serde_json::json!(false));
+
+        // WHEN the command sets a free key, then the locked one, then a typo
+        let free = set_key(&path, "api.port", "7773", &policy);
+        let locked = set_key(&path, "desktop.developer_mode", "true", &policy);
+        let typo = set_key(&path, "api.typo", "1", &policy);
+
+        // THEN the free key is written next to the comment, and each refusal is
+        // the very sentence the writer gives the runtime's routes
+        assert_eq!(free, Ok(()));
+        let written = std::fs::read_to_string(&path).unwrap();
+        assert!(written.contains("# mine"), "{written}");
+        assert!(written.contains("port = 7773"), "{written}");
+        use apollia_core::config::writer::{update_config, ConfigEdit, KeyChange};
+        let direct = |key: &str, value: serde_json::Value| {
+            update_config(
+                &path,
+                ConfigEdit::Keys(vec![KeyChange::set(key, value)]),
+                &policy,
+            )
+            .unwrap_err()
+            .to_string()
+        };
+        assert_eq!(
+            locked,
+            Err(direct("desktop.developer_mode", serde_json::json!(true)))
+        );
+        assert_eq!(typo, Err(direct("api.typo", serde_json::json!(1))));
+        assert_eq!(typo, Err("unknown config key: 'api.typo'".to_owned()));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), written);
+    }
+
+    #[test]
+    fn edit_submits_the_edited_copy_to_the_writer() {
+        // GIVEN a file with a comment
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("apollia.toml");
+        std::fs::write(&path, "# mine\n[api]\nport = 7771\n").unwrap();
+        let none = apollia_core::config::PolicySettings::none();
+
+        // WHEN the editor changes the port on the copy it is given
+        let code = edit_through_the_writer(&path, &none, |copy| {
+            assert_ne!(copy, path.as_path(), "the file is never edited in place");
+            let text = std::fs::read_to_string(copy).unwrap();
+            std::fs::write(copy, text.replace("7771", "7773")).unwrap();
+            Ok(())
+        });
+
+        // THEN the file holds the change and the copy is gone
+        assert_eq!(code, exit_codes::SUCCESS);
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "# mine\n[api]\nport = 7773\n"
+        );
+        assert!(!edit_copy_path(&path).exists());
+    }
+
+    #[test]
+    fn edit_keeps_a_refused_copy_and_leaves_the_file() {
+        // GIVEN a valid file
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("apollia.toml");
+        std::fs::write(&path, "[api]\nport = 7771\n").unwrap();
+        let none = apollia_core::config::PolicySettings::none();
+
+        // WHEN the editor leaves a typo in the copy
+        let code = edit_through_the_writer(&path, &none, |copy| {
+            std::fs::write(copy, "[api]\ntypo = 1\n").unwrap();
+            Ok(())
+        });
+
+        // THEN the writer refuses it: the file is unchanged, the copy kept
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "[api]\nport = 7771\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(edit_copy_path(&path)).unwrap(),
+            "[api]\ntypo = 1\n"
+        );
+    }
+
+    #[test]
+    fn run_set_refuses_a_typo_inside_a_known_section() {
+        // GIVEN a throwaway home whose apollia.toml already holds an [api] section
+        let home = tempfile::tempdir().unwrap();
+        let path = home.path().join(".apollia").join("apollia.toml");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "[api]\nbind = \"127.0.0.1\"\n").unwrap();
+        // WHEN `config set api.typo 1` runs, the section being a known one
+        let code = run_set("api.typo", "1", Some(&path), true);
+        // THEN it exits non-zero and nothing is written
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "[api]\nbind = \"127.0.0.1\"\n"
+        );
+    }
+
+    #[test]
+    fn run_set_refuses_a_typo_behind_an_incomplete_section() {
+        // GIVEN a file whose [llm] is incomplete on purpose (no backends yet)
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        std::fs::write(&path, "[llm]\ndefault = \"local\"\n").unwrap();
+        // WHEN a typo is set, which the deserializer would never reach
+        let code = run_set("api.typo", "1", Some(&path), true);
+        // THEN it is refused all the same, nothing written
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "[llm]\ndefault = \"local\"\n"
+        );
+    }
+
+    #[test]
+    fn run_set_refuses_a_withdrawn_key() {
+        // GIVEN an empty config file
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        std::fs::write(&path, "").unwrap();
+        // WHEN a key of a withdrawn section is set
+        let code = run_set("oria.max_replans", "3", Some(&path), true);
+        // THEN it fails and leaves the file unchanged
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "");
+    }
+
+    #[test]
+    fn run_validate_refuses_a_file_with_a_fault() {
+        // GIVEN a file with an unknown key on its third line
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        std::fs::write(&path, "[api]\nbind = \"127.0.0.1\"\ntypo = 1\n").unwrap();
+        // WHEN `config validate` runs on it
+        let code = run_validate(Some(&path), true);
+        // THEN it exits non-zero
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[test]
+    fn run_set_rejects_an_unknown_desktop_key() {
+        // GIVEN an empty config file
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        std::fs::write(&path, "").unwrap();
+        // WHEN a key the [desktop] section does not declare is set
+        let code = run_set("desktop.inconnu", "true", Some(&path), true);
         // THEN it fails and leaves the file unchanged
         assert_eq!(code, exit_codes::GENERAL_ERROR);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "");

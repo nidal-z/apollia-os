@@ -1,0 +1,199 @@
+from http import HTTPStatus
+from typing import Any
+from urllib.parse import quote
+
+import httpx
+
+from ... import errors
+from ...client import AuthenticatedClient, Client
+from ...models.api_error_body import ApiErrorBody
+from ...models.oauth_client_value_body import OauthClientValueBody
+from ...models.oauth_client_written import OauthClientWritten
+from ...types import Response
+
+
+def _get_kwargs(
+    provider: str,
+    *,
+    body: OauthClientValueBody,
+) -> dict[str, Any]:
+    headers: dict[str, Any] = {}
+
+    _kwargs: dict[str, Any] = {
+        "method": "put",
+        "url": "/api/v1/oauth/clients/{provider}/client-secret".format(
+            provider=quote(str(provider), safe=""),
+        ),
+    }
+
+    _kwargs["json"] = body.to_dict()
+
+    headers["Content-Type"] = "application/json"
+
+    _kwargs["headers"] = headers
+    return _kwargs
+
+
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> ApiErrorBody | OauthClientWritten | None:
+    if response.status_code == 200:
+        response_200 = OauthClientWritten.from_dict(response.json())
+
+        return response_200
+
+    if response.status_code == 400:
+        response_400 = ApiErrorBody.from_dict(response.json())
+
+        return response_400
+
+    if response.status_code == 500:
+        response_500 = ApiErrorBody.from_dict(response.json())
+
+        return response_500
+
+    if client.raise_on_unexpected_status:
+        raise errors.UnexpectedStatus(response.status_code, response.content)
+    else:
+        return None
+
+
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[ApiErrorBody | OauthClientWritten]:
+    return Response(
+        status_code=HTTPStatus(response.status_code),
+        content=response.content,
+        headers=response.headers,
+        parsed=_parse_response(client=client, response=response),
+    )
+
+
+def sync_detailed(
+    provider: str,
+    *,
+    client: AuthenticatedClient | Client,
+    body: OauthClientValueBody,
+) -> Response[ApiErrorBody | OauthClientWritten]:
+    """`PUT /api/v1/oauth/clients/{provider}/client-secret`: writes the client
+    secret override, empty to clear it. The secret is never answered back.
+
+    Args:
+        provider (str):
+        body (OauthClientValueBody): Request body of the `PUT` routes: the new value, empty to
+            clear the
+            override.
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Response[ApiErrorBody | OauthClientWritten]
+    """
+
+    kwargs = _get_kwargs(
+        provider=provider,
+        body=body,
+    )
+
+    response = client.get_httpx_client().request(
+        **kwargs,
+    )
+
+    return _build_response(client=client, response=response)
+
+
+def sync(
+    provider: str,
+    *,
+    client: AuthenticatedClient | Client,
+    body: OauthClientValueBody,
+) -> ApiErrorBody | OauthClientWritten | None:
+    """`PUT /api/v1/oauth/clients/{provider}/client-secret`: writes the client
+    secret override, empty to clear it. The secret is never answered back.
+
+    Args:
+        provider (str):
+        body (OauthClientValueBody): Request body of the `PUT` routes: the new value, empty to
+            clear the
+            override.
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        ApiErrorBody | OauthClientWritten
+    """
+
+    return sync_detailed(
+        provider=provider,
+        client=client,
+        body=body,
+    ).parsed
+
+
+async def asyncio_detailed(
+    provider: str,
+    *,
+    client: AuthenticatedClient | Client,
+    body: OauthClientValueBody,
+) -> Response[ApiErrorBody | OauthClientWritten]:
+    """`PUT /api/v1/oauth/clients/{provider}/client-secret`: writes the client
+    secret override, empty to clear it. The secret is never answered back.
+
+    Args:
+        provider (str):
+        body (OauthClientValueBody): Request body of the `PUT` routes: the new value, empty to
+            clear the
+            override.
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Response[ApiErrorBody | OauthClientWritten]
+    """
+
+    kwargs = _get_kwargs(
+        provider=provider,
+        body=body,
+    )
+
+    response = await client.get_async_httpx_client().request(**kwargs)
+
+    return _build_response(client=client, response=response)
+
+
+async def asyncio(
+    provider: str,
+    *,
+    client: AuthenticatedClient | Client,
+    body: OauthClientValueBody,
+) -> ApiErrorBody | OauthClientWritten | None:
+    """`PUT /api/v1/oauth/clients/{provider}/client-secret`: writes the client
+    secret override, empty to clear it. The secret is never answered back.
+
+    Args:
+        provider (str):
+        body (OauthClientValueBody): Request body of the `PUT` routes: the new value, empty to
+            clear the
+            override.
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        ApiErrorBody | OauthClientWritten
+    """
+
+    return (
+        await asyncio_detailed(
+            provider=provider,
+            client=client,
+            body=body,
+        )
+    ).parsed

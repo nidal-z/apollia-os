@@ -1,4 +1,5 @@
-//! `.apo` packages: preview, installation, trusted publisher keys.
+//! `.apo` packages: preview, installation, uninstallation, trusted publisher
+//! keys.
 
 use crate::client::{encode_path_segment, ClientError, RawResponse, RuntimeClient};
 
@@ -27,6 +28,48 @@ impl RuntimeClient {
             "allowDowngrade": allow_downgrade,
         });
         let resp = self.post("/api/v1/packages/install", Some(&body)).await?;
+        package_body(resp)
+    }
+
+    /// Uninstalls the package `name` via
+    /// `POST /api/v1/packages/{name}/uninstall`, erasing the memory and the
+    /// history of its agents only when asked.
+    pub async fn uninstall_package(
+        &self,
+        name: &str,
+        clear_memory: bool,
+        clear_history: bool,
+    ) -> Result<serde_json::Value, ClientError> {
+        let path = format!("/api/v1/packages/{}/uninstall", encode_path_segment(name));
+        self.uninstall(&path, clear_memory, clear_history).await
+    }
+
+    /// Uninstalls the agent `name`, installed on its own, via
+    /// `POST /api/v1/agents/installed/{name}/uninstall`.
+    pub async fn uninstall_agent(
+        &self,
+        name: &str,
+        clear_memory: bool,
+        clear_history: bool,
+    ) -> Result<serde_json::Value, ClientError> {
+        let path = format!(
+            "/api/v1/agents/installed/{}/uninstall",
+            encode_path_segment(name)
+        );
+        self.uninstall(&path, clear_memory, clear_history).await
+    }
+
+    async fn uninstall(
+        &self,
+        path: &str,
+        clear_memory: bool,
+        clear_history: bool,
+    ) -> Result<serde_json::Value, ClientError> {
+        let body = serde_json::json!({
+            "clearMemory": clear_memory,
+            "clearHistory": clear_history,
+        });
+        let resp = self.post(path, Some(&body)).await?;
         package_body(resp)
     }
 

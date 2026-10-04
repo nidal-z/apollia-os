@@ -9,7 +9,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   ChatSessionDetail,
-  ChatSessionSummary,
   ConversationStatsView,
   UpdateSessionRequest,
 } from "$lib/types";
@@ -17,11 +16,6 @@ import type {
 /** Full detail of one chat session (messages, config, linkage). */
 export function getChatSession(sessionId: string): Promise<ChatSessionDetail> {
   return invoke<ChatSessionDetail>("get_chat_session", { sessionId });
-}
-
-/** Every stored chat session, newest first. */
-export function listChatSessions(): Promise<ChatSessionSummary[]> {
-  return invoke<ChatSessionSummary[]>("list_chat_sessions");
 }
 
 /** Interrupt the in-flight generation of a session. */
@@ -74,14 +68,6 @@ export function deleteChatSession(sessionId: string): Promise<void> {
   return invoke<void>("delete_chat_session", { sessionId });
 }
 
-/** Attach a session to a project, or detach it with `projectId: null`. */
-export function linkChatToProject(
-  sessionId: string,
-  projectId: string | null,
-): Promise<void> {
-  return invoke<void>("link_chat_to_project", { sessionId, projectId });
-}
-
 /** Update the per-session config (system prompt, tools, backend). */
 export function updateChatSession(
   sessionId: string,
@@ -95,21 +81,4 @@ export function getConversationStats(
   sessionId: string,
 ): Promise<ConversationStatsView> {
   return invoke<ConversationStatsView>("get_conversation_stats", { sessionId });
-}
-
-/** Stored defaults applied to every free-chat session. */
-export interface ChatLibreConfig {
-  system_prompt: string;
-  allowed_tools: string[];
-  llm_backend: string | null;
-}
-
-/** Read the free-chat defaults. */
-export function getChatLibreConfig(): Promise<ChatLibreConfig> {
-  return invoke<ChatLibreConfig>("get_chat_libre_config");
-}
-
-/** Persist the free-chat defaults. */
-export function updateChatLibreConfig(config: ChatLibreConfig): Promise<void> {
-  return invoke<void>("update_chat_libre_config", { config });
 }

@@ -29,25 +29,25 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "connections.capabilities.group_onedrive", // OneDrive
   "connections.capabilities.group_outlook_mail", // Outlook Mail
   "connections.capabilities.group_youtube", // YouTube
-  "connections.custom_transport_http", // Streamable HTTP (MCP 2025-11-25)
-  "connections.custom_transport_sse", // SSE (legacy 2024-11-05)
+  "connections.native_google_name", // Google Workspace
   "connections.native_microsoft_description", // Outlook Mail, Outlook Calendar, OneDrive
+  "connections.native_microsoft_name", // Microsoft 365
   "dashboard.headline_greeting", // {greeting}.
+  "dev.connections.custom_transport_http", // Streamable HTTP (MCP 2025-11-25)
+  "dev.connections.custom_transport_sse", // SSE (legacy 2024-11-05)
   "hitl.fs.preview_mode_label", // {before} → {after}
   "inbox.activity.filter.llm", // LLM
+  "llm.loaded.engine_mlx", // MLX
   "notifications.field_headers_placeholder", // {"Authorization": "Bearer ..."}
   "notifications.field_url_placeholder", // https://hooks.example.com/notify
   "observability.timeline_window_30min", // 30 min
   "observability.type_llm", // LLM
   "onboarding_permissions.scope_label", // {scope}
-  "projects.provider_type_git", // Git
   "settings.integrations.drive.placeholder", // Apollia
   "settings.integrations.field.client_id", // Client ID
   "settings.integrations.placeholder.api_key", // AIzaSy…
   "settings.integrations.placeholder.client_id_google", // 1234567890-abcdefgh.apps.googleusercontent.com
   "settings.integrations.placeholder.client_secret", // GOCSPX-…
-  "settings.integrations.provider.google", // Google Workspace
-  "settings.integrations.provider.microsoft", // Microsoft 365
   "settings.language_en", // English
   "settings.language_fr", // Français
   "settings.llm_dialog.field_top_k", // Top-K
@@ -60,14 +60,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "settings.model_hub.filters.lang_fr", // Français
   "settings.model_hub.filters.lang_pt", // Português
   "settings.model_hub.hardware.ram", // RAM
-  "settings.profile.language.en", // English
-  "settings.profile.language.fr", // Français
-  "settings.profile.llm.local", // Local (llama.cpp)
-  "settings.profile.llm.ollama", // Ollama
-  "settings.profile.placeholder.tech_stack", // Python, TypeScript, React, Postgres…
-  "settings.profile.placeholder.tools_daily", // Excel, Notion, Salesforce, Gmail, VS Code…
-  "settings.profile.sector.ecommerce", // E-commerce
-  "settings.profile.sector.fintech", // Fintech
   "settings.stt_cuda", // CUDA
   "settings.stt_metal", // Metal
   "settings.tools_page.bash_executor_title", // Bash
@@ -89,8 +81,11 @@ export const IDENTICAL_BY_NATURE: string[] = [
  */
 export const IDENTICAL_BY_DECISION: string[] = [
   "a11y.actions_menu", // Actions
+  "agent_adjust.grant_group_agents", // Agents
+  "agent_adjust.grant_group_workflows", // Workflows
+  "agent_adjust.mission_label", // Mission
+  "agent_adjust.preset_label", // Preset
   "agent_detail.execution_mode_direct", // Direct
-  "agent_detail.llm_backend", // Backend
   "agent_detail.messages_title", // Messages
   "agent_detail.tags_title", // Tags
   "agents.agents_word", // agents
@@ -105,7 +100,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "agents.tab_agents", // Agents
   "agents.tab_triggers", // Triggers
   "agents.triggers_word", // triggers
-  "automations.col_assistant", // Assistant
   "automations.status.active", // Active
   "automations.target_prefix", // Assistant
   "automations.wizard.step_agent", // Assistant
@@ -120,7 +114,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "chat.export.meta_session", // Session
   "chat.export.role_assistant", // Assistant
   "chat.journal.agent", // Agent
-  "chat.journal_mode_builder", // Builder
   "chat.legend_messages", // Messages
   "chat.mode_auto", // Auto
   "chat.planMode.phaseLabel", // Phase
@@ -138,8 +131,9 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "companion.title", // Companion
   "connections.badge_status_attention", // attention
   "connections.custom_test_ok", // Test OK - {result}
-  "connections.custom_transport_label", // Transport
   "connections.mcp_settings.transport", // Transport
+  "connections.mailbox.port_label", // Port
+  "dev.connections.custom_transport_label", // Transport
   "connections.settings_provider_title", // Provider
   "connections.status_chip_attention", // Attention
   "inbox.chips.questions", // Questions
@@ -149,7 +143,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "inbox.row.type_question", // question
   "inbox.row.type_trigger", // trigger
   "integrations.wizard.local_loopback_badge", // Local
-  "integrations.wizard.step_test", // Test
   "llm.ping_ok", // Ping OK ({latency}ms)
   "llm.table.backend", // Backend
   "llm.table.tokens", // Tokens
@@ -160,7 +153,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "memory.namespaces.cat_agent", // Agents
   "memory.namespaces.cat_agent_header", // Agents
   "memory.namespaces.title", // Namespaces
-  "nav.builder_cluster", // Inspection
   "nav.chat", // Chat
   "nav.notifications", // Notifications
   "nav.sidebar.chat", // Chat
@@ -190,38 +182,36 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "plan_session.origin_initial", // Initial
   "plan_session.tab_journal", // Journal
   "plan_session.tab_plan", // Plan
-  "projects.card_agents", // {n, plural, one {# agent} other {# agents}}
-  "projects.field_description", // Description
-  "projects.provider_field_timeout_ms", // Timeout (ms)
-  "projects.provider_field_type", // Type
-  "projects.provider_type_script", // Script
-  "projects.provider_type_style", // Style
-  "projects.settings_field_description", // Description
-  "projects.tab_agents", // Agents
-  "projects.tab_conversations", // Conversations
+  "project_migration.row_documents_title", // Documents
+  "project_migration.row_instructions_title", // Instructions
+  "project_migration.where_chat_title", // Chat
+  "project_migration.where_sources_title", // Agents › Apollia › Sources
   "settings.about.contact_title", // Contact
   "settings.about.diag_transcription", // Transcription
   "settings.about.docs_title", // Documentation
   "settings.about.kv_stt", // Transcription
   "settings.about.kv_version", // Version
-  "settings.appearance.options_title", // Options
+  "settings.chat.conversations_title", // Conversations
   "settings.credential.absent", // Absent
+  "settings.developer.mcp.kind_agent", // Agent
+  "settings.developer.mcp.kind_workflow", // Workflow
+  "settings.general.application_title", // Application
+  "settings.general.channel_stable", // Stable
+  "settings.general.interface_title", // Interface
   "settings.llm_backend.provider_local", // local
   "settings.llm_dialog.field_endpoint", // Endpoint
-  "settings.mode_builder", // Builder
   "settings.model_hub.detail.param_max_tokens", // max tokens
   "settings.model_hub.detail.param_temperature", // temperature
   "settings.model_hub.filters.type_base", // Base
   "settings.model_hub.filters.type_instruct", // Instruct / Chat
+  "settings.nav.chat", // Chat
   "settings.nav.configuration", // Configuration
   "settings.nav.mobile_open", // Sections
   "settings.permissions.add.action_label", // Action
   "settings.permissions.scope_agent", // Chat / agent
   "settings.permissions.session_badge", // Session
-  "settings.profile.proficiency.expert", // Expert
   "settings.profile.source.agent", // agent
   "settings.profile.source.onboarding", // onboarding
-  "settings.profile.team_size.solo", // Solo
   "settings.shortcuts.category.chat", // Chat
   "settings.shortcuts.category.companion", // Companion
   "settings.shortcuts.category.global", // Global
@@ -233,7 +223,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.stt_microphone", // Microphone
   "settings.system_version", // Version
   "settings.tool_config.field.timeout_secs", // Timeout (s)
-  "sidebar.mode.builder.label", // Builder
   "tasks.col_agent", // Agent
   "tasks.tab_trace", // Trace
   "tools.body.content_type_label", // Type
@@ -249,6 +238,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "triggers.field_secret", // Secret
   "triggers.field_target_agent", // Agent
   "triggers.interval_unit_minutes", // minutes
+  "triggers.workflow_label", // Workflow
 ];
 
 /** The two lists together, as the guard reads them. */

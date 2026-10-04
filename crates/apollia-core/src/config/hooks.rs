@@ -45,8 +45,13 @@ impl HookEventKind {
 }
 
 /// How the runtime delivers a hook event to the handler.
+///
+/// Strict: a key that neither this variant nor [`HookHandlerConfig`] declares
+/// is refused. `HookHandlerConfig` flattens this enum, and serde forbids
+/// `deny_unknown_fields` on a struct that flattens, so the rule lives here,
+/// where the leftover keys of a handler table end up.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum HookHandlerKind {
     /// Spawn an external process. The payload is written to stdin as JSON and
     /// the decision is read back from stdout. The process must exit within the
@@ -123,6 +128,7 @@ pub struct HookHandlerConfig {
 ///
 /// An absent `[hooks]` section is equivalent to an empty handler list.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HooksConfig {
     /// Registered hook handlers.
     ///

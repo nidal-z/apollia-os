@@ -1,7 +1,10 @@
 //! Apollia OS runtime configuration.
 //!
-//! Ten `apollia.toml` sections are consulted by a loader, the list held by
-//! `apollia_cli::config::KNOWN_SECTIONS`. Nine of them are defined here:
+//! [`ApolliaConfig`] is the single root of `apollia.toml`: every section the
+//! runtime, the CLI and the desktop application read, strict at every level.
+//! [`validate`] turns the text of the file into that root or into diagnostics
+//! placed at their line, and [`keys`] is the registry of every key, held to the
+//! structures by its test. The sections defined here include:
 //! - [`RuntimeConfig`]: `[runtime]`, EventBus and mailbox capacity.
 //! - [`ApiConfig`]: `[api]`, the TCP listener, authentication, TLS, and the
 //!   Unix socket.
@@ -10,69 +13,126 @@
 //! - [`McpConfig`]: `[mcp]`, the MCP client.
 //! - [`HooksConfig`]: `[hooks]`, lifecycle hook handlers.
 //! - [`ChatConfig`]: `[chat]`, chat session defaults.
-//! - [`FilesystemConfig`]: `[filesystem]`, the reversible journal and the
-//!   trusted paths.
 //! - [`ModelsConfig`]: `[models]`, the signed index of model cards the
-//!   catalogue reads, its mirror, and the switch that turns it off. Read when
-//!   the catalogue opens, not by the embedded loader.
+//!   catalogue reads, its mirror, the switch that turns it off, and the rule
+//!   applied to an imported file.
+//! - [`DesktopConfig`]: `[desktop]`, the settings of the desktop application
+//!   that Rust reads, each a named setting resolved with its source by
+//!   [`resolve_setting`] and written by [`write_setting`], which refuses a key
+//!   the organization policy locks.
+//! - [`ServerConfig`]: `[server]`, the compatible server, a second listener
+//!   of the runtime on its own port, switched off by default; its two keys
+//!   are named settings too.
+//! - [`EnginesConfig`]: `[engines]`, the settings of the local inference
+//!   engines, the engine log level first; named settings, read when a model
+//!   loads.
+//! - [`AuthorConfig`]: `[author]`, the publisher name of the agents exported
+//!   from this machine.
+//! - [`LlmConfig`]: `[llm]`, the backends declared in the file, routing and
+//!   the prompt debug log; `apollia-llm` re-exports its shapes.
 //!
-//! The tenth is `[llm]`, whose type lives in `apollia-llm`.
+//! [`default_file_text`] renders the registry as the `apollia.toml` written on a
+//! first start, every key commented at its default under its documentation,
+//! and [`write_default_file_if_absent`] writes it without ever replacing a file.
+//!
+//! [`writer`] is the one writer of the file: every surface that changes it,
+//! by whole text or by key, goes through [`writer::write_config`], which
+//! validates, refuses a value the policy does not impose, refuses a file
+//! modified since it was read, and replaces the file atomically.
 //!
 //! The other types in this module are runtime parameters, not `apollia.toml`
-//! sections. No loader deserializes an `[a2a]` or an `[oria]` table, and both
-//! are rejected by `apollia-os config set` as unknown: [`A2AConfig`] reaches
-//! the runtime from its [`Default`] alone, and [`ORIAConfig`] from its
-//! [`Default`] plus whatever the caller overrides in code, which today is the
-//! autonomy tier passed on the command line.
+//! sections. No loader deserializes an `[a2a]` or an `[oria]` table, both are
+//! withdrawn keys of the registry: [`A2AConfig`] reaches the runtime from its
+//! [`Default`] alone, and [`ORIAConfig`] from its [`Default`] plus whatever the
+//! caller overrides in code, which today is the autonomy tier passed on the
+//! command line.
 //!
 //! Every field has a sane default via [`Default`].
 
 mod a2a;
 mod api;
+mod author;
 mod autonomy;
 mod chat;
-mod filesystem;
+mod default_file;
+mod desktop;
+mod engines;
 mod filesystem_risk;
 mod hitl;
 mod hooks;
+pub mod keys;
 mod llm;
+mod llm_section;
 mod mcp;
 mod models;
 mod oria;
 mod permissions;
 mod registry;
 mod retired;
+mod root;
 mod runtime;
+mod scan;
+mod server;
+mod settings;
 mod tools;
 mod triggers;
+mod validate;
 mod web;
 mod workflows;
+pub mod writer;
 
 #[cfg(test)]
 mod autonomy_tests;
 #[cfg(test)]
+mod default_file_tests;
+#[cfg(test)]
+mod keys_tests;
+#[cfg(test)]
+mod settings_tests;
+#[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod validate_tests;
+#[cfg(test)]
+mod writer_tests;
 
 pub use a2a::A2AConfig;
-pub use api::ApiConfig;
+pub use api::{ApiConfig, DEFAULT_API_PORT};
+pub use author::{AuthorConfig, AUTHOR_NAME_KEY};
 pub use autonomy::{
     AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, AutonomyLevelParseError, GatePolicy,
 };
 pub use chat::ChatConfig;
-pub use filesystem::{FilesystemConfig, JournalConfig};
+pub use default_file::{default_file_text, write_default_file_if_absent};
+pub use desktop::{DesktopConfig, UpdateChannel};
+pub use engines::{EngineLogLevel, EnginesConfig, ENGINE_LOG_LEVELS};
 pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
-pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig, LlmRunnerConfig};
+pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig};
+pub use llm_section::{
+    infer_api_provider_from_url, LlmApiBackendEntry, LlmBackendEntry, LlmBackendKind, LlmConfig,
+    LlmGuardrailsConfig, LlmObservabilityConfig,
+};
 pub use mcp::{McpConfig, McpToolLoading};
-pub use models::{ModelsConfig, DEFAULT_MODEL_REGISTRY_MIRROR_URL, DEFAULT_MODEL_REGISTRY_URL};
+pub use models::{
+    default_models_dir, models_dir, resolve_models_dir, ModelsConfig, ModelsImportConfig,
+    DEFAULT_MODEL_REGISTRY_MIRROR_URL, DEFAULT_MODEL_REGISTRY_URL, MODELS_DIR_KEY, MODELS_DIR_NAME,
+};
 pub use oria::ORIAConfig;
 pub use permissions::BashValidatorConfig;
 pub use registry::RegistryConfig;
-pub use retired::{retired_keys_in, warn_retired_keys, RetiredKey, RETIRED_KEYS};
+pub(crate) use retired::warn_retired_keys;
+pub use root::ApolliaConfig;
 pub use runtime::RuntimeConfig;
+pub use server::{ServerConfig, DEFAULT_COMPAT_SERVER_PORT};
+pub use settings::{
+    check_imposed_setting, resolve_setting, resolve_setting_in, write_setting, PolicySettings,
+    ResolvedSetting, SettingError, SettingSource, GUARDRAIL_LEVELS,
+};
 pub use tools::ToolsConfig;
 pub use triggers::TriggersConfig;
+pub use validate::{validate, ConfigDiagnostic};
 pub use web::{
     BraveBackendConfig, DuckDuckGoBackendConfig, WebReadConfig, WebSearchBackend, WebSearchConfig,
 };

@@ -42,10 +42,10 @@ impl ExecutionBackend for MockBackend {
 fn native_tool_descriptors_returns_expected_count() {
     // GIVEN: the native_tool_descriptors() function
     // WHEN: called
-    // THEN: 13 baseline tools, plus optional web tools when their features
+    // THEN: 15 baseline tools, plus optional web tools when their features
     // are on.
     let expected_count =
-        13 + cfg!(feature = "web-search") as usize + cfg!(feature = "web-read") as usize;
+        15 + cfg!(feature = "web-search") as usize + cfg!(feature = "web-read") as usize;
     let descriptors = native_tool_descriptors();
     assert_eq!(descriptors.len(), expected_count);
 }
@@ -73,11 +73,13 @@ const NATIVE_TOOL_FAMILIES: &[(&str, apollia_tools::ActionFamily)] = &[
     ("file_glob", apollia_tools::ActionFamily::Read),
     ("file_grep", apollia_tools::ActionFamily::Read),
     ("notebook_read", apollia_tools::ActionFamily::Read),
+    ("code_context", apollia_tools::ActionFamily::Read),
     ("web_search", apollia_tools::ActionFamily::Read),
     ("web_read", apollia_tools::ActionFamily::Read),
     ("mcp_resources_list", apollia_tools::ActionFamily::Read),
     ("mcp_resources_read", apollia_tools::ActionFamily::Read),
     ("memory_search", apollia_tools::ActionFamily::ReadPersonal),
+    ("source_search", apollia_tools::ActionFamily::Read),
     ("file_write", apollia_tools::ActionFamily::WriteOrDelete),
     ("file_edit", apollia_tools::ActionFamily::WriteOrDelete),
     ("notebook_edit", apollia_tools::ActionFamily::WriteOrDelete),
@@ -212,8 +214,6 @@ fn test_config(port: u16, socket_path: PathBuf) -> (SupervisorConfig, tempfile::
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
     };
@@ -420,8 +420,6 @@ async fn test_startup_timeout_rollback() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
     };
@@ -511,8 +509,6 @@ async fn test_start_without_llm_config_succeeds() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
     };
@@ -575,6 +571,7 @@ async fn test_app_state_clone_with_llm_router_none() {
         audit_trail: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        inference_governance: Default::default(),
         obs_config: apollia_core::ObservabilityConfig::default(),
         llm_call_repository: None,
         trigger_def_repo: None,
@@ -595,9 +592,12 @@ async fn test_app_state_clone_with_llm_router_none() {
         resilience_layer: None,
         runner_proxy: None,
         llama_server_supervisor: None,
+        mlx_engine: None,
         secret_store: crate::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
+        source_registry: None,
     };
 
     // WHEN the AppState is cloned
@@ -648,8 +648,6 @@ async fn test_supervisor_starts_with_zero_triggers() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
     };
@@ -723,8 +721,6 @@ async fn test_no_notifications_section_starts_ok() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
     };
@@ -773,6 +769,8 @@ async fn test_trigger_engine_loads_from_sqlite() {
     repo.insert(&TriggerDefinitionRow {
         id: "test-trigger".into(),
         agent: Some("test-agent".into()),
+        workflow: None,
+        workflow_inputs: None,
         enabled: true,
         on_busy: apollia_triggers::OnBusy::Queue,
         source_type: "cron".into(),
@@ -809,8 +807,6 @@ async fn test_trigger_engine_loads_from_sqlite() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
     };
@@ -1072,8 +1068,6 @@ async fn test_story187_appstate_contains_repos() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
     };
@@ -1839,4 +1833,96 @@ async fn shutdown_handles_dyn(
     handles.tool_registry_handle.shutdown().await;
     handles.registry_handle.shutdown();
     let _ = std::fs::remove_file(socket_path);
+}
+
+/// Boots a supervisor whose data directory holds an `apollia.toml` with
+/// `server_section`, and returns its handles and the compatible server's port.
+async fn boot_with_server_section(
+    enabled: bool,
+) -> (
+    SupervisorHandles<MockBackend>,
+    tempfile::TempDir,
+    PathBuf,
+    u16,
+) {
+    let compat_port = crate::compat_server::tests::free_port();
+    let socket_path = temp_socket_path();
+    // The native API serves its socket only: the test reads the second listener.
+    let (mut config, tmp_dir) = test_config(0, socket_path.clone());
+    config.api_config.tcp_port = None;
+    std::fs::write(
+        tmp_dir.path().join("apollia.toml"),
+        format!("[server]\nenabled = {enabled}\nport = {compat_port}\n"),
+    )
+    .unwrap();
+    let handles = Supervisor::new(config)
+        .start(
+            MockBackend,
+            Arc::new(crate::api::routes_agents::StubAgentLoader),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    (handles, tmp_dir, socket_path, compat_port)
+}
+
+#[tokio::test]
+async fn test_a_runtime_whose_compatible_server_is_off_opens_no_second_listener() {
+    // GIVEN an apollia.toml with [server] enabled = false
+    // WHEN the runtime starts
+    let (handles, _tmp, socket_path, compat_port) = boot_with_server_section(false).await;
+
+    // THEN nothing listens on the compatible server's port
+    assert!(!crate::compat_server::tests::listens(compat_port).await);
+    let _ = handles.event_sender.send(RuntimeEvent::ShutdownRequested);
+    shutdown_handles(handles, &socket_path).await;
+}
+
+#[tokio::test]
+async fn test_a_runtime_whose_compatible_server_is_on_opens_it_at_start() {
+    // GIVEN an apollia.toml with [server] enabled = true
+    // WHEN the runtime starts
+    let (handles, _tmp, socket_path, compat_port) = boot_with_server_section(true).await;
+
+    // THEN the compatible server listens on its own port, beside the native API
+    let listening = poll_until_async(std::time::Duration::from_secs(5), || {
+        crate::compat_server::tests::listens(compat_port)
+    })
+    .await;
+    assert!(listening, "the compatible server did not open at start");
+    let _ = handles.event_sender.send(RuntimeEvent::ShutdownRequested);
+    shutdown_handles(handles, &socket_path).await;
+}
+
+#[test]
+fn the_production_router_carries_the_prompt_debug_log_of_the_file() {
+    // GIVEN an apollia.toml whose [llm.observability] turns debug_log_prompt on
+    let llm: LlmConfig = toml::from_str(
+        "default = \"local\"\nbackends = []\n[observability]\ndebug_log_prompt = true\n",
+    )
+    .expect("a valid [llm] section");
+    let (mut config, _dir) = test_config(0, temp_socket_path());
+    config.llm_config = Some(llm);
+    let supervisor = Supervisor::new(config);
+
+    // WHEN the runtime builds its router, from system.db, then grafted with
+    // what the file declares
+    let router = supervisor.finalize_llm_router(apollia_llm::LlmRouter::empty());
+
+    // THEN the option is on in the router every model call goes through
+    assert!(router.observability().debug_log_prompt);
+}
+
+#[test]
+fn the_production_router_leaves_the_prompt_debug_log_off_by_default() {
+    // GIVEN no [llm] section in the file
+    let (config, _dir) = test_config(0, temp_socket_path());
+    let supervisor = Supervisor::new(config);
+
+    // WHEN the runtime builds its router
+    let router = supervisor.finalize_llm_router(apollia_llm::LlmRouter::empty());
+
+    // THEN prompts are not logged
+    assert!(!router.observability().debug_log_prompt);
 }

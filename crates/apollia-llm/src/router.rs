@@ -23,11 +23,13 @@ mod budget;
 mod completion;
 mod config;
 mod construct;
+mod observed_stream;
 mod routing;
 mod servers;
 
 pub use agent_model::{AgentModelBinding, AgentModelFallback};
 pub use config::{BackendConfig, BackendKind, LlmConfig, ObservabilityConfig};
+pub use observed_stream::{call_completed_event, observe_stream, ObservedCall};
 pub use servers::ServerEndpoint;
 
 /// Routing context for [`LlmRouter::complete_with_fallback`].
@@ -84,6 +86,10 @@ pub struct LlmRouter {
     /// The router a reload put in place of this one, and the last fallback
     /// of each agent. Shared by the clones of this router.
     pub(super) live: Arc<agent_model::LiveState>,
+    /// `[llm.observability]`, grafted after construction by the supervisor
+    /// through [`with_observability`](Self::with_observability). Combined with
+    /// the per-call configuration: a prompt is logged when either asks.
+    pub(super) observability: ObservabilityConfig,
 }
 
 /// Validate `[llm.routing]` consistency: the named backends must exist.
@@ -150,9 +156,9 @@ mod tests {
     use apollia_core::{CeilingAction, LlmBackendConfig, LlmProvider};
 
     use super::backends::{extract_base_url, resolve_context_window, resolve_default_backend};
-    use super::config::infer_api_provider_from_url;
     use crate::routing_level::{EscalationSignal, LlmRoutingLevel};
     use crate::types::ChatMessage;
+    use apollia_core::config::infer_api_provider_from_url;
 
     use std::pin::Pin;
 
@@ -270,6 +276,7 @@ mod tests {
             routing: None,
             cancellation_token: CancellationToken::new(),
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
+            observability: ObservabilityConfig::default(),
         }
     }
 
@@ -293,6 +300,7 @@ mod tests {
             routing,
             cancellation_token: CancellationToken::new(),
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
+            observability: ObservabilityConfig::default(),
         }
     }
 
@@ -718,13 +726,12 @@ mod tests {
     async fn test_from_config_errors_if_default_missing() {
         // GIVEN
         let config = LlmConfig {
+            format_version: 1,
             default: "local".to_owned(),
             backends: vec![],
             observability: ObservabilityConfig::default(),
             routing: None,
-            pricing_overrides: HashMap::new(),
-            cost_alert_threshold_usd: None,
-            runner: Default::default(),
+            guardrails: Default::default(),
         };
 
         // WHEN
@@ -820,6 +827,56 @@ mod tests {
         );
     }
 
+    // GIVEN a request made for a conversation turn
+    // WHEN it is completed with observability
+    // THEN the published call names the turn and its finish reason, and an
+    // unmeasured TTFT stays unknown
+    #[tokio::test]
+    async fn test_llm_call_completed_names_the_turn_of_its_request() {
+        use apollia_core::events::RuntimeEvent;
+        use tokio::sync::broadcast;
+
+        // GIVEN
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(16);
+        let mut backends = HashMap::new();
+        backends.insert(
+            "mock".into(),
+            Arc::new(MockCompletionModel::default()) as Arc<dyn CompletionModel>,
+        );
+        let router = make_test_router(backends, "mock");
+        let req = CompletionRequest {
+            messages: vec![crate::types::ChatMessage::user("test")],
+            call_context: Some(crate::call_measure::CallContext {
+                session_id: "s-7".into(),
+                turn_id: "answer-7".into(),
+            }),
+            ..Default::default()
+        };
+
+        // WHEN
+        router
+            .complete_with_observability(None, req, Some(&tx), &ObservabilityConfig::default())
+            .await
+            .expect("the mock answers");
+
+        // THEN
+        match rx.try_recv().expect("one event") {
+            RuntimeEvent::LlmCallCompleted {
+                session_id,
+                turn_id,
+                ttft_ms,
+                finish_reason,
+                ..
+            } => {
+                assert_eq!(session_id.as_deref(), Some("s-7"));
+                assert_eq!(turn_id.as_deref(), Some("answer-7"));
+                assert_eq!(ttft_ms, None);
+                assert_eq!(finish_reason.as_deref(), Some("stop"));
+            }
+            other => panic!("unexpected event {other:?}"),
+        }
+    }
+
     // GIVEN a router whose backend returns an error and an EventBusSender
     // WHEN complete_with_observability() is called
     // THEN LlmCallFailed reaches the bus, as the variant's own contract states
@@ -873,7 +930,6 @@ mod tests {
         // GIVEN
         let obs = ObservabilityConfig {
             debug_log_prompt: false,
-            ..Default::default()
         };
         let req = CompletionRequest {
             messages: vec![crate::types::ChatMessage::user("secret_payload_xyz")],
@@ -910,13 +966,12 @@ mod tests {
         // GIVEN
         let (tx, _rx) = broadcast::channel::<RuntimeEvent>(16);
         let config = LlmConfig {
+            format_version: 1,
             default: "local".to_owned(),
             backends: vec![],
             observability: ObservabilityConfig::default(),
             routing: None,
-            pricing_overrides: HashMap::new(),
-            cost_alert_threshold_usd: None,
-            runner: Default::default(),
+            guardrails: Default::default(),
         };
 
         // WHEN
@@ -1169,6 +1224,7 @@ mod tests {
             routing,
             cancellation_token: CancellationToken::new(),
             session_budget,
+            observability: ObservabilityConfig::default(),
         }
     }
 
@@ -1185,6 +1241,7 @@ mod tests {
             routing: None,
             cancellation_token: CancellationToken::new(),
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
+            observability: ObservabilityConfig::default(),
         };
 
         // WHEN reading the ceiling action and ceiling
@@ -1221,6 +1278,7 @@ mod tests {
             routing,
             cancellation_token: CancellationToken::new(),
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
+            observability: ObservabilityConfig::default(),
         };
 
         // WHEN reading the ceiling action and ceiling

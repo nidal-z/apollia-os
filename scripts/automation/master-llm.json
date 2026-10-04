@@ -3,7 +3,7 @@
   "stopOnError": false,
   "dynamicTestids": [
     "command-item-companion.toggle",
-    "sidebar-mode-option-operator"
+    "settings-nav-developer"
   ],
   "steps": [
     {
@@ -84,7 +84,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "\u00c9cris une phrase qui contient le mot banane."
+      "text": "Écris une phrase qui contient le mot banane."
     },
     {
       "kind": "awaitTurn",
@@ -216,7 +216,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Retiens que mon plat pr\u00e9f\u00e9r\u00e9 est le couscous."
+      "text": "Retiens que mon plat préféré est le couscous."
     },
     {
       "kind": "awaitTurn",
@@ -238,7 +238,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Quel est mon plat pr\u00e9f\u00e9r\u00e9 ?"
+      "text": "Quel est mon plat préféré ?"
     },
     {
       "kind": "awaitTurn",
@@ -352,21 +352,39 @@
       "label": "13-greeting"
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
-      "timeoutMs": 6000
+      "testid": "settings-page",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-operator"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
       "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 30000
     },
     {
       "kind": "click",
@@ -391,7 +409,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Pr\u00e9pare un plan en trois \u00e9tapes pour organiser une r\u00e9union d'\u00e9quipe hebdomadaire."
+      "text": "Prépare un plan en trois étapes pour organiser une réunion d'équipe hebdomadaire."
     },
     {
       "kind": "awaitTurn",
@@ -427,7 +445,7 @@
     {
       "kind": "fill",
       "testid": "chat-plan-review-adjust",
-      "text": "Ajoute une quatri\u00e8me \u00e9tape de bilan \u00e0 la fin."
+      "text": "Ajoute une quatrième étape de bilan à la fin."
     },
     {
       "kind": "screenshot",
@@ -485,7 +503,7 @@
     {
       "kind": "fill",
       "testid": "quickpicker-textarea",
-      "text": "Demande-moi mon pr\u00e9nom avec l'outil ask_user, puis r\u00e9p\u00e8te-le."
+      "text": "Demande-moi mon prénom avec l'outil ask_user, puis répète-le."
     },
     {
       "kind": "click",
@@ -552,7 +570,7 @@
     {
       "kind": "fill",
       "testid": "quickpicker-textarea",
-      "text": "Bonjour, pr\u00eat \u00e0 travailler ?"
+      "text": "Bonjour, prêt à travailler ?"
     },
     {
       "kind": "click",
@@ -699,10 +717,6 @@
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-scope-project-"
-    },
-    {
-      "kind": "expect",
       "testidPrefix": "approval-scope-global-"
     },
     {
@@ -844,7 +858,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Comment cr\u00e9er un agent ?"
+      "text": "Comment créer un agent ?"
     },
     {
       "kind": "waitFor",

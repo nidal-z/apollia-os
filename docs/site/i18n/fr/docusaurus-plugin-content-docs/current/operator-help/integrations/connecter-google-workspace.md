@@ -15,7 +15,7 @@ Un compte `@gmail.com` personnel convient. Rien ici n'exige un abonnement Worksp
 - Apollia lancé.
 - Un compte Google, personnel ou Workspace.
 - **Votre propre client OAuth**, configuré une fois, voir la section juste en dessous.
-- Votre réglage **Souveraineté des données**, dans **Réglages, Profil**, n'est pas sur *Local strict*, et a reçu une réponse au moins une fois. Sinon la connexion est refusée au clic.
+- La politique de votre organisation, si elle en a déployé une, n'interdit pas les connexions distantes. Sinon la connexion est refusée au clic.
 - Connexion internet active.
 
 :::info Google en demande plus que Microsoft
@@ -112,7 +112,7 @@ Vous pouvez connecter plusieurs comptes Google, et chacun apparaît dans la side
 - **La carte Google Workspace affiche « Configuration requise »** : aucun client OAuth n'est encore configuré. Cliquez sur **Configurer les identifiants** et suivez la section en haut de cette page.
 - **Apollia signale un secret client manquant** : l'identifiant client a été enregistré, mais pas son secret. Réimportez le fichier JSON de la console Google Cloud, qui porte les deux, ou collez le secret dans la carte Google de **Réglages → Intégrations OAuth**.
 - **L'écran de consentement Google affiche "Cette app n'est pas vérifiée"** : c'est normal, l'application est la vôtre et reste en statut Testing. Cliquez sur **Avancé** puis **Accéder à Apollia** pour continuer.
-- **La connexion s'arrête sur le profil de souveraineté** : la fenêtre dit que les connecteurs cloud sont désactivés par votre profil, ce qui arrive aussi quand l'onboarding n'a jamais posé la question. Elle propose deux boutons, garder le local strict ou autoriser le cloud et continuer ; le second écrit **Souveraineté des données** sur *Cloud autorisé* dans **Réglages, Profil**, où vous pouvez le changer à nouveau.
+- **La connexion s'arrête sur « Refusé par la politique de l'organisation »** : la politique de votre organisation interdit les connexions à des services en ligne sur ce poste, et rien n'a été envoyé à Google. Seule la personne qui gère cette politique peut accorder une exception ; rien dans Apollia ne la lève.
 - **Vous voulez la lecture complète Gmail ou Drive** : ces scopes sont restricted (audit Google CASA) et hors v0.1.0. Aucun outil Apollia ne les exploite encore, voir « À propos des scopes restricted » ci-dessous.
 - **L'agent ne voit pas un fichier précis sur Drive** : il n'a accès qu'au dossier `Apollia/<agent>/`. Déposez le fichier dans ce dossier ou passez-lui l'identifiant explicite dans votre prompt.
 - **Un agent demande un outil Gmail de lecture complète** : il n'en existe pas. Le catalogue d'opérations Google ne contient que les scopes non restricted, et un test le verrouille. L'agent recevra une erreur d'outil inconnu, pas une erreur de scope.

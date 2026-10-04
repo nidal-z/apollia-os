@@ -152,17 +152,25 @@ deny = []
 deny = []
 
 [inference]
-# Inference servers allowed. A non-empty list refuses the others.
-# allowed_servers = ["llama-server", "https://llm.example.internal"]
+# Addresses of the inference servers allowed. A non-empty list refuses every
+# other address, when a server is added and before a request reaches it.
+# allowed_servers = ["https://llm.example.internal"]
 allowed_servers = []
-# Refuse every cloud endpoint.
+# Refuse every server outside this machine that allowed_servers does not list.
 # remote_endpoints = "deny"
-# Refuse a model whose file has no known digest.
+# Refuse a model whose file has no known digest: fixes
+# models.import.require_verified to true.
 require_model_hash = false
 
 [settings]
-# Settings fixed by the organisation, by key.
-# "chat.max_steps" = 20
+# Settings fixed by the organisation, by dotted key. Each key names a setting
+# of apollia.toml and each value has its type; any other key refuses the policy.
+# "desktop.developer_mode" = false
+# The load guardrail: disabled, lenient, balanced, strict or ceiling.
+# "llm.guardrails.level" = "strict"
+# The model registry: an internal mirror, or the registry turned off.
+# "models.registry_url" = "https://models.example.internal/index.json"
+# "models.registry_enabled" = false
 
 [packages]
 # Refuse an agent package that carries no valid signature.

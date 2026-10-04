@@ -14,7 +14,7 @@ use std::time::Duration;
 use apollia_core::{HitlConfig, ObservabilityConfig, PendingApprovals, RuntimeConfig};
 use apollia_llm::LlmRouter;
 use apollia_notifications::NotificationEngineHandle;
-use apollia_tools::{AgentRepository, AuditTrailHandle, ProjectRepository, TaskRepository};
+use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository};
 
 use crate::api::routes_agents::{AgentBackendFactory, AgentLoader, StubAgentLoader};
 use crate::api::{APIServerConfig, APIServerHandle};
@@ -113,10 +113,6 @@ pub struct RuntimeHandle {
     ///
     /// Separate connection for read operations. Holds `None` when STT is disabled.
     pub stt_repository: crate::api::server::SharedSttRepository,
-    /// Project repository, manages per-project workspace contexts.
-    ///
-    /// `Some` when `projects.db` opened successfully on startup.
-    pub project_repository: Option<Arc<ProjectRepository>>,
     /// Handle to the MCP client manager.
     ///
     /// `Some` when the supervisor started the manager (always in v0.1.1+
@@ -144,6 +140,8 @@ pub struct RuntimeHandle {
     /// Managed embedded `llama-server` (local LLM engine). Exposed so the desktop
     /// reload command can rebuild the router with local backends wired through it.
     pub llama_server_supervisor: Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
+    /// The `vllm-mlx` processes serving MLX models, when this machine runs them.
+    pub mlx_engine: Option<Arc<crate::mlx_engine::MlxEngineSupervisor>>,
 
     /// The organisation policy verdict, read once by the supervisor at boot.
     pub org_policy: Arc<apollia_permissions::PolicyVerdict>,
@@ -154,21 +152,6 @@ pub struct RuntimeHandle {
     /// The runtime is the single source of truth for this default; the desktop
     /// reads it to seed its own per-user preference rather than inventing one.
     pub plan_mode_default: bool,
-
-    /// Default working directory for free-chat sessions, read from the
-    /// `[chat] default_workspace` key of `apollia.toml` at boot. `None` falls
-    /// back to `~/.apollia`. Surfaced to the desktop Settings page.
-    pub chat_default_workspace: Option<String>,
-
-    /// Paths an agent may read and write without an approval prompt, from the
-    /// `[filesystem] trusted_paths` key of `apollia.toml`, `~` already
-    /// resolved. Read once at boot.
-    ///
-    /// It is a friction boundary, not a wall: a path outside every entry is
-    /// classified one level higher, which asks the user rather than refusing.
-    /// An empty list therefore means every write outside the working directory
-    /// is asked about. Default: the user's home directory.
-    pub filesystem_trusted_paths: Vec<std::path::PathBuf>,
 
     /// Temperature applied to a chat turn that advertises tools, read from the
     /// `[chat] tool_turn_temperature` key of `apollia.toml` at boot. `None`
@@ -190,6 +173,7 @@ impl RuntimeHandle {
         stop_supervisors(
             self.runner_supervisor.as_deref(),
             self.llama_server_supervisor.as_deref(),
+            self.mlx_engine.as_deref(),
         )
         .await;
     }
@@ -204,12 +188,16 @@ impl RuntimeHandle {
 pub(crate) async fn stop_supervisors(
     runner: Option<&crate::runner_supervisor::RunnerSupervisor>,
     llama_server: Option<&crate::llama_server::LlamaServerSupervisor>,
+    mlx_engine: Option<&crate::mlx_engine::MlxEngineSupervisor>,
 ) {
     if let Some(runner) = runner {
         runner.shutdown_in_place().await;
     }
     if let Some(llama_server) = llama_server {
         llama_server.shutdown_in_place().await;
+    }
+    if let Some(mlx_engine) = mlx_engine {
+        mlx_engine.shutdown_in_place().await;
     }
 }
 
@@ -315,18 +303,19 @@ pub struct EmbeddedConfig {
     /// Populated by [`EmbeddedConfig::apply_toml`].
     pub chat_config: apollia_core::ChatConfig,
 
-    /// Filesystem configuration: reversible journal, and the paths an agent may
-    /// work in without being asked.
-    ///
-    /// Maps to the `[filesystem]` section in `apollia.toml`.
-    /// Populated by [`EmbeddedConfig::apply_toml`].
-    pub filesystem_config: apollia_core::FilesystemConfig,
-
     /// Workflow configuration: the budget a run starts with.
     ///
     /// Maps to the `[workflows]` section in `apollia.toml`.
     /// Populated by [`EmbeddedConfig::apply_toml`].
     pub workflows_config: apollia_core::WorkflowsConfig,
+
+    /// Faults of an `apollia.toml` that [`EmbeddedConfig::apply_toml`] refused.
+    ///
+    /// Empty when the file was valid or absent. When not, every other field
+    /// kept its default, and the runtime publishes
+    /// [`RuntimeEvent::ConfigInvalid`](apollia_core::RuntimeEvent::ConfigInvalid)
+    /// once it is up, so the refusal is never silent.
+    pub config_diagnostics: Vec<apollia_core::config::ConfigDiagnostic>,
 }
 
 impl Default for EmbeddedConfig {
@@ -353,76 +342,74 @@ impl Default for EmbeddedConfig {
             mcp_config: apollia_core::McpConfig::default(),
             hooks_config: apollia_core::HooksConfig::default(),
             chat_config: apollia_core::ChatConfig::default(),
-            filesystem_config: apollia_core::FilesystemConfig::default(),
             workflows_config: apollia_core::WorkflowsConfig::default(),
+            config_diagnostics: Vec::new(),
         }
     }
 }
 
 impl EmbeddedConfig {
-    /// Applies every parsable section of `apollia.toml` to this config.
+    /// Applies `apollia.toml` to this config, through the validation every
+    /// surface shares ([`apollia_core::config::validate`]).
     ///
-    /// Parses `[llm]`, `[runtime]`, `[hitl]`, `[a2a]`, and `[api]` in a single pass.
-    /// Parse errors are silently ignored: the runtime starts with default
-    /// values when a section is absent or invalid.
+    /// A valid file sets every section; withdrawn keys only warn. A refused
+    /// file changes nothing: the runtime starts on its defaults, each fault is
+    /// logged at its line, and the faults are kept in
+    /// [`config_diagnostics`](EmbeddedConfig::config_diagnostics) for the
+    /// `ConfigInvalid` event the runtime publishes once it is up. The desktop
+    /// must open even on a broken file, since it is where the file gets fixed.
     pub fn apply_toml(mut self, content: &str) -> Self {
-        #[derive(serde::Deserialize)]
-        struct TomlSections {
-            llm: Option<apollia_llm::LlmConfig>,
-            runtime: Option<RuntimeConfig>,
-            hitl: Option<HitlConfig>,
-            api: Option<apollia_core::ApiConfig>,
-            tools: Option<apollia_core::ToolsConfig>,
-            mcp: Option<apollia_core::McpConfig>,
-            hooks: Option<apollia_core::HooksConfig>,
-            chat: Option<apollia_core::ChatConfig>,
-            filesystem: Option<apollia_core::FilesystemConfig>,
-            observability: Option<ObservabilityConfig>,
-            workflows: Option<apollia_core::WorkflowsConfig>,
+        let file = match apollia_core::config::validate(content) {
+            Ok(file) => file,
+            Err(diagnostics) => {
+                for d in &diagnostics {
+                    tracing::warn!(
+                        line = d.line,
+                        column = d.column,
+                        key = %d.path,
+                        detail = %d.message,
+                        "config.invalid"
+                    );
+                }
+                self.config_diagnostics = diagnostics;
+                return self;
+            }
+        };
+        self.llm_config = file.llm;
+        // Propagate startup_timeout_secs from [runtime] so large local models
+        // (70B+) don't hit the default limit.
+        self.startup_timeout_secs = file.runtime.startup_timeout_secs;
+        self.runtime_config = file.runtime;
+        self.hitl_config = file.hitl;
+        // The socket moves only when the file moves it: a caller that chose
+        // its own socket keeps it under a file that does not say otherwise.
+        if file.api.unix_socket != apollia_core::ApiConfig::default().unix_socket {
+            self.socket_path = file.api.unix_socket;
         }
-        apollia_core::config::warn_retired_keys(content);
-        if let Ok(s) = toml::from_str::<TomlSections>(content) {
-            self.llm_config = s.llm;
-            if let Some(rc) = s.runtime {
-                // Propagate startup_timeout_secs from [runtime] to EmbeddedConfig
-                // so large local models (70B+) don't hit the hardcoded default limit.
-                self.startup_timeout_secs = rc.startup_timeout_secs;
-                self.runtime_config = rc;
-            }
-            if let Some(hc) = s.hitl {
-                self.hitl_config = hc;
-            }
-            if let Some(api) = s.api {
-                // Update socket_path from [api].unix_socket when explicitly configured.
-                self.socket_path = api.unix_socket;
-            }
-            if let Some(tc) = s.tools {
-                self.tools_config = tc;
-            }
-            if let Some(mc) = s.mcp {
-                self.mcp_config = mc;
-            }
-            if let Some(hooks) = s.hooks {
-                self.hooks_config = hooks;
-            }
-            if let Some(chat) = s.chat {
-                self.chat_config = chat;
-            }
-            if let Some(fs) = s.filesystem {
-                self.filesystem_config = fs;
-            }
-            if let Some(obs) = s.observability {
-                self.obs_config = obs;
-            }
-            if let Some(workflows) = s.workflows {
-                self.workflows_config = workflows;
-            }
-        }
+        self.tools_config = file.tools;
+        self.mcp_config = file.mcp;
+        self.hooks_config = file.hooks;
+        self.chat_config = file.chat;
+        self.obs_config = file.observability;
+        self.workflows_config = file.workflows;
 
-        // triggers and notifications are now loaded from SQLite by the Supervisor.
-        // TOML sections for these are ignored.
+        // triggers and notifications are loaded from SQLite by the Supervisor;
+        // their former TOML sections are withdrawn keys.
 
         self
+    }
+
+    /// The `ConfigInvalid` event to publish once the runtime is up, when
+    /// [`apply_toml`](EmbeddedConfig::apply_toml) refused the file.
+    fn config_invalid_event(&self) -> Option<apollia_core::RuntimeEvent> {
+        (!self.config_diagnostics.is_empty()).then(|| apollia_core::RuntimeEvent::ConfigInvalid {
+            path: self
+                .config_path
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default(),
+            diagnostics: self.config_diagnostics.clone(),
+        })
     }
 }
 
@@ -517,21 +504,25 @@ pub fn init_embedded(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedEr
     }
 }
 
+/// The interface the native API of an embedded runtime binds: the loopback
+/// one, always. Opening the compatible server to the local network
+/// (`[server] serve_on_lan`) never moves it.
+const EMBEDDED_API_BIND_ADDR: &str = "127.0.0.1";
+
 /// Internal: starts the Supervisor and waits for `AllReady`.
 async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedError> {
     let tcp_port = config.tcp_port;
+    let config_invalid = config.config_invalid_event();
 
     let tools_config = config.tools_config.clone();
     let mcp_loading = apollia_mcp::session::LoadingMode::from(config.mcp_config.tool_loading);
     let tool_search_limit = config.mcp_config.tool_search_limit;
     let plan_mode_default = config.chat_config.plan_mode_default;
-    let chat_default_workspace = config.chat_config.default_workspace.clone();
-    let filesystem_trusted_paths = config.filesystem_config.resolved_trusted_paths();
     let chat_tool_turn_temperature = config.chat_config.tool_turn_temperature;
     let supervisor_config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: config.socket_path,
-            bind_addr: "127.0.0.1".to_owned(),
+            bind_addr: EMBEDDED_API_BIND_ADDR.to_owned(),
             tcp_port,
             tcp_listener: config.tcp_listener,
             api_token: config.api_token,
@@ -553,9 +544,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         tool_search_limit,
         hooks_config: config.hooks_config,
         plan_mode_default: config.chat_config.plan_mode_default,
-        chat_default_workspace: chat_default_workspace.clone(),
         chat_tool_turn_temperature,
-        filesystem_trusted_paths: filesystem_trusted_paths.clone(),
         workflows_config: config.workflows_config,
     };
 
@@ -570,6 +559,11 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
             config.chat_agent_runner,
         )
         .await?;
+
+    // Never in silence: the file was refused and the defaults are in force.
+    if let Some(event) = config_invalid {
+        let _ = handles.event_sender.send(event);
+    }
 
     Ok(RuntimeHandle {
         event_sender: handles.event_sender,
@@ -594,17 +588,15 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         user_memory: handles.user_memory,
         stt_engine: handles.stt_engine,
         stt_repository: handles.stt_repository,
-        project_repository: handles.project_repository,
         mcp_handle: handles.mcp_handle,
         tools_config,
         api_port: tcp_port.unwrap_or(0),
         runner_supervisor: handles.runner_supervisor,
         llama_server_supervisor: handles.llama_server_supervisor,
+        mlx_engine: handles.mlx_engine,
         org_policy: handles.org_policy,
         plan_mode_default,
-        chat_default_workspace,
         chat_tool_turn_temperature,
-        filesystem_trusted_paths,
     })
 }
 
@@ -659,6 +651,67 @@ mod tests {
     }
 
     #[test]
+    fn test_the_native_api_of_an_embedded_runtime_stays_on_the_loopback_interface() {
+        // GIVEN the interface the embedded runtime gives its native API
+        // WHEN it is parsed
+        let ip: std::net::IpAddr = EMBEDDED_API_BIND_ADDR.parse().unwrap();
+
+        // THEN it is the loopback one: no setting of the compatible server
+        // reaches it
+        assert!(ip.is_loopback());
+    }
+
+    #[test]
+    fn a_refused_file_leaves_every_default_and_keeps_its_faults() {
+        // GIVEN a file whose [runtime] is valid but whose [api] has a typo
+        let content = "[runtime]\neventbus_capacity = 128\n\n[api]\ntypo = 1\n";
+
+        // WHEN the embedded config applies it
+        let config = EmbeddedConfig::default().apply_toml(content);
+
+        // THEN nothing of the file is applied, not even its valid section, and
+        // the fault is kept at its line for the ConfigInvalid event
+        assert_eq!(
+            config.runtime_config.eventbus_capacity,
+            RuntimeConfig::default().eventbus_capacity
+        );
+        assert_eq!(config.config_diagnostics.len(), 1);
+        assert_eq!(config.config_diagnostics[0].path, "api.typo");
+        assert_eq!(config.config_diagnostics[0].line, 5);
+    }
+
+    #[test]
+    fn a_refused_file_is_announced_on_the_bus_never_in_silence() {
+        // GIVEN the embedded config of a refused file at a known path
+        let mut config = EmbeddedConfig::default().apply_toml("[hitl]\nscan_interval_secs = 1\n");
+        config.config_path = Some(PathBuf::from("/home/u/.apollia/apollia.toml"));
+
+        // WHEN the event the runtime publishes once up is built
+        let event = config.config_invalid_event();
+
+        // THEN it is ConfigInvalid, with the path and the diagnostics
+        let Some(apollia_core::RuntimeEvent::ConfigInvalid { path, diagnostics }) = event else {
+            panic!("a refused file must produce ConfigInvalid, got {event:?}");
+        };
+        assert_eq!(path, "/home/u/.apollia/apollia.toml");
+        assert_eq!(diagnostics[0].path, "hitl.scan_interval_secs");
+    }
+
+    #[test]
+    fn a_valid_file_is_applied_and_announces_nothing() {
+        // GIVEN a valid file setting [runtime] and [observability]
+        let content = "[runtime]\neventbus_capacity = 128\n\n[observability]\nretention_days = 7\n";
+
+        // WHEN the embedded config applies it
+        let config = EmbeddedConfig::default().apply_toml(content);
+
+        // THEN both sections are applied and no event is due
+        assert_eq!(config.runtime_config.eventbus_capacity, 128);
+        assert_eq!(config.obs_config.retention_days, 7);
+        assert!(config.config_invalid_event().is_none());
+    }
+
+    #[test]
     fn test_embedded_error_display() {
         // GIVEN various EmbeddedError variants
         let timeout_err = EmbeddedError::StartupTimeout(30);
@@ -699,7 +752,7 @@ mod tests {
         let llama_server = crate::llama_server::LlamaServerSupervisor::for_tests();
 
         // WHEN the host tears its children down on exit
-        stop_supervisors(Some(&runner), Some(&llama_server)).await;
+        stop_supervisors(Some(&runner), Some(&llama_server), None).await;
 
         // THEN neither survives. The engine half is the regression this guards:
         // the exit hook stopped the runner only, and `llama-server` stayed
@@ -720,7 +773,7 @@ mod tests {
         // build with no local engine)
         // WHEN the host tears its children down, on a task of its own so the
         // panic this guards against is a value rather than an aborted test
-        let torn_down = tokio::spawn(async { stop_supervisors(None, None).await }).await;
+        let torn_down = tokio::spawn(async { stop_supervisors(None, None, None).await }).await;
         // THEN it is a no-op rather than a panic on exit
         assert!(
             torn_down.is_ok(),

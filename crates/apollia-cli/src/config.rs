@@ -1,14 +1,16 @@
 //! Parsing and validation of the Apollia OS configuration from `apollia.toml`.
 //!
-//! Provides [`parse_apollia_toml`] to read and deserialize the config file and
-//! [`validate_llm_config`] for non-fatal validation (warnings only) of LLM
-//! backends.
+//! The schema and its validation live in `apollia-core`
+//! ([`apollia_core::config::validate`]), shared with the desktop application
+//! and the embedded runtime: one root, strict at every level, faults placed at
+//! their line. This module reads the file for the CLI and the daemon and
+//! carries the non-fatal [`validate_llm_config`] check of LLM backends.
 //!
 //! The operational sections (`[[triggers]]`, `[notifications]`, `[stt]`) are no
-//! longer managed by the TOML file: they are now stored in SQLite and
-//! administered via the REST API or the desktop application. If an older TOML
-//! file still contains these sections, a warning is emitted but boot continues
-//! normally.
+//! longer managed by the TOML file: they are stored in SQLite and administered
+//! via the REST API or the desktop application. They are withdrawn keys of the
+//! registry: a file that still carries one loads, with a `config.key.retired`
+//! warning.
 //!
 //! # Exemple TOML minimal
 //!
@@ -26,17 +28,14 @@
 
 use std::path::{Path, PathBuf};
 
-use apollia_core::{
-    ApiConfig, ChatConfig, FilesystemConfig, HitlConfig, HooksConfig, McpConfig, ModelsConfig,
-    RuntimeConfig, ToolsConfig,
-};
+pub use apollia_core::config::{ApolliaConfig, ConfigDiagnostic};
 use apollia_llm::{BackendKind, LlmConfig};
 
 // ─────────────────────────────────────────────
 // Errors
 // ─────────────────────────────────────────────
 
-/// Possible errors when parsing `apollia.toml`.
+/// Possible errors when reading `apollia.toml`.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum ConfigError {
@@ -44,113 +43,19 @@ pub enum ConfigError {
     #[error("failed to read config file: {0}")]
     Io(#[from] std::io::Error),
 
-    /// TOML deserialization error (invalid field, wrong type, etc.).
-    #[error("invalid TOML config: {0}")]
-    Parse(#[from] toml::de::Error),
+    /// The file was refused: every fault, each at its line.
+    #[error("{}", render_diagnostics(.0))]
+    Invalid(Vec<ConfigDiagnostic>),
 }
 
-// ─────────────────────────────────────────────
-// Configuration structures
-// ─────────────────────────────────────────────
-
-/// Global Apollia OS configuration validated from `apollia.toml`.
-///
-/// Holds the LLM, REST API, core runtime, HITL, tools, MCP, hooks and chat
-/// configuration. The operational configuration (triggers, notifications,
-/// agents, stt) is managed in SQLite. Sections that deserialized into a struct
-/// nothing ever read are listed in [`INERT_SECTIONS`] and no longer accepted.
-///
-/// To deserialize from a file, use [`parse_apollia_toml`].
-#[derive(Debug, serde::Deserialize)]
-pub struct ApolliaCConfig {
-    /// Section `[llm]`: LLM backend configuration.
-    ///
-    /// `None` when the `[llm]` section is absent from the file.
-    pub llm: Option<LlmConfig>,
-
-    /// Section `[api]`: TCP listener and authentication configuration.
-    ///
-    /// `None` when the `[api]` section is absent from the file; the
-    /// [`ApiConfig`] defaults then apply.
-    pub api: Option<ApiConfig>,
-
-    /// Section `[runtime]`: EventBus and mailbox capacities.
-    ///
-    /// `None` when absent; the [`RuntimeConfig`] defaults apply.
-    pub runtime: Option<RuntimeConfig>,
-
-    /// Section `[hitl]`: Human-in-the-Loop timeout and scan interval.
-    ///
-    /// `None` when absent; the [`HitlConfig`] defaults apply.
-    pub hitl: Option<HitlConfig>,
-
-    /// Section `[tools]`: native tools (limits, static disabling,
-    /// `web_search` / `web_read` configuration).
-    ///
-    /// `None` when absent; the [`ToolsConfig`] defaults apply.
-    pub tools: Option<ToolsConfig>,
-
-    /// Section `[mcp]`: MCP module configuration (HITL approval TTL).
-    ///
-    /// `None` when absent; the [`McpConfig`] defaults apply.
-    pub mcp: Option<McpConfig>,
-
-    /// Section `[hooks]`: lifecycle hook handlers (command/http).
-    ///
-    /// `None` when absent; the [`HooksConfig`] defaults apply (no handlers).
-    pub hooks: Option<HooksConfig>,
-
-    /// Section `[chat]`: chat subsystem session-level defaults.
-    ///
-    /// `None` when absent; the [`ChatConfig`] defaults apply (plan mode off).
-    pub chat: Option<ChatConfig>,
-
-    /// Section `[filesystem]`: reversible journal and the paths an agent may
-    /// work in without being asked.
-    ///
-    /// `None` when absent; the [`FilesystemConfig`] defaults apply, which trust
-    /// the user's home directory and nothing else.
-    pub filesystem: Option<FilesystemConfig>,
-
-    /// Section `[models]`: the signed index of model cards the catalogue
-    /// reads, its mirror, and the switch that turns it off.
-    ///
-    /// `None` when absent; the [`ModelsConfig`] defaults apply.
-    pub models: Option<ModelsConfig>,
-
-    /// Section `[workflows]`: the budget a workflow run starts with, shared
-    /// by every agent and workflow it runs.
-    ///
-    /// `None` when absent; the [`apollia_core::WorkflowsConfig`] defaults apply.
-    pub workflows: Option<apollia_core::WorkflowsConfig>,
+/// One diagnostic per line, `line:column: path: message`.
+pub fn render_diagnostics(diagnostics: &[ConfigDiagnostic]) -> String {
+    diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n")
 }
-
-/// Names of the TOML sections that are now deprecated.
-///
-/// Used by [`check_deprecated_sections`] to emit warnings if an older
-/// `apollia.toml` file still contains these sections.
-const DEPRECATED_SECTIONS: &[&str] = &["triggers", "notifications", "stt"];
-
-/// Section names that were accepted as valid key paths but that nothing ever read.
-///
-/// Distinct from [`DEPRECATED_SECTIONS`]: those moved somewhere else, these never
-/// had a destination. `config set` no longer accepts them, and a file that still
-/// carries one gets a warning instead of a silent drop.
-///
-/// - `[memory]` and `[budget]` had no field on [`ApolliaCConfig`] and no module
-///   under `apollia-core/src/config/` at all.
-/// - `[a2a]`, `[oria]`, `[registry]` and `[permissions]` did deserialize into a
-///   typed struct, and that struct was then never consulted. `[filesystem]` was
-///   in this list until `trusted_paths` gave it a reader on the execution path;
-///   it is a live section again.
-///   `[permissions]` is the one worth spelling out: not one of its four keys
-///   ever had a reader on an execution path, so setting any of them changed
-///   nothing. The typed struct behind it has since been removed.
-///   `PrefixRuleEngine`, the governance path that does run, takes nothing from
-///   this section: it is opened on the `governance.db` path alone.
-///
-/// Removing the surface does not change behaviour: these values had none.
-const INERT_SECTIONS: &[&str] = &["memory", "budget", "a2a", "oria", "registry", "permissions"];
 
 // ─────────────────────────────────────────────
 // Public functions
@@ -177,36 +82,7 @@ pub fn expand_tilde(path: &Path) -> PathBuf {
     }
 }
 
-/// Top-level TOML sections recognized by an `apollia.toml`.
-///
-/// Any `[section]` outside this set is an unknown key path. Used both to filter
-/// the loose table before typed deserialization and to reject unknown keys in
-/// `config set` (see [`is_known_top_level_section`]).
-pub const KNOWN_SECTIONS: &[&str] = &[
-    "llm",
-    "runtime",
-    "tools",
-    "api",
-    "hitl",
-    "mcp",
-    "hooks",
-    "chat",
-    "filesystem",
-    "models",
-    "workflows",
-];
-
-/// Returns `true` when `section` is a recognized top-level `apollia.toml` section.
-pub fn is_known_top_level_section(section: &str) -> bool {
-    KNOWN_SECTIONS.contains(&section)
-}
-
-/// Reads and deserializes `apollia.toml` from the given path.
-///
-/// After TOML parsing:
-/// - The `model_path` paths of embedded backends are normalized via [`expand_tilde`].
-/// - The deprecated sections (`[[triggers]]`, `[notifications]`, `[stt]`) are
-///   detected and emit a warning without blocking startup.
+/// Reads and validates `apollia.toml` from the given path.
 ///
 /// The `[llm]` section is **optional**: its absence yields `config.llm = None`
 /// without an error.
@@ -214,103 +90,23 @@ pub fn is_known_top_level_section(section: &str) -> bool {
 /// # Errors
 ///
 /// - [`ConfigError::Io`]: the file is inaccessible or unreadable.
-/// - [`ConfigError::Parse`]: the TOML is malformed or contains invalid types.
-pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
+/// - [`ConfigError::Invalid`]: the file is refused by
+///   [`apollia_core::config::validate`].
+pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaConfig, ConfigError> {
     let content = std::fs::read_to_string(path)?;
     validate_apollia_toml_str(&content)
 }
 
-/// Validate TOML `content` by deserializing it into the typed [`ApolliaCConfig`].
+/// Validates TOML `content` with the shared validation of `apollia-core`.
 ///
-/// Same semantics as [`parse_apollia_toml`] but operating on an in-memory string,
-/// so callers (e.g. `config set`) can validate a candidate document before
-/// persisting it. Unknown top-level sections are filtered out here; use
-/// [`is_known_top_level_section`] to reject them at the key-path level.
+/// Same semantics as [`parse_apollia_toml`] on an in-memory string, so callers
+/// (e.g. `config set`) can validate a candidate document before persisting it.
 ///
 /// # Errors
 ///
-/// - [`ConfigError::Parse`]: the TOML is malformed or a value has an invalid
-///   type / enum variant inside a known section.
-pub fn validate_apollia_toml_str(content: &str) -> Result<ApolliaCConfig, ConfigError> {
-    // Check for deprecated and inert sections before strict deserialization.
-    check_deprecated_sections(content);
-    check_inert_sections(content);
-    apollia_core::config::warn_retired_keys(content);
-
-    // Parse as a loose table first to ignore unknown sections gracefully.
-    let raw_table: toml::Value = toml::from_str(content)?;
-
-    // Build a filtered table with only known sections.
-    let mut filtered = toml::map::Map::new();
-    if let toml::Value::Table(table) = &raw_table {
-        for key in KNOWN_SECTIONS {
-            if let Some(v) = table.get(*key) {
-                filtered.insert((*key).to_string(), v.clone());
-            }
-        }
-    }
-
-    let config: ApolliaCConfig = toml::Value::Table(filtered)
-        .try_into()
-        .map_err(|e: toml::de::Error| e)?;
-
-    // Local GGUF model paths are no longer configured via `[[llm.backends]]`
-    // (they moved to `[llm.runner]`), so no `~ -> $HOME` normalization is
-    // required here. Cloud backends have no local path.
-
-    Ok(config)
-}
-
-/// Detects and reports deprecated TOML sections.
-///
-/// The `[[triggers]]`, `[notifications]`, `[stt]` sections are deprecated.
-/// If the TOML file still contains them, a warning is emitted for each
-/// detected section.
-fn check_deprecated_sections(content: &str) {
-    for section in DEPRECATED_SECTIONS {
-        let bracket_single = format!("[{section}]");
-        let bracket_double = format!("[[{section}]]");
-        for line in content.lines() {
-            let trimmed = line.trim();
-            if trimmed == bracket_single
-                || trimmed == bracket_double
-                || trimmed.starts_with(&format!("[{section}."))
-            {
-                tracing::warn!(
-                    section = %section,
-                    detail = "use the desktop app or the API to manage it",
-                    "config.section.deprecated"
-                );
-                break;
-            }
-        }
-    }
-}
-
-/// Reports sections that a file may still carry but that nothing reads.
-///
-/// Distinct from [`check_deprecated_sections`]: those moved somewhere else,
-/// these never had a destination. Emitting a warning turns a silent drop into a
-/// visible one, which is the whole point of listing them.
-fn check_inert_sections(content: &str) {
-    for section in INERT_SECTIONS {
-        let bracket_single = format!("[{section}]");
-        let bracket_double = format!("[[{section}]]");
-        let dotted = format!("[{section}.");
-        for line in content.lines() {
-            let trimmed = line.trim();
-            if trimmed == bracket_single
-                || trimmed == bracket_double
-                || trimmed.starts_with(&dotted)
-            {
-                tracing::warn!(
-                    section = %section,
-                    "config.section.inert"
-                );
-                break;
-            }
-        }
-    }
+/// [`ConfigError::Invalid`] with every fault found.
+pub fn validate_apollia_toml_str(content: &str) -> Result<ApolliaConfig, ConfigError> {
+    apollia_core::config::validate(content).map_err(ConfigError::Invalid)
 }
 
 /// Non-fatal validation of the LLM config: emits warnings, never returns an error.
@@ -502,11 +298,6 @@ model = "claude-haiku-4-5-20251001"
         // THEN
         let obs = &config.llm.expect("llm should be present").observability;
         assert!(
-            obs.log_token_usage,
-            "log_token_usage should default to true"
-        );
-        assert!(obs.log_latency, "log_latency should default to true");
-        assert!(
             !obs.debug_log_prompt,
             "debug_log_prompt should default to false"
         );
@@ -553,9 +344,6 @@ model = "claude-haiku-4-5-20251001"
     fn test_deprecated_triggers_section_does_not_block_parsing() {
         // GIVEN a TOML with a deprecated [[triggers]] section
         let toml = r#"
-[agents]
-directory = "agents/"
-
 [[triggers]]
 id             = "old-trigger"
 agent          = "some-agent"
@@ -587,9 +375,6 @@ schedule = "* * * * *"
     fn test_deprecated_notifications_section_does_not_block_parsing() {
         // GIVEN
         let toml = r#"
-[agents]
-directory = "agents/"
-
 [notifications]
 events = ["task.completed"]
 "#;
@@ -621,14 +406,24 @@ events = ["task.completed"]
         assert!(config.llm.is_none());
     }
 
-    // GIVEN the DEPRECATED_SECTIONS constant
-    // WHEN inspecting it
-    // THEN it contains triggers, notifications, and stt (managed via SQLite)
+    // GIVEN a section no structure declares and the registry does not withdraw
+    // WHEN parse_apollia_toml is called
+    // THEN the file is refused, naming the section at its line
     #[test]
-    fn test_deprecated_sections_constant() {
-        assert!(DEPRECATED_SECTIONS.contains(&"triggers"));
-        assert!(DEPRECATED_SECTIONS.contains(&"notifications"));
-        assert!(DEPRECATED_SECTIONS.contains(&"stt"));
+    fn test_an_unknown_section_is_refused_at_its_line() {
+        // GIVEN
+        let file =
+            write_toml("[chat]\nplan_mode_default = true\n\n[agents]\ndirectory = \"agents/\"\n");
+
+        // WHEN
+        let result = parse_apollia_toml(file.path());
+
+        // THEN
+        let Err(ConfigError::Invalid(diagnostics)) = result else {
+            panic!("an unknown section must be refused, got {result:?}");
+        };
+        assert_eq!(diagnostics[0].line, 4, "{diagnostics:?}");
+        assert!(diagnostics[0].message.contains("agents"), "{diagnostics:?}");
     }
 
     // GIVEN apollia.toml contains [mcp] plus two sections that nothing reads
@@ -653,37 +448,36 @@ max_sessions = 100
         let config = parse_apollia_toml(file.path()).expect("parse should succeed");
 
         // THEN the live section is honoured
-        let mcp = config.mcp.expect("mcp should be present");
-        assert_eq!(mcp.approval_ttl_hours, 48);
+        assert_eq!(config.mcp.approval_ttl_hours, 48);
 
-        // AND the inert sections no longer exist on the typed config at all,
-        // so no caller can mistake them for a setting that does something.
-        // They used to deserialize into a struct nothing ever consulted.
-        assert!(!is_known_top_level_section("permissions"));
-        assert!(INERT_SECTIONS.contains(&"permissions"));
+        // AND the inert section is a withdrawn key of the registry, so no
+        // caller can mistake it for a setting that does something.
+        assert!(apollia_core::config::keys::withdrawn_covering("permissions").is_some());
 
-        // AND `[filesystem]` is live again: `trusted_paths` reaches the risk
-        // classifier, which is what decides whether an operation runs or asks.
-        assert!(is_known_top_level_section("filesystem"));
-        assert!(!INERT_SECTIONS.contains(&"filesystem"));
+        // AND `[filesystem]` is withdrawn whole: the file tools reach the
+        // folders granted to each agent, not a list in this file.
+        assert!(apollia_core::config::keys::withdrawn_covering("filesystem.journal").is_some());
+        assert!(
+            apollia_core::config::keys::withdrawn_covering("filesystem.trusted_paths").is_some()
+        );
     }
 
     // GIVEN the four sections that deserialized into an unread struct
-    // WHEN config set validates a key path
-    // THEN they are rejected instead of silently accepted then dropped
+    // WHEN their keys are looked up in the registry
+    // THEN each is withdrawn, so `config set` refuses it and a file gets a warning
     #[test]
-    fn test_inert_sections_are_rejected_as_key_paths() {
-        // GIVEN / WHEN / THEN
-        for section in ["a2a", "oria", "registry", "permissions"] {
-            assert!(
-                !is_known_top_level_section(section),
-                "[{section}] must not be settable: nothing reads it"
-            );
-            assert!(
-                INERT_SECTIONS.contains(&section),
-                "[{section}] must be listed so an operator gets a warning"
-            );
-        }
+    fn test_inert_sections_are_withdrawn_keys() {
+        // GIVEN
+        let sections = ["a2a", "oria", "registry", "permissions"];
+
+        // WHEN
+        let withdrawn: Vec<_> = sections
+            .iter()
+            .filter(|s| apollia_core::config::keys::withdrawn_covering(&format!("{s}.x")).is_some())
+            .collect();
+
+        // THEN
+        assert_eq!(withdrawn.len(), sections.len(), "{withdrawn:?}");
     }
 
     // GIVEN an apollia.toml carrying an inert section
@@ -707,8 +501,7 @@ timeout_hours = 12
         let config = validate_apollia_toml_str(toml).expect("parse should succeed");
 
         // THEN the live section is unaffected
-        let hitl = config.hitl.expect("hitl should be present");
-        assert_eq!(hitl.timeout_hours, Some(12));
+        assert_eq!(config.hitl.timeout_hours, Some(12));
     }
 
     // GIVEN apollia.toml with a [chat] section enabling plan mode by default
@@ -727,15 +520,14 @@ plan_mode_default = true
         let config = parse_apollia_toml(file.path()).expect("parse should succeed");
 
         // THEN
-        let chat = config.chat.expect("chat should be present");
-        assert!(chat.plan_mode_default);
+        assert!(config.chat.plan_mode_default);
     }
 
     // GIVEN apollia.toml without a [chat] section
     // WHEN parse_apollia_toml is called
-    // THEN the chat field is None (defaults apply, plan mode off)
+    // THEN the chat section has its defaults (plan mode off)
     #[test]
-    fn test_chat_section_absent_is_none() {
+    fn test_chat_section_absent_takes_the_defaults() {
         // GIVEN an empty TOML
         let file = write_toml("");
 
@@ -743,48 +535,87 @@ plan_mode_default = true
         let config = parse_apollia_toml(file.path()).expect("parse should succeed");
 
         // THEN
-        assert!(config.chat.is_none());
+        assert!(!config.chat.plan_mode_default);
     }
 
-    // GIVEN the ApolliaCConfig struct
-    // WHEN verifying its structure
-    // THEN it carries exactly the sections a loader actually consults
+    // GIVEN an apollia.toml without a [desktop] section
+    // WHEN it is parsed
+    // THEN it loads, and the desktop section reads as its defaults
     #[test]
-    fn test_config_struct_has_expected_fields() {
-        // GIVEN a config with every section absent
-        let config = ApolliaCConfig {
-            llm: None,
-            api: None,
-            runtime: None,
-            hitl: None,
-            tools: None,
-            mcp: None,
-            hooks: None,
-            chat: None,
-            filesystem: None,
-            models: None,
-            workflows: None,
+    fn test_desktop_section_absent_loads_the_defaults() {
+        // GIVEN
+        let file = write_toml("[chat]\nplan_mode_default = true\n");
+
+        // WHEN
+        let config = parse_apollia_toml(file.path()).expect("parse should succeed");
+
+        // THEN
+        assert!(!config.desktop.developer_mode);
+    }
+
+    // GIVEN an apollia.toml turning developer mode on
+    // WHEN it is parsed
+    // THEN the typed desktop section carries it
+    #[test]
+    fn test_desktop_section_developer_mode_parses() {
+        // GIVEN
+        let file = write_toml("[desktop]\ndeveloper_mode = true\n");
+
+        // WHEN
+        let config = parse_apollia_toml(file.path()).expect("parse should succeed");
+
+        // THEN
+        assert!(config.desktop.developer_mode);
+    }
+
+    // GIVEN an apollia.toml turning the compatible server on
+    // WHEN it is parsed
+    // THEN the typed server section carries it, and an unknown key is refused
+    #[test]
+    fn test_server_section_parses_and_refuses_an_unknown_key() {
+        // GIVEN
+        let file = write_toml("[server]\nenabled = true\nport = 8123\n");
+        let typo = write_toml("[server]\nenabeld = true\n");
+
+        // WHEN
+        let config = parse_apollia_toml(file.path()).expect("parse should succeed");
+        let refused = parse_apollia_toml(typo.path());
+
+        // THEN
+        assert!(config.server.enabled);
+        assert_eq!(config.server.port, 8123);
+        let diagnostics = match refused.err() {
+            Some(ConfigError::Invalid(diagnostics)) => diagnostics,
+            _ => Vec::new(),
         };
-
-        // THEN every field is optional and absent
-        assert!(config.llm.is_none());
-        assert!(config.api.is_none());
-        assert!(config.runtime.is_none());
-        assert!(config.hitl.is_none());
-        assert!(config.tools.is_none());
-        assert!(config.mcp.is_none());
-        assert!(config.hooks.is_none());
-        assert!(config.chat.is_none());
-        assert!(config.filesystem.is_none());
-        assert!(config.models.is_none());
-        assert!(config.workflows.is_none());
-
-        // AND the typed struct agrees with the key-path guard, so a section can
-        // never again be settable without a field to land in.
-        assert_eq!(
-            KNOWN_SECTIONS.len(),
-            11,
-            "adding a section here means adding a field above, and a reader below"
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.path == "server.enabeld" && d.line == 2),
+            "{diagnostics:?}"
         );
+    }
+
+    #[test]
+    fn test_engines_section_parses_and_refuses_an_unknown_level() {
+        // GIVEN an [engines] section naming a level, and one naming a level
+        // the engine does not have
+        let file = write_toml("[engines]\nlog_level = \"warning\"\n");
+        let unknown = write_toml("[engines]\nlog_level = \"trace\"\n");
+
+        // WHEN both are parsed
+        let config = parse_apollia_toml(file.path()).expect("parse should succeed");
+        let refused = parse_apollia_toml(unknown.path());
+
+        // THEN the level is read and the unknown level refused at its line
+        assert_eq!(
+            config.engines.log_level,
+            apollia_core::config::EngineLogLevel::Warning
+        );
+        let diagnostics = match refused.err() {
+            Some(ConfigError::Invalid(diagnostics)) => diagnostics,
+            _ => Vec::new(),
+        };
+        assert!(diagnostics.iter().any(|d| d.line == 2), "{diagnostics:?}");
     }
 }

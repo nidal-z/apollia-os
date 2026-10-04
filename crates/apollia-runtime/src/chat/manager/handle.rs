@@ -15,6 +15,13 @@ pub struct ChatSessionManagerHandle {
     /// Shared lifecycle hook executor, exposed so the API can list the active
     /// handlers. `None` when no hooks are configured.
     pub(in crate::chat::manager) hook_executor: Option<Arc<HookExecutor>>,
+    /// The filesystem requests the actor waits on, the same store it
+    /// resolves. Read by the route tests to stand in for a tool call.
+    #[cfg(test)]
+    pub(in crate::chat::manager) pending_fs_approvals: PendingFilesystemApprovals,
+    /// Plan-mode state a new session starts in, the `[chat] plan_mode_default`
+    /// key of `apollia.toml` this manager was spawned with.
+    pub(in crate::chat::manager) plan_mode_default: bool,
 }
 
 impl ChatSessionManagerHandle {
@@ -35,6 +42,19 @@ impl ChatSessionManagerHandle {
             .as_ref()
             .map(|exec| exec.registry().list_all())
             .unwrap_or_default()
+    }
+
+    /// The filesystem requests the actor waits on, for a test that plays the
+    /// tool asking for one.
+    #[cfg(test)]
+    pub(crate) fn pending_fs_approvals(&self) -> PendingFilesystemApprovals {
+        self.pending_fs_approvals.clone()
+    }
+
+    /// The plan-mode state a new session starts in, read from the
+    /// `[chat] plan_mode_default` key of `apollia.toml` at boot.
+    pub fn plan_mode_default(&self) -> bool {
+        self.plan_mode_default
     }
 }
 
@@ -59,8 +79,6 @@ impl ChatSessionManagerHandle {
         user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
         registry_handle: AgentRegistryHandle,
         a2a_invoker: Option<Arc<A2AInvoker>>,
-        project_context: Option<Arc<dyn ProjectContextProvider>>,
-        project_repo: Option<Arc<ProjectRepository>>,
         mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
         // Supervisor-built config so the chat dispatcher can include
         // config-dependent natives (web_search, web_read, http_fetch,
@@ -103,6 +121,8 @@ impl ChatSessionManagerHandle {
 
         let pending_chat_approvals = PendingChatApprovals::new();
         let pending_fs_approvals = PendingFilesystemApprovals::new();
+        #[cfg(test)]
+        let test_pending_fs = pending_fs_approvals.clone();
         let pending_user_inputs = apollia_tools::tools::ask_user::PendingUserInputs::new();
 
         let enrichment_extractor = match (&llm_router, &user_memory) {
@@ -143,8 +163,6 @@ impl ChatSessionManagerHandle {
             enrichment_extractor,
             tx: tx.clone(),
             a2a_invoker,
-            project_context,
-            project_repo,
             pending_user_inputs: pending_user_inputs.clone(),
             mcp_handle,
             chat_tools_config,
@@ -197,6 +215,9 @@ impl ChatSessionManagerHandle {
             tx,
             pending_user_inputs,
             hook_executor: hook_executor_for_handle,
+            #[cfg(test)]
+            pending_fs_approvals: test_pending_fs,
+            plan_mode_default,
         })
     }
 
@@ -210,7 +231,6 @@ impl ChatSessionManagerHandle {
             agent_name,
             system_prompt,
             tools,
-            project_id,
         } = params;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -219,7 +239,6 @@ impl ChatSessionManagerHandle {
                 agent_name,
                 system_prompt,
                 tools,
-                project_id,
                 reply: reply_tx,
             })
             .await

@@ -255,6 +255,7 @@ fn response_of(
         paused,
         context_window_tokens: None,
         context_tokens_used: 0,
+        llm_calls: Vec::new(),
     })
 }
 

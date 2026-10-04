@@ -28,7 +28,7 @@ pub struct MemoryStats {
 }
 
 /// Current schema version for the memory database.
-const SCHEMA_VERSION: u32 = 2;
+const SCHEMA_VERSION: u32 = 4;
 
 /// SQL statements for schema version 1.
 const SCHEMA_V1: &str = "
@@ -77,6 +77,48 @@ const SCHEMA_V1: &str = "
         ON semantic_memories(namespace, key);
     CREATE INDEX IF NOT EXISTS idx_procedural_namespace_trigger
         ON procedural_memories(namespace, trigger_text);
+";
+
+/// SQL statements for schema version 4: the vectors of the entries.
+///
+/// `vector` is a BLOB of little-endian `f32` of norm one
+/// (`apollia_core::vector_search::encode_vector`), `dimension` its length,
+/// `model` the identifier of the embeddings model that computed it.
+const SCHEMA_V4: &str = "
+    CREATE TABLE IF NOT EXISTS memory_vectors (
+        source_table TEXT NOT NULL CHECK (source_table IN ('episodic', 'semantic')),
+        source_id    TEXT NOT NULL,
+        model        TEXT NOT NULL,
+        dimension    INTEGER NOT NULL,
+        vector       BLOB NOT NULL,
+        PRIMARY KEY (source_table, source_id)
+    );
+
+    CREATE TRIGGER IF NOT EXISTS memory_vectors_episodic_deleted
+        AFTER DELETE ON episodic_memories
+    BEGIN
+        DELETE FROM memory_vectors WHERE source_table = 'episodic' AND source_id = OLD.id;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS memory_vectors_episodic_changed
+        AFTER UPDATE OF content ON episodic_memories
+        WHEN OLD.content IS NOT NEW.content
+    BEGIN
+        DELETE FROM memory_vectors WHERE source_table = 'episodic' AND source_id = OLD.id;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS memory_vectors_semantic_deleted
+        AFTER DELETE ON semantic_memories
+    BEGIN
+        DELETE FROM memory_vectors WHERE source_table = 'semantic' AND source_id = OLD.id;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS memory_vectors_semantic_changed
+        AFTER UPDATE OF key, value ON semantic_memories
+        WHEN OLD.key IS NOT NEW.key OR OLD.value IS NOT NEW.value
+    BEGIN
+        DELETE FROM memory_vectors WHERE source_table = 'semantic' AND source_id = OLD.id;
+    END;
 ";
 
 /// FTS5 virtual table (must be executed separately from `execute_batch`
@@ -309,6 +351,12 @@ impl MemoryStore {
         if current_version < 2 {
             Self::migrate_to_v2(conn)?;
         }
+        if current_version < 3 {
+            Self::migrate_to_v3(conn)?;
+        }
+        if current_version < 4 {
+            Self::migrate_to_v4(conn)?;
+        }
         Ok(())
     }
 
@@ -369,6 +417,71 @@ impl MemoryStore {
         tracing::info!(
             version = 2,
             detail = "v2 adds the plan_choices table",
+            "memory.schema.migrated"
+        );
+        Ok(())
+    }
+
+    /// Migration to schema version 3: the `profiles` table of the user
+    /// profiles, and the partial unique index that keeps a single default.
+    /// Its rows are written only in `user_memory.db`.
+    fn migrate_to_v3(conn: &Connection) -> Result<(), MemoryStoreError> {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS profiles (
+                id          TEXT PRIMARY KEY,
+                name        TEXT NOT NULL,
+                is_default  INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),
+                person_name TEXT,
+                role        TEXT,
+                function    TEXT,
+                tools       TEXT,
+                preferences TEXT,
+                free_text   TEXT,
+                created_at  TEXT NOT NULL,
+                updated_at  TEXT NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_single_default
+                ON profiles(is_default) WHERE is_default = 1;",
+        )
+        .map_err(|e| MemoryStoreError::MigrationFailed {
+            version: 3,
+            reason: e.to_string(),
+        })?;
+
+        conn.execute("UPDATE _schema_version SET version = 3", [])
+            .map_err(|e| MemoryStoreError::MigrationFailed {
+                version: 3,
+                reason: format!("version bump failed: {e}"),
+            })?;
+
+        tracing::info!(
+            version = 3,
+            detail = "v3 adds the profiles table",
+            "memory.schema.migrated"
+        );
+        Ok(())
+    }
+
+    /// Migration to schema version 4: `memory_vectors`, one vector per
+    /// episodic or semantic entry, and the triggers that drop a vector when
+    /// its entry is deleted or its text changes, so a stale vector never
+    /// outlives the words it was computed from.
+    fn migrate_to_v4(conn: &Connection) -> Result<(), MemoryStoreError> {
+        conn.execute_batch(SCHEMA_V4)
+            .map_err(|e| MemoryStoreError::MigrationFailed {
+                version: 4,
+                reason: e.to_string(),
+            })?;
+
+        conn.execute("UPDATE _schema_version SET version = 4", [])
+            .map_err(|e| MemoryStoreError::MigrationFailed {
+                version: 4,
+                reason: format!("version bump failed: {e}"),
+            })?;
+
+        tracing::info!(
+            version = 4,
+            detail = "v4 adds the memory_vectors table",
             "memory.schema.migrated"
         );
         Ok(())

@@ -28,3 +28,13 @@ CREATE TABLE package_agents (
 );
 CREATE INDEX idx_package_agents_package ON package_agents(package_name);
 CREATE INDEX idx_package_agents_agent   ON package_agents(agent_name);
+-- The user's overrides of an agent (migration v2 creates it IF NOT EXISTS and
+-- keeps the rows), created here so the seed can grant the Apollia agent the
+-- checkout folder.
+CREATE TABLE agent_overrides (
+    agent       TEXT NOT NULL,
+    field       TEXT NOT NULL,
+    value_json  TEXT NOT NULL,
+    updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (agent, field)
+);

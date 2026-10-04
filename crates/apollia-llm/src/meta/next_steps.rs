@@ -35,7 +35,6 @@ pub const MAX_NEXT_STEPS: usize = 3;
 const ALLOWED_ROUTES: &[&str] = &[
     "/dashboard",
     "/agents",
-    "/projects",
     "/tasks",
     "/chat",
     "/automations",
@@ -167,7 +166,7 @@ pub struct NextStep {
 }
 
 /// Request passed to [`generate_next_steps`].
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NextStepsRequest {
     /// Panel this payload targets.

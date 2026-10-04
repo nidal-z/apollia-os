@@ -183,7 +183,7 @@ mod tests {
         let policy = apollia_permissions::parse_policy(
             "schema_version = 1\nsigned_at = 2026-10-02T09:30:00Z\n\
              [connections]\nremote = \"deny\"\n[families]\ndeny = [\"execute_code\"]\n\
-             [settings]\n\"chat.max_steps\" = 20\n",
+             [settings]\n\"desktop.developer_mode\" = false\n",
         )
         .unwrap();
         // WHEN its rules are rendered
@@ -194,7 +194,7 @@ mod tests {
             vec![
                 "Remote servers refused.".to_owned(),
                 "Action families refused: execute_code".to_owned(),
-                "Setting fixed: chat.max_steps = 20".to_owned(),
+                "Setting fixed: desktop.developer_mode = false".to_owned(),
             ]
         );
     }

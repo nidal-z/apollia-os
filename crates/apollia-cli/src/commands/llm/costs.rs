@@ -1,4 +1,4 @@
-//! `llm costs`, the cost threshold, and the local setup wizard.
+//! `llm costs` and the local setup wizard.
 
 use std::path::PathBuf;
 
@@ -12,19 +12,7 @@ use super::handle_error;
 // ─────────────────────────────────────────────
 
 /// `apollia-os llm costs`: display aggregated usage and costs per backend.
-pub(super) async fn run_costs(
-    client: &RuntimeClient,
-    get_threshold: bool,
-    set_threshold: Option<f64>,
-    config_path_override: Option<&std::path::Path>,
-    json: bool,
-) -> i32 {
-    if get_threshold {
-        return run_get_cost_threshold(config_path_override, json);
-    }
-    if let Some(v) = set_threshold {
-        return run_set_cost_threshold(v, config_path_override, json);
-    }
+pub(super) async fn run_costs(client: &RuntimeClient, json: bool) -> i32 {
     match client.get_llm_costs().await {
         Ok(resp) => {
             if json {
@@ -41,121 +29,8 @@ pub(super) async fn run_costs(
     }
 }
 
-/// Locates the `apollia.toml` the cost alert threshold lives in.
-///
-/// Delegates to the runtime's own search order (`./apollia.toml`, then
-/// `$XDG_CONFIG_HOME/apollia/apollia.toml`). `~/.apollia/` holds the data files,
-/// not the configuration: a threshold written there is a threshold the router
-/// never loads.
-pub(super) fn resolve_apollia_toml(override_path: Option<&std::path::Path>) -> PathBuf {
-    crate::commands::config::resolve_path(override_path)
-}
-
 pub(super) fn emit_llm_error(msg: String, json: bool) -> i32 {
     crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.to_string())
-}
-
-pub(super) fn run_get_cost_threshold(override_path: Option<&std::path::Path>, json: bool) -> i32 {
-    let path = resolve_apollia_toml(override_path);
-    let content = match std::fs::read_to_string(&path) {
-        Ok(c) => c,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            // Treat an absent file as "no threshold set" so scripts can detect
-            // the unconfigured state with `--json | jq .threshold == null`.
-            if json {
-                let body = serde_json::json!({
-                    "path": path.display().to_string(),
-                    "threshold": serde_json::Value::Null,
-                });
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&body).unwrap_or_default()
-                );
-            } else {
-                println!("  (no cost alert threshold set in {})", path.display());
-            }
-            return exit_codes::SUCCESS;
-        }
-        Err(e) => return emit_llm_error(format!("read {} failed: {e}", path.display()), json),
-    };
-    let doc: toml_edit::DocumentMut = match content.parse() {
-        Ok(d) => d,
-        Err(e) => return emit_llm_error(format!("parse {} failed: {e}", path.display()), json),
-    };
-    let threshold = doc
-        .get("llm")
-        .and_then(|t| t.get("cost_alert_threshold_usd"))
-        .and_then(|v| v.as_float());
-    if json {
-        let body = serde_json::json!({
-            "path": path.display().to_string(),
-            "threshold": threshold,
-        });
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&body).unwrap_or_default()
-        );
-    } else {
-        match threshold {
-            Some(v) => println!("  cost_alert_threshold_usd = {v} (in {})", path.display()),
-            None => println!("  (no cost alert threshold set in {})", path.display()),
-        }
-    }
-    exit_codes::SUCCESS
-}
-
-pub(super) fn run_set_cost_threshold(
-    value: f64,
-    override_path: Option<&std::path::Path>,
-    json: bool,
-) -> i32 {
-    let path = resolve_apollia_toml(override_path);
-    if let Some(parent) = path.parent() {
-        if let Err(e) = std::fs::create_dir_all(parent) {
-            return emit_llm_error(format!("create {} failed: {e}", parent.display()), json);
-        }
-    }
-    let content = std::fs::read_to_string(&path).unwrap_or_default();
-    let mut doc: toml_edit::DocumentMut = match content.parse() {
-        Ok(d) => d,
-        Err(e) => return emit_llm_error(format!("parse {} failed: {e}", path.display()), json),
-    };
-    if value <= 0.0 {
-        // Clear semantics: drop the key but keep the table.
-        if let Some(table) = doc.get_mut("llm").and_then(|i| i.as_table_mut()) {
-            table.remove("cost_alert_threshold_usd");
-        }
-    } else {
-        let llm_table = doc
-            .entry("llm")
-            .or_insert(toml_edit::Item::Table(toml_edit::Table::new()))
-            .as_table_mut();
-        if let Some(table) = llm_table {
-            table.insert("cost_alert_threshold_usd", toml_edit::value(value));
-        }
-    }
-    if let Err(e) = std::fs::write(&path, doc.to_string()) {
-        return emit_llm_error(format!("write {} failed: {e}", path.display()), json);
-    }
-    if json {
-        let body = serde_json::json!({
-            "path": path.display().to_string(),
-            "threshold": if value <= 0.0 { serde_json::Value::Null } else { serde_json::json!(value) },
-            "cleared": value <= 0.0,
-        });
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&body).unwrap_or_default()
-        );
-    } else if value <= 0.0 {
-        println!("  * cost_alert_threshold cleared in {}", path.display());
-    } else {
-        println!(
-            "  * cost_alert_threshold_usd = {value} written to {}",
-            path.display()
-        );
-    }
-    exit_codes::SUCCESS
 }
 
 /// Arguments for [`run_setup`], grouped to keep the signature small.
@@ -195,9 +70,7 @@ pub(super) fn run_setup(args: SetupArgs<'_>) -> i32 {
     let apollia_home = apollia_core::paths::home_dir()
         .map(apollia_core::paths::data_dir_under)
         .unwrap_or_else(|| PathBuf::from(apollia_core::paths::DATA_DIR_NAME));
-    let models_dir = models_dir_override
-        .map(|p| p.to_path_buf())
-        .unwrap_or_else(|| apollia_home.join("models"));
+    let models_dir = apollia_core::config::resolve_models_dir(&apollia_home, models_dir_override);
     if let Err(e) = std::fs::create_dir_all(&models_dir) {
         return emit_llm_error(format!("create {} failed: {e}", models_dir.display()), json);
     }
@@ -381,47 +254,5 @@ pub(super) fn format_llm_costs(resp: &serde_json::Value) {
             "  {:<18} {:<22} {:>8} {:>12} {:>12.4}",
             "TOTAL", "", total_calls, total_tokens, total_cost
         );
-    }
-}
-
-// ─────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cost_threshold_file_is_the_one_the_runtime_reads() {
-        // GIVEN no explicit --config override on `llm costs`, and HOME held
-        // under the shared lock so a `doctor` test on another thread cannot
-        // resolve it against a fake HOME mid-swap while it mutates its own.
-        // `blocking_lock` is safe here: this is a plain `#[test]`, never
-        // polled on a tokio runtime thread.
-        let _guard = crate::commands::HOME_ENV_LOCK.blocking_lock();
-
-        // WHEN the threshold path is resolved
-        let costs_path = resolve_apollia_toml(None);
-
-        // THEN it is the very file the runtime walks to at startup, otherwise
-        // the threshold is written where nothing ever reads it
-        let runtime_path = crate::commands::config::resolve_path(None);
-        assert_eq!(
-            costs_path, runtime_path,
-            "llm costs writes to a file the runtime never loads"
-        );
-    }
-
-    #[test]
-    fn cost_threshold_override_is_honoured_verbatim() {
-        // GIVEN an explicit --config override
-        let explicit = std::path::Path::new("/tmp/apollia-costs-override.toml");
-
-        // WHEN the threshold path is resolved
-        let resolved = resolve_apollia_toml(Some(explicit));
-
-        // THEN the override is used as given, with no search of its own
-        assert_eq!(resolved, explicit.to_path_buf());
     }
 }

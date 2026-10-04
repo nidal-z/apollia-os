@@ -294,9 +294,10 @@ BILINGUAL_DATA = (
 FRENCH_DATA: dict[str, int] = {
     # locale: the French half of a bilingual surface
     "crates/apollia-desktop/src/i18n.rs": 16,
-    "crates/apollia-desktop/ui/src/lib/i18n/identicalLocales.ts": 4,
+    "crates/apollia-desktop/ui/src/lib/i18n/identicalLocales.ts": 3,
     "crates/apollia-desktop/ui/src/components/settings/stt/SttEssentialSection.svelte": 2,
-    "crates/apollia-memory/src/profile_schema.rs": 26,
+    "crates/apollia-memory/src/profile_schema.rs": 10,
+    "crates/apollia-memory/src/user_memory/persona.rs": 1,
     "scripts/check_release_artifacts.py": 1,
     # parser: French words the code matches on, or folds
     # The typed-pause payload keys are the product's wire vocabulary (`genre`,
@@ -312,14 +313,12 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-cli/src/commands/chat_stream.rs": 3,
     "crates/apollia-cli/src/commands/chat_stream/classify.rs": 1,
     "crates/apollia-cli/src/commands/run.rs": 2,
-    "crates/apollia-desktop/ui/src/components/settings/profile/profileForm.ts": 1,
     "crates/apollia-desktop/ui/src/lib/command-palette/actions.ts": 1,
     "crates/apollia-desktop/ui/tests/settings/hotkey-capture.spec.ts": 1,
     "crates/apollia-llm/src/meta/parse_automation.rs": 30,
     "crates/apollia-memory/src/lib.rs": 1,
     "crates/apollia-memory/src/search.rs": 2,
     "crates/apollia-memory/src/store.rs": 1,
-    "crates/apollia-memory/src/user_memory.rs": 1,
     "scripts/check_docs_lang.py": 8,
     "scripts/check_docs_routes.py": 4,
     # This file: its own French word list, and the French lines its self-test
@@ -337,7 +336,7 @@ FRENCH_DATA: dict[str, int] = {
     "agents/system/onboarding-agent/tools/onboarding.py": 21,
     "tests/test_onboarding_tool.py": 2,
     # prompt: French text sent to a model, because the operator writes French
-    "crates/apollia-desktop/src/commands/chat/title.rs": 17,
+    "crates/apollia-runtime/src/chat/title.rs": 17,
     # fixture: French user text, or a multi-byte character, a test feeds to the
     # code under test
     "tests/hitl/hitl_e2e_agent.py": 1,

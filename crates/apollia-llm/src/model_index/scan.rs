@@ -11,7 +11,9 @@ use std::path::{Path, PathBuf};
 use chrono::{DateTime, Utc};
 
 use super::{ModelCategory, ModelFormat};
-use crate::capabilities::{mlx_chat_template, mlx_config_has_vision, Capabilities, VisionEngine};
+use crate::capabilities::{
+    mlx_chat_template, mlx_config_has_vision, mlx_config_model_type, Capabilities, VisionEngine,
+};
 use crate::gguf_probe::{probe_file, CONFIRM_BYTES};
 
 /// Deepest sub-folder level the walk enters below the models directory.
@@ -82,7 +84,11 @@ pub(super) fn assign_ids(root: &Path, models: &[FoundModel]) -> Vec<String> {
 /// vocabulary, which a screening read stops short of.
 pub(super) fn read_header(model: &FoundModel) -> (ModelCategory, Option<String>, Capabilities) {
     if model.ggml_dictation {
-        return (ModelCategory::Dictation, None, Capabilities::default());
+        return (
+            ModelCategory::Dictation,
+            None,
+            Capabilities::from_chat_template(None),
+        );
     }
     match model.format {
         ModelFormat::Gguf => match probe_file(&model.path, CONFIRM_BYTES) {
@@ -109,10 +115,13 @@ pub(super) fn read_header(model: &FoundModel) -> (ModelCategory, Option<String>,
         },
         ModelFormat::Mlx => {
             let template = mlx_chat_template(&model.path);
+            let family = std::fs::read_to_string(model.path.join("config.json"))
+                .ok()
+                .and_then(|text| mlx_config_model_type(&text));
             (
                 mlx_category(&model.path),
                 None,
-                Capabilities::from_chat_template(template.as_deref()),
+                Capabilities::from_chat_template_of_family(template.as_deref(), family.as_deref()),
             )
         }
     }

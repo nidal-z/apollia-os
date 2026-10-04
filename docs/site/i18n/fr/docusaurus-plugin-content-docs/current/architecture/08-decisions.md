@@ -103,6 +103,20 @@ mémoire. Les outils de fichiers sont confinés à une racine résolue : le chem
 est canonisé puis revérifié contre la racine après résolution, donc un lien
 symbolique ne permet pas d'en sortir.
 
+La racine des outils de fichiers d'un agent est l'union des dossiers accordés à
+cet agent, agent de conversation intégré compris, sur le chemin de la
+conversation comme sur celui des tâches. Un dossier du poste est une connexion,
+choisie au sélecteur du système, et ses outils s'accordent à un agent un par
+un : les outils de lecture atteignent tous les dossiers qui lui sont accordés,
+les outils d'écriture seulement ceux accordés pour écrire. Le premier dossier
+accordé, par date d'ajout, sert d'ancre à un chemin relatif. Un agent sans
+dossier accordé a des outils de fichiers qui refusent avec un message disant
+comment en accorder un. Rien d'autre n'est une racine : ni le dossier
+personnel, ni le dossier de données, ni le volume, ni le dossier d'un projet.
+Les anciennes clés `[filesystem] trusted_paths` et `[chat] default_workspace`
+sont retirées ; les dossiers qu'elles nommaient, dossier personnel excepté, ont
+été ajoutés une fois comme connexions, accordées à aucun agent.
+
 Le confinement n'est pas uniforme selon les plateformes, et la différence n'est
 pas cosmétique. Sous Linux, l'exécution shell tourne sous espaces de noms PID et
 mount. Sous macOS le confinement est plus faible. Sous Windows il n'y en a pas.
@@ -247,6 +261,27 @@ environ 150 Mo à l'image disque macOS, et ils demandent macOS 14 ou plus
 récent, plancher des roues MLX à la version épinglée. Les paquets Windows et
 Linux ne le portent pas.
 
+Les moteurs ont leur propre canal de mise à jour et ne suivent pas la version
+d'Apollia. Le moteur embarqué sert chaque machine dès le premier lancement ; une
+version accélérée, CUDA sur une machine dotée d'une carte NVIDIA, se télécharge
+à la demande, ou s'importe depuis un disque sans réseau, et le lanceur prend
+alors la version installée la plus récente de cette variante plutôt que le
+moteur embarqué. Tout téléchargement ou import de moteur est précédé de la
+vérification d'un manifeste d'empreintes signé au format minisign avec une clé
+de distribution dédiée. Chaque canal, stable ou préversion, publie un tel
+manifeste, qui liste chaque archive de moteur avec son SHA-256. La moitié
+publique de cette clé est compilée dans le binaire et c'est la seule clé
+acceptée. Aucune archive n'est demandée avant que la signature tienne, une
+archive dont l'empreinte diffère du manifeste est supprimée, et un manifeste
+plus ancien que le dernier accepté sur son canal est refusé. Un miroir peut
+remplacer l'adresse d'où viennent manifestes et archives ; il ne peut pas
+remplacer la clé. Les archives de moteur se lisent au format zip seul, celui déjà
+lu pour les paquets d'agents, et aucun autre format d'archive n'est analysé. Les
+versions amont publiées en `.tar.gz`, dont celles pour macOS et Linux, sont
+reconditionnées en zip par la chaîne de publication qui produit le manifeste, et
+le manifeste porte l'empreinte de ce zip. L'environnement du moteur MLX figure
+dans le même manifeste et s'installe par la même vérification.
+
 Il n'y a aucun fournisseur cloud dédié. Un modèle distant se joint par une seule
 connexion générique à un serveur compatible OpenAI, à l'adresse que
 l'organisation désigne : un vLLM ou un LM Studio auto-hébergé, ou une
@@ -320,8 +355,18 @@ optionnelle : une compilation sans elle perd la dictée, et rien d'autre.
 
 ## Model Context Protocol {#mcp}
 
-Apollia est un client MCP sur les transports stdio et HTTP, et expose aussi ses
-propres outils natifs comme serveur MCP sur stdio.
+Apollia est un client MCP sur les transports stdio et HTTP. C'est aussi un
+serveur MCP, pour les agents et workflows que l'utilisateur choisit et rien
+d'autre : `apollia-os mcp server` est un pont stdio vers le démon en cours, qui
+liste les agents et workflows marqués exposés et en exécute un jusqu'à sa fin
+quand un client l'appelle. Un agent prend un message, sous le nom d'outil
+`agent__<id>` ; un workflow prend les entrées que son schéma déclare, sous
+`workflow__<paquet>_<workflow>`. Un nom s'en tient à `[A-Za-z0-9_-]` et à 64
+caractères, comme l'exigent les API des modèles, et deux éléments dont les noms
+se confondraient sont tous deux écartés. Le pont est désactivé par défaut : le
+démon le refuse tant que `[mcp] server_enabled` n'est pas activé, réglage qu'il
+relit à chaque ouverture d'un pont. Les outils natifs (shell, fichiers,
+installation d'agents) ne sont plus servis à un client MCP.
 
 Toute réponse MCP est traitée comme une entrée non fiable. Les réponses sont
 plafonnées par serveur, les noms et descriptions d'outils sont validés dès
@@ -331,6 +376,20 @@ mal se dégrade lui-même, pas le runtime.
 
 Les serveurs qui exigent OAuth passent par un flux dédié, avec son propre
 plafond de réponse, plus petit.
+
+Node.js n'est pas embarqué dans Apollia, ce qui tient le principe 2 (zéro
+dépendance externe) : rien n'est à installer sur le poste au préalable. Une
+version LTS épinglée de Node.js est publiée dans le manifeste d'empreintes
+signé du canal des moteurs, signé au format minisign avec la clé de
+distribution dédiée d'Apollia (voir [Inférence locale](#local-inference)), et
+elle se télécharge au premier serveur lancé par `node` ou `npx` qui en a
+besoin : la signature du manifeste est vérifiée avant toute requête d'archive,
+puis l'empreinte de l'archive, puis l'archive est extraite dans le magasin des
+moteurs. Un tel serveur tourne alors sur ce Node.js par son chemin absolu,
+jamais par le `PATH` ; tant qu'aucun n'est installé, son lancement échoue sur
+une erreur typée « Node.js requis ». Un poste sans réseau importe Node.js depuis
+un disque, par la même vérification. Les paquets npm des serveurs s'installent
+depuis un verrou qui porte une empreinte d'intégrité par paquet.
 
 ## Connecteurs {#connectors}
 
@@ -345,6 +404,27 @@ identifiants client. L'asymétrie est assumée, et elle est énoncée là où
 l'opérateur la rencontre.
 
 ## Documents et sources {#documents-and-sources}
+
+Les classeurs et les fichiers CSV se lisent en Rust, sans l'interpréteur
+Python embarqué. `calamine` (MIT) lit `.xlsx`, `.xlsm`, `.xlsb`, `.xls` et
+`.ods` ; `csv` (MIT ou Unlicense) lit les fichiers CSV, avec le séparateur
+détecté parmi la virgule, le point-virgule et la tabulation. Les deux sont en
+pur Rust, en lecture seule, ne lient aucune bibliothèque système et n'ouvrent
+aucune connexion. Chaque cellule se lit en texte avec sa feuille, sa ligne et sa
+colonne : un nombre sans partie décimale nulle, une date en ISO 8601, une
+formule par la valeur que le fichier a calculée en dernier (aucune formule
+n'est évaluée), une erreur par son code. Un classeur protégé par un mot de
+passe, ou endommagé, donne une erreur typée, jamais un plantage. Un fichier CSV
+qui n'est pas en UTF-8 se lit avec ses octets invalides remplacés, et le
+résultat le signale : aucun encodage n'est deviné.
+
+Le coût est nommé : `calamine` dépend de `zip` 8 quand l'espace de travail porte
+`zip` 4 pour l'archive de paquet et l'export d'un lot ; deux versions majeures
+de `zip` entrent donc dans chaque compilation, avec cinq petites crates sous
+`calamine` (`atoi_simd`, `codepage`, `debug_unsafe`, `fast-float2`,
+`typed-path`) et `csv-core` sous `csv`. `calamine` est épinglé en 0.36.1 : une
+nouvelle version, et la version de `zip` qu'elle apporte, est une décision et
+non une mise à jour.
 
 Une boîte mail se connecte en IMAP avec un mot de passe d'application : tout
 fournisseur est joignable, Gmail compris, sans client OAuth et sans relais. Le
@@ -369,6 +449,21 @@ Le coût est nommé : deux crates et leurs petits arbres (`imap-proto`, `hashify
 `stop-token`, `async-channel`) entrent dans chaque compilation, pour un
 protocole dont les serveurs varient dans leur rigueur. Un serveur qui comprend
 mal une commande donne une erreur de protocole typée, pas un plantage.
+
+## Export d'un lot {#batch-export}
+
+Le résultat d'un lot s'exporte en classeur Excel, en CSV ou en JSON, une ligne
+par élément. CSV et JSON s'écrivent sans dépendance. Le classeur est écrit par
+`rust_xlsxwriter` (MIT ou Apache-2.0), un écrivain seul, sans accès réseau,
+épinglé à 0.92.0 : c'est la dernière version qui dépend de la version majeure
+de `zip` que l'espace de travail porte déjà, et une version plus récente
+mettrait deux versions de `zip` dans chaque build. Il ajoute trois crates au
+fichier de verrouillage, lui-même, `zopfli` et `zlib-rs` (voir
+[Archive de paquet](#package-archive)).
+
+`rust_xlsxwriter` ne sait pas modifier un classeur existant. Écrire les
+résultats dans le fichier d'où un lot a été lu se décide avec le lecteur de
+tableurs, pas ici.
 
 ## Messagerie entre agents {#agent-messaging}
 
@@ -420,15 +515,51 @@ L'API HTTP écoute sur une socket Unix et sur un port TCP ; le daemon lie les de
 à chaque démarrage, et le numéro de port est la seule chose que `--port` décide.
 La socket Unix relève de la confiance locale et s'appuie sur les permissions du
 système de fichiers. Le TCP exige un jeton porteur sur tous les chemins
-`/api/v1` sauf un, et le lier à une adresse non locale sans TLS est une erreur de
-démarrage plutôt qu'un avertissement : un attachement distant non sécurisé est la
-seule erreur qu'on ne peut pas défaire une fois que le trafic est passé.
+`/api/v1` sauf un, et le lier à une adresse non locale sans jeton est une erreur
+de démarrage plutôt qu'un avertissement : un attachement distant non authentifié
+est la seule erreur qu'on ne peut pas défaire une fois que le trafic est passé.
+TLS est facultatif : avec `[api] tls_cert` et `tls_key` renseignés, l'écouteur
+TCP sert en HTTPS, et un certificat qui ne se charge pas fait échouer le
+démarrage au lieu de retomber en clair.
 
 L'exception est `GET /api/v1/health`, qui répond sans jeton et ne révèle que le
 marqueur de produit et la version du runtime, rien d'autre. Un processus qui
 trouve le port pris ne détient aucun jeton de cette installation, et ce qu'il doit
 savoir, c'est si le détenteur est un runtime Apollia et dans quelle version.
 Toutes les autres routes `/api/v1` gardent le jeton.
+
+### Le serveur compatible et le réseau local {#local-server}
+
+Le runtime a deux écouteurs. L'API native, port 7771 et socket locale, pilote le
+runtime ; le serveur compatible, port 7772 par défaut, sert les formats d'OpenAI
+et d'Anthropic aux autres applications. L'API native reste sur la machine : le
+runtime embarqué du bureau la lie à `127.0.0.1` quoi que dise le fichier, le
+daemon à la boucle locale que `[api] bind` nomme par défaut (une autre adresse
+exige un jeton, comme ci-dessus), et aucun réglage du serveur compatible ne la
+déplace. Le serveur compatible est la seule surface que l'utilisateur ouvre au
+réseau local, par `[server] serve_on_lan`, éteint par défaut et allumé
+seulement par un geste explicite de l'utilisateur.
+
+Pour les modèles, le réseau et les jetons sont deux interrupteurs indépendants.
+Un appareil du réseau local peut appeler les modèles sans jeton quand
+`[server] require_auth` est éteint, comme d'autres serveurs d'inférence locaux
+le permettent ; ce choix appartient à l'utilisateur. Les agents et les workflows
+ne sont pas des modèles : ils atteignent les connexions, les documents et le
+courrier de l'utilisateur, si bien qu'un appel venu du réseau local n'est admis
+qu'avec un jeton actif du serveur, quoi que dise `require_auth`. Chaque requête
+porte son origine, la machine ou le réseau local, lue dans l'adresse du pair à
+l'acceptation de sa connexion. La politique de l'organisation est l'endroit où
+une organisation interdit le réseau local ou impose les jetons, par-dessus les
+interrupteurs de l'utilisateur.
+
+Au regard du principe du local d'abord : rien ne sort de la machine tant que
+l'utilisateur n'ouvre pas le réseau, et ce qui répond alors sans jeton est une
+inférence sur le texte que l'appelant a lui-même envoyé. Les données de
+l'utilisateur, que seuls les agents et les workflows atteignent, ne répondent
+jamais au réseau sans un jeton que l'utilisateur a créé et peut révoquer. L'API
+native, qui porte toutes les autres capacités, n'est jamais joignable depuis le
+réseau par cet interrupteur. Le trafic sur le réseau est du HTTP en clair : le
+serveur compatible ne termine pas TLS.
 
 ## Signatures {#signing-schemes}
 
@@ -508,6 +639,25 @@ d'autre dépendance que sa propre cale d'édition de liens, et la même version
 était déjà dans l'arbre par d'autres crates : le fichier de verrouillage n'a
 gagné aucun paquet. Le coût est un bloc de code FFI avec sa propre permission
 `unsafe`, confiné à un module.
+
+## Le fichier de configuration {#configuration-file}
+
+`apollia.toml` a un seul écrivain, `apollia_core::config::writer`. Les écrans de
+réglages de l'application de bureau, la ligne de commande, les routes sous
+`/api/v1/config` et les moteurs que le runtime recopie dans le fichier passent
+tous par lui, si bien que les quatre mêmes vérifications tiennent quel que soit
+l'auteur : le texte se valide contre le schéma strict, aucune ligne ne donne à
+une clé que la politique de l'organisation impose une autre valeur, le fichier
+sur le disque est encore celui que l'appelant a lu, comparé par son empreinte
+SHA-256, et le texte remplace le fichier par un fichier voisin renommé
+par-dessus. Une écriture par clé garde les commentaires et l'ordre du fichier.
+La ligne de commande appelle l'écrivain directement : elle fonctionne démon
+arrêté, et un refus se lit dans la même phrase sur chaque surface.
+
+Tenir l'écrivain dans la crate de fondation place `toml`, `toml_edit` et `sha2`
+parmi les dépendances directes d'`apollia-core`. Les trois étaient déjà des
+dépendances de l'espace de travail, et le fichier de verrouillage n'a gagné
+aucun paquet.
 
 ## Ligne de commande {#cli}
 
@@ -617,9 +767,15 @@ déjà dans l'arbre par le programme de mise à jour du bureau ; aucune crate n'
 entrée dans le fichier de verrouillage. `zip` est compilée avec deflate seul :
 ni chiffrement, ni bzip2, lzma, zstd ou deflate64. `flate2` est déclarée à côté
 pour une seule raison, choisir l'implémentation en Rust pur (`miniz_oxide`) de
-ce deflate : `zip` laisse ce choix à l'appelant, `flate2` refuse de compiler
-sans implémentation, et la fonctionnalité `deflate` de `zip`, qui en choisirait
-une d'elle-même, tire `zopfli` et `zlib-rs`, absentes de l'arbre.
+ce deflate : `zip` laisse ce choix à l'appelant, et `flate2` refuse de
+compiler sans implémentation.
+
+L'export Excel d'un lot (voir [Export d'un lot](#batch-export)) a changé un
+point de ce choix. Son écrivain active la fonctionnalité `deflate` de `zip`,
+qui apporte deux crates en Rust pur, `zopfli` (Apache-2.0) et `zlib-rs` (Zlib),
+et fait de `zlib-rs` l'implémentation deflate de `flate2` dans tout le
+programme. Les deux ont été acceptées plutôt qu'écrire le classeur à la main
+avec `zip` seul. Les bornes de lecture ci-dessus ne changent pas.
 
 Les paquets qu'Apollia livre dans son propre binaire, le guide de l'application
 d'abord, ne sont pas signés. Le bureau assemble chacun d'eux au démarrage à

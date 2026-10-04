@@ -138,11 +138,12 @@ async fn test_list_and_read_resolved_agent() {
     assert_eq!(missing, StatusCode::NOT_FOUND);
 }
 
-// GIVEN a stored agent and a signed journal
+// GIVEN a stored agent with a model assigned, and a signed journal
 // WHEN its access is overridden, its mission overridden then removed, and the
 //      agent sent back to defaults
-// THEN each answer is the agent in force, and the journal of the agent holds
-//      one record per write, plus the access granted and revoked
+// THEN each answer is the agent in force, back to defaults its model assignment
+//      is gone too, and the journal of the agent holds one record per write,
+//      plus the access granted and revoked, plus the model removed
 #[tokio::test]
 async fn test_override_routes_write_and_journal() {
     // GIVEN
@@ -190,12 +191,13 @@ async fn test_override_routes_write_and_journal() {
     assert_eq!(reset, StatusCode::OK);
     assert_eq!(after_reset["access"], json!(["file_read"]));
     assert_eq!(after_reset["overridden"], json!([]));
-    let kinds: Vec<JournalEntryKind> = journal
-        .query_run(&governance_run_id("invoices"))
-        .await
-        .into_iter()
-        .map(|entry| entry.kind)
-        .collect();
+    assert_eq!(after_reset["model"], Value::Null);
+    let entries = journal.query_run(&governance_run_id("invoices")).await;
+    assert_eq!(
+        entries.last().map(|entry| entry.payload["field"].clone()),
+        Some(json!("model"))
+    );
+    let kinds: Vec<JournalEntryKind> = entries.into_iter().map(|entry| entry.kind).collect();
     assert_eq!(
         kinds,
         vec![
@@ -210,6 +212,8 @@ async fn test_override_routes_write_and_journal() {
             JournalEntryKind::AgentOverrideChanged,
             JournalEntryKind::AccessChanged,
             JournalEntryKind::AccessChanged,
+            // and the model assigned in system.db removed
+            JournalEntryKind::AgentOverrideChanged,
         ]
     );
 }
@@ -300,11 +304,12 @@ async fn test_chat_settings_are_the_overrides_of_apollia() {
 
     // WHEN
     for write in changes(&ChatConfigView::from_resolved(&before), &desired) {
-        let method = match write {
-            ConfigWrite::ClearMission | ConfigWrite::ClearAccess => "DELETE",
-            _ => "PUT",
+        let (method, body) = match &write {
+            ConfigWrite::SetMission(prompt) => ("PUT", Some(json!({ "value": prompt }))),
+            ConfigWrite::SetAccess(tools) => ("PUT", Some(json!({ "value": tools }))),
+            _ => ("DELETE", None),
         };
-        let (status, _) = call(state.clone(), method, &write.path(), write.override_body()).await;
+        let (status, _) = call(state.clone(), method, &write.path(), body).await;
         assert_eq!(status, StatusCode::OK);
     }
     let (read, after) = call(state, "GET", &definition_path(), None).await;
@@ -314,4 +319,41 @@ async fn test_chat_settings_are_the_overrides_of_apollia() {
     assert_eq!(before["origin"], "interface");
     assert_eq!(before["name"], "Apollia");
     assert_eq!(ChatConfigView::from_resolved(&after), desired);
+}
+
+// GIVEN a runtime whose registry holds file_read (reading) and file_write,
+//       Apollia without an access override, and a package agent that
+//       declares file_read
+// WHEN both cards are read
+// THEN Apollia shows the reading family, not as the user's choice, and the
+//      package agent shows what its package declares
+#[tokio::test]
+async fn test_the_card_shows_the_default_access() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let (mut state, _) = state(&dir, false).await;
+    let registry = apollia_tools::ToolRegistryHandle::start();
+    for descriptor in [
+        apollia_tools::tools::file_read::FileRead::descriptor(),
+        apollia_tools::tools::file_write::FileWrite::descriptor(),
+    ] {
+        registry.register(descriptor).await.unwrap();
+    }
+    state.tool_registry_handle = Some(registry.clone());
+
+    // WHEN
+    let (_, apollia) = call(
+        state.clone(),
+        "GET",
+        "/api/v1/agent-definitions/apollia:chat",
+        None,
+    )
+    .await;
+    let (_, invoices) = call(state, "GET", "/api/v1/agent-definitions/invoices", None).await;
+
+    // THEN
+    assert_eq!(apollia["access"], json!(["file_read"]));
+    assert_eq!(apollia["overridden"], json!([]));
+    assert_eq!(invoices["access"], json!(["file_read"]));
+    registry.shutdown().await;
 }

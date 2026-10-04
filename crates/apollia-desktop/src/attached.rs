@@ -35,16 +35,35 @@ const RELAY_BUS_CAPACITY: usize = 1024;
 /// shares since it listens on this machine. [`run`] manages the download
 /// manager it holds. `list_model_cards` needs none either: it reads the model
 /// registry, the data directory and its `apollia.toml`, never the runtime.
+/// `get_companion_context` needs none: it answers from a table of help texts
+/// compiled into this binary. `get_resolved_setting` and `set_setting` need
+/// none: they read and write the `apollia.toml` of the data directory, never
+/// the runtime, and neither does `get_models_dir`, which reads the same file.
 pub(crate) const ROUTED_COMMANDS: &[&str] = &[
+    "chat_session_metrics",
     "create_chat_session",
     "get_chat_session",
     "list_chat_sessions",
     "pause_chat_session",
     "send_chat_message",
-    // Agents: the registry and the install.
+    // The conversations as the list manages them: configure, rename, name,
+    // erase.
+    "delete_chat_session",
+    "generate_chat_session_name",
+    "rename_chat_session",
+    "update_chat_session",
+    // The chat: a turn played again, a decision on a tool call, the history
+    // of those decisions, and the skills of the worker agents.
+    "authorize_chat_tool",
+    "edit_and_resend_chat_message",
+    "list_a2a_skills",
+    "list_chat_approval_history",
+    "regenerate_chat_response",
+    // Agents: the registry, the install and the uninstall of an agent.
     "agent_status_snapshot",
     "install_agent",
     "list_agents",
+    "uninstall_agent",
     // Tasks: the list, the launch, the detail, the cancellation.
     "cancel_task",
     "get_task_timeline",
@@ -81,9 +100,29 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "set_mcp_server_approval",
     "test_mcp_connection",
     "test_mcp_live_server",
+    "node_runtime_state",
     "update_mcp_server_config",
-    // Connections.
+    // Agent packages installed from a folder, over
+    // `/api/v1/agent-packages/`. The preview and the install name the folder
+    // the window picked; the daemon listens on this machine and reads it.
+    "get_agent_package_detail",
+    "install_agent_package",
+    "list_agent_packages",
+    "preview_agent_package",
+    "uninstall_agent_package",
+    // Connections, the folders added as connections, and the mailbox
+    // connection: the providers known from the address, and the addition,
+    // which logs in before it stores.
+    "add_folder_connection",
+    "add_imap_mailbox",
     "list_connections",
+    "list_imap_providers",
+    "remove_folder_connection",
+    // The report of the migration of the former projects.
+    "get_project_migration_report",
+    // Apollia as an MCP server, over `/api/v1/mcp/exposed`.
+    "list_mcp_exposable",
+    "set_mcp_exposed",
     // Notifications and the activity feed.
     "create_notification_channel",
     "delete_notification_channel",
@@ -114,18 +153,209 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_agent_messages",
     "list_tools",
     "verify_audit_run",
-    // The settings of the chat, which are those of the Apollia agent.
-    "get_chat_libre_config",
-    "update_chat_libre_config",
-    // The user profile, over `/api/v1/profile`.
-    "delete_profile_entry",
-    "get_profile",
-    "reset_user_profile",
-    "set_profile_entry",
+    // The sheet of an agent: the agent resolved, its model fallback, its
+    // governance history.
+    "get_agent_definition",
+    "get_agent_model_fallback",
+    "list_agent_changes",
+    // The adjustment of an agent on its sheet: its overrides, the return to
+    // defaults, its model and the presets to choose from.
+    "clear_agent_model",
+    "list_model_presets",
+    "remove_agent_override",
+    "reset_agent_overrides",
+    "set_agent_model",
+    "set_agent_override",
+    // The export of an agent from its sheet: the runtime builds and signs the
+    // archive, this process writes the file the user chose.
+    "export_agent",
+    // The user profiles and their facts, over `/api/v1/profiles`.
+    "create_profile",
+    "delete_profile",
+    "delete_profile_fact",
+    "get_profile_by_id",
+    "list_profiles",
+    "reset_profile",
+    "set_default_profile",
+    "set_profile_fact",
+    "update_profile",
+    // The credentials of the native tools, over `/api/v1/tool-credentials`.
+    "governance_delete_credential",
+    "governance_list_credentials",
+    "governance_set_credential",
+    "governance_test_credential",
+    // Memory, read side: the namespaces, their entries, the search, the
+    // entries recalled during a turn, the statistics of a conversation, the
+    // embeddings model it searches with.
+    "get_conversation_stats",
+    "get_injected_memory_entries",
+    "get_memory_embeddings_model",
+    "list_memory_entries",
+    "list_memory_namespaces",
+    "search_memory",
     // Models: the download of a whole variant from the Hub.
     "start_variant_download",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
+    // Named settings of `apollia.toml`, read with their source and written
+    // key by key: the developer mode.
+    "get_resolved_setting",
+    "set_setting",
+    // The models folder in force, read from the same `apollia.toml`.
+    "get_models_dir",
+    // Plan mode: the default, the switch, the plan and its history, the soft
+    // gate of a chat session and the gate of an orchestrated run.
+    "approve_plan",
+    "get_chat_plan",
+    "get_plan_mode_default",
+    "list_plan_mutations",
+    "reject_plan",
+    "set_plan_mode",
+    "submit_plan_decision",
+    // Memory upkeep, over `/api/v1/memory/namespaces/{namespace}/...`. The
+    // export and import files stay on the machine of the window; the daemon,
+    // which owns the memory, sends and receives their content.
+    "clear_memory",
+    "delete_memory_entry",
+    "memory_export_namespace",
+    "memory_import_namespace",
+    "purge_memory",
+    // The companion: its preference and its guide session, over
+    // `/api/v1/companion/...`. Its per-route help text is a table compiled
+    // into the window and needs no route.
+    "create_companion_session",
+    "get_companion_context",
+    "get_companion_enabled",
+    "set_companion_enabled",
+    // The transcription history, over `/api/v1/stt/transcriptions`, and the
+    // transcription of a file: the file is read on the machine of the window,
+    // the daemon transcribes its content and keeps the row.
+    "delete_transcription",
+    "list_transcriptions",
+    "transcribe_file",
+    // The onboarding, over `/api/v1/onboarding`: its state and phases, the
+    // profile chosen, the conversation with its agent and its completion.
+    "advance_onboarding_phase",
+    "check_onboarding_finalized",
+    "dismiss_onboarding",
+    "finalize_onboarding_chat",
+    "get_onboarding_state",
+    "resume_onboarding",
+    "set_onboarding_profile",
+    "trigger_onboarding",
+    // Resets and erasures, over `/api/v1/onboarding/*`, `/api/v1/memory/wipe`,
+    // `/api/v1/logs/clear` and `/api/v1/factory-reset`. The flag, the memory,
+    // the logs and the data directory they erase are the daemon's: the
+    // window's process writes none of them.
+    "clear_all_memories",
+    "clear_logs",
+    "factory_reset",
+    "mark_onboarded",
+    "reset_onboarding",
+    // Permissions: the rules the onboarding agent proposed, a rule written
+    // from an approval card, and the answer to a request to touch a file.
+    "add_permission_prefix_rule",
+    "apply_proposed_permission_rule",
+    "dismiss_proposed_permission_rule",
+    "list_proposed_permission_rules",
+    "respond_hitl_filesystem",
+    // Tool governance: the tools, their configuration, the permission rules
+    // and the audit, over `/api/v1/governance`.
+    "governance_get_tool_config",
+    "governance_list_audit",
+    "governance_list_permission_rules",
+    "governance_list_tools",
+    "governance_revoke_all_rules",
+    "governance_revoke_permission_rule",
+    "governance_set_tool_config",
+    "governance_set_tool_enabled",
+    // Accounts of the native connectors and their Drive folder, under
+    // `/api/v1/connectors/`. The window keeps the loopback listener and the
+    // browser of the consent; the daemon starts it, completes it and stores
+    // the token.
+    "oauth_complete_flow",
+    "oauth_disconnect",
+    "oauth_get_status",
+    "oauth_list_drive_folders",
+    "oauth_reset_drive_folder",
+    "oauth_set_drive_folder",
+    "oauth_start_flow",
+    // The OAuth clients of the connectors, over `/api/v1/oauth/clients`. The
+    // import reads the file the operator picked in this window and sends its
+    // text, so the daemon never needs a path of this machine.
+    "oauth_import_client_json",
+    "oauth_list_client_ids",
+    "oauth_set_api_key",
+    "oauth_set_client_id",
+    "oauth_set_client_secret",
+    "oauth_test_client",
+    // Models: the hardware, the search, a model's card, the installed models
+    // and the recommendation, over `/api/v1/llm`.
+    "get_hardware_profile",
+    "get_hf_model",
+    "list_installed_models",
+    "recommend_models",
+    "search_hf_models",
+    // The installation of the local AI at onboarding, over
+    // `/api/v1/local-ai/...`: the daemon describes its machine, scans its own
+    // folders, and copies and registers the models it will load.
+    "get_ai_setup_info",
+    "scan_for_gguf_models",
+    "scan_for_whisper_models",
+    "setup_local_llm",
+    "setup_whisper_model",
+    // MCP: the secret of a server, and the public registry joined with the
+    // servers installed.
+    "delete_mcp_secret",
+    "fetch_mcp_registry",
+    "store_mcp_secret",
+    // Models: the removal of an installed model, refused while a backend or
+    // the dictation engine of the runtime uses it.
+    "delete_installed_model",
+    // LLM engines: the list, the test, the reload. The last ping of each
+    // engine stays in this window's memory, which [`run`] manages in both
+    // modes.
+    "list_llm_backends",
+    "ping_llm_backend",
+    "reload_llm",
+    "reload_llm_from_db",
+    // Dictation: its settings, the reload of its engine, its status and its
+    // model files, over `/api/v1/stt/*`. The microphones stay those of this
+    // machine.
+    "get_stt_config",
+    "get_stt_status",
+    "list_stt_models",
+    "reload_stt",
+    "update_stt_config",
+    // The artifacts of a conversation, over `/api/v1/artifacts` and
+    // `/api/v1/sessions/{id}/artifacts`, in the daemon's `artifacts.db`.
+    "delete_artifact",
+    "list_artifacts",
+    "save_artifact",
+    "update_artifact",
+    // The Observability view: the global timeline and the mailbox, read by
+    // the runtime over `/api/v1/observability/timeline` and
+    // `/api/v1/mailbox/messages`, and the tool audit over `/api/v1/audit`.
+    "get_global_timeline",
+    "get_tool_audit_trail",
+    "list_mailbox_messages",
+    // The assists around the chat, over `/api/v1/assists`: the rewrite of a
+    // prompt, the next steps cards, an automation described in words, and
+    // the examples offered for a connector just added.
+    "meta_generate_capabilities_coaching",
+    "meta_generate_next_steps",
+    "meta_parse_automation",
+    "meta_rewrite_input",
+    // The system settings, in the daemon's `apollia.toml` and on the machine
+    // that runs its tools: the observability policy over
+    // `/api/v1/config/observability`, the Python interpreter over
+    // `/api/v1/config/python-interpreter`, the security posture over
+    // `/api/v1/security-posture`.
+    "get_observability_config",
+    "get_python_interpreter",
+    "get_security_posture",
+    "set_observability_config",
+    "set_python_interpreter",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no
@@ -133,6 +363,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
 /// reason it needs no route. `scripts/check_attached_coverage.py` reads the
 /// reasons and refuses an entry without one.
 pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
+    (
+        "get_system_info",
+        "describes this application, its version, and the machine that carries the window",
+    ),
     (
         "app_restart",
         "relaunches this window, which attaches again at startup",
@@ -154,6 +388,14 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "reads the command-line link this application installs",
     ),
     (
+        "get_background_service",
+        "reads the service the OS manager holds for this user, which the window attaches to at startup",
+    ),
+    (
+        "set_background_service",
+        "installs or removes the service of this user's session, then relaunches this window",
+    ),
+    (
         "install_cli",
         "links the command line bundled with this application",
     ),
@@ -166,12 +408,60 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "fetches the card of a link the window shows",
     ),
     (
+        "get_api_port",
+        "reads the port this window resolved at startup, the daemon's when attached",
+    ),
+    (
         "list_audio_input_devices",
         "lists the microphones of this machine",
     ),
     (
+        "start_tour_recording",
+        "captures the microphone of this machine, the daemon transcribing what it heard",
+    ),
+    (
+        "stop_tour_recording",
+        "stops the capture of this machine and sends its audio to the daemon",
+    ),
+    (
+        "open_logs_dir",
+        "opens the folder of this window's own log file in the file manager of this machine",
+    ),
+    (
         "open_config_in_editor",
         "opens the configuration file in the editor of this machine",
+    ),
+    (
+        "export_conversation",
+        "writes the conversation to the file chosen in this window's save dialog",
+    ),
+    (
+        "reveal_session_path",
+        "shows a file in the file manager of this machine, the session folder read from the runtime",
+    ),
+    (
+        "start_model_download",
+        "downloads into the models folder of this machine with the download manager of this window, which also holds the variant downloads",
+    ),
+    (
+        "get_hf_token",
+        "reads the Hugging Face token from the secret store of this machine",
+    ),
+    (
+        "set_hf_token",
+        "writes the Hugging Face token to the secret store of this machine",
+    ),
+    (
+        "clear_hf_token",
+        "removes the Hugging Face token from the secret store of this machine",
+    ),
+    (
+        "cancel_model_download",
+        "cancels a download held by the download manager of this window",
+    ),
+    (
+        "import_model_file",
+        "copies a file or folder of this machine, picked in this window, into its models folder",
     ),
     (
         "automation_script",
@@ -188,6 +478,22 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "automation_finish",
         "ends the run driving this window in a development build",
+    ),
+    (
+        "list_mcp_enrichments",
+        "reads the connector labels compiled into this application",
+    ),
+    (
+        "mcp_oauth_discover",
+        "reads the sign-in metadata an MCP server publishes, for the wizard this window shows",
+    ),
+    (
+        "mcp_oauth_resolve_client_id",
+        "resolves the client id of the sign-in this window runs, from its own environment and build",
+    ),
+    (
+        "mcp_oauth_login",
+        "opens the browser of this machine and awaits the sign-in on its loopback; the token goes to the secret store the daemon reads",
     ),
 ];
 
@@ -303,6 +609,41 @@ where
     }
 }
 
+/// Arms the dictation of this window against the daemon: the microphone is
+/// the one of this machine, the engine and the history the daemon's, the
+/// thresholds its configuration, read once when the window attaches. Nothing
+/// is armed while the daemon has dictation off, as in the embedded mode.
+async fn arm_dictation(
+    app: tauri::AppHandle,
+    client: AttachedClient,
+    bus: EventBusSender,
+    state: crate::commands::stt::SttFlowState,
+) {
+    let config: apollia_core::SttConfigRow = match client.get("/api/v1/stt/config").await {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                error = %error,
+                "desktop.attached.dictation_unarmed"
+            );
+            return;
+        }
+    };
+    if !config.enabled {
+        return;
+    }
+    let flow = crate::stt::flow::SttFlow::new(
+        config,
+        crate::stt::transcriber::Transcriber::Daemon(client),
+        bus,
+        app,
+    );
+    if let Ok(mut guard) = state.lock() {
+        *guard = Some(std::sync::Arc::new(flow));
+    }
+}
+
 /// Runs the application attached to the daemon serving `port`, and never
 /// returns.
 ///
@@ -327,16 +668,22 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
 
     let setup_client = client.clone();
     let setup_bus = bus.clone();
+    let dictation: crate::commands::stt::SttFlowState =
+        std::sync::Arc::new(std::sync::Mutex::new(None));
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(RuntimeLink::Attached(client))
+        .manage(crate::startup::ApiPort(port))
+        .manage(dictation.clone())
         .manage(
             std::sync::Arc::new(tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()))
                 as crate::commands::model_hub::SharedDownloadManager,
         )
+        .manage(std::sync::Arc::new(apollia_llm::HfModelTypeCache::new()))
+        .manage(crate::commands::llm::LlmPingCache::default())
         .on_menu_event(|app, event| {
             if event.id().as_ref() == crate::tray::MENU_QUIT_APP {
                 crate::tray::initiate_quit(app);
@@ -351,6 +698,12 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
             crate::events::spawn_event_bridge(app.handle().clone(), setup_bus.clone());
             relay::spawn_event_relay(setup_client.clone(), setup_bus.clone());
             relay::spawn_liveness(app.handle().clone(), setup_client.clone());
+            tauri::async_runtime::spawn(arm_dictation(
+                app.handle().clone(),
+                setup_client.clone(),
+                setup_bus.clone(),
+                dictation.clone(),
+            ));
 
             let main_window = app
                 .get_webview_window("main")

@@ -12,8 +12,9 @@ T = TypeVar("T", bound="SetOverrideRequestValue")
 @_attrs_define
 class SetOverrideRequestValue:
     """The user's value: a string for `name` and `mission`, a tier name for
-    `autonomy`, a mode for `planning`, a list of strings for `examples`,
-    `access` and `sources`.
+    `autonomy`, a mode for `planning`, a profile identifier for `profile`,
+    a list of strings for `examples`, `access` and `sources`.
+    A `sources` entry is a source identifier of `GET /api/v1/sources`, `profile` or `memory`.
 
     """
 

@@ -329,6 +329,7 @@
 {#if logsTriggerId}
   <TriggerLogs
     triggerId={logsTriggerId}
+    targetKind={$triggers.find((t) => t.id === logsTriggerId)?.target_kind ?? "agent"}
     open={logsTriggerId !== null}
     onclose={handleCloseHistory}
   />

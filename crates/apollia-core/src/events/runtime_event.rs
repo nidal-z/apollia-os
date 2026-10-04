@@ -123,6 +123,19 @@ pub enum RuntimeEvent {
         count: usize,
     },
 
+    /// The `apollia.toml` read at startup was refused: the embedded runtime
+    /// runs on the default values instead, and says so here rather than in
+    /// silence.
+    ///
+    /// Emitted once by the desktop's embedded runtime when it is up; the daemon
+    /// refuses to start on the same file instead.
+    ConfigInvalid {
+        /// Path of the refused file.
+        path: String,
+        /// Every fault found, each at its line.
+        diagnostics: Vec<crate::config::ConfigDiagnostic>,
+    },
+
     /// An MCP server was hot-reloaded successfully.
     ///
     /// Emitted by `McpClientManagerHandle::reload_server` after the new session
@@ -199,6 +212,26 @@ pub enum RuntimeEvent {
         /// Run this call belongs to, when emitted within a correlated run.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         run_id: Option<RunId>,
+        /// Conversation the call was made in (`None` outside a conversation).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        session_id: Option<String>,
+        /// Turn of that conversation: the identifier of the assistant message
+        /// that answers it (`None` outside a conversation).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        turn_id: Option<String>,
+        /// Time to first token in milliseconds; `None` when not measured, as
+        /// for a call answered in one piece.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ttft_ms: Option<u64>,
+        /// Why the call ended: `stop`, `tool_calls`, `length`, `error` or
+        /// `cancelled`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        finish_reason: Option<String>,
+        /// Time spent generating in milliseconds: the engine's decode time
+        /// when it reports one, otherwise latency minus time to first token;
+        /// `None` when neither is known.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        generation_ms: Option<u64>,
     },
 
     /// A full LLM response captured for deterministic replay.
@@ -459,6 +492,47 @@ pub enum RuntimeEvent {
         /// `None` for direct-mode suspensions (the whole task is suspended).
         /// `Some(step_id)` for orchestrated-mode suspensions (a specific step).
         step_id: Option<String>,
+    },
+
+    /// An item of a batch waits for a decision on an access nobody granted.
+    ///
+    /// Its agent reached for that access during the run, which stopped.
+    /// Emitted by the batch engine. The item waits for a decision rather than
+    /// failing, and the batch goes on with its other items; once the access is
+    /// granted, the item is run again from its input.
+    BatchItemAwaitingApproval {
+        /// The batch.
+        batch_id: String,
+        /// Position of the item in its source, from 0.
+        rank: u64,
+        /// Agent the batch runs.
+        agent_id: AgentId,
+        /// Access the agent reached for.
+        access: String,
+    },
+
+    /// A batch ended, with its successes and failures.
+    ///
+    /// Every item ran, the batch was interrupted past its failure threshold,
+    /// or it was stopped. Emitted by the batch engine once no item of the batch is running any
+    /// more, with the counters as they stand then.
+    BatchEnded {
+        /// The batch.
+        batch_id: String,
+        /// Agent the batch runs.
+        agent_id: AgentId,
+        /// `completed`, `interrupted` or `stopped`.
+        state: String,
+        /// Items of the batch.
+        total: u64,
+        /// Items that succeeded.
+        completed: u64,
+        /// Items that failed.
+        failed: u64,
+        /// Items canceled, or never run because the batch was stopped.
+        canceled: u64,
+        /// Items waiting for an access to be granted.
+        awaiting: u64,
     },
 
     /// A task resumed after a HITL suspension.
@@ -1304,6 +1378,24 @@ pub enum RuntimeEvent {
         /// the agent provided no structured fields.
         #[serde(default)]
         extra_fields_json: Option<String>,
+    },
+
+    /// An agent read the user profile through `ctx.profile`.
+    ///
+    /// Emitted by `apollia-aip::profile` on each read (`get`, `has`, `all`),
+    /// only reachable when the profile source is checked for the agent.
+    /// Persisted to `runtime_events.db` when the read belongs to a task, so it
+    /// shows in that execution's trace.
+    ProfileRead {
+        /// Task the read belongs to; `None` outside a task.
+        #[serde(default)]
+        task_id: Option<TaskId>,
+        /// Agent that read the profile.
+        agent_id: AgentId,
+        /// Identifier of the profile served.
+        profile_id: String,
+        /// When the read happened, RFC 3339 UTC.
+        read_at: String,
     },
 
     // ── Observability - ReAct loop & enriched tools ───────────

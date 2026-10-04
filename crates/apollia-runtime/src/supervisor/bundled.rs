@@ -175,7 +175,7 @@ pub(in crate::supervisor) fn validate_installed_packages(
 
 /// Returns descriptors for native tools bundled with `apollia-tools`.
 ///
-/// Registers all 12 active native tools in the order: existing tools first,
+/// Registers all 14 active native tools in the order: existing tools first,
 /// then new atomic tools grouped by category.
 pub(in crate::supervisor) fn native_tool_descriptors() -> Vec<apollia_tools::ToolDescriptor> {
     // `mut` is used only when at least one web-* feature is active; allow the
@@ -192,9 +192,11 @@ pub(in crate::supervisor) fn native_tool_descriptors() -> Vec<apollia_tools::Too
         apollia_tools::tools::file_grep::FileGrep::descriptor(),
         apollia_tools::tools::http_fetch::HttpFetch::descriptor(),
         apollia_tools::tools::memory_search::MemorySearchTool::descriptor(),
+        apollia_tools::tools::source_search::SourceSearchTool::descriptor(),
         apollia_tools::tools::notebook_read::NotebookRead::descriptor(),
         apollia_tools::tools::notebook_edit::NotebookEdit::descriptor(),
         apollia_tools::tools::ask_user::AskUser::descriptor(),
+        apollia_tools::CodeContext::descriptor(),
     ];
 
     // Web tools are always advertised in the catalogue (so the UI and agent
@@ -207,4 +209,53 @@ pub(in crate::supervisor) fn native_tool_descriptors() -> Vec<apollia_tools::Too
     descriptors.push(apollia_tools::tools::web_read::WebRead::descriptor());
 
     descriptors
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use apollia_tools::{AgentAccess, AgentRepository, APOLLIA_AGENT_ID};
+
+    // GIVEN a fresh install: the built-in tools registered, no MCP server
+    //   connected, Apollia stored without any override
+    // WHEN the access of Apollia is read, then turned into tools
+    // THEN Apollia is offered exactly the reading family: reading the files
+    //   and notebooks granted, the MCP resources, the web search and the page
+    //   reading; nothing that writes, sends, runs code or reads an account
+    #[tokio::test]
+    async fn a_fresh_install_gives_apollia_the_reading_family_only() {
+        let registry = ToolRegistryHandle::start();
+        register_builtin_tools(&registry, &[]).await;
+        let dir = tempfile::tempdir().unwrap();
+        let repo = AgentRepository::open(&dir.path().join("agents.db")).unwrap();
+        let apollia = repo
+            .resolved(
+                APOLLIA_AGENT_ID,
+                None,
+                apollia_core::AutonomyLevel::Assisted,
+            )
+            .unwrap()
+            .unwrap();
+
+        #[allow(unused_mut)]
+        let mut expected = vec![
+            "file_glob",
+            "file_grep",
+            "file_list",
+            "file_read",
+            "mcp_resources_list",
+            "mcp_resources_read",
+            "notebook_read",
+            "source_search",
+        ];
+        #[cfg(feature = "web-read")]
+        expected.push("web_read");
+        #[cfg(feature = "web-search")]
+        expected.push("web_search");
+
+        let tools = AgentAccess::of(&apollia).tools(&registry).await;
+
+        assert_eq!(tools, expected);
+        registry.shutdown().await;
+    }
 }

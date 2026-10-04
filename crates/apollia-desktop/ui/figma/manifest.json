@@ -1316,7 +1316,7 @@
       "nodeId": "378:1286",
       "name": "BuilderOnly",
       "page": "Primitives",
-      "source": "lib/components/shared/BuilderOnly.svelte",
+      "source": "lib/components/shared/DeveloperOnly.svelte",
       "variants": 1
     },
     {
@@ -7589,25 +7589,25 @@
       },
       {
         "nom": "SettingsAbout",
-        "source": "routes/settings/About.svelte",
+        "source": "components/settings/about/AboutBlock.svelte",
         "cadres": 2,
         "nodeId": "559:30371"
       },
       {
         "nom": "SettingsHelp",
-        "source": "routes/settings/Help.svelte",
+        "source": "components/settings/help/HelpBlock.svelte",
         "cadres": 2,
         "nodeId": "560:31369"
       },
       {
         "nom": "SettingsShortcuts",
-        "source": "routes/settings/Shortcuts.svelte",
+        "source": "components/settings/shortcuts/ShortcutCatalog.svelte",
         "cadres": 2,
         "nodeId": "562:32067"
       },
       {
         "nom": "SettingsDanger",
-        "source": "routes/settings/Danger.svelte",
+        "source": "components/settings/DangerZone.svelte",
         "cadres": 2,
         "nodeId": "563:32648"
       },
@@ -7700,7 +7700,7 @@
       },
       {
         "nom": "SettingsObservability",
-        "source": "routes/settings/Observability.svelte",
+        "source": "components/observability/CapturePolicyPanel.svelte",
         "cadres": 4,
         "nodeId": "675:73481 (garni), 675:73909 (chargement), 675:74178 (erreur de chargement), 675:74461 (confirmation sensible)"
       },
@@ -7712,7 +7712,7 @@
       },
       {
         "nom": "SettingsConfiguration",
-        "source": "routes/settings/Configuration.svelte",
+        "source": "components/settings/ConfigurationReadOnly.svelte",
         "cadres": 5,
         "nodeId": "674:49087 (chargement), 674:49352 (garni), 674:49641 (fichier absent), 674:49930 (vide), 674:50229 (erreur), page « 🖥 Surfaces » 538:2, colonne x=250000, y = 0 / 980 / 1960 / 2940 / 3920"
       }

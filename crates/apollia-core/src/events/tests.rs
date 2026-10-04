@@ -66,6 +66,11 @@ fn test_all_variants_exist_and_clone() {
             latency_ms: 250,
             cost_usd: Some(0.001),
             run_id: None,
+            session_id: None,
+            turn_id: None,
+            ttft_ms: None,
+            finish_reason: None,
+            generation_ms: None,
         },
         RuntimeEvent::LlmCallFailed {
             backend: "anthropic".into(),
@@ -162,6 +167,23 @@ fn test_all_variants_exist_and_clone() {
         RuntimeEvent::TaskResumed {
             task_id: "task-1".into(),
             approved: true,
+        },
+        // ── Batches ─────────────────────────────────────
+        RuntimeEvent::BatchItemAwaitingApproval {
+            batch_id: "batch-1".into(),
+            rank: 3,
+            agent_id: "clerk".into(),
+            access: "send_email".into(),
+        },
+        RuntimeEvent::BatchEnded {
+            batch_id: "batch-1".into(),
+            agent_id: "clerk".into(),
+            state: "completed".into(),
+            total: 10,
+            completed: 8,
+            failed: 1,
+            canceled: 0,
+            awaiting: 1,
         },
         // ── Chat ────────────────────────────────
         RuntimeEvent::ChatSessionCreated {

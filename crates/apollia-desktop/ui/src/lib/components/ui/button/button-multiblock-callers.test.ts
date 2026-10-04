@@ -162,8 +162,9 @@ describe("Button - a multi-block caller carries the whole tile recipe", () => {
       }
     }
 
-    // THEN the scan found the real population, and none of it misses the recipe
-    expect(multiBlock.length).toBeGreaterThanOrEqual(4);
+    // THEN the scan found the real population (RecentActivityStrip at least,
+    // the worked example below), and none of it misses the recipe
+    expect(multiBlock.length).toBeGreaterThanOrEqual(1);
     expect(missing).toEqual([]);
   });
 

@@ -15,7 +15,7 @@ A personal `@gmail.com` account works. Nothing here needs a Workspace subscripti
 - Apollia running.
 - A Google account, personal or Workspace.
 - **Your own OAuth client**, set up once, see the section right below.
-- Your **Data sovereignty** setting, in **Settings, Profile**, is not on *Strictly local*, and has been answered at least once. Otherwise the connection is refused when you click.
+- Your organisation's policy, if it has deployed one, does not deny remote connections. Otherwise the connection is refused when you click.
 - An active internet connection.
 
 :::info Google asks more of you than Microsoft does
@@ -112,7 +112,7 @@ You can connect several Google accounts, and each appears in the sidebar with it
 - **The Google Workspace card reads "Setup required"**: no OAuth client is configured yet. Click **Set up credentials** and follow the section at the top of this page.
 - **Apollia says the client secret is missing**: the client ID was saved but not its secret. Re-import the JSON file from the Google Cloud console, which carries both, or paste the secret into the Google card in **Settings → OAuth integrations**.
 - **The Google consent screen shows "This app is not verified"**: expected, since the application is yours and sits in Testing status. Click **Advanced** then **Go to Apollia** to continue.
-- **Connecting stops on the sovereignty profile**: the dialog says cloud connectors are off in your profile, which also happens when the onboarding never asked the question. It offers two buttons, keep strictly local or allow cloud and continue; the second writes **Data sovereignty** to *Cloud allowed* in **Settings, Profile**, where you can change it again.
+- **Connecting stops with "Refused by your organisation's policy"**: your organisation's policy denies connections to online services on this computer, and nothing was sent to Google. Only the person who manages that policy can grant an exception; nothing in Apollia lifts it.
 - **You want full Gmail or Drive read access**: those scopes are restricted (Google CASA audit) and out of scope for v0.1.0. No Apollia tool uses them yet, see "About the restricted scopes" below.
 - **The agent does not see a specific file on Drive**: it only has access to the `Apollia/<agent>/` folder. Drop the file into that folder or pass it the explicit identifier in your prompt.
 - **An agent asks for a full-read Gmail tool**: there is none. The Google operation catalogue only contains non-restricted scopes, and a test locks that down. The agent will get an unknown tool error, not a scope error.

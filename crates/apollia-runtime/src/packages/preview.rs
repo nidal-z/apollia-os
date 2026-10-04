@@ -251,6 +251,13 @@ pub enum InstallRefusal {
     },
     /// Governance requires a signed package and this one is not signed.
     SignatureRequired,
+    /// Governance requires a signed package, the organisation policy names the
+    /// publishers it trusts, and the key that signed this one is not among
+    /// them.
+    PublisherNotTrusted {
+        /// Fingerprint of the signing key.
+        fingerprint: String,
+    },
     /// The incoming version is older than the installed one.
     Downgrade {
         /// Installed version.
@@ -278,6 +285,10 @@ impl std::fmt::Display for InstallRefusal {
             InstallRefusal::SignatureRequired => {
                 write!(f, "a signed package is required and this one is not signed")
             }
+            InstallRefusal::PublisherNotTrusted { fingerprint } => write!(
+                f,
+                "the organisation policy does not trust the key {fingerprint} that signed this package"
+            ),
             InstallRefusal::Downgrade {
                 installed,
                 incoming,
@@ -557,6 +568,7 @@ fn signature_preview(
                 status: SignatureStatus::Signed,
                 publisher: trusted
                     .as_ref()
+                    .filter(|key| !key.label.is_empty())
                     .map_or_else(|| declared.to_owned(), |key| key.label.clone()),
                 declared_publisher: declared.to_owned(),
                 key_fingerprint: Some(key_fingerprint),
@@ -716,6 +728,15 @@ fn refusal(
     }
     if signature.status == SignatureStatus::Unsigned && signature_required {
         return Ok(Some(InstallRefusal::SignatureRequired));
+    }
+    if let (SignatureStatus::Signed, Some(fingerprint)) =
+        (signature.status, &signature.key_fingerprint)
+    {
+        if signature_required && !signature.trusted && sources.trusted_keys.restricted_to_policy() {
+            return Ok(Some(InstallRefusal::PublisherNotTrusted {
+                fingerprint: fingerprint.clone(),
+            }));
+        }
     }
     for agent in &manifest.agents {
         if let Some(stored) = sources.agents.stored(&agent.id)? {

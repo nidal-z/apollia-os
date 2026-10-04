@@ -35,13 +35,15 @@ class ResolvedAgentResponse:
         origin (AgentOriginDto): Where an agent comes from.
         overridden (list[str]): Fields whose value is the user's rather than the package's:
             `name`, `mission`, `examples`, `access`, `sources`, `autonomy`,
-            `planning`.
+            `planning`, `profile`.
         planning (str): Whether the agent plans a task before acting on it: `never`, `auto` or
             `always`. The user's, else the package's, else `auto`.
         sources (list[str]): Sources checked.
         version (str): Version of the definition.
         model (AgentModelResponse | None | Unset):
         package (None | str | Unset): Package the agent came with.
+        profile (None | str | Unset): Identifier of the user profile designated for the agent; absent when
+            it runs with the default profile.
     """
 
     access: list[str]
@@ -59,6 +61,7 @@ class ResolvedAgentResponse:
     version: str
     model: AgentModelResponse | None | Unset = UNSET
     package: None | str | Unset = UNSET
+    profile: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -104,6 +107,12 @@ class ResolvedAgentResponse:
         else:
             package = self.package
 
+        profile: None | str | Unset
+        if isinstance(self.profile, Unset):
+            profile = UNSET
+        else:
+            profile = self.profile
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -127,6 +136,8 @@ class ResolvedAgentResponse:
             field_dict["model"] = model
         if package is not UNSET:
             field_dict["package"] = package
+        if profile is not UNSET:
+            field_dict["profile"] = profile
 
         return field_dict
 
@@ -188,6 +199,15 @@ class ResolvedAgentResponse:
 
         package = _parse_package(d.pop("package", UNSET))
 
+        def _parse_profile(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        profile = _parse_profile(d.pop("profile", UNSET))
+
         resolved_agent_response = cls(
             access=access,
             autonomy=autonomy,
@@ -204,6 +224,7 @@ class ResolvedAgentResponse:
             version=version,
             model=model,
             package=package,
+            profile=profile,
         )
 
         resolved_agent_response.additional_properties = d

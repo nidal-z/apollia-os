@@ -22,3 +22,12 @@ CREATE TABLE stt_config (
     trigger_mode         TEXT    NOT NULL DEFAULT 'toggle',
     updated_at           TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+-- Folder connections (migration v9), created here so the seed can name the
+-- checkout as a folder the Apollia agent is granted; the runtime's own
+-- migration creates it IF NOT EXISTS and keeps the row.
+CREATE TABLE folder_connections (
+    id       TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    path     TEXT NOT NULL UNIQUE CHECK (length(trim(path)) > 0),
+    label    TEXT NOT NULL CHECK (length(trim(label)) > 0),
+    added_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);

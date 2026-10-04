@@ -13,6 +13,7 @@ pub mod client;
 pub mod commands;
 pub mod community;
 pub mod config;
+pub mod config_location;
 pub mod exit_codes;
 pub mod output;
 
@@ -38,8 +39,8 @@ use commands::notify::NotifyCommand;
 use commands::package::PackageCommand;
 use commands::permissions::PermissionsCommand;
 use commands::policy::PolicyCommand;
-use commands::project::ProjectCommand;
 use commands::resilience::ResilienceCommand;
+use commands::source::SourceCommand;
 use commands::stt::SttCommand;
 use commands::task::TaskCommand;
 use commands::tools::ToolsCommand;
@@ -94,9 +95,12 @@ struct Cli {
 enum Commands {
     /// Start the runtime in foreground.
     Start {
-        /// TCP port to listen on (default: 7771).
+        /// TCP port to listen on; overrides `[api].port` (default: 7771).
         #[arg(long, value_name = "PORT")]
         port: Option<u16>,
+        /// Configuration file to load instead of `~/.apollia/apollia.toml`.
+        #[arg(long, value_name = "PATH")]
+        config: Option<PathBuf>,
     },
 
     /// Stop a running runtime.
@@ -229,6 +233,12 @@ enum Commands {
         command: ModelCommand,
     },
 
+    /// The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete, inspect)
+    Source {
+        #[command(subcommand)]
+        command: SourceCommand,
+    },
+
     /// Trigger management (list, status, fire, enable, disable, logs, reload, create, update, delete).
     Trigger {
         /// Trigger subcommand.
@@ -317,14 +327,14 @@ enum Commands {
     /// Automated code or plan review via the apollia-review agent.
     Review(commands::review::ReviewArgs),
 
-    /// Run an agent on every item of a source (run, status, list).
+    /// Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry, export).
     Batch {
         /// Batch subcommand.
         #[command(subcommand)]
         command: commands::batch::BatchCommand,
     },
 
-    /// Run the workflows of installed packages (run, status, logs, cancel).
+    /// Run the workflows of installed packages (show, run, status, logs, cancel).
     Workflow {
         /// Workflow subcommand.
         #[command(subcommand)]
@@ -409,16 +419,6 @@ enum Commands {
         /// Profile subcommand.
         #[command(subcommand)]
         command: UserMemoryCommand,
-    },
-
-    /// Project management (list, create, show, update, delete, agents, templates).
-    ///
-    /// Operates locally on `~/.apollia/projects.db`; the runtime does not need
-    /// to be running.
-    Project {
-        /// Project subcommand.
-        #[command(subcommand)]
-        command: ProjectCommand,
     },
 
     /// Print the event-sourced trace of a task.
@@ -529,8 +529,13 @@ fn init_tracing(cli: &Cli) {
 }
 
 /// Run the daemon, mapping its result to an exit code.
-async fn run_start(socket: Option<PathBuf>, port: Option<u16>, json: bool) -> i32 {
-    match commands::start::run(socket, port).await {
+async fn run_start(
+    socket: Option<PathBuf>,
+    port: Option<u16>,
+    config: Option<PathBuf>,
+    json: bool,
+) -> i32 {
+    match commands::start::run(socket, port, config).await {
         Ok(interrupted) => {
             if interrupted {
                 exit_codes::INTERRUPTED
@@ -658,7 +663,7 @@ fn main() {
     let no_color = cli.no_color;
     let exit_code = rt.block_on(async {
         match cli.command {
-            Commands::Start { port } => run_start(cli.socket, port, json).await,
+            Commands::Start { port, config } => run_start(cli.socket, port, config, json).await,
             Commands::Stop => commands::stop::run(cli.socket, json).await,
             Commands::Status => commands::status::run(cli.socket, json).await,
             Commands::Run {
@@ -693,6 +698,7 @@ fn main() {
             Commands::Memory { command } => commands::memory::run_and_print(&command, json),
             Commands::Llm { command } => commands::llm::run(&command, cli.socket, json).await,
             Commands::Model { command } => commands::model::run(&command, cli.socket, json).await,
+            Commands::Source { command } => commands::source::run(&command, cli.socket, json).await,
             Commands::Trigger { command } => {
                 commands::trigger::run(&command, cli.socket, json).await
             }
@@ -736,7 +742,6 @@ fn main() {
             Commands::Connector { command } => commands::connector::run(&command, json).await,
             Commands::Config { command } => commands::config::run(&command, json),
             Commands::Profile { command } => commands::user_memory::run(&command, json),
-            Commands::Project { command } => commands::project::run(&command, json),
             Commands::Trace { task_id, format } => {
                 let format_json = format == "json";
                 commands::trace::run(&task_id, format_json, cli.socket, json).await
@@ -796,7 +801,13 @@ mod tests {
         // WHEN parse
         let cli = parse(&["apollia-os", "start"]);
         // THEN Commands::Start
-        assert!(matches!(cli.command, Commands::Start { port: None }));
+        assert!(matches!(
+            cli.command,
+            Commands::Start {
+                port: None,
+                config: None
+            }
+        ));
     }
 
     #[test]
@@ -805,7 +816,32 @@ mod tests {
         let cli = parse(&["apollia-os", "start", "--port", "8080"]);
         // WHEN clap parses the argument line
         // THEN Commands::Start with port
-        assert!(matches!(cli.command, Commands::Start { port: Some(8080) }));
+        assert!(matches!(
+            cli.command,
+            Commands::Start {
+                port: Some(8080),
+                config: None
+            }
+        ));
+    }
+
+    #[test]
+    fn test_cli_parses_start_with_config() {
+        // GIVEN "apollia-os start --config /etc/apollia/custom.toml"
+        let cli = parse(&[
+            "apollia-os",
+            "start",
+            "--config",
+            "/etc/apollia/custom.toml",
+        ]);
+        // WHEN clap parses the argument line
+        // THEN Commands::Start carries the explicit configuration path
+        match cli.command {
+            Commands::Start { config, .. } => {
+                assert_eq!(config, Some(PathBuf::from("/etc/apollia/custom.toml")));
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
     }
 
     #[test]
@@ -1358,7 +1394,7 @@ mod tests {
         // THEN Commands::Agent { command: AgentCommand::Uninstall { name } }
         match &cli.command {
             Commands::Agent { command } => match command {
-                AgentCommand::Uninstall { name, confirm } => {
+                AgentCommand::Uninstall { name, confirm, .. } => {
                     assert_eq!(name, "mon-agent");
                     assert!(!confirm, "the confirmation is opt-in, never the default");
                 }
@@ -1377,7 +1413,7 @@ mod tests {
         // THEN the flag is carried on the variant
         match &cli.command {
             Commands::Agent { command } => match command {
-                AgentCommand::Uninstall { name, confirm } => {
+                AgentCommand::Uninstall { name, confirm, .. } => {
                     assert_eq!(name, "mon-agent");
                     assert!(confirm);
                 }

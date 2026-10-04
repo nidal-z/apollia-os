@@ -17,6 +17,13 @@
 
 use serde::{Deserialize, Serialize};
 
+mod reasoning;
+
+pub use reasoning::{
+    family_profile, mlx_config_model_type, reasoning_profile, ReasoningProfile,
+    TemplateReasoningVariables, FAMILY_PROFILES, REASONING_EFFORT_VARIABLE, THINKING_VARIABLE,
+};
+
 /// Image formats `llama-server` decodes, through `stb_image`.
 ///
 /// Source: `tools/server/README.md` of llama.cpp at the tag the runtime ships
@@ -59,6 +66,11 @@ pub struct Capabilities {
     pub tools: bool,
     /// The chat template opens a reasoning block.
     pub reasoning: bool,
+    /// The reasoning setting the chat template lets a caller fix, see
+    /// [`ReasoningProfile`]. `None` when it is not known: an entry of the
+    /// catalogue, or an index entry written before this field existed.
+    #[serde(default)]
+    pub reasoning_profile: Option<ReasoningProfile>,
     /// The model can read images.
     pub vision: bool,
     /// Image formats the serving engine decodes; empty when `vision` is false,
@@ -69,13 +81,23 @@ pub struct Capabilities {
 
 impl Capabilities {
     /// The tool and reasoning capabilities a chat template declares, without
-    /// vision. `None` (no template) declares neither.
+    /// vision. `None` (no template) declares neither, and no reasoning setting.
     #[must_use]
     pub fn from_chat_template(template: Option<&str>) -> Self {
+        Self::from_chat_template_of_family(template, None)
+    }
+
+    /// [`Self::from_chat_template`] for a model of `family` (an architecture
+    /// or an MLX `model_type`), which settles the reasoning profile when the
+    /// template does not, through [`FAMILY_PROFILES`].
+    #[must_use]
+    pub fn from_chat_template_of_family(template: Option<&str>, family: Option<&str>) -> Self {
+        let profile = reasoning_profile(template.map(TemplateReasoningVariables::of), family);
         let template = template.unwrap_or_default();
         Self {
             tools: template_handles_tools(template),
             reasoning: template_handles_reasoning(template),
+            reasoning_profile: Some(profile),
             vision: false,
             image_formats: Vec::new(),
         }
@@ -85,12 +107,23 @@ impl Capabilities {
     /// chat template, without vision.
     #[must_use]
     pub fn from_gguf_header(facts: &crate::gguf_probe::GgufHeaderFacts) -> Self {
+        let variables = facts
+            .has_chat_template
+            .then_some(facts.chat_template_reasoning_variables);
         Self {
             tools: facts.chat_template_tools,
             reasoning: facts.chat_template_reasoning,
+            reasoning_profile: Some(reasoning_profile(variables, facts.architecture.as_deref())),
             vision: false,
             image_formats: Vec::new(),
         }
+    }
+
+    /// Whether this record was computed by a build that reads the reasoning
+    /// profile. An older record is read again from the model's files.
+    #[must_use]
+    pub(crate) fn is_current(&self) -> bool {
+        self.reasoning_profile.is_some()
     }
 
     /// Mark the model as reading images, with the formats `engine` decodes.

@@ -13,7 +13,7 @@ and the dispatch boundary builds the canonical AIPResult dict.
 import base64
 import mimetypes
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol, TypedDict, runtime_checkable
+from typing import Annotated, Any, Final, Literal, Protocol, TypedDict, runtime_checkable
 
 from apollia.context.a2a import A2AInterface
 from apollia.context.agents import AgentsInterface
@@ -170,6 +170,44 @@ def image_from_url(url: str) -> ImageContent:
 
 
 # ──────────────────────────────────────────────────────────────────────
+# Workflow input types
+# ──────────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class InputFormat:
+    """What a text input of a workflow holds, beyond being text.
+
+    Carried as ``Annotated`` metadata by :data:`LongText` and
+    :data:`FileInput`, and written as the JSON Schema ``format`` of the input,
+    so the launch form picks its field and the runtime checks the value before
+    the run. A date needs no marker: annotate the input ``datetime.date``.
+
+    Attributes:
+        format: ``long-text`` or ``file-path``.
+    """
+
+    format: str
+
+
+#: JSON Schema ``format`` of a date input, ``datetime.date``: ``YYYY-MM-DD``.
+DATE_FORMAT: Final = "date"
+#: JSON Schema ``format`` of a long text input, :data:`LongText`.
+LONG_TEXT_FORMAT: Final = "long-text"
+#: JSON Schema ``format`` of a file input, :data:`FileInput`.
+FILE_PATH_FORMAT: Final = "file-path"
+
+#: A text input written over several lines (a brief, a note); the form shows a
+#: text area. The workflow receives a ``str``.
+LongText = Annotated[str, InputFormat(LONG_TEXT_FORMAT)]
+
+#: A file the user picks; the form shows a file chooser. The workflow receives
+#: the absolute path of the file as a ``str``, and the runtime refuses a launch
+#: whose file does not exist.
+FileInput = Annotated[str, InputFormat(FILE_PATH_FORMAT)]
+
+
+# ──────────────────────────────────────────────────────────────────────
 # Ctx Protocol - the unique surface the agent sees
 # ──────────────────────────────────────────────────────────────────────
 
@@ -204,6 +242,13 @@ class Ctx(Protocol):
     secrets: SecretsInterface
     events: EventsInterface
     logger: Logger
+    #: The user profile resolved for this execution: the profile designated
+    #: for the agent, else the default one. ``None`` unless the profile source
+    #: is checked for the agent (package ``sources`` default, replaced by the
+    #: user's override); each read is recorded in the execution trace. Five
+    #: fields (``name``, ``role``, ``function``, ``tools``, ``preferences``)
+    #: and a free text (``free_text``); see
+    #: :class:`apollia.context.profile.ProfileInterface`.
     profile: ProfileInterface | None
     workspace: WorkspaceContext
     stt: SttInterface
@@ -304,6 +349,9 @@ class AIPResult:
 
 # Re-exports utiles
 __all__ = [
+    "DATE_FORMAT",
+    "FILE_PATH_FORMAT",
+    "LONG_TEXT_FORMAT",
     "A2AInterface",
     # Legacy
     "AIPResult",
@@ -313,14 +361,17 @@ __all__ = [
     "Ctx",
     "DatasourcesInterface",
     "EventsInterface",
+    "FileInput",
     "ImageContent",
     "ImageSourceBase64",
     "ImageSourceUrl",
+    "InputFormat",
     "LlmMessage",
     # Re-exports of the ctx Protocol classes (handy for type hints)
     "LlmProxy",
     "LlmResponse",
     "Logger",
+    "LongText",
     "MailInterface",
     "MailMessage",
     "MemoryInterface",

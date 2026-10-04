@@ -1,5 +1,5 @@
 {
-  "name": "memory-det (memory namespace explorer over the seeded ecosystem, operator + builder; export, import and purge opened at their boundary and cancelled)",
+  "name": "memory-det (memory namespace explorer over the seeded ecosystem, a developer screen: unreachable with the mode off, walked with the mode on; export, import and purge opened at their boundary and cancelled)",
   "stopOnError": false,
   "notes": [
     "__user__ is no longer a memory namespace: the runtime migrates memory/__user__.db into the canonical user_memory.db at boot and retires the file to __user__.db.migrated (supervisor/persistence.rs), and list_memory_namespaces only scans memory/*.db. The namespace walk therefore runs on apollia-guide, the seeded agent namespace that populates all four type tabs.",
@@ -8,7 +8,8 @@
     "Export and import go through the two plugin-dialog pickers, answered by stubInvoke: plugin:dialog|save names ${HOME}/.apollia/memory-export-probe.json, which memory_export_namespace writes, and plugin:dialog|open hands that same file back to the import. The merge re-import of the namespace's own export inserts nothing (INSERT OR IGNORE on the primary keys, FTS untouched), so the entry set every later section sees is the seeded one. The replace confirm is played only against a missing path: memory_import_namespace reads the file before it wipes anything, so the error toast is the whole effect.",
     "memory-purge-confirm-confirm is played after the cancel path, on scope episodic older than 3650 days: the seeded rows are dated 2026-07-01, so purge_memory removes 0 rows and the toast memory-purge-done carries that count. The result is identical on a replayed seed HOME.",
     "The success toasts of export, import and purge carry data-testid values (memory-export-done, memory-import-done, memory-purge-done) handed to addToast as object keys, which the validator's literal pool never sees in NamespaceDataActions.svelte, so the book proves the three outcomes by DOM state instead: the import and purge dialogs close only on success and stay open on failure, and a successful merge import proves the export wrote a parseable file.",
-    "memory-import-path is an <input>, whose picked path lives in its value, not in its text: the runner's expect/contains reads text, so the path is proven by what follows the pick instead (the replace warning, the confirm dialog, the merged import)."
+    "memory-import-path is an <input>, whose picked path lives in its value, not in its text: the runner's expect/contains reads text, so the path is proven by what follows the pick instead (the replace warning, the confirm dialog, the merged import).",
+    "Memory is a developer screen: with the developer mode off the router sends the route to the default one (Main.svelte reachableRoute) and the sidebar has no nav-memory, so the book asserts dashboard-page there, walks the screen only after developer-mode-on, and turns the mode off again at the end to leave the session as it found it."
   ],
   "dynamicTestids": [
     "memory-type-tab-all",
@@ -22,8 +23,8 @@
     "namespace-sidebar-cat-user",
     "namespace-sidebar-item-apollia-guide",
     "namespace-sidebar-item-onboarding-agent",
-    "sidebar-mode-option-builder",
-    "sidebar-mode-option-operator"
+    "nav-memory",
+    "settings-nav-developer"
   ],
   "steps": [
     {
@@ -37,17 +38,26 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-operator"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
@@ -64,12 +74,71 @@
     },
     {
       "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-memory",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-mode-off-memory-unreachable (the router lands on the default route)"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "memory"
+    },
+    {
+      "kind": "waitFor",
       "testid": "memory-page",
       "timeoutMs": 15000
     },
     {
+      "kind": "waitFor",
+      "testid": "sidebar-developer-group",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "nav-memory",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "screenshot",
-      "label": "01-memory-operator"
+      "label": "01b-memory-developer-mode"
     },
     {
       "kind": "waitFor",
@@ -729,17 +798,26 @@
       "label": "12k-memory-purge-done (0 entries removed, the seeded rows are dated 2026-07-01)"
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-builder"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
@@ -751,48 +829,22 @@
     },
     {
       "kind": "waitFor",
-      "testid": "memory-page",
+      "testid": "dashboard-page",
       "timeoutMs": 15000
     },
     {
-      "kind": "screenshot",
-      "label": "13-memory-builder"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "namespace-sidebar",
+      "kind": "waitGone",
+      "testid": "memory-page",
       "timeoutMs": 4000
     },
     {
-      "kind": "waitFor",
-      "testidPrefix": "namespace-sidebar-item-",
-      "nth": 0,
+      "kind": "waitGone",
+      "testid": "nav-memory",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "14-namespace-sidebar-builder"
-    },
-    {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "sidebar-mode-option-operator"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "screenshot",
-      "label": "15-back-operator"
+      "label": "15-back-mode-off-redirected"
     }
   ]
 }

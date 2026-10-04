@@ -28,6 +28,7 @@ fn default_format_version() -> u32 {
 /// fast    = "claude-haiku-4-5-20251001"
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LlmRoutingConfig {
     /// Version of this on-disk format. A file written before versioning has
     /// no key and reads as format 1; a future format bumps the default and the
@@ -88,6 +89,7 @@ pub enum CeilingAction {
 /// absent, routing behaves as before (local-only, no escalation). When present,
 /// both `frontier` and `cost_ceiling_usd` are required and validated at startup.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HybridRoutingConfig {
     /// Version of this on-disk format. A file written before versioning has
     /// no key and reads as format 1; a future format bumps the default and the
@@ -137,43 +139,4 @@ impl HybridRoutingConfig {
         }
         Ok(())
     }
-}
-
-// ─────────────────────────────────────────────
-// LlmRunnerConfig
-// ─────────────────────────────────────────────
-
-/// Local LLM sidecar runner configuration (`[llm.runner]` section in `apollia.toml`).
-///
-/// Lets the user force a specific backend (`cuda`, `rocm`, `vulkan`, `metal`,
-/// `cpu`) or let automatic detection choose (`auto`).
-///
-/// See the `apollia_runtime::runner_supervisor::gpu_detection` module for the
-/// decision hierarchy and its implementation.
-///
-/// `apollia.toml` example:
-/// ```toml
-/// [llm.runner]
-/// backend = "vulkan"   # auto (default) | cuda | rocm | vulkan | metal | cpu
-/// ```
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LlmRunnerConfig {
-    /// Backend forced by the operator, or `"auto"` to let detection decide.
-    ///
-    /// Accepted values: `"auto"`, `"cuda"`, `"rocm"`, `"vulkan"`, `"metal"`, `"cpu"`.
-    /// Any other value is treated as `"auto"` with a warning at startup.
-    #[serde(default = "default_runner_backend")]
-    pub backend: String,
-}
-
-impl Default for LlmRunnerConfig {
-    fn default() -> Self {
-        Self {
-            backend: default_runner_backend(),
-        }
-    }
-}
-
-fn default_runner_backend() -> String {
-    "auto".to_string()
 }

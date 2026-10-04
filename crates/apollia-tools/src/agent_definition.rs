@@ -18,6 +18,10 @@
 //! So is the planning mode (`defaults.planning`): whether the agent plans a
 //! task before acting on it. When neither says anything it is
 //! [`PlanningMode::Auto`].
+//!
+//! The profile an agent runs with is an override and nothing else: a
+//! definition never names one, the user designates it. An empty designation,
+//! or one naming a profile deleted since, reads as the default profile.
 
 use apollia_core::model_preset::AgentModel;
 use apollia_core::{AgentManifest, AutonomyLevel};
@@ -133,10 +137,12 @@ pub enum OverrideField {
     Autonomy,
     /// Whether the agent plans a task before acting on it.
     Planning,
+    /// Identifier of the user profile the agent runs with.
+    Profile,
 }
 
 /// Every overridable field, in display order.
-pub const OVERRIDE_FIELDS: [OverrideField; 7] = [
+pub const OVERRIDE_FIELDS: [OverrideField; 8] = [
     OverrideField::Name,
     OverrideField::Mission,
     OverrideField::Examples,
@@ -144,6 +150,7 @@ pub const OVERRIDE_FIELDS: [OverrideField; 7] = [
     OverrideField::Sources,
     OverrideField::Autonomy,
     OverrideField::Planning,
+    OverrideField::Profile,
 ];
 
 /// A value that does not fit the field it is written to.
@@ -152,7 +159,7 @@ pub const OVERRIDE_FIELDS: [OverrideField; 7] = [
 pub enum OverrideValueError {
     /// The field name is not one of [`OVERRIDE_FIELDS`].
     #[error(
-        "unknown field '{0}', expected one of name, mission, examples, access, sources, autonomy, planning"
+        "unknown field '{0}', expected one of name, mission, examples, access, sources, autonomy, planning, profile"
     )]
     UnknownField(String),
     /// The field takes a string.
@@ -182,6 +189,7 @@ impl OverrideField {
             OverrideField::Sources => "sources",
             OverrideField::Autonomy => "autonomy",
             OverrideField::Planning => "planning",
+            OverrideField::Profile => "profile",
         }
     }
 
@@ -215,6 +223,7 @@ impl OverrideField {
             OverrideField::Sources => "/defaults/sources",
             OverrideField::Autonomy => "/defaults/autonomy",
             OverrideField::Planning => "/defaults/planning",
+            OverrideField::Profile => "/defaults/profile",
         }
     }
 
@@ -320,6 +329,9 @@ pub struct ResolvedAgent {
     /// Whether the agent plans first: the user's override, else the
     /// definition's, else [`PlanningMode::Auto`].
     pub planning: PlanningMode,
+    /// Identifier of the profile the user designated for the agent; `None`
+    /// runs it with the default profile.
+    pub profile: Option<String>,
     /// Fields whose value comes from an override rather than the definition.
     pub overridden: Vec<OverrideField>,
     /// The definition the overrides apply to, unchanged.
@@ -389,6 +401,13 @@ pub fn resolve(
         planning: value_of(OverrideField::Planning)
             .and_then(planning_of)
             .unwrap_or_default(),
+        profile: overrides
+            .iter()
+            .find(|o| o.field == OverrideField::Profile)
+            .and_then(|o| o.value.as_str())
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .map(str::to_owned),
         overridden,
         definition: stored.definition.clone(),
     }
@@ -398,8 +417,9 @@ pub fn resolve(
 /// its decorator declares.
 ///
 /// The mission is the declared system prompt, or the description when there
-/// is none; the access is the required then optional tools; the sources are
-/// the declared data sources; the autonomy is the declared tier.
+/// is none; the access is the required then optional tools; the autonomy is
+/// the declared tier. The declared data sources are files the package carries,
+/// not sources of the registry, so they check no source.
 pub fn definition_from_manifest(manifest: &AgentManifest) -> Value {
     let mission = manifest
         .system_prompt
@@ -419,9 +439,6 @@ pub fn definition_from_manifest(manifest: &AgentManifest) -> Value {
     let mut defaults = Map::new();
     if !access.is_empty() {
         defaults.insert("access".into(), json!(access));
-    }
-    if !manifest.datasources.is_empty() {
-        defaults.insert("sources".into(), json!(manifest.datasources));
     }
     if let Some(level) = manifest.autonomy_level {
         defaults.insert("autonomy".into(), json!(level.as_str()));

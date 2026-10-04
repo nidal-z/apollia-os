@@ -86,6 +86,7 @@ COVERED_BY_GLOBAL_RULEBOOK: dict[str, str] = {
     "apollia-eval": "docs/agents/TESTING.md",
     "apollia-prompts": "docs/agents/RUST-PATTERNS.md",
     "apollia-signing": "docs/agents/SECURITY.md",
+    "apollia-sources": "docs/agents/RUST-PATTERNS.md",
 }
 
 BACKTICKED = re.compile(r"`([^`\n]+)`")

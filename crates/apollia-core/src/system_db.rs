@@ -2,8 +2,13 @@
 //!
 //! `system.db` holds the LLM backend registry ([`crate::llm_backend`]), the
 //! inference servers ([`crate::inference_server`]), the model presets and the
-//! model of each agent ([`crate::model_preset`]), and the STT configuration
-//! ([`crate::stt_config`]).
+//! model of each agent ([`crate::model_preset`]), the STT configuration
+//! ([`crate::stt_config`]), the default embeddings model
+//! ([`crate::embedding_default`]), the tokens of the compatible server
+//! ([`crate::server_token`]), the last local model loaded by hand
+//! ([`crate::last_loaded_model`]), the registry of sources
+//! ([`crate::source_registry`]), and the folders added as connections
+//! ([`crate::folder_connection`]).
 //! `PRAGMA user_version` belongs to the database file, not to a table, so the
 //! stores share one migration list: whichever opens first brings the whole
 //! file to the current version, and both refuse a file written by a newer
@@ -15,14 +20,24 @@ use crate::inference_server::{openai_api_base, DEFAULT_OLLAMA_ADDRESS};
 use crate::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `system.db`.
-pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 4;
+pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 10;
 
 /// Numbered migration steps of `system.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`SYSTEM_DB_SCHEMA_VERSION`].
-pub(crate) const SYSTEM_DB_MIGRATIONS: &[Migration] =
-    &[migrate_v1, migrate_v2, migrate_v3, migrate_v4];
+pub(crate) const SYSTEM_DB_MIGRATIONS: &[Migration] = &[
+    migrate_v1,
+    migrate_v2,
+    migrate_v3,
+    migrate_v4,
+    migrate_v5,
+    migrate_v6,
+    migrate_v7,
+    migrate_v8,
+    migrate_v9,
+    migrate_v10,
+];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -397,6 +412,94 @@ pub(crate) fn migrate_v4(conn: &Connection) -> Result<(), rusqlite::Error> {
     tx.commit()
 }
 
+/// v5: the default embeddings model, a singleton row.
+///
+/// `model_id` names an entry of the embeddings category of the registry, the
+/// one search by meaning loads when it needs a vector. No row means no default,
+/// and search then falls back to keywords alone. The statement is idempotent,
+/// so a replay changes nothing.
+pub(crate) fn migrate_v5(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS embedding_default (
+            id         INTEGER PRIMARY KEY CHECK (id = 1),
+            model_id   TEXT NOT NULL CHECK (length(trim(model_id)) > 0),
+            updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );",
+    )
+}
+
+/// v6: the tokens of the compatible server.
+///
+/// One row per token, named by the person who created it. The value itself is
+/// never stored: `hash` is the hex SHA-256 of it, and `last_four` its last four
+/// characters, enough to recognise it in a list. A revoked token keeps its row,
+/// with `revoked_at` set, so the list still shows it. Two tokens in use never
+/// share a name, held by a partial unique index; a revoked token frees its
+/// name. Every statement is idempotent, so a replay changes nothing.
+pub(crate) fn migrate_v6(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS server_tokens (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            name         TEXT NOT NULL CHECK (length(trim(name)) > 0),
+            hash         TEXT NOT NULL UNIQUE CHECK (length(hash) = 64),
+            last_four    TEXT NOT NULL CHECK (length(last_four) = 4),
+            created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            last_used_at TEXT,
+            revoked_at   TEXT
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS server_tokens_one_active_name
+            ON server_tokens (name) WHERE revoked_at IS NULL;",
+    )
+}
+
+/// v7: the last local model loaded by hand, a singleton row.
+///
+/// `model_id` is the identifier the model index gives the model, and
+/// `load_json` the load settings it was loaded with, in the keys a preset's
+/// load settings use. Like a preset, the row never carries a system prompt.
+/// The statement is idempotent, so a replay changes nothing.
+pub(crate) fn migrate_v7(conn: &Connection) -> Result<(), rusqlite::Error> {
+    let no_prompt = SYSTEM_PROMPT_KEYS
+        .iter()
+        .map(|key| format!("json_type(load_json, '$.{key}') IS NULL"))
+        .collect::<Vec<_>>()
+        .join(" AND ");
+    conn.execute_batch(&format!(
+        "CREATE TABLE IF NOT EXISTS last_loaded_model (
+            id        INTEGER PRIMARY KEY CHECK (id = 1),
+            model_id  TEXT NOT NULL CHECK (length(trim(model_id)) > 0),
+            load_json TEXT NOT NULL DEFAULT '{{}}',
+            loaded_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            CHECK (json_valid(load_json) AND json_type(load_json) = 'object'),
+            CHECK ({no_prompt})
+        );"
+    ))
+}
+
+/// v8: the registry of sources, what an agent may consult once checked.
+///
+/// The kinds and index states are held by `CHECK`, and so is the rule that a
+/// folder, a file or a mailbox names what it points at. The statement is
+/// idempotent, so a replay changes nothing.
+pub(crate) fn migrate_v8(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS sources (
+            id          TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+            kind        TEXT NOT NULL CHECK (kind IN
+                ('folder', 'file', 'mail', 'profile', 'memory', 'code_folder')),
+            label       TEXT NOT NULL CHECK (length(trim(label)) > 0),
+            group_name  TEXT,
+            reference   TEXT,
+            index_state TEXT NOT NULL DEFAULT 'absent' CHECK (index_state IN
+                ('absent', 'indexing', 'ready', 'error', 'keywords_only')),
+            added_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            CHECK (kind NOT IN ('folder', 'file', 'mail')
+                   OR length(trim(coalesce(reference, ''))) > 0)
+        );",
+    )
+}
+
 /// Keys a preset may never carry, in either settings column.
 pub(crate) const SYSTEM_PROMPT_KEYS: &[&str] = &["system_prompt", "system", "system_message"];
 
@@ -410,6 +513,32 @@ fn no_system_prompt_check() -> String {
         }
     }
     terms.join(" AND ")
+}
+
+/// v9: the folders of this machine added as connections.
+///
+/// One row per folder, keyed by its canonical path so the same folder is
+/// never added twice under two spellings.
+pub(crate) fn migrate_v9(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS folder_connections (
+            id       TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+            path     TEXT NOT NULL UNIQUE CHECK (length(trim(path)) > 0),
+            label    TEXT NOT NULL CHECK (length(trim(label)) > 0),
+            added_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );",
+    )
+}
+
+/// v10: the settings of `apollia.toml` already imported into this file, so a
+/// one-time import never runs twice.
+pub(crate) fn migrate_v10(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS settings_imports (
+            key         TEXT PRIMARY KEY CHECK (length(trim(key)) > 0),
+            imported_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );",
+    )
 }
 
 #[cfg(test)]

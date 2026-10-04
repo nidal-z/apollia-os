@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 // ─────────────────────────────────────────────
 // ChatConfig
@@ -11,7 +11,8 @@ use serde::Deserialize;
 /// desktop seeds its own per-user preference from this value, and the runtime
 /// itself uses it so non-desktop callers (API, CLI) inherit the same behavior.
 /// Every field has a sane default via [`Default`] (plan mode off).
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ChatConfig {
     /// Default plan-mode state inherited by every new chat session.
     ///
@@ -21,15 +22,6 @@ pub struct ChatConfig {
     /// Default: `false`.
     #[serde(default)]
     pub plan_mode_default: bool,
-
-    /// Default working directory for free-chat (project-less) sessions.
-    ///
-    /// When set to an existing directory, free-chat file tools and bash anchor
-    /// there instead of the process working directory, and the agent is told its
-    /// working directory so it stops guessing paths. Project-linked sessions keep
-    /// their own `workspace_path`. `None` falls back to `~/.apollia`.
-    #[serde(default)]
-    pub default_workspace: Option<String>,
 
     /// LLM temperature applied to a chat turn that advertises tools to the model.
     ///

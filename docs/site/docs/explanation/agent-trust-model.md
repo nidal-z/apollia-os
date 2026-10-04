@@ -50,8 +50,9 @@ process, and it is the child process, not the agent, that Apollia confines:
 
 Every other tool runs unconfined in the runtime process. Filesystem tools are
 bounded by a path-prefix check: a canonicalised root they refuse to leave, symlink
-escapes included. That root is the workspace in a chat session and **the user's
-whole home directory** for an installed agent. Network tools are bounded by an
+escapes included. That root is **the union of the folders granted to the
+agent**, in a chat session as for an installed agent; an agent granted no folder
+reaches none. Network tools are bounded by an
 application-level allowlist. Neither is an OS boundary.
 
 Three consequences worth carrying. A mount namespace without `pivot_root` is not
@@ -112,7 +113,10 @@ roadmap rather than shipped:
   writable-scope mount), so the declared sandbox profile becomes a real
   constraint rather than metadata.
 - A true filesystem jail for the shell and Python executors.
-- Enforcement of the sovereignty profile (`local_only`) as an automatic gate.
+- An organisation policy that forbids the cloud on every outbound path. Today
+  its `connections.remote = "deny"` rule refuses adding a connection to an
+  online service, checked by the runtime; it does not yet cover inference
+  endpoints.
 
 Until those land, the trust model above is the whole story. When they do, this
 page and the decision record will be updated to match, never ahead of the code.

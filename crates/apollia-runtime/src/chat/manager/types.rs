@@ -27,16 +27,13 @@ pub struct ChatToolsConfig {
     /// Native-tools subsection of `apollia.toml` (web cfg, http allowlist,
     /// disabled list). Defaults are sensible when no file is loaded.
     pub tools_config: apollia_core::ToolsConfig,
-    /// Default working directory for free-chat sessions (`[chat]
-    /// default_workspace`). `None` falls back to `~/.apollia`.
-    pub default_workspace: Option<std::path::PathBuf>,
     /// Temperature applied to a chat turn that advertises tools (`[chat]
     /// tool_turn_temperature`). `None` resolves to the agent default.
     pub tool_turn_temperature: Option<f32>,
-    /// Paths an agent may work in without being asked (`[filesystem]
-    /// trusted_paths`, `~` already resolved). Empty means every write outside
-    /// the working directory is asked about, never that it is refused.
-    pub trusted_paths: Vec<std::path::PathBuf>,
+    /// The registry of sources, through which `source_search` reads the
+    /// indexes of the sources an agent checked. `None` leaves every source
+    /// but the memory unsearchable.
+    pub source_registry: Option<apollia_sources::SourceRegistryHandle>,
 }
 
 /// Snapshot of a tool-level `scope=session` authorization for an active session.
@@ -87,7 +84,6 @@ pub(in crate::chat::manager) struct AlwaysAcceptScopeCtx<'a> {
     pub(in crate::chat::manager) scope: &'a super::super::types::AlwaysAcceptScope,
     pub(in crate::chat::manager) session_mode: ChatMode,
     pub(in crate::chat::manager) session_agent_name: Option<String>,
-    pub(in crate::chat::manager) session_project_id: Option<&'a str>,
     pub(in crate::chat::manager) session_id: &'a str,
     pub(in crate::chat::manager) tool_name: &'a str,
 }
@@ -107,7 +103,7 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     pub(in crate::chat::manager) event_bus: EventBusSender,
     pub(in crate::chat::manager) a2a_for_agent: Option<Arc<A2AInvoker>>,
     /// The principle 6 injections gathered for the session (user memory,
-    /// past sessions block); the project context is added by the exchange.
+    /// past sessions block).
     pub(in crate::chat::manager) apollia_context: ApolliaContext,
     pub(in crate::chat::manager) pending_approvals: PendingChatApprovals,
     /// Autonomy tier of the exchange; the executor derives the budget, the
@@ -116,17 +112,15 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// Runtime ceiling the tier's budget is capped by.
     pub(in crate::chat::manager) runtime_budget: StepBudgetConfig,
     pub(in crate::chat::manager) history: Vec<ChatMessage>,
-    pub(in crate::chat::manager) available_tools: Vec<String>,
+    /// The access of the agent: a list, or the reading family read when the
+    /// exchange starts.
+    pub(in crate::chat::manager) available_tools: apollia_tools::AgentAccess,
     pub(in crate::chat::manager) authorized_tools: std::collections::HashSet<String>,
     pub(in crate::chat::manager) system_prompt: String,
-    pub(in crate::chat::manager) inject_project_context: bool,
     pub(in crate::chat::manager) is_companion: bool,
     pub(in crate::chat::manager) context_window_size: usize,
     pub(in crate::chat::manager) stored_summary: Option<String>,
     pub(in crate::chat::manager) llm_for_summarize: Option<Arc<LlmRouter>>,
-    pub(in crate::chat::manager) project_ctx: Option<Arc<dyn ProjectContextProvider>>,
-    pub(in crate::chat::manager) session_project_id: Option<String>,
-    pub(in crate::chat::manager) project_repo_for_session: Option<Arc<ProjectRepository>>,
     pub(in crate::chat::manager) pending_user_inputs_for_session:
         apollia_tools::tools::ask_user::PendingUserInputs,
     pub(in crate::chat::manager) mcp_handle_for_session:
@@ -162,6 +156,9 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// Backend the session prefers (the free chat's stored choice), tried
     /// before the default at each call of the turn.
     pub(in crate::chat::manager) preferred_backend: Option<String>,
+    /// The turn the exchange answers: the identifier its answer is persisted
+    /// under.
+    pub(in crate::chat::manager) turn_id: Option<String>,
 }
 
 /// Resolved tool invoker plus the agent workspace path for a session.
@@ -210,9 +207,10 @@ pub enum InjectError {
 /// `executing` then `done`. The desktop hydrates the plan tab from `plan` and
 /// decides whether to show the approval card from `phase`, never from the
 /// plan's own status.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct ChatPlanSnapshot {
     /// Current plan, or `None` when the session has produced none.
+    #[schema(value_type = Option<Object>)]
     pub plan: Option<Plan>,
     /// Session plan-mode phase: `discovery`, `drafting`, `awaiting_approval`,
     /// `executing`, or `done`.
@@ -225,7 +223,6 @@ pub struct CreateSessionParams {
     pub agent_name: Option<String>,
     pub system_prompt: Option<String>,
     pub tools: Vec<String>,
-    pub project_id: Option<String>,
 }
 
 /// Parameters for [`ChatSessionManager::handle_register_user_input_reply`].
@@ -265,22 +262,24 @@ pub(in crate::chat::manager) struct PendingUserInputMeta {
 pub(in crate::chat::manager) struct FullDispatcherParams<'a> {
     pub(in crate::chat::manager) cfg: &'a Arc<ChatToolsConfig>,
     pub(in crate::chat::manager) session_id: &'a str,
-    pub(in crate::chat::manager) sandbox_root: &'a std::path::Path,
-    /// Every root the file tools may reach, anchor first. Wider than
-    /// `sandbox_root`, which stays the anchor for relative paths alone.
-    pub(in crate::chat::manager) sandbox_roots: &'a [std::path::PathBuf],
-    pub(in crate::chat::manager) workspace_path: &'a Option<std::path::PathBuf>,
+    /// The folders granted to the agent, the roots of its file tools.
+    pub(in crate::chat::manager) folders: &'a apollia_tools::FolderRoots,
     pub(in crate::chat::manager) pending_user_inputs:
         &'a Option<apollia_tools::tools::ask_user::PendingUserInputs>,
     pub(in crate::chat::manager) hitl: Option<&'a HitlInvokerParams>,
     pub(in crate::chat::manager) extra_executors:
         Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
+    /// The sources the agent of the run has checked.
+    pub(in crate::chat::manager) sources: apollia_tools::SourceAccess,
+    /// The memory namespace `memory_search` reads when the memory is checked.
+    pub(in crate::chat::manager) memory_namespace: String,
 }
 
 /// Parameters for [`resolve_workspace_for_session`].
 pub(in crate::chat::manager) struct WorkspaceResolutionParams {
-    pub(in crate::chat::manager) project_id: Option<String>,
-    pub(in crate::chat::manager) project_repo: Option<Arc<ProjectRepository>>,
+    /// The folders granted to the agent of the run, the roots of its file
+    /// tools; the first anchors a relative path.
+    pub(in crate::chat::manager) folders: apollia_tools::FolderRoots,
     pub(in crate::chat::manager) hitl: Option<HitlInvokerParams>,
     pub(in crate::chat::manager) pending_user_inputs:
         Option<apollia_tools::tools::ask_user::PendingUserInputs>,
@@ -295,4 +294,8 @@ pub(in crate::chat::manager) struct WorkspaceResolutionParams {
     pub(in crate::chat::manager) tool_search_limit: usize,
     /// Executors of the package tools, built for the agent of the run.
     pub(in crate::chat::manager) package_tools: Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
+    /// The sources the agent of the run has checked.
+    pub(in crate::chat::manager) sources: apollia_tools::SourceAccess,
+    /// The memory namespace `memory_search` reads when the memory is checked.
+    pub(in crate::chat::manager) memory_namespace: String,
 }

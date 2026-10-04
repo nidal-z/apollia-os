@@ -54,6 +54,11 @@ Rules:
   flat-uploads      every upload-artifact path of the cli and desktop jobs
                     sits in one flat directory, because the release job reads
                     the merged artifacts with flat globs
+  preview-channel   the contract's preview channel maps every stable manifest
+                    to `<stem>-preview.json`, the manifest step reads it, the
+                    preview-channel workflow copies every preview manifest to
+                    the contract's fixed release, and the desktop updater
+                    derives its preview endpoint from that release and suffix
   docs-block        the generated installer-name block of the install pages
                     matches the contract (regenerate with
                     `python3 scripts/check_release_artifacts.py --write-docs-block`,
@@ -98,13 +103,26 @@ SECURITY = Path("SECURITY.md")
 RELEASE_KEY = Path("apollia-release-key.asc")
 UPDATE_RS = Path("crates/apollia-cli/src/commands/update.rs")
 TAURI_CONF = Path("crates/apollia-desktop/tauri.conf.json")
+PREVIEW_WORKFLOW = Path(".github/workflows/preview-channel.yml")
+DESKTOP_UPDATES_RS = Path("crates/apollia-desktop/src/commands/updates.rs")
 DOCS_EN = Path("docs/site/docs/how-to/install-the-desktop-app.md")
 DOCS_FR = Path(
     "docs/site/i18n/fr/docusaurus-plugin-content-docs/current/how-to/"
     "install-the-desktop-app.md"
 )
 
-FILES = (CONTRACT, WORKFLOW, UPDATE_RS, TAURI_CONF, DOCS_EN, DOCS_FR, SECURITY, RELEASE_KEY)
+FILES = (
+    CONTRACT,
+    WORKFLOW,
+    UPDATE_RS,
+    TAURI_CONF,
+    DOCS_EN,
+    DOCS_FR,
+    SECURITY,
+    RELEASE_KEY,
+    PREVIEW_WORKFLOW,
+    DESKTOP_UPDATES_RS,
+)
 
 BLOCK_BEGIN = "<!-- release-artifacts:begin"
 BLOCK_END = "<!-- release-artifacts:end -->"
@@ -603,6 +621,76 @@ def check(root: Path) -> list[str] | int:
                 f"with, and the file itself reads as clutter"
             )
 
+    # ── preview-channel ───────────────────────────────────────────────────
+    # The preview channel spans four files: the contract names the manifests,
+    # the release job composes them, a second workflow moves them to the fixed
+    # release, and the desktop app derives the address it asks. Each was written
+    # alone; a rename in one sends every preview machine to a 404.
+    preview = contract.get("preview") or {}
+    preview_manifests = preview.get("manifests") or {}
+    preview_release = preview.get("release", "")
+    if not preview or not preview_release or not preview.get("tag"):
+        defects.append(
+            f"{CONTRACT}: preview-channel: no preview channel (tag, release, manifests)"
+        )
+    if sorted(preview_manifests) != sorted(contract.get("updater_manifests", [])):
+        defects.append(
+            f"{CONTRACT}: preview-channel: the preview manifests map "
+            f"{sorted(preview_manifests)}, the stable channels are "
+            f"{sorted(contract.get('updater_manifests', []))}"
+        )
+    for stable_name, preview_name in preview_manifests.items():
+        stem, _, ext = stable_name.rpartition(".")
+        if preview_name != f"{stem}-preview.{ext}":
+            defects.append(
+                f"{CONTRACT}: preview-channel: {preview_name!r} is not the "
+                f"{stem}-preview.{ext} the desktop app derives from {stable_name!r}"
+            )
+    compose_reads_preview = any(
+        isinstance(step.get("run"), str)
+        and any("updater_manifests" in line for line in shell_lines(step["run"]))
+        and any('["preview"]' in line for line in shell_lines(step["run"]))
+        for step in release_job.get("steps", [])
+    )
+    if not compose_reads_preview:
+        defects.append(
+            f"{WORKFLOW}: preview-channel: the manifest step does not read the "
+            f"contract's preview channel, so a trial tag would overwrite the stable "
+            f"manifests"
+        )
+    preview_wf = yaml.safe_load((root / PREVIEW_WORKFLOW).read_text(encoding="utf-8")) or {}
+    preview_lines = [
+        line
+        for job in (preview_wf.get("jobs") or {}).values()
+        for step in job.get("steps", [])
+        if isinstance(step.get("run"), str)
+        for line in shell_lines(step["run"])
+    ]
+    uploads = [
+        line for line in preview_lines if f"release upload {preview_release} " in line
+    ]
+    if not uploads:
+        defects.append(
+            f"{PREVIEW_WORKFLOW}: preview-channel: no run line uploads to the "
+            f"fixed release {preview_release!r}"
+        )
+    for preview_name in preview_manifests.values():
+        if uploads and not any(preview_name in line for line in uploads):
+            defects.append(
+                f"{PREVIEW_WORKFLOW}: preview-channel: the upload to the preview "
+                f"release does not carry {preview_name!r}"
+            )
+    updates_src = (root / DESKTOP_UPDATES_RS).read_text(encoding="utf-8")
+    updates_prod = updates_src.split("#[cfg(test)]", 1)[0]
+    if f'"/releases/download/{preview_release}/"' not in updates_prod or (
+        '"-preview"' not in updates_prod
+    ):
+        defects.append(
+            f"{DESKTOP_UPDATES_RS}: preview-channel: the desktop updater does not "
+            f"derive its preview endpoint from the release {preview_release!r} and "
+            f"the suffix '-preview'"
+        )
+
     # ── docs-block ────────────────────────────────────────────────────────
     version = conf.get("version", "")
     for page, lang in ((DOCS_EN, "en"), (DOCS_FR, "fr")):
@@ -720,7 +808,14 @@ def selftest() -> int:
             text.replace(".dmg`", ".dmg-renamed`"), encoding="utf-8"
         )
 
+    def drop_a_preview_copy(root: Path) -> None:
+        text = (root / PREVIEW_WORKFLOW).read_text(encoding="utf-8")
+        (root / PREVIEW_WORKFLOW).write_text(
+            text.replace(" manifests/latest-cuda-preview.json", ""), encoding="utf-8"
+        )
+
     print("selftest: each rule fires on a mutated copy")
+    case("a preview manifest nobody copies is reported", drop_a_preview_copy, "preview-channel")
     case("a manifest without a step is reported", drop_manifest_step, "manifest-step")
     case("a comment naming the manifest does not count", comment_only_manifest, "manifest-step")
     case("a contract preset without a producer is reported", drop_a_preset, "matrix-bijection")

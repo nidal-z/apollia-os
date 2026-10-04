@@ -2,10 +2,16 @@
 //!
 //! The list is assembled by [`crate::connections::assemble`] from the stores
 //! each kind keeps: `mcp.db` and the live MCP sessions, the tool registry, the
-//! native account index, the mailbox list, and `package_items` in `agents.db`
-//! when it exists.
+//! native account index, the mailbox list, the folders of `system.db`, and
+//! `package_items` in `agents.db` when it exists. A folder is added and
+//! removed under `/api/v1/connections/folders` (see [`folders`]).
 
-use axum::{extract::State, http::StatusCode, routing::get, Json, Router};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    routing::{delete, get, post},
+    Json, Router,
+};
 
 use apollia_auth::ConnectorProvider;
 
@@ -29,7 +35,16 @@ fn api_err(code: StatusCode, msg: impl std::fmt::Display) -> ApiError {
 
 /// Build the connections router.
 pub fn connections_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
-    Router::new().route("/api/v1/connections", get(list_connections::<B>))
+    Router::new()
+        .route("/api/v1/connections", get(list_connections::<B>))
+        .route(
+            "/api/v1/connections/folders",
+            post(folders::add_folder_connection::<B>),
+        )
+        .route(
+            "/api/v1/connections/folders/:id",
+            delete(folders::remove_folder_connection::<B>),
+        )
 }
 
 /// `GET /api/v1/connections`: every connection, whatever its kind, with its
@@ -102,6 +117,9 @@ pub(crate) async fn collect_connections<B: ExecutionBackend + Clone>(
     );
     let imap_accounts = apollia_connectors::imap::ImapAccountStore::accounts_in(&state.data_dir)
         .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    let folders = folders::store(&state.data_dir)
+        .and_then(|store| store.list())
+        .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
     Ok(assemble(&ConnectionSources {
         mcp_configs,
         mcp_statuses,
@@ -109,8 +127,11 @@ pub(crate) async fn collect_connections<B: ExecutionBackend + Clone>(
         package_servers,
         native_accounts,
         imap_accounts,
+        folders,
     }))
 }
+
+pub(crate) mod folders;
 
 #[cfg(test)]
 mod tests;

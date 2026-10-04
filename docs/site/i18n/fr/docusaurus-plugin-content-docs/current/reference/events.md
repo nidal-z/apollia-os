@@ -107,6 +107,7 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 
 | Variante | Charge utile |
 |---|---|
+| `BatchItemAwaitingApproval` | champs nommés |
 | `HitlFilesystemRequired` | champs nommés |
 | `PermissionRequired` | champs nommés |
 | `TaskApprovalTimeout` | champs nommés |
@@ -218,6 +219,7 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 | Variante | Charge utile |
 |---|---|
 | `AllReady` | aucune |
+| `ConfigInvalid` | champs nommés |
 | `ContextCompacted` | champs nommés |
 | `FileModifiedSinceRead` | champs nommés |
 | `McpServerHealthChanged` | champs nommés |
@@ -232,6 +234,7 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 | Variante | Charge utile |
 |---|---|
 | `BashFilePathsExtracted` | champs nommés |
+| `BatchEnded` | champs nommés |
 | `PlanAlternativesGenerated` | champs nommés |
 | `PlanCacheHit` | champs nommés |
 | `PlanCompleted` | champs nommés |
@@ -259,6 +262,7 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 | `ActionParseError` | champs nommés |
 | `AgentLog` | champs nommés |
 | `LlmCallStarted` | champs nommés |
+| `ProfileRead` | champs nommés |
 | `Retry` | champs nommés |
 | `Thought` | champs nommés |
 | `ToolCallCompleted` | champs nommés |

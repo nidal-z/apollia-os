@@ -6,7 +6,7 @@
 //!     keeps Apollia local-first.
 //!   - A 24-hour on-disk cache avoids repeat fetches for the same URL.
 //!
-//! Opt-in: the command is gated behind `[ui].link_preview_enabled` in
+//! Opt-in: the command is gated behind `[desktop] link_preview_enabled` in
 //! `apollia.toml`.  When disabled (default), callers receive an explicit
 //! error and the UI falls back to rendering the bare link.
 
@@ -107,38 +107,14 @@ fn store_cached(url: String, preview: LinkPreview) {
     }
 }
 
-/// Check the `[ui].link_preview_enabled` flag in `apollia.toml`.
+/// Check `[desktop] link_preview_enabled` in `~/.apollia/apollia.toml`, or
+/// its former place, `[ui] link_preview_enabled`, while the new key is absent.
 ///
-/// Defaults to `false` (local-first, opt-in).  Lookup order matches
-/// `main.rs::load_apollia_config`: `~/.apollia/apollia.toml` → CWD →
-/// `~/.config/apollia/apollia.toml`.
+/// Defaults to `false` (local-first, opt-in).
 fn link_preview_enabled() -> bool {
-    let home = apollia_core::paths::home_dir();
-    let candidates: Vec<PathBuf> = [
-        home.as_ref()
-            .map(|h| apollia_core::paths::data_dir_under(h).join("apollia.toml")),
-        std::env::current_dir().ok().map(|d| d.join("apollia.toml")),
-        home.as_ref()
-            .map(|h| h.join(".config").join("apollia").join("apollia.toml")),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
-
-    for path in candidates {
-        if let Ok(raw) = std::fs::read_to_string(&path) {
-            if let Ok(parsed) = toml::from_str::<toml::Value>(&raw) {
-                if let Some(flag) = parsed
-                    .get("ui")
-                    .and_then(|ui| ui.get("link_preview_enabled"))
-                    .and_then(|v| v.as_bool())
-                {
-                    return flag;
-                }
-            }
-        }
-    }
-    false
+    apollia_core::paths::config_file()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .is_some_and(|raw| apollia_core::DesktopConfig::link_preview_enabled_in(&raw))
 }
 
 /// Tauri command: fetch Open Graph metadata for a URL.

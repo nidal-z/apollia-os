@@ -10,43 +10,63 @@ import type {
   CliStatus,
 } from "$lib/types";
 
-/** The canonical settings sub-routes. */
+/**
+ * The canonical settings sub-routes, in the order of the navigation column:
+ * the "Settings" group, then the "System" group, then the sections that leave
+ * the settings for their own screens and stay listed last until they do.
+ */
 export type SettingsSubRoute =
+  | "general"
   | "appearance"
   | "profile"
+  | "chat"
   | "stt"
+  | "model-defaults"
+  | "developer"
+  | "engines"
+  | "hardware"
   | "llm"
   | "model-hub"
-  | "configuration"
   | "tools"
-  | "permissions"
-  | "integrations"
-  | "system"
-  | "shortcuts"
-  | "observability"
-  | "help"
-  | "about"
-  | "danger";
+  | "permissions";
 
 export const SETTINGS_SUB_ROUTES: SettingsSubRoute[] = [
+  "general",
   "appearance",
   "profile",
+  "chat",
   "stt",
+  "model-defaults",
+  "developer",
+  "engines",
+  "hardware",
   "llm",
   "model-hub",
-  "configuration",
   "tools",
   "permissions",
-  "integrations",
-  "system",
-  "shortcuts",
-  "observability",
-  "help",
-  "about",
-  "danger",
 ];
 
-export const DEFAULT_SETTINGS_SUB_ROUTE: SettingsSubRoute = "appearance";
+/**
+ * Former sections and the section that now holds their content. A caller that
+ * still names one of them (palette action, user menu, help link) lands on the
+ * section that carries the moved content rather than on the default.
+ */
+export const MOVED_SETTINGS_SUB_ROUTES: Readonly<Record<string, SettingsSubRoute>> = {
+  about: "general",
+  help: "general",
+  danger: "general",
+  shortcuts: "chat",
+  configuration: "developer",
+  system: "hardware",
+};
+
+/**
+ * Key of a settings form in the unsaved-changes store: a settings section, or
+ * the capture policy that moved to the Observability screen and keeps its form.
+ */
+export type SettingsFormRoute = SettingsSubRoute | "observability";
+
+export const DEFAULT_SETTINGS_SUB_ROUTE: SettingsSubRoute = "general";
 
 /** Active settings sub-route. Persists across `<Settings />` remounts. */
 export const settingsSubRoute = writable<SettingsSubRoute>(DEFAULT_SETTINGS_SUB_ROUTE);
@@ -55,9 +75,18 @@ export function isSettingsSubRoute(value: string | null | undefined): value is S
   return !!value && (SETTINGS_SUB_ROUTES as string[]).includes(value);
 }
 
-/** Navigate to a sub-route, falling back to `appearance` if unknown. */
+/** The section a name resolves to: itself, its new home if it moved, or the default. */
+export function resolveSettingsSubRoute(route: string | null | undefined): SettingsSubRoute {
+  if (isSettingsSubRoute(route)) return route;
+  if (route && Object.hasOwn(MOVED_SETTINGS_SUB_ROUTES, route)) {
+    return MOVED_SETTINGS_SUB_ROUTES[route];
+  }
+  return DEFAULT_SETTINGS_SUB_ROUTE;
+}
+
+/** Navigate to a sub-route, falling back to `general` if unknown. */
 export function goToSettingsSubRoute(route: string | null | undefined): SettingsSubRoute {
-  const target = isSettingsSubRoute(route) ? route : DEFAULT_SETTINGS_SUB_ROUTE;
+  const target = resolveSettingsSubRoute(route);
   if (get(settingsSubRoute) !== target) {
     settingsSubRoute.set(target);
   }
@@ -84,7 +113,7 @@ export function installSettingsNavigationGuard(guard: NavigationGuard): () => vo
 /** Navigate, consulting the installed guard. */
 export function requestSettingsSubRoute(route: string | null | undefined): SettingsSubRoute | null {
   const current = get(settingsSubRoute);
-  const target = isSettingsSubRoute(route) ? route : DEFAULT_SETTINGS_SUB_ROUTE;
+  const target = resolveSettingsSubRoute(route);
   if (target === current) return target;
   if (navigationGuard && !navigationGuard(current, target)) return null;
   settingsSubRoute.set(target);

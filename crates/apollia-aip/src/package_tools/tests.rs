@@ -283,6 +283,7 @@ async fn call_with_grant(data_dir: &Path, module: &str) -> serde_json::Value {
     repo.save(&package(&root, "invoices", json)).unwrap();
     repo.link_item("invoices", PackageItemKind::Tool, "extract_totals")
         .unwrap();
+    declare_profile_source(data_dir, "onboarding-agent");
     let tools = PackageTools::read(&repo, data_dir.join("venvs"))
         .unwrap()
         .with_grants(&[test_grant()], data_dir);
@@ -292,6 +293,29 @@ async fn call_with_grant(data_dir: &Path, module: &str) -> serde_json::Value {
         .execute(serde_json::json!({"path": "Lea"}))
         .await
         .unwrap()
+}
+
+/// Stores `agent` in the `agents.db` of `data_dir`, its package declaring the
+/// profile source, as the onboarding of Apollia declares it.
+fn declare_profile_source(data_dir: &Path, agent: &str) {
+    apollia_tools::AgentRepository::open(&data_dir.join("agents.db"))
+        .unwrap()
+        .save_definition(&apollia_tools::StoredAgent {
+            name: agent.to_owned(),
+            origin: apollia_tools::AgentOrigin::Package,
+            package: Some(agent.to_owned()),
+            version: "1".to_owned(),
+            definition: serde_json::json!({
+                "id": agent,
+                "name": agent,
+                "mission": "",
+                "defaults": { "sources": ["profile"] },
+            }),
+            enabled: true,
+            installed_at: "2026-10-03T00:00:00Z".to_owned(),
+            updated_at: "2026-10-03T00:00:00Z".to_owned(),
+        })
+        .unwrap();
 }
 
 // GIVEN a package tool whose module is, byte for byte, the source a host grant

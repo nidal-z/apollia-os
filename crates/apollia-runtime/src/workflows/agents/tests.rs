@@ -146,8 +146,6 @@ async fn fixture(max_steps: u32) -> Fixture {
         None,
         None,
         None,
-        None,
-        None,
         LoadingMode::Eager,
         20,
         None,

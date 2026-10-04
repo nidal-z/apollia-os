@@ -15,7 +15,13 @@
     "pinned upstream release publishes none for the couple.",
     "`self_update` marks the archive `apollia-os update` installs from for its",
     "platform: the CPU preset, whose `apollia-os` binary is identical across",
-    "the presets of the same target triple."
+    "the presets of the same target triple.",
+    "`preview` is the preview update channel: a tag matching `tag` is a trial",
+    "version, whose bundle carries the WiX-compatible version X.Y.Z-N for the tag",
+    "vX.Y.Z-rc.N. Its release publishes the manifests of `manifests` instead of",
+    "the stable ones, and .github/workflows/preview-channel.yml copies them to",
+    "the fixed `release` once the trial version is published. The desktop app",
+    "derives each preview endpoint from its stable one by the same suffix."
   ],
   "repo": "Apollia-OS/apollia-os",
   "updater_manifest": "latest.json",
@@ -161,5 +167,13 @@
   "updater_manifests": [
     "latest.json",
     "latest-cuda.json"
-  ]
+  ],
+  "preview": {
+    "tag": "^v(\\d+\\.\\d+\\.\\d+)-rc\\.(\\d+)$",
+    "release": "preview",
+    "manifests": {
+      "latest.json": "latest-preview.json",
+      "latest-cuda.json": "latest-cuda-preview.json"
+    }
+  }
 }

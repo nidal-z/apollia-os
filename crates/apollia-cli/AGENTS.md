@@ -26,11 +26,11 @@ the same commit as the command.
 |---|---|
 | entity | `show`, `create`, `delete`, `list`, `rename`, `edit` |
 | config | `get`, `set`, `raw-config`, `set-default` |
-| relationship | `add`, `remove`, `link` |
-| lifecycle | `install`, `uninstall`, `enable`, `disable`, `start`, `stop`, `restart`, `reset`, `reload`, `update`, `revoke`, `login`, `logout`, `setup`, `init`, `resume`, `cancel` |
+| relationship | `add`, `remove` |
+| lifecycle | `install`, `uninstall`, `enable`, `disable`, `start`, `stop`, `restart`, `reset`, `reload`, `update`, `revoke`, `login`, `logout`, `setup`, `init`, `resume`, `cancel`, `pause` |
 | maintenance | `clear`, `evict`, `purge`, `repair`, `forget` |
-| report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `resolved`, `approvals`, `messages`, `skills`, `chats`, `accounts`, `hardware`, `recommend`, `schema`, `anchor`, `inspect`, `preview`, `trace`, `version`, `digest` |
-| action | `run`, `build`, `keygen`, `sign`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `seed-builtins`, `set-approval`, `revoke-approval`, `list-pending`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
+| report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `resolved`, `approvals`, `messages`, `skills`, `accounts`, `accesses`, `capabilities`, `hardware`, `recommend`, `schema`, `keys`, `anchor`, `inspect`, `preview`, `trace`, `version`, `digest` |
+| action | `run`, `build`, `keygen`, `sign`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `retry`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `set-approval`, `revoke-approval`, `list-pending`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
 | interchange | `export`, `import` |
 
 **One verb per intent.** `show` is the only entity-detail read (it absorbed
@@ -40,8 +40,8 @@ purpose, verified against real usage:
 
 - `get` / `set` are config key/value pairs (`config`, `chat config`,
   `tools config`, `notify events`), not entity reads.
-- `add` / `remove` attach and detach a relationship, git-style (`mcp add`,
-  `project agents add`); they do not create or delete an entity.
+- `add` / `remove` attach and detach a relationship, git-style (`mcp add`);
+  they do not create or delete an entity.
 - `clear` and `evict` are distinct in `plan cache`: wipe all against purge by
   age.
 
@@ -68,16 +68,29 @@ session whatever `HOME` says.
 
 If you add a new noun, document it here and in `docs/site/docs/reference/cli/`.
 
-**`batch`** (`run`, `status`, `list`) runs a stored agent without code on
-every item of a source, in the runtime. `run` returns once the items are
-recorded; each item is a task of its own, so `task list` shows them. The
-source is named by `--source-type` and `--source`; a type no reader serves is
-refused with exit 1, and no reader is registered yet.
+**`batch`** (`run`, `status`, `list`, `accesses`, `pause`, `resume`, `stop`,
+`retry`, `export`) runs a stored agent without code on every item of a source, in the
+runtime. `run` returns once the items are recorded; each item is a task of its
+own, so `task list` shows them. The source is named by `--source-type` and
+`--source`; a type no reader serves is refused with exit 1. Two are read:
+`spreadsheet` (a workbook) and `csv`, whose `--option sheet=`,
+`--option header_row=` and `--option columns=A,C` pick the sheet, the header
+row and the checked columns, the proposed ones when absent. `accesses` lists the sensitive accesses of an agent, which
+`run --grant` grants for the duration of the batch; an item that reaches for
+one not granted waits, and `retry` runs it again, with `--grant` if given,
+along with the failed items. A batch in the wrong state for a verb (resume a
+running batch, stop an ended one) is refused with exit 1. `export --format
+xlsx|csv|json` writes the result of a batch to `batch-<id>.<format>`, or to
+`--output`, `-` being standard output.
 
-**`workflow`** (`run`, `status`, `logs`, `cancel`) runs a workflow of an
-installed package, named `<package>/<workflow>`, in the runtime. `run` takes
-each input as `--input key=value`, sent as text and read by the runtime as the
-type the workflow declares; a refused input is exit 1 with the field named.
+**`workflow`** (`show`, `run`, `status`, `logs`, `cancel`) runs a workflow of
+an installed package, named `<package>/<workflow>`, in the runtime. `show`
+lists its steps and each input with its type (text, long text, file, date,
+number, yes or no, choice, list). `run` takes each input as
+`--input key=value`, sent as text and read by the runtime as the type the
+workflow declares, a date as `YYYY-MM-DD` and a file as its absolute path; a
+refused input is exit 1 with the field named and the runtime's refusal code
+in brackets (`[malformed_date]`, `[missing_file]`).
 `run` returns once the run is recorded, or follows it to its end with `--wait`
 (exit 3 when it fails or is stopped). `status` reads each step of a run, `logs`
 the history of a workflow, and `cancel` stops a run behind `--confirm`.
@@ -88,6 +101,27 @@ the history of a workflow, and `cancel` stops a run behind `--confirm`.
 keyring, the connections and the governance, adds the MCP servers a package
 brings and journals the installation. The archive is sent by its absolute
 path; a missing file is refused before the runtime is reached.
+
+**`source`** (`list`, `create`, `delete`, `inspect`, `report`) reads and writes the registry of
+sources an agent may consult once checked: a folder, a file or a mailbox,
+which name what they point at with `--reference`, the profile, the memory, a
+code folder. Every leaf goes through the runtime, whose actor owns the
+registry in `system.db`; daemon off, each refuses with exit 2. An agent checks
+a source by naming its identifier in `agent set <agent> sources ...`, and the
+runtime refuses an identifier the registry does not hold. `inspect <file>` previews
+a workbook or a CSV file as a batch would read it, through the runtime too:
+the sheet and header row proposed, the first twenty rows, the columns by
+letter and name, and whether results may be written into the original. A
+file that is not there is refused with exit 1 before the runtime is reached.
+`report` shows what the migration of the former projects carried over into
+sources at boot, and what it listed instead; exit 1 when no migration has run.
+
+**`agent uninstall`** and **`agent package uninstall`** go through the
+runtime, the same route the desktop calls: it removes the definitions,
+overrides, models, triggers, environments, files and the MCP servers a package
+brought, unregisters the agents and journals the removal. `--clear-memory` and
+`--clear-history` erase what is kept otherwise. Without a runtime nothing is
+removed, exit 2; Apollia is refused before the runtime is reached, exit 1.
 
 **`policy`** prepares the organisation policy on files alone (`keygen`,
 `init`, `sign`, `verify`, `show`) and never reaches the runtime: the policy is

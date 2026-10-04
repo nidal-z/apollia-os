@@ -18,7 +18,8 @@ class TrustedKeyView:
         fingerprint (str): SHA-256 fingerprint of the key.
         label (str): Name shown for the publisher.
         origin (str): Who put the key there: `user` or `policy`.
-        public_key (str): The public key, 64 hexadecimal characters.
+        public_key (str): The public key, 64 hexadecimal characters; empty for a key the
+            organisation policy names by its fingerprint only.
     """
 
     added_at: str

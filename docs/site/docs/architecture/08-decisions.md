@@ -95,6 +95,19 @@ memory search. File tools are confined to a resolved root: the path is
 canonicalized and re-checked against the root after resolution, so a symlink
 cannot walk out of it.
 
+The root of an agent's file tools is the union of the folders granted to that
+agent, the built-in chat agent included, on the chat path and on the task path
+alike. A folder of the machine is a connection, chosen with the system picker,
+and its tools are granted to an agent one by one: the reading tools reach every
+folder granted to it, the writing tools only those granted for writing. The
+first folder granted, by the date it was added, anchors a relative path. An
+agent with no folder granted has file tools that refuse with a message saying
+how to grant one. Nothing else is a root: not the home folder, not the data
+directory, not the volume, not the folder of a project. The former
+`[filesystem] trusted_paths` and `[chat] default_workspace` keys are withdrawn;
+the folders they named, the home folder excepted, were added once as
+connections, granted to no agent.
+
 Confinement is not uniform across platforms, and the difference is not
 cosmetic. On Linux, shell execution runs under PID and mount namespaces. On
 macOS the confinement is weaker. On Windows there is none. This is stated
@@ -228,6 +241,26 @@ weight: the engine and its dependencies add about 150 MB to the macOS disk
 image, and they need macOS 14 or later, the floor of the MLX wheels at the
 pinned version. The Windows and Linux bundles do not carry it.
 
+Engines have an update channel of their own and do not follow the version of
+Apollia. The embedded engine serves every machine from the first launch; an
+accelerated build, CUDA on a machine with an NVIDIA card, is downloaded on
+demand, or imported from a disk without network, and the launcher then takes the
+newest installed build of that variant over the embedded one. Every download or
+import of an engine is preceded by the verification of a digest manifest
+signed in the minisign format with a dedicated distribution key. Each channel,
+stable or preview, publishes one such manifest, listing every engine archive
+with its SHA-256. The public half of that key is compiled into the binary and
+is the only key accepted. No archive is requested before the signature holds,
+an archive whose digest differs from the manifest is deleted, and a manifest
+older than the last one accepted on its channel is refused. A mirror can replace
+the address manifests and archives are fetched from; it cannot replace the key.
+Engine archives are read as zip only, the format already read for agent
+packages, and no other archive format is parsed. Upstream builds published as
+`.tar.gz`, those for macOS and Linux among them, are repackaged as zip by the
+release pipeline that publishes the manifest, and the manifest carries the
+digest of that zip. The MLX engine environment is listed in the same manifest
+and installed through the same verification.
+
 There is no dedicated cloud provider. A remote model is reached through one
 generic connection to an OpenAI-compatible server, at the address the
 organization designates: a self-hosted vLLM or LM Studio, or a gateway. Any
@@ -297,8 +330,18 @@ dictation and nothing else.
 
 ## Model Context Protocol {#mcp}
 
-Apollia is an MCP client over stdio and HTTP transports, and also exposes its
-own native tools as an MCP server over stdio.
+Apollia is an MCP client over stdio and HTTP transports. It is also an MCP
+server, for the agents and workflows the user chooses and nothing else:
+`apollia-os mcp server` is a stdio bridge to the running daemon, which lists
+the agents and workflows marked exposed and runs one to its end when a client
+calls it. An agent takes one message, under the tool name `agent__<id>`; a
+workflow takes the inputs its schema declares, under
+`workflow__<package>_<workflow>`. A name keeps to `[A-Za-z0-9_-]` and 64
+characters, as the model APIs require, and two items whose names would
+collide are both left out. The bridge is off by default: the daemon refuses
+it until `[mcp] server_enabled` is turned on, a setting it reads again each
+time a bridge opens. The native tools (shell, files, agent installation) are
+no longer served to an MCP client.
 
 Every MCP response is treated as untrusted input. Responses are capped per
 server, tool names and descriptions are validated at ingestion against a
@@ -308,6 +351,20 @@ runtime.
 
 Servers requiring OAuth go through a dedicated flow with its own, smaller
 response cap.
+
+Node.js is not shipped with Apollia, which keeps principle 2 (zero external
+dependency): nothing has to be installed on the machine beforehand. A pinned
+LTS release of Node.js is published in the signed digest manifest of the engine
+channel, the manifest signed in the minisign format with Apollia's dedicated
+distribution key (see [Local inference](#local-inference)), and it is
+downloaded the first time a server launched by `node` or `npx` needs it: the
+manifest signature is verified before any archive is requested, then the
+archive digest, then the archive is extracted into the engine store. Such a
+server then runs on that Node.js by its absolute path, never through the
+`PATH`; while none is installed, its launch fails with a typed "Node.js
+required" error. A machine without network imports Node.js from a disk,
+through the same verification. The npm packages of the servers install from a
+lockfile carrying an integrity digest for each package.
 
 ## Connectors {#connectors}
 
@@ -321,6 +378,25 @@ so a Google connection asks the operator to supply their own client credentials.
 The asymmetry is deliberate, and it is stated where an operator meets it.
 
 ## Documents and sources {#documents-and-sources}
+
+Workbooks and CSV files are read in Rust, without the embedded Python
+interpreter. `calamine` (MIT) reads `.xlsx`, `.xlsm`, `.xlsb`, `.xls` and
+`.ods`; `csv` (MIT or Unlicense) reads CSV files, with the separator detected
+among the comma, the semicolon and the tabulation. Both are pure Rust, read
+only, link no system library and open no connection. Each cell is read as text
+with its sheet, row and column: a number without a zero fraction, a date in
+ISO 8601, a formula by the value the file last computed for it (no formula is
+evaluated), an error by its code. A workbook protected by a password, or
+damaged, is a typed error, never a crash. A CSV file that is not UTF-8 is read
+with its invalid bytes replaced, and the result says so: no encoding is
+guessed.
+
+The cost is named: `calamine` depends on `zip` 8 while the workspace carries
+`zip` 4 for the package archive and the batch export, so two major versions of
+`zip` enter every build, with five small crates under `calamine` (`atoi_simd`,
+`codepage`, `debug_unsafe`, `fast-float2`, `typed-path`) and `csv-core` under
+`csv`. `calamine` is pinned to 0.36.1, so that a new release, and the version of
+`zip` it brings, is a decision rather than an update.
 
 A mailbox connects over IMAP with an application password, so any provider is
 reachable, Gmail included, without an OAuth client and without a relay. The
@@ -345,6 +421,20 @@ The cost is named: two crates and their small trees (`imap-proto`, `hashify`,
 `stop-token`, `async-channel`) enter every build, for a protocol whose
 servers vary in how strictly they follow it. A server that misreads a command
 answers a typed protocol error rather than a crash.
+
+## Batch export {#batch-export}
+
+The result of a batch is exported as an Excel workbook, as CSV or as JSON, one
+row per item. CSV and JSON are written without a dependency. The workbook is
+written by `rust_xlsxwriter` (MIT or Apache-2.0), a writer only, with no
+network access, pinned to 0.92.0: it is the last release that depends on the
+major version of `zip` the workspace already carries, and a later one would
+put two versions of `zip` in every build. It adds three crates to the lock
+file, itself, `zopfli` and `zlib-rs` (see [Package archive](#package-archive)).
+
+`rust_xlsxwriter` cannot change a workbook that already exists. Writing results
+back into the file a batch was read from is decided with the reader of
+spreadsheets, not here.
 
 ## Agent-to-agent messaging {#agent-messaging}
 
@@ -391,14 +481,48 @@ The HTTP API listens on a Unix socket and on a TCP port; the daemon binds both o
 every start, and the port number is the only thing `--port` decides. The Unix
 socket is local-trust and relies on filesystem permissions. TCP requires a
 bearer token on every `/api/v1` path but one, and binding it to a non-loopback
-address without TLS is a startup error rather than a warning: an insecure remote
-bind is the one mistake that cannot be undone once traffic has flowed.
+address without a token is a startup error rather than a warning: an
+unauthenticated remote bind is the one mistake that cannot be undone once
+traffic has flowed. TLS is optional: with `[api] tls_cert` and `tls_key` set,
+the TCP listener serves HTTPS, and a certificate that cannot be loaded fails the
+start instead of falling back to cleartext.
 
 The exemption is `GET /api/v1/health`, which answers without a token and reveals
 the product marker and the runtime version, nothing else. A process that finds
 the port taken holds no token of this installation, and what it needs to know is
 whether an Apollia runtime is the holder and in which version. Every other
 `/api/v1` route keeps the token.
+
+### The compatible server and the local network {#local-server}
+
+The runtime has two listeners. The native API, port 7771 and the local socket,
+drives the runtime; the compatible server, port 7772 by default, serves the
+OpenAI and Anthropic formats to other applications. The native API stays on the
+machine: the embedded runtime of the desktop binds it to `127.0.0.1` whatever
+the file says, the daemon to the loopback `[api] bind` names by default (another
+address needs a token, as above), and no setting of the compatible server moves
+it. The compatible server is the only surface the user opens to the local
+network, by `[server] serve_on_lan`, which is off by default and turned on only
+by an explicit action of the user.
+
+The network and the tokens are independent switches for models. A device of the
+local network can call the models without a token when `[server] require_auth`
+is off, as other local inference servers allow; that choice belongs to the
+user. Agents and workflows are not models: they reach the user's connections,
+documents and mail, so a call to one from the local network is admitted only
+with a token of the server in use, whatever `require_auth` says. Each request
+carries its origin, the machine or the local network, read from the peer
+address when its connection is accepted. The organisation policy is where an
+organisation forbids the local network or imposes tokens, overriding the user's
+switches.
+
+Read against the local-first principle: nothing leaves the machine until the
+user opens the network, and what then answers without a token is inference on
+the prompt the caller sent itself. The user's data, which only agents and
+workflows reach, never answers the network without a token the user created and
+can revoke. The native API, which holds every other capability, is never
+reachable from the network through this switch. Traffic on the network is
+cleartext HTTP: the compatible server does not terminate TLS.
 
 ## Signatures {#signing-schemes}
 
@@ -469,6 +593,23 @@ system features. It is the raw binding Microsoft publishes, it has no
 dependency beyond its own linker shim, and the same version was already in the
 tree through other crates, so the lockfile gained no package. The cost is a
 block of FFI code with its own `unsafe` allowance, confined to one module.
+
+## The configuration file {#configuration-file}
+
+`apollia.toml` has one writer, `apollia_core::config::writer`. The settings
+screens of the desktop application, the command line, the routes under
+`/api/v1/config` and the backends the runtime mirrors into the file all go
+through it, so the same four checks hold whoever writes: the text validates
+against the strict schema, no line gives a key the organisation policy fixes
+another value, the file on disk is still the one the caller read, compared by
+its SHA-256 fingerprint, and the text replaces the file through a sibling file
+renamed over it. A write by key keeps the comments and the order of the file.
+The command line calls the writer directly, so it works with the daemon
+stopped, and a refusal reads the same sentence on every surface.
+
+Holding the writer in the foundation crate puts `toml`, `toml_edit` and `sha2`
+among the direct dependencies of `apollia-core`. All three were already
+workspace dependencies and the lockfile gained no package.
 
 ## Command line {#cli}
 
@@ -571,9 +712,14 @@ already in the tree through the desktop updater; no crate entered the lock
 file. `zip` is compiled with deflate only: no encryption, no bzip2, lzma, zstd
 or deflate64. `flate2` is declared beside it for one reason, to choose the
 pure-Rust backend (`miniz_oxide`) of that deflate: `zip` leaves the backend to
-the caller, `flate2` refuses to compile without one, and the `deflate` feature
-of `zip` that would pick one itself pulls in `zopfli` and `zlib-rs`, which the
-tree does not hold.
+the caller, and `flate2` refuses to compile without one.
+
+The Excel export of a batch (see [Batch export](#batch-export)) changed one
+part of this. Its writer turns on the `deflate` feature of `zip`, which brings
+two pure-Rust crates, `zopfli` (Apache-2.0) and `zlib-rs` (Zlib), and makes
+`zlib-rs` the deflate backend of `flate2` across the build. Both were accepted
+rather than writing the workbook by hand over `zip` alone. The read bounds
+above are unchanged.
 
 The packages Apollia ships inside its own binary, the in-app guide first, are
 not signed. The desktop assembles each of them on start from files embedded at

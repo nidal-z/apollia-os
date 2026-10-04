@@ -1,105 +1,30 @@
 //! The OAuth credentials a connector needs before a browser window opens:
 //! client id, client secret, API key, and the Drive folder a Google account
-//! writes to. Reads and writes `~/.apollia/oauth-clients.toml` through
-//! `apollia_auth::oauth_clients_file`, and reports which layer of the
-//! resolution chain each value came from.
+//! writes to.
+//!
+//! The client id, secret and API key live in the runtime
+//! (`apollia_runtime::oauth_clients`): the commands below call it directly
+//! when the runtime runs in this process, and reach the same functions over
+//! `/api/v1/oauth/clients` when the window is attached to a daemon. The Drive
+//! folders and the gate that refuses a half-resolved credential stay here.
 
 use apollia_auth::ConnectorProvider;
-use serde::Serialize;
+use apollia_runtime::api::routes_oauth_clients::{ImportOauthClientBody, OauthClientValueBody};
+use apollia_runtime::drive_folders::{self, DriveFolderError};
+use apollia_runtime::inference_servers::default_store_opener;
+pub use apollia_runtime::oauth_clients::OauthClientIdStatus;
+use apollia_runtime::oauth_clients::{
+    self, OauthClientField, OauthClientTestResult, OauthClientsError,
+};
+use tauri::State;
 
-use super::{auth_manager, provider_from_id, IntegrationsError};
+use super::{auth_manager, IntegrationsError};
+use crate::attached::{segment, AttachedError, RuntimeLink};
 
-// ─── OAuth client_id overrides (~/.apollia/oauth-clients.toml) ──────────────
+/// The route of the OAuth clients on the runtime.
+const CLIENTS: &str = "/api/v1/oauth/clients";
 
-/// One row of `oauth_list_client_ids`.
-///
-/// Reports the **effective** client id used by the resolution chain
-/// (`env var → override file → compiled default`) so the UI can show the
-/// user what is currently active per provider, and whether the override
-/// file contains a per-provider entry. Also reports whether a client_secret
-/// is configured (Google Installed App needs one, Microsoft does not).
-#[derive(Debug, Clone, Serialize)]
-pub struct OauthClientIdStatus {
-    /// Provider id (`"google"` / `"microsoft"`).
-    pub provider: String,
-    /// Effective client id used at runtime. Empty string when no source is configured.
-    pub effective_client_id: String,
-    /// Source that produced the effective value: `"env"`, `"file"`, `"builtin"`, or `"none"`.
-    pub source: String,
-    /// Override stored in `~/.apollia/oauth-clients.toml`, if any.
-    pub override_client_id: Option<String>,
-    /// True when a client_secret is resolved through any source. Never
-    /// returns the secret value itself; the UI only renders a presence dot.
-    pub has_client_secret: bool,
-    /// Same source semantics as `source` but for the secret.
-    pub client_secret_source: String,
-    /// True when this provider requires a client_secret to function. Hint for
-    /// the UI to surface a "secret missing" warning on Google but not on
-    /// Microsoft where it's intentional.
-    pub requires_client_secret: bool,
-    /// True when an API key is resolved through any source. Google Picker
-    /// needs one; Microsoft entries leave this false.
-    pub has_api_key: bool,
-    /// Source for the resolved API key. Same semantics as `source`.
-    pub api_key_source: String,
-    /// True when this provider needs an API key (Google for Picker only).
-    pub requires_api_key: bool,
-}
-
-fn detect_source(provider: ConnectorProvider) -> &'static str {
-    if std::env::var(provider.client_id_env_var())
-        .ok()
-        .filter(|v| !v.is_empty())
-        .is_some()
-    {
-        return "env";
-    }
-    if apollia_auth::oauth_clients_file::lookup_client_id(provider.id()).is_some() {
-        return "file";
-    }
-    if !provider.default_client_id().is_empty() {
-        return "builtin";
-    }
-    "none"
-}
-
-fn detect_secret_source(provider: ConnectorProvider) -> &'static str {
-    if std::env::var(provider.client_secret_env_var())
-        .ok()
-        .filter(|v| !v.is_empty())
-        .is_some()
-    {
-        return "env";
-    }
-    if apollia_auth::oauth_clients_file::lookup_client_secret(provider.id()).is_some() {
-        return "file";
-    }
-    if !provider.default_client_secret().is_empty() {
-        return "builtin";
-    }
-    "none"
-}
-
-fn detect_api_key_source(provider: ConnectorProvider) -> &'static str {
-    if std::env::var(provider.api_key_env_var())
-        .ok()
-        .filter(|v| !v.is_empty())
-        .is_some()
-    {
-        return "env";
-    }
-    if apollia_auth::oauth_clients_file::lookup_api_key(provider.id()).is_some() {
-        return "file";
-    }
-    if !provider.default_api_key().is_empty() {
-        return "builtin";
-    }
-    "none"
-}
-
-const fn provider_requires_secret(provider: ConnectorProvider) -> bool {
-    matches!(provider, ConnectorProvider::Google)
-}
+// ─── Credential gate ────────────────────────────────────────────────────────
 
 /// Refuse an OAuth handshake whose credentials are incomplete, before any
 /// browser window opens.
@@ -124,7 +49,7 @@ fn credential_gate(
             provider.id().to_owned(),
         ));
     }
-    if provider_requires_secret(provider) && !has_value(client_secret) {
+    if oauth_clients::requires_client_secret(provider) && !has_value(client_secret) {
         return Err(IntegrationsError::OauthClientSecretMissing(
             provider.id().to_owned(),
         ));
@@ -139,221 +64,175 @@ pub(super) fn ensure_credentials(provider: ConnectorProvider) -> Result<(), Inte
     credential_gate(provider, client_id.as_deref(), client_secret.as_deref())
 }
 
-const fn provider_requires_api_key(provider: ConnectorProvider) -> bool {
-    matches!(provider, ConnectorProvider::Google)
+// ─── OAuth clients, in both modes ───────────────────────────────────────────
+
+impl From<OauthClientsError> for IntegrationsError {
+    fn from(error: OauthClientsError) -> Self {
+        match error {
+            OauthClientsError::UnknownProvider(p) => Self::UnknownProvider(p),
+            OauthClientsError::InvalidClientFile(r) => Self::InvalidClientFile(r),
+            other => Self::Internal(other.to_string()),
+        }
+    }
 }
 
-/// Snapshot the current OAuth client_id configuration per provider.
-///
-/// Used by the Settings → Integrations OAuth panel to render which client id
-/// is active and where it came from. Safe to call without a sovereignty check
-/// since the response contains no token material, only the public client id.
+impl From<AttachedError> for IntegrationsError {
+    fn from(error: AttachedError) -> Self {
+        Self::Service(String::from(error))
+    }
+}
+
+/// The client file of the runtime running in this process.
+fn embedded_file() -> Result<std::path::PathBuf, IntegrationsError> {
+    Ok(oauth_clients::default_file()?)
+}
+
+/// The path segment of a field's route.
+const fn field_segment(field: OauthClientField) -> &'static str {
+    match field {
+        OauthClientField::ClientId => "client-id",
+        OauthClientField::ClientSecret => "client-secret",
+        OauthClientField::ApiKey => "api-key",
+    }
+}
+
+async fn list_on(link: &RuntimeLink) -> Result<Vec<OauthClientIdStatus>, IntegrationsError> {
+    match link {
+        RuntimeLink::Embedded(_) => Ok(oauth_clients::list_client_ids(
+            &embedded_file()?,
+            &default_store_opener(),
+        )),
+        RuntimeLink::Attached(remote) => Ok(remote.get(CLIENTS).await?),
+    }
+}
+
+async fn set_on(
+    link: &RuntimeLink,
+    provider: &str,
+    field: OauthClientField,
+    value: String,
+) -> Result<(), IntegrationsError> {
+    match link {
+        RuntimeLink::Embedded(_) => Ok(oauth_clients::set_field(
+            &embedded_file()?,
+            provider,
+            field,
+            &value,
+            &default_store_opener(),
+        )?),
+        RuntimeLink::Attached(remote) => {
+            let path = format!("{CLIENTS}/{}/{}", segment(provider), field_segment(field));
+            let _: serde_json::Value = remote.put(&path, &OauthClientValueBody { value }).await?;
+            Ok(())
+        }
+    }
+}
+
+async fn test_on(
+    link: &RuntimeLink,
+    provider: &str,
+) -> Result<OauthClientTestResult, IntegrationsError> {
+    match link {
+        RuntimeLink::Embedded(_) => {
+            Ok(
+                oauth_clients::test_client(&embedded_file()?, provider, &default_store_opener())
+                    .await?,
+            )
+        }
+        RuntimeLink::Attached(remote) => {
+            let path = format!("{CLIENTS}/{}/test", segment(provider));
+            Ok(remote.post(&path, &serde_json::json!({})).await?)
+        }
+    }
+}
+
+async fn import_on(
+    link: &RuntimeLink,
+    provider: &str,
+    client_json: String,
+) -> Result<(), IntegrationsError> {
+    match link {
+        RuntimeLink::Embedded(_) => Ok(oauth_clients::import_client_json(
+            &embedded_file()?,
+            provider,
+            &client_json,
+            &default_store_opener(),
+        )?),
+        RuntimeLink::Attached(remote) => {
+            let path = format!("{CLIENTS}/{}/import", segment(provider));
+            let body = ImportOauthClientBody { client_json };
+            let _: serde_json::Value = remote.post(&path, &body).await?;
+            Ok(())
+        }
+    }
+}
+
+/// Snapshot the current OAuth client configuration per provider: which client
+/// id is active, where it came from, and whether a secret and an API key
+/// resolve. Carries no token material and no secret value.
 #[tauri::command]
-pub async fn oauth_list_client_ids() -> Result<Vec<OauthClientIdStatus>, IntegrationsError> {
-    let mut out = Vec::new();
-    for provider in [ConnectorProvider::Google, ConnectorProvider::Microsoft] {
-        let effective = provider.resolve_client_id().unwrap_or_default();
-        let source = detect_source(provider).to_string();
-        let override_value = apollia_auth::oauth_clients_file::lookup_client_id(provider.id());
-        let secret_source = detect_secret_source(provider).to_string();
-        let has_secret = provider.resolve_client_secret().is_some();
-        let api_key_source = detect_api_key_source(provider).to_string();
-        let has_api_key = provider.resolve_api_key().is_some();
-        out.push(OauthClientIdStatus {
-            provider: provider.id().to_owned(),
-            effective_client_id: effective,
-            source,
-            override_client_id: override_value,
-            has_client_secret: has_secret,
-            client_secret_source: secret_source,
-            requires_client_secret: provider_requires_secret(provider),
-            has_api_key,
-            api_key_source,
-            requires_api_key: provider_requires_api_key(provider),
-        });
-    }
-    Ok(out)
+pub async fn oauth_list_client_ids(
+    link: State<'_, RuntimeLink>,
+) -> Result<Vec<OauthClientIdStatus>, IntegrationsError> {
+    list_on(link.inner()).await
 }
 
-/// Result of `oauth_test_client`: a lightweight, non-interactive check of a
-/// provider's configured OAuth client credentials.
-///
-/// A full validation (that the authorization server actually accepts the
-/// client) requires an interactive user consent + token exchange, which cannot
-/// run headless. This is the strongest safe check: credentials present +
-/// well-formed + the provider's authorization server reachable.
-#[derive(Debug, Clone, Serialize)]
-pub struct OauthClientTestResult {
-    /// True when every check passed.
-    pub ok: bool,
-    /// Human-readable summary: what passed, or the first failing check.
-    pub detail: String,
-}
-
-/// The provider's OIDC discovery document, reachable without credentials. A
-/// successful GET proves the authorization server is up and DNS/TLS resolve.
-const fn provider_discovery_url(provider: ConnectorProvider) -> &'static str {
-    match provider {
-        ConnectorProvider::Google => "https://accounts.google.com/.well-known/openid-configuration",
-        ConnectorProvider::Microsoft => {
-            "https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration"
-        }
-    }
-}
-
-/// Returns `Some(reason)` when `client_id` is malformed for `provider`.
-fn client_id_shape_error(provider: ConnectorProvider, client_id: &str) -> Option<String> {
-    match provider {
-        ConnectorProvider::Google => {
-            if client_id.ends_with(".apps.googleusercontent.com") {
-                None
-            } else {
-                Some("Google client id should end with .apps.googleusercontent.com".to_string())
-            }
-        }
-        ConnectorProvider::Microsoft => {
-            if is_guid_like(client_id) {
-                None
-            } else {
-                Some("Microsoft client id should be a GUID (Azure application id)".to_string())
-            }
-        }
-    }
-}
-
-/// Whether `s` looks like a canonical GUID (`8-4-4-4-12` hex groups).
-fn is_guid_like(s: &str) -> bool {
-    let groups: Vec<&str> = s.split('-').collect();
-    groups.len() == 5
-        && groups.iter().map(|g| g.len()).eq([8usize, 4, 4, 4, 12])
-        && groups
-            .iter()
-            .all(|g| g.chars().all(|c| c.is_ascii_hexdigit()))
-}
-
-/// Validate a provider's configured OAuth client credentials non-interactively.
-///
-/// Runs three cheap checks in order and stops at the first failure:
-/// 1. an effective client id is configured (env / file / build-time chain);
-/// 2. the client id is well-formed for the provider;
-/// 3. for providers that need a client secret (Google), one is configured;
-/// 4. the provider's OIDC discovery endpoint is reachable over the network.
-///
-/// Returns a typed `{ ok, detail }`. Safe to call without a sovereignty check:
-/// it inspects only local credential *presence* (never their values) and hits a
-/// public, credential-less discovery URL.
+/// Validate a provider's configured OAuth client non-interactively: a client
+/// id resolves, it is well-formed, a secret resolves where the provider needs
+/// one, and the provider's discovery endpoint answers. Returns `{ ok, detail }`.
 #[tauri::command]
 pub async fn oauth_test_client(
+    link: State<'_, RuntimeLink>,
     provider: String,
 ) -> Result<OauthClientTestResult, IntegrationsError> {
-    let provider_id = provider_from_id(&provider)?;
-
-    let client_id = match provider_id.resolve_client_id() {
-        Some(id) if !id.trim().is_empty() => id,
-        _ => {
-            return Ok(OauthClientTestResult {
-                ok: false,
-                detail: "OAuth client id is not configured".to_string(),
-            })
-        }
-    };
-
-    if let Some(reason) = client_id_shape_error(provider_id, &client_id) {
-        return Ok(OauthClientTestResult {
-            ok: false,
-            detail: reason,
-        });
-    }
-
-    if provider_requires_secret(provider_id) && provider_id.resolve_client_secret().is_none() {
-        return Ok(OauthClientTestResult {
-            ok: false,
-            detail: "client secret is required for this provider but not configured".to_string(),
-        });
-    }
-
-    let client = match apollia_core::net::safe_client() {
-        Ok(client) => client,
-        Err(e) => {
-            return Ok(OauthClientTestResult {
-                ok: false,
-                detail: format!("failed to build the HTTP client: {e}"),
-            })
-        }
-    };
-    match client.get(provider_discovery_url(provider_id)).send().await {
-        Ok(resp) if resp.status().is_success() => Ok(OauthClientTestResult {
-            ok: true,
-            detail: format!(
-                "client id present and well-formed; {} authorization server reachable",
-                provider_id.id()
-            ),
-        }),
-        Ok(resp) => Ok(OauthClientTestResult {
-            ok: false,
-            detail: format!("authorization server returned HTTP {}", resp.status()),
-        }),
-        Err(e) => Ok(OauthClientTestResult {
-            ok: false,
-            detail: format!("authorization server unreachable: {e}"),
-        }),
-    }
+    test_on(link.inner(), &provider).await
 }
 
-/// Write the client_id override for `provider` into `~/.apollia/oauth-clients.toml`.
-///
-/// Passing an empty string clears the override (the resolution chain then falls
-/// back to env var or compiled default). The file is created on demand with
-/// 0o600 permissions on Unix.
+/// Write the client id override for `provider`. An empty string clears it, so
+/// the resolution chain falls back to the env var or the compiled default.
 #[tauri::command]
 pub async fn oauth_set_client_id(
+    link: State<'_, RuntimeLink>,
     provider: String,
     client_id: String,
 ) -> Result<(), IntegrationsError> {
-    let provider_id = provider_from_id(&provider)?;
-    apollia_auth::oauth_clients_file::set_client_id(provider_id.id(), client_id.trim())
-        .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
-    Ok(())
+    set_on(
+        link.inner(),
+        &provider,
+        OauthClientField::ClientId,
+        client_id,
+    )
+    .await
 }
 
 // ─── Drive folder preferences (~/.apollia/drive-prefs.toml) ─────────────────
 
-/// One row of `oauth_list_drive_folders`. Lists the user-configured Drive
-/// root path per Google account, plus the effective fallback so the UI can
-/// distinguish "explicit override" from "default Apollia folder".
-#[derive(Debug, Clone, Serialize)]
-pub struct DriveFolderStatus {
-    /// Account id (typically the user's Google email).
-    pub account_id: String,
-    /// Explicit user-set path, when present (`None` means falling back to default).
-    pub folder_path: Option<String>,
-    /// Effective folder path used at runtime (override or default).
-    pub effective_folder_path: String,
+/// One row of `oauth_list_drive_folders`: the Drive folder of one Google
+/// account, as `apollia_runtime::drive_folders` reads it for both modes.
+pub use apollia_runtime::drive_folders::DriveFolderStatus;
+
+fn drive_error(error: DriveFolderError) -> IntegrationsError {
+    match error {
+        DriveFolderError::Accounts(message) => IntegrationsError::Auth(message),
+        other => IntegrationsError::Internal(other.to_string()),
+    }
 }
 
 /// List the per-account Drive folder configuration for every connected
 /// Google account. Used by the Settings → Integrations Google card so the
 /// user can review/edit each account's folder.
 #[tauri::command]
-pub async fn oauth_list_drive_folders() -> Result<Vec<DriveFolderStatus>, IntegrationsError> {
-    let manager = auth_manager().await?;
-    let accounts = manager
-        .list_accounts(ConnectorProvider::Google)
-        .await
-        .map_err(|e| IntegrationsError::Auth(e.to_string()))?;
-    let mut out = Vec::with_capacity(accounts.len());
-    for account in accounts {
-        let override_path =
-            apollia_auth::drive_prefs::lookup_folder_path("google", account.as_str());
-        let effective =
-            apollia_auth::drive_prefs::effective_folder_path("google", account.as_str());
-        out.push(DriveFolderStatus {
-            account_id: account.0,
-            folder_path: override_path,
-            effective_folder_path: effective,
-        });
+pub async fn oauth_list_drive_folders(
+    link: State<'_, RuntimeLink>,
+) -> Result<Vec<DriveFolderStatus>, IntegrationsError> {
+    if let RuntimeLink::Attached(remote) = link.inner() {
+        return super::attached::drive_folders(remote).await;
     }
-    Ok(out)
+    let manager = auth_manager().await?;
+    let prefs = drive_folders::prefs_path().map_err(drive_error)?;
+    drive_folders::list(&manager, &prefs)
+        .await
+        .map_err(drive_error)
 }
 
 /// Persist the Drive folder path for one Google account.
@@ -369,12 +248,17 @@ pub async fn oauth_list_drive_folders() -> Result<Vec<DriveFolderStatus>, Integr
 /// collapsed) before being written.
 #[tauri::command]
 pub async fn oauth_set_drive_folder(
+    link: State<'_, RuntimeLink>,
     account_id: String,
     folder_path: String,
 ) -> Result<(), IntegrationsError> {
-    apollia_auth::drive_prefs::set_folder_path("google", account_id.trim(), folder_path.trim())
-        .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
-    Ok(())
+    if let RuntimeLink::Attached(remote) = link.inner() {
+        return super::attached::set_drive_folder(remote, &account_id, &folder_path).await;
+    }
+    let prefs = drive_folders::prefs_path().map_err(drive_error)?;
+    drive_folders::set(&prefs, &account_id, &folder_path)
+        .map(drop)
+        .map_err(drive_error)
 }
 
 /// Clear the Drive folder override for one Google account, restoring the
@@ -382,183 +266,69 @@ pub async fn oauth_set_drive_folder(
 /// [`oauth_set_drive_folder`] called with an empty string; that means
 /// "use Drive root". Picked folders (Google Picker) are preserved.
 #[tauri::command]
-pub async fn oauth_reset_drive_folder(account_id: String) -> Result<(), IntegrationsError> {
-    apollia_auth::drive_prefs::reset_folder_path("google", account_id.trim())
-        .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
-    Ok(())
+pub async fn oauth_reset_drive_folder(
+    link: State<'_, RuntimeLink>,
+    account_id: String,
+) -> Result<(), IntegrationsError> {
+    if let RuntimeLink::Attached(remote) = link.inner() {
+        return super::attached::reset_drive_folder(remote, &account_id).await;
+    }
+    let prefs = drive_folders::prefs_path().map_err(drive_error)?;
+    drive_folders::reset(&prefs, &account_id)
+        .map(drop)
+        .map_err(drive_error)
 }
 
-/// Persist the public Google API key used by Google Picker. Stored
-/// alongside the client_id / client_secret in `~/.apollia/oauth-clients.toml`.
-/// Empty string clears the override.
+/// Persist the public Google API key used by Google Picker, beside the client
+/// id and secret. An empty string clears the override.
 #[tauri::command]
-pub async fn oauth_set_api_key(provider: String, api_key: String) -> Result<(), IntegrationsError> {
-    let provider_id = provider_from_id(&provider)?;
-    apollia_auth::oauth_clients_file::set_api_key(provider_id.id(), api_key.trim())
-        .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
-    Ok(())
+pub async fn oauth_set_api_key(
+    link: State<'_, RuntimeLink>,
+    provider: String,
+    api_key: String,
+) -> Result<(), IntegrationsError> {
+    set_on(link.inner(), &provider, OauthClientField::ApiKey, api_key).await
 }
 
-/// Write the client_secret override for `provider`. Passing an empty string
-/// clears the override. Same on-disk file as `oauth_set_client_id`.
-///
-/// Only meaningful for Google (Installed App requires a secret at the token
-/// endpoint per their non-standard implementation). Microsoft public clients
-/// don't use a secret; calling this for `"microsoft"` is allowed but pointless.
+/// Write the client secret override for `provider`. An empty string clears
+/// it. Only meaningful for Google (Installed App requires a secret at the
+/// token endpoint); Microsoft public clients use none.
 #[tauri::command]
 pub async fn oauth_set_client_secret(
+    link: State<'_, RuntimeLink>,
     provider: String,
     client_secret: String,
 ) -> Result<(), IntegrationsError> {
-    let provider_id = provider_from_id(&provider)?;
-    apollia_auth::oauth_clients_file::set_client_secret(provider_id.id(), client_secret.trim())
-        .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
-    Ok(())
+    set_on(
+        link.inner(),
+        &provider,
+        OauthClientField::ClientSecret,
+        client_secret,
+    )
+    .await
 }
 
 // ─── Credentials file import ────────────────────────────────────────────────
 
-/// Extract the client id and optional secret from a Google Cloud OAuth client
-/// export.
-///
-/// The console hands the operator a JSON file rather than two strings on a
-/// page, so reading the file directly removes the step where they hunt for
-/// `client_id` inside it and paste the wrong half. Desktop clients nest under
-/// `installed`; `web` is accepted too because the console produces that shape
-/// for the other client type and the fields are identical.
-fn parse_google_client_json(raw: &str) -> Result<(String, Option<String>), IntegrationsError> {
-    let root: serde_json::Value = serde_json::from_str(raw)
-        .map_err(|e| IntegrationsError::InvalidClientFile(format!("not valid JSON: {e}")))?;
-
-    let section = root
-        .get("installed")
-        .or_else(|| root.get("web"))
-        .ok_or_else(|| {
-            IntegrationsError::InvalidClientFile(
-                "expected an \"installed\" or \"web\" object at the root".to_owned(),
-            )
-        })?;
-
-    let client_id = section
-        .get("client_id")
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| IntegrationsError::InvalidClientFile("no client_id field".to_owned()))?
-        .to_owned();
-
-    let client_secret = section
-        .get("client_secret")
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(str::to_owned);
-
-    Ok((client_id, client_secret))
-}
-
 /// Import an OAuth client from the JSON file the provider's console produces.
 ///
-/// Google only for now: Microsoft's portal shows the application id on screen
-/// and issues no secret for a public client, so there is no file to import.
-/// Both fields land in `~/.apollia/oauth-clients.toml` through the same
-/// writers the manual fields use, which already create the file `0o600`.
+/// The file is the one the operator picked on this machine, so this window
+/// reads it; the runtime, here or the daemon, parses the text and writes the
+/// client id and secret where the connectors read them.
 #[tauri::command]
 pub async fn oauth_import_client_json(
+    link: State<'_, RuntimeLink>,
     provider: String,
     path: String,
 ) -> Result<(), IntegrationsError> {
-    let provider_id = provider_from_id(&provider)?;
-    if provider_id != ConnectorProvider::Google {
-        return Err(IntegrationsError::InvalidClientFile(format!(
-            "{} does not publish a credentials file; paste the application id instead",
-            provider_id.id()
-        )));
-    }
-
-    let raw = std::fs::read_to_string(path.trim())
+    let client_json = std::fs::read_to_string(path.trim())
         .map_err(|e| IntegrationsError::InvalidClientFile(format!("cannot read the file: {e}")))?;
-    let (client_id, client_secret) = parse_google_client_json(&raw)?;
-
-    if let Some(reason) = client_id_shape_error(provider_id, &client_id) {
-        return Err(IntegrationsError::InvalidClientFile(reason));
-    }
-
-    apollia_auth::oauth_clients_file::set_client_id(provider_id.id(), &client_id)
-        .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
-    if let Some(secret) = client_secret {
-        apollia_auth::oauth_clients_file::set_client_secret(provider_id.id(), &secret)
-            .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
-    }
-    Ok(())
+    import_on(link.inner(), &provider, client_json).await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_is_guid_like_accepts_canonical_guid() {
-        // GIVEN two canonical GUIDs, one lowercase and one uppercase
-        // WHEN each is checked for shape
-        // THEN both pass, so case is not what a rejection means
-        assert!(is_guid_like("12345678-1234-1234-1234-123456789abc"));
-        assert!(is_guid_like("DEADBEEF-0000-1111-2222-333344445555"));
-    }
-
-    #[test]
-    fn test_is_guid_like_rejects_malformed() {
-        // GIVEN a word, a GUID without its dashes, one with a non-hexadecimal digit and an empty string
-        // WHEN each is checked for shape
-        // THEN all four are rejected
-        assert!(!is_guid_like("not-a-guid"));
-        assert!(!is_guid_like("12345678123412341234123456789abc"));
-        assert!(!is_guid_like("12345678-1234-1234-1234-123456789abz"));
-        assert!(!is_guid_like(""));
-    }
-
-    #[test]
-    fn test_client_id_shape_error_google() {
-        // GIVEN a well-formed Google client id
-        // WHEN its shape is checked
-        // THEN nothing is reported
-        assert!(client_id_shape_error(
-            ConnectorProvider::Google,
-            "123-abc.apps.googleusercontent.com"
-        )
-        .is_none());
-        // AND a malformed one
-        // WHEN its shape is checked
-        // THEN the operator is told before any OAuth round trip starts
-        assert!(client_id_shape_error(ConnectorProvider::Google, "bogus").is_some());
-    }
-
-    #[test]
-    fn test_client_id_shape_error_microsoft() {
-        // GIVEN a well-formed Microsoft client id, then a malformed one
-        // WHEN the shape of each is checked
-        // THEN the first passes and the second is reported before any OAuth round trip
-        assert!(client_id_shape_error(
-            ConnectorProvider::Microsoft,
-            "12345678-1234-1234-1234-123456789abc"
-        )
-        .is_none());
-        assert!(client_id_shape_error(ConnectorProvider::Microsoft, "not-a-guid").is_some());
-    }
-
-    #[test]
-    fn test_oauth_client_test_result_serializes() {
-        // GIVEN the result of a connectivity test
-        let result = OauthClientTestResult {
-            ok: true,
-            detail: "reachable".to_string(),
-        };
-        // WHEN it crosses the bridge as JSON
-        let json = serde_json::to_value(&result).expect("serialize");
-        // THEN the front end reads both the verdict and its detail
-        assert_eq!(json["ok"], true);
-        assert_eq!(json["detail"], "reachable");
-    }
 
     #[test]
     fn test_credential_gate_google_without_secret_is_refused() {
@@ -623,62 +393,192 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_parse_google_client_json_reads_installed_section() {
-        // GIVEN the file a Google Cloud Desktop client download produces
-        let raw = r#"{
-            "installed": {
-                "client_id": "123-abc.apps.googleusercontent.com",
-                "project_id": "apollia-test",
-                "client_secret": "GOCSPX-example",
-                "redirect_uris": ["http://localhost"]
-            }
-        }"#;
+    // ── The attached arm ─────────────────────────────────────────────────
 
-        // WHEN it is parsed
-        let (id, secret) = parse_google_client_json(raw).expect("parse");
+    use crate::attached::AttachedClient;
+    use wiremock::matchers::{body_json, header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
-        // THEN both halves come out, so the operator never reads the file
-        assert_eq!(id, "123-abc.apps.googleusercontent.com");
-        assert_eq!(secret.as_deref(), Some("GOCSPX-example"));
+    const TOKEN: &str = "token-of-this-installation";
+
+    fn attached(server: &MockServer) -> RuntimeLink {
+        RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap())
     }
 
-    #[test]
-    fn test_parse_google_client_json_accepts_web_section() {
-        // GIVEN the other shape the console produces
-        let raw = r#"{"web": {"client_id": "456-def.apps.googleusercontent.com"}}"#;
-
-        // WHEN it is parsed
-        let (id, secret) = parse_google_client_json(raw).expect("parse");
-
-        // THEN the client id is read and the absent secret stays absent
-        assert_eq!(id, "456-def.apps.googleusercontent.com");
-        assert!(secret.is_none());
+    fn bearer() -> String {
+        format!("Bearer {TOKEN}")
     }
 
-    #[test]
-    fn test_parse_google_client_json_rejects_unknown_shape() {
-        // GIVEN a JSON file that is not an OAuth client export
-        let raw = r#"{"type": "service_account", "private_key": "..."}"#;
+    #[tokio::test]
+    async fn test_the_clients_are_read_from_the_daemon_with_the_token() {
+        // GIVEN a daemon answering one Google row, only to the token
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/oauth/clients"))
+            .and(header("authorization", bearer().as_str()))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!([{
+                    "provider": "google", "effective_client_id": "1-a.apps.googleusercontent.com",
+                    "source": "file", "override_client_id": "1-a.apps.googleusercontent.com",
+                    "has_client_secret": true, "client_secret_source": "file",
+                    "requires_client_secret": true, "has_api_key": false,
+                    "api_key_source": "none", "requires_api_key": true,
+                }])),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
 
-        // WHEN it is parsed
-        let err =
-            parse_google_client_json(raw).expect_err("service accounts are not OAuth clients");
+        // WHEN the attached arm lists the clients
+        let rows = list_on(&attached(&server)).await.unwrap();
 
-        // THEN the operator is told what was expected
+        // THEN the daemon's row reads as the one the settings draw
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].provider, "google");
+        assert_eq!(rows[0].source, "file");
+        assert!(rows[0].has_client_secret);
+    }
+
+    #[tokio::test]
+    async fn test_each_field_is_put_on_its_own_route_with_the_token() {
+        // GIVEN a daemon accepting the three writes of one provider
+        let server = MockServer::start().await;
+        for (route, value) in [
+            ("client-id", "1-a.apps.googleusercontent.com"),
+            ("client-secret", "GOCSPX-s"),
+            ("api-key", "AIza-k"),
+        ] {
+            Mock::given(method("PUT"))
+                .and(path(format!("/api/v1/oauth/clients/google/{route}")))
+                .and(header("authorization", bearer().as_str()))
+                .and(body_json(serde_json::json!({ "value": value })))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(serde_json::json!({ "provider": "google" })),
+                )
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
+        let link = attached(&server);
+
+        // WHEN the attached arm writes the id, the secret and the key
+        let id = set_on(
+            &link,
+            "google",
+            OauthClientField::ClientId,
+            "1-a.apps.googleusercontent.com".into(),
+        )
+        .await;
+        let secret = set_on(
+            &link,
+            "google",
+            OauthClientField::ClientSecret,
+            "GOCSPX-s".into(),
+        )
+        .await;
+        let key = set_on(&link, "google", OauthClientField::ApiKey, "AIza-k".into()).await;
+
+        // THEN each reached its route, which the mock verifies on drop
+        assert!(id.is_ok() && secret.is_ok() && key.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_a_client_is_tested_by_the_daemon() {
+        // GIVEN a daemon whose check of the Google client fails on the secret
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/oauth/clients/google/test"))
+            .and(header("authorization", bearer().as_str()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ok": false,
+                "detail": "client secret is required for this provider but not configured",
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        // WHEN the attached arm asks for the test
+        let verdict = test_on(&attached(&server), "google").await.unwrap();
+
+        // THEN the daemon's verdict is the one shown
+        assert!(!verdict.ok);
+        assert!(verdict.detail.contains("client secret"));
+    }
+
+    #[tokio::test]
+    async fn test_an_export_is_read_here_and_its_text_posted_to_the_daemon() {
+        // GIVEN an export on this machine, and a daemon accepting its text
+        let dir = tempfile::TempDir::new().unwrap();
+        let file = dir.path().join("client_secret.json");
+        let export = r#"{"installed": {"client_id": "9-z.apps.googleusercontent.com"}}"#;
+        std::fs::write(&file, export).unwrap();
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/oauth/clients/google/import"))
+            .and(header("authorization", bearer().as_str()))
+            .and(body_json(serde_json::json!({ "client_json": export })))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "provider": "google" })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        // WHEN the window reads the file and the attached arm imports it
+        let text = std::fs::read_to_string(&file).unwrap();
+        let imported = import_on(&attached(&server), "google", text).await;
+
+        // THEN the daemon received the text, not a path it cannot open
+        assert!(imported.is_ok(), "{imported:?}");
+    }
+
+    #[tokio::test]
+    async fn test_a_refusal_of_the_daemon_is_shown_in_its_own_words() {
+        // GIVEN a daemon refusing an export that is not a client
+        let server = MockServer::start().await;
+        let words =
+            "invalid OAuth client file: expected an \"installed\" or \"web\" object at the root";
+        Mock::given(method("POST"))
+            .and(path("/api/v1/oauth/clients/google/import"))
+            .respond_with(
+                ResponseTemplate::new(422).set_body_json(serde_json::json!({ "error": words })),
+            )
+            .mount(&server)
+            .await;
+
+        // WHEN the attached arm imports it
+        let err = import_on(&attached(&server), "google", "{}".into())
+            .await
+            .unwrap_err();
+
+        // THEN the error carries the daemon's words unchanged
         match err {
-            IntegrationsError::InvalidClientFile(reason) => assert!(reason.contains("installed")),
-            other => panic!("expected InvalidClientFile, got: {other:?}"),
+            IntegrationsError::Service(message) => assert_eq!(message, words),
+            other => panic!("expected Service, got: {other:?}"),
         }
     }
 
     #[test]
-    fn test_parse_google_client_json_rejects_malformed_input() {
-        // GIVEN a file that is not JSON at all
-        // WHEN it is parsed
-        let err = parse_google_client_json("not json").expect_err("must not accept garbage");
+    fn test_the_six_client_commands_pass_the_gate_attached() {
+        // GIVEN the commands of the OAuth client settings
+        let commands = [
+            "oauth_import_client_json",
+            "oauth_list_client_ids",
+            "oauth_set_client_id",
+            "oauth_set_client_secret",
+            "oauth_set_api_key",
+            "oauth_test_client",
+        ];
 
-        // THEN the failure is attributed to the file, not to Apollia
-        assert!(matches!(err, IntegrationsError::InvalidClientFile(_)));
+        // WHEN each is gated while attached
+        let refused: Vec<&str> = commands
+            .into_iter()
+            .filter(|c| crate::attached::gate(crate::attached::LinkMode::Attached, c).is_err())
+            .collect();
+
+        // THEN none answers that the service makes it unavailable
+        assert!(refused.is_empty(), "refused: {refused:?}");
     }
 }

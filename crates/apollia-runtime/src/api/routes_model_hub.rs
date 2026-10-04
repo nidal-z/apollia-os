@@ -4,11 +4,15 @@
 //! - `GET /api/v1/llm/registry/search`          , search the official publishers and the recognised converters
 //! - `GET /api/v1/llm/registry/model/:org/:repo`, model metadata + file list
 //! - `GET /api/v1/llm/recommend`                 , models ranked for this machine
+//! - `GET /api/v1/llm/recommendations`           , the recommendation outcome the desktop shows
 //! - `GET /api/v1/llm/embeddings`                , embeddings models, and the one for this machine
+//! - `GET|PUT /api/v1/llm/embeddings/default`    , the embeddings model search uses
 //! - `GET /api/v1/llm/dictation`                 , dictation models, whether each fits, and the one for this machine
 //! - `GET /api/v1/llm/registry/cards`            , the signed model cards, when the catalogue opens
 //! - `GET /api/v1/llm/registry/card`             , one model card, from the kept copy
 //! - `GET /api/v1/llm/registry/readme`           , the README of a repository, as text
+//! - `GET /api/v1/llm/installed-models`          , the models installed on this machine
+//! - `DELETE /api/v1/llm/installed-models`       , removes an installed model, unless in use
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -25,13 +29,15 @@ use crate::coordinator::ExecutionBackend;
 #[cfg(feature = "cloud")]
 pub mod cards;
 pub mod dictation;
+pub mod embedding_default;
 pub mod embeddings;
+pub mod installed;
 
 // ─────────────────────────────────────────────
 // Response types
 // ─────────────────────────────────────────────
 
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct HardwareResponse {
     pub total_ram_gb: f64,
     pub available_ram_gb: f64,
@@ -230,7 +236,7 @@ fn search_error(status: StatusCode, error: String) -> (StatusCode, Json<ErrorRes
     )
 )]
 pub async fn get_registry_model<B: ExecutionBackend + Clone>(
-    State(_state): State<AppState<B>>,
+    State(state): State<AppState<B>>,
     Path((org, repo)): Path<(String, String)>,
     Query(params): Query<ModelQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
@@ -255,7 +261,7 @@ pub async fn get_registry_model<B: ExecutionBackend + Clone>(
             (
                 status,
                 Json(ErrorResponse {
-                    error: e.to_string(),
+                    error: format!("failed to fetch model {repo_id}: {e}"),
                 }),
             )
         })?;
@@ -263,6 +269,15 @@ pub async fn get_registry_model<B: ExecutionBackend + Clone>(
     // Fetch generation_config.json for recommended params (best-effort).
     if let Some(gen_config) = client.get_generation_config(&repo_id).await {
         card.generation_config = Some(gen_config);
+    }
+
+    // Which variants are already on this machine: read from the model index,
+    // best-effort, since a card is still worth showing without it.
+    let dir = crate::installed_models::models_dir(&state.data_dir);
+    if let Ok(Ok(index)) =
+        tokio::task::spawn_blocking(move || crate::installed_models::current(&dir)).await
+    {
+        apollia_llm::recommend::mark_downloaded(&mut card.variants, &index);
     }
 
     Ok(Json(serde_json::to_value(card).unwrap_or_default()))
@@ -356,6 +371,49 @@ pub async fn recommend_models<B: ExecutionBackend + Clone>(
     })))
 }
 
+/// `GET /api/v1/llm/recommendations?limit=...&n_ctx=...&fits_only=...`
+///
+/// The recommendation as the desktop shows it: the ranked list, or the
+/// unreachable Hub and the empty ranking kept apart from it as a `status`,
+/// each with the hardware and the editorial selection. Unlike
+/// `GET /api/v1/llm/recommend`, an unreachable Hub is a `200` carrying the
+/// selection, since the selection needs no network.
+#[cfg(feature = "cloud")]
+#[utoipa::path(
+    get,
+    path = "/api/v1/llm/recommendations",
+    tag = "model_hub",
+    params(
+        ("limit" = Option<usize>, Query, description = "Maximum number of ranked models, at most 10"),
+        ("n_ctx" = Option<u32>, Query, description = "Context window the cache is sized against"),
+        ("fits_only" = Option<bool>, Query, description = "Keep, in the editorial selection, only the sizes that fit this machine"),
+        ("hf_token" = Option<String>, Query, description = "HuggingFace token for gated models"),
+    ),
+    responses(
+        (status = 200, description = "The outcome: status ok, unreachable or empty, with the hardware and the editorial selection"),
+        (status = 400, description = "A malformed query parameter", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "The hardware probe or the shipped model table failed", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub async fn get_recommendations<B: ExecutionBackend + Clone>(
+    State(_state): State<AppState<B>>,
+    Query(params): Query<crate::recommendation::RecommendParams>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
+    let outcome = crate::recommendation::recommend(params)
+        .await
+        .map_err(|e| internal_error(e.to_string()))?;
+    serde_json::to_value(outcome)
+        .map(Json)
+        .map_err(|e| internal_error(e.to_string()))
+}
+
+fn internal_error(error: String) -> (StatusCode, Json<ErrorResponse>) {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(ErrorResponse { error }),
+    )
+}
+
 // ─────────────────────────────────────────────
 // Router
 // ─────────────────────────────────────────────
@@ -369,8 +427,18 @@ pub fn model_hub_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             get(embeddings::list_embedding_models::<B>),
         )
         .route(
+            "/api/v1/llm/embeddings/default",
+            get(embedding_default::get_embedding_default::<B>)
+                .put(embedding_default::set_embedding_default::<B>),
+        )
+        .route(
             "/api/v1/llm/dictation",
             get(dictation::list_dictation_models::<B>),
+        )
+        .route(
+            "/api/v1/llm/installed-models",
+            get(installed::list_installed_models::<B>)
+                .delete(installed::delete_installed_model::<B>),
         );
 
     #[cfg(feature = "cloud")]
@@ -381,6 +449,7 @@ pub fn model_hub_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             get(get_registry_model::<B>),
         )
         .route("/api/v1/llm/recommend", get(recommend_models::<B>))
+        .route("/api/v1/llm/recommendations", get(get_recommendations::<B>))
         .route(
             "/api/v1/llm/registry/cards",
             get(cards::list_model_cards::<B>),
@@ -393,6 +462,9 @@ pub fn model_hub_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
 
     router
 }
+
+#[cfg(test)]
+mod route_tests;
 
 #[cfg(test)]
 mod tests {

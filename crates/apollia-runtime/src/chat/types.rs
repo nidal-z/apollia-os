@@ -55,16 +55,6 @@ pub struct ChatSession {
     /// Fork depth (0 = root session, 1 = first-level fork, etc.).
     #[serde(default)]
     pub fork_depth: i64,
-    /// Project this session belongs to (None = standalone).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub project_id: Option<String>,
-    /// Force project context injection on the next user message.
-    ///
-    /// Set when a project link is changed after the session has started; the
-    /// initial-injection path (gated on `is_first_message`) would otherwise
-    /// skip context for already-active sessions. Transient, not persisted.
-    #[serde(skip)]
-    pub force_project_context_inject: bool,
     /// In-memory filesystem allow rules for this session (not persisted).
     ///
     /// Set by the user via "Always allow (this session)" in `HitlFilesystemModal`.
@@ -283,6 +273,10 @@ pub struct ExchangeState {
     /// [`SessionId`] (conversation lifetime) and [`MessageId`] (single message).
     #[serde(default)]
     pub run_id: RunId,
+    /// Identifier the answer of this exchange is persisted under, chosen when
+    /// the exchange starts so every model call of the turn can name it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answer_id: Option<MessageId>,
 }
 
 /// A single message in a chat session.
@@ -471,7 +465,7 @@ impl ToolDecision {
 }
 
 /// Per-tool aggregated statistics within a session.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ToolStatEntry {
     /// Tool name (scoped, e.g. `"bash"` or `"native:read_file"`).
     pub tool_name: String,
@@ -491,9 +485,10 @@ pub struct ToolStatEntry {
 ///
 /// `cost_usd` is `None` when the backend does not report pricing (e.g. local
 /// runner sidecar via `RunnerLlmBackend`).
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SessionMetrics {
     /// Target session.
+    #[schema(value_type = String)]
     pub session_id: SessionId,
     /// Input tokens consumed (prompt + cache reads + cache writes).
     pub prompt_tokens: u32,
@@ -600,9 +595,6 @@ pub enum ChatError {
     /// An internal error occurred (SQLite, serialization, etc.).
     #[error("internal error: {0}")]
     InternalError(String),
-    /// The project referenced by the chat session was not found in the repository.
-    #[error("project '{0}' referenced by chat session not found")]
-    ProjectNotFound(String),
     /// An approve or reject was requested on a session that is not awaiting
     /// approval. The soft plan gate only resolves from the awaiting-approval
     /// phase, so this fails fast instead of starting execution out of order.
@@ -692,8 +684,6 @@ pub struct SessionInfo {
     pub created_at: String,
     /// User-defined display title (falls back to agent_name or mode).
     pub title: Option<String>,
-    /// Project this session belongs to (None = standalone).
-    pub project_id: Option<String>,
 }
 
 /// Detailed session view for single-session responses.
@@ -703,20 +693,6 @@ pub struct SessionDetail {
     pub session: ChatSession,
     /// Total number of messages in the session.
     pub message_count: u32,
-}
-
-/// Trait for injecting project context into chat system prompts.
-///
-/// Implemented outside `apollia-runtime` (e.g. in `apollia-desktop`) because
-/// the actual project data lives in `apollia-tools` which is a sibling crate.
-/// This avoids coupling the runtime to the project persistence layer.
-#[async_trait::async_trait]
-pub trait ProjectContextProvider: Send + Sync {
-    /// Build a context block for a given project ID.
-    ///
-    /// Returns `None` if the project doesn't exist or has no useful context.
-    /// The returned string is injected into the system prompt on the first message.
-    async fn build_context(&self, project_id: &str) -> Option<String>;
 }
 
 #[cfg(test)]
@@ -838,8 +814,6 @@ mod tests {
             title: None,
             parent_session_id: None,
             fork_depth: 0,
-            project_id: None,
-            force_project_context_inject: false,
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashSet::new(),
             )),

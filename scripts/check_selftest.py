@@ -110,6 +110,7 @@ import check_panic_free as panicfree  # noqa: E402
 import check_optional_builders as builders  # noqa: E402
 import check_design_tokens as designtokens  # noqa: E402
 import check_prose  # noqa: E402
+import check_ui_vocabulary as uivocab  # noqa: E402
 import binary_freshness  # noqa: E402
 import worktree_verdicts  # noqa: E402
 
@@ -2570,6 +2571,147 @@ def check_design_tokens_ratchet() -> None:
     )
 
 
+# ── The interface vocabulary guard ───────────────────────────────────────────
+# Cases 3 and 10 on `check_ui_vocabulary.py`. Its tree arrives with every
+# faulty text exempted by name, so a green run says the exemption list matches
+# the catalogues, not that the detector reads a value. Drive it on a refused
+# value and an accepted one, and drive the exemption list from both sides.
+
+VOCAB_TERMS = ["runtime", "MCP", "ReAct", "assistant"]
+
+
+def check_ui_vocabulary_fires() -> None:
+    print("ui vocabulary: a banned term is refused, prose around it is not")
+
+    refused = [
+        ("a lower-case term in another case", "The Runtime is down."),
+        ("an acronym as written", "Add an MCP server."),
+        ("a plural", "Your assistants are ready."),
+    ]
+    for name, value in refused:
+        found = uivocab.catalogue_findings("en", {"home.x": value}, VOCAB_TERMS, [])
+        case(
+            f"refuses {name}",
+            len(found) == 1 and "home.x" in found[0],
+            f"{value!r} passed. The guard answered {found!r}",
+        )
+
+    accepted = [
+        ("a term inside a longer word", "A runtimeless view, built in-house."),
+        ("an acronym in another case", "React to a new message."),
+        ("a placeholder name", "Hello {runtime}, welcome."),
+    ]
+    for name, value in accepted:
+        found = uivocab.catalogue_findings("en", {"home.x": value}, VOCAB_TERMS, [])
+        case(
+            f"stays silent on {name}",
+            found == [],
+            f"{value!r} was refused: {found!r}. A guard that cries wolf is the "
+            f"one that ends up behind an exclusion",
+        )
+    for name, key in [
+        ("a key of the dev namespace", "dev.runtime_status"),
+        ("a key of an exempt block", "observability.runtime_title"),
+    ]:
+        found = uivocab.catalogue_findings("en", {key: "MCP runtime"}, VOCAB_TERMS, [])
+        case(f"stays silent on {name}", found == [], f"{key} was refused: {found!r}")
+
+    calls = {
+        "src/a.svelte": '<p>{$t("dev.trace")}</p>',
+        "src/b.svelte": 'import { developerMode } from "x";\n{$t("dev.trace")}',
+        "src/c.ts": 'get(t)("dev.trace")',
+    }
+    found = uivocab.call_findings(calls)
+    case(
+        "a dev. text in a file that never reads developerMode is refused",
+        len(found) == 2 and "src/a.svelte" in found[0] and "src/c.ts" in found[1],
+        f"the call side answered {found!r}",
+    )
+
+    sidebar = """
+  export const DEVELOPER_NAV: readonly DeveloperNavEntry[] = [
+    { route: "transcriptions" as Route, Icon: Mic, labelKey: "a" },
+    { route: "observability"  as Route, Icon: Activity, labelKey: "b" },
+    { route: "memory"         as Route, Icon: Database, labelKey: "c" },
+  ];
+"""
+    case(
+        "positive control: every exempt block in the developer group passes",
+        uivocab.block_findings(uivocab.developer_routes(sidebar)) == [],
+        "the sidebar of the tree's shape was refused",
+    )
+    moved = sidebar.replace('{ route: "observability"  as Route, Icon: Activity, labelKey: "b" },', "")
+    found = uivocab.block_findings(uivocab.developer_routes(moved))
+    case(
+        "a route taken out of the developer group fails its exempt block",
+        len(found) == 1 and "observability" in found[0],
+        f"the guard answered {found!r} once observability left the group",
+    )
+    without_memory = sidebar.replace('{ route: "memory"         as Route, Icon: Database, labelKey: "c" },', "")
+    found = uivocab.block_findings(uivocab.developer_routes(without_memory))
+    case(
+        "the Memory screen out of the developer group fails its exempt block",
+        len(found) == 1 and "memory" in found[0],
+        f"the guard answered {found!r} once memory left the group",
+    )
+    for name, key in [("a key of the Memory screen", "memory.namespaces.title")]:
+        found = uivocab.catalogue_findings("en", {key: "MCP runtime"}, VOCAB_TERMS, [])
+        case(f"stays silent on {name}", found == [], f"{key} was refused: {found!r}")
+    found = uivocab.catalogue_findings(
+        "en", {"agent_sheet.memory_title": "MCP runtime"}, VOCAB_TERMS, []
+    )
+    case(
+        "a memory text of the agent sheet stays controlled",
+        len(found) == 1 and "agent_sheet.memory_title" in found[0],
+        f"the agent sheet escaped the guard: {found!r}",
+    )
+
+    real = uivocab.SIDEBAR.read_text(encoding="utf-8")
+    case(
+        "the real sidebar carries every exempt route",
+        uivocab.block_findings(uivocab.developer_routes(real)) == [],
+        "the parser no longer reads DEVELOPER_NAV in Sidebar.svelte, so the "
+        "exempt blocks lean on a group it cannot see",
+    )
+
+
+def check_ui_vocabulary_ratchet() -> None:
+    print("ui vocabulary: the exemption list fails above its debt and below it")
+
+    leaves = {"home.a": "The runtime is down.", "home.b": "All good."}
+    case(
+        "positive control: a faulty key named in the list passes",
+        uivocab.catalogue_findings("en", leaves, VOCAB_TERMS, ["home.a"]) == [],
+        "an exempted key was still refused",
+    )
+    stale = uivocab.catalogue_findings("en", leaves, VOCAB_TERMS, ["home.a", "home.b"])
+    case(
+        "an exempted key that no longer carries a term fails",
+        len(stale) == 1 and "home.b" in stale[0] and "ratchet" in stale[0],
+        f"an exemption outlived its debt in silence: {stale!r}",
+    )
+    gone = uivocab.catalogue_findings("en", leaves, VOCAB_TERMS, ["home.a", "home.gone"])
+    case(
+        "an exempted key the catalogue lost fails",
+        len(gone) == 1 and "home.gone" in gone[0],
+        f"the guard answered {gone!r}",
+    )
+    unlisted = uivocab.catalogue_findings("en", leaves, VOCAB_TERMS, [])
+    case(
+        "a faulty key named by no entry is refused",
+        len(unlisted) == 1 and "home.a" in unlisted[0],
+        f"the guard answered {unlisted!r}",
+    )
+    glossary = json.loads(uivocab.GLOSSARY.read_text(encoding="utf-8"))
+    debt = sum(len(glossary[lang]["exemptions"]) for lang in uivocab.LOCALES)
+    case(
+        "the real exemption list still carries debt",
+        debt > 0,
+        "the list is empty, so the cases above exercise a list the tree does "
+        "not have; rewrite this case to demand an empty list",
+    )
+
+
 # ── The binary a guard judges ────────────────────────────────────────────────
 # The same family as everything above, on the one input none of these guards
 # owns. Four of them render a verdict by running `target/debug/apollia-os`, and
@@ -2793,6 +2935,10 @@ def main() -> int:
     print()
     check_design_tokens_ratchet()
     print()
+    check_ui_vocabulary_fires()
+    print()
+    check_ui_vocabulary_ratchet()
+    print()
     check_panic_sweep_fires()
     print()
     check_panic_sweep_scope()
@@ -2823,6 +2969,8 @@ def main() -> int:
         "design token guard reads what can style something rather than what "
         "is written about it, tells a value a token carries from one no token "
         "names, and holds both behind a ratchet that fails in both directions, "
+        "the interface vocabulary guard refuses a banned term and keeps the "
+        "prose around it, with its named exemptions under the same ratchet, "
         "and the four guards that judge the built binary refuse to judge one "
         "their tree did not produce, with the command that repairs it"
     )

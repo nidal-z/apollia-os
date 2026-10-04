@@ -14,9 +14,8 @@
 //! `workflow:<id>`) are tools of the run when a composer is wired: a call
 //! runs nested in this run, see [`crate::composition`].
 //!
-//! The three context injections that principle 6 allows (the user persona
-//! brief, the summaries of past sessions, the project context) belong to the
-//! Apollia agent alone. An executor built for any other agent drops them, so
+//! The two context injections that principle 6 allows (the user persona
+//! brief, the summaries of past sessions) belong to the Apollia agent alone. An executor built for any other agent drops them, so
 //! no other agent ever receives memory it did not ask for.
 
 use std::collections::HashSet;
@@ -41,7 +40,6 @@ use crate::chat::plan_actor::PlanHandle;
 use crate::chat::todo_handle::TodoHandle;
 use crate::chat::types::{
     ChatError, ChatMessage, InjectedInstruction, PendingChatApprovals, PlanPhase,
-    ProjectContextProvider,
 };
 use crate::composition::{CallerRun, Composer, ComposingInvoker};
 use crate::eventbus::EventBusSender;
@@ -89,15 +87,7 @@ impl AgentRunSpec {
     }
 }
 
-/// Where the project context block is read from.
-pub struct ProjectContextSource {
-    /// The project linked to the conversation.
-    pub project_id: String,
-    /// Builds the block for that project.
-    pub provider: Arc<dyn ProjectContextProvider>,
-}
-
-/// The three injections principle 6 reserves to the Apollia agent. Handed to
+/// The two injections principle 6 reserves to the Apollia agent. Handed to
 /// [`AgentExecutor::new`], they are kept only when the agent is Apollia.
 #[derive(Default)]
 pub struct ApolliaContext {
@@ -106,13 +96,11 @@ pub struct ApolliaContext {
     pub user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
     /// Block summarising earlier, unrelated sessions.
     pub past_sessions: Option<String>,
-    /// Project context to append to the system prompt.
-    pub project: Option<ProjectContextSource>,
 }
 
 impl ApolliaContext {
     fn is_empty(&self) -> bool {
-        self.user_memory.is_none() && self.past_sessions.is_none() && self.project.is_none()
+        self.user_memory.is_none() && self.past_sessions.is_none()
     }
 }
 
@@ -171,6 +159,9 @@ pub struct SessionWiring {
     /// Runs the agents and workflows the agent was granted; `None` offers
     /// none of them.
     pub composition: Option<Composition>,
+    /// The conversation turn the run answers, the identifier of its answer
+    /// message; `None` outside a conversation.
+    pub turn_id: Option<String>,
 }
 
 /// What the granted agent and workflow calls of a run go through.
@@ -213,7 +204,6 @@ pub struct AgentExecutor {
     critic: Option<CriticPass>,
     cancel: CancellationToken,
     past_sessions: Option<String>,
-    project: Option<ProjectContextSource>,
     plan_mode: bool,
     plan_first: plan_first::PlanFirstDeps,
 }
@@ -313,7 +303,8 @@ impl AgentExecutor {
         .with_prefix_checker(wiring.prefix_checker)
         .with_approval_timeout(wiring.approval_timeout)
         .with_tool_output_dir(wiring.tool_output_dir)
-        .with_preferred_backend(spec.model.clone());
+        .with_preferred_backend(spec.model.clone())
+        .with_turn_id(wiring.turn_id);
         Self {
             spec,
             agent,
@@ -323,7 +314,6 @@ impl AgentExecutor {
             critic,
             cancel,
             past_sessions: apollia.past_sessions,
-            project: apollia.project,
             plan_mode,
             plan_first,
         }
@@ -353,18 +343,12 @@ impl AgentExecutor {
     }
 
     /// The mission, then the Apollia injections when the agent is Apollia:
-    /// the past sessions block, then the project context block.
+    /// the past sessions block.
     pub async fn system_prompt(&self) -> String {
         let mut prompt = self.spec.mission.clone();
         if let Some(block) = &self.past_sessions {
             prompt.push_str("\n\n");
             prompt.push_str(block);
-        }
-        if let Some(source) = &self.project {
-            if let Some(block) = source.provider.build_context(&source.project_id).await {
-                prompt.push_str("\n\n");
-                prompt.push_str(&block);
-            }
         }
         prompt
     }

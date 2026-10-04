@@ -99,10 +99,10 @@ describe("InvokeStubs", () => {
     // GIVEN a host and a resolve stub on one command
     const host = recordingHost();
     const stubs = new InvokeStubs(host);
-    stubs.add({ command: "list_projects", mode: "resolve", value: [], once: false });
+    stubs.add({ command: "list_agents", mode: "resolve", value: [], once: false });
 
     // WHEN the stubbed command and another one are invoked
-    const stubbed = await call(host, "list_projects", {});
+    const stubbed = await call(host, "list_agents", {});
     const passed = await call(host, "list_tasks", { a: 1 });
 
     // THEN the stub answers, the other call reaches the original

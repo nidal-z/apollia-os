@@ -12,7 +12,7 @@ sidebar_position: 4
 
 - Apollia lancé.
 - Un compte Microsoft, personnel ou professionnel.
-- Votre réglage **Souveraineté des données**, dans **Réglages, Profil**, n'est pas sur *Local strict*, et a reçu une réponse au moins une fois.
+- La politique de votre organisation, si elle en a déployé une, n'interdit pas les connexions distantes.
 - Si votre tenant Entra ID exige une approbation administrative, l'administrateur doit pré-approuver l'application.
 - Connexion internet active.
 
@@ -121,7 +121,7 @@ Vider à nouveau le champ rétablit l'identifiant fourni avec Apollia. Les compt
 - **Consentement refusé à l'écran Microsoft** : un tenant Entra ID géré exige souvent une approbation au niveau organisation avant qu'une application externe puisse être utilisée. Le texte d'erreur vient de Microsoft et non d'Apollia, et il nomme la politique de tenant en cause. Demandez à votre administrateur de pré-approuver l'application, ou utilisez un compte Microsoft personnel.
 - **`outlook.send` échoue sur un destinataire** : Microsoft Graph valide les destinataires plus strictement que Google. Apollia remonte l'erreur de Graph telle quelle, préfixée du statut HTTP. Vérifiez l'adresse cible et l'absence d'alias mort.
 - **OneDrive en écriture refusé** : c'est attendu en v0.1.0, OneDrive est en lecture seule.
-- **La connexion s'arrête sur le profil de souveraineté** : la fenêtre dit que les connecteurs cloud sont désactivés par votre profil, ce qui arrive aussi quand l'onboarding n'a jamais posé la question. Elle propose de garder le local strict ou d'autoriser le cloud et continuer ; le second écrit **Souveraineté des données** sur *Cloud autorisé* dans **Réglages, Profil**.
+- **La connexion s'arrête sur « Refusé par la politique de l'organisation »** : la politique de votre organisation interdit les connexions à des services en ligne sur ce poste, et rien n'a été envoyé à Microsoft. Seule la personne qui gère cette politique peut accorder une exception.
 
 ## Déconnecter un compte
 

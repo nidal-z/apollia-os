@@ -1,193 +1,113 @@
-//! `apollia-os mcp-server`: launch Apollia as an MCP stdio server.
+//! `apollia-os mcp server`: a stdio bridge from an MCP client to the daemon.
 //!
-//! Exposes 11 native tools to external MCP clients (Claude Desktop, VS Code
-//! Copilot Chat, Cursor) via stdin/stdout JSON-RPC 2.0.
-//!
-//! With `--with-runtime`, starts the full Apollia runtime first and adds the
-//! `submit_task` tool, allowing MCP clients to delegate tasks to local agents.
+//! An MCP client (an editor, another assistant) spawns this command and talks
+//! JSON-RPC 2.0 over stdin and stdout. The command holds no tool of its own:
+//! it lists and runs, through the daemon, the agents and workflows the user
+//! marked exposed, and nothing else. The daemon must be running, and refuses
+//! the bridge until `[mcp] server_enabled` is turned on.
 
-use std::future::Future;
 use std::path::PathBuf;
-use std::pin::Pin;
 use std::sync::Arc;
 
-use apollia_mcp::{McpServerError, McpStdioServer, SubmitTaskHandler};
-use apollia_tools::executor::ToolDispatcher;
-use apollia_tools::tools::bash_executor::BashExecutor;
-use apollia_tools::tools::file_edit::FileEdit;
-use apollia_tools::tools::file_glob::FileGlob;
-use apollia_tools::tools::file_grep::FileGrep;
-use apollia_tools::tools::file_list::FileList;
-use apollia_tools::tools::file_read::FileRead;
-use apollia_tools::tools::file_write::FileWrite;
-use apollia_tools::tools::notebook_edit::NotebookEdit;
-use apollia_tools::tools::notebook_read::NotebookRead;
+use apollia_mcp::{
+    BridgeCallOutcome, BridgeError, BridgeFuture, McpBridge, McpServerError, McpStdioServer,
+};
 
-/// Arguments for the `apollia-os mcp-server` subcommand.
-#[derive(Debug, clap::Args)]
-pub struct McpServerArgs {
-    /// Enable the `submit_task` tool by starting the full Apollia runtime.
-    ///
-    /// Without this flag, only the 9 stateless native tools are exposed.
-    #[arg(long, default_value_t = false)]
-    pub with_runtime: bool,
-
-    /// Sandbox root for file tools (default: user home directory).
-    ///
-    /// File operations are restricted to this directory tree.
-    #[arg(long, value_name = "PATH")]
-    pub sandbox_root: Option<PathBuf>,
-}
+use crate::client::{ClientError, RuntimeClient};
 
 /// Errors returned by [`run`].
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum McpServerCommandError {
-    /// Could not determine the user home directory for the default sandbox root.
-    #[error("cannot determine home directory - set --sandbox-root explicitly")]
-    NoHomeDir,
-    /// A file tool failed to initialise with the given sandbox root.
-    #[error("file tool init error: {0}")]
-    FileToolInit(String),
+    /// The daemon is not running, or refused the bridge.
+    #[error("{0}")]
+    Bridge(#[from] BridgeError),
     /// The MCP server I/O loop failed.
     #[error("MCP server error: {0}")]
     Server(#[from] McpServerError),
 }
 
-/// Run the MCP stdio server.
-///
-/// Builds a [`ToolDispatcher`] with the 9 native file/bash/notebook executors,
-/// constructs [`McpStdioServer`], and enters the read-dispatch-write loop.
-/// When `args.with_runtime` is `true`, a [`SubmitTaskHandler`] backed by the
-/// Apollia runtime is injected and `submit_task` becomes available.
-pub async fn run(args: &McpServerArgs) -> Result<(), McpServerCommandError> {
-    let sandbox_root = match &args.sandbox_root {
-        Some(p) => p.clone(),
-        None => dirs_or_home().ok_or(McpServerCommandError::NoHomeDir)?,
-    };
-
-    let dispatcher = build_dispatcher(sandbox_root)?;
-
-    let server = if args.with_runtime {
-        let handler = start_runtime_submit_handler().await;
-        McpStdioServer::new(dispatcher).with_submit_task(handler)
-    } else {
-        McpStdioServer::new(dispatcher)
-    };
-
-    server.run().await?;
-    Ok(())
+/// The bridge over the runtime HTTP API.
+pub struct HttpBridge {
+    client: RuntimeClient,
 }
 
-/// Construct a [`ToolDispatcher`] pre-loaded with the 9 native executors.
-fn build_dispatcher(sandbox_root: PathBuf) -> Result<ToolDispatcher, McpServerCommandError> {
-    let bash = BashExecutor::new();
-
-    let file_read = FileRead::new(sandbox_root.clone())
-        .map_err(|e| McpServerCommandError::FileToolInit(e.to_string()))?;
-    let file_write = FileWrite::new(sandbox_root.clone())
-        .map_err(|e| McpServerCommandError::FileToolInit(e.to_string()))?;
-    let file_edit = FileEdit::new(sandbox_root.clone())
-        .map_err(|e| McpServerCommandError::FileToolInit(e.to_string()))?;
-    let file_list = FileList::new(sandbox_root.clone())
-        .map_err(|e| McpServerCommandError::FileToolInit(e.to_string()))?;
-    let file_glob = FileGlob::new(sandbox_root.clone())
-        .map_err(|e| McpServerCommandError::FileToolInit(e.to_string()))?;
-    let file_grep = FileGrep::new(sandbox_root.clone())
-        .map_err(|e| McpServerCommandError::FileToolInit(e.to_string()))?;
-    let notebook_read = NotebookRead::new(sandbox_root.clone())
-        .map_err(|e| McpServerCommandError::FileToolInit(e.to_string()))?;
-    let notebook_edit = NotebookEdit::new(sandbox_root)
-        .map_err(|e| McpServerCommandError::FileToolInit(e.to_string()))?;
-
-    Ok(ToolDispatcher::new(vec![
-        Box::new(bash),
-        Box::new(file_read),
-        Box::new(file_write),
-        Box::new(file_edit),
-        Box::new(file_list),
-        Box::new(file_glob),
-        Box::new(file_grep),
-        Box::new(notebook_read),
-        Box::new(notebook_edit),
-    ]))
+impl HttpBridge {
+    /// A bridge to the daemon listening on `socket`.
+    pub fn new(socket: PathBuf) -> Self {
+        Self {
+            client: RuntimeClient::new(socket),
+        }
+    }
 }
 
-/// Runtime-backed [`SubmitTaskHandler`] implementation.
-///
-/// Delegates `submit_task` calls to the Apollia runtime's task router.
-struct RuntimeSubmitHandler {
-    router: apollia_runtime::router::TaskRouterHandle<apollia_runtime::coordinator::DynBackend>,
+/// What a failed request to the daemon means to the MCP client.
+fn bridge_error(e: ClientError) -> BridgeError {
+    match e {
+        ClientError::ConnectionRefused => BridgeError::Unavailable(
+            "the Apollia daemon is not running; start it with `apollia-os start`".to_string(),
+        ),
+        ClientError::ServerError { status: 403, body } => BridgeError::Refused(body),
+        ClientError::ServerError { status: 404, body } => BridgeError::UnknownTool(body),
+        ClientError::ServerError { status: 400, body } => BridgeError::InvalidArguments(body),
+        other => BridgeError::Unavailable(other.to_string()),
+    }
 }
 
-impl SubmitTaskHandler for RuntimeSubmitHandler {
-    fn submit(
-        &self,
-        task: String,
-        agent_id: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + '_>> {
+impl McpBridge for HttpBridge {
+    fn list_tools(&self) -> BridgeFuture<'_, Result<Vec<serde_json::Value>, BridgeError>> {
         Box::pin(async move {
-            let input = apollia_core::AIPInput {
-                parts: vec![apollia_core::AIPPart::Text(apollia_core::TextPart {
-                    text: task,
-                })],
-            };
-            self.router
-                .submit(&agent_id, input)
+            let body = self.client.mcp_bridge_tools().await.map_err(bridge_error)?;
+            Ok(body
+                .get("tools")
+                .and_then(serde_json::Value::as_array)
+                .cloned()
+                .unwrap_or_default())
+        })
+    }
+
+    fn call_tool(
+        &self,
+        name: String,
+        arguments: serde_json::Value,
+    ) -> BridgeFuture<'_, Result<BridgeCallOutcome, BridgeError>> {
+        Box::pin(async move {
+            let body = self
+                .client
+                .mcp_bridge_call(&name, &arguments)
                 .await
-                .map(|id| id.to_string())
-                .map_err(|e| e.to_string())
+                .map_err(bridge_error)?;
+            Ok(BridgeCallOutcome {
+                text: body
+                    .get("text")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                is_error: body
+                    .get("isError")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(false),
+            })
         })
     }
 }
 
-/// Start the Apollia runtime and return an `Arc<dyn SubmitTaskHandler>`.
+/// Run the MCP stdio bridge against the daemon on `socket`.
 ///
-/// Uses `init_embedded` with default configuration: the runtime data directory
-/// mirrors `apollia-os start`, and the API is served on the Unix socket only
-/// (no TCP port), since this in-process runtime is driven through the router
-/// handle rather than the HTTP API.
-async fn start_runtime_submit_handler() -> Arc<dyn SubmitTaskHandler> {
-    use apollia_runtime::{init_embedded, EmbeddedConfig};
-
-    // Default config mirrors `apollia-os start` defaults.
-    let config = EmbeddedConfig::default();
-
-    match init_embedded(config) {
-        Ok(handle) => {
-            // Pin the PyO3 async bridge onto the worker runtime now that it is up,
-            // before any Python agent runs a coroutine.
-            apollia_aip::pin_async_runtime();
-            Arc::new(RuntimeSubmitHandler {
-                router: handle.router_handle,
-            })
-        }
-        Err(e) => {
-            tracing::error!(
-                error = %e,
-                detail = "submit_task is unavailable",
-                "mcp.runtime.start.failed"
-            );
-            // Return a handler that always fails gracefully.
-            Arc::new(NoopSubmitHandler)
-        }
-    }
+/// The daemon is asked once before the loop starts, so a stopped daemon or
+/// a bridge left off is reported on stderr at once rather than as an empty
+/// tool list in the client.
+///
+/// # Errors
+///
+/// [`McpServerCommandError::Bridge`] when the daemon is not running or
+/// refuses the bridge; [`McpServerCommandError::Server`] on an I/O failure.
+pub async fn run(socket: PathBuf) -> Result<(), McpServerCommandError> {
+    let bridge = Arc::new(HttpBridge::new(socket));
+    bridge.list_tools().await?;
+    McpStdioServer::new(bridge).run().await?;
+    Ok(())
 }
 
-/// Fallback handler used when the runtime failed to start.
-struct NoopSubmitHandler;
-
-impl SubmitTaskHandler for NoopSubmitHandler {
-    fn submit(
-        &self,
-        _task: String,
-        _agent_id: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + '_>> {
-        Box::pin(async move { Err("Apollia runtime is not available".to_string()) })
-    }
-}
-
-/// Resolve the sandbox root from the user home directory.
-fn dirs_or_home() -> Option<PathBuf> {
-    apollia_core::paths::home_dir()
-}
+#[cfg(test)]
+mod tests;

@@ -42,15 +42,34 @@ check_exit "update refuses while the lock is held" 1 bash -c "/usr/bin/touch \"\
 
 # ── A.2 config (seeded apollia.toml) ────────────────────────────────────────
 section "A.2 config"
-check_grep   "config show has seeded [chat] workspace" "default_workspace" "$BIN" config show
+check_grep   "config show has seeded [chat] temperature" "tool_turn_temperature" "$BIN" config show
 check_json   "config show --json"                       "$BIN" config show --json
-check        "config get chat.default_workspace"        "$BIN" config get chat.default_workspace
+check        "config get chat.tool_turn_temperature"    "$BIN" config get chat.tool_turn_temperature
 check_json   "config get --json"                        "$BIN" config get --json
 # Mutations on a throwaway config file (never touch the seeded one).
 SCFG="$SCRATCH/apollia.toml"
 check        "config validate (absent file ok)"         "$BIN" config validate --file "$SCFG"
 check        "config set llm.default local"             "$BIN" config set llm.default local --file "$SCFG"
 check_grep   "config get llm.default = local" "local"   "$BIN" config get llm.default --file "$SCFG"
+# One schema, strict at every level: a typo inside a known section is refused
+# and nothing is written; an invalid file is named at its line, by
+# `config validate` and by a daemon that refuses to start on it.
+cp "$SCFG" "$SCRATCH/apollia.toml.before"
+check_exit   "config set api.typo refused → 1"  1      "$BIN" config set api.typo 1 --file "$SCFG"
+if cmp -s "$SCFG" "$SCRATCH/apollia.toml.before"; then
+    _pass "config set api.typo left the file unchanged"
+else
+    _fail "config set api.typo left the file unchanged" "the file changed"
+fi
+BADCFG="$SCRATCH/invalid.toml"
+printf '[api]\nbind = "127.0.0.1"\ntypo = 1\n' > "$BADCFG"
+check_exit   "config validate (unknown key) → 1"  1    "$BIN" config validate --file "$BADCFG"
+bad_out=$("$BIN" --socket "$SCRATCH/invalid.sock" start --port 47917 --config "$BADCFG" 2>&1 >/dev/null); bad_rc=$?
+if [[ $bad_rc -eq 1 ]] && /usr/bin/grep -qF "invalid.toml:3:1: api.typo" <<<"$bad_out"; then
+    _pass "start refuses an invalid config, fault at its line on stderr"
+else
+    _fail "start refuses an invalid config, fault at its line on stderr" "rc=$bad_rc | out: ${bad_out:0:300}"
+fi
 check_exit   "config edit refuses non-TTY"  1           "$BIN" config edit --file "$SCFG"
 check_exit   "config reset (no --confirm)"  1           "$BIN" config reset
 # reset dry-run/confirm on a disposable home dir (config reset wipes ~/.apollia).
@@ -58,47 +77,67 @@ RH="$SCRATCH/reset-home"; /bin/mkdir -p "$RH/nested"; /usr/bin/touch "$RH/dummy"
 check        "config reset --dry-run"                   "$BIN" config reset --dry-run --home "$RH"
 [[ -f "$RH/dummy" ]] && _pass "config reset --dry-run preserved files" || _fail "config reset --dry-run preserved files" "deleted"
 check        "config reset --confirm"                   "$BIN" config reset --confirm --home "$RH"
+# A first `config` command under an empty home writes the documented default
+# file at ~/.apollia/apollia.toml; a present file is never written over.
+FH="$SCRATCH/first-home"; /bin/mkdir -p "$FH"
+check        "config show (empty home)"                 env HOME="$FH" "$BIN" config show
+if [[ -f "$FH/.apollia/apollia.toml" ]] && /usr/bin/head -1 "$FH/.apollia/apollia.toml" | /usr/bin/grep -q "^# apollia.toml, the configuration of Apollia OS"; then
+    _pass "config show wrote the default file with its header"
+else
+    _fail "config show wrote the default file with its header" "absent or without its header"
+fi
+check_json   "config keys --json"                       "$BIN" config keys --json
+check_grep   "config keys lists api.port" "api.port"    "$BIN" config keys
 check        "hooks list --dry-run"                     "$BIN" hooks list --dry-run
 check_json   "hooks list --dry-run --json"              "$BIN" --json hooks list --dry-run
 
-# ── A.3 project (2 seeded: alpha, beta) ─────────────────────────────────────
+# ── A.3 project (retired) ───────────────────────────────────────────────────
+# Projects became sources: the noun is gone, refused as a usage error (1).
 section "A.3 project"
-check_content "project list shows Seed Project Alpha" "Seed Project Alpha"  "$BIN" project list
-check_content "project list shows Seed Project Beta"  "Seed Project Beta"   "$BIN" project list
-check         "project show alpha"                     "$BIN" project show seed-project-alpha
-check_json_field "project show alpha id"    "d['id']"          "seed-project-alpha" "$BIN" project show seed-project-alpha --json
-check_json_field "project show alpha name"  "d['name']"        "Seed Project Alpha" "$BIN" project show seed-project-alpha --json
-check_content "project show alpha: 3 providers" "Providers +3|Providers[[:space:]]+3" "$BIN" project show seed-project-alpha
-# CRUD on a fresh project (leaves the seeded rows intact).
-PID=$("$BIN" project create e2e-tmp --description demo --json 2>/dev/null | "${E2E_PYTHON:-python3}" -c "import sys,json;print(json.load(sys.stdin)['id'])" 2>/dev/null)
-[[ -n "$PID" ]] && _pass "project create + JSON id parse" || { _fail "project create" ""; PID=ghost; }
-check         "project update --name e2e-tmp2"         "$BIN" project update "$PID" --name e2e-tmp2
-check         "project agents add"                     "$BIN" project agents add "$PID" my-agent
-check_content "project agents list has my-agent" "my-agent" "$BIN" project agents list "$PID"
-check         "project agents remove"                  "$BIN" project agents remove "$PID" my-agent --confirm
-check         "project templates list"                 "$BIN" project templates list
-check         "project templates seed-builtins"        "$BIN" project templates seed-builtins
-# Link a seeded chat session to the seeded project, list, unlink.
-check         "project link (seed session)"            "$BIN" project link seed-project-alpha --session seed-session-1
-check         "project chats"                          "$BIN" project chats seed-project-alpha
-check         "project link --unlink"                  "$BIN" project link seed-project-alpha --session seed-session-1 --unlink
-check_exit    "project link empty session → 1"  1      "$BIN" project link seed-project-alpha --session ""
-check         "project delete --confirm"               "$BIN" project delete "$PID" --confirm
+check_exit    "project list (retired) → 1"       1     "$BIN" project list
+check_exit    "project link (retired) → 1"       1     "$BIN" project link seed-project-alpha --session seed-session-1
 
 # ── A.4 profile (3 seeded __user__ keys) ────────────────────────────────────
+# The seed is a profile written before profiles existed: the first open migrates
+# `preferences.language` into the `preferences` field of the default profile.
 section "A.4 profile"
-check_content "profile show has seeded language=fr" "preferences.language" "$BIN" profile show
+check_json_field "profile show: language migrated into preferences" \
+  "[e['value'] for e in d['entries'] if e['key']=='preferences'][0]" "en" "$BIN" profile show --json
 check_content "profile show has monthly_budget"     "monthly_budget"       "$BIN" profile show
 check_json    "profile show --json"                  "$BIN" profile show --json
+check_json_field "profile list: the migrated profile is the one default" \
+  "[p['name'] for p in d if p['is_default']]" "['Mon profil']" "$BIN" profile list --json
 check         "profile schema"                       "$BIN" profile schema
 check         "profile export"                       "$BIN" profile export --output "$SCRATCH/u.json"
 [[ -f "$SCRATCH/u.json" ]] && _pass "profile export produced file" || _fail "profile export produced file" ""
 # Mutations on a throwaway profile db.
 PDB="$SCRATCH/profile.db"
-check        "profile set name Alice"                "$BIN" profile set name Alice --db "$PDB"
+check        "profile set default name Alice"        "$BIN" profile set default name Alice --db "$PDB"
 check_content "profile show throwaway has Alice" "Alice" "$BIN" profile show --db "$PDB"
 check        "profile forget name"                   "$BIN" profile forget name --confirm --db "$PDB"
 check        "profile import --overwrite"            "$BIN" profile import --db "$SCRATCH/prof-imported.db" --input "$SCRATCH/u.json" --overwrite
+# Named profiles: create, fill, rename, make default, delete; the default is never deleted.
+FIRST=$("$BIN" profile show --json --db "$PDB" 2>/dev/null | "${E2E_PYTHON:-python3}" -c "import sys,json;print(json.load(sys.stdin)['profile']['id'])" 2>/dev/null)
+SECOND=$("$BIN" profile create Formateur --json --db "$PDB" 2>/dev/null | "${E2E_PYTHON:-python3}" -c "import sys,json;print(json.load(sys.stdin)['id'])" 2>/dev/null)
+[[ -n "$FIRST" && -n "$SECOND" ]] && _pass "profile create returns an identifier" || _fail "profile create returns an identifier" "first='$FIRST' second='$SECOND'"
+check_json_field "profile list: two profiles"        "len(d)" "2"           "$BIN" profile list --json --db "$PDB"
+check         "profile set <id> role"                "$BIN" profile set "$SECOND" role Formatrice --db "$PDB"
+check_json_field "profile show <id>: role written on that profile" \
+  "d['profile']['role']" "Formatrice" "$BIN" profile show "$SECOND" --json --db "$PDB"
+check_json_field "profile show default: role not on the default" \
+  "d['profile']['role']" "None" "$BIN" profile show default --json --db "$PDB"
+check_json_field "profile rename" "d['name']" "Formation" "$BIN" profile rename "$SECOND" Formation --json --db "$PDB"
+check_exit   "profile delete default (refused)" 1    "$BIN" profile delete "$FIRST" --confirm --db "$PDB"
+check_grep   "profile delete default says why"  "default profile and cannot be deleted" \
+  bash -c '"$0" profile delete "$1" --confirm --db "$2" 2>&1; true' "$BIN" "$FIRST" "$PDB"
+check_json_field "profile delete default --json envelope" "d['error']['code']" "general_error" \
+  bash -c '"$0" profile delete "$1" --confirm --json --db "$2"; true' "$BIN" "$FIRST" "$PDB"
+check_exit   "profile show unknown id"          1    "$BIN" profile show no-such-profile --db "$PDB"
+check_exit   "profile delete (no --confirm)"    1    "$BIN" profile delete "$SECOND" --db "$PDB"
+check_json_field "profile set-default <id>" "d['is_default']" "True" "$BIN" profile set-default "$SECOND" --json --db "$PDB"
+check        "profile delete former default"         "$BIN" profile delete "$FIRST" --confirm --db "$PDB"
+check_json_field "profile list: one profile left, the default" \
+  "[(p['name'], p['is_default']) for p in d]" "[('Formation', True)]" "$BIN" profile list --json --db "$PDB"
 check_exit   "profile reset (no --confirm)"  1       "$BIN" profile reset --db "$PDB"
 check        "profile reset --confirm"               "$BIN" profile reset --confirm --db "$PDB"
 
@@ -114,8 +153,18 @@ check_exit   "chat config get --json (runtime absent) → 2" 2 "$BIN" --socket "
 check_exit   "chat config set system-prompt (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat config set system-prompt "You are helpful."
 check_exit   "chat config set bogus-key"  1          "$BIN" --socket "$CHAT_OFF" chat config set bogus-key x
 check_exit   "chat config reset --confirm (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat config reset --confirm
+# What the model of a session can do is read from the runtime: with no
+# runtime, exit 2. The real read is covered by the runtime's route tests.
+check_exit   "chat capabilities (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1
+check_exit   "chat capabilities --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1 --json
 # Apollia is built in: uninstalling it is refused, exit 1.
 check_exit   "agent uninstall apollia:chat (built in) → 1" 1 "$BIN" agent uninstall apollia:chat --confirm
+# Every other uninstall goes through the runtime, which unregisters the agents
+# and journals the removal: with no runtime nothing is removed, exit 2. The
+# real removal is in Track 2.
+check_exit   "agent uninstall (no --confirm) → 1" 1 "$BIN" --socket "$CHAT_OFF" agent uninstall e2e-notes
+check_exit   "agent uninstall --clear-memory (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" agent uninstall e2e-notes --clear-memory --confirm
+check_exit   "agent package uninstall --clear-history --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" agent package uninstall e2e-pack --clear-memory --clear-history --confirm --json
 check        "chat config permissions list (empty)"  "$BIN" chat config permissions list --db "$GDB"
 check_json   "chat config permissions list --json"   "$BIN" chat config permissions list --db "$GDB" --json
 check_exit   "chat config permissions delete (no id) → 1" 1 "$BIN" chat config permissions delete 9999 --confirm --db "$GDB"
@@ -239,9 +288,14 @@ check_exit   "mcp oauth logout (no --confirm)"  1    "$BIN" mcp oauth logout som
 # so an unconfigured name is a deterministic, offline refusal.
 check_exit   "mcp oauth login (unconfigured server) → 1"    1 "$BIN" mcp oauth login e2e-unconfigured
 check_exit   "mcp oauth discover (unconfigured server) → 1" 1 "$BIN" mcp oauth discover e2e-unconfigured
-# `mcp server` speaks JSON-RPC over stdio and exits cleanly on stdin EOF; the
-# explicit /dev/null keeps it from blocking on a terminal when run by hand.
-check        "mcp server exits on stdin EOF"         bash -c "'$BIN' mcp server </dev/null"
+# `mcp server` is a stdio bridge to the daemon and serves no tool of its own:
+# with no daemon on its socket it stops at once, exit 2, naming the command
+# that starts one. The native-tool flags it used to take are gone.
+MCP_OFF="$RUN_TMP/mcp-off.sock"
+check_exit   "mcp server (no daemon) → 2"  2         bash -c "'$BIN' --socket '$MCP_OFF' mcp server </dev/null"
+check        "mcp server (no daemon) names apollia-os start" bash -c "out=\$('$BIN' --socket '$MCP_OFF' mcp server </dev/null 2>&1); [[ \$out == *'apollia-os start'* ]] || { echo \"\$out\"; false; }"
+check_exit   "mcp server --with-runtime (retired) → 1"  1 "$BIN" mcp server --with-runtime
+check_exit   "mcp server --sandbox-root (retired) → 1"  1 "$BIN" mcp server --sandbox-root /tmp
 
 # ── A.10 chat hygiene (4 seeded sessions) ───────────────────────────────────
 section "A.10 chat hygiene"
@@ -255,12 +309,8 @@ check_json   "chat export .json is valid JSON"       /bin/cat "$SCRATCH/c.json"
 check_exit   "chat export unknown session"  1        "$BIN" chat export ghost-sess-id
 check        "chat delete seed-session-4 --confirm"  "$BIN" chat delete seed-session-4 --confirm
 
-# ── A.11 llm (threshold + setup validation, no daemon) ──────────────────────
+# ── A.11 llm (setup validation, no daemon) ──────────────────────────────────
 section "A.11 llm (offline)"
-LCFG="$SCRATCH/llm.toml"
-check        "llm costs --get-threshold (absent)"    "$BIN" llm costs --get-threshold --config "$LCFG"
-check        "llm costs --threshold 0.5"             "$BIN" llm costs --threshold 0.5 --config "$LCFG"
-check_grep   "llm costs threshold = 0.5" "0.5"       "$BIN" llm costs --get-threshold --config "$LCFG"
 check_exit   "llm setup without --local"  1          "$BIN" llm setup --model /tmp/never.gguf
 check_exit   "llm setup --local missing model"  1    "$BIN" llm setup --local --model /definitely/missing.gguf
 
@@ -402,6 +452,28 @@ check_exit   "model search (off) → 2"  2  "$BIN" --socket "$OFFSOCK" model sea
 # The ranking is computed by the daemon (hardware probe, live HuggingFace
 # listing), so with the daemon off the refusal is the deterministic path.
 check_exit   "model recommend (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model recommend
+# The default embeddings model lives in the daemon's system.db, which checks the
+# identifier against the registry: daemon off, both leaves refuse with 2.
+check_exit   "model embeddings show (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model embeddings show
+check_exit   "model embeddings set-default (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model embeddings set-default multilingual-e5-small
+# The registry of sources lives in the daemon's system.db, owned by its actor:
+# daemon off, each leaf refuses with 2; a deletion without --confirm outside a
+# terminal is refused with 1 before any call.
+check_exit   "source list (off) → 2"           2     "$BIN" --socket "$OFFSOCK" source list
+check_exit   "source create (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source create --kind folder --label Contracts --reference conn-contracts
+check_exit   "source delete (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source delete src-absent --confirm
+check_exit   "source delete without --confirm → 1" 1 "$BIN" --socket "$OFFSOCK" source delete src-absent
+# The report of the migration of the former projects is read from the daemon:
+# daemon off it refuses with 2, in human and in --json mode.
+check_exit   "source report (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source report
+check_exit   "source report --json (off) → 2"  2     "$BIN" --socket "$OFFSOCK" --json source report
+# The preview of a workbook or a CSV file is read by the daemon: daemon off it
+# refuses with 2, in human and in --json mode; a file that is not there is
+# refused with 1 before any call.
+printf 'name,city\nAda,London\n' > "$SCRATCH/inspect.csv"
+check_exit   "source inspect (off) → 2"        2     "$BIN" --socket "$OFFSOCK" source inspect "$SCRATCH/inspect.csv"
+check_exit   "source inspect --json (off) → 2" 2     "$BIN" --socket "$OFFSOCK" --json source inspect "$SCRATCH/inspect.csv" --sheet inspect --header-row 1
+check_exit   "source inspect missing file → 1" 1     "$BIN" --socket "$OFFSOCK" source inspect "$SCRATCH/no-such-file.xlsx"
 check        "agent list (off, local fallback)"      "$BIN" --socket "$OFFSOCK" agent list
 check_content "agent list shows 4 seeded agents" "apollia-chat" "$BIN" --socket "$OFFSOCK" agent list
 check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK" agent install /tmp/never-exists.py
@@ -415,6 +487,17 @@ check_exit   "agent reset (off) → 2"           2     "$BIN" --socket "$OFFSOCK
 check_exit   "agent set unknown field → 1"     1     "$BIN" --socket "$OFFSOCK" agent set apollia-chat model qwen3
 check_exit   "agent set two missions → 1"      1     "$BIN" --socket "$OFFSOCK" agent set apollia-chat mission one two
 check_exit   "agent reset unknown field → 1"   1     "$BIN" --socket "$OFFSOCK" agent reset apollia-chat --field model --confirm
+# The profile source of an agent is its `sources` override: checking it goes
+# through the runtime like any override, daemon off it refuses with 2, in human
+# and in --json mode.
+check_exit   "agent set sources profile (off) → 2" 2 "$BIN" --socket "$OFFSOCK" agent set apollia-chat sources profile
+check_exit   "agent set sources profile --json (off) → 2" 2 "$BIN" --socket "$OFFSOCK" --json agent set apollia-chat sources profile
+# The export of an agent is built and signed by the runtime: daemon off, it
+# refuses with 2, in human and in --json mode; an output in a folder that does
+# not exist is refused with 1 before any call, and nothing is written.
+check_exit   "agent export (off) → 2"          2     "$BIN" --socket "$OFFSOCK" agent export seed-ledger
+check_exit   "agent export --sign --json (off) → 2" 2 "$BIN" --socket "$OFFSOCK" --json agent export seed-ledger --sign --publisher "Seed Author"
+check_exit   "agent export into a missing folder → 1" 1 "$BIN" --socket "$OFFSOCK" agent export seed-ledger -o "$SCRATCH/no-such-dir/seed-ledger.apo"
 # An agent without code runs in the runtime too, by the same `run` leaf: daemon
 # off, it refuses with 2 before any call, whatever the agent.
 check_exit   "run agent without code (off) → 2" 2    "$BIN" --socket "$OFFSOCK" run seed-ledger "Reconcile March."
@@ -428,9 +511,20 @@ check_exit   "batch status (off) → 2"          2     "$BIN" --socket "$OFFSOCK
 check_exit   "batch list --json (off) → 2"     2     "$BIN" --socket "$OFFSOCK" --json batch list
 check_exit   "batch run bad --option → 1"      1     "$BIN" --socket "$OFFSOCK" batch run seed-ledger --source-type spreadsheet --source /data/requests.xlsx --option sheet
 check_exit   "batch run without source → 1"    1     "$BIN" --socket "$OFFSOCK" batch run seed-ledger
+check_exit   "batch accesses (off) → 2"        2     "$BIN" --socket "$OFFSOCK" batch accesses seed-ledger
+check_exit   "batch pause --json (off) → 2"    2     "$BIN" --socket "$OFFSOCK" --json batch pause 00000000-0000-0000-0000-000000000000
+check_exit   "batch resume (off) → 2"          2     "$BIN" --socket "$OFFSOCK" batch resume 00000000-0000-0000-0000-000000000000
+check_exit   "batch stop (off) → 2"            2     "$BIN" --socket "$OFFSOCK" batch stop 00000000-0000-0000-0000-000000000000
+check_exit   "batch retry --grant (off) → 2"   2     "$BIN" --socket "$OFFSOCK" batch retry 00000000-0000-0000-0000-000000000000 --grant gmail_send
+check_exit   "batch pause without id → 1"      1     "$BIN" --socket "$OFFSOCK" batch pause
+check_exit   "batch export (off) → 2"          2     "$BIN" --socket "$OFFSOCK" batch export 00000000-0000-0000-0000-000000000000 --format xlsx
+check_exit   "batch export --json (off) → 2"   2     "$BIN" --socket "$OFFSOCK" --json batch export 00000000-0000-0000-0000-000000000000 --format csv -o -
+check_exit   "batch export bad --format → 1"   1     "$BIN" --socket "$OFFSOCK" batch export 00000000-0000-0000-0000-000000000000 --format pdf
 # A workflow runs in the runtime: daemon off, each leaf refuses with 2; an
 # identifier without its package, a malformed --input, or a stop without
 # --confirm off a terminal is a usage error, 1, before any call.
+check_exit   "workflow show (off) → 2"         2     "$BIN" --socket "$OFFSOCK" workflow show invoices/close-month
+check_exit   "workflow show bare name → 1"     1     "$BIN" --socket "$OFFSOCK" --json workflow show close-month
 check_exit   "workflow run (off) → 2"          2     "$BIN" --socket "$OFFSOCK" workflow run invoices/close-month --input folder=/data/march
 check_exit   "workflow run --json (off) → 2"   2     "$BIN" --socket "$OFFSOCK" --json workflow run invoices/close-month --input folder=/data/march --wait
 check_exit   "workflow status (off) → 2"       2     "$BIN" --socket "$OFFSOCK" workflow status 00000000-0000-0000-0000-000000000000
