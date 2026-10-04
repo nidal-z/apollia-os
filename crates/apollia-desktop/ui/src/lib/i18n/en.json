@@ -3444,6 +3444,10 @@
     "step_budget_placeholder": "Runtime default",
     "step_budget_hint": "Maximum reasoning steps per turn (1–200). Leave empty to use the runtime default.",
     "config": {
+      "profile_label": "Conversation profile",
+      "profile_default": "Default profile ({name})",
+      "profile_default_unnamed": "Default profile",
+      "profile_hint": "Left empty, the conversation follows your default profile, even when it changes.",
       "errors": {
         "llm_required": "Select an LLM provider before saving.",
         "system_prompt_too_long": "System prompt is too long (max 4000 characters).",

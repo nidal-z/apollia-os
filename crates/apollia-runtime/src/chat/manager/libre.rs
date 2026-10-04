@@ -506,6 +506,7 @@ mod context_gauge_tests {
             fork_depth: 0,
             plan_mode: false,
             plan_phase: PlanPhase::Done,
+            profile_id: None,
         }
     }
 

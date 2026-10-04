@@ -646,6 +646,7 @@ mod tests {
             fork_depth: 0,
             plan_mode: false,
             plan_phase: super::super::types::PlanPhase::Done,
+            profile_id: None,
         }
     }
 
@@ -718,6 +719,7 @@ mod tests {
             fork_depth: 0,
             plan_mode: false,
             plan_phase: super::super::types::PlanPhase::Done,
+            profile_id: None,
         }
     }
 

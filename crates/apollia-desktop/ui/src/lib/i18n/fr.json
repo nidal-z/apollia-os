@@ -3444,6 +3444,10 @@
     "step_budget_placeholder": "Valeur par défaut du runtime",
     "step_budget_hint": "Nombre maximum d'étapes de raisonnement par tour (1–200). Laisser vide pour utiliser la valeur par défaut du runtime.",
     "config": {
+      "profile_label": "Profil de la conversation",
+      "profile_default": "Profil par défaut ({name})",
+      "profile_default_unnamed": "Profil par défaut",
+      "profile_hint": "Vide, la conversation suit votre profil par défaut, même s'il change.",
       "errors": {
         "llm_required": "Sélectionnez un fournisseur LLM avant d'enregistrer.",
         "system_prompt_too_long": "Le prompt système est trop long (max 4000 caractères).",

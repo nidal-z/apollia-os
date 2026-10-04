@@ -57,7 +57,7 @@ pub use types::PastSessionSummary;
 pub use types::RecentSessionSummary;
 pub use types::{
     ChatApprovalAsked, ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ChatSessionConfig,
-    ExchangeState, InjectedInstruction, MessageId, PauseState, PendingChatApprovals, SessionDetail,
-    SessionId, SessionInfo, SessionMetrics, SessionStatus, ToolCallRecord, ToolCallStatus,
-    ToolDecision, ToolStatEntry, TurnOutcome,
+    ExchangeState, InjectedInstruction, MessageId, PauseState, PendingChatApprovals,
+    SessionConfigUpdate, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
+    ToolCallRecord, ToolCallStatus, ToolDecision, ToolStatEntry, TurnOutcome,
 };

@@ -685,6 +685,7 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
         system_prompt: Some("Brief.".to_owned()),
         tools: None,
         llm_backend: None,
+        profile_id: None,
     };
 
     // WHEN the attached arm of each command runs, with identifiers that need

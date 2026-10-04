@@ -11781,6 +11781,7 @@
           "profile"
         ],
         "summary": "`DELETE /api/v1/profiles/{id}`: deletes a profile and its facts.",
+        "description": "The conversations that designated it return to the default profile.",
         "operationId": "delete_profile",
         "parameters": [
           {
@@ -28782,6 +28783,13 @@
               "null"
             ],
             "description": "Model of the session: a backend, `<server>/<model>`, or the\nidentifier of a language model of the model index. `null` returns to\nthe model of the agent."
+          },
+          "profile_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Profile the conversation designates; `null` returns it to the current\ndefault profile."
           },
           "system_prompt": {
             "type": [

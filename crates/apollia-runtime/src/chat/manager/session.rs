@@ -190,6 +190,7 @@ impl ChatSessionManager {
             // toggle overrides it afterwards.
             plan_mode,
             plan_phase,
+            profile_id: None,
         };
 
         let info = session_to_info(&session);
@@ -217,9 +218,7 @@ impl ChatSessionManager {
     pub(in crate::chat::manager) fn handle_update_session(
         &mut self,
         session_id: &str,
-        system_prompt: Option<&str>,
-        available_tools: Option<&[String]>,
-        llm_backend: Option<&Option<String>>,
+        update: SessionConfigUpdate,
     ) -> Result<(), ChatError> {
         let session = self
             .sessions
@@ -235,26 +234,40 @@ impl ChatSessionManager {
         }
 
         // Persist to SQLite
-        self.repository.update_session_config(
-            session_id,
-            system_prompt,
-            available_tools,
-            llm_backend.map(|b| b.as_deref()),
-        )?;
+        self.repository.update_session_config(session_id, &update)?;
 
         // Update in-memory session
-        if let Some(prompt) = system_prompt {
-            session.system_prompt = prompt.to_string();
+        if let Some(prompt) = update.system_prompt {
+            session.system_prompt = prompt;
         }
-        if let Some(tools) = available_tools {
-            session.available_tools = tools.to_vec();
+        if let Some(tools) = update.available_tools {
+            session.available_tools = tools;
         }
-        if let Some(backend) = llm_backend {
-            session.llm_backend = backend.clone();
+        if let Some(backend) = update.llm_backend {
+            session.llm_backend = backend;
+        }
+        if let Some(profile) = update.profile_id {
+            session.profile_id = profile;
         }
 
         info!(session_id = %session_id, "chat.session.config.updated");
         Ok(())
+    }
+
+    /// Empty the profile of every session designating `profile_id`, in
+    /// `chat.db` and in memory; returns how many sessions designated it.
+    pub(in crate::chat::manager) fn handle_release_profile(
+        &mut self,
+        profile_id: &str,
+    ) -> Result<usize, ChatError> {
+        let released = self.repository.release_profile(profile_id)?;
+        for session in self.sessions.values_mut() {
+            if session.profile_id.as_deref() == Some(profile_id) {
+                session.profile_id = None;
+            }
+        }
+        info!(profile_id = %profile_id, released, "chat.session.profile.released");
+        Ok(released)
     }
 }
 
@@ -427,6 +440,7 @@ impl ChatSessionManager {
             fork_depth: row.fork_depth,
             plan_mode,
             plan_phase,
+            profile_id: row.profile_id,
         };
 
         Some(SessionDetail {

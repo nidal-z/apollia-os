@@ -23,8 +23,9 @@ use rusqlite::Connection;
 /// v5 `title`, v6 forking, v7 project linkage, v8 message `metadata`,
 /// v9 approval log, v10 `chat_sessions` recreate (mode CHECK gains
 /// `companion`), v11 approval `reason`, v12 plan-mode columns,
-/// v13 todo table, v14 plan tables, v15 project linkage dropped.
-pub(crate) const SCHEMA_VERSION: u32 = 15;
+/// v13 todo table, v14 plan tables, v15 project linkage dropped,
+/// v16 `profile_id` (the profile a conversation designates).
+pub(crate) const SCHEMA_VERSION: u32 = 16;
 
 /// Base tables, applied on first open.
 const BASE_SQL: &str = include_str!("../../migrations/001_chat_tables.sql");
@@ -84,6 +85,7 @@ const MIGRATIONS: [Migration; SCHEMA_VERSION as usize] = [
     migrate_v13,
     migrate_v14,
     migrate_v15,
+    migrate_v16,
 ];
 
 /// Bring `conn` to the current chat schema version, or refuse it.
@@ -247,6 +249,12 @@ fn migrate_v15(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn.execute_batch("ALTER TABLE chat_sessions DROP COLUMN project_id")?;
     }
     Ok(())
+}
+
+/// v16: a conversation may designate a profile of `user_memory.db`. Empty, it
+/// follows the current default profile.
+fn migrate_v16(conn: &Connection) -> Result<(), rusqlite::Error> {
+    add_column_if_missing(conn, "ALTER TABLE chat_sessions ADD COLUMN profile_id TEXT")
 }
 
 /// Returns `true` when `table` already declares a column named `column`.
