@@ -31,8 +31,6 @@
     listMcpServers,
     listMcpEnrichments,
     listAgents,
-    fetchMcpCurated,
-    fetchMcpRegistry,
     getMcpServerDetail,
     oauthGetStatus,
     oauthDisconnect,
@@ -42,6 +40,7 @@
   import { messageOf, formatTauriError } from "$lib/connections/errors";
   import { needsOauthSetup } from "$lib/connections/status";
   import { loadConnections } from "$lib/connections/connectionList";
+  import { createCatalogueSource, type CatalogueTier } from "$lib/connections/catalogueSource";
   import {
     NATIVE_PROVIDER_KEYS,
     connectionRows,
@@ -146,7 +145,10 @@
   // ── Catalogue + wizard ───────────────────────────────────────────────────────
   let catalogueOpen = $state(false);
   let registryLoading = $state(false);
-  let catalogueTier = $state<"none" | "curated" | "full">("none");
+  let catalogueTier = $state<CatalogueTier>("none");
+  // Opening reads the selection only; the public catalogue is asked by
+  // "Explore all" and nothing else.
+  const catalogueSource = createCatalogueSource();
   let selectedRegistryServer = $state<RegistryServerView | null>(null);
   let wizardOpen = $state(false);
   let mailboxOpen = $state(false);
@@ -224,23 +226,24 @@
     }
   }
 
-  async function loadCuratedCatalogue(): Promise<void> {
-    if (catalogueTier !== "none") return;
+  async function showSelection(): Promise<void> {
     registryLoading = true;
     try {
-      registry = await fetchMcpCurated().catch(() => [] as RegistryServerView[]);
-      catalogueTier = "curated";
+      const view = await catalogueSource.selection();
+      catalogueTier = view.tier;
+      registry = view.entries;
     } finally {
       registryLoading = false;
     }
   }
 
-  async function loadFullRegistry(): Promise<void> {
-    if (catalogueTier === "full" || registryLoading) return;
+  async function handleExploreAll(): Promise<void> {
+    if (registryLoading) return;
     registryLoading = true;
     try {
-      registry = await fetchMcpRegistry().catch(() => [] as RegistryServerView[]);
-      catalogueTier = "full";
+      const view = await catalogueSource.exploreAll();
+      catalogueTier = view.tier;
+      registry = view.entries;
     } finally {
       registryLoading = false;
     }
@@ -272,10 +275,7 @@
   // ── Handlers ─────────────────────────────────────────────────────────────────
   function handleOpenCatalogue(): void {
     catalogueOpen = true;
-    void (async () => {
-      await loadCuratedCatalogue();
-      if (catalogueTier === "curated") void loadFullRegistry();
-    })();
+    void showSelection();
   }
 
   /** Choosing an entry opens the add dialog on its warning. */
@@ -290,7 +290,7 @@
    * entry the selection does not hold opens the catalogue instead.
    */
   async function openPendingEntry(entryId: string): Promise<void> {
-    await loadCuratedCatalogue();
+    await showSelection();
     const entry = findSelectionEntry(registry, entryId);
     if (entry) handleConnect(entry);
     else catalogueOpen = true;
@@ -557,6 +557,8 @@
   {registryLoading}
   {catalogueTier}
   onclose={() => (catalogueOpen = false)}
+  onexploreall={handleExploreAll}
+  onbacktoselection={showSelection}
   onconnect={handleConnect}
   onmanage={handleManage}
   onaddfolder={() => void addFolder()}
