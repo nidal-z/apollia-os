@@ -44,6 +44,8 @@ async function installTauriStub(page: Page, refuse: boolean): Promise<void> {
       get_config: () => ({ config_path: "~/.apollia/apollia.toml", config_exists: true, sections: [] }),
       get_system_info: () => ({}),
       fetch_mcp_curated: () => [notion],
+      // Connections lists the built-in tools as the Apollia source; null would break the count.
+      governance_list_tools: () => [],
       // Opening the catalogue still chains the full registry, which keeps the selection.
       fetch_mcp_registry: () => [notion],
       test_mcp_connection: () => ({
