@@ -82,6 +82,8 @@ pub(in crate::chat::builtin_agent) use response::{NoopCheckInvoker, PlanPhaseTra
 #[cfg(test)]
 mod code_executor_grant_tests;
 #[cfg(test)]
+mod consent_journal_tests;
+#[cfg(test)]
 mod governed_test_support;
 #[cfg(test)]
 mod parity_tests;

@@ -2,7 +2,7 @@ use super::*;
 
 use apollia_tools::ActionFamily;
 
-use super::governed::{family_of, refusal_text, AskedConsent};
+use super::governed::{answer_taken, family_of, refusal_text, AskedConsent};
 use crate::governance::{AccessDecision, ConsentAnswer};
 
 impl BuiltInChatAgent {
@@ -439,6 +439,7 @@ impl BuiltInChatAgent {
                     reason = ?reason,
                     "chat.tool.governance_denied"
                 );
+                self.journal_refusal(call, family, reason);
                 let refusal = refusal_text(reason);
                 llm_messages.push(LlmChatMessage::tool_result(&call.id, &refusal));
                 acc.all_tool_calls.push(ToolCallRecord {
@@ -585,6 +586,7 @@ impl BuiltInChatAgent {
             run_id,
             asked,
         } = target;
+        self.journal_answer(call, asked.family, answer_taken(&decision, &asked));
         match decision {
             ToolDecision::Accept => {
                 let (record, tool_result, success) = self

@@ -2,14 +2,27 @@
 
 use serde::{Deserialize, Serialize};
 
+use apollia_permissions::{ConsentFamily, RuleRecord, StoreEvent};
+use apollia_tools::ActionFamily;
+
 use crate::audit_journal::{JournalEntryDraft, JournalEntryKind};
-use crate::governance::contract::GovernanceError;
+use crate::governance::contract::{ConsentAnswer, GovernanceError};
 
 /// Prefix of the journal run that holds the governance history of one agent.
 const GOVERNANCE_RUN_PREFIX: &str = "governance:";
 
 /// Prefix of the journal run that holds the history of one package.
 const PACKAGE_RUN_PREFIX: &str = "governance:package:";
+
+/// Journal run holding the organisation policy applied at each start, and
+/// every entry into fail-closed.
+pub const POLICY_RUN_ID: &str = "governance:policy:organisation";
+
+/// Journal run holding the fine rules that bind every agent.
+pub const GLOBAL_RULES_RUN_ID: &str = "governance:rules:global";
+
+/// Journal run holding the exports of the journal.
+pub const JOURNAL_EXPORT_RUN_ID: &str = "governance:journal:export";
 
 /// Journal run holding the installations and updates of `package_id`.
 pub fn package_run_id(package_id: &str) -> String {
@@ -166,6 +179,128 @@ pub enum GovernanceEvent {
         /// Who uninstalled it.
         actor: String,
     },
+    /// The user answered a consent prompt. Neither the call's argument nor
+    /// a reason typed with a refusal is recorded.
+    ConsentAnswered {
+        /// Agent the call was made by.
+        agent_id: String,
+        /// Access the call used (the tool).
+        access_id: String,
+        /// Family of the tool.
+        family: ActionFamily,
+        /// What the user answered, as it took effect.
+        answer: ConsentAnswer,
+    },
+    /// A standing consent ("always") was withdrawn.
+    AlwaysWithdrawn {
+        /// Agent the consent was given to.
+        agent_id: String,
+        /// Family it covered.
+        family: ConsentFamily,
+    },
+    /// The organisation policy refused a call.
+    PolicyRefused {
+        /// Agent the call was made by.
+        agent_id: String,
+        /// Access the call used (the tool).
+        access_id: String,
+        /// Family of the tool.
+        family: ActionFamily,
+        /// What the policy refuses, as shown to the user.
+        detail: String,
+    },
+    /// A fine rule refused a call.
+    RuleRefused {
+        /// Agent the call was made by.
+        agent_id: String,
+        /// Access the call used (the tool).
+        access_id: String,
+        /// Family of the tool.
+        family: ActionFamily,
+        /// Identifier of the rule in `governance.db`.
+        rule_id: i64,
+    },
+    /// A fine rule was added.
+    RuleAdded(RuleRecord),
+    /// A fine rule was removed.
+    RuleRemoved(RuleRecord),
+    /// A family was granted to an agent for one batch run.
+    BatchAccessGranted {
+        /// Agent the family was granted to.
+        agent_id: String,
+        /// The batch run the grant holds for.
+        batch_id: String,
+        /// Family granted.
+        family: ConsentFamily,
+        /// Who granted it.
+        granted_by: String,
+    },
+    /// The organisation policy was applied at startup.
+    PolicyApplied {
+        /// Fingerprint of the key that signed the policy.
+        key_fingerprint: String,
+        /// SHA-256 of `policy.toml`.
+        policy_digest: String,
+        /// Publisher named by the signature.
+        publisher: String,
+        /// When the organisation signed the policy.
+        signed_at: String,
+    },
+    /// The policy applied at startup is not the one applied before.
+    PolicyChanged {
+        /// Fingerprint of the key that signed the new policy.
+        key_fingerprint: String,
+        /// SHA-256 of the new `policy.toml`.
+        policy_digest: String,
+        /// SHA-256 of the policy applied before.
+        previous_digest: String,
+    },
+    /// A deposited policy was refused at startup.
+    PolicyUnreadable {
+        /// Reason class (`schema`, `signature`, `key`, `owner`).
+        reason: String,
+        /// What exactly was refused.
+        detail: String,
+    },
+    /// Governance entered fail-closed.
+    FailClosedTriggered {
+        /// What cannot be read (`store_unreadable` or `policy_invalid`).
+        cause: String,
+        /// Why, in a sentence.
+        detail: String,
+    },
+    /// The journal was exported.
+    JournalExported {
+        /// Format of the export (`csv`, `pdf`).
+        format: String,
+        /// Number of entries exported.
+        entries: u64,
+        /// Who exported it.
+        actor: String,
+    },
+}
+
+impl From<StoreEvent> for GovernanceEvent {
+    fn from(event: StoreEvent) -> Self {
+        match event {
+            StoreEvent::AlwaysWithdrawn { agent_id, family } => {
+                Self::AlwaysWithdrawn { agent_id, family }
+            }
+            StoreEvent::BatchAccessGranted {
+                agent_id,
+                batch_id,
+                family,
+                granted_by,
+            } => Self::BatchAccessGranted {
+                agent_id,
+                batch_id,
+                family,
+                granted_by,
+            },
+            StoreEvent::RuleAdded(rule) => Self::RuleAdded(rule),
+            StoreEvent::RuleRemoved(rule) => Self::RuleRemoved(rule),
+        }
+    }
 }
 
 impl GovernanceEvent {
@@ -180,6 +315,19 @@ impl GovernanceEvent {
             GovernanceEvent::PackageInstalled { package_id, .. }
             | GovernanceEvent::PackageUpdated { package_id, .. }
             | GovernanceEvent::PackageUninstalled { package_id, .. } => package_id,
+            GovernanceEvent::ConsentAnswered { agent_id, .. }
+            | GovernanceEvent::AlwaysWithdrawn { agent_id, .. }
+            | GovernanceEvent::PolicyRefused { agent_id, .. }
+            | GovernanceEvent::RuleRefused { agent_id, .. }
+            | GovernanceEvent::BatchAccessGranted { agent_id, .. } => agent_id,
+            GovernanceEvent::RuleAdded(rule) | GovernanceEvent::RuleRemoved(rule) => {
+                rule.agent_id.as_deref().unwrap_or(&rule.tool_name)
+            }
+            GovernanceEvent::PolicyApplied { .. }
+            | GovernanceEvent::PolicyChanged { .. }
+            | GovernanceEvent::PolicyUnreadable { .. }
+            | GovernanceEvent::FailClosedTriggered { .. } => POLICY_RUN_ID,
+            GovernanceEvent::JournalExported { .. } => JOURNAL_EXPORT_RUN_ID,
         }
     }
 
@@ -190,6 +338,17 @@ impl GovernanceEvent {
             GovernanceEvent::PackageInstalled { package_id, .. }
             | GovernanceEvent::PackageUpdated { package_id, .. }
             | GovernanceEvent::PackageUninstalled { package_id, .. } => package_run_id(package_id),
+            GovernanceEvent::RuleAdded(rule) | GovernanceEvent::RuleRemoved(rule) => {
+                match &rule.agent_id {
+                    Some(agent_id) => governance_run_id(agent_id),
+                    None => GLOBAL_RULES_RUN_ID.to_owned(),
+                }
+            }
+            GovernanceEvent::PolicyApplied { .. }
+            | GovernanceEvent::PolicyChanged { .. }
+            | GovernanceEvent::PolicyUnreadable { .. }
+            | GovernanceEvent::FailClosedTriggered { .. }
+            | GovernanceEvent::JournalExported { .. } => other_run(self),
             other => governance_run_id(other.subject_id()),
         }
     }
@@ -205,8 +364,26 @@ impl GovernanceEvent {
             GovernanceEvent::PackageInstalled { .. } => JournalEntryKind::PackageInstalled,
             GovernanceEvent::PackageUpdated { .. } => JournalEntryKind::PackageUpdated,
             GovernanceEvent::PackageUninstalled { .. } => JournalEntryKind::PackageUninstalled,
+            GovernanceEvent::ConsentAnswered { .. } => JournalEntryKind::ConsentAnswered,
+            GovernanceEvent::AlwaysWithdrawn { .. } => JournalEntryKind::AlwaysWithdrawn,
+            GovernanceEvent::PolicyRefused { .. } => JournalEntryKind::PolicyRefused,
+            GovernanceEvent::RuleRefused { .. } => JournalEntryKind::RuleRefused,
+            GovernanceEvent::RuleAdded(_) => JournalEntryKind::RuleAdded,
+            GovernanceEvent::RuleRemoved(_) => JournalEntryKind::RuleRemoved,
+            GovernanceEvent::BatchAccessGranted { .. } => JournalEntryKind::BatchAccessGranted,
+            GovernanceEvent::PolicyApplied { .. } => JournalEntryKind::PolicyApplied,
+            GovernanceEvent::PolicyChanged { .. } => JournalEntryKind::PolicyChanged,
+            GovernanceEvent::PolicyUnreadable { .. } => JournalEntryKind::PolicyUnreadable,
+            GovernanceEvent::FailClosedTriggered { .. } => JournalEntryKind::FailClosedTriggered,
+            GovernanceEvent::JournalExported { .. } => JournalEntryKind::JournalExported,
         }
     }
+}
+
+/// The run of an event that concerns no agent and no package: its subject
+/// names the run.
+fn other_run(event: &GovernanceEvent) -> String {
+    event.subject_id().to_owned()
 }
 
 /// Payload of a governance journal entry.
