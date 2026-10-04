@@ -51,6 +51,16 @@ export function listConnections(): Promise<Connection[]> {
   return invoke<Connection[]>("list_connections");
 }
 
+/** Add the folder at `path`, chosen with the system picker, as a connection. */
+export function addFolderConnection(path: string): Promise<Connection> {
+  return invoke<Connection>("add_folder_connection", { path });
+}
+
+/** Remove the folder connection `connectionId` (`folder:<id>`); answers the connection it was. */
+export function removeFolderConnection(connectionId: string): Promise<Connection> {
+  return invoke<Connection>("remove_folder_connection", { connectionId });
+}
+
 // ── MCP servers ────────────────────────────────────────────────────────────
 
 export function listMcpServers(): Promise<McpServerStatusView[]> {
@@ -268,7 +278,8 @@ export type WizardInvoke = <T>(
 ) => Promise<T>;
 
 /**
- * File the connector's secrets, then install its configuration.
+ * File the connector's secrets, then install its configuration, the warning
+ * shown before the addition accepted (the desktop journals it).
  *
  * Both calls carry `config.name`, and that is the whole point of this
  * function existing. The keyring key is written as `{server_name}:{env_var}`
@@ -294,5 +305,17 @@ export async function installConnector(
       value: secret.value,
     });
   }
-  await invokeFn("add_mcp_server", { config });
+  await invokeFn("add_mcp_server", { config, warningAccepted: true });
+}
+
+/** Where Node.js stands in the engine store, as `node_runtime_state` answers. */
+export type NodeRuntimeState =
+  | { state: "absent" }
+  | { state: "downloading"; received: number; total: number }
+  | { state: "ready"; tag: string; path: string }
+  | { state: "failed"; error: string };
+
+/** Read where Node.js stands, to show its download while an addition waits on it. */
+export function nodeRuntimeState(): Promise<NodeRuntimeState> {
+  return invoke<NodeRuntimeState>("node_runtime_state");
 }

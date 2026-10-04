@@ -10,6 +10,7 @@ from .a2a_skill_dto import A2ASkillDto
 from .a2a_skill_dto_input_schema_type_0 import A2ASkillDtoInputSchemaType0
 from .a2a_skills_response import A2ASkillsResponse
 from .access_preview import AccessPreview
+from .add_folder_body import AddFolderBody
 from .add_permission_rule_body import AddPermissionRuleBody
 from .added_access import AddedAccess
 from .added_permission_rule import AddedPermissionRule
@@ -164,6 +165,7 @@ from .export_format import ExportFormat
 from .export_memory_namespace_response_200 import ExportMemoryNamespaceResponse200
 from .fire_response import FireResponse
 from .fit_dto import FitDto
+from .folder_error_body import FolderErrorBody
 from .fork_session_request import ForkSessionRequest
 from .fs_hitl_decision_body_type_0 import FsHitlDecisionBodyType0
 from .fs_hitl_decision_body_type_0_decision import FsHitlDecisionBodyType0Decision
@@ -531,6 +533,7 @@ __all__ = (
     "AccessPreview",
     "AddedAccess",
     "AddedPermissionRule",
+    "AddFolderBody",
     "AddPermissionRuleBody",
     "AdvancePhaseBody",
     "AgentListResponse",
@@ -683,6 +686,7 @@ __all__ = (
     "ExportMemoryNamespaceResponse200",
     "FireResponse",
     "FitDto",
+    "FolderErrorBody",
     "ForkSessionRequest",
     "FsHitlDecisionBodyType0",
     "FsHitlDecisionBodyType0Decision",
