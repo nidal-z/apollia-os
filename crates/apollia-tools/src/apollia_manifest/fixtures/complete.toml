@@ -25,6 +25,8 @@ access = ["file_read", "mcp:ledger/lookup", "pkg:invoices/extract_totals"]
 sources = ["profile"]
 # Autonomy tier: assisted, supervised, bounded_autonomous or long_autonomous.
 autonomy = "supervised"
+# Whether the agent plans first: never, auto or always.
+planning = "always"
 
 [agents.defaults.model]
 model = "qwen3-8b-instruct"

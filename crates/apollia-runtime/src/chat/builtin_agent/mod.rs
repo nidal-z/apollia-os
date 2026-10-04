@@ -59,6 +59,7 @@ mod governed;
 mod helpers;
 mod hitl;
 mod invoker;
+mod outputs;
 mod plan;
 mod prompt;
 mod react_loop;
@@ -76,6 +77,7 @@ pub(in crate::chat::builtin_agent) use helpers::{
     unknown_tool_reason,
 };
 pub use invoker::NativeChatToolInvoker;
+pub use outputs::{context_tool_output, default_tool_output_dir, TOOL_OUTPUT_DIR};
 pub use response::{ChatAgentResponse, ConsolidatedVerificationReport};
 pub(in crate::chat::builtin_agent) use response::{NoopCheckInvoker, PlanPhaseTracker, RetryCarry};
 
@@ -298,6 +300,11 @@ pub struct BuiltInChatAgent {
     /// Delay after which a pending tool approval is refused. `None` waits for
     /// the human however long it takes.
     approval_timeout: Option<Duration>,
+    /// Directory where a tool output too long for the context is kept whole.
+    /// `None` cuts such an output instead.
+    tool_output_dir: Option<std::path::PathBuf>,
+    /// Circuit breakers of the tools this loop calls, one per tool.
+    resilience: apollia_oria::ResilienceLayer,
     /// The conversation turn every model call of the run is made for: the
     /// identifier of the answer it produces. `None` outside a conversation.
     turn_id: Option<String>,

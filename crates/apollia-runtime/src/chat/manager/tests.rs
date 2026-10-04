@@ -1685,6 +1685,7 @@ async fn test_validate_create_request_accepts_a_declarative_agent_outside_the_re
         sources: Vec::new(),
         model: None,
         autonomy: apollia_core::AutonomyLevel::Assisted,
+        planning: apollia_tools::PlanningMode::Auto,
         profile: None,
         overridden: Vec::new(),
         definition: serde_json::json!({}),

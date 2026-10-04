@@ -9637,11 +9637,16 @@ export interface components {
             /**
              * @description Fields whose value is the user's rather than the package's:
              *     `name`, `mission`, `examples`, `access`, `sources`, `autonomy`,
-             *     `profile`.
+             *     `planning`, `profile`.
              */
             overridden: string[];
             /** @description Package the agent came with. */
             package?: string | null;
+            /**
+             * @description Whether the agent plans a task before acting on it: `never`, `auto` or
+             *     `always`. The user's, else the package's, else `auto`.
+             */
+            planning: string;
             /**
              * @description Identifier of the user profile designated for the agent; absent when
              *     it runs with the default profile.
@@ -10067,7 +10072,8 @@ export interface components {
         SetOverrideRequest: {
             /**
              * @description The user's value: a string for `name` and `mission`, a tier name for
-             *     `autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`.
+             *     `autonomy`, a mode for `planning`, a profile identifier for `profile`,
+             *     a list of strings for `examples`, `access` and `sources`.
              *     A `sources` entry is a source identifier of `GET /api/v1/sources`, `profile` or `memory`.
              */
             value: Record<string, never>;
@@ -11666,7 +11672,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access, sources, autonomy or profile */
+                /** @description name, mission, examples, access, sources, autonomy, planning or profile */
                 field: string;
             };
             cookie?: never;
@@ -11722,7 +11728,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access, sources, autonomy or profile */
+                /** @description name, mission, examples, access, sources, autonomy, planning or profile */
                 field: string;
             };
             cookie?: never;

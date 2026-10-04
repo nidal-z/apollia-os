@@ -139,6 +139,7 @@ fn deps(router: Arc<LlmRouter>, bus: EventBusSender) -> AgentExecutorDeps {
         event_bus: bus,
         todo: None,
         plan: None,
+        plan_cache: None,
     }
 }
 
@@ -388,6 +389,8 @@ async fn test_apollia_receives_the_two_injections() {
         granted_tools: vec![],
         model: None,
         autonomy: AutonomyLevel::LongAutonomous,
+        planning: PlanningMode::Never,
+        version: String::new(),
     };
 
     // WHEN

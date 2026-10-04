@@ -197,6 +197,8 @@ fn delegate() -> crate::a2a::A2aDelegateFn {
     )
 }
 
+/// Stores an agent that never plans first: the scripted model answers the
+/// composition exchange, not a plan.
 fn store(repo: &AgentRepository, name: &str, mission: &str, access: &[&str]) {
     repo.save_definition(&StoredAgent {
         name: name.into(),
@@ -207,7 +209,7 @@ fn store(repo: &AgentRepository, name: &str, mission: &str, access: &[&str]) {
             "id": name,
             "name": name,
             "mission": mission,
-            "defaults": {"access": access}
+            "defaults": {"access": access, "planning": "never"}
         }),
         enabled: true,
         installed_at: "2026-10-02T00:00:00Z".into(),
@@ -322,6 +324,7 @@ async fn fixture() -> Fixture {
         repository: Some(repository.clone()),
         event_bus: state.event_sender.clone(),
         observability: state.obs_config.clone(),
+        plan_cache: None,
     };
     let agents: Arc<dyn AgentRunner> = Arc::new(LaunchedAgentRunner::new(
         launcher(),

@@ -134,7 +134,7 @@ DEAD_RATCHET: dict[str, str] = {
         "same dead path as `approve_tool`, on the other half of the pair."
     ),
     "run_task_with_alternatives@apollia-oria": (
-        "the CLI consumes `PlanAlternativesProposed` and nothing emits it; the missing half is the emission, not this method."
+        "plan alternatives were retired from the product with the CLI's --alternatives; this method, its event and its types go together, a removal that reaches apollia-core and the memory schema."
     ),
     "with_style_detection@apollia-workspace": (
         "the style provider was installed only from the context providers of the former projects, retired with them; this builder has no caller."

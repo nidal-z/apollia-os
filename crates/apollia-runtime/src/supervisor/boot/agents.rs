@@ -131,7 +131,11 @@ impl Supervisor {
             stores.task_repository.as_ref(),
             &core.event_sender,
             &self.config.obs_config,
-        );
+        )
+        .map(|launcher| crate::agents::task::AgentTaskLauncher {
+            plan_cache: stores.plan_cache.clone(),
+            ..launcher
+        });
         let batches = match (&stores.task_repository, &launcher) {
             (Some(repo), Some(launcher)) => Some(crate::batch::BatchHandle::spawn(
                 repo.clone(),

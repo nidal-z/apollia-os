@@ -84,19 +84,20 @@ pub enum AgentCommand {
     },
     /// Override one field of an agent's definition; a package update keeps it.
     ///
-    /// Fields: `name`, `mission`, `autonomy` and `profile` (a profile
-    /// identifier, see `profile list`) take one value; `examples`, `access`
-    /// and `sources` take the whole list, one value per item (none for an
-    /// empty list). A source is an identifier of `source list`, `profile` or
-    /// `memory`; the runtime refuses any other. The source `profile` lets the
-    /// agent read your profile through `ctx.profile`: `agent set <id> sources
-    /// profile` checks it, a list without it unchecks it, and `agent reset
-    /// --field sources` goes back to the package default. Recorded in the
-    /// audit journal.
+    /// Fields: `name`, `mission`, `autonomy`, `planning` (never, auto or
+    /// always) and `profile` (a profile identifier, see `profile list`) take
+    /// one value; `examples`, `access` and `sources` take the whole list, one
+    /// value per item (none for an empty list). A source is an identifier of
+    /// `source list`, `profile` or `memory`; the runtime refuses any other.
+    /// The source `profile` lets the agent read your profile through
+    /// `ctx.profile`: `agent set <id> sources profile` checks it, a list
+    /// without it unchecks it, and `agent reset --field sources` goes back to
+    /// the package default. Recorded in the audit journal.
     Set {
         /// Agent identifier.
         agent_id: String,
-        /// Field to override: name, mission, examples, access, sources, autonomy or profile.
+        /// Field to override: name, mission, examples, access, sources,
+        /// autonomy, planning or profile.
         field: String,
         /// The value, or the items of a list.
         #[arg(num_args = 0..)]
