@@ -13499,20 +13499,17 @@
     },
     {
       "kind": "click",
-      "testid": "developer-mode-off"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "click",
       "testid": "settings-nav-hardware"
     },
     {
       "kind": "waitFor",
       "testid": "system-info-section",
       "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hardware-processor",
+      "timeoutMs": 20000
     },
     {
       "kind": "screenshot",
@@ -13581,6 +13578,23 @@
     {
       "kind": "screenshot",
       "label": "27-agent-install-section"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
     },
     {
       "kind": "click",
@@ -14543,6 +14557,11 @@
       "timeoutMs": 6000
     },
     {
+      "kind": "waitFor",
+      "testid": "engines-list",
+      "timeoutMs": 20000
+    },
+    {
       "kind": "click",
       "testid": "about-copy-diagnostics",
       "timeoutMs": 4000
@@ -14554,51 +14573,6 @@
     {
       "kind": "screenshot",
       "label": "56-about-diagnostic-copied"
-    },
-    {
-      "kind": "click",
-      "testid": "about-copy-version",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 250
-    },
-    {
-      "kind": "click",
-      "testid": "about-copy-platform",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 250
-    },
-    {
-      "kind": "click",
-      "testid": "about-copy-python",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 250
-    },
-    {
-      "kind": "click",
-      "testid": "about-copy-engine",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 250
-    },
-    {
-      "kind": "click",
-      "testid": "about-copy-stt",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 250
     },
     {
       "kind": "click",
@@ -16033,7 +16007,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "model-hardware-card",
+      "testid": "model-hub-page",
       "timeoutMs": 20000
     },
     {
@@ -16581,7 +16555,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "model-hardware-card",
+      "testid": "model-hub-page",
       "timeoutMs": 20000
     },
     {
@@ -16637,7 +16611,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "model-hardware-card",
+      "testid": "model-hub-page",
       "timeoutMs": 20000
     },
     {

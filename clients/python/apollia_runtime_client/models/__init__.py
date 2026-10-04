@@ -143,6 +143,7 @@ from .deleted_installed_model import DeletedInstalledModel
 from .deleted_profile import DeletedProfile
 from .deleted_profile_entry import DeletedProfileEntry
 from .dictation_configured import DictationConfigured
+from .dictation_engine import DictationEngine
 from .dictation_models_response import DictationModelsResponse
 from .dictation_models_response_models_item import DictationModelsResponseModelsItem
 from .dictation_models_response_reason_type_0 import DictationModelsResponseReasonType0
@@ -691,6 +692,7 @@ __all__ = (
     "DeleteResponse",
     "DeleteServerResponse",
     "DictationConfigured",
+    "DictationEngine",
     "DictationModelsResponse",
     "DictationModelsResponseModelsItem",
     "DictationModelsResponseReasonType0",

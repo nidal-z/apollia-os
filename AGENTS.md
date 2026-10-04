@@ -27,7 +27,7 @@ bottom of this file.
 | Async runtime | Rust 1.89+ , Tokio 1.x |
 | Python bridge | PyO3 0.24 , pyo3-async-runtimes |
 | Local LLM | embedded llama-server (upstream llama.cpp; GGUF, Metal, CUDA, OpenAI-compatible HTTP, `--jinja`) |
-| Local STT | whisper-rs (GGML) |
+| Local STT | whisper-rs (whisper.cpp, GGML models) |
 | Persistence | SQLite + rusqlite + FTS5 (WAL mode) |
 | HTTP API | axum on Unix socket + TCP 7771 |
 | CLI | clap v4 derive |
