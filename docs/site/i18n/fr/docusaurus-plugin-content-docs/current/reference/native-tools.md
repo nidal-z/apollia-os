@@ -197,6 +197,12 @@ non fiables et est traité comme des données, jamais comme des instructions.
 | Outil | Objectif | Paramètres clés |
 |---|---|---|
 | `memory_search` | Recherche plein texte (FTS5, classement BM25) sur l'espace de noms propre de l'agent et les espaces de noms partagés déclarés. Les opérateurs FTS5 sont échappés automatiquement. | `query`, `namespace`, `limit`, `source` |
+| `source_search` | Recherche dans les dossiers et fichiers indexés cochés pour l'agent, par mots-clés, et par le sens quand un modèle d'embeddings est installé. Chaque résultat porte son extrait, son document, son emplacement, son score et sa source, et la réponse dit comment elle a été classée. Une source non cochée est refusée. | `query`, `sources`, `limit` (de 1 à 50) |
+
+Chacun de ces outils n'est proposé à un agent que si sa source est cochée pour
+lui : `memory_search` quand sa mémoire l'est, `source_search` quand au moins un
+dossier ou un fichier indexé l'est. La mémoire de l'agent Apollia est un seul
+espace, gardé d'une conversation à l'autre.
 
 La récupération de mémoire est toujours à l'initiative de l'agent : le
 runtime n'injecte jamais de mémoire dans le prompt d'un agent. L'assistant

@@ -23,6 +23,7 @@ pub mod python_executor;
 pub mod risk_classifier;
 pub mod rlimits;
 pub mod shell_discovery;
+pub mod source_search;
 #[cfg(feature = "web-read")]
 pub mod web_read;
 #[cfg(feature = "web-search")]
@@ -45,6 +46,7 @@ pub fn native_descriptors() -> Vec<crate::descriptor::ToolDescriptor> {
         notebook_edit::NotebookEdit::descriptor(),
         notebook_read::NotebookRead::descriptor(),
         python_executor::PythonExecutor::descriptor(),
+        source_search::SourceSearchTool::descriptor(),
     ];
     #[cfg(feature = "http")]
     d.push(http_fetch::HttpFetch::descriptor());

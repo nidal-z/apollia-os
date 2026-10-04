@@ -189,7 +189,10 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         mcp_index,
         &disabled,
     );
-    spec.granted_tools = granted;
+    let sources =
+        super::sources::source_access(wiring.chat_tools_config.as_deref(), &spec.agent_id).await;
+    spec.granted_tools = super::sources::offered(granted, &sources);
+    let memory_namespace = super::sources::memory_namespace(&spec.agent_id, &task_id);
     let tool_turn_temperature = wiring
         .chat_tools_config
         .as_ref()
@@ -207,6 +210,8 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
             mcp_index: mcp_index.clone(),
             tool_search_limit: wiring.tool_search_limit,
             package_tools: super::package_executors(&wiring.package_tools, &spec.agent_id, &cancel),
+            sources,
+            memory_namespace,
         },
         &wiring.a2a_invoker,
         wiring.hook_executor.clone(),

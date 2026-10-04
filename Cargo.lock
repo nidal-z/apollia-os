@@ -745,6 +745,7 @@ dependencies = [
  "apollia-memory",
  "apollia-permissions",
  "apollia-signing",
+ "apollia-sources",
  "async-trait",
  "dom_smoothie",
  "flate2",

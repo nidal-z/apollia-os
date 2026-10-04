@@ -19,6 +19,7 @@ use std::path::PathBuf;
 use apollia_core::{WebReadConfig, WebSearchConfig};
 
 use crate::executor::{ToolDispatcher, ToolExecutor};
+use crate::source_access::SourceAccess;
 use crate::tools::ask_user::{AskUserExecutor, PendingUserInputs};
 use crate::tools::bash_executor::BashExecutor;
 use crate::tools::file_edit::FileEdit;
@@ -64,7 +65,8 @@ pub struct NativeDispatcherConfig {
     pub agent_id: String,
     /// Root directory under which per-agent venvs are created for `python_executor`.
     pub venv_base_dir: PathBuf,
-    /// Primary memory namespace (read-write). `None` omits `memory_search`.
+    /// Primary memory namespace (read-write). `None` omits `memory_search`,
+    /// and so does a memory left unchecked in [`Self::sources`].
     pub memory_namespace: Option<String>,
     /// Additional namespaces the agent may read.
     pub memory_shared_namespaces: Vec<String>,
@@ -107,6 +109,10 @@ pub struct NativeDispatcherConfig {
     /// [`DEFAULT_MAX_OUTPUT_CHARS`](crate::executor::DEFAULT_MAX_OUTPUT_CHARS)
     /// when no `apollia.toml` is loaded.
     pub max_output_chars: usize,
+    /// The sources the resolved agent has checked: `memory_search` is
+    /// registered only when its memory is, `source_search` only when an
+    /// indexable source is, and bounded to those.
+    pub sources: SourceAccess,
 }
 
 /// Build a [`ToolDispatcher`] populated with every native tool available for
@@ -272,13 +278,19 @@ pub fn build_dispatcher_with(
     }
 
     #[cfg(feature = "memory-search")]
-    if is_active("memory_search") {
+    if is_active("memory_search") && cfg.sources.memory {
         if let Some(ns) = cfg.memory_namespace.as_ref() {
             executors.push(Box::new(MemorySearchTool::new(
                 ns.clone(),
                 cfg.memory_shared_namespaces.clone(),
                 cfg.memory_base_dir.clone(),
             )));
+        }
+    }
+
+    if is_active(crate::tools::source_search::SOURCE_SEARCH_TOOL) {
+        if let Some(search) = cfg.sources.search.as_ref() {
+            executors.push(Box::new(search.clone()));
         }
     }
 
@@ -504,7 +516,60 @@ mod tests {
             web_read_config: Default::default(),
             python_interpreter: None,
             max_output_chars: crate::executor::DEFAULT_MAX_OUTPUT_CHARS,
+            sources: SourceAccess::default(),
         }
+    }
+
+    // GIVEN a memory namespace, with the memory checked then unchecked
+    // WHEN the dispatcher is built
+    // THEN memory_search is registered in the first case only
+    #[cfg(feature = "memory-search")]
+    #[test]
+    fn memory_search_is_registered_only_when_the_memory_is_checked() {
+        let mut checked = config_disabling(&[]);
+        checked.memory_namespace = Some("apollia".to_string());
+        checked.sources = SourceAccess::memory_only(true);
+        let mut unchecked = checked.clone();
+        unchecked.sources = SourceAccess::memory_only(false);
+
+        let with = build_native_dispatcher(&checked);
+        let without = build_native_dispatcher(&unchecked);
+
+        assert!(with.tool_names().contains(&"memory_search"));
+        assert!(!without.tool_names().contains(&"memory_search"));
+    }
+
+    // GIVEN an agent with a checked folder, then one with none
+    // WHEN the dispatcher is built
+    // THEN source_search is registered in the first case only, and a
+    //      disabled source_search is not registered at all
+    #[tokio::test]
+    async fn source_search_is_registered_only_with_an_indexable_source_checked() {
+        let dir = tempfile::tempdir().unwrap();
+        let registry =
+            apollia_sources::SourceRegistryHandle::open(&dir.path().join("system.db")).unwrap();
+        let folder = apollia_sources::CheckedSource::Registered(apollia_sources::Source {
+            id: "src-folder".to_string(),
+            kind: apollia_sources::SourceKind::Folder,
+            label: "Contracts".to_string(),
+            group: None,
+            reference: Some("folder-contracts".to_string()),
+            index_state: apollia_sources::IndexState::Absent,
+            added_at: "2026-10-04T00:00:00.000Z".to_string(),
+        });
+        let mut checked = config_disabling(&[]);
+        checked.sources = SourceAccess::from_checked(&[folder], Some(&registry));
+        let none = config_disabling(&[]);
+        let mut disabled = config_disabling(&["source_search"]);
+        disabled.sources = checked.sources.clone();
+
+        let with = build_native_dispatcher(&checked);
+        let without = build_native_dispatcher(&none);
+        let off = build_native_dispatcher(&disabled);
+
+        assert!(with.tool_names().contains(&"source_search"));
+        assert!(!without.tool_names().contains(&"source_search"));
+        assert!(!off.tool_names().contains(&"source_search"));
     }
 
     // A disabled MCP tool and a disabled connector tool are left out of the
@@ -654,6 +719,7 @@ mod tests {
             web_read_config: Default::default(),
             python_interpreter: None,
             max_output_chars: crate::executor::DEFAULT_MAX_OUTPUT_CHARS,
+            sources: SourceAccess::default(),
         };
         let dispatcher = std::sync::Arc::new(build_native_dispatcher(&cfg));
         assert!(
