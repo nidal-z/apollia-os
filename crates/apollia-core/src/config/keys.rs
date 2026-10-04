@@ -123,7 +123,7 @@ pub const KEYS: &[ConfigKey] = &[
     withdrawn("llm.vertex", "the Google Vertex AI client was removed; declare an OpenAI-compatible server instead"),
     // [api]
     key("api.bind", KeyType::String, Some("\"127.0.0.1\""), Restart, "Address the daemon's TCP listener binds to."),
-    key("api.port", Integer, Some("7771"), Restart, "TCP port of the native API. Not read today: the daemon takes the --port option of apollia-os start, and the application always listens on 7771."),
+    key("api.port", Integer, Some("7771"), Restart, "TCP port of the native API, read at the next start; the --port option of apollia-os start wins over it, and it must differ from server.port."),
     key("api.require_token", Boolean, Some("true"), Restart, "Require a bearer token on every TCP request to the daemon."),
     key("api.unix_socket", Path, Some("\"~/.apollia/runtime.sock\""), Restart, "Local socket of the embedded runtime; its folder must exist."),
     key("api.tls_cert", Path, None, Restart, "PEM certificate chain for TLS on the daemon's TCP listener; set with api.tls_key."),

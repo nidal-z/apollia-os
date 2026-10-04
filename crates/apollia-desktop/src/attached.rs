@@ -381,6 +381,10 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "fetches the card of a link the window shows",
     ),
     (
+        "get_api_port",
+        "reads the port this window resolved at startup, the daemon's when attached",
+    ),
+    (
         "list_audio_input_devices",
         "lists the microphones of this machine",
     ),
@@ -645,6 +649,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(RuntimeLink::Attached(client))
+        .manage(crate::startup::ApiPort(port))
         .manage(dictation.clone())
         .manage(
             std::sync::Arc::new(tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()))

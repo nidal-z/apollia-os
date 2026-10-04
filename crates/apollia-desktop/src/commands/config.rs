@@ -100,9 +100,12 @@ fn build_config_view(
                 },
                 ConfigEntry {
                     key: "api_port".to_string(),
-                    value: toml_value
-                        .map(|t| toml_string(t, "runtime", "api_port", "7771"))
-                        .unwrap_or_else(|| "7771".to_string()),
+                    value: {
+                        let fallback = apollia_core::config::DEFAULT_API_PORT.to_string();
+                        toml_value
+                            .map(|t| toml_string(t, "api", "port", &fallback))
+                            .unwrap_or(fallback)
+                    },
                 },
                 ConfigEntry {
                     key: "max_concurrent_agents".to_string(),
@@ -487,10 +490,12 @@ mod tests {
 
     #[test]
     fn test_build_config_view_with_toml() {
-        // GIVEN a TOML value with custom runtime port
+        // GIVEN a TOML value with a custom native API port
         let toml_str = r#"
+            [api]
+            port = 9999
+
             [runtime]
-            api_port = 9999
             socket_path = "/custom/path.sock"
 
             [logging]

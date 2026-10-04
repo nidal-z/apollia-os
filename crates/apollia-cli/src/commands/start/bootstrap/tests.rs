@@ -2,7 +2,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use super::{load_start_config_from, StartError};
+use super::{load_start_config_from, resolve_tcp_port, StartError};
 use crate::config_location::legacy_files;
 
 /// A tracing writer that keeps what it is given, so a test can read the
@@ -216,4 +216,45 @@ fn a_start_over_an_existing_file_leaves_its_bytes() {
         std::fs::read_to_string(&canonical).unwrap(),
         "[api]\nport = 7005\n# mine\n"
     );
+}
+
+/// The `[api]` section of a file, as the daemon reads it.
+fn api_section(text: &str) -> apollia_core::ApiConfig {
+    apollia_core::config::validate(text).unwrap().api
+}
+
+#[test]
+fn test_the_port_flag_wins_over_the_file() {
+    // GIVEN a file naming port 7781 and `--port 7790`
+    let api = api_section("[api]\nport = 7781\n");
+
+    // WHEN the daemon resolves its port
+    let port = resolve_tcp_port(Some(7790), &api);
+
+    // THEN the flag's
+    assert_eq!(port, 7790);
+}
+
+#[test]
+fn test_without_the_flag_the_file_names_the_port() {
+    // GIVEN a file naming port 7781 and no `--port`
+    let api = api_section("[api]\nport = 7781\n");
+
+    // WHEN the daemon resolves its port
+    let port = resolve_tcp_port(None, &api);
+
+    // THEN the file's
+    assert_eq!(port, 7781);
+}
+
+#[test]
+fn test_without_the_flag_or_the_key_the_port_is_7771() {
+    // GIVEN no `--port` and a file without `[api].port`
+    let api = api_section("[api]\nbind = \"127.0.0.1\"\n");
+
+    // WHEN the daemon resolves its port
+    let port = resolve_tcp_port(None, &api);
+
+    // THEN the default
+    assert_eq!(port, 7771);
 }

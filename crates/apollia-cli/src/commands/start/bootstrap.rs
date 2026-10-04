@@ -87,6 +87,13 @@ fn write_default_file(canonical: &Path) -> Option<PathBuf> {
     }
 }
 
+/// The TCP port the daemon listens on: `--port`, then `[api].port`, then
+/// [`DEFAULT_API_PORT`](apollia_core::config::DEFAULT_API_PORT), which is the
+/// default of `[api].port` when the file or the section is absent.
+pub(super) fn resolve_tcp_port(flag: Option<u16>, api: &apollia_core::ApiConfig) -> u16 {
+    flag.unwrap_or(api.port)
+}
+
 /// Populates a shared `OnceLock` from an optional value, ignoring the result
 /// (the lock is set at most once; a second attempt is a harmless no-op).
 pub(super) fn set_lock_if_some<T>(lock: &std::sync::OnceLock<T>, value: Option<T>) {
