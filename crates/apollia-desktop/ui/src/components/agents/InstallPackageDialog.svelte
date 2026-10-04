@@ -6,6 +6,8 @@
   import { previewPackage, installPackage } from "$lib/stores/agentPackages";
   import { agentInstallPrefs } from "$lib/stores/agentInstallPrefs";
   import { handleExternalLinkClick } from "$lib/utils/externalLink";
+  import { webhookEndpoint } from "$lib/utils/webhookEndpoint";
+  import { getApiPort } from "$lib/ipc/system";
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";
   import { Dialog } from "$lib/components/ui/dialog";
@@ -48,6 +50,16 @@
   // Webhook config state: map from trigger id → secret value
   let webhookSecrets = $state<Record<string, string>>({});
   let copiedId = $state<string | null>(null);
+  // The port of the native API, resolved by the shell at startup; the
+  // endpoint is shown once it is known.
+  let apiPort = $state<number | null>(null);
+
+  $effect(() => {
+    if (!open || apiPort !== null) return;
+    getApiPort()
+      .then((port) => (apiPort = port))
+      .catch(() => (apiPort = null));
+  });
 
   const webhookTriggers = $derived(
     preview?.triggers.filter((t) => t.source_type === "webhook") ?? [],
@@ -169,9 +181,6 @@
     setTimeout(() => (copiedId = null), 1500);
   }
 
-  function webhookEndpoint(triggerId: string) {
-    return `http://localhost:7771/api/v1/webhooks/${triggerId}`;
-  }
 
   function triggerIcon(type: string) {
     return type === "webhook" ? Webhook : type === "interval" ? Timer : type === "file_watch" ? Eye : Clock;
@@ -459,25 +468,28 @@
           </div>
 
           <!-- Endpoint URL -->
-          <div class="space-y-1">
-            <p class="text-micro text-muted-foreground uppercase tracking-wide">{$t("agents.install.endpoint")}</p>
-            <div class="flex items-center gap-1.5 rounded bg-muted/50 px-2 py-1.5">
-              <code class="text-micro flex-1 truncate text-muted-foreground font-mono">
-                {webhookEndpoint(trigger.id)}
-              </code>
-              <button
-                class="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                onclick={() => copyToClipboard(webhookEndpoint(trigger.id), trigger.id + "-url")}
-                title={$t("agents.install.copy_url")}
-              >
-                {#if copiedId === trigger.id + "-url"}
-                  <CheckCircle2 size={12} class="text-success" />
-                {:else}
-                  <Copy size={12} />
-                {/if}
-              </button>
+          {#if apiPort !== null}
+            {@const endpoint = webhookEndpoint(apiPort, trigger.id)}
+            <div class="space-y-1">
+              <p class="text-micro text-muted-foreground uppercase tracking-wide">{$t("agents.install.endpoint")}</p>
+              <div class="flex items-center gap-1.5 rounded bg-muted/50 px-2 py-1.5">
+                <code class="text-micro flex-1 truncate text-muted-foreground font-mono">
+                  {endpoint}
+                </code>
+                <button
+                  class="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                  onclick={() => copyToClipboard(endpoint, trigger.id + "-url")}
+                  title={$t("agents.install.copy_url")}
+                >
+                  {#if copiedId === trigger.id + "-url"}
+                    <CheckCircle2 size={12} class="text-success" />
+                  {:else}
+                    <Copy size={12} />
+                  {/if}
+                </button>
+              </div>
             </div>
-          </div>
+          {/if}
 
           <!-- Secret input -->
           <FormField

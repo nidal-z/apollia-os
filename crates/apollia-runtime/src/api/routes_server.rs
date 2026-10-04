@@ -1,7 +1,7 @@
 //! Driving the compatible server from the native API: `GET /api/v1/server`,
-//! `POST /api/v1/server/start` and `POST /api/v1/server/stop`, its tokens
-//! under `/api/v1/server/tokens` (see [`tokens`]), and its logs under
-//! `/api/v1/server/logs` (see [`logs`]).
+//! `POST /api/v1/server/start`, `POST /api/v1/server/stop` and
+//! `POST /api/v1/server/restart`, its tokens under `/api/v1/server/tokens`
+//! (see [`tokens`]), and its logs under `/api/v1/server/logs` (see [`logs`]).
 //!
 //! The compatible server is a second listener with its own port (see
 //! [`crate::compat_server`]); these routes are the only part of it the native
@@ -26,6 +26,7 @@ pub fn server_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route("/api/v1/server", get(server_status::<B>))
         .route("/api/v1/server/start", post(start_server::<B>))
         .route("/api/v1/server/stop", post(stop_server::<B>))
+        .route("/api/v1/server/restart", post(restart_server::<B>))
         .route(
             "/api/v1/server/tokens",
             get(tokens::list_server_tokens::<B>).post(tokens::create_server_token::<B>),
@@ -126,6 +127,28 @@ pub(crate) async fn stop_server<B: ExecutionBackend + Clone>(
 
 pub(crate) mod logs;
 pub(crate) mod tokens;
+
+/// `POST /api/v1/server/restart`: closes and reopens the compatible server so
+/// it applies the `[server]` settings as they stand (port, local network,
+/// token check). The native API is not reopened and keeps answering.
+/// Restarting a stopped server changes nothing.
+#[utoipa::path(
+    post,
+    path = "/api/v1/server/restart",
+    tag = "server",
+    responses(
+        (status = 200, description = "The compatible server applies its settings", body = CompatServerStatus),
+        (status = 409, description = "Another program holds the port", body = ApiErrorBody),
+        (status = 500, description = "The listener or the setting failed", body = ApiErrorBody),
+        (status = 503, description = "No compatible server in this runtime", body = ApiErrorBody),
+    )
+)]
+pub(crate) async fn restart_server<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+) -> Result<Json<CompatServerStatus>, ApiError> {
+    let status = handle(&state)?.restart().await.map_err(refusal)?;
+    Ok(Json(status))
+}
 
 #[cfg(test)]
 mod logs_tests;

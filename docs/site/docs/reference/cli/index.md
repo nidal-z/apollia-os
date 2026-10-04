@@ -276,6 +276,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os config validate`↴](#apollia-os-config-validate)
 * [`apollia-os config edit`↴](#apollia-os-config-edit)
 * [`apollia-os config show`↴](#apollia-os-config-show)
+* [`apollia-os config keys`↴](#apollia-os-config-keys)
 * [`apollia-os config reset`↴](#apollia-os-config-reset)
 * [`apollia-os profile`↴](#apollia-os-profile)
 * [`apollia-os profile list`↴](#apollia-os-profile-list)
@@ -394,7 +395,7 @@ Start the runtime in foreground
 
 ###### **Options:**
 
-* `--port <PORT>` - TCP port to listen on (default: 7771)
+* `--port <PORT>` - TCP port to listen on; overrides `[api].port` (default: 7771)
 * `--config <PATH>` - Configuration file to load instead of `~/.apollia/apollia.toml`
 
 
@@ -1627,17 +1628,9 @@ Send a direct prompt to an LLM backend and print the response
 
 ## `apollia-os llm costs`
 
-Display aggregated usage and costs (tokens and estimated cost per backend).
+Display aggregated usage and costs (tokens and estimated cost per backend)
 
-Without flags, prints the cost table. Use `--get-threshold` to print `[llm] cost_alert_threshold_usd` from `apollia.toml`, or `--threshold N` to set it.
-
-**Usage:** `apollia-os llm costs [OPTIONS]`
-
-###### **Options:**
-
-* `--get-threshold` - Read the cost alert threshold from `apollia.toml` instead of the cost table
-* `--threshold <USD>` - Set the cost alert threshold (USD). Writes `[llm] cost_alert_threshold_usd = N` to `apollia.toml`. Pass `0` or a negative value to clear the threshold
-* `--config <PATH>` - Optional `apollia.toml` path override. Without it, the same file the runtime loads at startup: `~/.apollia/apollia.toml`
+**Usage:** `apollia-os llm costs`
 
 
 
@@ -4285,6 +4278,7 @@ Edits the on-disk config without touching the runtime. The section helpers `tool
 * `validate` - Parse the config file and report any error
 * `edit` - Open the config file in `$EDITOR`
 * `show` - Print the resolved configuration (parsed struct as JSON)
+* `keys` - List every key of apollia.toml: path, type, default, reload class, whether the organization policy can fix it, and whether it is withdrawn
 * `reset` - Wipe `~/.apollia/`, an irreversible factory reset
 
 
@@ -4365,6 +4359,14 @@ Cascades through file > defaults. Environment overlay is performed at runtime st
 ###### **Options:**
 
 * `--file <PATH>` - Optional config file path override
+
+
+
+## `apollia-os config keys`
+
+List every key of apollia.toml: path, type, default, reload class, whether the organization policy can fix it, and whether it is withdrawn
+
+**Usage:** `apollia-os config keys`
 
 
 

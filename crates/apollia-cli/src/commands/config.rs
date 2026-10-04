@@ -1,7 +1,8 @@
 //! `apollia-os config` subcommands: manage the global `apollia.toml`.
 //!
 //! These commands operate directly on the on-disk configuration without
-//! touching the runtime. They are orthogonal to the section-specific helpers
+//! touching the runtime. Every one of them except `reset` first writes the
+//! default `~/.apollia/apollia.toml` when that file is absent (see `keys`). They are orthogonal to the section-specific helpers
 //! `tools config` and `stt config`, which target their own respective slices.
 
 use std::io::IsTerminal as _;
@@ -12,6 +13,8 @@ use toml_edit::{value, DocumentMut, Item};
 
 use crate::exit_codes;
 use crate::note;
+
+mod keys;
 
 /// Subcommands of `apollia-os config`.
 #[derive(Debug, Subcommand)]
@@ -71,6 +74,10 @@ pub enum ConfigCommand {
         file: Option<PathBuf>,
     },
 
+    /// List every key of apollia.toml: path, type, default, reload class,
+    /// whether the organization policy can fix it, and whether it is withdrawn.
+    Keys,
+
     /// Wipe `~/.apollia/`, an irreversible factory reset.
     ///
     /// Deletes every SQLite database, log, journal, memory file, OAuth client
@@ -114,11 +121,21 @@ fn validate_value_against_the_machine(key: &str, value: &str) -> Result<(), Stri
 /// Entry point for `apollia-os config <verb>`.
 pub fn run(cmd: &ConfigCommand, json: bool) -> i32 {
     match cmd {
+        ConfigCommand::Get { file, .. }
+        | ConfigCommand::Set { file, .. }
+        | ConfigCommand::Validate { file }
+        | ConfigCommand::Edit { file }
+        | ConfigCommand::Show { file } => keys::ensure_default_file(file.as_deref()),
+        ConfigCommand::Keys => keys::ensure_default_file(None),
+        ConfigCommand::Reset { .. } => {}
+    }
+    match cmd {
         ConfigCommand::Get { key, file } => run_get(key.as_deref(), file.as_deref(), json),
         ConfigCommand::Set { key, value, file } => run_set(key, value, file.as_deref(), json),
         ConfigCommand::Validate { file } => run_validate(file.as_deref(), json),
         ConfigCommand::Edit { file } => run_edit(file.as_deref(), json),
         ConfigCommand::Show { file } => run_show(file.as_deref(), json),
+        ConfigCommand::Keys => keys::run_keys(json),
         ConfigCommand::Reset {
             confirm,
             dry_run,
@@ -183,6 +200,12 @@ fn run_get(key: Option<&str>, file: Option<&Path>, json: bool) -> i32 {
                     emit_error(format!("invalid TOML: {e}"), json);
                     return exit_codes::GENERAL_ERROR;
                 }
+            }
+        } else if crate::output::is_quiet() {
+            // `--quiet` drops blank spacers; the default file has one between
+            // every key.
+            for line in content.lines().filter(|l| !l.trim().is_empty()) {
+                println!("{line}");
             }
         } else {
             print!("{content}");
@@ -962,6 +985,38 @@ mod tests {
         assert!(written.contains("developer_mode = true"), "{written}");
         let typed = crate::config::validate_apollia_toml_str(&written).unwrap();
         assert!(typed.desktop.developer_mode);
+    }
+
+    #[test]
+    fn run_set_writes_an_observability_key() {
+        // GIVEN a throwaway home holding an empty apollia.toml
+        let home = tempfile::tempdir().unwrap();
+        let path = home.path().join(".apollia").join("apollia.toml");
+        // WHEN a key of [observability] is set through the command
+        let code = run_set("observability.retention_days", "30", Some(&path), true);
+        // THEN it succeeds, and the daemon's schema reads the value back
+        assert_eq!(code, exit_codes::SUCCESS);
+        let written = std::fs::read_to_string(&path).unwrap();
+        let typed = crate::config::validate_apollia_toml_str(&written).unwrap();
+        assert_eq!(typed.observability.retention_days, 30);
+    }
+
+    #[test]
+    fn run_set_writes_the_link_preview_under_desktop_and_refuses_its_former_place() {
+        // GIVEN a throwaway home holding an empty apollia.toml
+        let home = tempfile::tempdir().unwrap();
+        let path = home.path().join(".apollia").join("apollia.toml");
+        // WHEN the link preview is set at its place, then at its former one
+        let moved = run_set("desktop.link_preview_enabled", "true", Some(&path), true);
+        let former = run_set("ui.link_preview_enabled", "true", Some(&path), true);
+        // THEN the first is written under [desktop], the second refused as a
+        // withdrawn key
+        assert_eq!(moved, exit_codes::SUCCESS);
+        assert_eq!(former, exit_codes::GENERAL_ERROR);
+        let written = std::fs::read_to_string(&path).unwrap();
+        assert!(!written.contains("[ui]"), "{written}");
+        let typed = crate::config::validate_apollia_toml_str(&written).unwrap();
+        assert!(typed.desktop.link_preview_enabled);
     }
 
     #[test]

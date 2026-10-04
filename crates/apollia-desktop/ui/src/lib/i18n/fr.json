@@ -1179,17 +1179,6 @@
     },
     "default_set_toast": "''{name}'' défini comme modèle par défaut",
     "details": "Détails",
-    "cost_threshold": {
-      "title": "Seuil d'alerte de coût",
-      "value": "{spend} sur {threshold}",
-      "meter_label": "Part du seuil utilisée",
-      "basis": "Journée la plus chargée des {days} derniers jours ({date}), comparée au seuil d'alerte du runtime.",
-      "no_spend": "Aucune dépense enregistrée sur les {days} derniers jours.",
-      "exceeded_badge": "Seuil dépassé",
-      "near_badge": "Proche du seuil",
-      "exceeded_note": "{spend} dépensés le {date} dépassent le seuil d'alerte de {threshold}.",
-      "unset": "Aucun seuil d'alerte de coût n'est défini : ajoutez cost_alert_threshold_usd dans la section [llm] d'apollia.toml pour être averti quand la dépense grimpe."
-    },
     "loaded": {
       "title": "Chargés en mémoire",
       "empty": "Aucun modèle n'est chargé en mémoire.",
@@ -2052,7 +2041,6 @@
       "configuration": "Configuration",
       "tools": "Outils",
       "permissions": "Autorisations",
-      "integrations": "Intégrations OAuth",
       "system": "Informations système",
       "shortcuts": "Raccourcis",
       "observability": "Observabilité",
@@ -2482,11 +2470,11 @@
         "reset_done": "Profil réinitialisé"
       },
       "memory": {
-        "title": "Faits de mémoire",
-        "subtitle": "Détails retenus par tes agents au fil des conversations. Clic droit pour éditer ou supprimer.",
+        "title": "Ce que vos agents ont retenu sur vous",
+        "subtitle": "Les détails que vos agents ont gardés de vos conversations. Vous pouvez corriger ou supprimer chacun.",
         "empty": {
           "title": "Aucun fait pour l'instant",
-          "detail": "Tes agents noteront ici les détails utiles au fil des conversations."
+          "detail": "Vos agents noteront ici ce qu'ils retiennent sur vous au fil des conversations."
         },
         "add": "Ajouter un fait",
         "key_placeholder": "Clé (ex. prefs.horaires)",
@@ -2495,7 +2483,7 @@
         "copy_value": "Copier la valeur",
         "delete_dialog": {
           "title": "Supprimer ce fait ?",
-          "message": "Le fait « {key} » sera oublié. Cette action ne peut pas être annulée.",
+          "message": "« {value} » sera oublié par tous vos agents. Cette action ne peut pas être annulée.",
           "confirm": "Supprimer le fait"
         }
       }
@@ -3012,7 +3000,6 @@
     },
     "configuration": {},
     "integrations": {
-      "subtitle": "Identifiants clients OAuth des connecteurs Google et Microsoft. Microsoft est prêt à connecter ; Google demande un client que vous inscrivez vous-même.",
       "required": "Requis",
       "optional": "Optionnel",
       "source": {
@@ -3032,54 +3019,24 @@
         "client_secret": "Secret client",
         "api_key": "Clé API (Picker)"
       },
-      "provider": {
-        "google": "Google Workspace",
-        "microsoft": "Microsoft 365"
-      },
-      "provider_meta": {
-        "google": "Gmail, Agenda, Drive · type « Desktop app »",
-        "microsoft": "Outlook, Calendrier · public client (PKCE)"
-      },
       "placeholder": {
         "client_id_google": "1234567890-abcdefgh.apps.googleusercontent.com",
         "client_id_microsoft": "00000000-0000-0000-0000-000000000000",
         "client_secret": "GOCSPX-…",
         "api_key": "AIzaSy…"
       },
-      "help": {
-        "client_secret": "À côté du Client ID dans Google Cloud Console › Credentials. Google traite ce secret comme non confidentiel pour les apps natives, mais son point de terminaison de jeton l'exige quand même.",
-        "api_key": "Google Cloud Console › APIs & Services › Credentials › Clé API. Restreignez-la aux API Google Picker et Drive.",
-        "ms_builtin": "Microsoft 365 se connecte immédiatement : Apollia fournit le client ID de sa propre inscription en public client. Ne renseignez ce champ que pour pointer le connecteur vers votre propre inscription d'application Azure. Un public client ne demande aucun secret dans les deux cas."
-      },
-      "redirect_note": "Cet identifiant doit autoriser la redirection en boucle locale d'Apollia. Ajoutez cette URI aux « Authorized redirect URIs » du client :",
       "copied": "Copié",
-      "stored_note": "Le secret et la clé d'API sont rangés dans le trousseau du système, jamais dans un fichier",
-      "ms_no_secret": "Aucun secret client requis pour Microsoft",
-      "explain_intro": "Ordre de résolution de chaque identifiant : la première source non vide gagne. Laissez un champ vide pour retomber sur l'étape suivante.",
-      "empty_title": "Aucun connecteur OAuth disponible",
-      "empty_body": "Cette version d'Apollia n'expose aucun connecteur Google ou Microsoft. Les identifiants apparaîtront ici dès qu'un connecteur sera actif.",
-      "load_error_title": "Impossible de lire la configuration OAuth",
-      "load_error_body": "Le service n'a pas répondu. Vérifiez qu'Apollia tourne, puis réessayez.",
       "raw_detail": "Détail technique",
       "drive": {
-        "title": "Dossiers Google Drive",
-        "description": "Par compte connecté, le dossier Drive dans lequel les agents Apollia travaillent.",
-        "effective": "Effectif :",
         "drive_root": "(racine de votre Drive)",
-        "explicit": "choix explicite",
         "default_tag": "(défaut)",
-        "custom_tag": "(personnalisé)",
         "placeholder": "Apollia",
         "folder_path": "Chemin du dossier Drive",
-        "reset": "Défaut",
-        "help": "L'espace de travail d'Apollia dans votre Drive. Les agents y créent et y listent leurs fichiers par défaut. Saisissez un chemin, ou laissez vide et enregistrez pour utiliser la racine du Drive. Le scope drive.file n'expose que les fichiers créés par Apollia ou que vous lui avez ouverts.",
         "saved": "Dossier Drive enregistré.",
         "reset_done": "Dossier Drive remis au défaut."
       },
-      "test_config": "Tester la configuration",
       "test_valid": "La configuration semble valide.",
-      "test_invalid": "Problème de configuration.",
-      "import_json": "Importer le JSON"
+      "test_invalid": "Problème de configuration."
     },
     "language_label": "Langue de l'interface",
     "theme_help": "Apparence claire, sombre ou synchronisée au système.",

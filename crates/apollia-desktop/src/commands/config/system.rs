@@ -95,6 +95,13 @@ pub async fn get_security_posture() -> Result<apollia_core::SecurityPosture, Str
     Ok(apollia_core::SecurityPosture::detect())
 }
 
+/// The port of the native API this window serves or attaches to, for the
+/// addresses the interface shows (a webhook endpoint).
+#[tauri::command]
+pub async fn get_api_port(port: State<'_, crate::startup::ApiPort>) -> Result<u16, String> {
+    Ok(port.0)
+}
+
 /// The daemon route of the local language model setup.
 const LOCAL_LLM_ROUTE: &str = "/api/v1/local-ai/llm";
 

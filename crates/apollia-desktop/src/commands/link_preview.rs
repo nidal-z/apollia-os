@@ -6,7 +6,7 @@
 //!     keeps Apollia local-first.
 //!   - A 24-hour on-disk cache avoids repeat fetches for the same URL.
 //!
-//! Opt-in: the command is gated behind `[ui].link_preview_enabled` in
+//! Opt-in: the command is gated behind `[desktop] link_preview_enabled` in
 //! `apollia.toml`.  When disabled (default), callers receive an explicit
 //! error and the UI falls back to rendering the bare link.
 
@@ -107,20 +107,14 @@ fn store_cached(url: String, preview: LinkPreview) {
     }
 }
 
-/// Check the `[ui].link_preview_enabled` flag in `~/.apollia/apollia.toml`.
+/// Check `[desktop] link_preview_enabled` in `~/.apollia/apollia.toml`, or
+/// its former place, `[ui] link_preview_enabled`, while the new key is absent.
 ///
 /// Defaults to `false` (local-first, opt-in).
 fn link_preview_enabled() -> bool {
     apollia_core::paths::config_file()
         .and_then(|path| std::fs::read_to_string(path).ok())
-        .and_then(|raw| toml::from_str::<toml::Value>(&raw).ok())
-        .and_then(|parsed| {
-            parsed
-                .get("ui")
-                .and_then(|ui| ui.get("link_preview_enabled"))
-                .and_then(toml::Value::as_bool)
-        })
-        .unwrap_or(false)
+        .is_some_and(|raw| apollia_core::DesktopConfig::link_preview_enabled_in(&raw))
 }
 
 /// Tauri command: fetch Open Graph metadata for a URL.

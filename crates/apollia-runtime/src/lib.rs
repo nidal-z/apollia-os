@@ -6,7 +6,7 @@
 //! - `AgentRegistry`, Tokio actor tracking `ProcessState` per agent.
 //! - `TaskRouter`, Tokio actor dispatching tasks to available agents.
 //! - `ExecutionCoordinator`, per-agent lifecycle coordinator.
-//! - `APIServer`, axum HTTP server on Unix socket + TCP 7771.
+//! - `APIServer`, axum HTTP server on Unix socket + TCP (`[api].port`, 7771 by default).
 //! - `Supervisor`, ordered startup + watchdog.
 
 pub mod a2a;

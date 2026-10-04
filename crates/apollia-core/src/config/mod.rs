@@ -13,8 +13,7 @@
 //! - [`McpConfig`]: `[mcp]`, the MCP client.
 //! - [`HooksConfig`]: `[hooks]`, lifecycle hook handlers.
 //! - [`ChatConfig`]: `[chat]`, chat session defaults.
-//! - [`FilesystemConfig`]: `[filesystem]`, the reversible journal and the
-//!   trusted paths.
+//! - [`FilesystemConfig`]: `[filesystem]`, the trusted paths.
 //! - [`ModelsConfig`]: `[models]`, the signed index of model cards the
 //!   catalogue reads, its mirror, the switch that turns it off, and the rule
 //!   applied to an imported file.
@@ -31,8 +30,11 @@
 //! - [`AuthorConfig`]: `[author]`, the publisher name of the agents exported
 //!   from this machine.
 //! - [`LlmConfig`]: `[llm]`, the backends declared in the file, routing and
-//!   the runner; `apollia-llm` re-exports its shapes.
-//! - [`UiConfig`]: `[ui]`, the desktop link preview.
+//!   the prompt debug log; `apollia-llm` re-exports its shapes.
+//!
+//! [`default_file_text`] renders the registry as the `apollia.toml` written on a
+//! first start, every key commented at its default under its documentation,
+//! and [`write_default_file_if_absent`] writes it without ever replacing a file.
 //!
 //! The other types in this module are runtime parameters, not `apollia.toml`
 //! sections. No loader deserializes an `[a2a]` or an `[oria]` table, both are
@@ -48,6 +50,7 @@ mod api;
 mod author;
 mod autonomy;
 mod chat;
+mod default_file;
 mod desktop;
 mod engines;
 mod filesystem;
@@ -77,6 +80,8 @@ mod workflows;
 #[cfg(test)]
 mod autonomy_tests;
 #[cfg(test)]
+mod default_file_tests;
+#[cfg(test)]
 mod keys_tests;
 #[cfg(test)]
 mod settings_tests;
@@ -86,22 +91,23 @@ mod tests;
 mod validate_tests;
 
 pub use a2a::A2AConfig;
-pub use api::ApiConfig;
+pub use api::{ApiConfig, DEFAULT_API_PORT};
 pub use author::{AuthorConfig, AUTHOR_NAME_KEY};
 pub use autonomy::{
     AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, AutonomyLevelParseError, GatePolicy,
 };
 pub use chat::ChatConfig;
+pub use default_file::{default_file_text, write_default_file_if_absent};
 pub use desktop::{DesktopConfig, UpdateChannel};
 pub use engines::{EngineLogLevel, EnginesConfig, ENGINE_LOG_LEVELS};
-pub use filesystem::{FilesystemConfig, JournalConfig};
+pub use filesystem::FilesystemConfig;
 pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
-pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig, LlmRunnerConfig};
+pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig};
 pub use llm_section::{
     infer_api_provider_from_url, LlmApiBackendEntry, LlmBackendEntry, LlmBackendKind, LlmConfig,
-    LlmGuardrailsConfig, LlmObservabilityConfig, PricingTier,
+    LlmGuardrailsConfig, LlmObservabilityConfig,
 };
 pub use mcp::{McpConfig, McpToolLoading};
 pub use models::{
@@ -112,7 +118,7 @@ pub use oria::ORIAConfig;
 pub use permissions::BashValidatorConfig;
 pub use registry::RegistryConfig;
 pub(crate) use retired::warn_retired_keys;
-pub use root::{ApolliaConfig, UiConfig};
+pub use root::ApolliaConfig;
 pub use runtime::RuntimeConfig;
 pub use server::{ServerConfig, DEFAULT_COMPAT_SERVER_PORT};
 pub use settings::{

@@ -5148,28 +5148,6 @@
         }
       }
     },
-    "/api/v1/llm/cost-alert-threshold": {
-      "get": {
-        "tags": [
-          "llm"
-        ],
-        "summary": "Handler for `GET /api/v1/llm/cost-alert-threshold`.",
-        "description": "Reads the threshold of the router the runtime serves now, the one a reload\nswapped in. A runtime without a router has no threshold, which is an answer\nand not an error, as the desktop has always read it.",
-        "operationId": "get_cost_alert_threshold",
-        "responses": {
-          "200": {
-            "description": "The cost alert threshold of the live router",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CostAlertThresholdResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/llm/costs": {
       "get": {
         "tags": [
@@ -11059,6 +11037,57 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClearedServerLogs"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/server/restart": {
+      "post": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`POST /api/v1/server/restart`: closes and reopens the compatible server so\nit applies the `[server]` settings as they stand (port, local network,\ntoken check). The native API is not reopened and keeps answering.\nRestarting a stopped server changes nothing.",
+        "operationId": "restart_server",
+        "responses": {
+          "200": {
+            "description": "The compatible server applies its settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompatServerStatus"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another program holds the port",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The listener or the setting failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
                 }
               }
             }
@@ -17798,6 +17827,8 @@
         "required": [
           "running",
           "port",
+          "serveOnLan",
+          "address",
           "activeTokens"
         ],
         "properties": {
@@ -17806,6 +17837,10 @@
             "format": "int64",
             "description": "How many tokens of the server are in use (not revoked).",
             "minimum": 0
+          },
+          "address": {
+            "type": "string",
+            "description": "The address a client copies: `http://127.0.0.1:<port>` on the machine\nalone, `http://<IPv4 address on the local network>:<port>` otherwise."
           },
           "lastError": {
             "type": [
@@ -17823,6 +17858,10 @@
           "running": {
             "type": "boolean",
             "description": "Whether the listener is open."
+          },
+          "serveOnLan": {
+            "type": "boolean",
+            "description": "Whether it listens on every interface, reachable from the local\nnetwork, or the configured choice when it is stopped."
           }
         }
       },
@@ -18083,20 +18122,6 @@
           "user_memory_injected": {
             "type": "boolean",
             "description": "Whether the user profile was injected into the system prompt."
-          }
-        }
-      },
-      "CostAlertThresholdResponse": {
-        "type": "object",
-        "description": "Response body for `GET /api/v1/llm/cost-alert-threshold`.",
-        "properties": {
-          "threshold_usd": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double",
-            "description": "The cost alert threshold of the live router in USD, `null` when none is\nset or no router is configured."
           }
         }
       },

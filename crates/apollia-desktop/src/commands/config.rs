@@ -100,9 +100,12 @@ fn build_config_view(
                 },
                 ConfigEntry {
                     key: "api_port".to_string(),
-                    value: toml_value
-                        .map(|t| toml_string(t, "runtime", "api_port", "7771"))
-                        .unwrap_or_else(|| "7771".to_string()),
+                    value: {
+                        let fallback = apollia_core::config::DEFAULT_API_PORT.to_string();
+                        toml_value
+                            .map(|t| toml_string(t, "api", "port", &fallback))
+                            .unwrap_or(fallback)
+                    },
                 },
                 ConfigEntry {
                     key: "max_concurrent_agents".to_string(),
@@ -250,20 +253,10 @@ pub async fn get_config() -> Result<ApollaConfigView, String> {
 pub async fn open_config_in_editor() -> Result<(), String> {
     let path = default_config_path();
 
-    if !path.exists() {
-        let parent = path
-            .parent()
-            .ok_or_else(|| "cannot resolve config directory".to_string())?;
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|e| format!("failed to create config directory: {e}"))?;
-        tokio::fs::write(
-            &path,
-            "# Apollia OS configuration\n# See documentation for available options.\n",
-        )
-        .await
+    // Written at startup already; a file removed since is written again, with
+    // every key documented, never over an existing one.
+    apollia_core::config::write_default_file_if_absent(&path)
         .map_err(|e| format!("failed to create config file: {e}"))?;
-    }
 
     open::that(&path).map_err(|e| format!("failed to open editor: {e}"))
 }
@@ -497,10 +490,12 @@ mod tests {
 
     #[test]
     fn test_build_config_view_with_toml() {
-        // GIVEN a TOML value with custom runtime port
+        // GIVEN a TOML value with a custom native API port
         let toml_str = r#"
+            [api]
+            port = 9999
+
             [runtime]
-            api_port = 9999
             socket_path = "/custom/path.sock"
 
             [logging]

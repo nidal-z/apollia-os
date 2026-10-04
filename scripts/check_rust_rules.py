@@ -293,7 +293,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # The port is the subject: the startup decision is the claim of a port,
     # so its tests hold one (`serve_once`) and prove a claimed port cannot be
     # bound twice. Both binds are on port 0, never a reservation released.
-    "crates/apollia-desktop/src/startup/tests.rs": 2,
+    # The port of a daemon is resolved from what it recorded: two more tests
+    # hold a port-0 bind as the serving daemon, or release one to stand for a
+    # daemon that is gone, which is the case they prove is ignored.
+    "crates/apollia-desktop/src/startup/tests.rs": 4,
     # The closed port is the subject: an attached desktop whose daemon has
     # stopped must get an error back, not wait. The test binds port 0 and
     # releases it to obtain a port nothing listens on.
@@ -347,6 +350,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # refuses after a stop" are only observable on a real port. One helper,
     # borrowed by the route and supervisor tests of the same server.
     "crates/apollia-runtime/src/compat_server/tests.rs": 1,
+    # The accept loop is the subject: the origin a request carries is read
+    # from the peer address of its connection, which only a real listener on
+    # every interface gives. One bound port, one test.
+    "crates/apollia-runtime/src/compat_server/lan_tests.rs": 1,
     # One helper, the transport is the subject: the relay forwards each
     # request to the engine that holds the model, over HTTP, and the tests
     # read what that engine received (the path, the `model` replaced, the
@@ -378,7 +385,6 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-runtime/src/mlx_engine/tests.rs": 5,
     "crates/apollia-runtime/src/perf_trace.rs": 2,
     "crates/apollia-runtime/src/router.rs": 2,
-    "crates/apollia-runtime/src/runner_supervisor/gpu_detection.rs": 1,
     "crates/apollia-runtime/src/session_metrics.rs": 1,
     "crates/apollia-runtime/src/supervisor/tests.rs": 21,
     "crates/apollia-runtime/src/test_support.rs": 4,

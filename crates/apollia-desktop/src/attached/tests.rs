@@ -1230,38 +1230,6 @@ async fn test_a_ping_refused_by_the_daemon_is_a_failed_test_with_its_message() {
 }
 
 #[tokio::test]
-async fn test_the_cost_alert_threshold_is_read_from_the_daemon() {
-    // GIVEN a daemon whose router carries a threshold, and one that has none
-    let with = MockServer::start().await;
-    Mock::given(method("GET"))
-        .and(path("/api/v1/llm/cost-alert-threshold"))
-        .and(header("authorization", bearer().as_str()))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "threshold_usd": 0.5 })),
-        )
-        .expect(1)
-        .mount(&with)
-        .await;
-    let without = MockServer::start().await;
-    Mock::given(method("GET"))
-        .and(path("/api/v1/llm/cost-alert-threshold"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "threshold_usd": null })),
-        )
-        .mount(&without)
-        .await;
-
-    // WHEN the attached arm reads the threshold of each
-    let set = crate::commands::llm::cost_alert_threshold(&attached_link(&with)).await;
-    let unset = crate::commands::llm::cost_alert_threshold(&attached_link(&without)).await;
-
-    // THEN the first reads as its value and the second as none
-    assert_eq!(set, Ok(Some(0.5)));
-    assert_eq!(unset, Ok(None));
-    assert!(gate(LinkMode::Attached, "get_cost_alert_threshold").is_ok());
-}
-
-#[tokio::test]
 async fn test_the_engines_are_reloaded_by_the_daemon_with_the_token() {
     // GIVEN a daemon that rebuilds its router on request
     let server = MockServer::start().await;
@@ -1287,19 +1255,14 @@ async fn test_the_engines_are_reloaded_by_the_daemon_with_the_token() {
 }
 
 #[tokio::test]
-async fn test_a_list_threshold_or_reload_refused_by_the_daemon_shows_its_message() {
-    // GIVEN a daemon refusing each of the three routes with its own words
+async fn test_a_list_or_reload_refused_by_the_daemon_shows_its_message() {
+    // GIVEN a daemon refusing each of the two routes with its own words
     let server = MockServer::start().await;
     for (verb, route, words) in [
         (
             "GET",
             "/api/v1/llm/backends",
             "backend repository unavailable",
-        ),
-        (
-            "GET",
-            "/api/v1/llm/cost-alert-threshold",
-            "threshold unreadable",
         ),
         (
             "POST",
@@ -1318,13 +1281,11 @@ async fn test_a_list_threshold_or_reload_refused_by_the_daemon_shows_its_message
     let link = attached_link(&server);
     let cache = crate::commands::llm::LlmPingCache::default();
 
-    // WHEN the attached arm lists, reads the threshold and reloads
+    // WHEN the attached arm lists and reloads
     let listed = crate::commands::llm::backends_with_pings(&link, &cache).await;
-    let threshold = crate::commands::llm::cost_alert_threshold(&link).await;
     let reloaded = crate::commands::llm::reload_runtime_router(&link).await;
 
     // THEN the interface reads the daemon's own words, not an unavailability
     assert_eq!(listed.unwrap_err(), "backend repository unavailable");
-    assert_eq!(threshold.unwrap_err(), "threshold unreadable");
     assert_eq!(reloaded.unwrap_err(), "rebuild failed: model file missing");
 }

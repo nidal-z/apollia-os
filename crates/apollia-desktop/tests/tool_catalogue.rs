@@ -53,6 +53,7 @@ fn production_tools_fixture_matches_runtime_registration() {
         web_search_config: Default::default(),
         web_read_config: Default::default(),
         python_interpreter: None,
+        max_output_chars: apollia_tools::executor::DEFAULT_MAX_OUTPUT_CHARS,
     };
     let dispatcher = build_native_dispatcher(&cfg);
 

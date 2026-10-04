@@ -23,7 +23,8 @@ use crate::ObservabilityConfig;
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ApolliaConfig {
-    /// `[llm]`: the backends declared in the file, routing, the runner.
+    /// `[llm]`: the backends declared in the file, routing, the prompt debug
+    /// log.
     #[serde(default)]
     pub llm: Option<LlmConfig>,
     /// `[api]`: the TCP listener, authentication, TLS, the Unix socket.
@@ -47,7 +48,7 @@ pub struct ApolliaConfig {
     /// `[chat]`: chat session defaults.
     #[serde(default)]
     pub chat: ChatConfig,
-    /// `[filesystem]`: the reversible journal and the trusted paths.
+    /// `[filesystem]`: the trusted paths.
     #[serde(default)]
     pub filesystem: FilesystemConfig,
     /// `[models]`: the signed index of model cards, the models folder and the
@@ -72,17 +73,4 @@ pub struct ApolliaConfig {
     /// `[observability]`: truncation and capture of persisted run data.
     #[serde(default)]
     pub observability: ObservabilityConfig,
-    /// `[ui]`: the opt-in link preview of the desktop application.
-    #[serde(default)]
-    pub ui: UiConfig,
-}
-
-/// The `[ui]` section, read by the desktop link preview.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct UiConfig {
-    /// Fetch the Open Graph preview of a link shown in the chat. Off by
-    /// default: the fetch leaves the machine.
-    #[serde(default)]
-    pub link_preview_enabled: bool,
 }

@@ -103,6 +103,8 @@
     "namespace-sidebar-cat-user",
     "namespace-sidebar-item-apollia-guide",
     "namespace-sidebar-item-onboarding-agent",
+    "native-client-google",
+    "native-client-microsoft",
     "native-detail-tab-accounts",
     "native-detail-tab-capabilities",
     "native-detail-tab-settings",
@@ -123,8 +125,6 @@
     "nav-transcriptions",
     "oauth-add-account-google",
     "oauth-add-account-microsoft",
-    "oauth-card-google",
-    "oauth-card-microsoft",
     "oauth-configure-google",
     "observability-tab-audit-trail",
     "observability-tab-capture",
@@ -170,7 +170,6 @@
     "settings-nav-general",
     "settings-nav-hardware",
     "settings-nav-hardware-shortcut",
-    "settings-nav-integrations",
     "settings-nav-llm",
     "settings-nav-model-defaults",
     "settings-nav-model-hub",
@@ -10292,17 +10291,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "settings-integrations-oauth",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "oauth-card-google",
+      "testid": "native-client-google",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "07-oauth-configure-lands-on-credential-settings"
+      "label": "07-oauth-configure-lands-on-connection-client"
     },
     {
       "kind": "goto",
@@ -11199,39 +11193,6 @@
       "kind": "waitGone",
       "testid": "custom-mcp-name-input",
       "timeoutMs": 3000
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-integrations",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-integrations-oauth",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "oauth-card-google",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "oauth-card-microsoft",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "28-settings-integrations-oauth"
     },
     {
       "kind": "goto",
@@ -12316,12 +12277,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "settings-integrations-oauth",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "oauth-card-microsoft",
+      "testid": "native-client-microsoft",
       "timeoutMs": 3000
     },
     {
@@ -14277,19 +14233,6 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-integrations",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-nav-integrations"
-    },
-    {
-      "kind": "click",
       "testid": "settings-nav-engines",
       "timeoutMs": 3000
     },
@@ -15536,19 +15479,6 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-integrations",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "45-builder-nav-integrations"
-    },
-    {
-      "kind": "click",
       "testid": "settings-nav-engines",
       "timeoutMs": 3000
     },
@@ -16706,20 +16636,6 @@
     {
       "kind": "screenshot",
       "label": "05-llm-builder-stats"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-cost-threshold",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-cost-threshold-unset",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "05b-llm-cost-threshold-unset (the seed config declares no ceiling)"
     },
     {
       "kind": "goto",

@@ -98,6 +98,11 @@ pub struct NativeDispatcherConfig {
     /// A value here is checked before it is used and dropped, with a warning,
     /// if it stops being valid.
     pub python_interpreter: Option<String>,
+    /// `[tools] max_output_chars`: the largest tool output, in UTF-8 bytes,
+    /// passed to the model; a longer one is trimmed in the middle. Use
+    /// [`DEFAULT_MAX_OUTPUT_CHARS`](crate::executor::DEFAULT_MAX_OUTPUT_CHARS)
+    /// when no `apollia.toml` is loaded.
+    pub max_output_chars: usize,
 }
 
 /// Build a [`ToolDispatcher`] populated with every native tool available for
@@ -286,7 +291,7 @@ pub fn build_dispatcher_with(
         let name = executor.name();
         crate::tool_registry::NATIVE_TOOL_NAMES.contains(&name) || is_active(name)
     }));
-    ToolDispatcher::new(executors)
+    ToolDispatcher::new(executors).with_max_output_chars(cfg.max_output_chars)
 }
 
 /// Register the sandbox-bound file and notebook tools that are not explicitly
@@ -453,6 +458,7 @@ mod tests {
             web_search_config: Default::default(),
             web_read_config: Default::default(),
             python_interpreter: None,
+            max_output_chars: crate::executor::DEFAULT_MAX_OUTPUT_CHARS,
         }
     }
 
@@ -515,6 +521,52 @@ mod tests {
         assert_eq!(ran["ran"], "mcp:notion/search");
     }
 
+    /// An executor answering a text of a fixed length.
+    struct LongTool(usize);
+
+    impl ToolExecutor for LongTool {
+        fn name(&self) -> &str {
+            "long_tool"
+        }
+
+        fn execute(
+            &self,
+            _input: serde_json::Value,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<
+                        Output = Result<serde_json::Value, crate::executor::ToolExecutionError>,
+                    > + Send
+                    + '_,
+            >,
+        > {
+            Box::pin(async move { Ok(serde_json::Value::String("x".repeat(self.0))) })
+        }
+    }
+
+    // `[tools] max_output_chars` reaches the dispatcher the factory builds.
+    #[tokio::test]
+    async fn the_configured_output_limit_trims_a_longer_tool_output() {
+        // GIVEN a limit of 100 in the configuration, and a tool answering 500
+        // characters
+        let mut cfg = config_disabling(&[]);
+        cfg.max_output_chars = 100;
+        let dispatcher = build_dispatcher_with(&cfg, vec![Box::new(LongTool(500))]);
+
+        // WHEN the tool is called through the dispatcher
+        let output = dispatcher
+            .dispatch("long_tool", serde_json::json!({}))
+            .await
+            .expect("the tool runs");
+
+        // THEN the output keeps 100 characters of the original, head and tail,
+        // around the truncation marker
+        let text = output.as_str().expect("a trimmed output is a string");
+        let (head, rest) = text.split_once("\n\n... [").expect("the truncation marker");
+        let tail = rest.split_once("] ...\n\n").expect("the marker closes").1;
+        assert_eq!(head.len() + tail.len(), 100, "{text}");
+    }
+
     // An extra executor replacing a native keeps the embedder's own filter.
     #[test]
     fn an_extra_executor_named_after_a_native_is_kept() {
@@ -555,6 +607,7 @@ mod tests {
             web_search_config: Default::default(),
             web_read_config: Default::default(),
             python_interpreter: None,
+            max_output_chars: crate::executor::DEFAULT_MAX_OUTPUT_CHARS,
         };
         let dispatcher = std::sync::Arc::new(build_native_dispatcher(&cfg));
         assert!(
