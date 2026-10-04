@@ -20,6 +20,7 @@
   import Observability from "../../../routes/Observability.svelte";
   import Chat from "../../../routes/Chat.svelte";
   import SettingsWindow from "../../../components/settings/SettingsWindow.svelte";
+  import ConfigInvalidBanner from "../../../components/settings/config/ConfigInvalidBanner.svelte";
   import Transcriptions from "../../../routes/Transcriptions.svelte";
   import Connections from "../../../routes/Connections.svelte";
   import Policy from "../../../routes/Policy.svelte";
@@ -73,6 +74,9 @@
 
   <!-- Governance failing closed: sensitive actions blocked, reading continues. -->
   <GovernanceFailClosedBanner />
+
+  <!-- apollia.toml refused at startup: defaults in force, on every screen. -->
+  <ConfigInvalidBanner />
 
   <!-- Route content, with the detail sidebar on its right. -->
   <div class="flex min-h-0 w-full flex-1 overflow-hidden">

@@ -2279,7 +2279,8 @@
       "kib_display": "{kib} Kio",
       "sensitive_confirm_title": "Activer une capture sensible ?",
       "sensitive_confirm_message": "Ceci conserve un contenu potentiellement sensible (prompts et réponses bruts) dans la base de données locale. Rien ne quitte votre machine, mais toute personne ayant un accès local peut le lire. À n'activer que si le débogage l'exige.",
-      "sensitive_confirm_enable": "Activer la capture"
+      "sensitive_confirm_enable": "Activer la capture",
+      "open_config_editor": "Ouvrir l'éditeur de configuration"
     },
     "shortcuts": {
       "search_placeholder": "Rechercher un raccourci…",
@@ -2373,11 +2374,6 @@
       "confirm_mismatch": "Le texte ne correspond pas encore.",
       "locked_hint": "Déverrouillage dans {seconds} s"
     },
-    "open_editor": "Ouvrir dans l'éditeur",
-    "opening": "Ouverture...",
-    "readonly_banner": "Configuration en lecture seule. Pour modifier, éditez {file} et redémarrez le runtime.",
-    "see_details": "Voir les détails",
-    "operational_redirect_banner": "Les triggers et notifications se configurent depuis leurs vues dédiées dans la sidebar.",
     "language_en": "English",
     "language_fr": "Français",
     "theme_title": "Thème",
@@ -2771,18 +2767,11 @@
       }
     },
     "config": {
-      "status_exists": "OK",
-      "status_missing": "Manquant",
       "copy_path": "Copier le chemin",
       "path_copied": "Chemin copié dans le presse-papiers",
       "copy_failed": "Échec de la copie",
-      "missing_hint": "Fichier introuvable. Les valeurs par défaut sont utilisées jusqu'à sa création.",
-      "show_raw": "Afficher la vue brute",
-      "empty": "Aucune entrée dans cette section.",
       "path_label": "Fichier de configuration",
-      "reveal_in_finder": "Afficher dans le Finder",
-      "empty_title": "Aucune section à afficher",
-      "toggle_section": "Afficher ou masquer les détails de la section"
+      "reveal_in_finder": "Afficher dans le Finder"
     },
     "system": {
       "refresh": "Rafraîchir",
@@ -3251,6 +3240,51 @@
       "label": "Réglages",
       "close": "Fermer les réglages"
     },
+    "config_editor": {
+      "subtitle": "Le fichier apollia.toml, modifié ici et vérifié à chaque pause de frappe.",
+      "intro": "Toute la configuration d'Apollia tient dans ce fichier. Une ligne commentée vaut sa valeur par défaut ; ce qui peut s'appliquer tout de suite s'applique à l'enregistrement.",
+      "aria_label": "Texte du fichier de configuration",
+      "save": "Enregistrer",
+      "saving": "Enregistrement…",
+      "defaults": "Revenir aux valeurs par défaut",
+      "load_failed": "Le fichier de configuration n'a pas pu être lu.",
+      "status_saved": "Enregistré",
+      "status_modified": "Modifié",
+      "status_checking": "Vérification…",
+      "status_errors": "{count, plural, one {# erreur} other {# erreurs}}",
+      "cursor": "Ligne {line}, colonne {column}",
+      "mark_error": "Erreur : {message}",
+      "mark_restart": "Au prochain redémarrage",
+      "mark_modified": "Ligne modifiée",
+      "notice_restart": "Certaines valeurs n'agiront qu'au prochain redémarrage d'Apollia.",
+      "restart_now": "Redémarrer Apollia maintenant",
+      "notice_disk_changed": "Le fichier a changé sur le disque. Vos modifications ne sont pas encore enregistrées.",
+      "compare": "Comparer",
+      "reload": "Recharger",
+      "notice_reloaded": "Le fichier a été rechargé depuis le disque.",
+      "notice_saved": "Enregistré. Les valeurs qui le peuvent s'appliquent déjà.",
+      "dismiss": "Fermer l'avis",
+      "defaults_title": "Revenir aux valeurs par défaut ?",
+      "defaults_message": "Tout le fichier revient à ses valeurs par défaut ; les valeurs imposées par la politique sont gardées. Rien n'est écrit avant votre confirmation.",
+      "defaults_unchanged": "Le fichier est déjà à ses valeurs par défaut.",
+      "compare_title": "Comparer avec le fichier du disque",
+      "compare_message": "Les lignes retirées sont celles de vos modifications, les lignes ajoutées celles du disque. « Recharger » prend le fichier du disque.",
+      "diff_removed": "Retirée",
+      "diff_added": "Ajoutée",
+      "restart_title": "Redémarrer Apollia maintenant ?",
+      "restart_message": "{count, plural, =0 {Aucune exécution en cours ne sera interrompue.} one {# exécution en cours sera interrompue.} other {# exécutions en cours seront interrompues.}}",
+      "restart_confirm": "Redémarrer",
+      "compare_unchanged": "Vos modifications et le fichier du disque sont identiques."
+    },
+    "config_invalid": {
+      "title": "Configuration invalide, valeurs par défaut en vigueur",
+      "detail": "Ligne {line} : {message}",
+      "open": "Ouvrir l'éditeur",
+      "confirm_title": "Ouvrir l'éditeur de configuration ?",
+      "confirm_message": "Le mode développeur va être allumé, puis l'éditeur s'ouvrira à la ligne {line}, celle qui empêche le fichier d'être lu.",
+      "confirm": "Allumer et ouvrir",
+      "mode_refused": "Le mode développeur n'a pas pu être allumé."
+    },
     "hardware": {
       "detecting": "Détection du matériel…",
       "processor": "Processeur",
@@ -3568,8 +3602,6 @@
     "toggle_context_drawer": "Afficher le panneau de contexte",
     "a2a_delegating": "Délégation vers {agent} ({skill})…",
     "reasoning": {
-      "toggle_tool": "Afficher/masquer les détails de l'appel outil",
-      "thinking_label": "Réflexion",
       "rationale_label": "Raisonnement",
       "retry_label": "Tentatives ({n})",
       "see_all": "Tout afficher",
@@ -3577,13 +3609,11 @@
       "group_collapse": "Masquer les étapes",
       "input_label": "Entrée",
       "output_label": "Sortie",
-      "target_label": "Cible",
-      "command_label": "Commande",
       "result_label": "Résultat",
-      "error_label": "Erreur",
-      "running_hint": "En cours…",
       "toggle_thought": "Afficher ou masquer le détail du raisonnement",
-      "exit_code": "sortie {code}"
+      "thought_for": "A réfléchi {duration}",
+      "thought": "A réfléchi",
+      "thinking_live": "Réfléchit…"
     },
     "retry": {
       "badge_title": "{n} réessais",
@@ -3594,12 +3624,6 @@
       "fallback": "repli"
     },
     "activity": {
-      "toggle": "Afficher l'activité de l'agent",
-      "lead_reflected": "Réfléchi",
-      "lead_used": "Utilisé",
-      "live_lead": "En cours",
-      "reasoning_count": "{n, plural, one {# réflexion} other {# réflexions}}",
-      "tool_count": "{n, plural, one {# outil} other {# outils}}",
       "sources": "Sources"
     },
     "tool_empty_results": "Aucun résultat.",
@@ -3731,6 +3755,14 @@
       "role_system": "Système"
     },
     "plan_abandoned_reason": "plan abandonné",
+    "step": {
+      "toggle": "Afficher ou masquer le détail de l'étape",
+      "failed": "Échec : {reason}",
+      "failed_plain": "L'étape a échoué.",
+      "refused": "Étape refusée.",
+      "running": "En cours",
+      "raw_label": "Données brutes"
+    },
     "target_selector": {
       "placeholder": "Choisir un agent ou un modèle",
       "aria": "Agent ou modèle de la conversation",
@@ -4117,7 +4149,40 @@
       "status_failed": "Échoué",
       "todo_count": "{n, plural, one {# tâche} other {# tâches}}",
       "progress_fraction": "{done} / {total}",
-      "reveal_aria": "Afficher dans le gestionnaire de fichiers"
+      "reveal_aria": "Afficher dans le gestionnaire de fichiers",
+      "text_read": "Texte lu : {count}",
+      "quoted": "« {text} »",
+      "lines_range": "lignes {from} à {to}",
+      "edit_summary": "{added, plural, one {# ligne ajoutée} other {# lignes ajoutées}}, {removed, plural, one {# ligne retirée} other {# lignes retirées}}",
+      "files_found": "{n, plural, one {# fichier trouvé} other {# fichiers trouvés}}",
+      "searched_words_label": "Mots cherchés",
+      "grep_found": "{m, plural, one {# passage} other {# passages}} dans {f, plural, one {# fichier} other {# fichiers}}",
+      "file_line": "{file}, ligne {n}",
+      "command_finished": "Terminée",
+      "command_failed": "Échouée",
+      "exit_code_label": "code de sortie {code}",
+      "in_duration": "en {duration}",
+      "response_status": "Réponse {status}",
+      "remembered_on": "retenu le {date}",
+      "todos_done": "{done} sur {total} terminées",
+      "done_of_total": "{done} sur {total}",
+      "code_lines": "{n, plural, one {# ligne} other {# lignes}}",
+      "params_label": "Paramètres"
+    },
+    "actions": {
+      "web_search": "Recherche sur le web",
+      "web_read": "Lire une page",
+      "file_list": "Lister un dossier",
+      "file_read": "Lire un fichier",
+      "file_write": "Écrire un fichier",
+      "file_edit": "Modifier un fichier",
+      "file_glob": "Chercher des fichiers",
+      "file_grep": "Chercher dans les fichiers",
+      "bash_executor": "Lancer une commande",
+      "python_executor": "Exécuter du Python",
+      "http_fetch": "Appeler une adresse web",
+      "memory_search": "Chercher en mémoire",
+      "todo_write": "Tenir la liste de tâches"
     }
   },
   "project_migration": {
@@ -4270,7 +4335,17 @@
     "cost_estimate": "Coût estimé : {cost}",
     "expires_in": "expire dans {expires}",
     "always_hint": "« Toujours pour cet agent » le laisse refaire ce type d'action sans vous redemander.",
-    "refuse_reason_placeholder": "Raison du refus (facultative), transmise à l'agent"
+    "refuse_reason_placeholder": "Raison du refus (facultative), transmise à l'agent",
+    "see_more": "Voir plus",
+    "see_less": "Voir moins",
+    "code": {
+      "family": "Exécuter du code",
+      "working_dir": "Dossier de travail : {dir}",
+      "always": "Toujours autoriser cette commande",
+      "always_hint": "« Toujours autoriser cette commande » laisse cet agent relancer exactement cette commande sans vous redemander. Vous pouvez le retirer dans Autorisations.",
+      "compound_hint": "Cette commande en enchaîne plusieurs : « Toujours » n'est pas proposé, chaque exécution demande votre accord.",
+      "each_time_hint": "Chaque exécution demande votre accord. Relisez la commande avant de répondre."
+    }
   },
   "stt_failure": {
     "no_microphone": "Aucun microphone n'a été détecté. Branchez-en un, puis réessayez.",

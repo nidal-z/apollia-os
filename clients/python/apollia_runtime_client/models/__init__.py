@@ -149,6 +149,7 @@ from .deleted_credential import DeletedCredential
 from .deleted_installed_model import DeletedInstalledModel
 from .deleted_profile import DeletedProfile
 from .deleted_profile_entry import DeletedProfileEntry
+from .dependent_source import DependentSource
 from .dictation_configured import DictationConfigured
 from .dictation_engine import DictationEngine
 from .dictation_models_response import DictationModelsResponse
@@ -251,6 +252,7 @@ from .load_estimate_response import LoadEstimateResponse
 from .load_model_request import LoadModelRequest
 from .load_model_request_advanced import LoadModelRequestAdvanced
 from .load_model_response import LoadModelResponse
+from .load_origin import LoadOrigin
 from .loaded_model_dto import LoadedModelDto
 from .loaded_models_response import LoadedModelsResponse
 from .locked_key_body import LockedKeyBody
@@ -441,8 +443,11 @@ from .signature_status import SignatureStatus
 from .skill_dto import SkillDto
 from .skill_listing import SkillListing
 from .skill_listing_input_schema_type_0 import SkillListingInputSchemaType0
+from .skip_reason_dto import SkipReasonDto
+from .skipped_file_response import SkippedFileResponse
 from .source_descriptor import SourceDescriptor
 from .source_descriptor_options import SourceDescriptorOptions
+from .source_index_response import SourceIndexResponse
 from .source_kind_dto import SourceKindDto
 from .source_preview_response import SourcePreviewResponse
 from .source_response import SourceResponse
@@ -705,6 +710,7 @@ __all__ = (
     "DeletePresetResponse",
     "DeleteResponse",
     "DeleteServerResponse",
+    "DependentSource",
     "DictationConfigured",
     "DictationEngine",
     "DictationModelsResponse",
@@ -809,6 +815,7 @@ __all__ = (
     "LoadModelRequest",
     "LoadModelRequestAdvanced",
     "LoadModelResponse",
+    "LoadOrigin",
     "LockedKeyBody",
     "LockedKeyBodyValue",
     "LogsResponse",
@@ -993,8 +1000,11 @@ __all__ = (
     "SkillDto",
     "SkillListing",
     "SkillListingInputSchemaType0",
+    "SkippedFileResponse",
+    "SkipReasonDto",
     "SourceDescriptor",
     "SourceDescriptorOptions",
+    "SourceIndexResponse",
     "SourceKindDto",
     "SourcePreviewResponse",
     "SourceResponse",

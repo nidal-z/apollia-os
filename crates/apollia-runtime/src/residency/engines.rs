@@ -12,7 +12,7 @@ use crate::llama_server::{LlamaServerSupervisor, ModelKind};
 use crate::local_engine::LocalEngine;
 use crate::mlx_engine::MlxEngineSupervisor;
 
-use super::Residency;
+use super::{IdleDelays, LoadOrigin, Residency};
 
 /// Interval between two idle sweeps. The delay is counted in minutes, so a
 /// model goes at most this much past it.
@@ -59,9 +59,25 @@ pub async fn unload_idle<E: LocalEngine>(
     now: DateTime<Utc>,
     idle: Duration,
 ) -> Vec<String> {
-    let idle = chrono::Duration::from_std(idle).unwrap_or(chrono::Duration::MAX);
+    unload_idle_by_origin(residency, engine, now, IdleDelays::uniform(Some(idle))).await
+}
+
+/// Unload from `engine` every chat model nothing holds and no request has used
+/// for the delay of its origin at `now`: the compatible server's own delay for
+/// a model it loaded, the general one for the others. Returns the paths
+/// unloaded.
+pub async fn unload_idle_by_origin<E: LocalEngine>(
+    residency: &Residency,
+    engine: &E,
+    now: DateTime<Utc>,
+    delays: IdleDelays,
+) -> Vec<String> {
     let mut unloaded = Vec::new();
     for model in engine.loaded_models().await {
+        let Some(idle) = delays.of(residency.origin_of(&model)) else {
+            continue;
+        };
+        let idle = chrono::Duration::from_std(idle).unwrap_or(chrono::Duration::MAX);
         let expired = now.signed_duration_since(model.last_used_at) >= idle;
         if model.kind != ModelKind::Chat || !expired || model.active_requests > 0 {
             continue;
@@ -71,6 +87,34 @@ pub async fn unload_idle<E: LocalEngine>(
             engine,
             &model.model_path,
             ModelUnloadReason::Idle,
+        )
+        .await
+        {
+            unloaded.push(model.model_path);
+        }
+    }
+    unloaded
+}
+
+/// Unload from `engine` every chat model the compatible server loaded, other
+/// than `keep`, that nothing holds and no request is using: what keeping only
+/// the last model the server loaded means. A model the application loaded is
+/// never unloaded here. Returns the paths unloaded.
+pub async fn unload_other_server_models<E: LocalEngine>(
+    residency: &Residency,
+    engine: &E,
+    keep: &str,
+) -> Vec<String> {
+    let mut unloaded = Vec::new();
+    for model in engine.loaded_models().await {
+        if model.model_path == keep || residency.origin_of(&model) != LoadOrigin::Server {
+            continue;
+        }
+        if unload_if_released(
+            residency,
+            engine,
+            &model.model_path,
+            ModelUnloadReason::ServerReplaced,
         )
         .await
         {
@@ -116,6 +160,17 @@ impl Engines<'_> {
         }
     }
 
+    /// Unload from both engines the models the compatible server loaded,
+    /// other than `keep`, that nothing holds and no request is using.
+    pub async fn unload_other_server_models(&self, residency: &Residency, keep: &str) {
+        if let Some(engine) = self.llama {
+            unload_other_server_models(residency, engine, keep).await;
+        }
+        if let Some(engine) = self.mlx {
+            unload_other_server_models(residency, engine, keep).await;
+        }
+    }
+
     /// Unload each of `models` that nothing holds any more, on whichever
     /// engine serves it.
     pub async fn unload_released(
@@ -138,7 +193,7 @@ impl Engines<'_> {
 }
 
 /// Sweep both engines every [`IDLE_SWEEP_EVERY`] for models left idle past the
-/// delay `[llm.residency]` sets now. The task ends once neither engine is
+/// delay of their origin, read now from `[llm.residency]` and `[server]`. The task ends once neither engine is
 /// alive.
 pub fn spawn_idle_sweep(
     residency: Arc<Residency>,
@@ -157,15 +212,16 @@ pub fn spawn_idle_sweep(
             if llama.is_none() && mlx.is_none() {
                 return;
             }
-            let Some(idle) = residency.idle_unload() else {
+            let delays = residency.idle_delays();
+            if delays.never() {
                 continue;
-            };
+            }
             let now = Utc::now();
             if let Some(engine) = &llama {
-                unload_idle(&residency, engine.as_ref(), now, idle).await;
+                unload_idle_by_origin(&residency, engine.as_ref(), now, delays).await;
             }
             if let Some(engine) = &mlx {
-                unload_idle(&residency, engine.as_ref(), now, idle).await;
+                unload_idle_by_origin(&residency, engine.as_ref(), now, delays).await;
             }
         }
     });

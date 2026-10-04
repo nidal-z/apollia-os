@@ -42,6 +42,9 @@ impl Supervisor {
         if let Some(journal) = &audit_journal_handle {
             AuditJournalSubscriber::spawn(journal.clone(), event_sender.subscribe());
             info!("audit.journal.subscriber.started");
+            // The policy read at boot, applied, changed or refused, opens
+            // the governance history of this start.
+            crate::governance::record_policy_at_startup(journal, org_policy).await;
         } else {
             warn!(detail = "subscriber not started", "audit.journal.disabled");
         }

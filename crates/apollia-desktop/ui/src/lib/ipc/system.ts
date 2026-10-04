@@ -8,7 +8,7 @@
  * The self-update check / install wrappers live in `$lib/ipc/updates` (the
  * single source for `check_for_update` / `install_update`). The read-side
  * commands (`get_system_info`, `get_security_posture`, `get_cli_status`,
- * `get_config`) are loaded through the settings store's `settingsLoaders`.
+ * `read_config_file`) are loaded through the settings store's `settingsLoaders`.
  */
 import { invoke } from "@tauri-apps/api/core";
 import type { AutomationBoot } from "$lib/automation/types";

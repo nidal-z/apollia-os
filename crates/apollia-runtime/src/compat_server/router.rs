@@ -16,6 +16,7 @@ use axum::Router;
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 
+use super::cors::with_cors;
 use super::errors::{error_response, ErrorKind, Family};
 use super::logs::ServerLogsHandle;
 use super::origin::CallOrigin;
@@ -34,10 +35,15 @@ const MAX_REQUEST_BODY: usize = 32 * 1024 * 1024;
 /// reaches its listener, on the loopback interface or, with `[server]
 /// serve_on_lan`, on the local network. Every request, a refused one included, leaves one
 /// line in `logs`.
+///
+/// `cors` is the `[server] cors` setting: when on, the cross-origin layer sits
+/// above the token check, so a browser preflight, which never carries a token,
+/// is answered, and below the request log, so the preflight leaves its line.
 pub(crate) fn compat_router(
     tokens: Option<ServerTokensHandle>,
     relay: Arc<RelayState>,
     logs: ServerLogsHandle,
+    cors: bool,
 ) -> Router {
     let router = Router::new()
         .route("/v1/models", get(relay::list_models))
@@ -56,7 +62,7 @@ pub(crate) fn compat_router(
         )),
         None => router,
     };
-    router.layer(axum::middleware::from_fn_with_state(
+    with_cors(router, cors).layer(axum::middleware::from_fn_with_state(
         logs,
         super::logs::record_request,
     ))

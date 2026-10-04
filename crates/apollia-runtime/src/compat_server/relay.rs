@@ -22,7 +22,7 @@ use serde_json::Value;
 
 use super::errors::{error_response, ErrorKind, Family};
 use super::logs::RequestedModel;
-use super::models::{HeldModel, LocalModels, ServedModel};
+use super::models::{HeldModel, LocalModels, ServedModel, Unheld};
 use crate::engine_store::Engine;
 use crate::llama_server::ModelKind;
 
@@ -129,9 +129,10 @@ fn entry(model: ServedModel) -> ModelEntry {
     }
 }
 
-/// `GET /v1/models`: the resident models, by their registry identifier.
+/// `GET /v1/models`: the resident models and, while on-demand loading is on,
+/// the language models of this machine, by their registry identifier.
 pub(crate) async fn list_models(State(state): State<Arc<RelayState>>) -> Response {
-    let data = state.models.served().await.into_iter().map(entry).collect();
+    let data = state.models.listed().await.into_iter().map(entry).collect();
     Json(ModelList {
         object: "list",
         data,
@@ -177,15 +178,21 @@ async fn relay_model(
     id: &str,
 ) -> Response {
     let family = endpoint.family();
-    let Some(held) = state.models.hold(id).await else {
-        return error_response(
-            family,
-            ErrorKind::ModelNotLoaded,
-            format!(
-                "The model '{id}' is not loaded. Load it in Apollia first; \
-                 GET /v1/models lists the loaded models."
-            ),
-        );
+    let held = match state.models.hold(id).await {
+        Ok(held) => held,
+        Err(Unheld::NotLoaded) => {
+            return error_response(
+                family,
+                ErrorKind::ModelNotLoaded,
+                format!(
+                    "The model '{id}' is not loaded. Load it in Apollia first; \
+                     GET /v1/models lists the models it serves."
+                ),
+            )
+        }
+        Err(Unheld::LoadFailed(message)) => {
+            return error_response(family, ErrorKind::EngineUnavailable, message)
+        }
     };
     if !endpoint.served_by(held.served.engine, held.served.kind) {
         return error_response(

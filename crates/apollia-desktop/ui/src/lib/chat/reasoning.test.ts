@@ -14,7 +14,6 @@ import {
   extractSources,
   parseWebReadOutput,
   parseWebSearchOutput,
-  sumToolDurationMs,
   toReasoningItem,
   type LiveToolStep,
   type ReasoningItem,
@@ -245,21 +244,6 @@ describe("extractSources - deduplicated web sources for the source cards", () =>
     // WHEN / THEN
     expect(extractSources(calls)).toEqual([]);
     expect(extractSources(null)).toEqual([]);
-  });
-});
-
-describe("sumToolDurationMs - total tool wall-clock", () => {
-  test("GIVEN calls with durations WHEN summed THEN only positive numbers count", () => {
-    // GIVEN a mix of durations, including a null one
-    const calls = [
-      makeCall({ tool_name: "a", duration_ms: 300 }),
-      makeCall({ tool_name: "b", duration_ms: 700 }),
-      makeCall({ tool_name: "c", duration_ms: null }),
-    ];
-
-    // WHEN / THEN
-    expect(sumToolDurationMs(calls)).toBe(1000);
-    expect(sumToolDurationMs(null)).toBe(0);
   });
 });
 

@@ -298,6 +298,8 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-desktop/ui/src/components/settings/stt/SttEssentialSection.svelte": 2,
     "crates/apollia-memory/src/profile_schema.rs": 10,
     "crates/apollia-memory/src/user_memory/persona.rs": 1,
+    # The copy of a batch's results is named in the language of the interface.
+    "crates/apollia-sources/src/table/results.rs": 1,
     "scripts/check_release_artifacts.py": 1,
     # parser: French words the code matches on, or folds
     # The typed-pause payload keys are the product's wire vocabulary (`genre`,
@@ -351,6 +353,8 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-desktop/ui/src/lib/utils/slugify.test.ts": 3,
     "crates/apollia-llm/tests/interval_junction.rs": 3,
     "crates/apollia-sources/tests/office_reader.rs": 3,
+    "crates/apollia-sources/tests/results.rs": 4,
+    "crates/apollia-sources/src/table/results/tests.rs": 1,
     "crates/apollia-sources/tests/pdf_reader.rs": 3,
     "crates/apollia-mcp/src/sanitize.rs": 1,
     "crates/apollia-notifications/src/channels/webhook.rs": 2,

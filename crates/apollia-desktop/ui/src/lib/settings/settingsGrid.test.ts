@@ -61,6 +61,7 @@ describe("settings navigation column", () => {
           "model-defaults",
           "notifications",
           "developer",
+          "configuration",
           "llm",
           "model-hub",
           "tools",
@@ -78,7 +79,7 @@ describe("settings navigation column", () => {
     // WHEN they are compared to the store and to the former sections
     // THEN they are exactly the sub-routes, and none of the former ones
     expect([...keys].sort()).toEqual([...SETTINGS_SUB_ROUTES].sort());
-    for (const gone of ["about", "help", "danger", "shortcuts", "observability", "configuration", "system"]) {
+    for (const gone of ["about", "help", "danger", "shortcuts", "observability", "system"]) {
       expect(keys as string[]).not.toContain(gone);
     }
   });
@@ -235,19 +236,14 @@ describe("Appearance, Chat, Developer and Observability", () => {
     positions(text, ["planModeDefault.set(next)", 'data-testid="plan-mode-default-toggle"', "<ShortcutCatalog"]);
   });
 
-  it("Developer shows the read-only configuration only while the mode is on", () => {
+  it("Developer no longer carries the configuration, which has its own section", () => {
     // GIVEN the Developer source
     const text = source("routes/settings/Developer.svelte");
 
-    // WHEN the configuration mount is located
-    const guard = text.indexOf("{#if $developerMode}");
-    const mount = text.indexOf("<ConfigurationReadOnly");
-    const close = text.indexOf("{/if}", mount);
-
-    // THEN it sits inside the developer mode condition
-    expect(guard).toBeGreaterThan(-1);
-    expect(mount).toBeGreaterThan(guard);
-    expect(close).toBeGreaterThan(mount);
+    // WHEN the former read-only view is searched
+    // THEN it is gone: the editor of the file lives in Settings > Configuration
+    expect(text).not.toContain("ConfigurationReadOnly");
+    expect(text).not.toContain("settings.nav.configuration");
   });
 
   it("the capture and retention policy lives in the Observability screen", () => {
