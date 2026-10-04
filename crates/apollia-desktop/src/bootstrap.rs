@@ -249,7 +249,8 @@ pub(crate) struct RuntimeLocks<'a> {
     pub(crate) agent_registry: &'a std::sync::OnceLock<AgentRegistryHandle>,
     pub(crate) task_router: &'a std::sync::OnceLock<TaskRouterHandle<DynBackend>>,
     pub(crate) mailbox_handle: &'a std::sync::OnceLock<AgentMailboxHandle>,
-    pub(crate) tools_config: &'a std::sync::OnceLock<ToolsConfig>,
+    pub(crate) tools_config:
+        &'a std::sync::OnceLock<apollia_runtime::config_reload::Live<ToolsConfig>>,
 }
 
 /// Populate the shared locks from the running `RuntimeHandle`.
@@ -289,7 +290,9 @@ pub(crate) fn populate_runtime_locks(runtime_handle: &RuntimeHandle, locks: Runt
     if let Some(mailbox) = runtime_handle.mailbox_handle.clone() {
         let _ = locks.mailbox_handle.set(mailbox);
     }
-    let _ = locks.tools_config.set(runtime_handle.tools_config.clone());
+    let _ = locks
+        .tools_config
+        .set(runtime_handle.config_feed.tools.clone());
 }
 
 /// Make every enabled installed agent available in the running supervisor,

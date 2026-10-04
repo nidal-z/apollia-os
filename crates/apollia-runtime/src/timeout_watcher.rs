@@ -13,6 +13,7 @@ use std::time::Duration;
 use apollia_core::{RuntimeEvent, TaskId};
 use apollia_tools::TaskRepository;
 
+use crate::config_reload::Live;
 use crate::eventbus::EventBusSender;
 
 // Configuration
@@ -40,6 +41,15 @@ impl Default for TimeoutWatcherConfig {
         Self {
             input_required_timeout: None,
             scan_interval: Duration::from_secs(60),
+        }
+    }
+}
+
+impl From<&apollia_core::HitlConfig> for TimeoutWatcherConfig {
+    fn from(hitl: &apollia_core::HitlConfig) -> Self {
+        Self {
+            input_required_timeout: hitl.timeout_hours.map(|h| Duration::from_secs(h * 3600)),
+            scan_interval: Duration::from_secs(hitl.scan_interval_secs),
         }
     }
 }
@@ -79,6 +89,8 @@ pub struct TimeoutWatcher {
     config: TimeoutWatcherConfig,
     db: Arc<TaskRepository>,
     event_bus: EventBusSender,
+    /// The `[hitl]` section in force, applied as soon as it changes.
+    live: Option<Live<apollia_core::HitlConfig>>,
 }
 
 impl TimeoutWatcher {
@@ -98,17 +110,43 @@ impl TimeoutWatcher {
             config,
             db,
             event_bus,
+            live: None,
         }
+    }
+
+    /// Follows the `[hitl]` section in force: a new timeout or scan interval
+    /// applies at once, the next scan starting immediately.
+    #[must_use]
+    pub fn following(mut self, live: Live<apollia_core::HitlConfig>) -> Self {
+        self.live = Some(live);
+        self
     }
 
     /// Run the watch loop, never returns unless the runtime shuts down.
     ///
     /// Uses `tokio::time::interval` (not `sleep`) to avoid time drift.
     /// On a SQLite error during a scan, logs a `tracing::warn!` and continues.
-    pub async fn run(self) {
+    pub async fn run(mut self) {
         let mut interval = tokio::time::interval(self.config.scan_interval);
+        let mut live = self.live.take();
         loop {
-            interval.tick().await;
+            let change = tokio::select! {
+                _ = interval.tick() => None,
+                change = next_change(&mut live) => Some(change),
+            };
+            match change {
+                Some(Some(hitl)) => {
+                    self.config = TimeoutWatcherConfig::from(&hitl);
+                    interval = tokio::time::interval(self.config.scan_interval);
+                    tracing::info!("task.hitl.config.applied");
+                    continue;
+                }
+                Some(None) => {
+                    live = None;
+                    continue;
+                }
+                None => {}
+            }
             match self.scan_and_cancel().await {
                 Ok(n) if n > 0 => {
                     tracing::info!(cancelled = n, "task.hitl.expired.canceled");
@@ -170,6 +208,16 @@ impl TimeoutWatcher {
         }
 
         Ok(cancelled)
+    }
+}
+
+/// The next value of the section, or never when it is not followed.
+async fn next_change(
+    live: &mut Option<Live<apollia_core::HitlConfig>>,
+) -> Option<apollia_core::HitlConfig> {
+    match live {
+        Some(live) => live.next_change().await,
+        None => std::future::pending().await,
     }
 }
 
@@ -416,5 +464,40 @@ mod tests {
             Some("input_required"),
             "the status must stay 'input_required' - paused indefinitely"
         );
+    }
+
+    #[tokio::test]
+    async fn a_timeout_saved_by_the_route_applies_to_the_next_scan_without_a_restart() {
+        // GIVEN a task waiting for 3h, and a watcher started with no timeout
+        // and an hourly scan, following the [hitl] section of its runtime
+        let (repo, db_path) = open_test_repo().await;
+        insert_expired_task(&db_path, "t-tw-live", 3).await;
+        let rig = crate::config_reload::tests::Rig::on("");
+        let (tx, _rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(16);
+        let watcher = TimeoutWatcher::new(
+            TimeoutWatcherConfig {
+                input_required_timeout: None,
+                scan_interval: Duration::from_secs(3600),
+            },
+            Arc::new(repo),
+            tx,
+        )
+        .following(rig.feed().hitl);
+        tokio::spawn(watcher.run());
+
+        // WHEN the route saves a timeout of two hours
+        rig.save("[hitl]\ntimeout_hours = 2\n").await;
+
+        // THEN the next scan, started at once, cancels the task
+        let mut status = None;
+        for _ in 0..100 {
+            status = get_task_status(&db_path, "t-tw-live").await;
+            if status.as_deref() == Some("cancelled") {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        assert_eq!(status.as_deref(), Some("cancelled"));
+        let _ = std::fs::remove_file(&db_path);
     }
 }

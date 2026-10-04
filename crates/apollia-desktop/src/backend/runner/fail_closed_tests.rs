@@ -113,7 +113,7 @@ async fn probe_runner(data_dir: &Path, governance: GovernanceHandle) -> BridgeRu
         governance: Some(governance),
         a2a_invoker: None,
         mailbox: None,
-        tools_config: apollia_core::ToolsConfig::default(),
+        tools_config: apollia_core::ToolsConfig::default().into(),
         datasources_declared: vec![],
         templates_declared: vec![],
         agent_dir: None,

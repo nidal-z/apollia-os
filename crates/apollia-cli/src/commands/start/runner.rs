@@ -47,8 +47,9 @@ pub(super) struct BridgeRunner {
     pub(super) memory_base_dir: PathBuf,
     /// High-level A2A invoker, `None` if not available.
     pub(super) a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
-    /// Operator-supplied tools configuration loaded from `apollia.toml`.
-    pub(super) tools_config: apollia_core::ToolsConfig,
+    /// Operator-supplied tools configuration loaded from `apollia.toml`, read
+    /// at each run so a saved change applies to the next one.
+    pub(super) tools_config: apollia_runtime::config_reload::Live<apollia_core::ToolsConfig>,
     /// Manifest opt-in for `ctx.memory.remember_user()` writes into `__user__`.
     pub(super) user_memory_write: bool,
     /// Datasources declared in the manifest.
@@ -119,10 +120,11 @@ impl BridgeRunner {
         // The tools governance disabled stay off, and a governance that cannot
         // read what it decides from refuses every sensitive call: an
         // unreadable database never re-enables a tool.
+        let tools_config = self.tools_config.get();
         let gate = apollia_runtime::governance::tool_gate(
             self.governance.as_ref(),
             &governance_base,
-            &self.tools_config.disabled,
+            &tools_config.disabled,
         );
         let brave_api_key = load_governance_snapshot(&governance_base)
             .ok()
@@ -160,10 +162,10 @@ impl BridgeRunner {
                 session_id: None,
                 disabled_tools,
                 brave_api_key,
-                web_search_config: self.tools_config.web_search.clone(),
-                web_read_config: self.tools_config.web_read.clone(),
-                python_interpreter: self.tools_config.python_interpreter.clone(),
-                max_output_chars: self.tools_config.max_output_chars,
+                web_search_config: tools_config.web_search.clone(),
+                web_read_config: tools_config.web_read.clone(),
+                python_interpreter: tools_config.python_interpreter.clone(),
+                max_output_chars: tools_config.max_output_chars,
                 // `memory_search` only when the agent's memory is checked.
                 sources: apollia_tools::SourceAccess::memory_only(
                     apollia_tools::memory_is_checked(&governance_base, &self.agent_id),

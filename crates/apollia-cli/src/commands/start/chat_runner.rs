@@ -60,8 +60,9 @@ pub(super) struct AIPChatAgentRunner {
     /// Base data directory (e.g. `~/.apollia/`).
     pub(super) data_dir: PathBuf,
     /// Operator-supplied tools configuration loaded from `apollia.toml`.
-    /// Drives `disabled` tools and `web_search` / `web_read` parameters.
-    pub(super) tools_config: apollia_core::ToolsConfig,
+    /// Drives `disabled` tools and `web_search` / `web_read` parameters; read
+    /// at each run so a saved change applies to the next one.
+    pub(super) tools_config: apollia_runtime::config_reload::Live<apollia_core::ToolsConfig>,
     /// MCP client manager handle, populated after `supervisor.start()` so the
     /// chat-agent dispatcher can route `mcp:<server>/<tool>` invocations.
     pub(super) mcp_handle:
@@ -101,10 +102,11 @@ impl AIPChatAgentRunner {
         // The tools governance disabled stay off, and a governance that cannot
         // read what it decides from refuses every sensitive call: an
         // unreadable database never re-enables a tool.
+        let tools_config = self.tools_config.get();
         let gate = apollia_runtime::governance::tool_gate(
             self.governance.get(),
             &self.data_dir,
-            &self.tools_config.disabled,
+            &tools_config.disabled,
         );
         let brave_api_key = load_governance_snapshot(&self.data_dir)
             .ok()
@@ -137,10 +139,10 @@ impl AIPChatAgentRunner {
                 session_id: None,
                 disabled_tools: gate.disabled_tools,
                 brave_api_key,
-                web_search_config: self.tools_config.web_search.clone(),
-                web_read_config: self.tools_config.web_read.clone(),
-                python_interpreter: self.tools_config.python_interpreter.clone(),
-                max_output_chars: self.tools_config.max_output_chars,
+                web_search_config: tools_config.web_search.clone(),
+                web_read_config: tools_config.web_read.clone(),
+                python_interpreter: tools_config.python_interpreter.clone(),
+                max_output_chars: tools_config.max_output_chars,
                 // `memory_search` only when the agent's memory is checked.
                 sources: apollia_tools::SourceAccess::memory_only(
                     apollia_tools::memory_is_checked(&self.data_dir, agent_name),

@@ -218,8 +218,9 @@ fn main() {
         Arc::new(std::sync::OnceLock::new());
     // Tools config (`[tools]` from apollia.toml) drives web_search/web_read
     // params and statically-disabled tools. Populated from RuntimeHandle.
-    let tools_config_lock: Arc<std::sync::OnceLock<ToolsConfig>> =
-        Arc::new(std::sync::OnceLock::new());
+    let tools_config_lock: Arc<
+        std::sync::OnceLock<apollia_runtime::config_reload::Live<ToolsConfig>>,
+    > = Arc::new(std::sync::OnceLock::new());
     // Plan-gate registry, forwarded to per-agent engines so the desktop UI can
     // resolve a pending plan gate via submit_plan_decision.
     let plan_gates_lock: Arc<std::sync::OnceLock<Arc<apollia_oria::PendingPlanGates>>> =

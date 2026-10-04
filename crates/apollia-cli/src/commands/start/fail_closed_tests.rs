@@ -120,7 +120,7 @@ async fn probe_backend(data_dir: &Path, governance: GovernanceHandle) -> AIPProd
         memory_base_dir: data_dir.join("memory"),
         user_memory_write: false,
         a2a_invoker: None,
-        tools_config: apollia_core::ToolsConfig::default(),
+        tools_config: apollia_core::ToolsConfig::default().into(),
         datasources_declared: vec![],
         templates_declared: vec![],
         agent_dir: None,
@@ -225,7 +225,7 @@ async fn test_chat_agent_tools_refuse_sensitive_and_keep_disabled() {
         agent_registry: Arc::new(std::sync::OnceLock::new()),
         task_router: Arc::new(std::sync::OnceLock::new()),
         data_dir: dir.path().to_path_buf(),
-        tools_config: apollia_core::ToolsConfig::default(),
+        tools_config: apollia_core::ToolsConfig::default().into(),
         mcp_handle: Arc::new(std::sync::OnceLock::new()),
         governance: Arc::new({
             let lock = std::sync::OnceLock::new();

@@ -732,6 +732,7 @@ mod tests {
             observability: ObservabilityConfig::default(),
             routing: None,
             guardrails: Default::default(),
+            residency: Default::default(),
         };
 
         // WHEN
@@ -972,6 +973,7 @@ mod tests {
             observability: ObservabilityConfig::default(),
             routing: None,
             guardrails: Default::default(),
+            residency: Default::default(),
         };
 
         // WHEN

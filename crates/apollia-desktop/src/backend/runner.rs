@@ -154,8 +154,9 @@ pub(super) struct AIPProductionBackend {
     /// async messages without going through A2A skill delegation.
     pub(super) mailbox: Option<AgentMailboxHandle>,
     /// Operator-supplied tools configuration (`[tools]` section of apollia.toml).
-    /// Drives `web_search`, `web_read`, `http_allowlist`, and statically-disabled tools.
-    pub(super) tools_config: ToolsConfig,
+    /// Drives `web_search`, `web_read`, `http_allowlist`, and statically-disabled
+    /// tools; read at each run so a saved change applies to the next one.
+    pub(super) tools_config: apollia_runtime::config_reload::Live<ToolsConfig>,
     /// Datasources YAML declared in the manifest.
     pub(super) datasources_declared: Vec<String>,
     /// Jinja2 templates declared in the manifest.
@@ -237,8 +238,9 @@ pub(super) struct BridgeRunner {
     pub(super) a2a_invoker: Option<Arc<A2AInvoker>>,
     /// Inter-agent mailbox handle, exposed as `ctx.mailbox`.
     pub(super) mailbox: Option<AgentMailboxHandle>,
-    /// Operator-supplied tools configuration (`[tools]` apollia.toml).
-    pub(super) tools_config: ToolsConfig,
+    /// Operator-supplied tools configuration (`[tools]` apollia.toml), read at
+    /// each run.
+    pub(super) tools_config: apollia_runtime::config_reload::Live<ToolsConfig>,
     /// Datasources YAML declared in the manifest.
     pub(super) datasources_declared: Vec<String>,
     /// Jinja2 templates declared in the manifest.
@@ -278,10 +280,11 @@ impl BridgeRunner {
         // The tools governance disabled stay off, and a governance that
         // cannot read what it decides from refuses every sensitive call:
         // an unreadable database never re-enables a tool.
+        let tools_config = self.tools_config.get();
         let gate = apollia_runtime::governance::tool_gate(
             self.governance.as_ref(),
             &governance_base,
-            &self.tools_config.disabled,
+            &tools_config.disabled,
         );
         let brave_api_key = load_governance_snapshot(&governance_base)
             .ok()
@@ -345,10 +348,10 @@ impl BridgeRunner {
                 pending_user_inputs: self.pending_user_inputs.clone(),
                 disabled_tools,
                 brave_api_key,
-                web_search_config: self.tools_config.web_search.clone(),
-                web_read_config: self.tools_config.web_read.clone(),
-                python_interpreter: self.tools_config.python_interpreter.clone(),
-                max_output_chars: self.tools_config.max_output_chars,
+                web_search_config: tools_config.web_search.clone(),
+                web_read_config: tools_config.web_read.clone(),
+                python_interpreter: tools_config.python_interpreter.clone(),
+                max_output_chars: tools_config.max_output_chars,
                 // `memory_search` only when the agent's memory is checked.
                 sources: apollia_tools::SourceAccess::memory_only(
                     apollia_tools::memory_is_checked(&governance_base, &self.agent_id),

@@ -6,6 +6,7 @@ use super::bootstrap::{drain_until_all_ready, emit_onboarding_if_needed};
 use super::bundled::register_builtin_tools;
 
 mod agents;
+mod config;
 mod data;
 mod governance;
 mod inference;
@@ -34,7 +35,7 @@ impl Supervisor {
     /// The ToolRegistry is spawned and the three native tools (BashExecutor,
     /// PythonExecutor, FileIo) are registered automatically.
     pub async fn start<B: ExecutionBackend + Clone + From<crate::coordinator::DynBackend>>(
-        self,
+        mut self,
         backend: B,
         agent_loader: Arc<dyn AgentLoader>,
         backend_factory: Option<Arc<dyn crate::api::routes_agents::AgentBackendFactory>>,
@@ -53,6 +54,10 @@ impl Supervisor {
         // of the runtime. A present but invalid policy is reported, not fatal:
         // what it shuts down is decided where the policy is applied.
         let org_policy = Arc::new(governance::read_org_policy());
+
+        // Phase 1c: the configuration in force, its live sections, and the
+        // reloader that follows the file.
+        let (config_feed, config_reload) = self.start_config_reload(&event_sender, &org_policy);
 
         // Phase 2: AgentRegistry
         info!("supervisor.registry.starting");
@@ -82,7 +87,9 @@ impl Supervisor {
         let inference = self.start_inference(&event_sender, &org_policy).await;
 
         // Phases 4c and 4d: the execution trace and the resilience layer.
-        let shared_resilience_layer = self.spawn_trace_observers(&event_sender).await;
+        let shared_resilience_layer = self
+            .spawn_trace_observers(&event_sender, &config_feed)
+            .await;
 
         // Phase 5 (pos 6): TaskRouter
         info!("supervisor.router.starting");
@@ -132,6 +139,9 @@ impl Supervisor {
             &agent_loader,
             &agent_runner,
         );
+        if let Some(chat) = chat_manager.as_ref() {
+            chat.follow_config(config_feed.clone()).await;
+        }
 
         // Phase 15: SttEngine.
         let stt = self.start_stt(&inference, &core.event_sender).await;
@@ -153,7 +163,7 @@ impl Supervisor {
             .await;
         let compat_server = self.spawn_compat_server(&inference, &core.event_sender);
         let batches = executors.batches.take();
-        let state = self.app_state(
+        let mut state = self.app_state(
             &core,
             &inference,
             &governance,
@@ -171,6 +181,7 @@ impl Supervisor {
                 compat_server,
             },
         );
+        state.config_reload = config_reload;
         let api_server = APIServer::new(self.config.api_config, state);
         let api_handle = servers::serve_api(
             api_server,
@@ -184,6 +195,7 @@ impl Supervisor {
 
         servers::spawn_timeout_watcher(
             &self.config.hitl_config,
+            &config_feed.hitl,
             stores.task_repository.as_ref(),
             &core.event_sender,
         );
@@ -213,7 +225,7 @@ impl Supervisor {
                 task_repository: stores.task_repository.as_ref(),
                 agent_repository: self.config.agent_repository.as_ref(),
                 data_dir: &self.config.data_dir,
-                obs_config: &self.config.obs_config,
+                obs_config: &config_feed.observability,
                 idle_unload: Duration::from_secs(self.config.runtime_config.agent_idle_unload_secs),
             },
         )
@@ -248,6 +260,7 @@ impl Supervisor {
             llama_server_supervisor: inference.llama_server_supervisor,
             mlx_engine: inference.mlx_engine,
             org_policy: core.org_policy,
+            config_feed,
         })
     }
 }
