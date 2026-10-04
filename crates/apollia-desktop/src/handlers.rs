@@ -147,6 +147,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::package_files::preview_package_file,
         commands::package_files::install_package_file,
         commands::package_files::trust_package_publisher,
+        crate::package_open::take_opened_package_files,
         commands::tool_governance::governance_list_tools,
         commands::tool_governance::governance_state,
         commands::tool_governance::governance_set_tool_enabled,

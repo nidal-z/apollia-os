@@ -813,6 +813,38 @@ rattaché laisse le démon servir.
 
 La version 0.3.0 livre les deux modes.
 
+### Une seule application, et un fichier de paquet qui l'ouvre {#desktop-single-instance}
+
+L'extension `.apo` est associée à l'application de bureau
+(`bundle.fileAssociations` dans `tauri.conf.json`) : un paquet s'ouvre comme un
+document. Ouvrir un paquet ne l'installe jamais : quel que soit le geste qui
+apporte le fichier, l'application montre l'aperçu du paquet, et le paquet n'est
+installé ou mis à jour que depuis cet aperçu. Trois gestes y mènent : ouvrir le
+fichier depuis le système, le déposer dans la fenêtre, et le bouton Installer,
+qui ouvre un sélecteur de fichier.
+
+Un fichier ouvert depuis le système doit atteindre l'application qui tourne
+déjà, pas en démarrer une seconde à côté. macOS garde de lui-même un seul
+processus par application et remet le fichier sous forme d'événement, au
+lancement comme ensuite. Windows et Linux démarrent un nouveau processus avec le
+chemin parmi ses arguments ; là, `tauri-plugin-single-instance` fait que ce
+second processus transmet ses arguments au premier et se termine, et le premier
+montre sa fenêtre. Le greffon est enregistré avant tout autre, dans les deux
+modes du runtime, et sous Windows et Linux seulement : sous macOS il ajouterait
+un second mécanisme là où le système en fournit déjà un. Le processus garde les
+chemins jusqu'à ce que l'interface les prenne, car un fichier qui démarre
+l'application arrive avant que l'interface soit chargée. Un fichier déposé dans
+la fenêtre passe par l'événement de glisser-déposer de la vue web, sans greffon.
+
+Le coût est un greffon Tauri de plus à suivre, qui n'apporte aucune bibliothèque
+que l'arbre ne contenait déjà, et un chemin de code qui diffère entre macOS et
+les deux autres systèmes, donc à vérifier sur chacun. Sous Windows et Linux, un
+second lancement ne peut plus ouvrir une seconde fenêtre.
+
+Refusés : un lien profond (`apollia://install`), qui ne répond pas au
+double-clic sur un fichier, et le bouton et le dépôt seuls, qui laissent un
+paquet incapable de s'ouvrir comme un document.
+
 ## Distribution des agents {#agent-distribution}
 
 Un agent s'installe depuis un chemin local ou une URL Git. Publier les agents sur
