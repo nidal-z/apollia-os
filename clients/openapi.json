@@ -3662,6 +3662,27 @@
         }
       }
     },
+    "/api/v1/connectors/imap/providers": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`GET /api/v1/connectors/imap/providers`: the providers whose server and\nport are filled from the address. Reads a table compiled into the runtime;\nnothing is reached, nothing is stored.",
+        "operationId": "list_imap_providers",
+        "responses": {
+          "200": {
+            "description": "The providers known from the address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapProvidersResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connectors/imap/test": {
       "post": {
         "tags": [
@@ -20900,6 +20921,62 @@
           "error": {
             "type": "string",
             "description": "What went wrong, for a person."
+          }
+        }
+      },
+      "ImapProviderResponse": {
+        "type": "object",
+        "description": "A provider whose IMAP server is known from the address.",
+        "required": [
+          "name",
+          "domains",
+          "host",
+          "port"
+        ],
+        "properties": {
+          "domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Address domains it serves, lowercase."
+          },
+          "host": {
+            "type": "string",
+            "description": "IMAP server."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the provider."
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32",
+            "description": "IMAP port, implicit TLS.",
+            "minimum": 0
+          }
+        }
+      },
+      "ImapProvidersResponse": {
+        "type": "object",
+        "description": "The providers known from the address, and the port of any other server.",
+        "required": [
+          "providers",
+          "defaultPort"
+        ],
+        "properties": {
+          "defaultPort": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Port of a server outside the list, implicit TLS.",
+            "minimum": 0
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImapProviderResponse"
+            },
+            "description": "Every provider prefilled from the address."
           }
         }
       },

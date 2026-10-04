@@ -190,6 +190,8 @@ from .health_response import HealthResponse
 from .imap_account_body import ImapAccountBody
 from .imap_account_response import ImapAccountResponse
 from .imap_error_body import ImapErrorBody
+from .imap_provider_response import ImapProviderResponse
+from .imap_providers_response import ImapProvidersResponse
 from .import_memory_body import ImportMemoryBody
 from .import_memory_body_content import ImportMemoryBodyContent
 from .import_oauth_client_body import ImportOauthClientBody
@@ -709,6 +711,8 @@ __all__ = (
     "ImapAccountBody",
     "ImapAccountResponse",
     "ImapErrorBody",
+    "ImapProviderResponse",
+    "ImapProvidersResponse",
     "ImportMemoryBody",
     "ImportMemoryBodyContent",
     "ImportOauthClientBody",

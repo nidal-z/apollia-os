@@ -385,6 +385,7 @@ use security::BearerToken;
         crate::api::routes_drive_folders::list_drive_folders,
         crate::api::routes_drive_folders::set_drive_folder,
         crate::api::routes_drive_folders::reset_drive_folder,
+        crate::api::routes_imap::list_imap_providers,
         crate::api::routes_imap::test_imap_mailbox,
         crate::api::routes_imap::add_imap_mailbox,
         crate::api::routes_packages::preview_package,
@@ -722,6 +723,8 @@ use security::BearerToken;
         crate::api::routes_imap::ImapAccountBody,
         crate::api::routes_imap::ImapAccountResponse,
         crate::api::routes_imap::ImapErrorBody,
+        crate::api::routes_imap::ImapProviderResponse,
+        crate::api::routes_imap::ImapProvidersResponse,
     ))
 )]
 pub struct ApiDoc;
