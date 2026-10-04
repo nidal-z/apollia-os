@@ -2949,8 +2949,13 @@
       "preview_active_now": "Actif maintenant",
       "reminders_title": "Rappels d'onboarding",
       "reminders_reset_label": "Réinitialiser les rappels d'onboarding",
-      "reminders_reset_hint": "Le parcours de bienvenue et les rappels de découverte s'affichent de nouveau. Aucune donnée n'est supprimée.",
-      "reminders_reset_button": "Réinitialiser"
+      "reminders_reset_hint": "Chaque rappel ci-dessous s'affiche de nouveau, et la conversation pour faire connaissance reprend au début. Aucune donnée n'est supprimée.",
+      "reminders_reset_button": "Tout réinitialiser",
+      "reminders": {
+        "onboarding": "Faire connaissance",
+        "next_steps": "Suggestions de suite",
+        "reset_one": "Réinitialiser « {name} »"
+      }
     },
     "configuration": {},
     "integrations": {

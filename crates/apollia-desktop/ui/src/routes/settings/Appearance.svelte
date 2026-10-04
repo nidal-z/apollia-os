@@ -1,9 +1,14 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { t } from "svelte-i18n";
-  import { Palette, Sun, Moon, Monitor, Lightbulb } from "lucide-svelte";
+  import { Palette, Sun, Moon, Monitor, Lightbulb, X } from "lucide-svelte";
   import { themeMode, applyTheme, type ThemeMode } from "$lib/stores/theme";
-  import { onboardingStore, onboardingModalOpen } from "$lib/stores/onboarding";
-  import { resetOnboarding } from "$lib/ipc/danger";
+  import {
+    REMINDERS,
+    readReminderStates,
+    resetAllReminders,
+    resetReminder,
+  } from "$lib/reminders/registry";
   import { addToast } from "$lib/components/ui/toast";
   import { reportError } from "$lib/errors/reportError";
   import { Button } from "$lib/components/ui/button";
@@ -30,14 +35,21 @@
   let resetOpen = $state(false);
   let resetting = $state(false);
 
-  async function runResetOnboarding(): Promise<void> {
+  let dismissed = $state<Record<string, boolean>>({});
+  let resettingId = $state<string | null>(null);
+
+  async function refreshReminders(): Promise<void> {
+    dismissed = await readReminderStates();
+  }
+
+  onMount(() => {
+    void refreshReminders();
+  });
+
+  async function runResetAll(): Promise<void> {
     resetting = true;
     try {
-      await resetOnboarding();
-      // Reload the now-empty state so derived stores (badges, etc.) catch up.
-      await onboardingStore.refreshState();
-      // Open the onboarding modal immediately, no restart required.
-      onboardingModalOpen.set(true);
+      await resetAllReminders();
       addToast($t("settings.danger.reset_onboarding.success"), "success", {
         "data-testid": "danger-reset-onboarding-toast",
       });
@@ -46,6 +58,19 @@
       reportError(err, { surface: "toast" });
     } finally {
       resetting = false;
+      await refreshReminders();
+    }
+  }
+
+  async function runResetOne(id: string): Promise<void> {
+    resettingId = id;
+    try {
+      await resetReminder(id);
+    } catch (err) {
+      reportError(err, { surface: "toast" });
+    } finally {
+      resettingId = null;
+      await refreshReminders();
     }
   }
 
@@ -189,6 +214,27 @@
         </span>
       {/snippet}
     </SettingsFieldRow>
+    {#each REMINDERS as reminder (reminder.id)}
+      {@const label = $t(reminder.labelKey)}
+      <div
+        class="flex items-center justify-between gap-5 border-t border-border/60 py-2 text-sm text-muted-foreground"
+        data-testid="reminder-row-{reminder.id}"
+        data-dismissed={dismissed[reminder.id] ? "true" : "false"}
+      >
+        <span>{label}</span>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          disabled={!dismissed[reminder.id] || resettingId !== null}
+          aria-label={$t("settings.appearance.reminders.reset_one", { values: { name: label } })}
+          title={$t("settings.appearance.reminders.reset_one", { values: { name: label } })}
+          onclick={() => runResetOne(reminder.id)}
+          data-testid="reminder-reset-{reminder.id}"
+        >
+          <X size={14} strokeWidth={1.9} />
+        </Button>
+      </div>
+    {/each}
   </SettingsSection>
 </SettingsSubPage>
 
@@ -201,6 +247,6 @@
   lockMs={0}
   loading={resetting}
   onclose={() => (resetOpen = false)}
-  onconfirm={runResetOnboarding}
+  onconfirm={runResetAll}
   data-testid="reset-onboarding-confirm"
 />
