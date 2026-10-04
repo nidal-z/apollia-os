@@ -77,8 +77,11 @@
   interface Props {
     /** Drives which curated models are offered; `null` until the probe lands. */
     sysInfo: SystemInfo | null;
-    /** Reports whether an engine was wired during this session. */
-    onconfigured: (configured: boolean) => void;
+    /**
+     * Reports whether an engine was wired during this session, and the size of
+     * its file, which the next step sizes its own recommendation beside.
+     */
+    onconfigured: (configured: boolean, sizeBytes: number | null) => void;
     /** The operator asked for a cloud backend instead. */
     onopencloud: () => void;
   }
@@ -256,7 +259,7 @@
         llmConfiguring = next.configuring;
         llmSuccess = next.configured;
         llmError = next.error;
-        onconfigured(next.configured);
+        onconfigured(next.configured, next.configured ? (selectedGguf?.size_bytes ?? null) : null);
       },
     );
   }

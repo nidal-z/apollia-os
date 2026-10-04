@@ -64,6 +64,8 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::hf_token::set_hf_token,
         commands::hf_token::clear_hf_token,
         commands::model_hub::start_variant_download,
+        commands::embeddings::get_embeddings_recommendation,
+        commands::embeddings::set_default_embeddings_model,
         commands::model_cards::list_model_cards,
         commands::model_hub::cancel_model_download,
         commands::model_hub::list_installed_models,

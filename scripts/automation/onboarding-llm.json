@@ -33,6 +33,31 @@
     },
     {
       "kind": "waitFor",
+      "testid": "onboarding-embeddings",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-skip",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-skip-warning",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-continue-without",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
       "testid": "onboarding-chat-step",
       "timeoutMs": 15000
     },
