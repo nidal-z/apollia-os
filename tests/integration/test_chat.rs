@@ -225,6 +225,8 @@ fn build_chat_app_state(
             config_path: None,
             policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
             journal: None,
+            events: None,
+            forbidden_connections: std::collections::HashSet::new(),
         },
     );
     let chat_manager = ChatSessionManagerHandle::spawn(

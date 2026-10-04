@@ -52,6 +52,7 @@ impl ExecutionBackend for AIPProductionBackend {
             secrets_declared: self.secrets_declared.clone(),
             secrets_data_dir: self.secrets_data_dir.clone(),
             mcp_handle: self.mcp_handle.clone(),
+            governance: self.governance.clone(),
             budget: Arc::clone(&direct_budget),
             cancel,
         };

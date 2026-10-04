@@ -21,7 +21,6 @@ fn manager_following(dir: &tempfile::TempDir, feed: ConfigFeed) -> ChatSessionMa
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: PendingChatApprovals::new(),
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: Some(Arc::new(ChatToolsConfig {
@@ -30,6 +29,7 @@ fn manager_following(dir: &tempfile::TempDir, feed: ConfigFeed) -> ChatSessionMa
             tools_config: apollia_core::ToolsConfig::default(),
             tool_turn_temperature: None,
             source_registry: None,
+            governance: None,
         })),
         governance_db_path: None,
         governance: None,
@@ -88,6 +88,7 @@ fn libre() -> CreateSessionParams {
         agent_name: None,
         system_prompt: None,
         tools: vec![],
+        model: None,
     }
 }
 

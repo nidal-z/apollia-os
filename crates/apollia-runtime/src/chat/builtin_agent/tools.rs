@@ -460,6 +460,9 @@ impl BuiltInChatAgent {
                     reason = ?reason,
                     "chat.tool.governance_allowed"
                 );
+                // A grant of one call is spent by the call it let through.
+                acc.authorized
+                    .remove(&crate::governance::once_grant(&call.name));
                 let (record, tool_result, success) = self
                     .execute_tool_call(session_id, message_id, call, run_id)
                     .await;
@@ -487,15 +490,37 @@ impl BuiltInChatAgent {
         let input_preview =
             truncate_preview(&serde_json::to_string(&call.arguments).unwrap_or_default());
 
+        let prompt = format!("Tool '{}' asks to run with: {}", call.name, input_preview);
         let _ = self.event_bus.send(RuntimeEvent::ChatApprovalRequired {
             session_id: session_id.to_string(),
             message_id: message_id.to_string(),
             tool_call_id: call.id.clone(),
             tool_name: call.name.clone(),
-            prompt: format!("Tool '{}' asks to run with: {}", call.name, input_preview),
+            prompt: prompt.clone(),
         });
 
-        let rx = pending_approvals.register(key.clone());
+        // An unattended run stops at its first approval instead of waiting, so
+        // only a call someone is asked about is listed with what it asks.
+        let rx = if matches!(decision, AccessDecision::AskUser { .. }) {
+            pending_approvals.register_asked(
+                key.clone(),
+                crate::chat::ChatApprovalAsked {
+                    session_id: session_id.to_string(),
+                    message_id: message_id.to_string(),
+                    tool_call_id: call.id.clone(),
+                    tool_name: call.name.clone(),
+                    agent_id: Some(self.agent_id.clone()),
+                    family: serde_json::to_value(family)
+                        .ok()
+                        .and_then(|v| v.as_str().map(str::to_owned)),
+                    prompt,
+                    answers: decision.answers().to_vec(),
+                    asked_at: chrono::Utc::now().to_rfc3339(),
+                },
+            )
+        } else {
+            pending_approvals.register(key.clone())
+        };
         if let Some(duration) = self.approval_timeout {
             pending_approvals.start_timeout(ApprovalTimeoutParams {
                 key,
@@ -572,7 +597,7 @@ impl BuiltInChatAgent {
                     executed: Some((tool_result, success)),
                 }
             }
-            ToolDecision::AlwaysAccept { .. } => {
+            ToolDecision::AlwaysAccept => {
                 if asked.always_offered {
                     match self
                         .governance

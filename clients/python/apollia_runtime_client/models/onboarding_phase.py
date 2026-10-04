@@ -7,7 +7,6 @@ class OnboardingPhase(str, Enum):
     DONE = "done"
     GRADUATION = "graduation"
     GUIDED_TOUR = "guided_tour"
-    PROFILE_CHOICE = "profile_choice"
     WELCOME = "welcome"
 
     def __str__(self) -> str:

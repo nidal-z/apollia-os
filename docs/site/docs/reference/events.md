@@ -95,7 +95,6 @@ the event carries announces a request that is already settled.
 | Variant | Payload | What it reports |
 |---|---|---|
 | `BatchItemAwaitingApproval` | named fields | An item of a batch waits for a decision on an access nobody granted. |
-| `HitlFilesystemRequired` | named fields | A filesystem operation by an agent requires a human approval. |
 | `PermissionRequired` | named fields | A tool invocation requires a human approval. |
 | `TaskApprovalTimeout` | named fields | An `input_required` task expired, canceled automatically by the `TimeoutWatcher`. |
 | `TaskInputRequired` | named fields | A task is suspended awaiting human input. |

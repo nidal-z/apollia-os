@@ -14,6 +14,13 @@ pub(super) struct Governance {
     pub(super) handle: crate::governance::GovernanceHandle,
 }
 
+/// The connection admission built at boot and the existing connections it
+/// refused, both handed to the connection governance and the actor.
+pub(super) struct Connections {
+    pub(super) admission: Arc<crate::governance::PolicyAdmission>,
+    pub(super) forbidden: Arc<crate::governance::ForbiddenConnections>,
+}
+
 impl Supervisor {
     /// Phases 8 to 8d: the audit trail, the hash-chained journal and its
     /// subscriber, the governance actor, the access upgrade, the chat settings carry-over, then the
@@ -23,6 +30,7 @@ impl Supervisor {
         tool_registry_handle: &ToolRegistryHandle,
         event_sender: &EventBusSender,
         org_policy: &Arc<apollia_permissions::PolicyVerdict>,
+        connections: Connections,
     ) -> Governance {
         // Phase 8 (pos 9): AuditTrail, opened before APIServer so it's injectable into AppState.
         info!("supervisor.audit_trail.opening");
@@ -56,6 +64,8 @@ impl Supervisor {
                 ),
                 policy: Arc::clone(org_policy),
                 journal: audit_journal_handle.clone(),
+                events: Some(event_sender.clone()),
+                forbidden_connections: connections.forbidden.tool_connections(),
             });
         crate::governance::access_upgrade::run_at_startup(&self.config.data_dir, &governance);
 
@@ -78,11 +88,16 @@ impl Supervisor {
         // Connections answer to governance: admitted by the organisation
         // policy read above before they are added, journaled when they change.
         let connection_governance = crate::governance::ConnectionGovernance::new(
-            Arc::new(crate::governance::PolicyAdmission::new(Arc::clone(
-                org_policy,
-            ))),
+            Arc::new(
+                connections
+                    .admission
+                    .as_ref()
+                    .clone()
+                    .with_governance(governance.clone()),
+            ),
             audit_journal_handle.clone(),
-        );
+        )
+        .with_forbidden(connections.forbidden);
 
         Governance {
             audit_trail: audit_trail_handle,

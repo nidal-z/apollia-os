@@ -242,6 +242,7 @@ pub(crate) async fn get_server_raw_config<B: ExecutionBackend + Clone>(
     responses(
         (status = 200, description = "Server restarted or (re)connected"),
         (status = 400, description = "Fallback connect failed", body = crate::api::openapi::ApiErrorBody),
+        (status = 403, description = "Forbidden by the organisation policy since the last start", body = crate::api::openapi::ApiErrorBody),
         (status = 404, description = "Server not found", body = crate::api::openapi::ApiErrorBody),
         (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
         (status = 503, description = "MCP not configured", body = crate::api::openapi::ApiErrorBody),
@@ -252,6 +253,7 @@ pub(crate) async fn restart_server<B: ExecutionBackend + Clone>(
     Path(name): Path<String>,
 ) -> Result<Json<McpServerStatus>, JsonError> {
     let handle = require_mcp_handle(&state)?;
+    refuse_forbidden(&state, &name)?;
     match handle.restart_server(&name).await {
         Ok(status) => Ok(Json(status)),
         Err(restart_err) => {
@@ -583,6 +585,7 @@ pub(crate) async fn test_live_server<B: ExecutionBackend + Clone>(
     responses(
         (status = 200, description = "Configuration replaced and session restarted"),
         (status = 400, description = "New session failed to start", body = crate::api::openapi::ApiErrorBody),
+        (status = 403, description = "Refused by the connection admission, or forbidden since the last start", body = crate::api::openapi::ApiErrorBody),
         (status = 404, description = "Server not found", body = crate::api::openapi::ApiErrorBody),
         (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
         (status = 503, description = "MCP not configured", body = crate::api::openapi::ApiErrorBody),
@@ -618,6 +621,11 @@ pub(crate) async fn update_server_config<B: ExecutionBackend + Clone>(
     };
     let config = merge_server_config_patch(existing, &patch)
         .map_err(|e| json_err(StatusCode::BAD_REQUEST, e))?;
+    refuse_forbidden(&state, &name)?;
+    let request = AdmissionRequest::for_mcp_server(&config);
+    if let AdmissionDecision::Refused { reason } = state.connection_governance.admit(&request) {
+        return Err(json_err(StatusCode::FORBIDDEN, reason));
+    }
 
     handle.remove_server(&name).await.map_err(|_| {
         json_err(
@@ -652,6 +660,25 @@ pub(crate) async fn update_server_config<B: ExecutionBackend + Clone>(
         });
 
     Ok(Json(status))
+}
+
+/// Refuses to start the server `name` again when the policy forbade it at
+/// boot: it stays stopped until a start finds it admitted.
+fn refuse_forbidden<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    name: &str,
+) -> Result<(), JsonError> {
+    if state
+        .connection_governance
+        .forbidden()
+        .contains_mcp_server(name)
+    {
+        return Err(json_err(
+            StatusCode::FORBIDDEN,
+            crate::governance::FORBIDDEN_CONNECTION_REASON,
+        ));
+    }
+    Ok(())
 }
 
 /// Merge a partial JSON patch into an existing [`McpServerConfig`]. Every key the

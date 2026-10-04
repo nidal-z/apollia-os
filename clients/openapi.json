@@ -1452,68 +1452,6 @@
         }
       }
     },
-    "/api/v1/approvals/filesystem/{request_id}": {
-      "post": {
-        "tags": [
-          "governance"
-        ],
-        "summary": "`POST /api/v1/approvals/filesystem/{request_id}`: answers a request to\ntouch a file, which resumes the turn waiting on it.",
-        "operationId": "respond_filesystem_approval",
-        "parameters": [
-          {
-            "name": "request_id",
-            "in": "path",
-            "description": "Id of the pending request",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FsHitlDecisionBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "The request is answered",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResolvedFilesystemApproval"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No pending request has this id",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Chat subsystem unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/approvals/pending": {
       "get": {
         "tags": [
@@ -4555,6 +4493,27 @@
         }
       }
     },
+    "/api/v1/governance/policy": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/governance/policy`: the policy read at startup.",
+        "operationId": "read_policy",
+        "responses": {
+          "200": {
+            "description": "The organisation policy the runtime applies: `state` is `none`, `active` or `invalid`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/governance/rules": {
       "get": {
         "tags": [
@@ -4746,6 +4705,27 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance/state": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/governance/state`: whether governance fails closed, and why.",
+        "operationId": "get_governance_state",
+        "responses": {
+          "200": {
+            "description": "The state of governance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovernanceStateBody"
                 }
               }
             }
@@ -8758,6 +8738,16 @@
               }
             }
           },
+          "403": {
+            "description": "Refused by the connection admission, or forbidden since the last start",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Server not found",
             "content": {
@@ -8872,6 +8862,16 @@
           },
           "400": {
             "description": "Fallback connect failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden by the organisation policy since the last start",
             "content": {
               "application/json": {
                 "schema": {
@@ -10573,57 +10573,6 @@
         }
       }
     },
-    "/api/v1/onboarding/profile": {
-      "put": {
-        "tags": [
-          "onboarding"
-        ],
-        "summary": "`PUT /api/v1/onboarding/profile`: records the profile chosen.",
-        "operationId": "set_onboarding_profile",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OnboardingProfileBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "The state with its profile",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OnboardingState"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Neither operator nor builder",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "The user memory did not open",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/onboarding/reset": {
       "post": {
         "tags": [
@@ -10725,7 +10674,7 @@
             }
           },
           "400": {
-            "description": "Unknown topic or profile",
+            "description": "Unknown topic",
             "content": {
               "application/json": {
                 "schema": {
@@ -11134,6 +11083,99 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pending-decisions": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/pending-decisions`: every decision waiting for the user.",
+        "operationId": "list_pending_decisions",
+        "responses": {
+          "200": {
+            "description": "The decisions waiting for the user, empty when none",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingDecisionList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pending-decisions/decide": {
+      "post": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`POST /api/v1/pending-decisions/decide`: answer one waiting decision.",
+        "description": "The answer goes through the call that answers the item where it was born,\nso the conversation, the task or the batch item goes on as if it had been\nanswered there. After `always` on a batch item, every waiting item of the\nsame agent the consent covers runs again.",
+        "operationId": "decide_pending",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The decision was applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecideResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such item waits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The item can no longer take this answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The item does not take this answer, or the answer is malformed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The subsystem the item belongs to is not running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingErrorBody"
                 }
               }
             }
@@ -11739,6 +11781,7 @@
           "profile"
         ],
         "summary": "`DELETE /api/v1/profiles/{id}`: deletes a profile and its facts.",
+        "description": "The conversations that designated it return to the default profile.",
         "operationId": "delete_profile",
         "parameters": [
           {
@@ -13330,6 +13373,16 @@
               }
             }
           },
+          "400": {
+            "description": "An image is refused: too many, too large, or not decodable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Session not found",
             "content": {
@@ -13342,6 +13395,16 @@
           },
           "409": {
             "description": "Session closed or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The model of the session does not read images",
             "content": {
               "application/json": {
                 "schema": {
@@ -13615,6 +13678,67 @@
           },
           "503": {
             "description": "Chat subsystem or backend repository unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/images/{file}": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/images/{file}`, an image a user\nmessage of the session carries, as its metadata names it.",
+        "operationId": "get_session_image",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "file",
+            "in": "path",
+            "description": "File name of the image, as the message metadata lists it",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The image, its media type and its bytes in base64",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageAttachment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an image file name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such image in the session",
             "content": {
               "application/json": {
                 "schema": {
@@ -17517,12 +17641,17 @@
         "required": [
           "accessId",
           "permits",
-          "sensitive"
+          "sensitive",
+          "family"
         ],
         "properties": {
           "accessId": {
             "type": "string",
             "description": "Identifier of the access: a tool name, `mcp:<server>/<tool>`, or\n`pkg:<package>/<tool>`."
+          },
+          "family": {
+            "type": "string",
+            "description": "Action family: `read`, `read_personal`, `write_or_delete`,\n`send_external`, `execute_code`, or `unclassified` when nothing\nclassifies it (a tool of a connection not added yet, an agent)."
           },
           "permits": {
             "type": "string",
@@ -17591,7 +17720,8 @@
           "agentId",
           "accessId",
           "permits",
-          "sensitive"
+          "sensitive",
+          "family"
         ],
         "properties": {
           "accessId": {
@@ -17601,6 +17731,10 @@
           "agentId": {
             "type": "string",
             "description": "Agent that gains it."
+          },
+          "family": {
+            "type": "string",
+            "description": "Action family: `read`, `read_personal`, `write_or_delete`,\n`send_external`, `execute_code`, or `unclassified`."
           },
           "permits": {
             "type": "string",
@@ -17635,7 +17769,7 @@
         "properties": {
           "phase": {
             "type": "string",
-            "description": "The phase to move to, in its snake_case name (`profile_choice`...)."
+            "description": "The phase to move to, in its snake_case name (`ai_setup`...)."
           }
         }
       },
@@ -18614,13 +18748,6 @@
               "null"
             ],
             "description": "Free-form rejection reason shared with the agent. Only honoured when\n`decision == \"refuse\"`."
-          },
-          "scope": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Always-accept scope. Only honoured when `decision == \"always_accept\"`.\nDefaults to [`crate::chat::AlwaysAcceptScope::ThisSession`]."
           },
           "tool_call_id": {
             "type": [
@@ -19737,7 +19864,8 @@
           "degraded",
           "needs_reauth",
           "unavailable",
-          "stopped"
+          "stopped",
+          "forbidden_by_policy"
         ]
       },
       "ConnectionTool": {
@@ -20121,6 +20249,13 @@
             "type": "string",
             "description": "Session mode: `\"libre\"` or `\"agent\"`."
           },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model of the session: the identifier of a language model of the\nmodel index, `<server>/<model>` for a model of a declared server, or\nthe name of a backend. Absent keeps the model of the agent."
+          },
           "system_prompt": {
             "type": [
               "string",
@@ -20356,6 +20491,78 @@
           }
         }
       },
+      "DecideRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/pending-decisions/decide`.",
+        "required": [
+          "id",
+          "answer"
+        ],
+        "properties": {
+          "answer": {
+            "$ref": "#/components/schemas/PendingAnswer",
+            "description": "One of the answers the item takes."
+          },
+          "answers": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object"
+            },
+            "description": "The answers to a question, one per question, matched by its `id`."
+          },
+          "id": {
+            "type": "string",
+            "description": "The `id` of the item, as listed."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why, for a refusal; handed to the agent."
+          },
+          "value": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The answer to the typed question of a paused task: a proposition id,\nfree text when it allows it, or a value."
+          }
+        }
+      },
+      "DecideResponse": {
+        "type": "object",
+        "description": "What a decision did.",
+        "required": [
+          "id",
+          "answer",
+          "resumed",
+          "message"
+        ],
+        "properties": {
+          "answer": {
+            "$ref": "#/components/schemas/PendingAnswer",
+            "description": "The answer applied."
+          },
+          "id": {
+            "type": "string",
+            "description": "The item answered."
+          },
+          "message": {
+            "type": "string",
+            "description": "What happened, to show the user."
+          },
+          "resumed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many waiting runs, conversations or items went on.",
+            "minimum": 0
+          }
+        }
+      },
       "DefaultModelResponse": {
         "type": "object",
         "description": "The default model of the machine.",
@@ -20579,6 +20786,26 @@
           "model_path": {
             "type": "string",
             "description": "The Whisper model file dictation now reads."
+          }
+        }
+      },
+      "DictationEngine": {
+        "type": "object",
+        "description": "The dictation engine, whisper.cpp inside the runner the daemon starts.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "The runner binary."
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The whisper.cpp version the runner states with `--version`; unknown\nwhen it does not answer."
           }
         }
       },
@@ -20827,6 +21054,13 @@
                 "description": "Variant; unknown for an embedded engine whose build is not stated."
               }
             ]
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The version the engine states at its source: the `--version` banner of\na binary, the package metadata of a Python environment. Unknown when it\ndoes not answer."
           }
         }
       },
@@ -20941,6 +21175,17 @@
             "type": "boolean",
             "description": "True when an NVIDIA card is detected and no CUDA engine is installed."
           },
+          "dictation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DictationEngine",
+                "description": "The dictation engine, when a runner is in reach."
+              }
+            ]
+          },
           "engines": {
             "type": "array",
             "items": {
@@ -21008,6 +21253,56 @@
           "json"
         ]
       },
+      "FailClosed": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "`governance.db` exists and cannot be read.",
+            "required": [
+              "detail",
+              "cause"
+            ],
+            "properties": {
+              "cause": {
+                "type": "string",
+                "enum": [
+                  "store_unreadable"
+                ]
+              },
+              "detail": {
+                "type": "string",
+                "description": "What the read failed on."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "An organisation policy is deposited and refused.",
+            "required": [
+              "reason",
+              "detail",
+              "cause"
+            ],
+            "properties": {
+              "cause": {
+                "type": "string",
+                "enum": [
+                  "policy_invalid"
+                ]
+              },
+              "detail": {
+                "type": "string",
+                "description": "What exactly was refused."
+              },
+              "reason": {
+                "type": "string",
+                "description": "The reason class: `schema`, `signature`, `key` or `owner`."
+              }
+            }
+          }
+        ],
+        "description": "Why governance fails closed."
+      },
       "FireResponse": {
         "type": "object",
         "description": "Response for `POST /api/v1/triggers/:id/fire`.",
@@ -21061,105 +21356,6 @@
             "minimum": 0
           }
         }
-      },
-      "FsHitlDecisionBody": {
-        "oneOf": [
-          {
-            "type": "object",
-            "description": "The user approves this operation.",
-            "required": [
-              "decision"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "approve"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "description": "The user denies; the operation is cancelled and `reason`, when given,\nreaches the agent.",
-            "required": [
-              "decision"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "deny"
-                ]
-              },
-              "reason": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "description": "Free-text reason entered by the user."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "description": "The user approves and installs an \"always allow\" rule.",
-            "required": [
-              "op",
-              "level",
-              "decision"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "always_allow"
-                ]
-              },
-              "level": {
-                "type": "string",
-                "description": "Risk level (`medium`, `high`...)."
-              },
-              "op": {
-                "type": "string",
-                "description": "Filesystem operation (`write`, `delete`...)."
-              },
-              "scope": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "description": "Breadth of the rule; absent means this session only."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "description": "Legacy form of `always_allow` with the session scope.",
-            "required": [
-              "op",
-              "level",
-              "decision"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "always_allow_session"
-                ]
-              },
-              "level": {
-                "type": "string",
-                "description": "Risk level."
-              },
-              "op": {
-                "type": "string",
-                "description": "Filesystem operation."
-              }
-            }
-          }
-        ],
-        "description": "The user's answer to a request to touch a file, as the approval card sends\nit. The `decision` discriminant is snake_case; the breadth of an \"always\nallow\" is a separate `scope`, so earlier builds that sent only `op` and\n`level` keep working."
       },
       "GenerateTitleBody": {
         "type": "object",
@@ -21247,6 +21443,23 @@
           "timestamp": {
             "type": "string",
             "description": "ISO 8601 timestamp."
+          }
+        }
+      },
+      "GovernanceStateBody": {
+        "type": "object",
+        "description": "Answer of `GET /api/v1/governance/state`.",
+        "properties": {
+          "fail_closed": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FailClosed",
+                "description": "Why governance fails closed, `null` while it decides normally. While it\nfails closed, every sensitive tool call and every new connection is\nrefused; reading continues."
+              }
+            ]
           }
         }
       },
@@ -21397,6 +21610,24 @@
           "version": {
             "type": "string",
             "description": "The version of the runtime answering, as its crate declares it."
+          }
+        }
+      },
+      "ImageAttachment": {
+        "type": "object",
+        "description": "One image as a client sends it.",
+        "required": [
+          "mime_type",
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "string",
+            "description": "Bytes of the image, in standard base64."
+          },
+          "mime_type": {
+            "type": "string",
+            "description": "Media type of the image, such as `image/png`."
           }
         }
       },
@@ -23687,29 +23918,15 @@
       },
       "OnboardingPhase": {
         "type": "string",
-        "description": "The seven ordered phases of the onboarding flow.",
+        "description": "The six ordered phases of the onboarding flow.",
         "enum": [
           "welcome",
-          "profile_choice",
           "ai_setup",
           "acquaintance",
           "guided_tour",
           "graduation",
           "done"
         ]
-      },
-      "OnboardingProfileBody": {
-        "type": "object",
-        "description": "Request body for `PUT /api/v1/onboarding/profile`.",
-        "required": [
-          "profile"
-        ],
-        "properties": {
-          "profile": {
-            "type": "string",
-            "description": "`operator` or `builder`."
-          }
-        }
       },
       "OnboardingReset": {
         "type": "object",
@@ -23770,13 +23987,6 @@
             "$ref": "#/components/schemas/OnboardingPhase",
             "description": "Current phase of the onboarding flow."
           },
-          "profile": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Chosen user profile (`\"operator\"` or `\"builder\"`); set during ProfileChoice."
-          },
           "skipped": {
             "type": "boolean",
             "description": "`true` if the user explicitly skipped the onboarding."
@@ -23786,7 +23996,7 @@
               "string",
               "null"
             ],
-            "description": "ISO 8601 timestamp of the first phase transition (Welcome → ProfileChoice)."
+            "description": "ISO 8601 timestamp of the first phase transition (Welcome to AiSetup)."
           },
           "stats": {
             "$ref": "#/components/schemas/OnboardingStats",
@@ -24148,6 +24358,16 @@
           }
         }
       },
+      "PendingAnswer": {
+        "type": "string",
+        "description": "An answer a decision takes.",
+        "enum": [
+          "once",
+          "always",
+          "refuse",
+          "answer"
+        ]
+      },
       "PendingApprovalResponse": {
         "type": "object",
         "description": "One pending HITL approval entry.\n\nCarries the same pause as a `GET /api/v1/tasks?status=input_required` item,\ntyped payload included, so a card can be drawn from either list.",
@@ -24189,6 +24409,182 @@
           },
           "task_id": {
             "type": "string"
+          }
+        }
+      },
+      "PendingDecision": {
+        "type": "object",
+        "description": "One decision waiting for the user.",
+        "required": [
+          "id",
+          "kind",
+          "summary",
+          "answers",
+          "allowOther",
+          "origin"
+        ],
+        "properties": {
+          "access": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The tool or the access asked for, for a consent and a batch item."
+          },
+          "agentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent that waits, when known."
+          },
+          "allowOther": {
+            "type": "boolean",
+            "description": "A free answer is taken besides the proposed choices."
+          },
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingAnswer"
+            },
+            "description": "The answers it takes."
+          },
+          "askedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When it was asked, RFC 3339, when known."
+          },
+          "family": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its action family (`read_personal`, `write_or_delete`, `send_external`,\n`execute_code`, `unclassified`), when known."
+          },
+          "id": {
+            "type": "string",
+            "description": "Identifier to answer it by, stable while it waits."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PendingKind",
+            "description": "Where it comes from."
+          },
+          "origin": {
+            "$ref": "#/components/schemas/PendingOrigin",
+            "description": "Where it was born."
+          },
+          "questions": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The questions of a question, each with its proposed choices, or the\ntyped payload of a paused task."
+          },
+          "summary": {
+            "type": "string",
+            "description": "What is asked, in a sentence."
+          }
+        }
+      },
+      "PendingDecisionList": {
+        "type": "object",
+        "description": "The decisions waiting for the user.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingDecision"
+            }
+          }
+        }
+      },
+      "PendingErrorBody": {
+        "type": "object",
+        "description": "Error body of these routes.",
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "A stable code: `UNKNOWN_ITEM`, `ANSWER_NOT_OFFERED`, `INVALID_ANSWER`,\n`UNAVAILABLE`, or the code of the call the decision went through."
+          },
+          "error": {
+            "type": "string",
+            "description": "What went wrong."
+          }
+        }
+      },
+      "PendingKind": {
+        "type": "string",
+        "description": "Where a decision waiting for the user comes from.",
+        "enum": [
+          "consent",
+          "task_pause",
+          "batch_item",
+          "question"
+        ]
+      },
+      "PendingOrigin": {
+        "type": "object",
+        "description": "Where the decision is to be found where it was born.",
+        "properties": {
+          "batchId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The batch of an item."
+          },
+          "messageId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The message whose turn asked."
+          },
+          "rank": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Position of the item in its source, from 0.",
+            "minimum": 0
+          },
+          "requestId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The `ask_user` request of a question."
+          },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The conversation, for a consent or a question asked in one."
+          },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The paused task."
+          },
+          "toolCallId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The tool call a consent is about."
           }
         }
       },
@@ -25396,19 +25792,6 @@
           }
         }
       },
-      "ResolvedFilesystemApproval": {
-        "type": "object",
-        "description": "Answer of `POST /api/v1/approvals/filesystem/{request_id}`.",
-        "required": [
-          "request_id"
-        ],
-        "properties": {
-          "request_id": {
-            "type": "string",
-            "description": "The request answered."
-          }
-        }
-      },
       "ResumeErrorBody": {
         "type": "object",
         "description": "Error body of `POST /api/v1/tasks/{id}/resume`.\n\nThe historical `{error}` shape, plus a machine `code` on the refusals a\ncaller branches on. `code` is absent on the older errors, so a client that\nread `error` alone keeps working.",
@@ -25610,6 +25993,13 @@
           "content": {
             "type": "string",
             "description": "Text content of the user message."
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImageAttachment"
+            },
+            "description": "Images sent after the text, for a model that reads images; at most\neight, each at most 10 MiB once decoded."
           }
         }
       },
@@ -26378,6 +26768,13 @@
               "null"
             ],
             "description": "SHA-256 fingerprint of the signing key, when the signature holds."
+          },
+          "publicKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The signing public key, 64 hexadecimal characters, when the signature\nholds: what trusting the publisher imports into the keyring."
           },
           "publisher": {
             "type": "string",
@@ -27786,13 +28183,6 @@
         "type": "object",
         "description": "Request body for `POST /api/v1/onboarding/sessions`.",
         "properties": {
-          "profile": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The profile the agent adapts its questions to, when one was chosen."
-          },
           "topic": {
             "type": [
               "string",
@@ -28392,7 +28782,14 @@
               "string",
               "null"
             ],
-            "description": "Inference server of the session."
+            "description": "Model of the session: a backend, `<server>/<model>`, or the\nidentifier of a language model of the model index. `null` returns to\nthe model of the agent."
+          },
+          "profile_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Profile the conversation designates; `null` returns it to the current\ndefault profile."
           },
           "system_prompt": {
             "type": [
@@ -29035,7 +29432,7 @@
     },
     {
       "name": "onboarding",
-      "description": "The onboarding: its phases, its profile and its conversation"
+      "description": "The onboarding: its phases and its conversation"
     },
     {
       "name": "artifacts",

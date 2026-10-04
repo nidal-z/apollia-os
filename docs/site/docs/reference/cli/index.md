@@ -215,6 +215,8 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os workspace status`↴](#apollia-os-workspace-status)
 * [`apollia-os workspace init`↴](#apollia-os-workspace-init)
 * [`apollia-os review`↴](#apollia-os-review)
+* [`apollia-os approvals`↴](#apollia-os-approvals)
+* [`apollia-os approvals pending`↴](#apollia-os-approvals-pending)
 * [`apollia-os batch`↴](#apollia-os-batch)
 * [`apollia-os batch run`↴](#apollia-os-batch-run)
 * [`apollia-os batch status`↴](#apollia-os-batch-status)
@@ -335,6 +337,7 @@ Apollia OS CLI binary (apollia-os)
 * `policy` - Organisation policy: create the key, write, sign, verify, show
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
+* `approvals` - The decisions waiting for you (pending)
 * `batch` - Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry, export)
 * `workflow` - Run the workflows of installed packages (show, run, status, logs, cancel)
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
@@ -3474,6 +3477,26 @@ Automated code or plan review via the apollia-review agent
 * `--task <ID>` - Apollia task ID whose execution plan should be reviewed
 * `--pr <N>` - GitHub pull-request number to fetch via `gh pr diff`
 * `--diff <FILE>` - Local diff / patch file to analyse
+
+
+
+## `apollia-os approvals`
+
+The decisions waiting for you (pending)
+
+**Usage:** `apollia-os approvals <COMMAND>`
+
+###### **Subcommands:**
+
+* `pending` - List every decision waiting for you: consents, paused tasks, batch items waiting for an access, questions from agents
+
+
+
+## `apollia-os approvals pending`
+
+List every decision waiting for you: consents, paused tasks, batch items waiting for an access, questions from agents
+
+**Usage:** `apollia-os approvals pending`
 
 
 

@@ -81,12 +81,11 @@ record them.
 ## Closure
 
 When the four facts are recorded and the person asks to stop, or the optional
-topics are done, call propose_profile with `close` set to true, and
-`profile_type` set to operator (a non-technical role) or builder (developer,
-data scientist, ML engineer, DevOps...). When the tool answers
-`completed: true`: summarize in two sentences what you understood, point the
-person to the agent catalog in /agents, and say that a few permission rules
-matching their choices are proposed next, each with a confirmation. If the
+topics are done, call propose_profile with `close` set to true. When the tool
+answers `completed: true`: summarize in two sentences what you understood,
+point the person to the agent catalog in /agents, and say that a few
+permission rules matching their choices are proposed next, each with a
+confirmation. If the
 name or the role is still missing, do not close: ask again, and end with "We
 can resume from Settings whenever you like."
 
@@ -114,4 +113,4 @@ name = "propose_profile"
 module = "tools/onboarding.py"
 description = "Record the profile facts the person just gave in the onboarding conversation, and close the onboarding when asked. Returns what is recorded, what is still missing, and what to ask next."
 action = "write_or_delete"
-inputs = { type = "object", properties = { facts = { type = "object", additionalProperties = { type = "string" }, description = "Profile facts the person gave this turn, key to value, e.g. {\"user.name\": \"Lea\"}. Only what they actually said; empty when nothing new." }, close = { type = "boolean", description = "True when the person asked to stop or the conversation is over." }, profile_type = { type = "string", description = "operator or builder, when you can tell; empty otherwise." }, suggested_agents = { type = "array", items = { type = "string" }, nullable = true, description = "Agent identifiers to suggest at closure; leave out to let the tool choose." } }, additionalProperties = false, required = ["facts"] }
+inputs = { type = "object", properties = { facts = { type = "object", additionalProperties = { type = "string" }, description = "Profile facts the person gave this turn, key to value, e.g. {\"user.name\": \"Lea\"}. Only what they actually said; empty when nothing new." }, close = { type = "boolean", description = "True when the person asked to stop or the conversation is over." }, suggested_agents = { type = "array", items = { type = "string" }, nullable = true, description = "Agent identifiers to suggest at closure; leave out to let the tool choose." } }, additionalProperties = false, required = ["facts"] }

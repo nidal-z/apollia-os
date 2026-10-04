@@ -6,7 +6,8 @@ use super::*;
 use apollia_tools::ActionFamily;
 
 use crate::governance::{
-    AccessCall, AccessDecision, DecisionReason, GovernanceContract, ALL_ANSWERS,
+    answered_once, once_grant, AccessCall, AccessDecision, DecisionReason, GovernanceContract,
+    ALL_ANSWERS,
 };
 
 /// What governance asked about a call, carried to the answer.
@@ -49,9 +50,10 @@ impl BuiltInChatAgent {
     /// The governance decision on `call`, whose tool is in `family`.
     ///
     /// The run's own grants (`acc.authorized`) count as a consent for the
-    /// run. A call whose arguments a `PreToolUse` hook replaced does not
-    /// inherit a consent: what was consented to is the model's call, so it is
-    /// asked about again.
+    /// run, and a grant of one call ([`once_grant`]) lets the next call of
+    /// its tool through. A call whose arguments a `PreToolUse` hook replaced
+    /// does not inherit a consent: what was consented to is the model's call,
+    /// so it is asked about again.
     pub(super) fn decide_call(
         &self,
         call: &ToolCall,
@@ -79,6 +81,9 @@ impl BuiltInChatAgent {
                 } else {
                     AccessDecision::AskUser { reason, answers }
                 }
+            }
+            other if !rewritten_by_hook && acc.authorized.contains(&once_grant(&call.name)) => {
+                answered_once(other)
             }
             other => other,
         }

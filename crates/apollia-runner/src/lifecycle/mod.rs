@@ -3,5 +3,6 @@
 pub mod model_cache;
 pub mod ready;
 pub mod signals;
+pub mod version;
 
 pub use model_cache::ModelCache;

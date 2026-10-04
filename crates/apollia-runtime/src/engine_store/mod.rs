@@ -72,6 +72,7 @@ mod installed;
 mod manifest;
 pub mod node;
 mod settings;
+pub mod version;
 
 use std::path::PathBuf;
 

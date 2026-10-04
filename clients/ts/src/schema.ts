@@ -438,26 +438,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/approvals/filesystem/{request_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * `POST /api/v1/approvals/filesystem/{request_id}`: answers a request to
-         *     touch a file, which resumes the turn waiting on it.
-         */
-        post: operations["respond_filesystem_approval"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/approvals/pending": {
         parameters: {
             query?: never;
@@ -1486,6 +1466,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/governance/policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/governance/policy`: the policy read at startup. */
+        get: operations["read_policy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/governance/rules": {
         parameters: {
             query?: never;
@@ -1535,6 +1532,23 @@ export interface paths {
         post?: never;
         /** `DELETE /api/v1/governance/rules/{id}`: revokes one rule. */
         delete: operations["revoke_governance_rule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/governance/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/governance/state`: whether governance fails closed, and why. */
+        get: operations["get_governance_state"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3567,23 +3581,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/onboarding/profile": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** `PUT /api/v1/onboarding/profile`: records the profile chosen. */
-        put: operations["set_onboarding_profile"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/onboarding/reset": {
         parameters: {
             query?: never;
@@ -3752,6 +3749,46 @@ export interface paths {
          *     its agents and workflows are erased only when the body asks.
          */
         post: operations["uninstall_package"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pending-decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/pending-decisions`: every decision waiting for the user. */
+        get: operations["list_pending_decisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pending-decisions/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/pending-decisions/decide`: answer one waiting decision.
+         * @description The answer goes through the call that answers the item where it was born,
+         *     so the conversation, the task or the batch item goes on as if it had been
+         *     answered there. After `always` on a batch item, every waiting item of the
+         *     same agent the consent covers runs again.
+         */
+        post: operations["decide_pending"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3964,7 +4001,10 @@ export interface paths {
         get: operations["get_profile_by_id"];
         put?: never;
         post?: never;
-        /** `DELETE /api/v1/profiles/{id}`: deletes a profile and its facts. */
+        /**
+         * `DELETE /api/v1/profiles/{id}`: deletes a profile and its facts.
+         * @description The conversations that designated it return to the default profile.
+         */
         delete: operations["delete_profile"];
         options?: never;
         head?: never;
@@ -4534,6 +4574,26 @@ export interface paths {
          *     the default model of the machine.
          */
         get: operations["get_session_model_capabilities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/images/{file}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/{id}/images/{file}`, an image a user
+         *     message of the session carries, as its metadata names it.
+         */
+        get: operations["get_session_image"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5896,6 +5956,12 @@ export interface components {
              *     `pkg:<package>/<tool>`.
              */
             accessId: string;
+            /**
+             * @description Action family: `read`, `read_personal`, `write_or_delete`,
+             *     `send_external`, `execute_code`, or `unclassified` when nothing
+             *     classifies it (a tool of a connection not added yet, an agent).
+             */
+            family: string;
             /** @description What the access lets the agent do. */
             permits: string;
             /** @description Using it is sensitive. */
@@ -5925,6 +5991,11 @@ export interface components {
             accessId: string;
             /** @description Agent that gains it. */
             agentId: string;
+            /**
+             * @description Action family: `read`, `read_personal`, `write_or_delete`,
+             *     `send_external`, `execute_code`, or `unclassified`.
+             */
+            family: string;
             /** @description What it lets the agent do. */
             permits: string;
             /** @description Using it is sensitive. */
@@ -5940,7 +6011,7 @@ export interface components {
         };
         /** @description Request body for `POST /api/v1/onboarding/phase`. */
         AdvancePhaseBody: {
-            /** @description The phase to move to, in its snake_case name (`profile_choice`...). */
+            /** @description The phase to move to, in its snake_case name (`ai_setup`...). */
             phase: string;
         };
         /** @description Response body for agent list. */
@@ -6312,11 +6383,6 @@ export interface components {
              *     `decision == "refuse"`.
              */
             reason?: string | null;
-            /**
-             * @description Always-accept scope. Only honoured when `decision == "always_accept"`.
-             *     Defaults to [`crate::chat::AlwaysAcceptScope::ThisSession`].
-             */
-            scope?: string | null;
             /**
              * @description Unique id of the tool call being resolved. Correlates with the
              *     `approval_required` event so the same tool invoked twice in one turn
@@ -6813,7 +6879,7 @@ export interface components {
          * @description Whether a connection can be used right now.
          * @enum {string}
          */
-        ConnectionState: "connected" | "degraded" | "needs_reauth" | "unavailable" | "stopped";
+        ConnectionState: "connected" | "degraded" | "needs_reauth" | "unavailable" | "stopped" | "forbidden_by_policy";
         /** @description One tool a connection brings. */
         ConnectionTool: {
             /** @description Action family of the tool. */
@@ -6983,6 +7049,12 @@ export interface components {
             agent_name?: string | null;
             /** @description Session mode: `"libre"` or `"agent"`. */
             mode: string;
+            /**
+             * @description The model of the session: the identifier of a language model of the
+             *     model index, `<server>/<model>` for a model of a declared server, or
+             *     the name of a backend. Absent keeps the model of the agent.
+             */
+            model?: string | null;
             /** @description Custom system prompt. */
             system_prompt?: string | null;
             /** @description List of tool names available in this session. */
@@ -7074,6 +7146,36 @@ export interface components {
             /** @description Per-day/backend cost entries. */
             entries: components["schemas"]["DailyCostEntry"][];
         };
+        /** @description Body of `POST /api/v1/pending-decisions/decide`. */
+        DecideRequest: {
+            /** @description One of the answers the item takes. */
+            answer: components["schemas"]["PendingAnswer"];
+            /** @description The answers to a question, one per question, matched by its `id`. */
+            answers?: Record<string, never>[] | null;
+            /** @description The `id` of the item, as listed. */
+            id: string;
+            /** @description Why, for a refusal; handed to the agent. */
+            reason?: string | null;
+            /**
+             * @description The answer to the typed question of a paused task: a proposition id,
+             *     free text when it allows it, or a value.
+             */
+            value?: Record<string, never> | null;
+        };
+        /** @description What a decision did. */
+        DecideResponse: {
+            /** @description The answer applied. */
+            answer: components["schemas"]["PendingAnswer"];
+            /** @description The item answered. */
+            id: string;
+            /** @description What happened, to show the user. */
+            message: string;
+            /**
+             * Format: int64
+             * @description How many waiting runs, conversations or items went on.
+             */
+            resumed: number;
+        };
         /** @description The default model of the machine. */
         DefaultModelResponse: {
             /** @description Name of the backend that holds the default, the name the router routes by. */
@@ -7162,6 +7264,16 @@ export interface components {
             language?: string | null;
             /** @description The Whisper model file dictation now reads. */
             model_path: string;
+        };
+        /** @description The dictation engine, whisper.cpp inside the runner the daemon starts. */
+        DictationEngine: {
+            /** @description The runner binary. */
+            path: string;
+            /**
+             * @description The whisper.cpp version the runner states with `--version`; unknown
+             *     when it does not answer.
+             */
+            version?: string | null;
         };
         /** @description The dictation category of the registry, and the entry for this machine. */
         DictationModelsResponse: {
@@ -7258,6 +7370,12 @@ export interface components {
             /** @description Upstream tag; unknown for an embedded engine. */
             tag?: string | null;
             variant?: null | components["schemas"]["EngineVariant"];
+            /**
+             * @description The version the engine states at its source: the `--version` banner of
+             *     a binary, the package metadata of a Python environment. Unknown when it
+             *     does not answer.
+             */
+            version?: string | null;
         };
         /** @description Body of `POST /api/v1/engines/import`. */
         EngineImportRequest: {
@@ -7304,6 +7422,7 @@ export interface components {
             channel: components["schemas"]["EngineChannel"];
             /** @description True when an NVIDIA card is detected and no CUDA engine is installed. */
             cuda_proposable: boolean;
+            dictation?: null | components["schemas"]["DictationEngine"];
             /** @description Engines embedded in the bundle, then installed ones. */
             engines: components["schemas"]["EngineEntry"][];
             /**
@@ -7337,6 +7456,20 @@ export interface components {
          * @enum {string}
          */
         ExportFormat: "xlsx" | "csv" | "json";
+        /** @description Why governance fails closed. */
+        FailClosed: {
+            /** @enum {string} */
+            cause: "store_unreadable";
+            /** @description What the read failed on. */
+            detail: string;
+        } | {
+            /** @enum {string} */
+            cause: "policy_invalid";
+            /** @description What exactly was refused. */
+            detail: string;
+            /** @description The reason class: `schema`, `signature`, `key` or `owner`. */
+            reason: string;
+        };
         /** @description Response for `POST /api/v1/triggers/:id/fire`. */
         FireResponse: {
             /** @description Identifier of the submitted task. */
@@ -7364,37 +7497,6 @@ export interface components {
         ForkSessionRequest: {
             /** @description Number of messages to copy from the parent (None = all). */
             up_to_index?: number | null;
-        };
-        /**
-         * @description The user's answer to a request to touch a file, as the approval card sends
-         *     it. The `decision` discriminant is snake_case; the breadth of an "always
-         *     allow" is a separate `scope`, so earlier builds that sent only `op` and
-         *     `level` keep working.
-         */
-        FsHitlDecisionBody: {
-            /** @enum {string} */
-            decision: "approve";
-        } | {
-            /** @enum {string} */
-            decision: "deny";
-            /** @description Free-text reason entered by the user. */
-            reason?: string | null;
-        } | {
-            /** @enum {string} */
-            decision: "always_allow";
-            /** @description Risk level (`medium`, `high`...). */
-            level: string;
-            /** @description Filesystem operation (`write`, `delete`...). */
-            op: string;
-            /** @description Breadth of the rule; absent means this session only. */
-            scope?: string | null;
-        } | {
-            /** @enum {string} */
-            decision: "always_allow_session";
-            /** @description Risk level. */
-            level: string;
-            /** @description Filesystem operation. */
-            op: string;
         };
         /** @description Request body for `POST /api/v1/sessions/{id}/title/generate`. */
         GenerateTitleBody: {
@@ -7432,6 +7534,10 @@ export interface components {
             summary: string;
             /** @description ISO 8601 timestamp. */
             timestamp: string;
+        };
+        /** @description Answer of `GET /api/v1/governance/state`. */
+        GovernanceStateBody: {
+            fail_closed?: null | components["schemas"]["FailClosed"];
         };
         /** @description The load guardrail's view of a load. */
         GuardrailCheckDto: {
@@ -7512,6 +7618,13 @@ export interface components {
             status: string;
             /** @description The version of the runtime answering, as its crate declares it. */
             version: string;
+        };
+        /** @description One image as a client sends it. */
+        ImageAttachment: {
+            /** @description Bytes of the image, in standard base64. */
+            data: string;
+            /** @description Media type of the image, such as `image/png`. */
+            mime_type: string;
         };
         /**
          * @description Body of both mailbox routes. Deliberately without `Debug`: it carries the
@@ -8594,15 +8707,10 @@ export interface components {
             onboarded: boolean;
         };
         /**
-         * @description The seven ordered phases of the onboarding flow.
+         * @description The six ordered phases of the onboarding flow.
          * @enum {string}
          */
-        OnboardingPhase: "welcome" | "profile_choice" | "ai_setup" | "acquaintance" | "guided_tour" | "graduation" | "done";
-        /** @description Request body for `PUT /api/v1/onboarding/profile`. */
-        OnboardingProfileBody: {
-            /** @description `operator` or `builder`. */
-            profile: string;
-        };
+        OnboardingPhase: "welcome" | "ai_setup" | "acquaintance" | "guided_tour" | "graduation" | "done";
         /** @description Answer of `POST /api/v1/onboarding/reset`. */
         OnboardingReset: {
             /** @description How many profile entries were removed. */
@@ -8622,11 +8730,9 @@ export interface components {
             mandatory_complete: boolean;
             /** @description Current phase of the onboarding flow. */
             phase: components["schemas"]["OnboardingPhase"];
-            /** @description Chosen user profile (`"operator"` or `"builder"`); set during ProfileChoice. */
-            profile?: string | null;
             /** @description `true` if the user explicitly skipped the onboarding. */
             skipped: boolean;
-            /** @description ISO 8601 timestamp of the first phase transition (Welcome → ProfileChoice). */
+            /** @description ISO 8601 timestamp of the first phase transition (Welcome to AiSetup). */
             started_at?: string | null;
             /** @description Accumulated stats for the graduation screen. */
             stats: components["schemas"]["OnboardingStats"];
@@ -8766,6 +8872,11 @@ export interface components {
             known_agents?: string[];
         };
         /**
+         * @description An answer a decision takes.
+         * @enum {string}
+         */
+        PendingAnswer: "once" | "always" | "refuse" | "answer";
+        /**
          * @description One pending HITL approval entry.
          *
          *     Carries the same pause as a `GET /api/v1/tasks?status=input_required` item,
@@ -8784,6 +8895,76 @@ export interface components {
             skill_id?: string | null;
             suspended_at: string;
             task_id: string;
+        };
+        /** @description One decision waiting for the user. */
+        PendingDecision: {
+            /** @description The tool or the access asked for, for a consent and a batch item. */
+            access?: string | null;
+            /** @description The agent that waits, when known. */
+            agentId?: string | null;
+            /** @description A free answer is taken besides the proposed choices. */
+            allowOther: boolean;
+            /** @description The answers it takes. */
+            answers: components["schemas"]["PendingAnswer"][];
+            /** @description When it was asked, RFC 3339, when known. */
+            askedAt?: string | null;
+            /**
+             * @description Its action family (`read_personal`, `write_or_delete`, `send_external`,
+             *     `execute_code`, `unclassified`), when known.
+             */
+            family?: string | null;
+            /** @description Identifier to answer it by, stable while it waits. */
+            id: string;
+            /** @description Where it comes from. */
+            kind: components["schemas"]["PendingKind"];
+            /** @description Where it was born. */
+            origin: components["schemas"]["PendingOrigin"];
+            /**
+             * @description The questions of a question, each with its proposed choices, or the
+             *     typed payload of a paused task.
+             */
+            questions?: Record<string, never> | null;
+            /** @description What is asked, in a sentence. */
+            summary: string;
+        };
+        /** @description The decisions waiting for the user. */
+        PendingDecisionList: {
+            items: components["schemas"]["PendingDecision"][];
+        };
+        /** @description Error body of these routes. */
+        PendingErrorBody: {
+            /**
+             * @description A stable code: `UNKNOWN_ITEM`, `ANSWER_NOT_OFFERED`, `INVALID_ANSWER`,
+             *     `UNAVAILABLE`, or the code of the call the decision went through.
+             */
+            code: string;
+            /** @description What went wrong. */
+            error: string;
+        };
+        /**
+         * @description Where a decision waiting for the user comes from.
+         * @enum {string}
+         */
+        PendingKind: "consent" | "task_pause" | "batch_item" | "question";
+        /** @description Where the decision is to be found where it was born. */
+        PendingOrigin: {
+            /** @description The batch of an item. */
+            batchId?: string | null;
+            /** @description The message whose turn asked. */
+            messageId?: string | null;
+            /**
+             * Format: int64
+             * @description Position of the item in its source, from 0.
+             */
+            rank?: number | null;
+            /** @description The `ask_user` request of a question. */
+            requestId?: string | null;
+            /** @description The conversation, for a consent or a question asked in one. */
+            sessionId?: string | null;
+            /** @description The paused task. */
+            taskId?: string | null;
+            /** @description The tool call a consent is about. */
+            toolCallId?: string | null;
         };
         /**
          * @description A key changed since the start that waits for a restart, with its line in
@@ -9330,11 +9511,6 @@ export interface components {
             /** Format: int64 */
             wait_duration_ms?: number | null;
         };
-        /** @description Answer of `POST /api/v1/approvals/filesystem/{request_id}`. */
-        ResolvedFilesystemApproval: {
-            /** @description The request answered. */
-            request_id: string;
-        };
         /**
          * @description Error body of `POST /api/v1/tasks/{id}/resume`.
          *
@@ -9442,6 +9618,11 @@ export interface components {
         SendMessageRequest: {
             /** @description Text content of the user message. */
             content: string;
+            /**
+             * @description Images sent after the text, for a model that reads images; at most
+             *     eight, each at most 10 MiB once decoded.
+             */
+            images?: components["schemas"]["ImageAttachment"][];
         };
         /** @description Response body for `POST /api/v1/sessions/:id/messages`. */
         SendMessageResponse: {
@@ -9798,6 +9979,11 @@ export interface components {
             declaredPublisher: string;
             /** @description SHA-256 fingerprint of the signing key, when the signature holds. */
             keyFingerprint?: string | null;
+            /**
+             * @description The signing public key, 64 hexadecimal characters, when the signature
+             *     holds: what trusting the publisher imports into the keyring.
+             */
+            publicKey?: string | null;
             /**
              * @description Name to show for the publisher: the label of the keyring when the key
              *     is trusted, otherwise the name the package declares.
@@ -10419,8 +10605,6 @@ export interface components {
         };
         /** @description Request body for `POST /api/v1/onboarding/sessions`. */
         TriggerOnboardingBody: {
-            /** @description The profile the agent adapts its questions to, when one was chosen. */
-            profile?: string | null;
             /** @description One topic to run again; absent for a full onboarding. */
             topic?: string | null;
         };
@@ -10685,8 +10869,17 @@ export interface components {
          *     value.
          */
         UpdateSessionBody: {
-            /** @description Inference server of the session. */
+            /**
+             * @description Model of the session: a backend, `<server>/<model>`, or the
+             *     identifier of a language model of the model index. `null` returns to
+             *     the model of the agent.
+             */
             llm_backend?: string | null;
+            /**
+             * @description Profile the conversation designates; `null` returns it to the current
+             *     default profile.
+             */
+            profile_id?: string | null;
             /** @description New system prompt. */
             system_prompt?: string | null;
             /** @description New list of tools available in the session. */
@@ -12019,51 +12212,6 @@ export interface operations {
                 };
             };
             /** @description Mailbox not available */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
-    respond_filesystem_approval: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Id of the pending request */
-                request_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FsHitlDecisionBody"];
-            };
-        };
-        responses: {
-            /** @description The request is answered */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResolvedFilesystemApproval"];
-                };
-            };
-            /** @description No pending request has this id */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description Chat subsystem unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -14562,6 +14710,26 @@ export interface operations {
             };
         };
     };
+    read_policy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The organisation policy the runtime applies: `state` is `none`, `active` or `invalid` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
     list_governance_rules: {
         parameters: {
             query?: {
@@ -14711,6 +14879,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_governance_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The state of governance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GovernanceStateBody"];
                 };
             };
         };
@@ -18000,6 +18188,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
+            /** @description Refused by the connection admission, or forbidden since the last start */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
             /** @description Server not found */
             404: {
                 headers: {
@@ -18098,6 +18295,15 @@ export interface operations {
             };
             /** @description Fallback connect failed */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Forbidden by the organisation policy since the last start */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19445,48 +19651,6 @@ export interface operations {
             };
         };
     };
-    set_onboarding_profile: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OnboardingProfileBody"];
-            };
-        };
-        responses: {
-            /** @description The state with its profile */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OnboardingState"];
-                };
-            };
-            /** @description Neither operator nor builder */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description The user memory did not open */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
     reset_onboarding: {
         parameters: {
             query?: never;
@@ -19576,7 +19740,7 @@ export interface operations {
                     "application/json": components["schemas"]["TriggerResult"];
                 };
             };
-            /** @description Unknown topic or profile */
+            /** @description Unknown topic */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -19921,6 +20085,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
+    list_pending_decisions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The decisions waiting for the user, empty when none */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingDecisionList"];
+                };
+            };
+        };
+    };
+    decide_pending: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideRequest"];
+            };
+        };
+        responses: {
+            /** @description The decision was applied */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecideResponse"];
+                };
+            };
+            /** @description No such item waits */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingErrorBody"];
+                };
+            };
+            /** @description The item can no longer take this answer */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingErrorBody"];
+                };
+            };
+            /** @description The item does not take this answer, or the answer is malformed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingErrorBody"];
+                };
+            };
+            /** @description The subsystem the item belongs to is not running */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingErrorBody"];
                 };
             };
         };
@@ -21736,6 +21980,15 @@ export interface operations {
                     "application/json": components["schemas"]["SendMessageResponse"];
                 };
             };
+            /** @description An image is refused: too many, too large, or not decodable */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
             /** @description Session not found */
             404: {
                 headers: {
@@ -21747,6 +22000,15 @@ export interface operations {
             };
             /** @description Session closed or busy */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The model of the session does not read images */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -21953,6 +22215,49 @@ export interface operations {
             };
             /** @description Chat subsystem or backend repository unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_session_image: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+                /** @description File name of the image, as the message metadata lists it */
+                file: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The image, its media type and its bytes in base64 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageAttachment"];
+                };
+            };
+            /** @description Not an image file name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No such image in the session */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

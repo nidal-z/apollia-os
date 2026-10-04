@@ -14,7 +14,7 @@ class AdvancePhaseBody:
     """Request body for `POST /api/v1/onboarding/phase`.
 
     Attributes:
-        phase (str): The phase to move to, in its snake_case name (`profile_choice`...).
+        phase (str): The phase to move to, in its snake_case name (`ai_setup`...).
     """
 
     phase: str

@@ -25,7 +25,7 @@ mod rows;
 pub use backend::LocalModelBackend;
 pub use capabilities::{model_capabilities, ModelCapabilities};
 pub use guardrails::{GuardrailRefusal, LoadConsent};
-pub use rows::{local_row_for, row_name};
+pub use rows::{chat_route, local_row_for, row_name, ChatRoute};
 
 use std::future::Future;
 use std::path::{Path, PathBuf};

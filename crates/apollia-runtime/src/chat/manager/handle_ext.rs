@@ -453,6 +453,23 @@ impl ChatSessionManagerHandle {
             .unwrap_or_else(|| SessionMetrics::new(session_id))
     }
 
+    /// Empty the profile of every session designating `profile_id`, once that
+    /// profile is deleted; returns how many sessions designated it.
+    pub async fn release_profile(&self, profile_id: String) -> Result<usize, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::ReleaseProfile {
+                profile_id,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
     pub async fn shutdown(&self) {
         let _ = self.tx.send(ChatCommand::Shutdown).await;
     }

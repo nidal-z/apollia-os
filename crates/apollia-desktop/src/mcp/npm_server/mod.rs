@@ -34,6 +34,7 @@ use serde_json::Value;
 
 use crate::mcp::enrichments::ConnectorEnrichment;
 
+pub use apollia_mcp::npm_package::{installed_package, is_package_name};
 pub use install::{InstalledNpmServer, NpmServerInstaller};
 
 /// The launcher name an npm entry arrives with.
@@ -201,30 +202,6 @@ fn split_spec(spec: &str) -> (&str, Option<&str>) {
             Some(&spec[search_from + at + 1..]),
         ),
         None => (spec, None),
-    }
-}
-
-/// An npm package name: `name` or `@scope/name`, each part lowercase
-/// alphanumerics with `-`, `.`, `_` and `~`, not starting with `.` or `_`.
-///
-/// Narrow on purpose: the name ends up as an argv element of npm and as a
-/// path under `node_modules`, so a leading `-` or a `..` must never pass.
-pub fn is_package_name(name: &str) -> bool {
-    fn part(p: &str) -> bool {
-        !p.is_empty()
-            && !p.starts_with(['.', '_'])
-            && p.chars().all(|c| {
-                c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '-' | '.' | '_' | '~')
-            })
-    }
-    if name.is_empty() || name.len() > MAX_TOKEN_LEN {
-        return false;
-    }
-    match name.strip_prefix('@') {
-        Some(scoped) => scoped
-            .split_once('/')
-            .is_some_and(|(scope, base)| part(scope) && part(base)),
-        None => part(name),
     }
 }
 
@@ -410,25 +387,6 @@ fn is_npx(command: &str) -> bool {
         .file_stem()
         .and_then(|s| s.to_str())
         .is_some_and(|stem| stem.eq_ignore_ascii_case(NPX))
-}
-
-/// The package an installed npm connection runs: the one whose directory
-/// under `node_modules` holds the file given to `node`.
-pub fn installed_package(config: &McpServerConfig) -> Option<String> {
-    let stem = Path::new(&config.command).file_stem()?.to_str()?;
-    if !stem.eq_ignore_ascii_case(NODE) {
-        return None;
-    }
-    let script = config.args.first()?.replace('\\', "/");
-    let (_, after) = script.rsplit_once("node_modules/")?;
-    let mut parts = after.split('/');
-    let first = parts.next()?;
-    let package = if first.starts_with('@') {
-        format!("{first}/{}", parts.next()?)
-    } else {
-        first.to_string()
-    };
-    is_package_name(&package).then_some(package)
 }
 
 /// Install an `npx` connection and rewrite its command; return any other

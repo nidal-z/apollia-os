@@ -24,6 +24,7 @@ describe("settings router", () => {
       "chat",
       "stt",
       "model-defaults",
+      "notifications",
       "developer",
       "engines",
       "hardware",

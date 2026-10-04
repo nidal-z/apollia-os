@@ -67,9 +67,23 @@ impl Supervisor {
         // Phase 3: ToolRegistry + native tool registration
         info!("supervisor.tool_registry.starting");
         let tool_registry_handle = ToolRegistryHandle::start();
+
+        // Phase 3a: the existing connections the policy now refuses (see
+        // `ForbiddenConnections`): not started, their tools never registered.
+        let connection_admission = Arc::new(crate::governance::PolicyAdmission::new(Arc::clone(
+            &org_policy,
+        )));
+        let mcp_store = self.open_mcp_store();
+        let native_accounts = crate::connectors_bridge::connected_accounts().await;
+        let forbidden_connections = Arc::new(self.forbidden_connections(
+            connection_admission.as_ref(),
+            mcp_store.as_ref(),
+            &native_accounts,
+        ));
         register_builtin_tools(
             &tool_registry_handle,
-            &crate::connectors_bridge::connected_accounts().await,
+            &forbidden_connections.allowed_accounts(&native_accounts),
+            forbidden_connections.offers_mailbox_tools(),
         )
         .await;
 
@@ -79,8 +93,14 @@ impl Supervisor {
         // one-shot migration and logs the count. After migration, `mcp.toml` is no
         // longer consulted. Errors are never fatal: the runtime continues and MCP
         // tools are simply unavailable.
-        let (mcp_handle, mcp_server_repo) =
-            self.start_mcp(&tool_registry_handle, &event_sender).await;
+        let (mcp_handle, mcp_server_repo) = self
+            .start_mcp(
+                &tool_registry_handle,
+                &event_sender,
+                mcp_store,
+                &forbidden_connections,
+            )
+            .await;
 
         // The runner sidecar, the local engines, then phases 4 and 4b: the
         // LlmRouter and its call log.
@@ -116,6 +136,10 @@ impl Supervisor {
                 &core.tool_registry_handle,
                 &core.event_sender,
                 &core.org_policy,
+                governance::Connections {
+                    admission: connection_admission,
+                    forbidden: forbidden_connections,
+                },
             )
             .await;
 
@@ -131,8 +155,14 @@ impl Supervisor {
         let stores = self.open_stores(&core.event_sender).await?;
 
         // Phase 14: ChatSessionManager.
-        let (chat_manager, a2a_invoker) =
-            self.start_chat(&core, &inference, &stores, &agent_loader, &agent_runner);
+        let (chat_manager, a2a_invoker) = self.start_chat(
+            &core,
+            &inference,
+            &stores,
+            &governance,
+            &agent_loader,
+            &agent_runner,
+        );
         if let Some(chat) = chat_manager.as_ref() {
             chat.follow_config(config_feed.clone()).await;
         }

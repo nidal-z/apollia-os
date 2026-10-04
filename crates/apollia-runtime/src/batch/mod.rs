@@ -208,12 +208,14 @@ pub trait ItemRunner: Send + Sync + 'static {
     fn release(&self, batch_id: &str) -> impl Future<Output = Result<(), String>> + Send;
 
     /// Starts `agent` on one item of the batch `batch_id` whose input is
-    /// `input`, with the accesses granted to it now.
+    /// `input`, with the accesses granted to it now, and `once`, an access
+    /// the user allowed for one call of this run alone.
     fn start(
         &self,
         batch_id: &str,
         agent: &str,
         input: &serde_json::Value,
+        once: Option<&str>,
     ) -> impl Future<Output = Result<StartedItem, String>> + Send;
 
     /// Cancels the run of the task `task_id`; its end is reported as usual.
@@ -238,6 +240,22 @@ pub enum BatchControl {
     Stop,
     /// The failed and waiting items run again, with more grants if given.
     Retry(BatchRetry),
+    /// The item at `rank`, which waits for an access, is refused: it fails
+    /// with the refusal and does not run again unless the batch is retried.
+    Refuse {
+        /// Position of the item in its source.
+        rank: u64,
+        /// Why, when the user said.
+        reason: Option<String>,
+    },
+    /// The item at `rank`, which waits to execute code, runs again alone,
+    /// allowed one call of `access`: the next one asks again.
+    RunOnce {
+        /// Position of the item in its source.
+        rank: u64,
+        /// The access it waits for, a tool of the agent that executes code.
+        access: String,
+    },
 }
 
 impl BatchControl {
@@ -248,6 +266,8 @@ impl BatchControl {
             Self::Resume => "resume",
             Self::Stop => "stop",
             Self::Retry(_) => "retry",
+            Self::Refuse { .. } => "refuse",
+            Self::RunOnce { .. } => "run_once",
         }
     }
 }
@@ -367,6 +387,27 @@ impl BatchHandle {
         Ok(Some(BatchDetail { batch, items }))
     }
 
+    /// Every item that waits for a decision, with its batch, oldest batch
+    /// first.
+    ///
+    /// # Errors
+    ///
+    /// [`BatchError::Store`].
+    pub async fn awaiting_items(&self) -> Result<Vec<(BatchRow, BatchItemRow)>, BatchError> {
+        let mut batches = self.repository.list_batches(u32::MAX).await?;
+        batches.retain(|b| b.awaiting > 0);
+        batches.reverse();
+        let mut waiting = Vec::new();
+        for batch in batches {
+            for item in self.repository.batch_items(&batch.batch_id).await? {
+                if item.status == ItemStatus::Awaiting.as_str() {
+                    waiting.push((batch.clone(), item));
+                }
+            }
+        }
+        Ok(waiting)
+    }
+
     /// The batches, newest first, at most `limit`.
     ///
     /// # Errors
@@ -376,6 +417,24 @@ impl BatchHandle {
         Ok(self.repository.list_batches(limit).await?)
     }
 }
+
+/// The output an item that waits is recorded with, naming the access its agent
+/// reached for. [`awaited_access`] reads the access back.
+pub fn awaiting_output(access: &str) -> String {
+    format!("{AWAITING_PREFIX}{access}{AWAITING_SUFFIX}")
+}
+
+/// The access an item that waits reached for, read from its recorded output,
+/// or `None` for an output [`awaiting_output`] did not write.
+pub fn awaited_access(output: &str) -> Option<&str> {
+    output
+        .strip_prefix(AWAITING_PREFIX)?
+        .strip_suffix(AWAITING_SUFFIX)
+        .filter(|access| !access.is_empty())
+}
+
+const AWAITING_PREFIX: &str = "Waiting for a decision: the agent asked to use '";
+const AWAITING_SUFFIX: &str = "', which is not granted";
 
 /// The message an agent reads for one item: each field on its own line.
 pub fn item_message(input: &serde_json::Value) -> String {

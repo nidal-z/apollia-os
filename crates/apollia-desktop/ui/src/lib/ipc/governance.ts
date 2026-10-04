@@ -54,3 +54,29 @@ export async function governanceListCredentials(
   });
   return rows.map(narrowCredential);
 }
+
+/**
+ * Why governance fails closed, as `GET /api/v1/governance/state` answers it.
+ *
+ * `store_unreadable`: the permissions database cannot be read.
+ * `policy_invalid`: an organisation policy is deposited and refused; `reason`
+ * is its class (`schema`, `signature`, `key` or `owner`).
+ */
+export type FailClosed =
+  | { cause: "store_unreadable"; detail: string }
+  | { cause: "policy_invalid"; reason: string; detail: string };
+
+/** The state of governance: `fail_closed` is `null` while it decides normally. */
+export interface GovernanceState {
+  fail_closed: FailClosed | null;
+}
+
+/**
+ * Reads the sources of governance again and says whether it fails closed.
+ * While it does, every sensitive action and every new connection is refused;
+ * reading continues.
+ */
+export async function governanceState(): Promise<GovernanceState> {
+  const raw = await invoke<GovernanceState>("governance_state");
+  return { fail_closed: raw.fail_closed ?? null };
+}

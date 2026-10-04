@@ -16,6 +16,7 @@ fn config(data_dir: &Path, registry: Option<SourceRegistryHandle>) -> Arc<ChatTo
         tools_config: apollia_core::ToolsConfig::default(),
         tool_turn_temperature: None,
         source_registry: registry,
+        governance: None,
     })
 }
 
