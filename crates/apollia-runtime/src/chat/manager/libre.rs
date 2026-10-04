@@ -215,6 +215,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         pending_injection,
         preferred_backend,
         turn_id,
+        turn_images,
     } = params;
 
     let available_tools = available_tools.tools(&tool_registry).await;
@@ -341,6 +342,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             plan_phase: session_plan_phase,
             hook_executor,
             pending_injection,
+            turn_images,
             tool_turn_temperature,
             governance,
             unattended: false,

@@ -22,6 +22,7 @@ impl BuiltInChatAgent {
             session_plan_phase: PlanPhase::Done,
             hook_executor: None,
             pending_injection: None,
+            turn_images: crate::chat::images::TurnImages::default(),
             tool_turn_temperature: DEFAULT_TOOL_TURN_TEMPERATURE,
             governance: crate::governance::GovernanceHandle::detached(
                 crate::governance::GovernanceState::default(),
@@ -124,6 +125,13 @@ impl BuiltInChatAgent {
     /// Absent for every ordinary turn.
     pub fn with_pending_injection(mut self, injection: Option<InjectedInstruction>) -> Self {
         self.pending_injection = injection;
+        self
+    }
+
+    /// Attaches the images of the turn: those of the message answered, sent
+    /// after its text, and those of earlier user messages, replayed with them.
+    pub fn with_turn_images(mut self, images: crate::chat::images::TurnImages) -> Self {
+        self.turn_images = images;
         self
     }
 

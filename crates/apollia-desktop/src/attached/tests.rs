@@ -118,7 +118,9 @@ async fn test_a_message_is_sent_and_a_turn_paused_over_http() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/api/v1/sessions/s-1/messages"))
-        .and(body_json(serde_json::json!({ "content": "Bonjour" })))
+        .and(body_json(
+            serde_json::json!({ "content": "Bonjour", "images": [] }),
+        ))
         .respond_with(
             ResponseTemplate::new(202)
                 .set_body_json(serde_json::json!({ "message_id": "m-9", "status": "processing" })),
@@ -137,7 +139,7 @@ async fn test_a_message_is_sent_and_a_turn_paused_over_http() {
     let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
 
     // WHEN a message is sent, then the turn paused
-    let message_id = client.send_message("s-1", "Bonjour").await.unwrap();
+    let message_id = client.send_message("s-1", "Bonjour", &[]).await.unwrap();
     client.pause_session("s-1").await.unwrap();
 
     // THEN the daemon's message id is returned and both calls reached it

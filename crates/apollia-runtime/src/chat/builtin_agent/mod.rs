@@ -270,6 +270,9 @@ pub struct BuiltInChatAgent {
     /// the operator text as reason. `None` for every ordinary turn, so behavior is
     /// unchanged when no injection is pending.
     pending_injection: Option<InjectedInstruction>,
+    /// Images of the turn: those of the message answered and of the earlier
+    /// user messages in the window. Empty for a turn without images.
+    turn_images: crate::chat::images::TurnImages,
     /// Temperature applied to a turn that advertises tools to the model.
     ///
     /// Lowering it whenever tools are exposed makes structured tool-call output

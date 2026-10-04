@@ -149,6 +149,9 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// The turn the exchange answers: the identifier its answer is persisted
     /// under.
     pub(in crate::chat::manager) turn_id: Option<String>,
+    /// Images of the message answered and of the earlier user messages in
+    /// the window, read back from disk.
+    pub(in crate::chat::manager) turn_images: crate::chat::images::TurnImages,
 }
 
 /// Resolved tool invoker plus the agent workspace path for a session.

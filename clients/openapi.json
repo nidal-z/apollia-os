@@ -13423,6 +13423,16 @@
               }
             }
           },
+          "400": {
+            "description": "An image is refused: too many, too large, or not decodable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Session not found",
             "content": {
@@ -13435,6 +13445,16 @@
           },
           "409": {
             "description": "Session closed or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The model of the session does not read images",
             "content": {
               "application/json": {
                 "schema": {
@@ -13708,6 +13728,67 @@
           },
           "503": {
             "description": "Chat subsystem or backend repository unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/images/{file}": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/images/{file}`, an image a user\nmessage of the session carries, as its metadata names it.",
+        "operationId": "get_session_image",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "file",
+            "in": "path",
+            "description": "File name of the image, as the message metadata lists it",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The image, its media type and its bytes in base64",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageAttachment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an image file name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such image in the session",
             "content": {
               "application/json": {
                 "schema": {
@@ -21537,6 +21618,24 @@
           }
         }
       },
+      "ImageAttachment": {
+        "type": "object",
+        "description": "One image as a client sends it.",
+        "required": [
+          "mime_type",
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "string",
+            "description": "Bytes of the image, in standard base64."
+          },
+          "mime_type": {
+            "type": "string",
+            "description": "Media type of the image, such as `image/png`."
+          }
+        }
+      },
       "ImapAccountBody": {
         "type": "object",
         "description": "Body of both mailbox routes. Deliberately without `Debug`: it carries the\npassword.",
@@ -25920,6 +26019,13 @@
           "content": {
             "type": "string",
             "description": "Text content of the user message."
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImageAttachment"
+            },
+            "description": "Images sent after the text, for a model that reads images; at most\neight, each at most 10 MiB once decoded."
           }
         }
       },

@@ -4596,6 +4596,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{id}/images/{file}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/{id}/images/{file}`, an image a user
+         *     message of the session carries, as its metadata names it.
+         */
+        get: operations["get_session_image"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{id}/pause": {
         parameters: {
             query?: never;
@@ -7590,6 +7610,13 @@ export interface components {
             /** @description The version of the runtime answering, as its crate declares it. */
             version: string;
         };
+        /** @description One image as a client sends it. */
+        ImageAttachment: {
+            /** @description Bytes of the image, in standard base64. */
+            data: string;
+            /** @description Media type of the image, such as `image/png`. */
+            mime_type: string;
+        };
         /**
          * @description Body of both mailbox routes. Deliberately without `Debug`: it carries the
          *     password.
@@ -9589,6 +9616,11 @@ export interface components {
         SendMessageRequest: {
             /** @description Text content of the user message. */
             content: string;
+            /**
+             * @description Images sent after the text, for a model that reads images; at most
+             *     eight, each at most 10 MiB once decoded.
+             */
+            images?: components["schemas"]["ImageAttachment"][];
         };
         /** @description Response body for `POST /api/v1/sessions/:id/messages`. */
         SendMessageResponse: {
@@ -21981,6 +22013,15 @@ export interface operations {
                     "application/json": components["schemas"]["SendMessageResponse"];
                 };
             };
+            /** @description An image is refused: too many, too large, or not decodable */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
             /** @description Session not found */
             404: {
                 headers: {
@@ -21992,6 +22033,15 @@ export interface operations {
             };
             /** @description Session closed or busy */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The model of the session does not read images */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -22198,6 +22248,49 @@ export interface operations {
             };
             /** @description Chat subsystem or backend repository unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_session_image: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+                /** @description File name of the image, as the message metadata lists it */
+                file: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The image, its media type and its bytes in base64 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageAttachment"];
+                };
+            };
+            /** @description Not an image file name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No such image in the session */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

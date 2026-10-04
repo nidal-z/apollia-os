@@ -65,6 +65,10 @@ pub struct CreateSessionRequest {
 pub struct SendMessageRequest {
     /// Text content of the user message.
     pub content: String,
+    /// Images sent after the text, for a model that reads images; at most
+    /// eight, each at most 10 MiB once decoded.
+    #[serde(default)]
+    pub images: Vec<crate::chat::images::ImageAttachment>,
 }
 
 /// Response body for `POST /api/v1/sessions/:id/messages`.
@@ -375,8 +379,10 @@ pub async fn close_session<B: ExecutionBackend + Clone>(
     request_body = SendMessageRequest,
     responses(
         (status = 202, description = "Message accepted", body = SendMessageResponse),
+        (status = 400, description = "An image is refused: too many, too large, or not decodable", body = crate::api::openapi::ApiErrorBody),
         (status = 404, description = "Session not found", body = crate::api::openapi::ApiErrorBody),
         (status = 409, description = "Session closed or busy", body = crate::api::openapi::ApiErrorBody),
+        (status = 422, description = "The model of the session does not read images", body = crate::api::openapi::ApiErrorBody),
         (status = 503, description = "Chat subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
     )
 )]
@@ -398,7 +404,14 @@ pub async fn send_message<B: ExecutionBackend + Clone>(
         }
     };
 
-    match manager.send_message(id, body.content).await {
+    let images = match crate::chat::images::decode_attachments(&body.images) {
+        Ok(images) => images,
+        Err(e) => return chat_error_to_response(e).into_response(),
+    };
+    match manager
+        .send_message_with_images(id, body.content, images)
+        .await
+    {
         Ok(message_id) => (
             StatusCode::ACCEPTED,
             Json(SendMessageResponse {
@@ -709,6 +722,8 @@ fn chat_error_to_response(err: crate::chat::types::ChatError) -> (StatusCode, Js
         ChatError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
         ChatError::NotAwaitingApproval { .. } => (StatusCode::CONFLICT, err.to_string()),
         ChatError::CostCeilingExceeded { .. } => (StatusCode::PAYMENT_REQUIRED, err.to_string()),
+        ChatError::ImagesNotSupported { .. } => (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()),
+        ChatError::ImageRejected(_) => (StatusCode::BAD_REQUEST, err.to_string()),
     };
     (status, Json(ErrorResponse { error: msg }))
 }

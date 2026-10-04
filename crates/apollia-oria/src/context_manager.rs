@@ -444,6 +444,7 @@ fn current_turn_start(messages: &[ChatMessage]) -> usize {
 fn with_background(system: &ChatMessage, heading: &str, summary: &str) -> ChatMessage {
     let base = match &system.content {
         MessageContent::Text(s) => s.as_str(),
+        MessageContent::TextWithImages { text, .. } => text.as_str(),
         MessageContent::ToolResult { content, .. } => content.as_str(),
         MessageContent::WithToolCalls { text, .. } => text.as_str(),
     };
@@ -492,6 +493,7 @@ fn truncate_on_char_boundary(s: String, max_bytes: usize) -> String {
 pub fn message_char_len(msg: &ChatMessage) -> usize {
     match &msg.content {
         MessageContent::Text(s) => s.len(),
+        MessageContent::TextWithImages { text, .. } => text.len(),
         MessageContent::ToolResult { content, .. } => content.len(),
         MessageContent::WithToolCalls { text, tool_calls } => {
             text.len()
@@ -507,6 +509,7 @@ pub fn message_char_len(msg: &ChatMessage) -> usize {
 fn message_text_preview(msg: &ChatMessage, max_chars: usize) -> String {
     let full = match &msg.content {
         MessageContent::Text(s) => s.as_str(),
+        MessageContent::TextWithImages { text, .. } => text.as_str(),
         MessageContent::ToolResult { content, .. } => content.as_str(),
         MessageContent::WithToolCalls { text, .. } => text.as_str(),
     };
@@ -609,6 +612,7 @@ mod tests {
     fn message_text(msg: &ChatMessage) -> &str {
         match &msg.content {
             MessageContent::Text(s) => s.as_str(),
+            MessageContent::TextWithImages { text, .. } => text.as_str(),
             MessageContent::ToolResult { content, .. } => content.as_str(),
             MessageContent::WithToolCalls { text, .. } => text.as_str(),
         }

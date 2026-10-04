@@ -130,6 +130,9 @@ pub struct ToolApprovalLogEntry<'a> {
 /// Thread-safety is achieved by the caller (typically `Arc<Mutex<ChatSessionRepository>>`).
 pub struct ChatSessionRepository {
     conn: Connection,
+    /// The data directory `chat.db` lives in, where the images of the
+    /// conversations are kept. `None` for an in-memory database.
+    data_dir: Option<std::path::PathBuf>,
 }
 
 impl ChatSessionRepository {
@@ -148,7 +151,24 @@ impl ChatSessionRepository {
         super::schema::migrate(&conn)
             .map_err(|e| ChatError::InternalError(format!("chat schema migration failed: {e}")))?;
 
-        Ok(Self { conn })
+        let data_dir = path.parent().map(Path::to_path_buf);
+        Ok(Self { conn, data_dir })
+    }
+
+    /// The data directory `chat.db` lives in, `None` for an in-memory
+    /// database.
+    #[must_use]
+    pub fn data_dir(&self) -> Option<&Path> {
+        self.data_dir.as_deref()
+    }
+
+    /// The folder holding the images of `session_id`, `None` for an in-memory
+    /// database.
+    #[must_use]
+    pub fn session_images_dir(&self, session_id: &str) -> Option<std::path::PathBuf> {
+        self.data_dir
+            .as_deref()
+            .map(|dir| super::images::session_images_dir(dir, session_id))
     }
 
     /// Open an in-memory database (for tests).
@@ -160,7 +180,10 @@ impl ChatSessionRepository {
         super::schema::migrate(&conn)
             .map_err(|e| ChatError::InternalError(format!("chat schema migration failed: {e}")))?;
 
-        Ok(Self { conn })
+        Ok(Self {
+            conn,
+            data_dir: None,
+        })
     }
 
     /// Persist a new chat session.
@@ -282,6 +305,9 @@ impl ChatSessionRepository {
 
         tx.commit()
             .map_err(|e| ChatError::InternalError(format!("delete_session commit: {e}")))?;
+        if let Some(dir) = self.session_images_dir(id) {
+            super::images::remove_session_images(&dir);
+        }
         Ok(())
     }
 
