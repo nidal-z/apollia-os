@@ -148,6 +148,7 @@ LLM backends, routing, and the speech-to-text runner. The default file leaves th
 | `llm.routing` | table | not set | Backends answering precise and fast requests, and the hybrid routing ceiling. |
 | `llm.guardrails.level` | one of disabled, lenient, balanced, strict, ceiling | `"balanced"` | How strictly a local model launch is held to the machine's memory; an unknown level holds to balanced. The organization policy can fix it. |
 | `llm.guardrails.ceiling_gb` | float | not set | Largest estimate, in gigabytes, the ceiling level launches. The organization policy can fix it. |
+| `llm.residency.idle_unload_minutes` | integer | `60` | Minutes without a request after which a local model nothing holds is unloaded; 0 never unloads. The organization policy can fix it. |
 
 ### `[api]`
 
