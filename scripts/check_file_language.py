@@ -352,6 +352,7 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-desktop/ui/src/lib/connections/tryConnectorPrompt.test.ts": 4,
     "crates/apollia-desktop/ui/src/components/connections/tryConnection.test.ts": 4,
     "crates/apollia-llm/tests/interval_junction.rs": 3,
+    "crates/apollia-sources/tests/pdf_reader.rs": 3,
     "crates/apollia-mcp/src/sanitize.rs": 1,
     "crates/apollia-notifications/src/channels/webhook.rs": 2,
     "crates/apollia-runtime/src/api/routes_timeline.rs": 1,

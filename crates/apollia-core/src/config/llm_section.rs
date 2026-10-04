@@ -9,7 +9,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::LlmRoutingConfig;
+use super::{LlmResidencyConfig, LlmRoutingConfig};
 use crate::{LlmBackendConfig, LlmProvider};
 
 /// LLM configuration deserialized from the `[llm]` section of `apollia.toml`.
@@ -43,6 +43,10 @@ pub struct LlmConfig {
     /// Load guardrails of a local model (`[llm.guardrails]` section).
     #[serde(default)]
     pub guardrails: LlmGuardrailsConfig,
+    /// How long an unused local model stays loaded (`[llm.residency]`
+    /// section), read again at every residency sweep.
+    #[serde(default)]
+    pub residency: LlmResidencyConfig,
 }
 
 /// The `[llm.guardrails]` section: how strictly a local model launch is held
@@ -90,6 +94,7 @@ impl LlmConfig {
             observability: LlmObservabilityConfig::default(),
             routing: None,
             guardrails: LlmGuardrailsConfig::default(),
+            residency: LlmResidencyConfig::default(),
         }
     }
 

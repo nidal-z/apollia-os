@@ -128,6 +128,7 @@ from .daily_costs_response import DailyCostsResponse
 from .default_model_response import DefaultModelResponse
 from .delegate_request import DelegateRequest
 from .delegate_request_input import DelegateRequestInput
+from .delegation_tree_node import DelegationTreeNode
 from .delete_backend_response import DeleteBackendResponse
 from .delete_preset_response import DeletePresetResponse
 from .delete_response import DeleteResponse
@@ -229,6 +230,7 @@ from .journal_break import JournalBreak
 from .journal_break_reason import JournalBreakReason
 from .last_loaded_model_response import LastLoadedModelResponse
 from .last_loaded_model_response_load import LastLoadedModelResponseLoad
+from .lease_response import LeaseResponse
 from .list_plan_mutations_response_200_item import ListPlanMutationsResponse200Item
 from .llm_backend_response import LlmBackendResponse
 from .llm_backend_response_config_json import LlmBackendResponseConfigJson
@@ -274,6 +276,7 @@ from .model_cards_response_cards_item import ModelCardsResponseCardsItem
 from .model_cards_response_publishers import ModelCardsResponsePublishers
 from .model_info import ModelInfo
 from .model_kind import ModelKind
+from .model_pin import ModelPin
 from .model_source_dto import ModelSourceDto
 from .models_list_response import ModelsListResponse
 from .next_steps_reply import NextStepsReply
@@ -300,6 +303,7 @@ from .onboarding_profile_body import OnboardingProfileBody
 from .onboarding_reset import OnboardingReset
 from .onboarding_state import OnboardingState
 from .onboarding_stats import OnboardingStats
+from .open_lease_request import OpenLeaseRequest
 from .package_error_body import PackageErrorBody
 from .package_install_request import PackageInstallRequest
 from .package_notice_type_0 import PackageNoticeType0
@@ -317,10 +321,12 @@ from .parse_automation_response_200 import ParseAutomationResponse200
 from .pending_approval_response import PendingApprovalResponse
 from .pending_approval_response_context_type_0 import PendingApprovalResponseContextType0
 from .pending_approval_response_payload_type_0 import PendingApprovalResponsePayloadType0
+from .pending_restart_key import PendingRestartKey
 from .pending_user_input_view import PendingUserInputView
 from .permission_rule_dto import PermissionRuleDto
 from .ping_request import PingRequest
 from .ping_response import PingResponse
+from .pins_response import PinsResponse
 from .plan_action_response import PlanActionResponse
 from .plan_cache_stats_response import PlanCacheStatsResponse
 from .plan_decision_request import PlanDecisionRequest
@@ -354,6 +360,8 @@ from .readme_response import ReadmeResponse
 from .reasoning_profile_dto import ReasoningProfileDto
 from .reject_plan_request import RejectPlanRequest
 from .reject_user_input_request import RejectUserInputRequest
+from .release_lease_request import ReleaseLeaseRequest
+from .release_lease_response import ReleaseLeaseResponse
 from .reload_last_request import ReloadLastRequest
 from .reload_response import ReloadResponse
 from .reload_router_response import ReloadRouterResponse
@@ -437,6 +445,7 @@ from .system_info import SystemInfo
 from .task_list_item import TaskListItem
 from .task_list_item_payload_type_0 import TaskListItemPayloadType0
 from .task_list_response import TaskListResponse
+from .task_record_deleted import TaskRecordDeleted
 from .task_response import TaskResponse
 from .task_response_result_type_0 import TaskResponseResultType0
 from .task_response_token_budget_type_0 import TaskResponseTokenBudgetType0
@@ -498,6 +507,8 @@ from .uninstall_report import UninstallReport
 from .uninstall_request import UninstallRequest
 from .unload_model_request import UnloadModelRequest
 from .unload_model_response import UnloadModelResponse
+from .update_agent_request import UpdateAgentRequest
+from .update_agent_response import UpdateAgentResponse
 from .update_artifact_request import UpdateArtifactRequest
 from .update_channel_request import UpdateChannelRequest
 from .update_channel_request_config_type_0 import UpdateChannelRequestConfigType0
@@ -657,6 +668,7 @@ __all__ = (
     "DefaultModelResponse",
     "DelegateRequest",
     "DelegateRequestInput",
+    "DelegationTreeNode",
     "DeleteBackendResponse",
     "DeletedArtifact",
     "DeletedCredential",
@@ -758,6 +770,7 @@ __all__ = (
     "JournalBreakReason",
     "LastLoadedModelResponse",
     "LastLoadedModelResponseLoad",
+    "LeaseResponse",
     "ListPlanMutationsResponse200Item",
     "LlmBackendResponse",
     "LlmBackendResponseConfigJson",
@@ -803,6 +816,7 @@ __all__ = (
     "ModelCardsResponsePublishers",
     "ModelInfo",
     "ModelKind",
+    "ModelPin",
     "ModelsListResponse",
     "ModelSourceDto",
     "NextStepsReply",
@@ -829,6 +843,7 @@ __all__ = (
     "OnboardingReset",
     "OnboardingState",
     "OnboardingStats",
+    "OpenLeaseRequest",
     "PackageErrorBody",
     "PackageInstallRequest",
     "PackageNoticeType0",
@@ -846,10 +861,12 @@ __all__ = (
     "PendingApprovalResponse",
     "PendingApprovalResponseContextType0",
     "PendingApprovalResponsePayloadType0",
+    "PendingRestartKey",
     "PendingUserInputView",
     "PermissionRuleDto",
     "PingRequest",
     "PingResponse",
+    "PinsResponse",
     "PlanActionResponse",
     "PlanCacheStatsResponse",
     "PlanDecisionRequest",
@@ -881,6 +898,8 @@ __all__ = (
     "ReasoningProfileDto",
     "RejectPlanRequest",
     "RejectUserInputRequest",
+    "ReleaseLeaseRequest",
+    "ReleaseLeaseResponse",
     "ReloadLastRequest",
     "ReloadResponse",
     "ReloadRouterResponse",
@@ -962,6 +981,7 @@ __all__ = (
     "TaskListItem",
     "TaskListItemPayloadType0",
     "TaskListResponse",
+    "TaskRecordDeleted",
     "TaskResponse",
     "TaskResponseResultType0",
     "TaskResponseTokenBudgetType0",
@@ -1019,6 +1039,8 @@ __all__ = (
     "UninstallRequest",
     "UnloadModelRequest",
     "UnloadModelResponse",
+    "UpdateAgentRequest",
+    "UpdateAgentResponse",
     "UpdateArtifactRequest",
     "UpdateChannelRequest",
     "UpdateChannelRequestConfigType0",

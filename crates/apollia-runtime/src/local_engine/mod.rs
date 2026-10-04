@@ -108,8 +108,9 @@ pub trait LocalEngine: Send + Sync + 'static {
         model_path: &str,
     ) -> impl Future<Output = Result<usize, UnloadError>> + Send;
 
-    /// How many models may stay resident at once.
-    fn max_loaded(&self) -> usize;
+    /// The explicit ceiling on resident models, `None` when the load
+    /// guardrail alone decides how many stay loaded.
+    fn max_loaded(&self) -> Option<usize>;
 
     /// Whether the endpoint reads the llama.cpp `grammar` field. When it does
     /// not, a structured-output call carries `response_format` instead.
@@ -162,7 +163,7 @@ impl LocalEngine for LlamaServerSupervisor {
         LlamaServerSupervisor::unload_model(self, model_path).await
     }
 
-    fn max_loaded(&self) -> usize {
+    fn max_loaded(&self) -> Option<usize> {
         LlamaServerSupervisor::max_loaded(self)
     }
 

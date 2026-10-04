@@ -468,6 +468,10 @@ async fn test_agent_model_assignment_is_recorded_in_the_history_of_the_agent() {
     .await
     .unwrap();
     state.audit_journal = Some(journal.clone());
+    state.governance = Some(crate::governance::GovernanceHandle::detached(
+        crate::governance::GovernanceState::default(),
+        Some(journal.clone()),
+    ));
     let uri = "/api/v1/llm/agents/mail/model";
 
     // WHEN

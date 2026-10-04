@@ -546,7 +546,8 @@ async fn test_no_hybrid_config_leaves_ceiling_flag_false() {
         user_memory: None,
         todo: None,
         plan: None,
-    });
+    })
+    .with_governance(Some(super::governed_test_support::code_runs()));
 
     let budget = make_budget(20);
     let approvals = PendingChatApprovals::new();
@@ -630,7 +631,8 @@ async fn run_ceiling_exchange(
         user_memory: None,
         todo: None,
         plan: None,
-    });
+    })
+    .with_governance(Some(super::governed_test_support::code_runs()));
     let budget = make_budget(20);
     let approvals = PendingChatApprovals::new();
     let mut authorized = HashSet::new();
@@ -793,7 +795,8 @@ async fn test_tool_call_authorized() {
         user_memory: None,
         todo: None,
         plan: None,
-    });
+    })
+    .with_governance(Some(super::governed_test_support::code_runs()));
 
     let budget = make_budget(10);
     let approvals = PendingChatApprovals::new();
@@ -1055,11 +1058,12 @@ async fn test_tool_call_hitl_always_accept() {
         )
         .await;
 
-    // THEN tool executed AND newly_authorized contains "file_read"
+    // THEN the tool executed AND, nothing classifying it, "always" held for
+    // this call only: no grant by name leaves the loop
     let resp = result.expect("should succeed");
     assert_eq!(resp.tool_calls.len(), 1);
     assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Executed);
-    assert_eq!(resp.newly_authorized, vec!["file_read".to_string()]);
+    assert!(resp.newly_authorized.is_empty());
 
     tool_registry.shutdown().await;
 }
@@ -1081,7 +1085,8 @@ async fn test_budget_exhausted() {
         user_memory: None,
         todo: None,
         plan: None,
-    });
+    })
+    .with_governance(Some(super::governed_test_support::code_runs()));
 
     let budget = make_budget(1);
     let mut authorized = HashSet::new();
@@ -1188,16 +1193,19 @@ async fn test_every_streamed_call_of_a_turn_is_published_with_the_turn() {
         final_tokens: split_tokens("Done"),
         iteration: AtomicU32::new(0),
     });
+    let tool_registry = ToolRegistryHandle::start();
+    super::governed_test_support::register_writing(&tool_registry, "bash").await;
     let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
     let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
         llm_router: make_router(model),
-        tool_registry: ToolRegistryHandle::start(),
+        tool_registry,
         tool_invoker: Arc::new(MockToolInvoker::new("output")),
         event_bus: event_tx,
         user_memory: None,
         todo: None,
         plan: None,
     })
+    .with_governance(Some(super::governed_test_support::code_runs()))
     .with_turn_id(Some("answer-1".into()));
     let authorized: HashSet<String> = HashSet::from(["bash".to_string()]);
 
@@ -1264,6 +1272,7 @@ async fn test_events_emitted_in_order() {
     });
     let router = make_router(model);
     let tool_registry = ToolRegistryHandle::start();
+    super::governed_test_support::register_writing(&tool_registry, "bash").await;
     let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("output"));
     let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
     let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
@@ -1274,7 +1283,8 @@ async fn test_events_emitted_in_order() {
         user_memory: None,
         todo: None,
         plan: None,
-    });
+    })
+    .with_governance(Some(super::governed_test_support::code_runs()));
 
     let budget = make_budget(10);
     let mut authorized = HashSet::new();
@@ -1662,6 +1672,7 @@ async fn test_stream_with_tool_call() {
     });
     let router = make_router(model);
     let tool_registry = ToolRegistryHandle::start();
+    super::governed_test_support::register_writing(&tool_registry, "file_read").await;
     let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("file content"));
     let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
     let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
@@ -2137,7 +2148,7 @@ fn mcp_descriptor(full_name: &str) -> apollia_tools::descriptor::ToolDescriptor 
         output_schema: None,
         sandbox_profile: apollia_core::SandboxProfile::NetworkRestricted,
         tags: vec!["mcp".to_string()],
-        family: apollia_tools::ActionFamily::Unclassified,
+        family: apollia_tools::ActionFamily::WriteOrDelete,
         family_source: apollia_tools::FamilySource::Unsourced,
         is_read_only: false,
         risk_score: 3,
@@ -2167,6 +2178,7 @@ fn snapshot(server: &str, tool: &str) -> ToolIndexSnapshot {
 fn ro_descriptor(name: &str) -> apollia_tools::descriptor::ToolDescriptor {
     let mut d = mcp_descriptor(name);
     d.is_read_only = true;
+    d.family = apollia_tools::ActionFamily::Read;
     d
 }
 
@@ -2268,7 +2280,6 @@ async fn run_turn(
 ) -> Vec<String> {
     let mut acc = ReactAccumulators {
         all_tool_calls: vec![],
-        newly_authorized: vec![],
         authorized: calls.iter().map(|c| c.name.clone()).collect(),
         llm_calls: Vec::new(),
     };
@@ -2340,12 +2351,13 @@ async fn test_readonly_calls_run_in_parallel_preserving_order() {
 /// read-only authorized tools run concurrently, results merge in input order.
 #[tokio::test]
 async fn test_mixed_calls_preserve_global_order() {
-    // GIVEN a registered write tool, two read-only tools, and one unknown tool
+    // GIVEN two registered write tools and two read-only tools, every call
+    // granted for the run (a tool nothing describes would ask instead)
     let registry = ToolRegistryHandle::start();
     registry.register(mcp_descriptor("w_x")).await.unwrap(); // is_read_only = false
     registry.register(ro_descriptor("ro_a")).await.unwrap();
     registry.register(ro_descriptor("ro_b")).await.unwrap();
-    // "w_y" is intentionally not registered: unknown status is treated as write.
+    registry.register(mcp_descriptor("w_y")).await.unwrap();
     let invoker = Arc::new(ConcurrencyInvoker::new());
     let agent = agent_with(registry.clone(), invoker.clone());
     let calls = vec![
@@ -2418,7 +2430,6 @@ async fn run_turn_full(
 ) -> (Vec<ToolCallRecord>, u32) {
     let mut acc = ReactAccumulators {
         all_tool_calls: vec![],
-        newly_authorized: vec![],
         authorized: calls.iter().map(|c| c.name.clone()).collect(),
         llm_calls: Vec::new(),
     };
@@ -2464,7 +2475,6 @@ async fn test_unknown_tool_name_refused_with_suggestion() {
     let calls = vec![tool_call(0, "web_serch")];
     let mut acc = ReactAccumulators {
         all_tool_calls: vec![],
-        newly_authorized: vec![],
         authorized: HashSet::new(),
         llm_calls: Vec::new(),
     };
@@ -3109,6 +3119,7 @@ async fn test_pretooluse_deny_blocks_invocation() {
         todo: None,
         plan: None,
     })
+    .with_governance(Some(super::governed_test_support::code_runs()))
     .with_hook_executor(Some(pre_tool_use_executor(script)));
 
     let budget = make_budget(10);
@@ -3277,6 +3288,7 @@ async fn test_pretooluse_allow_lets_tool_run() {
         todo: None,
         plan: None,
     })
+    .with_governance(Some(super::governed_test_support::code_runs()))
     .with_hook_executor(Some(pre_tool_use_executor(script)));
 
     let budget = make_budget(10);
@@ -3350,6 +3362,7 @@ async fn test_pretooluse_decision_emits_hook_event() {
         todo: None,
         plan: None,
     })
+    .with_governance(Some(super::governed_test_support::code_runs()))
     .with_hook_executor(Some(pre_tool_use_executor(script)));
 
     let budget = make_budget(10);
@@ -3507,6 +3520,7 @@ async fn test_posttooluse_injection_reaches_next_turn() {
         todo: None,
         plan: None,
     })
+    .with_governance(Some(super::governed_test_support::code_runs()))
     .with_hook_executor(Some(executor));
 
     let budget = make_budget(10);
@@ -4221,7 +4235,6 @@ async fn test_handle_plan_tool_propose_persists_and_records() {
     let mut messages: Vec<LlmChatMessage> = Vec::new();
     let mut acc = ReactAccumulators {
         all_tool_calls: Vec::new(),
-        newly_authorized: Vec::new(),
         authorized: HashSet::new(),
         llm_calls: Vec::new(),
     };
@@ -4255,7 +4268,6 @@ async fn test_handle_plan_tool_modify_without_reason_is_failure() {
     let mut messages: Vec<LlmChatMessage> = Vec::new();
     let mut acc = ReactAccumulators {
         all_tool_calls: Vec::new(),
-        newly_authorized: Vec::new(),
         authorized: HashSet::new(),
         llm_calls: Vec::new(),
     };
@@ -4277,26 +4289,27 @@ async fn test_handle_plan_tool_modify_without_reason_is_failure() {
     assert!(body.contains("reason is required"));
 }
 
-// ── Per-invocation prefix-rule checker ───────────────────────────────
+// ── Fine rules, through governance ───────────────────────────────────
 //
-// The checker mirrors `build_prefix_checker` in the chat manager but points
-// at a temporary governance database, so these tests exercise the real
-// matching semantics (`check_with_scope`, longest prefix, executor guard)
+// Governance runs over a temporary governance database, so these tests
+// exercise the real decision (rule matching, executor guard, developer mode)
 // through the ReAct loop rather than a stub.
 
-fn make_test_prefix_checker(
-    db_path: std::path::PathBuf,
-) -> Arc<crate::chat::builtin_agent::PrefixChecker> {
-    use apollia_permissions::ScopeContext;
-    let scope_ctx = ScopeContext {
-        agent_id: Some("apollia:chat".to_string()),
-    };
-    Arc::new(move |tool, first_arg| {
-        let engine = apollia_permissions::PrefixRuleEngine::new(&db_path).ok()?;
-        engine
-            .check_with_scope(tool, first_arg, &scope_ctx)
-            .ok()
-            .flatten()
+fn make_test_governance(
+    dir: &tempfile::TempDir,
+    developer_mode: bool,
+) -> crate::governance::GovernanceHandle {
+    let config = dir.path().join("apollia.toml");
+    std::fs::write(
+        &config,
+        format!("[desktop]\ndeveloper_mode = {developer_mode}\n"),
+    )
+    .expect("write config");
+    crate::governance::GovernanceHandle::spawn(crate::governance::GovernanceSources {
+        governance_db: Some(dir.path().join("governance.db")),
+        config_path: Some(config),
+        policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
+        journal: None,
     })
 }
 
@@ -4334,15 +4347,17 @@ fn spawn_refusing_resolver(approvals: &PendingChatApprovals) {
     });
 }
 
-struct PrefixCheckerRun {
+struct GovernedRun {
     tool: &'static str,
     arguments: serde_json::Value,
-    checker: Option<Arc<crate::chat::builtin_agent::PrefixChecker>>,
-    /// Tool names seeded into the name-only authorization set for the turn.
+    governance: Option<crate::governance::GovernanceHandle>,
+    /// Family the tool is registered under; unregistered when `None`.
+    family: Option<apollia_tools::ActionFamily>,
+    /// Tool names the run's caller granted for the run.
     authorized: &'static [&'static str],
 }
 
-async fn run_prefix_checker_turn(params: PrefixCheckerRun) -> ChatAgentResponse {
+async fn run_governed_turn(params: GovernedRun) -> ChatAgentResponse {
     let model = Arc::new(MockReActModel {
         calls: vec![LlmToolCall {
             id: "c1".into(),
@@ -4354,6 +4369,14 @@ async fn run_prefix_checker_turn(params: PrefixCheckerRun) -> ChatAgentResponse 
     });
     let router = make_router(model);
     let tool_registry = ToolRegistryHandle::start();
+    if let Some(family) = params.family {
+        let mut descriptor = crate::connectors_bridge::google_tool_descriptors()[0].clone();
+        descriptor.name = params.tool.to_owned();
+        descriptor.family = family;
+        descriptor.is_read_only = false;
+        descriptor.input_schema = serde_json::json!({ "type": "object" });
+        tool_registry.register(descriptor).await.expect("register");
+    }
     let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("tool output"));
     let event_bus = make_event_bus();
     let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
@@ -4365,7 +4388,7 @@ async fn run_prefix_checker_turn(params: PrefixCheckerRun) -> ChatAgentResponse 
         todo: None,
         plan: None,
     })
-    .with_prefix_checker(params.checker);
+    .with_governance(params.governance);
 
     let budget = make_budget(10);
     let approvals = PendingChatApprovals::new();
@@ -4398,24 +4421,24 @@ async fn run_prefix_checker_turn(params: PrefixCheckerRun) -> ChatAgentResponse 
     result.expect("turn should complete")
 }
 
-/// A targeted allow rule auto-approves a single simple command.
+/// In developer mode, a targeted allow rule lets a single simple command run.
 #[tokio::test]
-async fn test_prefix_rule_allows_simple_executor_command_without_hitl() {
-    // GIVEN a global allow rule bash_executor + prefix "ls"
+async fn test_prefix_rule_allows_simple_executor_command_in_developer_mode() {
+    // GIVEN developer mode and a global allow rule bash_executor + prefix "ls"
     let dir = tempfile::tempdir().expect("tempdir");
-    let db = dir.path().join("governance.db");
     seed_prefix_rule(
-        &db,
+        &dir.path().join("governance.db"),
         "bash_executor",
         Some("ls"),
         apollia_permissions::RuleAction::Allow,
     );
 
     // WHEN the model invokes bash_executor with a simple matching command
-    let resp = run_prefix_checker_turn(PrefixCheckerRun {
+    let resp = run_governed_turn(GovernedRun {
         tool: "bash_executor",
         arguments: serde_json::json!({"command": "ls -la", "timeout_secs": 5}),
-        checker: Some(make_test_prefix_checker(db)),
+        governance: Some(make_test_governance(&dir, true)),
+        family: None,
         authorized: &[],
     })
     .await;
@@ -4424,30 +4447,56 @@ async fn test_prefix_rule_allows_simple_executor_command_without_hitl() {
     // resolver never fires, so an Executed status proves the rule decided)
     assert_eq!(resp.tool_calls.len(), 1);
     assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Executed);
-    assert!(
-        resp.newly_authorized.is_empty(),
-        "a per-invocation grant must not widen the authorized set"
+}
+
+/// Outside developer mode the same rule decides nothing: the call asks.
+#[tokio::test]
+async fn test_prefix_rule_on_executor_asks_outside_developer_mode() {
+    // GIVEN the same allow rule, developer mode off
+    let dir = tempfile::tempdir().expect("tempdir");
+    seed_prefix_rule(
+        &dir.path().join("governance.db"),
+        "bash_executor",
+        Some("ls"),
+        apollia_permissions::RuleAction::Allow,
+    );
+
+    // WHEN the model invokes bash_executor with a simple matching command
+    let resp = run_governed_turn(GovernedRun {
+        tool: "bash_executor",
+        arguments: serde_json::json!({"command": "ls -la", "timeout_secs": 5}),
+        governance: Some(make_test_governance(&dir, false)),
+        family: None,
+        authorized: &[],
+    })
+    .await;
+
+    // THEN the approval is raised (the resolver refuses it)
+    assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Refused);
+    assert_eq!(
+        resp.tool_calls[0].output.as_deref(),
+        Some("Tool refused by the operator")
     );
 }
 
 /// The same rule does not cover a chained command: HITL is still raised.
 #[tokio::test]
 async fn test_prefix_rule_ignores_chained_command_hitl_still_raised() {
-    // GIVEN the same global allow rule bash_executor + prefix "ls"
+    // GIVEN developer mode and the global allow rule bash_executor + "ls"
     let dir = tempfile::tempdir().expect("tempdir");
-    let db = dir.path().join("governance.db");
     seed_prefix_rule(
-        &db,
+        &dir.path().join("governance.db"),
         "bash_executor",
         Some("ls"),
         apollia_permissions::RuleAction::Allow,
     );
 
     // WHEN the invoked command chains a second command behind the prefix
-    let resp = run_prefix_checker_turn(PrefixCheckerRun {
+    let resp = run_governed_turn(GovernedRun {
         tool: "bash_executor",
         arguments: serde_json::json!({"command": "ls; rm -rf /tmp/x", "timeout_secs": 5}),
-        checker: Some(make_test_prefix_checker(db)),
+        governance: Some(make_test_governance(&dir, true)),
+        family: None,
         authorized: &[],
     })
     .await;
@@ -4462,9 +4511,9 @@ async fn test_prefix_rule_ignores_chained_command_hitl_still_raised() {
     );
 }
 
-/// A longer deny prefix wins over a shorter allow, without raising HITL.
+/// A matching deny rule refuses, even beside a matching allow, without HITL.
 #[tokio::test]
-async fn test_prefix_rule_deny_wins_longest_prefix_without_hitl() {
+async fn test_prefix_rule_deny_wins_without_hitl() {
     // GIVEN allow bash_executor + "ls" AND deny bash_executor + "ls -la"
     let dir = tempfile::tempdir().expect("tempdir");
     let db = dir.path().join("governance.db");
@@ -4481,16 +4530,17 @@ async fn test_prefix_rule_deny_wins_longest_prefix_without_hitl() {
         apollia_permissions::RuleAction::Deny,
     );
 
-    // WHEN the invoked command matches both prefixes
-    let resp = run_prefix_checker_turn(PrefixCheckerRun {
+    // WHEN the invoked command matches both prefixes, in developer mode
+    let resp = run_governed_turn(GovernedRun {
         tool: "bash_executor",
         arguments: serde_json::json!({"command": "ls -la /etc", "timeout_secs": 5}),
-        checker: Some(make_test_prefix_checker(db)),
+        governance: Some(make_test_governance(&dir, true)),
+        family: None,
         authorized: &[],
     })
     .await;
 
-    // THEN the longest prefix decides: refused by rule, not by the user
+    // THEN the deny rule decides: refused by rule, not by the user
     assert_eq!(resp.tool_calls.len(), 1);
     assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Refused);
     assert_eq!(
@@ -4502,21 +4552,21 @@ async fn test_prefix_rule_deny_wins_longest_prefix_without_hitl() {
 /// A blanket (no-prefix) allow row for an executor never auto-approves.
 #[tokio::test]
 async fn test_blanket_executor_rule_never_auto_approves() {
-    // GIVEN a persisted allow rule for bash_executor with no prefix
+    // GIVEN developer mode and an allow rule for bash_executor with no prefix
     let dir = tempfile::tempdir().expect("tempdir");
-    let db = dir.path().join("governance.db");
     seed_prefix_rule(
-        &db,
+        &dir.path().join("governance.db"),
         "bash_executor",
         None,
         apollia_permissions::RuleAction::Allow,
     );
 
     // WHEN any command is invoked
-    let resp = run_prefix_checker_turn(PrefixCheckerRun {
+    let resp = run_governed_turn(GovernedRun {
         tool: "bash_executor",
         arguments: serde_json::json!({"command": "ls", "timeout_secs": 5}),
-        checker: Some(make_test_prefix_checker(db)),
+        governance: Some(make_test_governance(&dir, true)),
+        family: None,
         authorized: &[],
     })
     .await;
@@ -4530,71 +4580,30 @@ async fn test_blanket_executor_rule_never_auto_approves() {
     );
 }
 
-/// An ordinary tool's prefix rule matches its argument (here: a path).
+/// Outside the code family an allow rule decides nothing: a sensitive call
+/// is consented to, not ruled.
 #[tokio::test]
-async fn test_prefix_rule_scopes_ordinary_tool_argument() {
-    // GIVEN a global allow rule file_read + prefix "/tmp/safe"
+async fn test_allow_rule_on_writing_tool_still_asks() {
+    // GIVEN developer mode and an allow rule file_write + prefix "/tmp/safe"
     let dir = tempfile::tempdir().expect("tempdir");
-    let db = dir.path().join("governance.db");
     seed_prefix_rule(
-        &db,
-        "file_read",
+        &dir.path().join("governance.db"),
+        "file_write",
         Some("/tmp/safe"),
         apollia_permissions::RuleAction::Allow,
     );
-    let checker = make_test_prefix_checker(db);
 
-    // WHEN reading inside the prefix
-    let inside = run_prefix_checker_turn(PrefixCheckerRun {
-        tool: "file_read",
+    // WHEN writing inside the prefix
+    let resp = run_governed_turn(GovernedRun {
+        tool: "file_write",
         arguments: serde_json::json!({"path": "/tmp/safe/notes.txt"}),
-        checker: Some(checker.clone()),
-        authorized: &[],
-    })
-    .await;
-    // THEN the call is auto-approved
-    assert_eq!(inside.tool_calls[0].status, ToolCallStatus::Executed);
-
-    // WHEN reading outside the prefix
-    let outside = run_prefix_checker_turn(PrefixCheckerRun {
-        tool: "file_read",
-        arguments: serde_json::json!({"path": "/etc/passwd"}),
-        checker: Some(checker),
-        authorized: &[],
-    })
-    .await;
-    // THEN HITL still decides (refusing resolver fires)
-    assert_eq!(outside.tool_calls[0].status, ToolCallStatus::Refused);
-    assert_eq!(
-        outside.tool_calls[0].output.as_deref(),
-        Some("Tool refused by the operator")
-    );
-}
-
-/// Without a checker (Companion sessions), behavior is unchanged.
-#[tokio::test]
-async fn test_no_checker_keeps_hitl_behavior() {
-    // GIVEN a matching allow rule exists in the store but no checker is
-    // attached (the manager only builds one for Libre sessions)
-    let dir = tempfile::tempdir().expect("tempdir");
-    let db = dir.path().join("governance.db");
-    seed_prefix_rule(
-        &db,
-        "file_read",
-        Some("/tmp"),
-        apollia_permissions::RuleAction::Allow,
-    );
-
-    // WHEN the tool is invoked with a matching argument
-    let resp = run_prefix_checker_turn(PrefixCheckerRun {
-        tool: "file_read",
-        arguments: serde_json::json!({"path": "/tmp/notes.txt"}),
-        checker: None,
+        governance: Some(make_test_governance(&dir, true)),
+        family: Some(apollia_tools::ActionFamily::WriteOrDelete),
         authorized: &[],
     })
     .await;
 
-    // THEN the rule is not consulted and HITL decides as before
+    // THEN the approval is raised
     assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Refused);
     assert_eq!(
         resp.tool_calls[0].output.as_deref(),
@@ -4602,30 +4611,48 @@ async fn test_no_checker_keeps_hitl_behavior() {
     );
 }
 
-/// A persisted deny rule wins over a name-authorized tool.
+/// Reading runs without asking, whatever governance holds.
 #[tokio::test]
-async fn test_deny_rule_wins_over_name_authorized_tool() {
-    // GIVEN file_read authorized by name AND a global deny rule on /etc
+async fn test_reading_tool_runs_without_hitl() {
+    // GIVEN no governance attached (the empty state) and a reading tool
+    // WHEN the tool is invoked
+    let resp = run_governed_turn(GovernedRun {
+        tool: "file_read",
+        arguments: serde_json::json!({"path": "/tmp/notes.txt"}),
+        governance: None,
+        family: Some(apollia_tools::ActionFamily::Read),
+        authorized: &[],
+    })
+    .await;
+
+    // THEN it runs with no prompt
+    assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Executed);
+}
+
+/// A deny rule wins over a grant of the run.
+#[tokio::test]
+async fn test_deny_rule_wins_over_run_grant() {
+    // GIVEN file_write granted for the run AND a global deny rule on /etc
     let dir = tempfile::tempdir().expect("tempdir");
-    let db = dir.path().join("governance.db");
     seed_prefix_rule(
-        &db,
-        "file_read",
+        &dir.path().join("governance.db"),
+        "file_write",
         Some("/etc"),
         apollia_permissions::RuleAction::Deny,
     );
 
     // WHEN the call's argument matches the deny prefix
-    let resp = run_prefix_checker_turn(PrefixCheckerRun {
-        tool: "file_read",
+    let resp = run_governed_turn(GovernedRun {
+        tool: "file_write",
         arguments: serde_json::json!({"path": "/etc/passwd"}),
-        checker: Some(make_test_prefix_checker(db)),
-        authorized: &["file_read"],
+        governance: Some(make_test_governance(&dir, false)),
+        family: Some(apollia_tools::ActionFamily::WriteOrDelete),
+        authorized: &["file_write"],
     })
     .await;
 
-    // THEN the standing refusal wins over the blanket authorization, with no
-    // human prompt (rule wording, not the user-refusal wording)
+    // THEN the standing refusal wins over the grant, with no human prompt
+    // (rule wording, not the user-refusal wording)
     assert_eq!(resp.tool_calls.len(), 1);
     assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Refused);
     assert_eq!(
@@ -4634,29 +4661,29 @@ async fn test_deny_rule_wins_over_name_authorized_tool() {
     );
 }
 
-/// The name-authorized fast path stays intact outside a deny match.
+/// A grant of the run lets a classified call run outside a deny match.
 #[tokio::test]
-async fn test_name_authorized_tool_still_runs_outside_deny_prefix() {
-    // GIVEN the same deny rule on /etc and file_read authorized by name
+async fn test_run_grant_still_runs_outside_deny_prefix() {
+    // GIVEN the same deny rule on /etc and file_write granted for the run
     let dir = tempfile::tempdir().expect("tempdir");
-    let db = dir.path().join("governance.db");
     seed_prefix_rule(
-        &db,
-        "file_read",
+        &dir.path().join("governance.db"),
+        "file_write",
         Some("/etc"),
         apollia_permissions::RuleAction::Deny,
     );
 
     // WHEN the call's argument does not match the deny prefix
-    let resp = run_prefix_checker_turn(PrefixCheckerRun {
-        tool: "file_read",
+    let resp = run_governed_turn(GovernedRun {
+        tool: "file_write",
         arguments: serde_json::json!({"path": "/tmp/notes.txt"}),
-        checker: Some(make_test_prefix_checker(db)),
-        authorized: &["file_read"],
+        governance: Some(make_test_governance(&dir, false)),
+        family: Some(apollia_tools::ActionFamily::WriteOrDelete),
+        authorized: &["file_write"],
     })
     .await;
 
-    // THEN the name authorization executes the call as before
+    // THEN the grant of the run executes the call
     assert_eq!(resp.tool_calls.len(), 1);
     assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Executed);
 }

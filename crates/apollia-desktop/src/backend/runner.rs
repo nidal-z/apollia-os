@@ -151,8 +151,9 @@ pub(super) struct AIPProductionBackend {
     /// async messages without going through A2A skill delegation.
     pub(super) mailbox: Option<AgentMailboxHandle>,
     /// Operator-supplied tools configuration (`[tools]` section of apollia.toml).
-    /// Drives `web_search`, `web_read`, `http_allowlist`, and statically-disabled tools.
-    pub(super) tools_config: ToolsConfig,
+    /// Drives `web_search`, `web_read`, `http_allowlist`, and statically-disabled
+    /// tools; read at each run so a saved change applies to the next one.
+    pub(super) tools_config: apollia_runtime::config_reload::Live<ToolsConfig>,
     /// Datasources YAML declared in the manifest.
     pub(super) datasources_declared: Vec<String>,
     /// Jinja2 templates declared in the manifest.
@@ -230,8 +231,9 @@ pub(super) struct BridgeRunner {
     pub(super) a2a_invoker: Option<Arc<A2AInvoker>>,
     /// Inter-agent mailbox handle, exposed as `ctx.mailbox`.
     pub(super) mailbox: Option<AgentMailboxHandle>,
-    /// Operator-supplied tools configuration (`[tools]` apollia.toml).
-    pub(super) tools_config: ToolsConfig,
+    /// Operator-supplied tools configuration (`[tools]` apollia.toml), read at
+    /// each run.
+    pub(super) tools_config: apollia_runtime::config_reload::Live<ToolsConfig>,
     /// Datasources YAML declared in the manifest.
     pub(super) datasources_declared: Vec<String>,
     /// Jinja2 templates declared in the manifest.
@@ -286,7 +288,7 @@ impl AgentRunner for BridgeRunner {
             .any(|t| t == "mailbox:send");
         let a2a_invoker = self.a2a_invoker.clone();
         let mailbox = self.mailbox.clone();
-        let tools_config = self.tools_config.clone();
+        let tools_config = self.tools_config.get();
         let datasources_declared = self.datasources_declared.clone();
         let templates_declared = self.templates_declared.clone();
         let agent_dir = self.agent_dir.clone();

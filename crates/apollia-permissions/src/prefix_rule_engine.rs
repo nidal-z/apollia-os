@@ -34,8 +34,8 @@ use crate::error::PermissionError;
 mod matching;
 mod types;
 
-pub use matching::extract_first_arg;
 use matching::{current_unix_secs, row_to_rule, scan_rows};
+pub use matching::{extract_first_arg, rule_matches};
 pub use types::{PermissionScope, PrefixRule, RuleAction, ScopeContext};
 
 /// Current Unix time in seconds, the clock every store of this crate stamps with.
@@ -123,6 +123,9 @@ impl PrefixRuleEngine {
     /// # Errors
     ///
     /// Returns [`PermissionError::Database`] on SQLite error.
+    // TEST-ONLY: the store's own query over one call. The governance decision
+    // matches the listed rules in memory instead (`rule_matches`); the store's
+    // tests still exercise this query.
     pub fn check_with_scope(
         &self,
         tool_name: &str,
@@ -262,9 +265,6 @@ impl PrefixRuleEngine {
         )
     }
 
-    // TEST-ONLY: a test oracle over every persisted rule. Production lists
-    // through `list_rules_filtered` (the desktop and the CLI) and
-    // `list_rules_for_agent` (the free chat).
     /// Returns all persisted rules, sorted by ascending identifier.
     ///
     /// # Errors

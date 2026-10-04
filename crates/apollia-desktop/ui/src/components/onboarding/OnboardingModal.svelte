@@ -293,10 +293,13 @@
 </div>
 
 <style>
+  /* The top bar and the detail sidebar rise above this veil while it is
+     shown (`--z-onboarding-above`), so the help icon and the guide stay
+     reachable during the onboarding. */
   .onboarding-overlay {
     position: fixed;
     inset: 0;
-    z-index: 80;
+    z-index: var(--z-onboarding);
     display: flex;
     align-items: center;
     justify-content: center;

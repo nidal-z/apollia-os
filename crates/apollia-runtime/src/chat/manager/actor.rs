@@ -4,6 +4,7 @@ impl ChatSessionManager {
     /// Process incoming commands until Shutdown or channel close.
     pub(in crate::chat::manager) async fn run(mut self, mut rx: mpsc::Receiver<ChatCommand>) {
         while let Some(cmd) = rx.recv().await {
+            self.apply_config_changes();
             match cmd {
                 ChatCommand::CreateSession {
                     mode,
@@ -288,9 +289,17 @@ impl ChatSessionManager {
                     info!("chat.package_tools.set");
                     self.package_tools = Some(host);
                 }
+                ChatCommand::FollowConfig { feed } => {
+                    info!("chat.config.followed");
+                    self.config_feed = Some(feed);
+                }
                 ChatCommand::SetComposer { composer } => {
                     info!("chat.composer.set");
                     self.composer = Some(composer);
+                }
+                ChatCommand::SetGovernance { governance } => {
+                    info!("chat.governance.set");
+                    self.governance = Some(governance);
                 }
                 ChatCommand::ResolveFsHitl {
                     request_id,

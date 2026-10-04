@@ -1067,6 +1067,79 @@
         }
       }
     },
+    "/api/v1/agents/installed/{name}": {
+      "put": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Handler for `PUT /api/v1/agents/installed/{name}`.",
+        "description": "Validates the new module, replaces the installed one, records the new\nversion, and cycles the runtime instance when there is one. The cycle is the\npoint of the route: the interpreter holds the module it imported at start\ntime, so without the stop and the start the window would report a new\nversion while the old one keeps answering. Emits\n`RuntimeEvent::AgentInstalled` once the runtime has settled.",
+        "operationId": "update_agent",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Name of the installed agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Agent updated, with what happened to its running instance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateAgentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "File absent or module refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No installed agent of that name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The update cannot be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/agents/installed/{name}/uninstall": {
       "post": {
         "tags": [
@@ -4351,8 +4424,19 @@
           "events"
         ],
         "summary": "`GET /api/v1/events`, every runtime event as SSE.",
-        "description": "Each `runtime` frame carries one event of the bus serialized as the bus\ncarries it; a `lagged` frame reports how many events this subscriber\nmissed. The stream stays open until the client disconnects.",
+        "description": "Each `runtime` frame carries one event of the bus serialized as the bus\ncarries it; a `lagged` frame reports how many events this subscriber\nmissed. The stream stays open until the client disconnects, which releases\nthe leases of the `client` it names.",
         "operationId": "stream_events",
+        "parameters": [
+          {
+            "name": "client",
+            "in": "query",
+            "description": "The client holding the stream, as it names itself when it opens\nleases on local models. When the stream ends, its leases are released.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "SSE stream of every runtime event: `runtime` frames carry one event each, `lagged` frames the count of events dropped for this subscriber",
@@ -6168,6 +6252,110 @@
         }
       }
     },
+    "/api/v1/llm/leases": {
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `POST /api/v1/llm/leases`.",
+        "description": "A conversation moved to another model releases its lease on the previous\none, which is unloaded when nothing else holds it.",
+        "operationId": "open_model_lease",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenLeaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Lease open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A blank field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No local engine on this host",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/leases/release": {
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `POST /api/v1/llm/leases/release`.",
+        "description": "Releasing the last lease on a model unloads it at once, unless it is\npinned or answering a request.",
+        "operationId": "release_model_lease",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseLeaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Lease released, or none was open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseLeaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A blank field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No local engine on this host",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/loaded-models": {
       "get": {
         "tags": [
@@ -6530,6 +6718,97 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PingResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/pins": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `GET /api/v1/llm/pins`.",
+        "operationId": "list_model_pins",
+        "responses": {
+          "200": {
+            "description": "The pinned models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinsResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No local engine on this host",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `PUT /api/v1/llm/pins`.",
+        "description": "A pinned model is never unloaded on its own. Unpinning a model that nothing\nelse holds leaves it to the idle delay; it is not unloaded at once.",
+        "operationId": "set_model_pin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelPin"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Pin saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelPin"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty model path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The pin could not be saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No local engine on this host",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
                 }
               }
             }
@@ -15081,6 +15360,59 @@
         }
       }
     },
+    "/api/v1/tasks/{id}/delegation-tree": {
+      "get": {
+        "tags": [
+          "a2a"
+        ],
+        "summary": "Handler for `GET /api/v1/tasks/{id}/delegation-tree`.",
+        "description": "A task with no recorded delegation answers its root with no children.",
+        "operationId": "get_delegation_tree",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Parent task id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The task and its delegations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DelegationTreeNode"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The delegations cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sidechain logging not initialized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/tasks/{id}/plan-decision": {
       "post": {
         "tags": [
@@ -15143,6 +15475,58 @@
           },
           "503": {
             "description": "Plan gate not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/record": {
+      "delete": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Handler for `DELETE /api/v1/tasks/{id}/record`.",
+        "operationId": "delete_task_record",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Task id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether a stored record was removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskRecordDeleted"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The task store refused the deletion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Task persistence is not available",
             "content": {
               "application/json": {
                 "schema": {
@@ -19230,9 +19614,9 @@
           "pendingRestart": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/PendingRestartKey"
             },
-            "description": "Keys changed in the file that wait for a restart of the runtime."
+            "description": "Keys changed since the runtime started that wait for its restart, each\nwith its line; empty in a runtime that does not follow its file."
           },
           "sha256": {
             "type": "string",
@@ -20019,6 +20403,44 @@
             "format": "int64",
             "description": "Delegation timeout in seconds (default: 120).",
             "minimum": 0
+          }
+        }
+      },
+      "DelegationTreeNode": {
+        "type": "object",
+        "description": "One node of the delegation tree.",
+        "required": [
+          "agent_id",
+          "agent_name",
+          "status",
+          "children"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "description": "Agent identifier (runtime UUID, or name if resolution fails)."
+          },
+          "agent_name": {
+            "type": "string",
+            "description": "Human-readable agent name."
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DelegationTreeNode"
+            },
+            "description": "Child delegations (A2A subtasks)."
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 8601 start timestamp (None for the root if unknown)."
+          },
+          "status": {
+            "type": "string",
+            "description": "Current status: `submitted`, `working`, `completed`, `failed`, `running`, etc."
           }
         }
       },
@@ -21879,6 +22301,25 @@
           }
         }
       },
+      "LeaseResponse": {
+        "type": "object",
+        "description": "Response body for `POST /api/v1/llm/leases`.",
+        "required": [
+          "modelPath",
+          "leases"
+        ],
+        "properties": {
+          "leases": {
+            "type": "integer",
+            "description": "Open conversations designating it, this one included.",
+            "minimum": 0
+          },
+          "modelPath": {
+            "type": "string",
+            "description": "The model the lease holds."
+          }
+        }
+      },
       "LlmBackendResponse": {
         "type": "object",
         "description": "Response body for a single backend.",
@@ -22133,7 +22574,7 @@
           },
           "kind": {
             "$ref": "#/components/schemas/ModelKind",
-            "description": "What the model serves: `chat`, or `embeddings` for the instance that\nserves search by meaning, which does not count against `maxLoaded`."
+            "description": "What the model serves: `chat`, or `embeddings` for the instance that\nserves search by meaning, which counts neither against `maxLoaded` nor\nagainst the memory the guardrail weighs."
           },
           "lastUsedAt": {
             "type": "string",
@@ -22184,7 +22625,6 @@
         "description": "Response body for `GET /api/v1/llm/loaded-models`.",
         "required": [
           "engineAvailable",
-          "maxLoaded",
           "models"
         ],
         "properties": {
@@ -22193,8 +22633,11 @@
             "description": "Whether a local engine exists on this host. `false` means nothing can\never be loaded, not merely that nothing is."
           },
           "maxLoaded": {
-            "type": "integer",
-            "description": "How many models may stay resident at once; `0` without an engine.",
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The explicit ceiling on resident models (`APOLLIA_LLAMA_MAX_LOADED`);\n`null` when the load guardrail alone decides how many stay loaded, and\nwithout an engine.",
             "minimum": 0
           },
           "models": {
@@ -22873,6 +23316,24 @@
           "embeddings"
         ]
       },
+      "ModelPin": {
+        "type": "object",
+        "description": "Request and response body for `PUT /api/v1/llm/pins`.",
+        "required": [
+          "modelPath",
+          "pinned"
+        ],
+        "properties": {
+          "modelPath": {
+            "type": "string",
+            "description": "Path of the model, as the resident list reports it."
+          },
+          "pinned": {
+            "type": "boolean",
+            "description": "`true` keeps it loaded until it is unloaded by hand."
+          }
+        }
+      },
       "ModelSourceDto": {
         "type": "string",
         "description": "Where a model runs.",
@@ -23377,6 +23838,29 @@
           }
         }
       },
+      "OpenLeaseRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/llm/leases`.",
+        "required": [
+          "clientId",
+          "conversationId",
+          "modelPath"
+        ],
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "description": "The interface holding the conversation, the `client` it passes to\n`GET /api/v1/events`."
+          },
+          "conversationId": {
+            "type": "string",
+            "description": "The conversation on screen."
+          },
+          "modelPath": {
+            "type": "string",
+            "description": "Path of the model the conversation designates, as the resident list\nreports it."
+          }
+        }
+      },
       "PackageErrorBody": {
         "type": "object",
         "description": "Error body of the package routes: the message, and a stable code a client\ncan act on.",
@@ -23708,6 +24192,27 @@
           }
         }
       },
+      "PendingRestartKey": {
+        "type": "object",
+        "description": "A key changed since the start that waits for a restart, with its line in\nthe file.",
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Dotted key."
+          },
+          "line": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "1-based line of the key, or of its table, in the file; `None` when the\nfile no longer writes it (removed, back to its default).",
+            "minimum": 0
+          }
+        }
+      },
       "PendingUserInputView": {
         "type": "object",
         "description": "Snapshot of a pending `ask_user` request, safe to send across the IPC boundary.",
@@ -23849,6 +24354,22 @@
             "format": "int64",
             "description": "Round-trip latency in milliseconds (only set when `available` is `true`).",
             "minimum": 0
+          }
+        }
+      },
+      "PinsResponse": {
+        "type": "object",
+        "description": "Response body for `GET /api/v1/llm/pins`.",
+        "required": [
+          "pins"
+        ],
+        "properties": {
+          "pins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Paths of the pinned models, in path order."
           }
         }
       },
@@ -24554,6 +25075,44 @@
           "reason": {
             "type": "string",
             "description": "Why the user declined to answer."
+          }
+        }
+      },
+      "ReleaseLeaseRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/llm/leases/release`.",
+        "required": [
+          "clientId",
+          "conversationId"
+        ],
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "description": "The interface that opened the lease."
+          },
+          "conversationId": {
+            "type": "string",
+            "description": "The conversation that left the screen."
+          }
+        }
+      },
+      "ReleaseLeaseResponse": {
+        "type": "object",
+        "description": "Response body for `POST /api/v1/llm/leases/release`.",
+        "required": [
+          "unloaded"
+        ],
+        "properties": {
+          "released": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model no open conversation designates any more; absent when the\nlease did not exist or another conversation still holds the model."
+          },
+          "unloaded": {
+            "type": "boolean",
+            "description": "Whether that model was unloaded. It stays loaded when pinned or\nanswering a request."
           }
         }
       },
@@ -26417,6 +26976,19 @@
           }
         }
       },
+      "TaskRecordDeleted": {
+        "type": "object",
+        "description": "Response to a deletion.",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "`true` when a record was removed, `false` when no stored task matched\n(already gone, or never persisted)."
+          }
+        }
+      },
       "TaskResponse": {
         "type": "object",
         "description": "Response body for task operations.",
@@ -27584,6 +28156,54 @@
             "type": "integer",
             "description": "Processes stopped: one, or more when the model ran with several\ncontext windows.",
             "minimum": 0
+          }
+        }
+      },
+      "UpdateAgentRequest": {
+        "type": "object",
+        "description": "Request body for `PUT /api/v1/agents/installed/{name}`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path of the new Python module on this machine."
+          }
+        }
+      },
+      "UpdateAgentResponse": {
+        "type": "object",
+        "description": "Response to an agent update.\n\nDistinct from the install answer because an update has an outcome an\ninstall cannot have: a runtime instance that had to be cycled.",
+        "required": [
+          "name",
+          "version",
+          "install_path",
+          "restart_outcome"
+        ],
+        "properties": {
+          "install_path": {
+            "type": "string",
+            "description": "Install path on disk."
+          },
+          "name": {
+            "type": "string",
+            "description": "Unique name of the updated agent."
+          },
+          "restart_error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Raw cause when the stop or the start failed, `None` otherwise."
+          },
+          "restart_outcome": {
+            "type": "string",
+            "description": "One of the [`restart_outcome`] constants."
+          },
+          "version": {
+            "type": "string",
+            "description": "Semver version read from the new module's manifest."
           }
         }
       },

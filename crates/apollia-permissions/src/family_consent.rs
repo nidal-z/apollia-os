@@ -222,9 +222,8 @@ impl FamilyConsentStore {
         Ok(affected as u32)
     }
 
-    // TEST-ONLY: the reading and withdrawal side of the store, which the
-    // decision engine, the batch runner and the authorizations screen consume
-    // once wired; until then production only writes, through the access upgrade.
+    // TEST-ONLY: the listing of one agent's consents, which the
+    // authorizations screen consumes once wired.
     /// Lists the consents of `agent_id`, oldest first.
     ///
     /// # Errors
@@ -259,6 +258,28 @@ impl FamilyConsentStore {
                     granted_by,
                 })
             })
+            .collect()
+    }
+
+    /// Lists every permanent consent, whatever the agent, as (agent, family)
+    /// pairs, oldest first. The consents bound to a batch run are left out.
+    ///
+    /// # Errors
+    ///
+    /// [`PermissionError::Database`] on SQLite error, or
+    /// [`PermissionError::InvalidConsent`] for a row this binary cannot read.
+    pub fn list_permanent(&self) -> Result<Vec<(String, ConsentFamily)>, PermissionError> {
+        let mut stmt = self.db.prepare(
+            "SELECT agent_id, family FROM family_consents \
+             WHERE scope = 'permanent' ORDER BY id ASC",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows.into_iter()
+            .map(|(agent_id, family)| Ok((agent_id, ConsentFamily::parse(&family)?)))
             .collect()
     }
 
