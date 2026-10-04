@@ -385,6 +385,55 @@ The cost is named: `calamine` depends on `zip` 8 while the workspace carries
 `csv`. `calamine` is pinned to 0.36.1, so that a new release, and the version of
 `zip` it brings, is a decision rather than an update.
 
+The text of a PDF document is extracted in Rust by `pdf_oxide` (MIT or
+Apache-2.0), page by page, each page with its number. It is pure Rust, reads
+only, links no system library and opens no connection; its default features are
+off, so neither its colour-profile engine nor its rendering, OCR or signature
+modules enter the build, and only `legacy-crypto` is kept, so that a document
+locked with an owner password alone still opens. A page that draws no letter
+and no digit is marked as a page without text, the page that optical character
+recognition has to read. A document that needs a password to be opened, or a
+damaged one, is a typed error, and a defect of the parser on a malformed file
+is caught and reported as a damaged file, never a crash. It was measured before
+it was adopted, on twenty real French documents published under the Licence
+Ouverte (contract documents and terms of use, budgets and price lists,
+methodological reports), with five accented witness phrases per document taken
+from an independent extractor: nineteen documents of twenty yield all five
+phrases with every accent intact; the twentieth loses one phrase whose words a
+table cell spreads over two lines. The corpus is versioned with the tests that
+read it, and PDFium, the native fallback considered, is not shipped.
+
+The cost is named: `pdf_oxide` brings fifty-three crate versions the lock file
+did not hold, among them a font stack (`skrifa`, `read-fonts`, `write-fonts`,
+`ttf-parser`, `subsetter`), a layout engine (`taffy`) and second majors of
+`quick-xml`, `brotli`, `sha2` and `aes`. `pdf_oxide` is pinned to 0.3.78, and
+`office_oxide`, which it depends on, is held at 0.1.11 in the lock file: its
+0.1.12 release no longer compiles under `pdf_oxide` 0.3.78, so an update of
+either is a decision rather than a refresh.
+
+Word documents and PowerPoint presentations are read in Rust, by code of our
+own over two crates: `zip`, the one that opens the package archive (see
+[Package archive](#package-archive)), opens the file, and `quick-xml` (MIT), a
+streaming XML reader, reads its parts. A Word document yields the paragraphs
+and the table rows of its body, one row per segment, in the order of the
+document and each with its rank; a presentation yields the text and the speaker
+notes of each slide, slides in numeric order, each with its number. Headers,
+footers, comments and floating text boxes are not read. A file in the legacy
+binary formats, `.doc` or `.ppt`, is a typed error naming the formats that are
+read. The archive comes from elsewhere, so reading it is bounded: more than
+10,000 entries, or more than 64 MiB decompressed across the parts read, and the
+file is refused, the bytes being counted as they are inflated rather than as
+the archive declares them. A dedicated crate was not taken: `docx-rs`, the
+one weighed for Word, is oriented to writing and does not read PowerPoint, and
+`office_oxide`, which the PDF reader brings, is held at an old release (see
+above) and is not called directly.
+
+The cost is named: no crate enters the lock file. `quick-xml` 0.41 was already
+built for the spreadsheet reader and the desktop bundle, and is now a direct
+dependency with its default features off; `zip` was already a direct
+dependency. What these crates do not cover is ours to maintain: the structure
+of the two formats, read here only as far as their text.
+
 A mailbox connects over IMAP with an application password, so any provider is
 reachable, Gmail included, without an OAuth client and without a relay. The
 client is `async-imap` (MIT or Apache-2.0), on the Tokio runtime, over the
