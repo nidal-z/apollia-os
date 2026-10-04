@@ -26,6 +26,7 @@ use utoipa::{Modify, OpenApi};
     components(schemas(
         crate::api::routes_llm::loaded::LoadedModelDto,
         crate::llama_server::ModelKind,
+        crate::residency::LoadOrigin,
         crate::local_engine::guardrails::GuardrailRefusedBody,
         crate::local_engine::guardrails::GuardrailLevel,
         crate::api::routes_llm::loaded::LoadedModelsResponse,

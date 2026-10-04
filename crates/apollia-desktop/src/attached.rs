@@ -371,6 +371,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_engines",
     "set_observability_config",
     "set_python_interpreter",
+    // The editor of `apollia.toml`, over `/api/v1/config`: the file with its
+    // faults and the keys the policy fixes, the verdict on a text, its save,
+    // and the default text.
+    "default_config_text",
+    "read_config_file",
+    "save_config_text",
+    "validate_config_text",
     // The organisation policy the runtime applies, read only, over
     // `/api/v1/governance/policy`.
     "get_org_policy",
@@ -388,6 +395,10 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "app_restart",
         "relaunches this window, which attaches again at startup",
+    ),
+    (
+        "restart_apollia",
+        "stops the daemon through its own route, then relaunches this window, which starts the service again and attaches",
     ),
     (
         "quit_app",
@@ -444,10 +455,6 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "open_logs_dir",
         "opens the folder of this window's own log file in the file manager of this machine",
-    ),
-    (
-        "open_config_in_editor",
-        "opens the configuration file in the editor of this machine",
     ),
     (
         "export_conversation",

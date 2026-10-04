@@ -13,6 +13,9 @@ pub enum ModelUnloadReason {
     Requested,
     /// Another model needed its memory to load within the load guardrail.
     MakeRoom,
+    /// The compatible server loaded another model, and keeps only the last
+    /// one it loaded.
+    ServerReplaced,
 }
 
 impl ModelUnloadReason {
@@ -24,6 +27,7 @@ impl ModelUnloadReason {
             Self::LastConversation => "last_conversation",
             Self::Requested => "requested",
             Self::MakeRoom => "make_room",
+            Self::ServerReplaced => "server_replaced",
         }
     }
 }

@@ -116,3 +116,23 @@ fn test_the_five_lifecycle_commands_pass_the_gate_attached() {
         assert!(gate(LinkMode::Attached, command).is_ok(), "{command}");
     }
 }
+
+#[tokio::test]
+async fn test_a_restart_of_an_attached_window_stops_the_daemon_first() {
+    // GIVEN a daemon that accepts to stop
+    let server = daemon_answering(SHUTDOWN_ROUTE, json!({ "status": "shutting_down" })).await;
+
+    // WHEN the restart of Apollia stops it
+    let stopped = stop_daemon_on(&AttachedClient::new(server.uri(), TOKEN).unwrap()).await;
+
+    // THEN the daemon was asked once, with the token, and accepted
+    assert!(stopped.is_ok(), "{stopped:?}");
+}
+
+#[test]
+fn test_the_restart_of_apollia_serves_an_attached_window() {
+    // GIVEN the restart offered by the configuration editor
+    // WHEN it passes the gate of an attached window
+    // THEN it is not refused: it belongs to the window
+    assert!(gate(LinkMode::Attached, "restart_apollia").is_ok());
+}

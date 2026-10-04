@@ -107,6 +107,7 @@ mod tests {
             signed_at: policy.signed_at,
             policy,
             key_fingerprint: "ab".repeat(32),
+            policy_digest: "00".into(),
             publisher: "it".into(),
         }));
         let expected = serde_json::to_value(apollia_permissions::PolicyView::of(

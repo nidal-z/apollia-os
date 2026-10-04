@@ -97,6 +97,14 @@ impl Supervisor {
         };
 
         let source_registry = crate::agents::sources::open_registry(&system_db_path);
+        if let Some(registry) = &source_registry {
+            crate::source_indexing::start(
+                registry,
+                &self.config.data_dir,
+                llama_server_supervisor.clone(),
+            )
+            .await;
+        }
         Inference {
             runner_supervisor,
             system_db_path,

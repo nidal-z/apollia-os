@@ -52,6 +52,14 @@
       toolCallId: string;
       toolName: string;
       inputPreview: string;
+      /** The answers the request offers, when it names them. */
+      answers?: string[];
+      /** The full arguments of the call, behind "see more". */
+      detail?: string;
+      /** The whole code of a tool that runs code. */
+      code?: string | null;
+      /** The folder the code runs in. */
+      workingDir?: string | null;
     } | null;
     pendingUserInput: {
       requestId: string;
@@ -175,13 +183,24 @@
                 toolCallId={pendingApproval.toolCallId}
                 toolName={pendingApproval.toolName}
                 inputPreview={pendingApproval.inputPreview}
+                answers={pendingApproval.answers ?? null}
+                detail={pendingApproval.detail ?? ""}
+                code={pendingApproval.code ?? null}
+                workingDir={pendingApproval.workingDir ?? null}
               />
             {:else}
               <OperatorApprovalCard
                 sessionId={pendingApproval.sessionId}
                 messageId={pendingApproval.messageId}
                 toolCallId={pendingApproval.toolCallId}
-                toolCall={liveApprovalCall(pendingApproval.toolName, pendingApproval.inputPreview)}
+                toolCall={liveApprovalCall(
+                  pendingApproval.toolName,
+                  pendingApproval.inputPreview,
+                  pendingApproval.detail,
+                )}
+                answers={pendingApproval.answers ?? null}
+                code={pendingApproval.code ?? null}
+                workingDir={pendingApproval.workingDir ?? null}
               />
             {/if}
           {/key}

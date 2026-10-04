@@ -14,6 +14,7 @@ fn verdict(body: &str) -> Arc<PolicyVerdict> {
             signed_at: policy.signed_at,
             policy,
             key_fingerprint: "00".into(),
+            policy_digest: "00".into(),
             publisher: "it".into(),
         },
     )))
@@ -248,4 +249,112 @@ fn test_record_without_journal_is_refused() {
     // THEN the record is refused
     assert!(matches!(recorded, Err(GovernanceError::JournalUnavailable)));
     assert!(!governance.journaled());
+}
+
+fn code_call<'a>(access_id: &'a str, command: &'a str) -> AccessCall<'a> {
+    AccessCall {
+        agent_id: AGENT,
+        access_id,
+        argument: Some(command),
+        family: ActionFamily::ExecuteCode,
+        unattended: false,
+        granted_for_run: false,
+    }
+}
+
+// In developer mode, "always" on a simple command writes a fine allow rule
+// for this agent on the whole command, never a grant by tool name, and the
+// next identical call runs without asking.
+#[tokio::test]
+async fn test_allow_command_writes_an_agent_rule_on_the_whole_command() {
+    // GIVEN the actor in developer mode over an empty governance.db
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("apollia.toml"),
+        "[desktop]\ndeveloper_mode = true\n",
+    )
+    .unwrap();
+    let governance = GovernanceHandle::spawn(sources(&dir, Arc::new(PolicyVerdict::Absent)));
+    let command = "git log --oneline -n 20";
+    let before = governance.decide(&code_call("bash_executor", command));
+    assert!(before.answers().contains(&ConsentAnswer::Always));
+
+    // WHEN "always" is answered for that command
+    let rule_id = governance
+        .allow_command(AGENT, "bash_executor", command)
+        .await
+        .unwrap();
+
+    // THEN the same command runs on that rule
+    assert_eq!(
+        governance.decide(&code_call("bash_executor", command)),
+        AccessDecision::Allowed {
+            reason: DecisionReason::Rule { rule_id }
+        }
+    );
+    // AND the rule is an allow on the whole command, scoped to this agent
+    let rules = PrefixRuleEngine::new(&dir.path().join("governance.db"))
+        .unwrap()
+        .list_rules()
+        .unwrap();
+    assert_eq!(rules.len(), 1);
+    assert_eq!(rules[0].tool_name, "bash_executor");
+    assert_eq!(rules[0].arg_prefix.as_deref(), Some(command));
+    assert_eq!(rules[0].action, RuleAction::Allow);
+    assert_eq!(rules[0].scope, PermissionScope::Agent);
+    assert_eq!(rules[0].agent_id.as_deref(), Some(AGENT));
+    // AND a chained command starting with it still asks, without "always"
+    let chained = governance.decide(&code_call(
+        "bash_executor",
+        "git log --oneline -n 20; rm -rf ~",
+    ));
+    assert!(!chained.is_allowed());
+    assert!(!chained.answers().contains(&ConsentAnswer::Always));
+    // AND another agent is still asked
+    let mut other = code_call("bash_executor", command);
+    other.agent_id = "someone-else";
+    assert!(!governance.decide(&other).is_allowed());
+}
+
+// No rule is written for a compound command, outside developer mode, or for a
+// tool that does not run code.
+#[tokio::test]
+async fn test_allow_command_refuses_compound_off_mode_and_other_tools() {
+    // GIVEN the actor over an empty governance.db, developer mode off
+    let dir = tempfile::tempdir().unwrap();
+    let governance = GovernanceHandle::spawn(sources(&dir, Arc::new(PolicyVerdict::Absent)));
+
+    // WHEN "always" is asked for a simple command with the mode off
+    let off = governance.allow_command(AGENT, "bash_executor", "ls").await;
+    // AND, the mode turned on, for a compound command and a non-code tool
+    std::fs::write(
+        dir.path().join("apollia.toml"),
+        "[desktop]\ndeveloper_mode = true\n",
+    )
+    .unwrap();
+    governance.refresh().await;
+    let compound = governance
+        .allow_command(AGENT, "bash_executor", "ls && rm -rf build")
+        .await;
+    let not_code = governance
+        .allow_command(AGENT, "file_write", "notes.txt")
+        .await;
+
+    // THEN each is refused and the store holds no rule
+    assert!(matches!(off, Err(GovernanceWriteError::NotACommandRule(_))));
+    assert!(matches!(
+        compound,
+        Err(GovernanceWriteError::NotACommandRule(_))
+    ));
+    assert!(matches!(
+        not_code,
+        Err(GovernanceWriteError::NotACommandRule(_))
+    ));
+    let db = dir.path().join("governance.db");
+    let rules = if db.exists() {
+        PrefixRuleEngine::new(&db).unwrap().list_rules().unwrap()
+    } else {
+        Vec::new()
+    };
+    assert!(rules.is_empty());
 }

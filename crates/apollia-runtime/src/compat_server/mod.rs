@@ -21,17 +21,22 @@
 //! the `[server] enabled` and `[server] port` settings of `apollia.toml`,
 //! resolved through [`apollia_core::config::resolve_setting`]; starting and
 //! stopping it writes `enabled`, so a runtime that restarts opens the listener
-//! again if it was open.
+//! again if it was open. The `[server] cors` setting, off by default, lets a web
+//! page of another origin call the server (see the `cors` module); it is read
+//! each time the listener opens.
 //!
 //! When `[server] require_auth` is on, every request must present a token of
 //! the server (`apo_...`), created, listed and revoked through the native API
 //! and kept by [`ServerTokensHandle`] as a SHA-256 in `system.db`; the
 //! internal token of the desktop never opens this server.
 //!
-//! The models it serves are the local models the user loaded, relayed to the
+//! The models it serves are the local models of this machine, relayed to the
 //! engine that runs them (`llama-server` or `vllm-mlx`) with their `model`
-//! field set to what that engine expects; see [`LocalModels`]. A model of a
-//! remote backend is never relayed.
+//! field set to what that engine expects; see [`LocalModels`]. With `[server]
+//! jit_loading` on, the default, a request loads the model it names when it is
+//! not loaded yet; the models loaded that way have their own idle delay and,
+//! by default, only the last one stays (see [`crate::residency::origin`]). A
+//! model of a remote backend is never relayed.
 //!
 //! Every request it answers, and every line the local `llama-server` prints,
 //! enters a bounded ring of recent lines that the native API streams (see
@@ -43,6 +48,7 @@
 
 mod actor;
 mod auth;
+mod cors;
 mod errors;
 mod logs;
 mod models;
@@ -53,6 +59,8 @@ mod tokens;
 
 #[cfg(test)]
 mod auth_tests;
+#[cfg(test)]
+mod jit_tests;
 #[cfg(test)]
 mod lan_tests;
 #[cfg(test)]

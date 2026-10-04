@@ -184,3 +184,125 @@ async fn test_removing_a_folder_connection_removes_its_row_and_is_journaled() {
     assert_eq!(err.code, "not_found");
     journal.shutdown().await;
 }
+
+/// A runtime on `dir` with its source registry, one folder connection and,
+/// on it, one indexed folder source whose index file exists.
+async fn folder_with_source(
+    dir: &tempfile::TempDir,
+    folder: &tempfile::TempDir,
+) -> (
+    crate::api::server::AppState<crate::api::test_support::MockBackend>,
+    String,
+    String,
+    std::path::PathBuf,
+) {
+    let mut state = crate::api::test_support::app_state(
+        Arc::new(crate::api::test_support::StemLoader { refusal: None }),
+        dir.path().to_path_buf(),
+    );
+    let registry = SourceRegistryHandle::open(&dir.path().join("system.db")).unwrap();
+    let stored = store(dir.path())
+        .unwrap()
+        .add(folder.path().to_str().unwrap(), Some("Office"))
+        .unwrap();
+    let source = registry
+        .create(apollia_sources::NewSource {
+            kind: SourceKind::Folder,
+            label: "Office documents".to_owned(),
+            group: None,
+            reference: Some(stored.id.clone()),
+        })
+        .await
+        .unwrap();
+    let index = apollia_sources::index::SourceIndex::open(dir.path(), &source.id).unwrap();
+    drop(index);
+    let index_file = apollia_core::paths::source_index_path(dir.path(), &source.id).unwrap();
+    state.source_registry = Some(registry);
+    (state, stored.id, source.id, index_file)
+}
+
+#[tokio::test]
+async fn test_a_folder_sources_depend_on_is_kept_and_its_sources_listed_without_confirmation() {
+    // GIVEN a folder connection with an indexed folder source on it
+    let dir = tempfile::TempDir::new().unwrap();
+    let folder = tempfile::TempDir::new().unwrap();
+    let (state, folder_id, source_id, index_file) = folder_with_source(&dir, &folder).await;
+
+    // WHEN the connection is removed without confirmation
+    let (status, body) = crate::api::test_support::call(
+        state.clone(),
+        "DELETE",
+        &format!("/api/v1/connections/folders/{folder_id}"),
+        None,
+    )
+    .await;
+
+    // THEN the route refuses with the dependent sources, and removes nothing
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert_eq!(body["code"], "has_dependent_sources");
+    assert_eq!(body["dependent_sources"][0]["id"], source_id.as_str());
+    assert_eq!(body["dependent_sources"][0]["label"], "Office documents");
+    assert_eq!(body["dependent_sources"][0]["kind"], "folder");
+    assert!(store(dir.path())
+        .unwrap()
+        .get(&folder_id)
+        .unwrap()
+        .is_some());
+    let registry = state.source_registry.clone().unwrap();
+    assert_eq!(registry.list().await.unwrap().len(), 1);
+    assert!(index_file.is_file());
+}
+
+#[tokio::test]
+async fn test_a_confirmed_removal_takes_the_sources_and_their_indexes_with_the_folder() {
+    // GIVEN a folder connection with an indexed folder source on it
+    let dir = tempfile::TempDir::new().unwrap();
+    let folder = tempfile::TempDir::new().unwrap();
+    let (state, folder_id, _source_id, index_file) = folder_with_source(&dir, &folder).await;
+
+    // WHEN the connection is removed with confirmation
+    let (status, body) = crate::api::test_support::call(
+        state.clone(),
+        "DELETE",
+        &format!("/api/v1/connections/folders/{folder_id}?confirm=true"),
+        None,
+    )
+    .await;
+
+    // THEN the connection, its source and the source's index are gone
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["id"], format!("folder:{folder_id}"));
+    assert!(store(dir.path())
+        .unwrap()
+        .get(&folder_id)
+        .unwrap()
+        .is_none());
+    let registry = state.source_registry.clone().unwrap();
+    assert!(registry.list().await.unwrap().is_empty());
+    assert!(!index_file.exists());
+}
+
+#[tokio::test]
+async fn test_a_folder_no_source_depends_on_is_removed_without_confirmation() {
+    // GIVEN a folder connection and a registry holding no source on it
+    let dir = tempfile::TempDir::new().unwrap();
+    let folder = tempfile::TempDir::new().unwrap();
+    let registry = SourceRegistryHandle::open(&dir.path().join("system.db")).unwrap();
+    let stored = store(dir.path())
+        .unwrap()
+        .add(folder.path().to_str().unwrap(), None)
+        .unwrap();
+    let governance = ConnectionGovernance::without_policy(None);
+
+    // WHEN it is removed without confirmation
+    let removed =
+        remove_with_sources(&governance, dir.path(), Some(&registry), &stored.id, false).await;
+
+    // THEN it is removed
+    assert!(removed.is_ok());
+    assert!(store(dir.path())
+        .unwrap()
+        .get(&stored.id)
+        .unwrap()
+        .is_none());
+}

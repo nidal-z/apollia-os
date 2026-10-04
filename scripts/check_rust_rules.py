@@ -392,6 +392,12 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # timer, and a saved timeout has to start a scan at once rather than at
     # the next tick. One poll of the task store for the cancellation.
     "crates/apollia-runtime/src/timeout_watcher.rs": 1,
+    # The file system is the subject: the index of a source follows a file
+    # added, rewritten and deleted with no request, so the only observable is
+    # the index once the watch has delivered. One bounded wait, one poll
+    # interval inside it; every other test of the indexer asks for its pass
+    # and awaits the reply.
+    "crates/apollia-sources/src/indexer/tests.rs": 2,
     "crates/apollia-tools/src/executor.rs": 1,
     "crates/apollia-tools/src/file_path_extractor.rs": 2,
     "crates/apollia-tools/src/journal.rs": 2,
