@@ -1,170 +1,177 @@
 /**
- * Shared option lists, sensitive-key set, and small pure helpers for the
- * profile form. Kept out of the Svelte components so the (verbose) static
- * config does not bloat the section files and can be unit-reasoned in one place.
+ * The decisions of Settings > Profile, kept out of the Svelte components so
+ * they run under Vitest (node environment) and read in one place.
  *
- * The profile is a flat key/value store; the form below mirrors PROFILE_SCHEMA
- * (declared in Rust) by hand. Editing a sensitive key does NOT re-derive the
- * permission rules: the user must rerun onboarding to apply matching proposals.
+ * The form carries no copy of the profile schema: the fields, their labels
+ * and their help come from Rust with every profile read (`get_profile_by_id`).
  */
+import type {
+  ProfileEntryView,
+  ProfileFieldView,
+  ProfileSummaryView,
+} from "$lib/ipc/profile";
 
-export interface Option {
-  v: string;
+/** `true` when the interface locale is French. */
+function isFrench(locale: string | null | undefined): boolean {
+  return (locale ?? "").toLowerCase().startsWith("fr");
+}
+
+/** The label of a field in the interface locale. */
+export function fieldLabel(field: ProfileFieldView, locale: string | null | undefined): string {
+  return isFrench(locale) ? field.label_fr : field.label_en;
+}
+
+/** The help, or example, of a field in the interface locale. */
+export function fieldHelp(field: ProfileFieldView, locale: string | null | undefined): string {
+  return isFrench(locale) ? field.help_fr : field.help_en;
+}
+
+/** The values of the fields, by key, as the form edits them. */
+export function fieldValues(fields: ProfileFieldView[]): Record<string, string> {
+  return Object.fromEntries(fields.map((f) => [f.key, f.value]));
+}
+
+/** The fields whose value changed, trimmed; an emptied field maps to "". */
+export function changedFields(
+  fields: ProfileFieldView[],
+  values: Record<string, string>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const field of fields) {
+    const next = (values[field.key] ?? "").trim();
+    if (next !== field.value.trim()) out[field.key] = next;
+  }
+  return out;
+}
+
+/** What the menu of a profile can do. */
+export type ProfileMenuAction = "rename" | "set_default" | "reset" | "delete";
+
+/** One entry of the menu of a profile. */
+export interface ProfileMenuEntry {
+  action: ProfileMenuAction;
+  /** Label key under `settings.profile.menu`. */
   labelKey: string;
-}
-
-export interface RadioOption {
-  v: string;
-  labelKey: string;
-  hintKey?: string;
-}
-
-/** Keys whose value impacts agent behaviour and tool permissions. */
-export const SENSITIVE_KEYS = new Set<string>([
-  "constraints.sovereignty",
-  "constraints.compliance",
-  "agents.hitl",
-  "tech.integrations",
-]);
-
-/**
- * Optional Tier 2 fields. Once name + role are set (calibration done) but some
- * of these are still empty, the enrichment banner offers to resume onboarding.
- */
-export const TIER2_KEYS = [
-  "goals",
-  "domain.sector",
-  "domain.team_size",
-  "tech.stack",
-  "tech.proficiency",
-  "tools.daily",
-  "tech.integrations",
-  "preferences.language",
-  "preferences.llm",
-  "agents.domains",
-  "agents.trigger",
-  "constraints.compliance",
-];
-
-export const SECTORS: Option[] = [
-  { v: "", labelKey: "settings.profile.option.none" },
-  { v: "fintech", labelKey: "settings.profile.sector.fintech" },
-  { v: "sante", labelKey: "settings.profile.sector.sante" },
-  { v: "ecommerce", labelKey: "settings.profile.sector.ecommerce" },
-  { v: "industrie", labelKey: "settings.profile.sector.industrie" },
-  { v: "education", labelKey: "settings.profile.sector.education" },
-  { v: "autre", labelKey: "settings.profile.sector.autre" },
-];
-
-export const TEAM_SIZES: Option[] = [
-  { v: "", labelKey: "settings.profile.option.none" },
-  { v: "solo", labelKey: "settings.profile.team_size.solo" },
-  { v: "2-5", labelKey: "settings.profile.team_size.2_5" },
-  { v: "6-20", labelKey: "settings.profile.team_size.6_20" },
-  { v: "20+", labelKey: "settings.profile.team_size.20_plus" },
-];
-
-export const PROFICIENCY: Option[] = [
-  { v: "", labelKey: "settings.profile.option.none" },
-  { v: "debutant", labelKey: "settings.profile.proficiency.debutant" },
-  { v: "intermediaire", labelKey: "settings.profile.proficiency.intermediaire" },
-  { v: "avance", labelKey: "settings.profile.proficiency.avance" },
-  { v: "expert", labelKey: "settings.profile.proficiency.expert" },
-];
-
-export const LANGUAGES: Option[] = [
-  { v: "", labelKey: "settings.profile.option.none" },
-  { v: "fr", labelKey: "settings.profile.language.fr" },
-  { v: "en", labelKey: "settings.profile.language.en" },
-];
-
-export const LLM_BACKENDS: Option[] = [
-  { v: "", labelKey: "settings.profile.option.none" },
-  { v: "local", labelKey: "settings.profile.llm.local" },
-  { v: "ollama", labelKey: "settings.profile.llm.ollama" },
-];
-
-export const HITL_OPTIONS: RadioOption[] = [
-  {
-    v: "always",
-    labelKey: "settings.profile.hitl.always.label",
-    hintKey: "settings.profile.hitl.always.hint",
-  },
-  {
-    v: "critical-only",
-    labelKey: "settings.profile.hitl.critical_only.label",
-    hintKey: "settings.profile.hitl.critical_only.hint",
-  },
-  {
-    v: "never",
-    labelKey: "settings.profile.hitl.never.label",
-    hintKey: "settings.profile.hitl.never.hint",
-  },
-];
-
-export const SOVEREIGNTY_OPTIONS: RadioOption[] = [
-  {
-    v: "local-only",
-    labelKey: "settings.profile.sovereignty.local_only.label",
-    hintKey: "settings.profile.sovereignty.local_only.hint",
-  },
-  {
-    v: "local-preferred",
-    labelKey: "settings.profile.sovereignty.local_preferred.label",
-    hintKey: "settings.profile.sovereignty.local_preferred.hint",
-  },
-  {
-    v: "cloud-ok",
-    labelKey: "settings.profile.sovereignty.cloud_ok.label",
-    hintKey: "settings.profile.sovereignty.cloud_ok.hint",
-  },
-];
-
-export const TRIGGER_OPTIONS: RadioOption[] = [
-  { v: "manuel", labelKey: "settings.profile.trigger.manuel" },
-  { v: "planifie", labelKey: "settings.profile.trigger.planifie" },
-  { v: "evenementiel", labelKey: "settings.profile.trigger.evenementiel" },
-];
-
-export const COMPLIANCE = ["RGPD", "HIPAA", "SOC2"];
-export const INTEGRATIONS = ["GitHub", "Slack", "Notion", "Gmail"];
-
-/** Split a comma-separated list value into trimmed, non-empty items. */
-export function listItems(value: string): string[] {
-  return value
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-/** True when the comma-separated `value` already contains `entry`. */
-export function listIncludes(value: string, entry: string): boolean {
-  return listItems(value).includes(entry);
-}
-
-/** Toggle `entry` in the comma-separated `value`, returning the new value. */
-export function toggleList(value: string, entry: string, checked: boolean): string {
-  const set = new Set(listItems(value));
-  if (checked) set.add(entry);
-  else set.delete(entry);
-  return Array.from(set).join(", ");
+  disabled: boolean;
+  /** Why the entry is disabled, as an i18n key; `null` when it is not. */
+  reasonKey: string | null;
+  destructive: boolean;
 }
 
 /**
- * The reactive facade every profile section receives. Sections read `values`
- * / `sources` (deeply reactive `$state` proxies owned by the page) and mutate
- * through `set`, so all edits funnel through one dirty-tracking path.
+ * The menu of a profile. The default profile has no "set as default", and its
+ * deletion is shown disabled with the reason, since the runtime refuses it.
  */
-export interface ProfileFieldApi {
-  values: Record<string, string>;
-  sources: Record<string, string>;
-  set: (key: string, value: string) => void;
+export function profileMenu(profile: Pick<ProfileSummaryView, "is_default">): ProfileMenuEntry[] {
+  const entries: ProfileMenuEntry[] = [
+    {
+      action: "rename",
+      labelKey: "settings.profile.menu.rename",
+      disabled: false,
+      reasonKey: null,
+      destructive: false,
+    },
+  ];
+  if (!profile.is_default) {
+    entries.push({
+      action: "set_default",
+      labelKey: "settings.profile.menu.set_default",
+      disabled: false,
+      reasonKey: null,
+      destructive: false,
+    });
+  }
+  entries.push(
+    {
+      action: "reset",
+      labelKey: "settings.profile.menu.reset",
+      disabled: false,
+      reasonKey: null,
+      destructive: false,
+    },
+    {
+      action: "delete",
+      labelKey: "settings.profile.menu.delete",
+      disabled: profile.is_default,
+      reasonKey: profile.is_default ? "settings.profile.menu.delete_refused" : null,
+      destructive: true,
+    },
+  );
+  return entries;
 }
 
-/** Resolve a selected option value to its i18n label key, or null when unset. */
-export function optionLabelKey(list: Option[], value: string): string | null {
-  if (!value) return null;
-  return list.find((o) => o.v === value)?.labelKey ?? null;
+/** How a reset can be confirmed. */
+export type ResetChoice = "reset" | "reset_and_onboard";
+
+/**
+ * The confirmations of a reset: any profile can be reset alone; the default
+ * one can also be followed by the onboarding conversation.
+ */
+export function resetChoices(profile: Pick<ProfileSummaryView, "is_default">): ResetChoice[] {
+  return profile.is_default ? ["reset", "reset_and_onboard"] : ["reset"];
+}
+
+/** What a reset reaches. */
+export interface ResetEffects {
+  reset: (id: string) => Promise<unknown>;
+  onboard: () => Promise<unknown>;
+}
+
+/**
+ * Reset a profile, then relaunch the onboarding when the user chose it. The
+ * onboarding never runs for a profile that is not the default, and never when
+ * the reset itself failed.
+ */
+export async function applyReset(
+  profile: Pick<ProfileSummaryView, "id" | "is_default">,
+  choice: ResetChoice,
+  effects: ResetEffects,
+): Promise<void> {
+  await effects.reset(profile.id);
+  if (choice === "reset_and_onboard" && profile.is_default) {
+    await effects.onboard();
+  }
+}
+
+/** The profile to show once `deletedId` is gone: the default one. */
+export function profileAfterDelete(
+  profiles: ProfileSummaryView[],
+  deletedId: string,
+): string | null {
+  const left = profiles.filter((p) => p.id !== deletedId);
+  return (left.find((p) => p.is_default) ?? left[0])?.id ?? null;
+}
+
+/** The longest key a fact typed without developer mode receives. */
+const FACT_KEY_MAX = 40;
+
+/**
+ * The key of a fact the user typed as a sentence. Without developer mode the
+ * key is never shown, so it is derived from the value, made unique among the
+ * keys the profile already holds.
+ */
+export function factKeyFor(value: string, existing: string[]): string {
+  const slug = value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, FACT_KEY_MAX)
+    .replace(/-+$/g, "");
+  const base = `fact.${slug || "note"}`;
+  const taken = new Set(existing);
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base}-${n}`)) n += 1;
+  return `${base}-${n}`;
+}
+
+/** The enrichment banner shows once name and role are set and a field is still empty. */
+export function shouldOfferEnrichment(fields: ProfileFieldView[]): boolean {
+  const value = (key: string) => fields.find((f) => f.key === key)?.value.trim() ?? "";
+  if (!value("name") || !value("role")) return false;
+  return fields.some((f) => !f.value.trim());
 }
 
 /** Map a raw `written_by` provenance to its i18n label key, or null. */
@@ -174,4 +181,52 @@ export function sourceLabelKey(src: string | undefined): string | null {
   if (src === "user") return "settings.profile.source.user";
   if (src.startsWith("agent:")) return "settings.profile.source.agent";
   return null;
+}
+
+/** What the facts of a profile reach. */
+export interface FactEffects {
+  set: (profileId: string, key: string, value: string) => Promise<ProfileEntryView>;
+}
+
+/**
+ * Add a fact to a profile. Without developer mode `key` is `null` and the
+ * key is derived from the value. Returns the stored fact, or `null` when the
+ * value (or a key typed in developer mode) is empty, so nothing is written.
+ */
+export async function addFact(
+  profileId: string,
+  value: string,
+  key: string | null,
+  existing: ProfileEntryView[],
+  effects: FactEffects,
+): Promise<ProfileEntryView | null> {
+  const text = value.trim();
+  if (!text) return null;
+  const typed = key?.trim() ?? null;
+  if (typed !== null && !typed) return null;
+  const finalKey = typed ?? factKeyFor(text, existing.map((f) => f.key));
+  return effects.set(profileId, finalKey, text);
+}
+
+/**
+ * Save an edited fact. An empty or unchanged value writes nothing and
+ * returns `null`, which the row reads as "leave edit mode".
+ */
+export async function editFact(
+  profileId: string,
+  fact: ProfileEntryView,
+  next: string,
+  effects: FactEffects,
+): Promise<ProfileEntryView | null> {
+  const text = next.trim();
+  if (!text || text === fact.value) return null;
+  return effects.set(profileId, fact.key, text);
+}
+
+/** Copy the value of a fact, never its key. */
+export async function copyFactValue(
+  fact: Pick<ProfileEntryView, "value">,
+  clipboard: { writeText: (text: string) => Promise<void> },
+): Promise<void> {
+  await clipboard.writeText(fact.value);
 }

@@ -132,13 +132,15 @@ describe("the facts the agents retained stay in Profile (criterion 3)", () => {
     const memory = source("routes/Memory.svelte");
 
     // WHEN the facts are traced from the profile to the delete confirmation
-    // THEN Profile feeds the card from `extras`, each row reads developer mode
+    // THEN Profile feeds the card the facts of the displayed profile, each row reads developer mode
     // and names the value in its confirmation, and Memory hosts none of it
-    expect(profile).toContain("facts = profile.extras ?? [];");
-    expect(profile).toContain("<ProfileMemoryFactsCard {facts} />");
-    expect(card).toContain("<ProfileFactRow {fact} {onUpdated} {onDeleted} />");
+    expect(profile).toContain("facts={detail.facts}");
+    expect(profile).toContain("<ProfileMemoryFactsCard");
+    expect(card).toContain("<ProfileFactRow {profileId} {fact} {onUpdated} {onDeleted} />");
     expect(row).toContain("factRowView(fact, $developerMode)");
-    expect(row).toContain("forgetFact(fact.key, deleteProfileEntry, onDeleted)");
+    expect(row).toContain(
+      "forgetFact(fact.key, (key) => deleteProfileFact(profileId, key), onDeleted)",
+    );
     expect(row).toContain("values: { value: fact.value }");
     expect(memory).not.toContain("ProfileMemoryFactsCard");
   });

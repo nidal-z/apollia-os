@@ -61,14 +61,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "settings.model_hub.filters.lang_fr", // Français
   "settings.model_hub.filters.lang_pt", // Português
   "settings.model_hub.hardware.ram", // RAM
-  "settings.profile.language.en", // English
-  "settings.profile.language.fr", // Français
-  "settings.profile.llm.local", // Local (llama.cpp)
-  "settings.profile.llm.ollama", // Ollama
-  "settings.profile.placeholder.tech_stack", // Python, TypeScript, React, Postgres…
-  "settings.profile.placeholder.tools_daily", // Excel, Notion, Salesforce, Gmail, VS Code…
-  "settings.profile.sector.ecommerce", // E-commerce
-  "settings.profile.sector.fintech", // Fintech
   "settings.stt_cuda", // CUDA
   "settings.stt_metal", // Metal
   "settings.tools_page.bash_executor_title", // Bash
@@ -223,10 +215,8 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.permissions.add.action_label", // Action
   "settings.permissions.scope_agent", // Chat / agent
   "settings.permissions.session_badge", // Session
-  "settings.profile.proficiency.expert", // Expert
   "settings.profile.source.agent", // agent
   "settings.profile.source.onboarding", // onboarding
-  "settings.profile.team_size.solo", // Solo
   "settings.shortcuts.category.chat", // Chat
   "settings.shortcuts.category.companion", // Companion
   "settings.shortcuts.category.global", // Global

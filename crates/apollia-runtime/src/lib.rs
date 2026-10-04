@@ -44,6 +44,7 @@ pub mod local_ai;
 pub mod local_engine;
 pub mod mailbox;
 pub mod memory_maintenance;
+pub mod memory_vectors;
 pub mod memory_view;
 pub mod mlx_engine;
 pub mod oauth_clients;

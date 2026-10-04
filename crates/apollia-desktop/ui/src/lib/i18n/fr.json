@@ -420,6 +420,10 @@
     "tools_exposed": "Outils exposés",
     "disconnecting": "Déconnexion…",
     "confirm_disconnect": "Confirmer la déconnexion",
+    "builtin_section": "Outils intégrés",
+    "builtin_name": "Apollia, outils intégrés",
+    "builtin_count": "{active} sur {total} activés",
+    "builtin_description": "Recherche web, lecture de page et exécution de code, fournies avec Apollia. Activez chaque outil, configurez-le et gérez ses clés.",
     "select_connector_prompt": "Sélectionnez une connexion dans la liste.",
     "oauth_drive_folder_title": "Dossier Google Drive",
     "oauth_connect_title": "Connecter {provider}",
@@ -1482,7 +1486,8 @@
     "entry_actions": "Actions de l'entrée",
     "error_details": "Détails techniques",
     "embeddings": {
-      "vector": "vecteur · nomic-embed-text 768-d · FTS5",
+      "vector": "vecteur · {model} {dimensions}-d · FTS5",
+      "keywords": "mots-clés",
       "none": "aucun vecteur · texte brut"
     },
     "data": {
@@ -2315,163 +2320,85 @@
     "cli_needs_privilege": "Privilèges administrateur requis.",
     "profile": {
       "title": "Profil",
-      "enrichment": {
-        "title": "Complète ton profil",
-        "detail": "Quelques informations optionnelles aideraient tes agents. L'assistant peut reprendre là où tu t'es arrêté, sans perdre ce que tu as déjà partagé.",
-        "resume": "Continuer avec l'assistant",
-        "dismiss": "Plus tard"
+      "profiles": {
+        "title": "Profils",
+        "description": "Plusieurs profils pour décrire les facettes de votre travail. Le profil par défaut est celui que vos agents utilisent ; ce qu'ils retiennent reste propre à chaque profil.",
+        "default_badge": "Par défaut",
+        "new": "Nouveau profil",
+        "actions": "Actions du profil {name}"
       },
-      "sensitive_badge": "Sensible",
-      "sensitive_notice": "Modifier ces choix n'ajuste pas tes règles de permissions automatiquement - relance l'onboarding pour que l'agent te propose les ajustements correspondants.",
+      "menu": {
+        "rename": "Renommer",
+        "set_default": "Définir par défaut",
+        "reset": "Réinitialiser…",
+        "delete": "Supprimer…",
+        "delete_refused": "Le profil par défaut ne peut pas être supprimé. Choisissez d'abord un autre profil par défaut."
+      },
+      "create_dialog": {
+        "title": "Nouveau profil",
+        "label": "Nom du profil",
+        "placeholder": "Par exemple : Formateur",
+        "confirm": "Créer"
+      },
+      "rename_dialog": {
+        "title": "Renommer « {name} »",
+        "confirm": "Renommer"
+      },
+      "delete_dialog": {
+        "title": "Supprimer « {name} » ?",
+        "message": "Ses champs, son texte libre et ce que vos agents ont retenu dans ce profil seront supprimés. Cette action ne peut pas être annulée.",
+        "confirm": "Supprimer le profil"
+      },
+      "reset_dialog": {
+        "title": "Réinitialiser « {name} » ?",
+        "title_default": "Réinitialiser « {name} », votre profil par défaut ?",
+        "message": "Les champs, le texte libre et ce que vos agents ont retenu dans ce profil seront vidés. Le profil reste dans la liste.",
+        "message_default": "Les champs, le texte libre et ce que vos agents ont retenu dans ce profil seront vidés. Vous pouvez ensuite refaire connaissance avec un agent : il vous pose quelques questions et vous propose un profil à relire.",
+        "confirm": "Réinitialiser",
+        "reset_only": "Réinitialiser seulement",
+        "reset_and_onboard": "Réinitialiser et refaire connaissance"
+      },
+      "form": {
+        "title": "Informations du profil « {name} »",
+        "description": "Tous les champs sont facultatifs. Vos agents s'en servent pour adapter leur travail.",
+        "optional": "(facultatif)",
+        "free_text_hint": "Lu par vos agents quand ce profil est utilisé."
+      },
+      "toast": {
+        "created": "Profil « {name} » créé",
+        "default_set": "« {name} » est maintenant votre profil par défaut",
+        "deleted": "Profil supprimé",
+        "reset_done": "Profil réinitialisé"
+      },
+      "enrichment": {
+        "title": "Complétez ce profil avec un agent",
+        "detail": "Un agent vous pose quelques questions et vous propose des réponses à relire ; rien n'est écrit sans votre accord.",
+        "resume": "Compléter avec un agent",
+        "dismiss": "Ignorer"
+      },
       "source": {
         "onboarding": "onboarding",
         "user": "vous",
         "agent": "agent",
         "tooltip": "Source : {source}"
       },
-      "option": {
-        "none": "-"
-      },
-      "identity": {
-        "title": "Identité",
-        "subtitle": "Qui tu es et ce que tu cherches à faire.",
-        "unnamed": "Sans nom",
-        "fill_prompt": "Renseigne ton identité ci-dessous"
-      },
-      "fields": {
-        "name": "Prénom / alias",
-        "role": "Rôle",
-        "sector": "Secteur",
-        "team_size": "Taille d'équipe",
-        "goals": "Objectifs (max 2 phrases)",
-        "hitl": "Niveau HITL (Human-in-the-Loop)",
-        "agent_domains": "Domaines où vos agents travaillent en autonomie",
-        "trigger": "Comment vos agents démarrent par défaut",
-        "tools_daily": "Outils du quotidien (séparés par virgules)",
-        "tech_stack": "Stack technique",
-        "proficiency": "Aisance avec l'outillage tech",
-        "integrations": "Connecter Apollia à",
-        "sovereignty": "Souveraineté des données",
-        "compliance": "Conformité",
-        "language": "Langue des agents",
-        "llm": "Backend LLM préféré"
-      },
-      "placeholder": {
-        "name": "Votre prénom",
-        "role": "CTO, dev fullstack, ops…",
-        "goals": "Ex. Automatiser ma veille concurrentielle et pré-traiter mes emails.",
-        "agent_domains": "veille, email, reporting",
-        "tools_daily": "Excel, Notion, Salesforce, Gmail, VS Code…",
-        "tech_stack": "Python, TypeScript, React, Postgres…"
-      },
-      "sector": {
-        "fintech": "Fintech",
-        "sante": "Santé",
-        "ecommerce": "E-commerce",
-        "industrie": "Industrie",
-        "education": "Éducation",
-        "autre": "Autre"
-      },
-      "team_size": {
-        "solo": "Solo",
-        "2_5": "2–5",
-        "6_20": "6–20",
-        "20_plus": "20+"
-      },
-      "proficiency": {
-        "debutant": "Débutant",
-        "intermediaire": "Intermédiaire",
-        "avance": "Avancé",
-        "expert": "Expert"
-      },
-      "language": {
-        "fr": "Français",
-        "en": "English"
-      },
-      "llm": {
-        "local": "Local (llama.cpp)",
-        "ollama": "Ollama"
-      },
-      "supervision": {
-        "title": "Supervision des agents"
-      },
-      "hitl": {
-        "always": {
-          "label": "Toujours valider",
-          "hint": "Chaque action sensible nécessite ton accord explicite."
-        },
-        "critical_only": {
-          "label": "Critique seulement",
-          "hint": "Validation requise uniquement pour les actions à fort impact (paiement, suppression…)."
-        },
-        "never": {
-          "label": "Jamais",
-          "hint": "Les agents agissent sans confirmation. Recommandé uniquement pour des outils en lecture seule."
-        }
-      },
-      "hint": {
-        "agent_domains": "Liste libre des domaines (veille, email, reporting…) où tu laisses tes agents agir sans validation manuelle, sous réserve du niveau de supervision ci-dessus.",
-        "tools_daily": "Liste libre - applications métier, IDE, outils de bureau, plateformes SaaS.",
-        "integrations": "Activer une intégration ouvre des permissions par défaut sur les API associées. Relance l'onboarding pour adapter les règles correspondantes."
-      },
-      "trigger": {
-        "manuel": "Manuel",
-        "planifie": "Planifié",
-        "evenementiel": "Événementiel"
-      },
-      "tools": {
-        "title": "Outils & contexte métier",
-        "subtitle": "Aide les agents à parler ton langage et à utiliser les outils que tu connais déjà."
-      },
-      "constraints": {
-        "title": "Contraintes"
-      },
-      "sovereignty": {
-        "local_only": {
-          "label": "Local strict",
-          "hint": "Bloque les connecteurs cloud. Ne coupe pas le réseau de la machine."
-        },
-        "local_preferred": {
-          "label": "Local préféré",
-          "hint": "Local par défaut, cloud autorisé en dernier recours après accord."
-        },
-        "cloud_ok": {
-          "label": "Cloud autorisé",
-          "hint": "Les agents peuvent utiliser des LLM cloud sans demander."
-        }
-      },
-      "preferences": {
-        "title": "Préférences",
-        "subtitle": "Langue et backend par défaut pour les agents."
-      },
-      "danger": {
-        "title": "Zone danger",
-        "description": "Réinitialiser ton profil supprime toute la mémoire utilisateur et relance l'onboarding depuis zéro.",
-        "reset_button": "Réinitialiser le profil"
-      },
-      "reset_dialog": {
-        "title": "Réinitialiser le profil ?",
-        "message": "Cela supprimera tout le profil mémorisé et relancera l'onboarding. Cette action est irréversible.",
-        "confirm": "Réinitialiser"
-      },
-      "toast": {
-        "reset_done": "Profil réinitialisé"
-      },
       "memory": {
-        "title": "Ce que vos agents ont retenu sur vous",
-        "subtitle": "Les détails que vos agents ont gardés de vos conversations. Vous pouvez corriger ou supprimer chacun.",
+        "title": "Ce que vos agents ont retenu dans « {name} »",
+        "subtitle": "Des faits notés par vos agents quand ils travaillent avec ce profil, ou ajoutés par vous. Ils ne servent qu'à ce profil. Corrigez ou supprimez ce qui n'est plus juste.",
         "empty": {
           "title": "Aucun fait pour l'instant",
-          "detail": "Vos agents noteront ici ce qu'ils retiennent sur vous au fil des conversations."
+          "detail": "Vos agents noteront ici ce qu'ils retiennent quand ils travaillent avec ce profil."
         },
         "add": "Ajouter un fait",
+        "add_confirm": "Ajouter",
+        "add_hint": "Par exemple : « Je facture mes clients le 5 du mois ». Vos agents liront ce fait comme ceux qu'ils ont retenus eux-mêmes, dans ce profil seulement.",
         "key_placeholder": "Clé (ex. prefs.horaires)",
-        "value_placeholder": "Valeur",
-        "edit": "Éditer le fait",
+        "value_placeholder": "Ce que vos agents doivent retenir",
+        "edit": "Modifier",
         "copy_value": "Copier la valeur",
         "delete_dialog": {
           "title": "Supprimer ce fait ?",
-          "message": "« {value} » sera oublié par tous vos agents. Cette action ne peut pas être annulée.",
+          "message": "« {value} » sera oublié par vos agents dans ce profil. Cette action ne peut pas être annulée.",
           "confirm": "Supprimer le fait"
         }
       }

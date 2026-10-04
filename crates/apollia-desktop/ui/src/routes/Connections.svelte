@@ -3,7 +3,8 @@
    * Connections - every connection of this machine, in one list.
    *
    * Thin orchestrator: owns the top-level data (the connection list served by
-   * the loader, installed servers, enrichments, registry, native accounts) and
+   * the loader, installed servers, enrichments, registry, native accounts, the
+   * count of built-in tools) and
    * selection, wires IPC via
    * `$lib/ipc/connections`, and composes the decomposed sub-components under
    * `components/connections/*`. Business logic lives in `$lib/connections/*`
@@ -17,6 +18,8 @@
   import NativeConnectorDetail from "../components/connections/detail/NativeConnectorDetail.svelte";
   import McpServerDetail from "../components/connections/detail/McpServerDetail.svelte";
   import ConnectionSummaryDetail from "../components/connections/detail/ConnectionSummaryDetail.svelte";
+  import BuiltinToolsDetail from "../components/connections/detail/BuiltinToolsDetail.svelte";
+  import { tools as builtinTools, loadTools as loadBuiltinTools } from "$lib/stores/toolGovernance";
   import CatalogueSheet from "../components/connections/catalogue/CatalogueSheet.svelte";
   import NativeOauthDialog from "../components/connections/oauth/NativeOauthDialog.svelte";
   import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
@@ -164,6 +167,11 @@
     const sel = selection;
     if (sel?.kind !== "connection") return null;
     return connections.find((c) => c.id === sel.id) ?? null;
+  });
+
+  const builtinCount = $derived({
+    active: $builtinTools.filter((tool) => tool.enabled).length,
+    total: $builtinTools.length,
   });
 
   const installedNames = $derived(new Set(servers.map((s) => s.name)));
@@ -322,6 +330,7 @@
   $effect(() => {
     void loadAll();
     void refreshNativeStatus();
+    void loadBuiltinTools();
   });
 
   // Auto-select the first connection; recover when the target disappears. A
@@ -330,11 +339,11 @@
   $effect(() => {
     if (loading) return;
     const cur = selection;
-    if (cur !== null && cur.kind !== "native" && selectedRow === null) {
+    if (cur !== null && cur.kind !== "native" && cur.kind !== "builtin" && selectedRow === null) {
       selection = null;
     }
     if (selection !== null) return;
-    selection = rows[0]?.selection ?? null;
+    selection = rows[0]?.selection ?? { kind: "builtin" };
   });
 
   // Reset tabs on selection kind change.
@@ -407,6 +416,7 @@
         onselect={(sel) => (selection = sel)}
         onopencatalogue={handleOpenCatalogue}
         oncontext={handleContext}
+        builtinTools={builtinCount}
       />
     {/snippet}
 
@@ -440,6 +450,8 @@
           void loadAll();
         }}
       />
+    {:else if selection?.kind === "builtin"}
+      <BuiltinToolsDetail />
     {:else if selection?.kind === "connection" && selectedConnection}
       <ConnectionSummaryDetail
         connection={selectedConnection}

@@ -420,6 +420,10 @@
     "tools_exposed": "Exposed tools",
     "disconnecting": "Disconnecting…",
     "confirm_disconnect": "Confirm disconnection",
+    "builtin_section": "Built-in tools",
+    "builtin_name": "Apollia, built-in tools",
+    "builtin_count": "{active} of {total} on",
+    "builtin_description": "Web search, page reading and code execution, shipped with Apollia. Turn each tool on, configure it and manage its keys.",
     "select_connector_prompt": "Select a connection in the list.",
     "oauth_drive_folder_title": "Google Drive folder",
     "oauth_connect_title": "Connect {provider}",
@@ -1482,7 +1486,8 @@
     "entry_actions": "Entry actions",
     "error_details": "Technical details",
     "embeddings": {
-      "vector": "vector · nomic-embed-text 768-d · FTS5",
+      "vector": "vector · {model} {dimensions}-d · FTS5",
+      "keywords": "keywords",
       "none": "no vector · raw text"
     },
     "data": {
@@ -2315,163 +2320,85 @@
     "cli_needs_privilege": "Administrator privileges required.",
     "profile": {
       "title": "Profile",
-      "enrichment": {
-        "title": "Complete your profile",
-        "detail": "A few optional details would help your agents. The assistant can pick up where you left off, without losing what you already shared.",
-        "resume": "Continue with the assistant",
-        "dismiss": "Not now"
+      "profiles": {
+        "title": "Profiles",
+        "description": "Several profiles to describe the sides of your work. The default profile is the one your agents use; what they remember stays with each profile.",
+        "default_badge": "Default",
+        "new": "New profile",
+        "actions": "Actions for profile {name}"
       },
-      "sensitive_badge": "Sensitive",
-      "sensitive_notice": "Changing these choices does not adjust your permission rules automatically - rerun the onboarding so the agent can propose the matching adjustments.",
+      "menu": {
+        "rename": "Rename",
+        "set_default": "Set as default",
+        "reset": "Reset…",
+        "delete": "Delete…",
+        "delete_refused": "The default profile cannot be deleted. Make another profile the default first."
+      },
+      "create_dialog": {
+        "title": "New profile",
+        "label": "Profile name",
+        "placeholder": "For example: Trainer",
+        "confirm": "Create"
+      },
+      "rename_dialog": {
+        "title": "Rename \"{name}\"",
+        "confirm": "Rename"
+      },
+      "delete_dialog": {
+        "title": "Delete \"{name}\"?",
+        "message": "Its fields, its free text and what your agents remembered in this profile will be deleted. This cannot be undone.",
+        "confirm": "Delete profile"
+      },
+      "reset_dialog": {
+        "title": "Reset \"{name}\"?",
+        "title_default": "Reset \"{name}\", your default profile?",
+        "message": "The fields, the free text and what your agents remembered in this profile will be emptied. The profile stays in the list.",
+        "message_default": "The fields, the free text and what your agents remembered in this profile will be emptied. You can then get acquainted again with an agent: it asks you a few questions and proposes a profile for you to review.",
+        "confirm": "Reset",
+        "reset_only": "Reset only",
+        "reset_and_onboard": "Reset and get acquainted again"
+      },
+      "form": {
+        "title": "Profile details for \"{name}\"",
+        "description": "Every field is optional. Your agents use them to adapt their work.",
+        "optional": "(optional)",
+        "free_text_hint": "Read by your agents when this profile is used."
+      },
+      "toast": {
+        "created": "Profile \"{name}\" created",
+        "default_set": "\"{name}\" is now your default profile",
+        "deleted": "Profile deleted",
+        "reset_done": "Profile reset"
+      },
+      "enrichment": {
+        "title": "Complete this profile with an agent",
+        "detail": "An agent asks you a few questions and proposes answers for you to review; nothing is written without your consent.",
+        "resume": "Complete with an agent",
+        "dismiss": "Dismiss"
+      },
       "source": {
         "onboarding": "onboarding",
         "user": "you",
         "agent": "agent",
         "tooltip": "Source: {source}"
       },
-      "option": {
-        "none": "-"
-      },
-      "identity": {
-        "title": "Identity",
-        "subtitle": "Who you are and what you are trying to do.",
-        "unnamed": "Unnamed",
-        "fill_prompt": "Fill in your identity below"
-      },
-      "fields": {
-        "name": "First name / alias",
-        "role": "Role",
-        "sector": "Sector",
-        "team_size": "Team size",
-        "goals": "Goals (max 2 sentences)",
-        "hitl": "HITL level (Human-in-the-Loop)",
-        "agent_domains": "Areas where your agents work autonomously",
-        "trigger": "How your agents start by default",
-        "tools_daily": "Everyday tools (comma-separated)",
-        "tech_stack": "Technical stack",
-        "proficiency": "Comfort with technical tooling",
-        "integrations": "Connect Apollia to",
-        "sovereignty": "Data sovereignty",
-        "compliance": "Compliance",
-        "language": "Agent language",
-        "llm": "Preferred LLM backend"
-      },
-      "placeholder": {
-        "name": "Your first name",
-        "role": "CTO, fullstack dev, ops…",
-        "goals": "E.g. Automate my competitive watch and pre-process my emails.",
-        "agent_domains": "watch, email, reporting",
-        "tools_daily": "Excel, Notion, Salesforce, Gmail, VS Code…",
-        "tech_stack": "Python, TypeScript, React, Postgres…"
-      },
-      "sector": {
-        "fintech": "Fintech",
-        "sante": "Health",
-        "ecommerce": "E-commerce",
-        "industrie": "Industry",
-        "education": "Education",
-        "autre": "Other"
-      },
-      "team_size": {
-        "solo": "Solo",
-        "2_5": "2–5",
-        "6_20": "6–20",
-        "20_plus": "20+"
-      },
-      "proficiency": {
-        "debutant": "Beginner",
-        "intermediaire": "Intermediate",
-        "avance": "Advanced",
-        "expert": "Expert"
-      },
-      "language": {
-        "fr": "Français",
-        "en": "English"
-      },
-      "llm": {
-        "local": "Local (llama.cpp)",
-        "ollama": "Ollama"
-      },
-      "supervision": {
-        "title": "Agent supervision"
-      },
-      "hitl": {
-        "always": {
-          "label": "Always confirm",
-          "hint": "Every sensitive action requires your explicit approval."
-        },
-        "critical_only": {
-          "label": "Critical only",
-          "hint": "Approval required only for high-impact actions (payment, deletion…)."
-        },
-        "never": {
-          "label": "Never",
-          "hint": "Agents act without confirmation. Recommended only for read-only tools."
-        }
-      },
-      "hint": {
-        "agent_domains": "Free-form list of areas (watch, email, reporting…) where you let your agents act without manual approval, subject to the supervision level above.",
-        "tools_daily": "Free-form list - business apps, IDEs, desktop tools, SaaS platforms.",
-        "integrations": "Enabling an integration opens default permissions on the associated APIs. Rerun the onboarding to adjust the matching rules."
-      },
-      "trigger": {
-        "manuel": "Manual",
-        "planifie": "Scheduled",
-        "evenementiel": "Event-driven"
-      },
-      "tools": {
-        "title": "Tools & business context",
-        "subtitle": "Help agents speak your language and use the tools you already know."
-      },
-      "constraints": {
-        "title": "Constraints"
-      },
-      "sovereignty": {
-        "local_only": {
-          "label": "Strictly local",
-          "hint": "Blocks cloud connectors. Does not cut the machine off the network."
-        },
-        "local_preferred": {
-          "label": "Local preferred",
-          "hint": "Local by default, cloud allowed as a last resort after approval."
-        },
-        "cloud_ok": {
-          "label": "Cloud allowed",
-          "hint": "Agents may use cloud LLMs without asking."
-        }
-      },
-      "preferences": {
-        "title": "Preferences",
-        "subtitle": "Default language and backend for agents."
-      },
-      "danger": {
-        "title": "Danger zone",
-        "description": "Resetting your profile deletes all user memory and restarts the onboarding from scratch.",
-        "reset_button": "Reset profile"
-      },
-      "reset_dialog": {
-        "title": "Reset profile?",
-        "message": "This will delete the entire stored profile and restart the onboarding. This action is irreversible.",
-        "confirm": "Reset"
-      },
-      "toast": {
-        "reset_done": "Profile reset"
-      },
       "memory": {
-        "title": "What your agents remembered about you",
-        "subtitle": "The details your agents kept from your conversations. You can correct or delete each one.",
+        "title": "What your agents remembered in \"{name}\"",
+        "subtitle": "Facts your agents noted while working with this profile, or that you added. They serve this profile only. Correct or delete whatever is no longer right.",
         "empty": {
           "title": "No facts yet",
-          "detail": "Your agents will note here what they remember about you as you talk."
+          "detail": "Your agents will note here what they remember while working with this profile."
         },
         "add": "Add a fact",
+        "add_confirm": "Add",
+        "add_hint": "For example: \"I invoice my clients on the 5th of the month\". Your agents will read this fact like the ones they remembered themselves, in this profile only.",
         "key_placeholder": "Key (e.g. prefs.schedule)",
-        "value_placeholder": "Value",
-        "edit": "Edit fact",
+        "value_placeholder": "What your agents should remember",
+        "edit": "Edit",
         "copy_value": "Copy value",
         "delete_dialog": {
           "title": "Delete this fact?",
-          "message": "\"{value}\" will be forgotten by all your agents. This cannot be undone.",
+          "message": "\"{value}\" will be forgotten by your agents in this profile. This cannot be undone.",
           "confirm": "Delete fact"
         }
       }

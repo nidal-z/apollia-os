@@ -127,6 +127,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_permissions::permissions_router;
     use crate::api::routes_plan_cache::{clear_plan_cache, get_plan_cache_stats};
     use crate::api::routes_profile::profile_router;
+    use crate::api::routes_profiles::profiles_router;
     use crate::api::routes_resilience::resilience_router;
     use crate::api::routes_review::post_review;
     use crate::api::routes_sse::stream_task;
@@ -374,6 +375,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         // Native connector consent routes
         .merge(connections_router::<B>())
         .merge(profile_router::<B>())
+        .merge(profiles_router::<B>())
         .merge(companion_router::<B>())
         .merge(local_ai_router::<B>())
         .merge(tool_credentials_router::<B>())
