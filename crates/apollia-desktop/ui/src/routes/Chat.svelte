@@ -20,6 +20,7 @@
   import {
     decoratedSessions,
     markSessionRead,
+    sidebarDensity,
     type DecoratedSession,
   } from "$lib/stores/chatSessions";
   import {
@@ -511,6 +512,7 @@
             onrename={(newTitle) => void handleRenameSession(session.id, newTitle)}
             ondelete={() => void handleDeleteSession(session.id)}
             onconfigure={() => { openConfig(session.id); closeSessionsDrawer(); }}
+            density={$sidebarDensity}
           />
         {/each}
       {/if}

@@ -15,6 +15,7 @@
   import { Tooltip } from "bits-ui";
   import { createSSEConnection } from "$lib/stores/sse";
   import { initTheme } from "$lib/stores/theme";
+  import { initChatAppearance } from "$lib/stores/chatAppearance";
   import { hydratePlanModeDefault } from "$lib/stores/planModeSetting";
   import { hydrateDeveloperMode } from "$lib/stores/developerMode";
   import { navigateTo } from "$lib/stores/navigation";
@@ -69,6 +70,7 @@
 
   onMount(() => {
     initTheme();
+    initChatAppearance();
     void hydratePlanModeDefault();
     void hydrateDeveloperMode();
     const cleanup = createSSEConnection();
