@@ -461,6 +461,35 @@ impl TaskRepository {
         .await
     }
 
+    /// Puts back to `pending` the one item at `rank` of a batch, when it waits
+    /// for an access, from its input as read at launch: its output, sources
+    /// and task are forgotten, the grants of the batch are left as they are.
+    /// Returns whether the item waited.
+    ///
+    /// # Errors
+    ///
+    /// [`TaskRepoError::Sqlite`].
+    pub async fn requeue_awaiting_item(
+        &self,
+        batch_id: &str,
+        rank: u64,
+    ) -> Result<bool, TaskRepoError> {
+        let batch_id = batch_id.to_string();
+        self.blocking(move |conn| {
+            let tx = conn.transaction()?;
+            let n = tx.execute(
+                "UPDATE batch_items SET status = 'pending', output_text = NULL, \
+                     sources_json = NULL, task_id = NULL, updated_at = CURRENT_TIMESTAMP \
+                 WHERE batch_id = ?1 AND rank = ?2 AND status = 'awaiting'",
+                params![&batch_id, i64::try_from(rank).unwrap_or(i64::MAX)],
+            )?;
+            tx.execute(RECOUNT, params![&batch_id])?;
+            tx.commit()?;
+            Ok(n == 1)
+        })
+        .await
+    }
+
     /// Puts back to `pending` the items of a batch that failed or wait for an
     /// access, from their input as read at launch: their output, sources and
     /// task are forgotten. `grants` are added to those of the batch. Returns

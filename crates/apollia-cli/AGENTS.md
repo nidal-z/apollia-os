@@ -13,7 +13,7 @@ releases.
 ## 1. Command shape
 
 Every command is `apollia-os <noun> <verb> [args]`, except the bare-verb
-whitelist below. The tree carries 207 leaves today; read it with
+whitelist below. The tree carries 243 leaves today; read it with
 `apollia-os --help` recursively, never from memory.
 
 **Verb taxonomy.** Every leaf's last token belongs to one of the categories
@@ -67,6 +67,13 @@ smoke sweep and the `--json` probe may drive, since a load reaches the real
 session whatever `HOME` says.
 
 If you add a new noun, document it here and in `docs/site/docs/reference/cli/`.
+
+**`approvals`** (`pending`) lists, from the runtime, every decision a run
+waits on: the tool consents of the conversations and of the runs outside any
+conversation, the paused tasks, the batch items waiting for an access, and the
+questions agents asked. Each item names the answers it takes (`once`,
+`always`, `refuse`, or `answer` for a question); they are given through
+`POST /api/v1/pending-decisions/decide`. With no runtime it exits 2.
 
 **`batch`** (`run`, `status`, `list`, `accesses`, `pause`, `resume`, `stop`,
 `retry`, `export`) runs a stored agent without code on every item of a source, in the

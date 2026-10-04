@@ -12,6 +12,9 @@ pub struct ChatSessionManagerHandle {
     /// are routed to this manager's background drainer task.
     pub(in crate::chat::manager) pending_user_inputs:
         apollia_tools::tools::ask_user::PendingUserInputs,
+    /// The tool approvals the actor waits on, the same store it resolves:
+    /// read to list what they ask, never resolved through the handle.
+    pub(in crate::chat::manager) pending_chat_approvals: PendingChatApprovals,
     /// The lifecycle hook executor in force, exposed so the API can list the
     /// active handlers. `None` when no hooks are configured.
     pub(in crate::chat::manager) hook_executor:
@@ -34,6 +37,25 @@ impl ChatSessionManagerHandle {
     /// mode built-in agent.
     pub fn pending_user_inputs(&self) -> apollia_tools::tools::ask_user::PendingUserInputs {
         self.pending_user_inputs.clone()
+    }
+
+    /// What every tool approval waiting for the user asks, oldest first: those
+    /// of the conversations and those of the runs outside any conversation.
+    pub fn pending_tool_approvals(&self) -> Vec<crate::chat::ChatApprovalAsked> {
+        self.pending_chat_approvals.asked()
+    }
+
+    /// What the tool approval `key` (`session::message::tool_call`) asks, when
+    /// it waits and is listed.
+    pub fn pending_tool_approval(&self, key: &str) -> Option<crate::chat::ChatApprovalAsked> {
+        self.pending_chat_approvals.asked_for(key)
+    }
+
+    /// The tool approvals store the actor waits on, for a test that plays the
+    /// tool asking for one.
+    #[cfg(test)]
+    pub(crate) fn pending_chat_approvals(&self) -> PendingChatApprovals {
+        self.pending_chat_approvals.clone()
     }
 
     /// Return a summary of every registered lifecycle hook handler, in
@@ -122,6 +144,7 @@ impl ChatSessionManagerHandle {
         );
 
         let pending_chat_approvals = PendingChatApprovals::new();
+        let handle_chat_approvals = pending_chat_approvals.clone();
         let pending_fs_approvals = PendingFilesystemApprovals::new();
         #[cfg(test)]
         let test_pending_fs = pending_fs_approvals.clone();
@@ -224,6 +247,7 @@ impl ChatSessionManagerHandle {
         Ok(Self {
             tx,
             pending_user_inputs,
+            pending_chat_approvals: handle_chat_approvals,
             hook_executor: hook_executor_for_handle,
             #[cfg(test)]
             pending_fs_approvals: test_pending_fs,

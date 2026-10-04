@@ -189,6 +189,45 @@ async fn retrying_puts_failed_and_waiting_items_back_from_their_input() {
     );
 }
 
+// GIVEN a batch whose items failed, waited for an access and completed
+// WHEN the waiting item, then the failed one, are put back alone
+// THEN only the waiting item is pending again, its output and task forgotten,
+//      the grants untouched, and the failed one is left as it was
+#[tokio::test]
+async fn one_waiting_item_is_put_back_alone() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let repo = repo(&dir).await;
+    repo.create_batch(new_batch("b-o", 3)).await.unwrap();
+    for (rank, status) in [(0, "failed"), (1, "awaiting"), (2, "completed")] {
+        repo.start_batch_item("b-o", rank, &format!("t-{rank}"))
+            .await
+            .unwrap();
+        repo.finish_batch_item("b-o", rank, status, "a short preview")
+            .await
+            .unwrap();
+    }
+    let grants_before = repo.batch("b-o").await.unwrap().unwrap().grants;
+
+    // WHEN
+    let waiting = repo.requeue_awaiting_item("b-o", 1).await.unwrap();
+    let failed = repo.requeue_awaiting_item("b-o", 0).await.unwrap();
+
+    // THEN
+    assert!(waiting);
+    assert!(!failed);
+    let items = repo.batch_items("b-o").await.unwrap();
+    let statuses: Vec<&str> = items.iter().map(|i| i.status.as_str()).collect();
+    assert_eq!(statuses, vec!["failed", "pending", "completed"]);
+    assert_eq!(
+        (items[1].output.as_deref(), items[1].task_id.as_deref()),
+        (None, None)
+    );
+    let after = repo.batch("b-o").await.unwrap().unwrap();
+    assert_eq!((after.failed, after.awaiting, after.completed), (1, 0, 1));
+    assert_eq!(after.grants, grants_before);
+}
+
 // GIVEN a batch of three items, one of them running
 // WHEN its pending items are canceled and it is stopped, then run again
 // THEN the two that never ran are canceled and counted, the stop stamps the end,

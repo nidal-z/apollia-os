@@ -167,6 +167,8 @@ use security::BearerToken;
         crate::api::routes_plan_cache::clear_plan_cache,
         crate::api::routes_approvals::list_pending_approvals,
         crate::api::routes_approvals::list_resolved_approvals,
+        crate::api::routes_pending::list_pending_decisions,
+        crate::api::routes_pending::decide_pending,
         crate::api::routes_tools::list_tools,
         crate::api::routes_tools::describe_tool,
         crate::api::routes_triggers::list_triggers,

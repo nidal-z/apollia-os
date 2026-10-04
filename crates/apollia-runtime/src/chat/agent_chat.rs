@@ -268,7 +268,20 @@ impl AgentChatExecutor {
         });
 
         let key = format!("{}::{}::agent_action", session.id, message_id);
-        let rx = pending_approvals.register(key.clone());
+        let rx = pending_approvals.register_asked(
+            key.clone(),
+            crate::chat::ChatApprovalAsked {
+                session_id: session.id.clone(),
+                message_id: message_id.to_string(),
+                tool_call_id: "agent_action".into(),
+                tool_name: "agent_action".into(),
+                agent_id: session.agent_name.clone(),
+                family: None,
+                prompt: prompt.clone(),
+                answers: crate::governance::NO_ALWAYS_ANSWERS.to_vec(),
+                asked_at: chrono::Utc::now().to_rfc3339(),
+            },
+        );
         pending_approvals.start_timeout(ApprovalTimeoutParams {
             key,
             duration: CHAT_APPROVAL_TIMEOUT,

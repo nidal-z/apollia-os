@@ -58,7 +58,9 @@ pub use contract::{
     AccessCall, AccessDecision, ConsentAnswer, DecisionReason, DeclaredAccess, EffectiveAccess,
     GovernanceContract, GovernanceError, InstallSubject, ALL_ANSWERS, NO_ALWAYS_ANSWERS,
 };
-pub use decision::{decide, GovernanceState, PolicyRefusals};
+pub use decision::{
+    answered_once, decide, is_once_grant, once_grant, GovernanceState, PolicyRefusals,
+};
 pub use fail_closed::{refused_when_fail_closed, tool_gate, FailClosed, ToolGate};
 pub use forbidden::{mailbox_refusal, ForbiddenConnections, FORBIDDEN_CONNECTION_REASON};
 pub use inference_policy::{

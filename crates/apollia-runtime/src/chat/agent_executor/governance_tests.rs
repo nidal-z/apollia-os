@@ -279,3 +279,145 @@ async fn test_unreadable_store_refuses_the_write_without_asking() {
     assert_eq!(run.ran, 0);
     assert_eq!(run.status, ToolCallStatus::Refused);
 }
+
+/// Streams two calls to `bash_executor`, one per turn, then final text.
+struct CodeTwice {
+    turn: AtomicU32,
+}
+
+#[async_trait::async_trait]
+impl CompletionModel for CodeTwice {
+    async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+        Err(LlmError::InferenceError("streaming path only".into()))
+    }
+
+    async fn stream(
+        &self,
+        _req: CompletionRequest,
+    ) -> Result<Pin<Box<dyn futures::Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
+    {
+        let turn = self.turn.fetch_add(1, Ordering::SeqCst);
+        let chunk = if turn < 2 {
+            StreamChunk::ToolCall(ToolCall {
+                id: format!("c{}", turn + 1),
+                name: "bash_executor".into(),
+                arguments: serde_json::json!({ "command": "ls" }),
+            })
+        } else {
+            StreamChunk::Text("done".into())
+        };
+        Ok(Box::pin(futures::stream::iter(vec![Ok(chunk)])))
+    }
+
+    fn is_available(&self) -> bool {
+        true
+    }
+    fn backend_name(&self) -> &str {
+        "code-twice"
+    }
+    fn model_id(&self) -> &str {
+        "code-twice"
+    }
+}
+
+// GIVEN an unattended run whose caller allowed one call of `bash_executor`
+// WHEN the model executes code twice
+// THEN the first call runs without asking, the second raises an approval and
+//      does not run: the grant was spent by the first
+#[tokio::test]
+async fn test_an_unattended_run_allowed_code_once_runs_one_call_and_asks_at_the_next() {
+    // GIVEN
+    let mut backends = std::collections::HashMap::new();
+    backends.insert(
+        "default".to_string(),
+        Arc::new(CodeTwice {
+            turn: AtomicU32::new(0),
+        }) as Arc<dyn CompletionModel>,
+    );
+    let router = Arc::new(LlmRouter::with_backends(backends, "default"));
+    let (bus, mut events) = tokio::sync::broadcast::channel(64);
+    let registry = ToolRegistryHandle::start();
+    let mut descriptor = crate::connectors_bridge::google_tool_descriptors()[0].clone();
+    descriptor.name = "bash_executor".into();
+    descriptor.family = apollia_tools::ActionFamily::ExecuteCode;
+    descriptor.is_read_only = false;
+    descriptor.input_schema = serde_json::json!({ "type": "object" });
+    registry.register(descriptor).await.unwrap();
+    let ran = Arc::new(AtomicU32::new(0));
+    let executor = AgentExecutor::new(
+        AgentRunSpec {
+            agent_id: "ledger-clerk".into(),
+            mission: "List the files.".into(),
+            granted_tools: vec!["bash_executor".into()],
+            model: None,
+            autonomy: AutonomyLevel::Assisted,
+        },
+        AgentExecutorDeps {
+            llm_router: router,
+            tool_registry: registry.clone(),
+            tool_invoker: Arc::new(CountingInvoker(Arc::clone(&ran))),
+            event_bus: bus,
+            todo: None,
+            plan: None,
+        },
+        ApolliaContext::default(),
+        SessionWiring {
+            governance: Some(crate::governance::GovernanceHandle::detached(
+                GovernanceState::default(),
+                None,
+            )),
+            unattended: true,
+            ..SessionWiring::default()
+        },
+        &StepBudgetConfig::chat_default(),
+        CancellationToken::new(),
+    );
+    let approvals = PendingChatApprovals::new();
+    let answering = {
+        let approvals = approvals.clone();
+        let ran = Arc::clone(&ran);
+        tokio::spawn(async move {
+            let (seen, _) = crate::test_support::collect_events_until(
+                Duration::from_secs(5),
+                &mut events,
+                |event| matches!(event, RuntimeEvent::ChatApprovalRequired { .. }),
+            )
+            .await;
+            let Some(RuntimeEvent::ChatApprovalRequired { tool_call_id, .. }) = seen.last() else {
+                return (Vec::new(), 0);
+            };
+            let ran_before_answer = ran.load(Ordering::SeqCst);
+            let key = format!("task-1::task-1::{tool_call_id}");
+            crate::test_support::poll_until(Duration::from_secs(5), || {
+                approvals.resolve(&key, ToolDecision::refuse())
+            })
+            .await;
+            (vec![tool_call_id.clone()], ran_before_answer)
+        })
+    };
+    let authorized: HashSet<String> = [crate::governance::once_grant("bash_executor")].into();
+
+    // WHEN
+    let response = executor
+        .run(RunInput {
+            session_id: "task-1",
+            message_id: "task-1",
+            run_id: &RunId::new(),
+            user_message: "list the files",
+            history: &[],
+            authorized_tools: &authorized,
+            pending_approvals: &approvals,
+            summary: None,
+            context_window_size: 20,
+        })
+        .await
+        .expect("the run ends");
+    let (raised, ran_before_answer) = answering.await.unwrap();
+    registry.shutdown().await;
+
+    // THEN
+    assert_eq!(raised, vec!["c2".to_string()]);
+    assert_eq!(ran_before_answer, 1);
+    assert_eq!(ran.load(Ordering::SeqCst), 1);
+    assert_eq!(response.tool_calls[1].status, ToolCallStatus::Refused);
+}
