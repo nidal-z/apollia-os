@@ -142,25 +142,22 @@ mod tests {
     }
 
     #[test]
-    fn working_directory_note_forbids_a_scope_refusal_in_both_shapes() {
-        // GIVEN a session that has a working directory and one that has none
+    fn working_directory_note_bounds_the_file_tools_to_the_granted_folders() {
+        // GIVEN an agent granted a folder and one granted none
         let shapes = [
             blocks::working_directory_note(Some("/Users/x/proj")),
             blocks::working_directory_note(None),
         ];
 
         // WHEN reading each note
-        // THEN both say the rest of the machine is reachable and forbid the
-        // refusal outright, so neither shape leaves the agent to guess
-        for note in shapes {
-            assert!(note.contains("Never refuse a path"), "{note}");
-            assert!(
-                note.contains("elsewhere on the machine")
-                    || note.contains("anywhere on the machine"),
-                "{note}"
-            );
-            assert!(note.contains("ask the user for approval"), "{note}");
+        // THEN neither promises the rest of the machine, and both say how the
+        // user grants a folder, so a refusal from a tool is not a surprise
+        for note in &shapes {
+            assert!(!note.contains("on the machine"), "{note}");
+            assert!(note.contains("grant it to you on your sheet"), "{note}");
         }
+        assert!(shapes[0].contains("`/Users/x/proj`"), "{}", shapes[0]);
+        assert!(shapes[1].contains("No folder is granted"), "{}", shapes[1]);
     }
 
     #[test]

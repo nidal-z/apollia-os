@@ -37,6 +37,7 @@ const GOVERNANCE_MARKERS: &[&str] = &[
 fn widest_config(root: &Path) -> NativeDispatcherConfig {
     NativeDispatcherConfig {
         sandbox_roots: vec![root.to_path_buf()],
+        write_roots: vec![root.to_path_buf()],
         agent_id: "third-party-agent".to_string(),
         venv_base_dir: root.join("venvs"),
         memory_namespace: Some("third-party-agent".to_string()),

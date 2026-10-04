@@ -22,7 +22,7 @@ use apollia_tools::{
 use pyo3::prelude::*;
 
 use super::engine::direct_path_budget;
-use super::llm_glue::{merge_disabled, sandbox_roots_for_agent, NoopToolInvoker, RouterModel};
+use super::llm_glue::{file_tool_access, merge_disabled, NoopToolInvoker, RouterModel};
 use super::open_secret_store;
 
 // ─────────────────────────────────────────────────────────────
@@ -64,9 +64,6 @@ pub(super) struct AIPChatAgentRunner {
     /// Operator-supplied tools configuration loaded from `apollia.toml`.
     /// Drives `disabled` tools and `web_search` / `web_read` parameters.
     pub(super) tools_config: apollia_core::ToolsConfig,
-    /// Filesystem roots an agent may reach, from `[filesystem] trusted_paths`
-    /// with `~` already resolved. The first is the anchor for relative paths.
-    pub(super) trusted_paths: Vec<PathBuf>,
     /// MCP client manager handle, populated after `supervisor.start()` so the
     /// chat-agent dispatcher can route `mcp:<server>/<tool>` invocations.
     pub(super) mcp_handle:
@@ -113,6 +110,8 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             &manifest,
         )
         .current();
+        // The folders granted to the agent are the roots of its file tools.
+        let (allowed_tools, folders) = file_tool_access(allowed_tools, &self.data_dir);
 
         let memory_base_dir = self.data_dir.join("memory");
         let snapshot = load_governance_snapshot(&self.data_dir).unwrap_or_else(|e| {
@@ -136,7 +135,8 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
         .await;
         let dispatcher = Arc::new(build_dispatcher_with(
             &NativeDispatcherConfig {
-                sandbox_roots: sandbox_roots_for_agent(&self.trusted_paths),
+                sandbox_roots: folders.read,
+                write_roots: folders.write,
                 agent_id: agent_name.to_string(),
                 venv_base_dir: self.data_dir.join("venvs"),
                 memory_namespace: manifest.memory_namespace.clone(),

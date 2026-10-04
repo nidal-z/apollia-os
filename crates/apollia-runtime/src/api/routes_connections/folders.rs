@@ -50,7 +50,7 @@ pub struct FolderErrorBody {
     pub code: String,
 }
 
-type FolderRouteError = (StatusCode, Json<FolderErrorBody>);
+pub(crate) type FolderRouteError = (StatusCode, Json<FolderErrorBody>);
 
 fn refused(status: StatusCode, code: &str, error: impl std::fmt::Display) -> FolderRouteError {
     (
@@ -109,6 +109,16 @@ pub(crate) fn add(
     store: &FolderConnectionStore,
     body: &AddFolderBody,
 ) -> Result<Connection, FolderRouteError> {
+    add_as(governance, store, body, ROUTE_ACTOR)
+}
+
+/// [`add`], the journal naming `actor` as who added the folder.
+pub(crate) fn add_as(
+    governance: &ConnectionGovernance,
+    store: &FolderConnectionStore,
+    body: &AddFolderBody,
+    actor: &str,
+) -> Result<Connection, FolderRouteError> {
     let canonical =
         FolderConnectionStore::canonical_folder(&body.path).map_err(|e| store_err(&e))?;
     if let AdmissionDecision::Refused { reason } =
@@ -123,7 +133,7 @@ pub(crate) fn add(
     governance.record_or_warn(&ConnectionEvent::FolderAdded {
         connection_id: connection.id.clone(),
         path: folder.path.clone(),
-        actor: ROUTE_ACTOR.to_owned(),
+        actor: actor.to_owned(),
     });
     tracing::event!(
         tracing::Level::INFO,

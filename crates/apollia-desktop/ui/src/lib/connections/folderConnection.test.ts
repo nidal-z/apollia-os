@@ -19,8 +19,8 @@ function folder(over: Partial<Connection> = {}): Connection {
     official: false,
     state: "connected",
     tools: [
-      { id: "file_read", family: "read", familySource: "builtin", prechecked: true },
-      { id: "file_write", family: "write_or_delete", familySource: "builtin", prechecked: false },
+      { id: "conn:folder:f1/file_read", family: "read", familySource: "builtin", prechecked: true },
+      { id: "conn:folder:f1/file_write", family: "write_or_delete", familySource: "builtin", prechecked: false },
     ],
     ...over,
   };

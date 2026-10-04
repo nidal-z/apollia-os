@@ -330,7 +330,6 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         llm_for_summarize,
         project_ctx,
         session_project_id,
-        project_repo_for_session,
         pending_user_inputs_for_session,
         mcp_handle_for_session,
         package_tools,
@@ -385,6 +384,12 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     // connected account, or nothing.
     let available_tools =
         crate::connectors_bridge::resolve_connector_access(&agent_id, available_tools).await;
+    // The folders granted to the agent are the roots of its file tools; the
+    // folder of a project the session belongs to is not one.
+    let (available_tools, folders) = super::dispatcher::granted_folders(
+        available_tools,
+        chat_tools_config_for_session.as_deref(),
+    );
     let mcp_index = super::disabled::only_granted(mcp_index, &available_tools);
     let (available_tools, mcp_index) =
         super::disabled::without_disabled(available_tools, mcp_index, &disabled);
@@ -402,12 +407,10 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         .as_ref()
         .map(|c| c.data_dir.join(GOVERNANCE_DB_FILENAME));
 
-    // Resolve per-session sandbox root from project workspace_path.
-    // On error (project not found) surface as ExchangeError, no panic.
+    // The session invoker, its file tools rooted at the granted folders.
     let session_invoker = match build_session_invoker(
         WorkspaceResolutionParams {
-            project_id: session_project_id.clone(),
-            project_repo: project_repo_for_session,
+            folders,
             hitl: Some(hitl_params),
             pending_user_inputs: Some(pending_user_inputs_for_session),
             mcp_handle: mcp_handle_for_session,

@@ -19,6 +19,7 @@
 //!   declares classify its tools, they never pre-authorise one.
 
 mod assemble;
+pub mod folder_import;
 pub mod folders;
 mod packages;
 

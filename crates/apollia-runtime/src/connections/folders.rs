@@ -5,7 +5,9 @@
 //! the native file tools, with the families they declare: reading, listing
 //! and searching read; writing and editing write or delete. A folder is
 //! Apollia's own code, so it counts as the selection, and it never leaves the
-//! machine.
+//! machine. Each tool is granted to an agent for this folder alone, as
+//! `conn:folder:<id>/<tool>`: the folders an agent's file tools reach are the
+//! ones granted to it ([`apollia_tools::folder_access`]).
 
 use apollia_core::FolderConnection;
 use apollia_mcp::Provenance;
@@ -75,7 +77,7 @@ pub fn folder_connection(folder: &FolderConnection) -> Connection {
         tools: folder_tool_descriptors()
             .iter()
             .map(|d| ConnectionTool {
-                id: d.name.clone(),
+                id: apollia_tools::folder_access::folder_access_name(&folder.id, &d.name),
                 family: d.family,
                 family_source: d.family_source,
                 prechecked: is_prechecked(d.family, provenance, official),

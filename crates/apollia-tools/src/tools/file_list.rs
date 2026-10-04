@@ -22,8 +22,8 @@ pub struct FileList {
 pub enum FileListError {
     /// Path attempts to escape the sandbox root.
     #[error(
-        "path '{path}' is outside every trusted root; add it to [filesystem] \
-         trusted_paths in apollia.toml to reach it"
+        "path '{path}' is outside every folder granted to this agent; add its \
+         folder as a connection and grant it to the agent to reach it"
     )]
     SandboxViolation { path: String },
 
