@@ -612,34 +612,6 @@ fn test_cli_parses_tools_approvals_pending() {
     assert!(matches!(command, ToolsApprovalsCmd::Pending));
 }
 
-#[test]
-fn test_cli_parses_tools_approvals_resolved_with_window() {
-    // GIVEN "apollia-os tools approvals resolved --days 3 --limit 5"
-    // WHEN the top-level parser reads it
-    let cli = parse(&[
-        "apollia-os",
-        "tools",
-        "approvals",
-        "resolved",
-        "--days",
-        "3",
-        "--limit",
-        "5",
-    ]);
-    // THEN the window overrides the defaults of 7 days and 50 entries
-    let Commands::Tools {
-        command: ToolsCommand::Approvals { command },
-    } = cli.command
-    else {
-        panic!("expected tools approvals");
-    };
-    let ToolsApprovalsCmd::Resolved { days, limit } = command else {
-        panic!("expected tools approvals resolved");
-    };
-    assert_eq!(days, 3);
-    assert_eq!(limit, 5);
-}
-
 // ─── audit ───────────────────────────────────────────────────────────────────
 
 #[test]

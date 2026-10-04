@@ -4,16 +4,16 @@
 //! (in-memory pending tasks) with `TaskRepository` (SQLite details: prompt,
 //! context, timestamp).
 //!
-//! `resume_task` delegates to the REST API `POST /api/v1/tasks/{id}/resume`,
-//! which handles persistence, event emission, and resolution of the oneshot
-//! channel.
+//! `list_pending_decisions` and `decide_pending_decision` reach the one list of
+//! every decision waiting for the user and the one call that answers an item
+//! of it, over `/api/v1/pending-decisions`: the task pauses above, the
+//! consents of the conversations, the batch items and the questions of agents.
 
 use apollia_runtime::api::routes_permissions::{AddPermissionRuleBody, AddedPermissionRule};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use super::http_post_json;
-use crate::attached::{segment, AttachedClient, RuntimeLink};
+use crate::attached::{AttachedClient, RuntimeLink};
 
 /// Pending approval for display in the UI. A subset of the daemon's
 /// `GET /api/v1/approvals/pending` entry, so the attached arm reads it as is.
@@ -98,115 +98,30 @@ pub async fn list_pending_approvals(
     Ok(approvals)
 }
 
-/// Resumes or rejects a task awaiting approval.
-///
-/// Delegates to `POST /api/v1/tasks/{id}/resume`, which handles:
-/// - validating the `input_required` status in `TaskRepository`
-/// - persisting the human decision
-/// - emitting `RuntimeEvent::TaskResumed` on the EventBus
-/// - resolving the oneshot channel in `PendingApprovals`
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - `approved == false` and `reason` is `None`
-/// - the task is not in `input_required` status (409)
-/// - the task does not exist (404)
+/// Route of the decisions waiting for the user.
+const PENDING_DECISIONS: &str = "/api/v1/pending-decisions";
+
+/// Every decision waiting for the user: the consents of the conversations,
+/// the task pauses, the batch items and the questions of agents, each with
+/// the answers it takes, as `GET /api/v1/pending-decisions` lists them.
 #[tauri::command]
-pub async fn resume_task(
+pub async fn list_pending_decisions(
     link: State<'_, RuntimeLink>,
-    task_id: String,
-    approved: bool,
-    reason: Option<String>,
-) -> Result<(), String> {
-    if !approved && reason.is_none() {
-        return Err("a reason is required when rejecting an approval".to_string());
-    }
-
-    let mut body = serde_json::json!({ "approved": approved });
-    if let Some(r) = reason {
-        body["reason"] = serde_json::Value::String(r);
-    }
-
-    let path = format!("/api/v1/tasks/{}/resume", segment(&task_id));
-    match link.inner() {
-        RuntimeLink::Embedded(state) => {
-            http_post_json(state.api_port, &path, &body).await?;
-        }
-        RuntimeLink::Attached(remote) => {
-            let _: serde_json::Value = remote.post(&path, &body).await?;
-        }
-    }
-
-    Ok(())
+) -> Result<serde_json::Value, String> {
+    link.get_json(PENDING_DECISIONS).await
 }
 
-/// Resolved approval (approved or rejected) for display in the UI history.
-/// The daemon's `GET /api/v1/approvals/resolved` entry carries the same fields.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ResolvedApproval {
-    /// Task identifier (truncated to 8 characters on the UI side).
-    pub task_id: String,
-    /// Agent name.
-    pub agent_name: String,
-    /// `true` if approved, `false` if rejected.
-    pub approved: bool,
-    /// Rejection reason (if applicable).
-    pub reason: Option<String>,
-    /// Wait duration in milliseconds.
-    pub wait_duration_ms: Option<i64>,
-    /// ISO 8601 timestamp of the response.
-    pub responded_at: Option<String>,
-}
-
-/// Lists the resolved approvals from the last `days` days (max `limit`).
-///
-/// Reads the `task_approvals` table via `TaskRepository::list_resolved_approvals()`.
-/// Returns an empty list if `TaskRepository` is unavailable. Attached to a
-/// daemon, the daemon's route answers.
+/// Answers one waiting decision over `POST /api/v1/pending-decisions/decide`,
+/// which goes through the call that answers it where it was born: the
+/// conversation, the task or the batch goes on as if it had been answered
+/// there. `request` is the body of that route.
 #[tauri::command]
-pub async fn list_resolved_approvals(
+pub async fn decide_pending_decision(
     link: State<'_, RuntimeLink>,
-    limit: Option<u32>,
-    days: Option<u32>,
-) -> Result<Vec<ResolvedApproval>, String> {
-    let state = match link.inner() {
-        RuntimeLink::Embedded(state) => state,
-        RuntimeLink::Attached(remote) => {
-            let path = format!(
-                "/api/v1/approvals/resolved?limit={}&days={}",
-                limit.unwrap_or(20),
-                days.unwrap_or(7)
-            );
-            return Ok(remote.get(&path).await?);
-        }
-    };
-    let repo = match state.task_repository.as_ref() {
-        Some(r) => r,
-        None => return Ok(Vec::new()),
-    };
-
-    let limit = limit.unwrap_or(20);
-    let days = days.unwrap_or(7);
-
-    let rows = repo
-        .list_resolved_approvals(limit, days)
+    request: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    link.post_json(&format!("{PENDING_DECISIONS}/decide"), &request)
         .await
-        .map_err(|e| format!("failed to list resolved approvals: {e}"))?;
-
-    let approvals = rows
-        .into_iter()
-        .map(|row| ResolvedApproval {
-            task_id: row.task_id,
-            agent_name: row.agent_name,
-            approved: row.approved,
-            reason: row.reason,
-            wait_duration_ms: row.wait_duration_ms,
-            responded_at: row.responded_at,
-        })
-        .collect();
-
-    Ok(approvals)
 }
 
 /// Adds a prefix rule for every agent.
@@ -361,103 +276,5 @@ mod tests {
 
         // THEN context is null
         assert!(json["context"].is_null());
-    }
-
-    #[test]
-    fn test_resume_task_reject_without_reason_validation() {
-        // GIVEN approved=false and reason=None
-        let approved = false;
-        let reason: Option<String> = None;
-
-        // WHEN the validation logic is applied
-        let result = if !approved && reason.is_none() {
-            Err("a reason is required when rejecting an approval".to_string())
-        } else {
-            Ok(())
-        };
-
-        // THEN the validation fails with a descriptive message
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("reason is required"));
-    }
-
-    #[test]
-    fn test_resume_task_reject_with_reason_passes_validation() {
-        // GIVEN approved=false with a reason
-        let approved = false;
-        let reason = Some("Budget insuffisant".to_string());
-
-        // WHEN the validation logic is applied
-        let result = if !approved && reason.is_none() {
-            Err("a reason is required when rejecting an approval".to_string())
-        } else {
-            Ok(())
-        };
-
-        // THEN the validation passes
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_resume_task_approve_without_reason_passes_validation() {
-        // GIVEN approved=true with no reason
-        let approved = true;
-        let reason: Option<String> = None;
-
-        // WHEN the validation logic is applied
-        let result = if !approved && reason.is_none() {
-            Err("a reason is required when rejecting an approval".to_string())
-        } else {
-            Ok(())
-        };
-
-        // THEN the validation passes (reason not required for approval)
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_resolved_approval_serializes_to_json() {
-        // GIVEN a ResolvedApproval with all fields
-        let approval = ResolvedApproval {
-            task_id: "t-hist-001".to_string(),
-            agent_name: "review-agent".to_string(),
-            approved: false,
-            reason: Some("Budget insuffisant".to_string()),
-            wait_duration_ms: Some(120_000),
-            responded_at: Some("2026-03-13T15:00:00Z".to_string()),
-        };
-
-        // WHEN serialized to JSON
-        let json = serde_json::to_value(&approval).expect("serialize");
-
-        // THEN all fields are present
-        assert_eq!(json["task_id"], "t-hist-001");
-        assert_eq!(json["agent_name"], "review-agent");
-        assert_eq!(json["approved"], false);
-        assert_eq!(json["reason"], "Budget insuffisant");
-        assert_eq!(json["wait_duration_ms"], 120_000);
-        assert_eq!(json["responded_at"], "2026-03-13T15:00:00Z");
-    }
-
-    #[test]
-    fn test_resolved_approval_without_optional_fields() {
-        // GIVEN a ResolvedApproval with minimal fields (approved, no reason)
-        let approval = ResolvedApproval {
-            task_id: "t-hist-002".to_string(),
-            agent_name: "deploy-agent".to_string(),
-            approved: true,
-            reason: None,
-            wait_duration_ms: None,
-            responded_at: None,
-        };
-
-        // WHEN serialized to JSON
-        let json = serde_json::to_value(&approval).expect("serialize");
-
-        // THEN optional fields are null
-        assert_eq!(json["approved"], true);
-        assert!(json["reason"].is_null());
-        assert!(json["wait_duration_ms"].is_null());
-        assert!(json["responded_at"].is_null());
     }
 }

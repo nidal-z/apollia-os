@@ -4,8 +4,8 @@
 
 Open the Chat screen, pick the agent, and write your request in your own
 words. When the agent wants to do something sensitive, such as sending an
-email or changing a file, Apollia asks you first; the question also appears in
-the Inbox.
+email or changing a file, Apollia asks you first; the question also appears on
+the To review screen.
 
 ## Install a package someone sent you
 

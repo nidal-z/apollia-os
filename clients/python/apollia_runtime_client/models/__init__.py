@@ -388,7 +388,6 @@ from .resilience_status_response_circuit_breakers_item import (
 )
 from .resolved_agent_response import ResolvedAgentResponse
 from .resolved_agent_response_definition import ResolvedAgentResponseDefinition
-from .resolved_approval_response import ResolvedApprovalResponse
 from .resume_error_body import ResumeErrorBody
 from .resume_request import ResumeRequest
 from .resume_response import ResumeResponse
@@ -938,7 +937,6 @@ __all__ = (
     "ResilienceStatusResponseCircuitBreakersItem",
     "ResolvedAgentResponse",
     "ResolvedAgentResponseDefinition",
-    "ResolvedApprovalResponse",
     "ResumeErrorBody",
     "ResumeRequest",
     "ResumeResponse",

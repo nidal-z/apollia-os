@@ -24,6 +24,11 @@
     code?: string | null;
     /** The folder the code runs in. */
     workingDir?: string | null;
+    /**
+     * Takes the answer in place of the conversation's own call: the screen
+     * that lists every waiting decision answers each through one route.
+     */
+    ondecide?: ((decision: ConsentDecision) => Promise<void>) | null;
   }
 
   let {
@@ -36,6 +41,7 @@
     detail = "",
     code = null,
     workingDir = null,
+    ondecide = null,
   }: Props = $props();
 
   const runsCode = $derived(code !== null || isCodeExecutor(toolName));
@@ -74,6 +80,11 @@
     isProcessing = true;
     error = null;
     try {
+      if (ondecide) {
+        await ondecide({ decision, reason });
+        isProcessing = false;
+        return;
+      }
       await authorizeChatTool({
         sessionId,
         messageId,

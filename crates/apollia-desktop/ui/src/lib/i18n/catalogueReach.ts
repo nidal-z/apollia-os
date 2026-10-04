@@ -107,8 +107,12 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
     builtBy: "lib/errors/humanize.ts",
   },
   {
-    pattern: new RegExp(`^inbox\\.group\\.${SEG}$`),
-    builtBy: "components/inbox/InboxPendingList.svelte",
+    pattern: new RegExp(`^review\\.answered\\.(once|always|refuse|answer)$`),
+    builtBy: "components/inbox/ReviewItem.svelte",
+  },
+  {
+    pattern: new RegExp(`^review\\.filter\\.(all|decisions|questions|batch_items)$`),
+    builtBy: "routes/Inbox.svelte",
   },
   {
     pattern: new RegExp(`^memory\\.namespaces\\.cat_${SEG}_header$`),

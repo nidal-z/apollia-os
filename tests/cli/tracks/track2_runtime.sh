@@ -94,7 +94,6 @@ check_exit    "tools show inexistant → 1"  1       "${Q[@]}" tools show inexis
 check         "tools config get bash_executor"     "${Q[@]}" tools config get bash_executor
 check_exit    "tools config set (unknown key) → 1" 1 "${Q[@]}" tools config set bash_executor.timeout_secs 30
 check         "tools disable web_read + re-enable"  bash -c "'$BIN' --socket '$SOCK' tools disable web_read && '$BIN' --socket '$SOCK' tools enable web_read"
-check         "tools approvals resolved"           "${Q[@]}" tools approvals resolved
 # The seed ships a deliberately-fake (non-decryptable) tool credential blob to
 # exercise the desktop "test" button; it makes `tools reload` fail to decrypt.
 # Drop it from THIS run's throwaway seed HOME (never the shared fixture) so the

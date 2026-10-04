@@ -89,25 +89,15 @@
       "timeoutMs": 10000
     },
     {
-      "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 5000
-    },
-    {
       "kind": "waitFor",
-      "testid": "inbox-row-primary",
+      "testid": "review-item",
       "nth": 0,
       "timeoutMs": 8000
     },
     {
-      "kind": "click",
-      "testid": "inbox-row-primary",
-      "nth": 0,
-      "timeoutMs": 5000
-    },
-    {
       "kind": "waitFor",
-      "testid": "hitl-always",
+      "testidPrefix": "operator-approval-always-",
+      "nth": 0,
       "timeoutMs": 8000
     },
     {
@@ -365,9 +355,7 @@
       "label": "10-write-always"
     }
   ],
-  "dynamicTestids": [
-    "inbox-tab-pending"
-  ],
+  "dynamicTestids": [],
   "notes": [
     "chat-approval-open-inbox writes #inbox?item=... and navigates to the inbox (ChatMessageScroller.svelte); nothing reads that fragment back (Inbox.svelte reads only ?tab), so the row is expanded by hand (inbox-row-primary nth 0, onAction = onToggleExpand, InboxPendingList.svelte). hitl-always (\"Always for this agent\", HITLCard.svelte) is only asserted there, never clicked: clicking it would record a standing consent of the agent for the write family and silence every later block.",
     "Chat unmounts on every route change ({#key $currentRoute}, lib/components/app/Main.svelte), so the way back to the session after the inbox detour is conversation-row-menu-button nth 0 -> conversation-row-menu-configure (openConfig -> navigateToSession, Chat.svelte; the list follows list_chat_sessions' ORDER BY created_at DESC, and this book holds one new session). The approval stays pending in the chat store meanwhile.",

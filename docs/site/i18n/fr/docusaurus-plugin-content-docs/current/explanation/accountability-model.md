@@ -100,8 +100,8 @@ portant sur un nom d'outil se répond par l'API HTTP, avec
 `POST /api/v1/sessions/:id/authorize`, aussi bien que depuis le bureau. Les deux
 autres ne se répondent que depuis le bureau : une approbation de système de
 fichiers passe par une commande Tauri, une question `ask_user` aussi, et l'API
-expose des routes de lecture pour les approbations en attente et résolues, mais
-aucune route qui réponde à l'une ou l'autre. Sur un `apollia-os start` sans
+expose une route de lecture pour les approbations en attente, mais aucune route
+qui réponde à l'une ou l'autre. Sur un `apollia-os start` sans
 interface, une écriture risquée attend donc l'expiration de ses cinq minutes
 puis est refusée, et un `ask_user` attend sans délai d'expiration du tout.
 

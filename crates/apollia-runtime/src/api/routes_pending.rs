@@ -107,6 +107,16 @@ pub struct PendingDecision {
     /// Its action family (`read_personal`, `write_or_delete`, `send_external`,
     /// `execute_code`, `unclassified`), when known.
     pub family: Option<String>,
+    /// The full arguments of the call a consent is about, as the chat card
+    /// shows them behind "see more".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    /// The whole command or source, when the consent is about running code.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    /// The folder that code runs in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub working_dir: Option<String>,
     /// The answers it takes.
     pub answers: Vec<PendingAnswer>,
     /// The questions of a question, each with its proposed choices, or the
@@ -159,6 +169,9 @@ pub struct DecideResponse {
     pub answer: PendingAnswer,
     /// How many waiting runs, conversations or items went on.
     pub resumed: u64,
+    /// How many other batch items, waiting on an access this answer now
+    /// covers, ran again besides the item answered.
+    pub batch_items_resumed: u64,
     /// What happened, to show the user.
     pub message: String,
 }

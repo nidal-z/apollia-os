@@ -106,8 +106,8 @@ pub use sandbox_path::{SandboxPathError, SandboxRoot, SandboxSpec};
 pub use source_access::{memory_is_checked, SourceAccess, MEMORY_SEARCH_TOOL};
 pub use task_repository::{
     AgentRunEnd, AgentRunStart, ApprovalInfo, BatchItemRow, BatchRow, HistoryRemoved, NewBatch,
-    NewWorkflowRun, PauseRecord, PausedTaskRow, PersistedTaskSummary, ResolvedApprovalRow,
-    TaskDetail, TaskRepoError, TaskRepository, WorkflowRunRow, WorkflowStepEnd, WorkflowStepRow,
+    NewWorkflowRun, PauseRecord, PausedTaskRow, PersistedTaskSummary, TaskDetail, TaskRepoError,
+    TaskRepository, WorkflowRunRow, WorkflowStepEnd, WorkflowStepRow,
 };
 pub use tool_credentials::{
     credential_account, list_credential_index, CredentialEntry, ToolCredentialStore,

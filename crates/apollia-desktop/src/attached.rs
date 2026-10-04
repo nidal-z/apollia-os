@@ -58,12 +58,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "update_chat_session",
     // The agents and the models the selector of a conversation offers.
     "list_chat_targets",
-    // The chat: a turn played again, a decision on a tool call, the history
-    // of those decisions, and the skills of the worker agents.
+    // The chat: a turn played again, a decision on a tool call, and the
+    // skills of the worker agents.
     "authorize_chat_tool",
     "edit_and_resend_chat_message",
     "list_a2a_skills",
-    "list_chat_approval_history",
     "regenerate_chat_response",
     // Agents: the registry, the install and the uninstall of an agent.
     "agent_status_snapshot",
@@ -82,15 +81,15 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // `/api/v1/tasks/{id}/record` and `/api/v1/tasks/{id}/delegation-tree`.
     "delete_task",
     "get_delegation_tree",
-    // Approvals: the pending and resolved ones, and the decision that resumes
-    // the task.
+    // Approvals: the task pauses waiting for a decision.
     "list_pending_approvals",
-    "list_resolved_approvals",
-    "resume_task",
+    // Every decision waiting for the user in one list, and the answer to one,
+    // over `/api/v1/pending-decisions`.
+    "decide_pending_decision",
+    "list_pending_decisions",
     // The questions an agent asked the user.
     "list_pending_user_inputs",
     "respond_user_input",
-    "respond_user_input_rejected",
     // Commands whose whole body is a call to a runtime route, served through
     // the methods of `proxy.rs` in both modes.
     // Models: the inference servers, the loaded models, the costs.
@@ -136,13 +135,12 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // Apollia as an MCP server, over `/api/v1/mcp/exposed`.
     "list_mcp_exposable",
     "set_mcp_exposed",
-    // Notifications and the activity feed.
+    // Notifications.
     "create_notification_channel",
     "delete_notification_channel",
     "get_notification_events",
     "get_notification_logs",
     "list_notification_channels",
-    "list_runtime_activity",
     "set_notification_events",
     "test_notification_channel",
     "update_notification_channel",

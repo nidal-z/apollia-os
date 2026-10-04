@@ -86,8 +86,8 @@ Which surface can answer a request depends on the kind. An approval keyed by too
 name is answerable over the HTTP API, with `POST /api/v1/sessions/:id/authorize`,
 as well as from the desktop. The other two are desktop-only: a filesystem
 approval is resolved through a Tauri command and so is an `ask_user` question,
-and the API exposes read routes for pending and resolved approvals but no route
-that answers either. On a headless `apollia-os start`, a risky write therefore
+and the API exposes a read route for pending approvals but no route that
+answers either. On a headless `apollia-os start`, a risky write therefore
 waits out its five-minute timeout and is refused, and an `ask_user` waits with no
 timeout at all.
 
