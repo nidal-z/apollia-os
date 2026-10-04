@@ -1,16 +1,18 @@
 //! The batch source of a table file: one item per non-empty row.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 use std::path::{Path, PathBuf};
 
 use apollia_core::batch_source::{
     BatchSource, OriginRef, SourceError, SourceItem, SourceItems, SourceRegistry, SourceSpec,
+    SourceWriter,
 };
 
 use crate::reader::ReadError;
 use crate::table::detect::{propose_header, propose_sheet};
 use crate::table::layout::{cell_text, layout, row_index, row_number, Column};
+use crate::table::results::{ResultsWriter, TablePlace};
 use crate::table::{read_table, Table, TableFormat};
 
 /// The kind under which a workbook source is registered.
@@ -31,21 +33,35 @@ pub const OPTION_COLUMNS: &str = "columns";
 /// The fields are the checked columns, named by their header cells. An item
 /// is a non-empty row below the header row; its origin reads `Sheet!12`, the
 /// sheet and the row number. The file is read once, when the source is opened.
+///
+/// The source writes the results of a batch back: a column per name written,
+/// added after the last column of the sheet, into a copy of the file by
+/// default or into the original when [`OPTION_DESTINATION`] asks for it (see
+/// [`ResultsDestination`]). The destination is fixed here, at opening.
+///
+/// [`OPTION_DESTINATION`]: crate::OPTION_DESTINATION
+/// [`ResultsDestination`]: crate::ResultsDestination
 #[derive(Debug, Clone)]
 pub struct TableSource {
     fields: Vec<String>,
     items: Vec<SourceItem>,
+    writer: ResultsWriter,
 }
 
 impl TableSource {
     /// Opens the table file at `path` with the options of `spec`
-    /// ([`OPTION_SHEET`], [`OPTION_HEADER_ROW`], [`OPTION_COLUMNS`]).
+    /// ([`OPTION_SHEET`], [`OPTION_HEADER_ROW`], [`OPTION_COLUMNS`], and
+    /// for the results [`OPTION_DESTINATION`] and [`OPTION_LANGUAGE`]).
     ///
     /// # Errors
     ///
-    /// [`SourceError::Io`] when the file cannot be read, or when an option
-    /// names a sheet, a row or a column the file does not hold; the reason is
-    /// the error's source.
+    /// [`SourceError::Io`] when the file cannot be read, when an option
+    /// names a sheet, a row or a column the file does not hold, or when it
+    /// asks to write into the original of a file other than `.xlsx` or
+    /// `.xlsm`; the reason is the error's source.
+    ///
+    /// [`OPTION_DESTINATION`]: crate::OPTION_DESTINATION
+    /// [`OPTION_LANGUAGE`]: crate::OPTION_LANGUAGE
     pub fn open(path: &Path, options: &BTreeMap<String, String>) -> Result<Self, SourceError> {
         let table = read_table(path).map_err(|error| read_failure(path, error))?;
         Self::from_table(path, &table, options)
@@ -87,12 +103,13 @@ impl TableSource {
             }
             None => propose_header(sheet),
         };
+        let header_row = header.map(|index| row_number(sheet, index));
         let (columns, data) = layout(sheet, header);
         let checked = checked_columns(path, &columns, options.get(OPTION_COLUMNS))?;
         let fields = checked.iter().map(|column| column.name.clone()).collect();
         let items = data
-            .into_iter()
-            .map(|index| {
+            .iter()
+            .map(|&index| {
                 let row = sheet.rows.get(index).map_or(&[][..], Vec::as_slice);
                 SourceItem {
                     origin: OriginRef::new(format!("{}!{}", sheet.name, row_number(sheet, index))),
@@ -107,8 +124,20 @@ impl TableSource {
                         .collect(),
                 }
             })
-            .collect();
-        Ok(Self { fields, items })
+            .collect::<Vec<_>>();
+        let rows: BTreeSet<u32> = data.iter().map(|&index| row_number(sheet, index)).collect();
+        let place = TablePlace {
+            sheet: sheet.name.clone(),
+            header_row,
+            rows,
+        };
+        let writer = ResultsWriter::new(path, table.format, place, options)
+            .map_err(|reason| invalid(path, reason))?;
+        Ok(Self {
+            fields,
+            items,
+            writer,
+        })
     }
 }
 
@@ -122,6 +151,10 @@ impl BatchSource for TableSource {
             estimated_count: u64::try_from(self.items.len()).unwrap_or(u64::MAX),
             items: Box::new(self.items.iter().cloned().map(Ok)),
         })
+    }
+
+    fn writer(&mut self) -> Option<&mut dyn SourceWriter> {
+        Some(&mut self.writer)
     }
 }
 
