@@ -24,7 +24,7 @@ class OnboardingState:
         completed (bool): `true` when the phase has reached `Done`.
         llm_configured (bool): `true` when at least one LLM backend has been configured.
         mandatory_complete (bool): `true` when the mandatory name/role fields have been collected.
-        phase (OnboardingPhase): The seven ordered phases of the onboarding flow.
+        phase (OnboardingPhase): The six ordered phases of the onboarding flow.
         skipped (bool): `true` if the user explicitly skipped the onboarding.
         stats (OnboardingStats): Cumulative statistics accumulated over the full onboarding flow.
         stt_configured (bool): `true` when the STT engine has been configured and tested.
@@ -32,8 +32,7 @@ class OnboardingState:
         voice_enabled (bool): `true` when the user has enabled voice commands.
         companion_session_id (None | str | Unset): Session ID of the active Companion chat, if any.
         completed_at (None | str | Unset): ISO 8601 timestamp when the phase reached `Done`.
-        profile (None | str | Unset): Chosen user profile (`"operator"` or `"builder"`); set during ProfileChoice.
-        started_at (None | str | Unset): ISO 8601 timestamp of the first phase transition (Welcome → ProfileChoice).
+        started_at (None | str | Unset): ISO 8601 timestamp of the first phase transition (Welcome to AiSetup).
     """
 
     completed: bool
@@ -47,7 +46,6 @@ class OnboardingState:
     voice_enabled: bool
     companion_session_id: None | str | Unset = UNSET
     completed_at: None | str | Unset = UNSET
-    profile: None | str | Unset = UNSET
     started_at: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -82,12 +80,6 @@ class OnboardingState:
         else:
             completed_at = self.completed_at
 
-        profile: None | str | Unset
-        if isinstance(self.profile, Unset):
-            profile = UNSET
-        else:
-            profile = self.profile
-
         started_at: None | str | Unset
         if isinstance(self.started_at, Unset):
             started_at = UNSET
@@ -113,8 +105,6 @@ class OnboardingState:
             field_dict["companion_session_id"] = companion_session_id
         if completed_at is not UNSET:
             field_dict["completed_at"] = completed_at
-        if profile is not UNSET:
-            field_dict["profile"] = profile
         if started_at is not UNSET:
             field_dict["started_at"] = started_at
 
@@ -161,15 +151,6 @@ class OnboardingState:
 
         completed_at = _parse_completed_at(d.pop("completed_at", UNSET))
 
-        def _parse_profile(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        profile = _parse_profile(d.pop("profile", UNSET))
-
         def _parse_started_at(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -191,7 +172,6 @@ class OnboardingState:
             voice_enabled=voice_enabled,
             companion_session_id=companion_session_id,
             completed_at=completed_at,
-            profile=profile,
             started_at=started_at,
         )
 

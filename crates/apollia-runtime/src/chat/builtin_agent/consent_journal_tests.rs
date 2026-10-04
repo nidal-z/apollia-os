@@ -4,7 +4,6 @@
 
 use super::*;
 use crate::audit_journal::{AuditJournalHandle, JournalEntry, JournalEntryKind};
-use crate::chat::types::AlwaysAcceptScope;
 use crate::governance::{governance_run_id, GovernanceHandle, GovernanceState, PolicyRefusals};
 use crate::test_support::poll_until;
 use apollia_llm::types::{
@@ -178,12 +177,7 @@ fn assert_no_content(entries: &[JournalEntry]) {
 async fn test_each_answer_is_journaled_without_content() {
     for (decision, expected) in [
         (ToolDecision::Accept, "once"),
-        (
-            ToolDecision::AlwaysAccept {
-                scope: AlwaysAcceptScope::safe_default(),
-            },
-            "always",
-        ),
+        (ToolDecision::AlwaysAccept, "always"),
         (
             ToolDecision::Refuse {
                 reason: Some(REASON.into()),

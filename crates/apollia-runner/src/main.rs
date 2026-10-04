@@ -6,7 +6,7 @@
 use std::error::Error;
 
 use apollia_runner::{
-    lifecycle::{ready, signals},
+    lifecycle::{ready, signals, version},
     observability::logs,
     server::{build_router, AppState},
 };
@@ -14,6 +14,13 @@ use tokio::sync::oneshot;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    // 0. `--version` states the dictation engine and exits, before any log or
+    //    port: the daemon reads it to list the engines of the machine.
+    if version::requested(std::env::args()) {
+        version::announce()?;
+        return Ok(());
+    }
+
     // 1. Init structured logging on stderr (stdout is reserved for the READY handshake).
     logs::init();
 

@@ -24,6 +24,7 @@
 mod authoring;
 mod ownership;
 pub mod schema;
+mod view;
 
 #[cfg(test)]
 mod authoring_tests;
@@ -46,6 +47,7 @@ pub use schema::{
     JournalExportPolicy, JournalPolicy, OrgPolicy, PackagesPolicy, PolicyFamily, PolicySchemaError,
     POLICY_SCHEMA_VERSION,
 };
+pub use view::PolicyView;
 
 /// The setting of the model import rule that `inference.require_model_hash`
 /// fixes: a model whose digest matches no known one is refused.

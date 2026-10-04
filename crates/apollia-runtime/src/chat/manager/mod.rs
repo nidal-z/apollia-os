@@ -32,9 +32,7 @@ use super::agent_executor::{
     AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, Composition, RunInput,
     SessionWiring,
 };
-use super::builtin_agent::{
-    ChatAgentResponse, HitlInvokerParams, NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE,
-};
+use super::builtin_agent::{ChatAgentResponse, NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE};
 use super::extractor::UserMemoryExtractor;
 use super::plan_actor::{spawn_plan_actor, PlanHandle};
 use super::repository::{AppendMessageParams, ChatSessionRepository, ToolApprovalLogEntry};
@@ -42,8 +40,8 @@ use super::todo_actor::spawn_todo_actor;
 use super::todo_handle::TodoHandle;
 use super::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, InjectedInstruction,
-    MessageId, PauseState, PendingChatApprovals, PendingFilesystemApprovals, PlanPhase,
-    RecentSessionSummary, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
+    MessageId, PauseState, PendingChatApprovals, PlanPhase, RecentSessionSummary,
+    SessionConfigUpdate, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
     ToolCallRecord, ToolDecision,
 };
 use crate::a2a::A2AInvoker;
@@ -116,8 +114,6 @@ struct ChatSessionManager {
     plan_mode_default: bool,
     /// Pending tool approval channels (operator HITL).
     pending_chat_approvals: PendingChatApprovals,
-    /// Pending filesystem HITL approval channels.
-    pending_fs_approvals: PendingFilesystemApprovals,
     /// Optional user memory repository for system prompt enrichment.
     user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
     /// Stateful extractor for passive memory enrichment from conversations.
@@ -235,6 +231,7 @@ mod dispatcher;
 mod exchange;
 mod handle;
 mod handle_ext;
+mod images;
 mod libre;
 mod live_config;
 mod plan;
@@ -244,11 +241,15 @@ mod types;
 mod user_input;
 
 #[cfg(test)]
+mod images_tests;
+#[cfg(test)]
 mod live_config_tests;
 #[cfg(test)]
 mod plan_regression_tests;
 #[cfg(test)]
 mod preferred_backend_tests;
+#[cfg(test)]
+mod profile_tests;
 #[cfg(test)]
 mod tests;
 

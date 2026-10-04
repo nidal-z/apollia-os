@@ -207,3 +207,36 @@ async fn test_node_state_route_reads_absent_then_ready() {
         "{s3} {ensured}"
     );
 }
+
+#[tokio::test]
+async fn test_listed_engines_carry_the_version_they_state() {
+    // GIVEN an MLX environment with its package metadata, and a llama-server
+    //      package whose binary is not there to state anything
+    let dir = tempfile::tempdir().unwrap();
+    let mlx = dir.path().join("mlx");
+    let info = mlx.join("site-packages/vllm_mlx-0.9.1.dist-info");
+    std::fs::create_dir_all(&info).unwrap();
+    std::fs::write(info.join("METADATA"), "Name: vllm-mlx\nVersion: 0.9.1\n").unwrap();
+    let mute = dir.path().join("llama/b7001/metal");
+    std::fs::create_dir_all(&mute).unwrap();
+    let entry = |engine, path: &Path| EngineEntry {
+        engine,
+        tag: Some("b7001".to_owned()),
+        variant: Some(Variant::Metal),
+        path: path.display().to_string(),
+        source: Source::Downloaded,
+        version: None,
+    };
+
+    // WHEN their versions are read
+    let listed = with_versions(vec![
+        entry(Engine::VllmMlx, &mlx),
+        entry(Engine::LlamaServer, &mute),
+    ])
+    .await;
+
+    // THEN the environment carries the version its metadata states, and the
+    //      engine that states nothing carries none, not its store tag
+    let versions: Vec<Option<&str>> = listed.iter().map(|e| e.version.as_deref()).collect();
+    assert_eq!(versions, vec![Some("0.9.1"), None]);
+}

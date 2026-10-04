@@ -37,8 +37,8 @@ pub(super) fn family_of(
 pub(super) fn answer_taken(decision: &ToolDecision, asked: &AskedConsent) -> ConsentAnswer {
     match decision {
         ToolDecision::Accept => ConsentAnswer::Once,
-        ToolDecision::AlwaysAccept { .. } if asked.always_offered => ConsentAnswer::Always,
-        ToolDecision::AlwaysAccept { .. } => ConsentAnswer::Once,
+        ToolDecision::AlwaysAccept if asked.always_offered => ConsentAnswer::Always,
+        ToolDecision::AlwaysAccept => ConsentAnswer::Once,
         ToolDecision::Refuse { .. } => ConsentAnswer::Refuse,
     }
 }

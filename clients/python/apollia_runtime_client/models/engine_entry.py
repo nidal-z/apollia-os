@@ -24,6 +24,9 @@ class EngineEntry:
         source (EngineSource): How an engine reached this machine.
         tag (None | str | Unset): Upstream tag; unknown for an embedded engine.
         variant (EngineVariant | None | Unset):
+        version (None | str | Unset): The version the engine states at its source: the `--version` banner of
+            a binary, the package metadata of a Python environment. Unknown when it
+            does not answer.
     """
 
     engine: EngineName
@@ -31,6 +34,7 @@ class EngineEntry:
     source: EngineSource
     tag: None | str | Unset = UNSET
     variant: EngineVariant | None | Unset = UNSET
+    version: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -54,6 +58,12 @@ class EngineEntry:
         else:
             variant = self.variant
 
+        version: None | str | Unset
+        if isinstance(self.version, Unset):
+            version = UNSET
+        else:
+            version = self.version
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -67,6 +77,8 @@ class EngineEntry:
             field_dict["tag"] = tag
         if variant is not UNSET:
             field_dict["variant"] = variant
+        if version is not UNSET:
+            field_dict["version"] = version
 
         return field_dict
 
@@ -105,12 +117,22 @@ class EngineEntry:
 
         variant = _parse_variant(d.pop("variant", UNSET))
 
+        def _parse_version(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        version = _parse_version(d.pop("version", UNSET))
+
         engine_entry = cls(
             engine=engine,
             path=path,
             source=source,
             tag=tag,
             variant=variant,
+            version=version,
         )
 
         engine_entry.additional_properties = d

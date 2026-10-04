@@ -599,7 +599,7 @@ impl BuiltInChatAgent {
                     executed: Some((tool_result, success)),
                 }
             }
-            ToolDecision::AlwaysAccept { .. } => {
+            ToolDecision::AlwaysAccept => {
                 if asked.always_offered {
                     match self
                         .governance

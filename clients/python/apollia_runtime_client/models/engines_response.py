@@ -10,6 +10,7 @@ from ..models.engine_channel import EngineChannel
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
+    from ..models.dictation_engine import DictationEngine
     from ..models.engine_entry import EngineEntry
     from ..models.variant_update import VariantUpdate
 
@@ -27,6 +28,7 @@ class EnginesResponse:
         engines (list[EngineEntry]): Engines embedded in the bundle, then installed ones.
         updates (list[VariantUpdate]): Per variant offered by that manifest for this platform, whether a newer
             build than the installed one exists. Empty until a manifest verified.
+        dictation (DictationEngine | None | Unset):
         manifest_sequence (int | None | Unset): Sequence of the last verified manifest of that channel, if any.
     """
 
@@ -34,10 +36,13 @@ class EnginesResponse:
     cuda_proposable: bool
     engines: list[EngineEntry]
     updates: list[VariantUpdate]
+    dictation: DictationEngine | None | Unset = UNSET
     manifest_sequence: int | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.dictation_engine import DictationEngine
+
         channel = self.channel.value
 
         cuda_proposable = self.cuda_proposable
@@ -51,6 +56,14 @@ class EnginesResponse:
         for updates_item_data in self.updates:
             updates_item = updates_item_data.to_dict()
             updates.append(updates_item)
+
+        dictation: dict[str, Any] | None | Unset
+        if isinstance(self.dictation, Unset):
+            dictation = UNSET
+        elif isinstance(self.dictation, DictationEngine):
+            dictation = self.dictation.to_dict()
+        else:
+            dictation = self.dictation
 
         manifest_sequence: int | None | Unset
         if isinstance(self.manifest_sequence, Unset):
@@ -68,6 +81,8 @@ class EnginesResponse:
                 "updates": updates,
             }
         )
+        if dictation is not UNSET:
+            field_dict["dictation"] = dictation
         if manifest_sequence is not UNSET:
             field_dict["manifest_sequence"] = manifest_sequence
 
@@ -75,6 +90,7 @@ class EnginesResponse:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.dictation_engine import DictationEngine
         from ..models.engine_entry import EngineEntry
         from ..models.variant_update import VariantUpdate
 
@@ -97,6 +113,23 @@ class EnginesResponse:
 
             updates.append(updates_item)
 
+        def _parse_dictation(data: object) -> DictationEngine | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                dictation_type_1 = DictationEngine.from_dict(data)
+
+                return dictation_type_1
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(DictationEngine | None | Unset, data)
+
+        dictation = _parse_dictation(d.pop("dictation", UNSET))
+
         def _parse_manifest_sequence(data: object) -> int | None | Unset:
             if data is None:
                 return data
@@ -111,6 +144,7 @@ class EnginesResponse:
             cuda_proposable=cuda_proposable,
             engines=engines,
             updates=updates,
+            dictation=dictation,
             manifest_sequence=manifest_sequence,
         )
 

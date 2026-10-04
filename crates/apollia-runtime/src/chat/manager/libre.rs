@@ -201,7 +201,6 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         mcp_loading,
         tool_search_limit,
         session_id_str,
-        hitl_params,
         sid,
         mid,
         run_id,
@@ -216,6 +215,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         pending_injection,
         preferred_backend,
         turn_id,
+        turn_images,
     } = params;
 
     let available_tools = available_tools.tools(&tool_registry).await;
@@ -278,7 +278,6 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     let session_invoker = match build_session_invoker(
         WorkspaceResolutionParams {
             folders,
-            hitl: Some(hitl_params),
             pending_user_inputs: Some(pending_user_inputs_for_session),
             mcp_handle: mcp_handle_for_session,
             chat_tools_config: chat_tools_config_for_session,
@@ -343,6 +342,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             plan_phase: session_plan_phase,
             hook_executor,
             pending_injection,
+            turn_images,
             tool_turn_temperature,
             governance,
             unattended: false,
@@ -422,8 +422,8 @@ pub(in crate::chat::manager) async fn build_session_invoker(
     Ok(ResolvedSessionInvoker { invoker, workspace })
 }
 
-/// Trace-log the enriched approval metadata (reject reason / always-accept
-/// scope) without touching the `log_tool_approval` SQL schema.
+/// Trace-log the enriched approval metadata (reject reason, always-accept)
+/// without touching the `log_tool_approval` SQL schema.
 pub(in crate::chat::manager) fn log_resolution_metadata(
     decision: &ToolDecision,
     session_id: &str,
@@ -440,12 +440,11 @@ pub(in crate::chat::manager) fn log_resolution_metadata(
                 "chat.tool.rejected"
             );
         }
-        ToolDecision::AlwaysAccept { scope } => {
+        ToolDecision::AlwaysAccept => {
             tracing::info!(
                 session_id,
                 message_id,
                 tool_name,
-                always_accept_scope = ?scope,
                 "chat.tool.always_accept.installed"
             );
         }
@@ -505,11 +504,9 @@ mod context_gauge_tests {
             title: None,
             parent_session_id: None,
             fork_depth: 0,
-            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
-                std::collections::HashSet::new(),
-            )),
             plan_mode: false,
             plan_phase: PlanPhase::Done,
+            profile_id: None,
         }
     }
 

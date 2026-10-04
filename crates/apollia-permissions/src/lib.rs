@@ -69,7 +69,7 @@ pub use journal_outbox::{
 pub use org_policy::{
     load_policy, parse_policy, policy_location, OrgPolicy, OwnerRequirement, PackagesPolicy,
     PolicyInvalid, PolicyInvalidReason, PolicyLocation, PolicySchemaError, PolicyVerdict,
-    ValidPolicy, REQUIRE_VERIFIED_SETTING,
+    PolicyView, ValidPolicy, REQUIRE_VERIFIED_SETTING,
 };
 pub use prefix_rule_engine::{
     extract_first_arg, rule_matches, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction,

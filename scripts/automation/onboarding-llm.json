@@ -17,15 +17,6 @@
     },
     {
       "kind": "waitFor",
-      "testid": "onboarding-profile-selector",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "profile-card-builder"
-    },
-    {
-      "kind": "waitFor",
       "testid": "onboarding-ai-setup",
       "timeoutMs": 15000
     },
