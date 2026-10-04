@@ -465,6 +465,30 @@ dependency with its default features off; `zip` was already a direct
 dependency. What these crates do not cover is ours to maintain: the structure
 of the two formats, read here only as far as their text.
 
+The results of a batch are written back to the table it read, by default into
+a copy next to the original, `<name> (results YYYY-MM-DD).xlsx`, named in the
+language of the interface, so that the original is read and never opened for
+writing. On explicit request, and for `.xlsx` and `.xlsm` only, they go into the
+original itself, after the dated backup copy the batch contract requires; when
+the backup fails, nothing is written. In both cases the workbook is edited in
+place, by code of our own over `zip` and `quick-xml`: the cells of the added
+column, after the last column of the sheet, are inserted into the XML of that
+sheet as inline strings, the calculation chain is removed so that the
+spreadsheet recomputes on opening, and every other part of the archive is
+copied as it is stored, byte for byte. Formatting, charts, pivot tables,
+comments and macros are therefore kept, which a library that loads a workbook
+and saves it again does not guarantee: `umya-spreadsheet`, the one weighed,
+documents charts corrupted, comments lost and pivot tables not read. The edit is
+tested against a versioned corpus of real workbooks (conditional formatting, a
+chart, pivot tables, comments, a file saved by LibreOffice, a workbook with
+macros). A CSV file gets a copy with its column added, never an edit of the
+original; a `.xls`, `.xlsb` or `.ods` workbook gets a new `.xlsx` copy written by
+`rust_xlsxwriter` (see [Batch export](#batch-export)), its values only.
+
+The cost is named: no crate enters the lock file, `rust_xlsxwriter` becoming a
+direct dependency of the readers. What is ours to maintain is the edit of the
+sheet, a small part of a format whose other parts are never rewritten.
+
 A mailbox connects over IMAP with an application password, so any provider is
 reachable, Gmail included, without an OAuth client and without a relay. The
 client is `async-imap` (MIT or Apache-2.0), on the Tokio runtime, over the
@@ -501,7 +525,7 @@ file, itself, `zopfli` and `zlib-rs` (see [Package archive](#package-archive)).
 
 `rust_xlsxwriter` cannot change a workbook that already exists. Writing results
 back into the file a batch was read from is decided with the reader of
-spreadsheets, not here.
+spreadsheets (see [Documents and sources](#documents-and-sources)).
 
 ## Agent-to-agent messaging {#agent-messaging}
 

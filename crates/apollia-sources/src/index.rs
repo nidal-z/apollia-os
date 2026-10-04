@@ -15,7 +15,10 @@
 //!   folded), kept in step by triggers;
 //! - `index_meta`: the embeddings model the vectors came from. Vectors of two
 //!   models are not comparable, so the index refuses a second model rather
-//!   than mixing them.
+//!   than mixing them;
+//! - `skipped_files`: the files of the source left out of the index, the ones
+//!   over the size cap and the ones no reader could open, so the state of the
+//!   source can name them.
 //!
 //! Searching it is [`SourceIndex::search`], in the `search` submodule.
 
@@ -24,6 +27,7 @@ use std::path::{Path, PathBuf};
 use apollia_core::schema::{open_versioned, Migration, SchemaError};
 use apollia_core::vector_search::{encode_vector, normalize, VectorDecodeError};
 use rusqlite::{params, Connection, OptionalExtension};
+use serde::Serialize;
 
 use crate::chunk::Chunk;
 
@@ -35,9 +39,9 @@ pub use search::{
 };
 
 /// Version of the index schema; equals the length of the migration list.
-pub const INDEX_SCHEMA_VERSION: u32 = 1;
+pub const INDEX_SCHEMA_VERSION: u32 = 2;
 
-const INDEX_MIGRATIONS: &[Migration] = &[migrate_v1];
+const INDEX_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2];
 
 /// Name of the index store in schema errors.
 const STORE_NAME: &str = "source index";
@@ -110,6 +114,45 @@ pub struct DocumentRecord {
     pub modified_at: String,
 }
 
+/// Why a file of a source is left out of its index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SkipReason {
+    /// The file is over the size cap of the indexing.
+    TooLarge,
+    /// No reader could open it: damaged, protected by a password, or not the
+    /// format its name says.
+    Unreadable,
+}
+
+impl SkipReason {
+    fn as_str(self) -> &'static str {
+        match self {
+            SkipReason::TooLarge => "too_large",
+            SkipReason::Unreadable => "unreadable",
+        }
+    }
+
+    fn parse(raw: &str) -> Self {
+        if raw == "too_large" {
+            SkipReason::TooLarge
+        } else {
+            SkipReason::Unreadable
+        }
+    }
+}
+
+/// A file of a source left out of its index, and why.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SkippedFile {
+    /// Path of the file.
+    pub path: String,
+    /// Its size in bytes when it was left out.
+    pub size_bytes: u64,
+    /// Why it was left out.
+    pub reason: SkipReason,
+}
+
 /// The vectors of a document's chunks, one per chunk, in chunk order.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ChunkVectors {
@@ -161,6 +204,17 @@ fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
         CREATE TRIGGER IF NOT EXISTS chunks_fts_delete AFTER DELETE ON chunks BEGIN
             INSERT INTO chunks_fts (chunks_fts, rowid, text) VALUES ('delete', old.id, old.text);
         END;",
+    )
+}
+
+/// v2: the files left out of the index, by path.
+fn migrate_v2(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS skipped_files (
+            path       TEXT PRIMARY KEY CHECK (length(path) > 0),
+            size_bytes INTEGER NOT NULL,
+            reason     TEXT NOT NULL CHECK (reason IN ('too_large', 'unreadable'))
+        );",
     )
 }
 
@@ -318,8 +372,6 @@ impl SourceIndex {
     /// [`IndexError::Dimensions`] or [`IndexError::ModelChanged`] for vectors
     /// that do not fit the chunks or the index, and [`IndexError::Db`] on any
     /// SQLite failure. Nothing is written on error.
-    // TEST-ONLY: the indexing pass of a folder source is not built yet; it is
-    // the production caller this is published for.
     pub fn upsert_document(
         &mut self,
         document: &DocumentRecord,
@@ -378,9 +430,6 @@ impl SourceIndex {
     /// Removes the document at `path` and its chunks. Returns whether it was
     /// indexed.
     ///
-    /// TEST-ONLY: no production path removes a single document yet; a
-    /// rewritten document is replaced by `upsert_document`.
-    ///
     /// # Errors
     /// [`IndexError::Db`] on any SQLite failure.
     pub fn remove_document(&mut self, path: &str) -> Result<bool, IndexError> {
@@ -388,6 +437,115 @@ impl SourceIndex {
         let removed = delete_document(&tx, path)?;
         tx.commit()?;
         Ok(removed)
+    }
+
+    /// Every indexed document, by path.
+    ///
+    /// # Errors
+    /// [`IndexError::Db`] on any SQLite failure.
+    pub fn documents(&self) -> Result<Vec<DocumentRecord>, IndexError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT path, fingerprint, modified_at FROM documents ORDER BY path")?;
+        let rows = stmt.query_map([], |row| {
+            Ok(DocumentRecord {
+                path: row.get(0)?,
+                fingerprint: row.get(1)?,
+                modified_at: row.get(2)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Records a new modification date for the document at `path`, whose
+    /// content did not change. Returns whether it was indexed.
+    ///
+    /// # Errors
+    /// [`IndexError::Db`] on any SQLite failure.
+    pub fn touch_document(&mut self, path: &str, modified_at: &str) -> Result<bool, IndexError> {
+        let changed = self.conn.execute(
+            "UPDATE documents SET modified_at = ?2 WHERE path = ?1",
+            params![path, modified_at],
+        )?;
+        Ok(changed > 0)
+    }
+
+    /// Empties the index: every document, chunk and skipped file, and the
+    /// model of the vectors, so that it can be rebuilt with another model.
+    ///
+    /// # Errors
+    /// [`IndexError::Db`] on any SQLite failure.
+    pub fn clear(&mut self) -> Result<(), IndexError> {
+        let tx = self.conn.transaction()?;
+        tx.execute("DELETE FROM chunks", [])?;
+        tx.execute("DELETE FROM documents", [])?;
+        tx.execute("DELETE FROM skipped_files", [])?;
+        tx.execute("DELETE FROM index_meta", [])?;
+        tx.commit()?;
+        tracing::event!(
+            tracing::Level::INFO,
+            source = %self.source_id,
+            "sources.index.cleared"
+        );
+        Ok(())
+    }
+
+    /// The files left out of the index, by path.
+    ///
+    /// # Errors
+    /// [`IndexError::Db`] on any SQLite failure.
+    pub fn skipped(&self) -> Result<Vec<SkippedFile>, IndexError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT path, size_bytes, reason FROM skipped_files ORDER BY path")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (path, size, reason) = row?;
+            out.push(SkippedFile {
+                path,
+                size_bytes: u64::try_from(size).unwrap_or(0),
+                reason: SkipReason::parse(&reason),
+            });
+        }
+        Ok(out)
+    }
+
+    /// Records `file` as left out of the index, replacing any earlier record
+    /// of the same path.
+    ///
+    /// # Errors
+    /// [`IndexError::Db`] on any SQLite failure.
+    pub fn record_skipped(&mut self, file: &SkippedFile) -> Result<(), IndexError> {
+        self.conn.execute(
+            "INSERT INTO skipped_files (path, size_bytes, reason) VALUES (?1, ?2, ?3)
+             ON CONFLICT (path) DO UPDATE SET
+                 size_bytes = excluded.size_bytes,
+                 reason = excluded.reason",
+            params![
+                file.path,
+                i64::try_from(file.size_bytes).unwrap_or(i64::MAX),
+                file.reason.as_str()
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Forgets that the file at `path` was left out. Returns whether it was.
+    ///
+    /// # Errors
+    /// [`IndexError::Db`] on any SQLite failure.
+    pub fn forget_skipped(&mut self, path: &str) -> Result<bool, IndexError> {
+        let changed = self
+            .conn
+            .execute("DELETE FROM skipped_files WHERE path = ?1", params![path])?;
+        Ok(changed > 0)
     }
 
     /// Checks `given` against the chunks and the stored model, and encodes

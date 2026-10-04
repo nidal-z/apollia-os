@@ -9,10 +9,13 @@
 //! the first rows, and follows a sheet or a header row the user picks instead.
 //! [`TableSource`] is the batch source that yields the rows as items, and
 //! [`register_table_sources`] adds its two kinds to a batch source registry.
+//! The same source writes the results of a batch back ([`ResultsDestination`]): into a
+//! copy of the file by default, into the original on request.
 
 mod detect;
 mod layout;
 mod preview;
+mod results;
 mod source;
 
 #[cfg(test)]
@@ -27,6 +30,7 @@ pub use layout::{column_letter, Column};
 pub use preview::{
     preview_table, PreviewError, PreviewRow, SheetSummary, TablePreview, PREVIEW_ROWS,
 };
+pub use results::{results_copy_path, ResultsDestination, OPTION_DESTINATION, OPTION_LANGUAGE};
 pub use source::{
     register_table_sources, TableSource, CSV_KIND, OPTION_COLUMNS, OPTION_HEADER_ROW, OPTION_SHEET,
     SPREADSHEET_KIND,

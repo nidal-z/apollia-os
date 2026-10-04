@@ -500,6 +500,34 @@ coupées ; `zip` était déjà une dépendance directe. Ce que ces crates ne cou
 pas est à notre charge : la structure des deux formats, lue ici jusqu'à leur
 texte seulement.
 
+Les résultats d'un lot sont écrits dans le tableau qu'il a lu, par défaut dans
+une copie posée à côté de l'original, `<nom> (résultats AAAA-MM-JJ).xlsx`,
+nommée dans la langue de l'interface, si bien que l'original est lu et jamais
+ouvert en écriture. Sur demande explicite, et pour `.xlsx` et `.xlsm` seulement,
+ils vont dans l'original lui-même, après la copie de sauvegarde datée qu'exige
+le contrat des lots ; si la sauvegarde échoue, rien n'est écrit. Dans les deux
+cas, le classeur est édité en place, par du code à nous au-dessus de `zip` et
+de `quick-xml` : les cellules de la colonne ajoutée, après la dernière colonne
+de la feuille, sont insérées dans le XML de cette feuille en chaînes en ligne,
+la chaîne de calcul est retirée pour que le tableur recalcule à l'ouverture, et
+toutes les autres parties de l'archive sont recopiées telles qu'elles sont
+stockées, octet pour octet. La mise en forme, les graphiques, les tableaux
+croisés, les commentaires et les macros sont donc conservés, ce que ne garantit
+pas une bibliothèque qui charge un classeur puis l'enregistre de nouveau :
+`umya-spreadsheet`, celle qui a été pesée, documente des graphiques corrompus,
+des commentaires perdus et des tableaux croisés non lus. L'édition est testée
+sur un corpus versionné de classeurs réels (mise en forme conditionnelle,
+graphique, tableaux croisés, commentaires, fichier enregistré par LibreOffice,
+classeur à macros). Un fichier CSV reçoit une copie avec sa colonne ajoutée,
+jamais une édition de l'original ; un classeur `.xls`, `.xlsb` ou `.ods` reçoit
+une copie `.xlsx` neuve écrite par `rust_xlsxwriter` (voir
+[Export d'un lot](#batch-export)), ses valeurs seulement.
+
+Le coût est nommé : aucune crate n'entre dans le fichier de verrouillage,
+`rust_xlsxwriter` devenant une dépendance directe des lecteurs. Ce qui est à
+notre charge est l'édition de la feuille, une petite partie d'un format dont
+les autres parties ne sont jamais réécrites.
+
 Une boîte mail se connecte en IMAP avec un mot de passe d'application : tout
 fournisseur est joignable, Gmail compris, sans client OAuth et sans relais. Le
 client est `async-imap` (MIT ou Apache-2.0), sur le runtime Tokio, au-dessus de
@@ -537,7 +565,7 @@ fichier de verrouillage, lui-même, `zopfli` et `zlib-rs` (voir
 
 `rust_xlsxwriter` ne sait pas modifier un classeur existant. Écrire les
 résultats dans le fichier d'où un lot a été lu se décide avec le lecteur de
-tableurs, pas ici.
+tableurs (voir [Documents et sources](#documents-and-sources)).
 
 ## Messagerie entre agents {#agent-messaging}
 

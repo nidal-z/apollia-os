@@ -9,8 +9,9 @@
 //! 2. a fine rule `deny` matches: refused;
 //! 3. the family reads only, or acts on the conversation alone: allowed;
 //! 4. the family executes code: allowed by a fine rule `allow` on a single
-//!    simple command, in developer mode only; asked otherwise, without
-//!    "always";
+//!    simple command, in developer mode only; asked otherwise, with "always"
+//!    (which writes such a rule) only for a single simple command in
+//!    developer mode;
 //! 5. a standing consent of the agent for the family, or a grant of the run:
 //!    allowed;
 //! 6. asked, with the three answers.
@@ -149,6 +150,9 @@ pub fn decide(state: &GovernanceState, call: &AccessCall<'_>, now: i64) -> Acces
             return AccessDecision::Allowed {
                 reason: DecisionReason::Rule { rule_id: rule.id },
             };
+        }
+        if state.developer_mode && simple {
+            return ask(call, &ALL_ANSWERS);
         }
         return ask(call, &NO_ALWAYS_ANSWERS);
     }

@@ -345,6 +345,22 @@ impl SourceRegistryStore {
         Ok(source)
     }
 
+    /// Records where the index of the source `id` stands.
+    ///
+    /// # Errors
+    /// [`SourceRegistryError::NotFound`] when there is no such source, and
+    /// [`SourceRegistryError::Db`] on any SQLite failure.
+    pub fn set_index_state(&self, id: &str, state: IndexState) -> Result<(), SourceRegistryError> {
+        let changed = self.conn.execute(
+            "UPDATE sources SET index_state = ?2 WHERE id = ?1",
+            params![id, state.as_str()],
+        )?;
+        if changed == 0 {
+            return Err(SourceRegistryError::NotFound(id.to_owned()));
+        }
+        Ok(())
+    }
+
     /// Checks that every entry of an agent's source list names a source of
     /// the registry, or one of the kinds listed by their token (`profile`,
     /// `memory`).

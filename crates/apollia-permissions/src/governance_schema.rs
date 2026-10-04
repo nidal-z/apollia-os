@@ -1,8 +1,8 @@
 //! Versioned schema of `governance.db`, shared by every store in the file.
 //!
 //! `governance.db` gathers the runtime governance tables: `permission_rules`,
-//! `permission_audit`, `family_consents` and `governance_upgrades` (owned by
-//! this crate), plus `tools` and
+//! `permission_audit`, `family_consents`, `governance_upgrades` and
+//! `journal_outbox` (owned by this crate), plus `tools` and
 //! `tool_credentials` (owned by `apollia-tools`, whose `GovernanceDb` reuses
 //! this list). Since v3 `tool_credentials` is an index of the credentials,
 //! their values living in the secret store; the encrypted values of an older
@@ -20,13 +20,13 @@ use rusqlite::Connection;
 use apollia_core::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `governance.db`.
-pub const GOVERNANCE_SCHEMA_VERSION: u32 = 3;
+pub const GOVERNANCE_SCHEMA_VERSION: u32 = 4;
 
 /// Numbered migration steps of `governance.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`GOVERNANCE_SCHEMA_VERSION`].
-pub const GOVERNANCE_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2, migrate_v3];
+pub const GOVERNANCE_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2, migrate_v3, migrate_v4];
 
 /// Name, in `governance_upgrades`, of the data upgrade that moves the
 /// encrypted tool credentials of `tool_credentials_legacy` into the secret
@@ -223,6 +223,20 @@ fn migrate_v3(conn: &Connection) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
+/// v4: the outbox of governance events, which the stores of this file fill
+/// and the runtime empties into the signed audit journal (see
+/// [`crate::journal_outbox`]). `version` is the format of the `event` body.
+fn migrate_v4(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS journal_outbox (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            version      INTEGER NOT NULL,
+            event        TEXT NOT NULL,
+            recorded_at  INTEGER NOT NULL
+        );",
+    )
+}
+
 /// Opens the file's schema at the current version, or refuses it.
 ///
 /// Shared entry point for the three `governance.db` openers.
@@ -347,6 +361,35 @@ mod tests {
             })
             .unwrap();
         assert_eq!(index, 0);
+    }
+
+    // GIVEN a v3 file holding a rule
+    // WHEN it is opened through the versioned layer
+    // THEN the rule survives and the outbox of journal events exists, empty
+    #[test]
+    fn test_governance_v4_adds_an_empty_journal_outbox() {
+        let conn = Connection::open_in_memory().unwrap();
+        for step in &GOVERNANCE_MIGRATIONS[..3] {
+            step(&conn).unwrap();
+        }
+        conn.pragma_update(None, "user_version", 3).unwrap();
+        conn.execute(
+            "INSERT INTO permission_rules (tool_name, action, created_at) VALUES ('web_fetch', 'allow', 1)",
+            [],
+        )
+        .unwrap();
+
+        open_governance_schema(&conn).unwrap();
+
+        let rules: i64 = conn
+            .query_row("SELECT COUNT(*) FROM permission_rules", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        let waiting: i64 = conn
+            .query_row("SELECT COUNT(*) FROM journal_outbox", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!((rules, waiting), (1, 0));
     }
 
     // GIVEN a database stamped by a newer binary
