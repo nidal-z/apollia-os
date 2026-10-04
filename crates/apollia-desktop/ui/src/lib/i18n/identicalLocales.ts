@@ -202,6 +202,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.developer.mcp.kind_agent", // Agent
   "settings.developer.mcp.kind_workflow", // Workflow
   "settings.engines.channel_stable", // Stable
+  "settings.developer.on_demand.idle_unit", // minutes
   "settings.general.application_title", // Application
   "settings.general.channel_stable", // Stable
   "settings.general.interface_title", // Interface

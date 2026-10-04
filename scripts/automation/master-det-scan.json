@@ -13852,6 +13852,21 @@
       "ms": 300
     },
     {
+      "kind": "waitFor",
+      "testid": "developer-on-demand",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-jit-idle-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-experimental",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "screenshot",
       "label": "19-developer-mode-on"
     },

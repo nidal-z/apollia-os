@@ -104,7 +104,7 @@ avertissement `config.key.retired`.
 | `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), et la règle appliquée à un fichier importé (`[models.import]`). |
 | `[observability]` | Capture et rétention des traces, documentées plus bas. |
 | `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` ou `always`), et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
-| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`, `cors`, et le chargement à la demande : `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`. |
+| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`, `cors`, et le chargement à la demande : `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`, et `separate_reasoning_content`. |
 | `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`). |
 | `[author]` | Le nom d'éditeur des agents exportés depuis cette machine (`name`). |
 
@@ -310,6 +310,7 @@ Le serveur compatible, qui répond aux formats OpenAI et Anthropic sur l'interfa
 | `server.jit_auto_unload` | booléen | `true` | Décharger les modèles que le serveur compatible a chargés après leur propre délai d'inactivité plutôt que le délai général. La politique de l'organisation peut l'imposer. |
 | `server.jit_idle_ttl_minutes` | entier | `60` | Minutes sans requête après lesquelles un modèle chargé par le serveur compatible est déchargé ; 0 le garde chargé. La politique de l'organisation peut l'imposer. |
 | `server.jit_keep_last_only` | booléen | `true` | Quand le serveur compatible charge un modèle, décharger les autres modèles qu'il a chargés et que rien ne retient. La politique de l'organisation peut l'imposer. |
+| `server.separate_reasoning_content` | booléen | `true` | Garder le raisonnement d'un modèle dans reasoning_content, à part de content, dans les complétions de chat du serveur compatible ; éteint, il revient dans content entre balises think. La politique de l'organisation peut l'imposer. |
 | `server.serve_on_lan` | booléen | `false` | Ouvrir le serveur compatible au réseau local, sur toutes les interfaces ; l'API native reste sur l'interface de boucle locale. Lu à l'ouverture de l'écoute. La politique de l'organisation peut l'imposer. |
 
 ### `[engines]`

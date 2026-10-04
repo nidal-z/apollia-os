@@ -3076,6 +3076,26 @@
         "copy": "Copier",
         "copied": "Copié",
         "copy_failed": "La configuration n'a pas pu être copiée."
+      },
+      "on_demand": {
+        "title": "Chargement à la demande et délai",
+        "shared": "Pour les modèles qu'une application appelle par le serveur local. Mêmes réglages que dans les réglages du serveur local.",
+        "loading_label": "Chargement à la demande",
+        "loading_hint": "Une application qui nomme un modèle de ce poste non chargé le fait charger, puis reçoit sa réponse. Éteint, elle reçoit une erreur tant que le modèle n'est pas chargé.",
+        "keep_last_label": "Un seul modèle chargé à la demande à la fois",
+        "keep_last_hint": "Charger un modèle à la demande décharge celui chargé de cette façon avant lui. Un modèle que vous avez chargé vous-même n'est jamais déchargé par ce réglage.",
+        "auto_unload_label": "Décharger automatiquement les modèles chargés à la demande",
+        "auto_unload_hint": "Un modèle chargé à la demande est déchargé après le délai d'inactivité ci-dessous. Ce délai est distinct de « Décharger un modèle inutilisé après », dans Défauts des modèles, qui vaut pour les modèles que vous chargez vous-même.",
+        "idle_label": "Délai d'inactivité des modèles chargés à la demande",
+        "idle_hint": "Durée sans requête après laquelle un modèle chargé à la demande est déchargé ; 0 le garde chargé. Sans effet sur les modèles que vous chargez vous-même.",
+        "idle_unit": "minutes",
+        "idle_invalid": "Saisissez un nombre entier de minutes, 0 ou plus.",
+        "write_failed": "Ce réglage n'a pas pu être enregistré."
+      },
+      "experimental": {
+        "title": "Expérimental",
+        "separate_reasoning_label": "Séparer reasoning_content et content dans les réponses de l'API",
+        "separate_reasoning_hint": "Pour les modèles qui réfléchissent avant de répondre : le raisonnement arrive dans reasoning_content, à part de la réponse. Éteint, il revient en tête de content, entre les balises think, pour une application qui ne lit que content."
       }
     },
     "general": {

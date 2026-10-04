@@ -23,6 +23,7 @@ use serde_json::Value;
 use super::errors::{error_response, ErrorKind, Family};
 use super::logs::RequestedModel;
 use super::models::{HeldModel, LocalModels, ServedModel, Unheld};
+use super::reasoning;
 use crate::engine_store::Engine;
 use crate::llama_server::ModelKind;
 
@@ -251,22 +252,30 @@ async fn forward(
         status = status.as_u16(),
         "compat_server.relay.answered"
     );
+    let merge_reasoning = endpoint == Endpoint::ChatCompletions
+        && status.is_success()
+        && !state.models.separates_reasoning();
     if content_type.as_bytes().starts_with(b"text/event-stream") {
         let lease = held.lease;
         // SAFETY: an event stream is open-ended by design; it is relayed chunk
         // by chunk as the engine sends it, never buffered, so no cap applies.
+        // Putting the reasoning back holds at most one unfinished event.
         let chunks = answer.bytes_stream().map(move |chunk| {
             let _held_for_the_stream = &lease;
             chunk
         });
-        return (
-            status,
-            [(header::CONTENT_TYPE, content_type)],
-            Body::from_stream(chunks),
-        )
-            .into_response();
+        let body = if merge_reasoning {
+            Body::from_stream(reasoning::merge_stream(chunks))
+        } else {
+            Body::from_stream(chunks)
+        };
+        return (status, [(header::CONTENT_TYPE, content_type)], body).into_response();
     }
     match read_capped_bytes(answer, MAX_ENGINE_ANSWER).await {
+        Ok(bytes) if merge_reasoning => {
+            let bytes = merged_answer(bytes);
+            (status, [(header::CONTENT_TYPE, content_type)], bytes).into_response()
+        }
         Ok(bytes) => (status, [(header::CONTENT_TYPE, content_type)], bytes).into_response(),
         Err(error) => {
             tracing::event!(
@@ -288,6 +297,16 @@ async fn forward(
             error_response(family, ErrorKind::EngineUnavailable, message)
         }
     }
+}
+
+/// `bytes`, a JSON chat completion, with its reasoning back in `content`; a
+/// body that does not read as JSON is passed on as the engine gave it.
+fn merged_answer(bytes: Vec<u8>) -> Vec<u8> {
+    let Ok(mut answer) = serde_json::from_slice::<Value>(&bytes) else {
+        return bytes;
+    };
+    reasoning::merge_answer(&mut answer);
+    serde_json::to_vec(&answer).unwrap_or(bytes)
 }
 
 /// `POST /v1/chat/completions`.

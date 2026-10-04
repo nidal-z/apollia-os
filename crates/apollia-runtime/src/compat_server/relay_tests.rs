@@ -55,16 +55,23 @@ async fn fake_answer(State(received): State<Received>, uri: Uri, body: Bytes) ->
     axum::Json(json!({ "path": uri.path(), "received": body })).into_response()
 }
 
+/// Serves `app` as an engine on a port the system chose, held for the whole
+/// test, and returns that port. The one listener the relay tests of this
+/// server bind: the reasoning tests borrow it for their recorded engine.
+pub(super) async fn serve_engine(app: Router) -> u16 {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    port
+}
+
 /// Starts the fake engine and returns its port and what it received.
 async fn fake_engine() -> (u16, Received) {
     let received: Received = Arc::default();
     let app = Router::new()
         .fallback(fake_answer)
         .with_state(received.clone());
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let port = listener.local_addr().unwrap().port();
-    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-    (port, received)
+    (serve_engine(app).await, received)
 }
 
 /// A models folder whose registry names `/models/chat.gguf` `acme/chat` and

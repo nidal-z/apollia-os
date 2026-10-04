@@ -236,6 +236,26 @@ Chaque déchargement est publié sous `LlmModelUnloaded`, avec la raison
 clés sont relues à chaque requête et à chaque vérification : un changement
 s'applique sans redémarrage.
 
+## Raisonnement d'un modèle qui réfléchit
+
+Un modèle qui réfléchit écrit son raisonnement avant sa réponse. Le moteur
+sépare les deux, et une complétion de chat porte le raisonnement dans
+`reasoning_content`, dans le message d'une réponse entière et dans chaque delta
+d'un flux, à part de `content`. C'est ce que le serveur relaie par défaut.
+
+```toml
+[server]
+separate_reasoning_content = true   # false : le raisonnement revient dans content
+```
+
+Avec `separate_reasoning_content = false`, le serveur remet le raisonnement en
+tête de `content`, entre `<think>` et `</think>`, et retire `reasoning_content`,
+pour un client qui ne lit que `content`. Dans un flux, la balise s'ouvre sur le
+premier delta de raisonnement et se ferme sur le premier delta de la réponse, ou
+sur le delta qui termine le choix. Seul `/v1/chat/completions` est concerné :
+les formats responses et messages portent leurs propres blocs de raisonnement,
+relayés tels que le moteur les a écrits. La clé est lue à chaque requête.
+
 ## Points d'accès
 
 La table liste chaque chemin que sert le serveur compatible.

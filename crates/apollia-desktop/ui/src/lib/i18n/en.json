@@ -3076,6 +3076,26 @@
         "copy": "Copy",
         "copied": "Copied",
         "copy_failed": "The configuration could not be copied."
+      },
+      "on_demand": {
+        "title": "On-demand loading and idle delay",
+        "shared": "For the models an application calls through the local server. The same settings as in the local server settings.",
+        "loading_label": "On-demand loading",
+        "loading_hint": "An application that names a model of this machine that is not loaded has it loaded, then gets its answer. Off, it gets an error until the model is loaded.",
+        "keep_last_label": "Only one model loaded on demand at a time",
+        "keep_last_hint": "Loading a model on demand unloads the one loaded that way before it. A model you loaded yourself is never unloaded by this setting.",
+        "auto_unload_label": "Unload the models loaded on demand automatically",
+        "auto_unload_hint": "A model loaded on demand is unloaded after the idle delay below. This delay is not \"Unload an unused model after\", in Model defaults, which applies to the models you load yourself.",
+        "idle_label": "Idle delay of the models loaded on demand",
+        "idle_hint": "Time without a request after which a model loaded on demand is unloaded; 0 keeps it loaded. No effect on the models you load yourself.",
+        "idle_unit": "minutes",
+        "idle_invalid": "Enter a whole number of minutes, 0 or more.",
+        "write_failed": "This setting could not be saved."
+      },
+      "experimental": {
+        "title": "Experimental",
+        "separate_reasoning_label": "Separate reasoning_content and content in API responses",
+        "separate_reasoning_hint": "For models that think before they answer: the reasoning arrives in reasoning_content, apart from the answer. Off, it goes back at the head of content, between think tags, for an application that reads only content."
       }
     },
     "general": {
