@@ -1758,7 +1758,7 @@
         "summary": "`POST /api/v1/assists/next-steps`: up to three next steps cards, drawn by\nthe daemon's default model or by the heuristic.",
         "operationId": "generate_next_steps",
         "requestBody": {
-          "description": "`context`, `mode` and the `facts` the window computed, each optional",
+          "description": "`context`, `developerMode` and the `facts` the window computed, each optional",
           "content": {
             "application/json": {
               "schema": {

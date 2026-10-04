@@ -349,9 +349,11 @@ organization policy can impose it and Rust readers see the same value.
   Builder wording the developer wording. Do not collapse one branch into the
   other when fusing duplicated screens; the paired components stay two
   components, chosen by the switch.
-- `crates/apollia-desktop/ui/src/lib/stores/mode.ts` (`uiMode`) is an
-  adapter kept while its readers move to `developerMode`: it reads
-  `"builder"` when the switch is on. Do not add a reader to it.
+- **No second store.** The adapter that named the former modes is gone:
+  `developerMode` is the only store a screen reads. A component that still
+  takes a `"builder" | "operator"` skin derives it from `$developerMode` at
+  its call site. The runtime follows the same value: the next steps request
+  carries `developerMode`, never a mode name.
 
 ---
 

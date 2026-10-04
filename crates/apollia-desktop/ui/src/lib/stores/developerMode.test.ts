@@ -11,7 +11,6 @@ import {
   setDeveloperMode,
   type DeveloperModeIpc,
 } from "./developerMode";
-import { uiMode } from "./mode";
 import type { ResolvedSetting } from "$lib/ipc/settings";
 
 const LEGACY_KEY = "apollia-ui-mode";
@@ -159,25 +158,5 @@ describe("developerMode, one-time migration of the former interface mode", () =>
     // THEN the mode reads from the file, and the old key stays
     expect(get(developerMode)).toBe(false);
     expect(storage.has(LEGACY_KEY)).toBe(true);
-  });
-});
-
-describe("uiMode, adapter of the developer mode", () => {
-  test("reads builder when the developer mode is on, operator otherwise", () => {
-    // GIVEN the developer mode off, then on
-    // WHEN the adapter is read
-    // THEN it names the matching former mode
-    expect(get(uiMode)).toBe("operator");
-    developerMode.set(true);
-    expect(get(uiMode)).toBe("builder");
-  });
-
-  test("writing builder turns the developer mode on", () => {
-    // GIVEN the developer mode off
-    // WHEN a reader writes "builder" through the adapter
-    uiMode.set("builder");
-
-    // THEN the developer mode is on at once
-    expect(get(developerMode)).toBe(true);
   });
 });

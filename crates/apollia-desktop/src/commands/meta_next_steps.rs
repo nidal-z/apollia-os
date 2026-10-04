@@ -1,7 +1,7 @@
 //! Tauri IPC command: Meta-LLM `GenerateNextSteps` routine.
 //!
 //! Produces up to 3 actionable "next steps" cards for:
-//!   - the operator Dashboard (`context = global_context`),
+//!   - the Dashboard (`context = global_context`),
 //!   - the end-of-session debrief on `ChatConversation` (`context = session_end`).
 //!
 //! The logic lives in `apollia_runtime::chat_assists`. Embedded, it runs with
@@ -82,7 +82,7 @@ mod tests {
             .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
             .and(body_json(serde_json::json!({
                 "context": "global_context",
-                "mode": "operator",
+                "developerMode": false,
                 "facts": serde_json::to_value(NextStepsRequest::default().facts).unwrap(),
             })))
             .respond_with(
