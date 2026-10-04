@@ -554,6 +554,39 @@
       "ask_administrator": "To change this rule, contact your organisation's administrator.",
       "open_policy": "See the policy",
       "open_permissions": "See the permissions"
+    },
+    "mailbox": {
+      "entry_name": "Mailbox",
+      "entry_description": "Gmail, iCloud, Yahoo, Orange, Free, La Poste or any mailbox that accepts an app password",
+      "title": "Add a mailbox",
+      "subtitle": "With its address and an app password",
+      "email_label": "Address",
+      "email_placeholder": "claire@example.com",
+      "email_hint": "The mail server is worked out from the address.",
+      "password_label": "App password",
+      "password_hint": "An app password is a code your mail provider creates for Apollia, in place of your usual password.",
+      "advanced": "Advanced",
+      "advanced_hint": "Filled in from the address, editable.",
+      "host_label": "Incoming server",
+      "port_label": "Port",
+      "add": "Add",
+      "add_hint": "Apollia tries the connection before adding it.",
+      "trying": "Trying the connection to the mailbox…",
+      "added": "Trial succeeded: {email} is added to your connections.",
+      "added_where": "Your agents can now read it, and never send or delete anything there. It is in the list of connections.",
+      "error": {
+        "credentials_rejected": "The server refuses the password. Check the app password, then try again.",
+        "unreachable": "The mail server does not answer. Check the address, or the server and port under “Advanced”.",
+        "tls": "The secure connection to the server failed. Check the server and port under “Advanced”.",
+        "invalid_email": "This is not an email address.",
+        "invalid_host": "Give the incoming server under “Advanced”.",
+        "invalid_port": "The port given under “Advanced” is not valid.",
+        "invalid_password": "The password is empty or too long.",
+        "protocol": "The server answered in an unexpected way. Check that it is an incoming mail server (IMAP).",
+        "secret_store": "The password could not be kept in this computer's keychain. Nothing was added.",
+        "runtime": "Apollia is not answering right now. Try again in a moment.",
+        "generic": "The mailbox could not be added. Try again."
+      }
     }
   },
   "integrations": {

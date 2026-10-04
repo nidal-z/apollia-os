@@ -20,6 +20,7 @@
   import CatalogueSheet from "../components/connections/catalogue/CatalogueSheet.svelte";
   import NativeOauthDialog from "../components/connections/oauth/NativeOauthDialog.svelte";
   import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
+  import MailboxDialog from "../components/integrations/MailboxDialog.svelte";
   import {
     listMcpServers,
     listMcpEnrichments,
@@ -142,6 +143,7 @@
   let catalogueTier = $state<"none" | "curated" | "full">("none");
   let selectedRegistryServer = $state<RegistryServerView | null>(null);
   let wizardOpen = $state(false);
+  let mailboxOpen = $state(false);
 
   // ── Derived ──────────────────────────────────────────────────────────────────
   function resolveEnrichment(server: McpServerStatusView): ConnectorEnrichmentView | null {
@@ -474,6 +476,15 @@
   />
 {/if}
 
+<MailboxDialog
+  open={mailboxOpen}
+  onclose={() => (mailboxOpen = false)}
+  onadded={(connectionId) => {
+    selection = { kind: "connection", id: connectionId };
+    void loadAll();
+  }}
+/>
+
 <NativeOauthDialog
   open={oauthOpen}
   provider={oauthProvider}
@@ -496,6 +507,10 @@
   onaddnative={(provider) => {
     catalogueOpen = false;
     selection = { kind: "native", provider };
+  }}
+  onaddmailbox={() => {
+    catalogueOpen = false;
+    mailboxOpen = true;
   }}
   oninstalled={() => {
     catalogueOpen = false;

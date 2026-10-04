@@ -133,6 +133,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "connections.badge_status_attention", // attention
   "connections.custom_test_ok", // Test OK - {result}
   "connections.mcp_settings.transport", // Transport
+  "connections.mailbox.port_label", // Port
   "dev.connections.custom_transport_label", // Transport
   "connections.settings_provider_title", // Provider
   "connections.status_chip_attention", // Attention

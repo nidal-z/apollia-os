@@ -1088,6 +1088,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connectors/imap/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/connectors/imap/providers`: the providers whose server and
+         *     port are filled from the address. Reads a table compiled into the runtime;
+         *     nothing is reached, nothing is stored.
+         */
+        get: operations["list_imap_providers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connectors/imap/test": {
         parameters: {
             query?: never;
@@ -7124,6 +7145,30 @@ export interface components {
             /** @description What went wrong, for a person. */
             error: string;
         };
+        /** @description A provider whose IMAP server is known from the address. */
+        ImapProviderResponse: {
+            /** @description Address domains it serves, lowercase. */
+            domains: string[];
+            /** @description IMAP server. */
+            host: string;
+            /** @description Name of the provider. */
+            name: string;
+            /**
+             * Format: int32
+             * @description IMAP port, implicit TLS.
+             */
+            port: number;
+        };
+        /** @description The providers known from the address, and the port of any other server. */
+        ImapProvidersResponse: {
+            /**
+             * Format: int32
+             * @description Port of a server outside the list, implicit TLS.
+             */
+            defaultPort: number;
+            /** @description Every provider prefilled from the address. */
+            providers: components["schemas"]["ImapProviderResponse"][];
+        };
         /** @description Request body for `POST /api/v1/memory/namespaces/{namespace}/import`. */
         ImportMemoryBody: {
             /** @description The export, as `GET .../export` answers it. */
@@ -12597,6 +12642,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImapErrorBody"];
+                };
+            };
+        };
+    };
+    list_imap_providers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The providers known from the address */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapProvidersResponse"];
                 };
             };
         };

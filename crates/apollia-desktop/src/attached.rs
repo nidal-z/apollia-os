@@ -112,8 +112,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_agent_packages",
     "preview_agent_package",
     "uninstall_agent_package",
-    // Connections.
+    // Connections, and the mailbox connection: the providers known from the
+    // address, and the addition, which logs in before it stores.
+    "add_imap_mailbox",
     "list_connections",
+    "list_imap_providers",
     // Apollia as an MCP server, over `/api/v1/mcp/exposed`.
     "list_mcp_exposable",
     "set_mcp_exposed",

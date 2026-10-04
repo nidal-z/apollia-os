@@ -309,3 +309,51 @@ export type NodeRuntimeState =
 export function nodeRuntimeState(): Promise<NodeRuntimeState> {
   return invoke<NodeRuntimeState>("node_runtime_state");
 }
+
+// ── Mailbox connection (IMAP) ───────────────────────────────────────────────
+
+/** A provider whose IMAP server and port are known from the address. */
+export interface ImapProvider {
+  name: string;
+  /** Address domains it serves, lowercase. */
+  domains: string[];
+  host: string;
+  port: number;
+}
+
+/** The providers known from the address, and the port of any other server. */
+export interface ImapProviders {
+  providers: ImapProvider[];
+  defaultPort: number;
+}
+
+/** What the add form sends; the password is never kept by the window. */
+export interface MailboxInput {
+  email: string;
+  host: string | null;
+  port: number | null;
+  password: string;
+}
+
+/** A mailbox the runtime verified and stored. */
+export interface MailboxAccount {
+  connectionId: string;
+  email: string;
+  host: string;
+  port: number;
+  username: string;
+}
+
+/** The providers whose server the add form fills from the address. */
+export function listImapProviders(): Promise<ImapProviders> {
+  return invoke<ImapProviders>("list_imap_providers");
+}
+
+/**
+ * Add a mailbox: the runtime logs in for real, then stores the connection and
+ * keeps the password in the secret store. A failed login stores nothing and
+ * rejects with the reason.
+ */
+export function addImapMailbox(mailbox: MailboxInput): Promise<MailboxAccount> {
+  return invoke<MailboxAccount>("add_imap_mailbox", { mailbox });
+}

@@ -554,6 +554,39 @@
       "ask_administrator": "Pour changer cette règle, adressez-vous à l'administrateur de votre organisation.",
       "open_policy": "Voir la politique",
       "open_permissions": "Voir les autorisations"
+    },
+    "mailbox": {
+      "entry_name": "Boîte mail",
+      "entry_description": "Gmail, iCloud, Yahoo, Orange, Free, La Poste ou toute boîte qui accepte un mot de passe d'application",
+      "title": "Ajouter une boîte mail",
+      "subtitle": "Par son adresse et un mot de passe d'application",
+      "email_label": "Adresse",
+      "email_placeholder": "claire@exemple.fr",
+      "email_hint": "Le serveur de messagerie est déduit de l'adresse.",
+      "password_label": "Mot de passe d'application",
+      "password_hint": "Un mot de passe d'application est un code que votre messagerie crée pour Apollia, à la place de votre mot de passe habituel.",
+      "advanced": "Avancé",
+      "advanced_hint": "Préremplis depuis l'adresse, modifiables.",
+      "host_label": "Serveur de réception",
+      "port_label": "Port",
+      "add": "Ajouter",
+      "add_hint": "Apollia essaie la connexion avant de l'ajouter.",
+      "trying": "Essai de la connexion à la boîte mail…",
+      "added": "Essai réussi : {email} est ajoutée à vos connexions.",
+      "added_where": "Vos agents peuvent maintenant la lire, sans jamais rien y envoyer ni supprimer. Elle figure dans la liste des connexions.",
+      "error": {
+        "credentials_rejected": "Le serveur refuse le mot de passe. Vérifiez le mot de passe d'application, puis réessayez.",
+        "unreachable": "Le serveur de messagerie ne répond pas. Vérifiez l'adresse, ou le serveur et le port sous « Avancé ».",
+        "tls": "La connexion sécurisée au serveur a échoué. Vérifiez le serveur et le port sous « Avancé ».",
+        "invalid_email": "Cette adresse n'est pas une adresse mail.",
+        "invalid_host": "Indiquez le serveur de réception sous « Avancé ».",
+        "invalid_port": "Le port indiqué sous « Avancé » n'est pas valide.",
+        "invalid_password": "Le mot de passe est vide ou trop long.",
+        "protocol": "Le serveur a répondu d'une façon inattendue. Vérifiez qu'il s'agit bien d'un serveur de réception (IMAP).",
+        "secret_store": "Le mot de passe n'a pas pu être rangé dans le trousseau de cet ordinateur. Rien n'a été ajouté.",
+        "runtime": "Apollia ne répond pas pour l'instant. Réessayez dans un moment.",
+        "generic": "La boîte mail n'a pas pu être ajoutée. Réessayez."
+      }
     }
   },
   "integrations": {
