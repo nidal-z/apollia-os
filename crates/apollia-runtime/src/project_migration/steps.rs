@@ -10,10 +10,10 @@ use apollia_tools::{OverrideField, ProjectDetail};
 use serde_json::Value;
 
 use super::{
-    agents_of, document_problem, ensure_file_source, ensure_folder_connection, folder_name_of,
-    group_of, IssueItem, IssueReason, MemoryMerge, MigrationIssue, MigrationReport,
-    MigrationStatus, ProjectOutcome, Stores, INSTRUCTIONS_FILE_NAME, PROJECTS_SOURCES_DIR,
-    REPORT_FORMAT_VERSION,
+    agents_of, document_problem, ensure_code_folder_source, ensure_file_source,
+    ensure_folder_connection, folder_name_of, group_of, IssueItem, IssueReason, MemoryMerge,
+    MigrationIssue, MigrationReport, MigrationStatus, ProjectOutcome, Stores, CODE_PROVIDERS,
+    INSTRUCTIONS_FILE_NAME, PROJECTS_SOURCES_DIR, REPORT_FORMAT_VERSION,
 };
 use crate::chat::repository::ChatSessionRepository;
 
@@ -114,12 +114,19 @@ impl<'a> Run<'a> {
             }
         }
         outcome.instructions_source = self.instructions(stores, project, &group, folder);
+        outcome.folder_connection = self.working_folder(stores, project);
+        outcome.code_folder_source = self.code_folder(
+            stores,
+            project,
+            &group,
+            outcome.folder_connection.as_deref(),
+        );
         let mut checked = outcome.document_sources.clone();
         checked.extend(outcome.instructions_source.clone());
+        checked.extend(outcome.code_folder_source.clone());
         if !checked.is_empty() {
             outcome.agents_checked = self.check_for_agents(stores, project, &checked);
         }
-        outcome.folder_connection = self.working_folder(stores, project);
         outcome.memory = self.memory(project);
         outcome
     }
@@ -265,6 +272,58 @@ impl<'a> Run<'a> {
                     project,
                     IssueItem::Folder,
                     path,
+                    (IssueReason::Failed, Some(e.to_string())),
+                );
+                None
+            }
+        }
+    }
+
+    /// Makes the working folder of `project` a code folder source when an
+    /// enabled `git`, `rules` or `tree` provider read it, and lists every
+    /// provider nothing replaces: `script`, `style`, and a code provider of a
+    /// project without a working folder. A folder that could not become a
+    /// connection is already listed and adds nothing here.
+    fn code_folder(
+        &mut self,
+        stores: &Stores,
+        project: &ProjectDetail,
+        group: &str,
+        connection: Option<&str>,
+    ) -> Option<String> {
+        let has_folder = project
+            .workspace_path
+            .as_deref()
+            .is_some_and(|p| !p.trim().is_empty());
+        let mut reads_code = false;
+        for provider in &project.providers {
+            let code = CODE_PROVIDERS.contains(&provider.provider_type.as_str());
+            if code && has_folder {
+                reads_code |= provider.enabled;
+                continue;
+            }
+            let detail = if code {
+                "the project has no working folder".to_owned()
+            } else {
+                format!("a {} provider has no replacement", provider.provider_type)
+            };
+            let subject = format!("{} ({})", provider.name, provider.provider_type);
+            self.issue(
+                project,
+                IssueItem::Provider,
+                &subject,
+                (IssueReason::NotCarriedOver, Some(detail)),
+            );
+        }
+        let connection = connection.filter(|_| reads_code)?;
+        match ensure_code_folder_source(&stores.sources, group, group, connection) {
+            Ok(id) => Some(id),
+            Err(e) => {
+                let subject = project.workspace_path.clone().unwrap_or_default();
+                self.issue(
+                    project,
+                    IssueItem::Provider,
+                    &subject,
                     (IssueReason::Failed, Some(e.to_string())),
                 );
                 None

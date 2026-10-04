@@ -19,7 +19,8 @@ class CreateSourceBody:
         kind (str): `folder`, `file`, `mail`, `profile`, `memory` or `code_folder`.
         label (str): The name the user sees.
         group (None | str | Unset): A group the source belongs to.
-        reference (None | str | Unset): What the source points at; required for `folder`, `file` and `mail`.
+        reference (None | str | Unset): What the source points at; required for `folder`, `file`, `mail` and
+            `code_folder`, whose reference is a folder connection.
     """
 
     kind: str

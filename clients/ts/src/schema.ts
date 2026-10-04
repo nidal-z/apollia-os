@@ -4791,6 +4791,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sources/folder-kinds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/sources/folder-kinds`: the kinds offered for a source made
+         *     on a folder connection.
+         * @description The code folder is offered only when the developer mode is on. This is
+         *     what the user is offered, not a check: `POST /api/v1/sources` accepts a
+         *     code folder whatever the mode.
+         */
+        get: operations["folder_kinds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sources/preview": {
         parameters: {
             query?: never;
@@ -6885,7 +6908,10 @@ export interface components {
             kind: string;
             /** @description The name the user sees. */
             label: string;
-            /** @description What the source points at; required for `folder`, `file` and `mail`. */
+            /**
+             * @description What the source points at; required for `folder`, `file`, `mail` and
+             *     `code_folder`, whose reference is a folder connection.
+             */
             reference?: string | null;
         };
         /** @description Request body for `POST /api/v1/triggers`, trigger creation. */
@@ -7696,12 +7722,12 @@ export interface components {
          * @description What an issue is about.
          * @enum {string}
          */
-        IssueItem: "store" | "document" | "instructions" | "agent" | "folder" | "memory" | "conversations";
+        IssueItem: "store" | "document" | "instructions" | "agent" | "folder" | "provider" | "memory" | "conversations";
         /**
          * @description Why an item was not carried over.
          * @enum {string}
          */
-        IssueReason: "missing" | "unreadable" | "wrong_kind" | "agent_not_installed" | "failed";
+        IssueReason: "missing" | "unreadable" | "wrong_kind" | "agent_not_installed" | "failed" | "not_carried_over";
         /** @description One Python tool of the package. */
         ItemPreview: {
             /** @description What it does. */
@@ -8893,6 +8919,12 @@ export interface components {
              * @default []
              */
             agentsChecked: string[];
+            /**
+             * @description Identifier of the code folder source made on that connection, when
+             *     the project read its git state, its rules or its tree.
+             * @default null
+             */
+            codeFolderSource: string | null;
             /**
              * @description Identifiers of the sources made of its documents.
              * @default []
@@ -22282,7 +22314,7 @@ export interface operations {
                     "application/json": components["schemas"]["SourceResponse"];
                 };
             };
-            /** @description Unknown kind, blank label, or a folder, file or mailbox without a reference */
+            /** @description Unknown kind, blank label, or a folder, file, mailbox or code folder without a reference */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -22298,6 +22330,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    folder_kinds: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Whether the developer mode is on, as `[desktop] developer_mode`
+                 *     says; off when absent.
+                 */
+                developerMode?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The kinds offered on a folder connection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceKindDto"][];
                 };
             };
         };

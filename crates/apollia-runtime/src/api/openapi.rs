@@ -340,6 +340,7 @@ use security::BearerToken;
         crate::api::routes_sources::delete_source,
         crate::api::routes_sources::preview::preview_source,
         crate::api::routes_sources::project_migration::project_migration_report,
+        crate::api::routes_sources::folder_kinds,
         crate::api::routes_server::logs::stream_server_logs,
         crate::api::routes_server::logs::clear_server_logs,
         crate::api::routes_config::read_config,
