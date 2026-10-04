@@ -378,6 +378,9 @@ impl SourceIndex {
     /// Removes the document at `path` and its chunks. Returns whether it was
     /// indexed.
     ///
+    /// TEST-ONLY: no production path removes a single document yet; a
+    /// rewritten document is replaced by `upsert_document`.
+    ///
     /// # Errors
     /// [`IndexError::Db`] on any SQLite failure.
     pub fn remove_document(&mut self, path: &str) -> Result<bool, IndexError> {

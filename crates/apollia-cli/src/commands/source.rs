@@ -10,6 +10,10 @@
 //! it (`POST /api/v1/sources/preview`): the sheet and header row proposed, the
 //! first rows, and whether results may be written into the original. A file
 //! that is not there is refused with exit 1 before the runtime is reached.
+//!
+//! `report` shows what the migration of the former projects carried over into
+//! sources at boot, and what it listed instead
+//! (`GET /api/v1/sources/project-migration`); exit 1 when no migration has run.
 
 use std::path::PathBuf;
 
@@ -23,6 +27,8 @@ use crate::exit_codes;
 const SOURCES_ROUTE: &str = "/api/v1/sources";
 /// Route of the preview of a workbook or a CSV file.
 const PREVIEW_ROUTE: &str = "/api/v1/sources/preview";
+/// Route of the report of the migration of the former projects.
+const MIGRATION_ROUTE: &str = "/api/v1/sources/project-migration";
 
 /// `apollia-os source <verb>`.
 #[derive(Debug, Subcommand)]
@@ -65,6 +71,9 @@ pub enum SourceCommand {
         #[arg(long)]
         header_row: Option<u32>,
     },
+    /// Show the report of the migration of the former projects into sources:
+    /// what each project became, and what could not be carried over.
+    Report,
 }
 
 /// Run one leaf; returns the process exit code.
@@ -116,6 +125,7 @@ pub async fn run(cmd: &SourceCommand, socket: Option<PathBuf>, json: bool) -> i3
             });
             client.post(PREVIEW_ROUTE, Some(&body)).await
         }
+        SourceCommand::Report => client.get(MIGRATION_ROUTE).await,
     };
     match response {
         Ok(resp) if resp.status < 400 => {
@@ -180,7 +190,96 @@ fn render(cmd: &SourceCommand, resp: &RawResponse) {
                 println!("{line}");
             }
         }
+        SourceCommand::Report => {
+            for line in report_lines(&value) {
+                println!("{line}");
+            }
+        }
     }
+}
+
+/// The human rendering of a `GET /api/v1/sources/project-migration` answer.
+fn report_lines(value: &Value) -> Vec<String> {
+    let count = |v: &Value, key: &str| v.get(key).and_then(Value::as_array).map_or(0, Vec::len);
+    let mut lines = vec![
+        format!(
+            "Migration of projects: {} ({})",
+            field(value, "status"),
+            field(value, "ranAt")
+        ),
+        format!(
+            "Conversations detached: {}",
+            value
+                .get("conversationsDetached")
+                .and_then(Value::as_u64)
+                .unwrap_or(0)
+        ),
+    ];
+    for project in value
+        .get("projects")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let instructions = if project
+            .get("instructionsSource")
+            .is_some_and(Value::is_string)
+        {
+            ", instructions"
+        } else {
+            ""
+        };
+        let folder = if project
+            .get("folderConnection")
+            .is_some_and(Value::is_string)
+        {
+            ", folder connection"
+        } else {
+            ""
+        };
+        lines.push(format!(
+            "- {}: {} document(s){instructions}{folder}, {} memory space(s), checked for {}",
+            field(project, "name"),
+            count(project, "documentSources"),
+            count(project, "memory"),
+            project
+                .get("agentsChecked")
+                .and_then(Value::as_array)
+                .map(|a| a
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .collect::<Vec<_>>()
+                    .join(", "))
+                .filter(|a| !a.is_empty())
+                .unwrap_or_else(|| "no agent".to_owned()),
+        ));
+    }
+    let issues: Vec<&Value> = value
+        .get("issues")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .collect();
+    if !issues.is_empty() {
+        lines.push("Not carried over:".to_owned());
+    }
+    for issue in issues {
+        let project = field(issue, "projectName");
+        let blocking = if issue.get("blocking").and_then(Value::as_bool) == Some(true) {
+            ", retried at next start"
+        } else {
+            ""
+        };
+        lines.push(format!(
+            "- {}{}{} {}: {}{blocking}",
+            project,
+            if project.is_empty() { "" } else { ": " },
+            field(issue, "item"),
+            field(issue, "subject"),
+            field(issue, "reason"),
+        ));
+    }
+    lines
 }
 
 /// The human rendering of a `POST /api/v1/sources/preview` answer.
@@ -389,6 +488,52 @@ mod tests {
                     if file == &PathBuf::from("clients.xlsx") && sheet.as_deref() == Some("Clients")
             ),
             "{leaf:?}"
+        );
+    }
+
+    #[test]
+    fn test_cli_parses_source_report() {
+        // GIVEN "apollia-os source report"
+        // WHEN the top-level parser reads it
+        let leaf = parse(&["apollia-os", "source", "report"]);
+        // THEN the report leaf is selected
+        assert!(matches!(leaf, SourceCommand::Report));
+    }
+
+    #[test]
+    fn test_the_report_lines_name_each_project_and_each_issue() {
+        // GIVEN a partial report with one project and two issues
+        let value = serde_json::json!({
+            "formatVersion": 1, "status": "partial", "ranAt": "2026-10-04T08:00:00Z",
+            "conversationsDetached": 3,
+            "projects": [{
+                "id": "p1", "name": "Dossier Durand",
+                "documentSources": ["src-1", "src-2"], "instructionsSource": "src-3",
+                "agentsChecked": ["apollia", "veille"], "folderConnection": "f1",
+                "memory": [{ "from": "p1:veille", "into": "veille", "entriesAdded": 1 }]
+            }],
+            "issues": [
+                { "projectId": "p1", "projectName": "Dossier Durand", "item": "document",
+                  "subject": "/docs/parti.txt", "reason": "missing", "detail": null, "blocking": false },
+                { "projectId": null, "projectName": null, "item": "conversations",
+                  "subject": "chat.db", "reason": "failed", "detail": "locked", "blocking": true }
+            ]
+        });
+
+        // WHEN it is rendered
+        let lines = report_lines(&value);
+
+        // THEN the status, the project and both issues are shown
+        assert_eq!(
+            lines,
+            vec![
+                "Migration of projects: partial (2026-10-04T08:00:00Z)".to_owned(),
+                "Conversations detached: 3".to_owned(),
+                "- Dossier Durand: 2 document(s), instructions, folder connection, 1 memory space(s), checked for apollia, veille".to_owned(),
+                "Not carried over:".to_owned(),
+                "- Dossier Durand: document /docs/parti.txt: missing".to_owned(),
+                "- conversations chat.db: failed, retried at next start".to_owned(),
+            ]
         );
     }
 

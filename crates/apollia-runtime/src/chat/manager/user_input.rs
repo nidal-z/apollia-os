@@ -119,18 +119,10 @@ impl ChatSessionManager {
             let plan_mode = row.plan_mode;
             let available_tools: Vec<String> =
                 serde_json::from_str(&row.available_tools).unwrap_or_default();
-            let mut authorized_tools = self
+            let authorized_tools = self
                 .repository
                 .get_authorized_tools(&row.id)
                 .unwrap_or_default();
-            // Libre sessions: also seed from governance.db agent-scoped allow
-            // rules so cross-session "always allow" decisions survive.
-            if mode == ChatMode::Libre {
-                let overrides = load_chat_libre_overrides(self.governance_db_path.as_deref());
-                for tool in overrides.pre_authorized_tools {
-                    authorized_tools.insert(tool);
-                }
-            }
             let messages = self
                 .repository
                 .get_messages(&row.id, None)
@@ -175,8 +167,6 @@ impl ChatSessionManager {
                 title: row.title,
                 parent_session_id: row.parent_session_id,
                 fork_depth: row.fork_depth,
-                project_id: row.project_id,
-                force_project_context_inject: false,
                 fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
                     std::collections::HashSet::new(),
                 )),

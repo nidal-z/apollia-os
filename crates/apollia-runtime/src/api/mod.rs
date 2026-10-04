@@ -4,6 +4,7 @@
 
 pub mod middleware;
 pub mod openapi;
+mod openapi_local_models;
 mod port_file;
 pub mod routes_a2a;
 pub mod routes_agent_definitions;
@@ -40,6 +41,7 @@ pub mod routes_oauth_clients;
 pub mod routes_observability;
 pub mod routes_onboarding;
 pub mod routes_packages;
+pub mod routes_pending;
 pub mod routes_permissions;
 pub mod routes_plan_cache;
 pub mod routes_profile;

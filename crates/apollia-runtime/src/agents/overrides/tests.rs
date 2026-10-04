@@ -27,7 +27,9 @@ impl GovernanceContract for RecordingGovernance {
     }
 
     fn decide(&self, _: &AccessCall<'_>) -> AccessDecision {
-        AccessDecision::Allowed
+        AccessDecision::Allowed {
+            reason: crate::governance::DecisionReason::NoConsentNeeded,
+        }
     }
 
     fn signature_required(&self, _: &InstallSubject<'_>) -> bool {

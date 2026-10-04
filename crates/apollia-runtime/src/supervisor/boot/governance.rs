@@ -10,17 +10,27 @@ pub(super) struct Governance {
     pub(super) audit_trail: Option<AuditTrailHandle>,
     pub(super) audit_journal: Option<AuditJournalHandle>,
     pub(super) connection: crate::governance::ConnectionGovernance,
+    /// The governance actor every tool call is decided by.
+    pub(super) handle: crate::governance::GovernanceHandle,
+}
+
+/// The connection admission built at boot and the existing connections it
+/// refused, both handed to the connection governance and the actor.
+pub(super) struct Connections {
+    pub(super) admission: Arc<crate::governance::PolicyAdmission>,
+    pub(super) forbidden: Arc<crate::governance::ForbiddenConnections>,
 }
 
 impl Supervisor {
     /// Phases 8 to 8d: the audit trail, the hash-chained journal and its
-    /// subscriber, the access upgrade, the chat settings carry-over, then the
+    /// subscriber, the governance actor, the access upgrade, the chat settings carry-over, then the
     /// connection governance.
     pub(super) async fn open_governance(
         &self,
         tool_registry_handle: &ToolRegistryHandle,
         event_sender: &EventBusSender,
         org_policy: &Arc<apollia_permissions::PolicyVerdict>,
+        connections: Connections,
     ) -> Governance {
         // Phase 8 (pos 9): AuditTrail, opened before APIServer so it's injectable into AppState.
         info!("supervisor.audit_trail.opening");
@@ -36,11 +46,28 @@ impl Supervisor {
             warn!(detail = "subscriber not started", "audit.journal.disabled");
         }
 
-        // Phase 8c: the one-shot access upgrade of governance.db, journaled.
-        crate::governance::access_upgrade::run_at_startup(
-            &self.config.data_dir,
-            audit_journal_handle.as_ref(),
-        );
+        // Phase 8c: the governance actor, owner of what every tool call is
+        // decided from; then the one-shot access upgrade of governance.db,
+        // journaled through it.
+        let governance =
+            crate::governance::GovernanceHandle::spawn(crate::governance::GovernanceSources {
+                governance_db: Some(
+                    self.config
+                        .data_dir
+                        .join(apollia_core::paths::DataFile::Governance.file_name()),
+                ),
+                config_path: Some(
+                    self.config
+                        .config_path
+                        .clone()
+                        .unwrap_or_else(|| self.config.data_dir.join("apollia.toml")),
+                ),
+                policy: Arc::clone(org_policy),
+                journal: audit_journal_handle.clone(),
+                events: Some(event_sender.clone()),
+                forbidden_connections: connections.forbidden.tool_connections(),
+            });
+        crate::governance::access_upgrade::run_at_startup(&self.config.data_dir, &governance);
 
         // Phase 8c': connection secrets kept outside the secret store move in.
         crate::supervisor::legacy_secrets::move_legacy_secrets_into_store(&self.config.data_dir);
@@ -53,23 +80,30 @@ impl Supervisor {
         .await;
         crate::agents::apollia::carry_over::run_at_startup(
             &self.config.data_dir,
-            audit_journal_handle.as_ref(),
+            &governance,
             &reading,
         );
+        governance.refresh().await;
 
         // Connections answer to governance: admitted by the organisation
         // policy read above before they are added, journaled when they change.
         let connection_governance = crate::governance::ConnectionGovernance::new(
-            Arc::new(crate::governance::PolicyAdmission::new(Arc::clone(
-                org_policy,
-            ))),
+            Arc::new(
+                connections
+                    .admission
+                    .as_ref()
+                    .clone()
+                    .with_governance(governance.clone()),
+            ),
             audit_journal_handle.clone(),
-        );
+        )
+        .with_forbidden(connections.forbidden);
 
         Governance {
             audit_trail: audit_trail_handle,
             audit_journal: audit_journal_handle,
             connection: connection_governance,
+            handle: governance,
         }
     }
 }

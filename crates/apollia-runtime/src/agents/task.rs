@@ -333,6 +333,7 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
             task_id: task_id.clone(),
         });
 
+        let watched = unattended.is_none();
         let (authorized_tools, asked) = match unattended {
             Some(authorized) => {
                 let asked = stop_on_first_approval(&self.event_bus, &task_id, cancel.clone());
@@ -366,6 +367,7 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
                 done: done_tx,
                 budget,
                 depth,
+                unattended: !watched,
             })
             .await;
         if let Err(e) = started {
@@ -486,10 +488,7 @@ impl<B: ExecutionBackend> RunFinish<B> {
         let (status, output) = match &outcome {
             _ if awaiting.is_some() => (
                 "awaiting",
-                format!(
-                    "Waiting for a decision: the agent asked to use '{}', which is not granted",
-                    awaiting.as_deref().unwrap_or_default()
-                ),
+                crate::batch::awaiting_output(awaiting.as_deref().unwrap_or_default()),
             ),
             Ok(response) if response.paused || self.cancel.is_cancelled() => {
                 ("canceled", response.content.clone())

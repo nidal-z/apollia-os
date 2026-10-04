@@ -47,11 +47,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "pause_chat_session",
     "send_chat_message",
     // The conversations as the list manages them: configure, rename, name,
-    // erase, link to a project, list by project.
+    // erase.
     "delete_chat_session",
     "generate_chat_session_name",
-    "link_chat_to_project",
-    "list_chats_by_project",
     "rename_chat_session",
     "update_chat_session",
     // The chat: a turn played again, a decision on a tool call, the history
@@ -66,11 +64,18 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "install_agent",
     "list_agents",
     "uninstall_agent",
+    // Agents: the update, restart included, over
+    // `PUT /api/v1/agents/installed/{name}`.
+    "update_agent",
     // Tasks: the list, the launch, the detail, the cancellation.
     "cancel_task",
     "get_task_timeline",
     "list_tasks",
     "submit_task",
+    // Tasks: the deletion of a stored record and the delegation tree, over
+    // `/api/v1/tasks/{id}/record` and `/api/v1/tasks/{id}/delegation-tree`.
+    "delete_task",
+    "get_delegation_tree",
     // Approvals: the pending and resolved ones, and the decision that resumes
     // the task.
     "list_pending_approvals",
@@ -112,8 +117,16 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_agent_packages",
     "preview_agent_package",
     "uninstall_agent_package",
-    // Connections.
+    // Connections, the folders added as connections, and the mailbox
+    // connection: the providers known from the address, and the addition,
+    // which logs in before it stores.
+    "add_folder_connection",
+    "add_imap_mailbox",
     "list_connections",
+    "list_imap_providers",
+    "remove_folder_connection",
+    // The report of the migration of the former projects.
+    "get_project_migration_report",
     // Apollia as an MCP server, over `/api/v1/mcp/exposed`.
     "list_mcp_exposable",
     "set_mcp_exposed",
@@ -263,6 +276,7 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "governance_revoke_permission_rule",
     "governance_set_tool_config",
     "governance_set_tool_enabled",
+    "governance_state",
     // Accounts of the native connectors and their Drive folder, under
     // `/api/v1/connectors/`. The window keeps the loopback listener and the
     // browser of the consent; the daemon starts it, completes it and stores

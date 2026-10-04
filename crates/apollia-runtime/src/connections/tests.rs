@@ -26,6 +26,7 @@ fn with_origin(
     config.origin = Some(ConnectionOrigin {
         provenance,
         official,
+        entry: None,
     });
     config
 }
@@ -92,6 +93,8 @@ fn test_two_mcp_servers_and_one_google_account_are_three_connections_with_tools(
             vec!["ada@example.com".to_owned()],
         )],
         imap_accounts: Vec::new(),
+        forbidden: HashSet::new(),
+        folders: Vec::new(),
     };
 
     // WHEN the connections are listed
@@ -310,11 +313,37 @@ fn test_a_server_read_tool_is_unchecked_outside_the_selection() {
 }
 
 #[test]
-fn test_the_folder_entry_point_answers_none_yet() {
-    // GIVEN no folder store
-    // WHEN folders are listed
-    // THEN none is answered
-    assert!(folder_connections().is_empty());
+fn test_a_stored_folder_is_listed_last_as_a_local_folder_connection() {
+    // GIVEN one MCP server and one stored folder
+    let sources = ConnectionSources {
+        mcp_configs: vec![server("files", "stdio", None)],
+        folders: vec![apollia_core::FolderConnection {
+            id: "f1".to_owned(),
+            path: "/Users/ada/Clients".to_owned(),
+            label: "Clients".to_owned(),
+            added_at: "2026-10-04T10:00:00.000Z".to_owned(),
+        }],
+        ..ConnectionSources::default()
+    };
+
+    // WHEN the connections are listed
+    let list = assemble(&sources);
+
+    // THEN the folder comes last, local, of the selection, with its path and
+    // the native file tools
+    let folder = &list[1];
+    assert_eq!(folder.id, "folder:f1");
+    assert_eq!(folder.kind, ConnectionKind::Folder);
+    assert_eq!(folder.label, "Clients");
+    assert_eq!(folder.path.as_deref(), Some("/Users/ada/Clients"));
+    assert!(!folder.remote);
+    assert_eq!(folder.provenance, Provenance::Selection);
+    assert!(folder
+        .tools
+        .iter()
+        .any(|t| t.id == "conn:folder:f1/file_read" && t.prechecked));
+    assert_eq!(folder_id_of(&folder.id), Some("f1"));
+    assert_eq!(folder_id_of("mcp:files"), None);
 }
 
 #[test]
@@ -344,4 +373,43 @@ fn test_the_wire_shape_is_camel_case() {
     assert_eq!(c["tools"][0]["familySource"], "server");
     assert_eq!(c["tools"][0]["family"], "read");
     assert_eq!(c["tools"][0]["prechecked"], false);
+}
+
+// A connection the policy forbade at boot is marked so, whatever its state
+// would otherwise be; the others keep theirs.
+#[test]
+fn test_a_forbidden_connection_is_marked_forbidden_by_policy() {
+    // GIVEN a live server, a stopped one and an account, the stopped server
+    // and the account forbidden at boot
+    let sources = ConnectionSources {
+        mcp_configs: vec![
+            server("files", "stdio", None),
+            server("fetch", "stdio", None),
+        ],
+        mcp_statuses: vec![healthy("files")],
+        native_accounts: vec![(
+            ConnectorProvider::Google,
+            vec!["ada@example.com".to_owned()],
+        )],
+        forbidden: HashSet::from([
+            "mcp:fetch".to_owned(),
+            "native:google:ada@example.com".to_owned(),
+        ]),
+        ..ConnectionSources::default()
+    };
+
+    // WHEN the connections are listed
+    let list = assemble(&sources);
+
+    // THEN both forbidden ones are listed, never dropped, and marked
+    assert_eq!(list.len(), 3);
+    assert_eq!(
+        by_id(&list, "mcp:fetch").state,
+        ConnectionState::ForbiddenByPolicy
+    );
+    assert_eq!(
+        by_id(&list, "native:google:ada@example.com").state,
+        ConnectionState::ForbiddenByPolicy
+    );
+    assert_eq!(by_id(&list, "mcp:files").state, ConnectionState::Connected);
 }

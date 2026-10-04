@@ -19,6 +19,7 @@
   const builtins: Shortcut[] = [
     { id: "nav.back",    keys: [modKey, "["], descriptionKey: "a11y.shortcut.nav_back",    group: "navigation" },
     { id: "nav.forward", keys: [modKey, "]"], descriptionKey: "a11y.shortcut.nav_forward", group: "navigation" },
+    { id: "guide.open",  keys: [modKey, "/"], descriptionKey: "settings.shortcuts.items.companion_toggle", group: "help" },
     { id: "a11y.open_hints", keys: ["?"],     descriptionKey: "a11y.shortcut.open_hints",  group: "help" },
     { id: "a11y.close",  keys: ["Esc"],       descriptionKey: "a11y.shortcut.close_modal", group: "help" },
   ];

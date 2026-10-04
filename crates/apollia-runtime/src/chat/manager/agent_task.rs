@@ -47,6 +47,9 @@ pub struct AgentTaskRun {
     pub budget: Option<Arc<StepBudget>>,
     /// The level of the run in the nesting, 1 for a run started on its own.
     pub depth: u32,
+    /// Nobody watches the run (an item of a batch): governance answers a
+    /// call that would ask with a wait instead.
+    pub unattended: bool,
 }
 
 /// What a spawned run needs from the actor.
@@ -66,6 +69,7 @@ struct AgentTaskWiring {
     hitl: HitlInvokerParams,
     package_tools: Option<Arc<dyn crate::package_tools::PackageToolHost>>,
     composer: Option<Arc<dyn crate::composition::Composer>>,
+    governance: Option<crate::governance::GovernanceHandle>,
 }
 
 impl ChatSessionManager {
@@ -81,11 +85,6 @@ impl ChatSessionManager {
             pending_fs: self.pending_fs_approvals.clone(),
             fs_allow_rules: Arc::new(std::sync::Mutex::new(HashSet::new())),
             risk_config: apollia_core::FilesystemRiskConfig::default(),
-            trusted_paths: self
-                .chat_tools_config
-                .as_ref()
-                .map(|c| c.trusted_paths.clone())
-                .unwrap_or_default(),
         };
         let wiring = AgentTaskWiring {
             llm_router,
@@ -103,6 +102,7 @@ impl ChatSessionManager {
             hitl,
             package_tools: self.package_tools.clone(),
             composer: self.composer.clone(),
+            governance: self.governance.clone(),
         };
         info!(task_id = %run.task_id, agent = %run.spec.agent_id, "agent.task.started");
         tokio::spawn(run_agent_task(wiring, run));
@@ -111,8 +111,8 @@ impl ChatSessionManager {
 
     /// Answer a tool approval of a run outside any conversation.
     ///
-    /// Such a run has no session to keep a grant in, so "always accept"
-    /// accepts this call alone.
+    /// The answer reaches the run as given: an "always" becomes a standing
+    /// consent of the run's agent for the family of the tool, as in the chat.
     pub(in crate::chat::manager) fn resolve_task_approval(
         &self,
         task_id: &str,
@@ -120,10 +120,6 @@ impl ChatSessionManager {
         tool_call_id: &str,
         decision: ToolDecision,
     ) -> Result<(), ChatError> {
-        let decision = match decision {
-            ToolDecision::AlwaysAccept { .. } => ToolDecision::Accept,
-            other => other,
-        };
         let key = format!("{task_id}::{message_id}::{tool_call_id}");
         if self.pending_chat_approvals.resolve(&key, decision) {
             Ok(())
@@ -172,8 +168,21 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         done,
         budget,
         depth,
+        unattended,
     } = run;
-    spec.granted_tools = access.tools(&wiring.tool_registry).await;
+    let mut package_tools =
+        super::package_executors(&wiring.package_tools, &spec.agent_id, &cancel);
+    let tools = super::code_context::with_code_context(
+        wiring.chat_tools_config.as_deref(),
+        &spec.agent_id,
+        access.tools(&wiring.tool_registry).await,
+        &mut package_tools,
+    )
+    .await;
+    // The folders granted to the agent are the roots of its file tools.
+    let (granted, folders) =
+        super::dispatcher::granted_folders(tools, wiring.chat_tools_config.as_deref());
+    spec.granted_tools = granted;
     let mcp_index: Vec<ToolIndexSnapshot> = match (wiring.mcp_loading, &wiring.mcp_handle) {
         (LoadingMode::Deferred, Some(handle)) => handle.get_tool_index().await,
         _ => Vec::new(),
@@ -189,7 +198,10 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         mcp_index,
         &disabled,
     );
-    spec.granted_tools = granted;
+    let sources =
+        super::sources::source_access(wiring.chat_tools_config.as_deref(), &spec.agent_id).await;
+    spec.granted_tools = super::sources::offered(granted, &sources);
+    let memory_namespace = super::sources::memory_namespace(&spec.agent_id, &task_id);
     let tool_turn_temperature = wiring
         .chat_tools_config
         .as_ref()
@@ -197,8 +209,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
 
     let resolved = super::libre::build_session_invoker(
         WorkspaceResolutionParams {
-            project_id: None,
-            project_repo: None,
+            folders,
             hitl: Some(wiring.hitl),
             pending_user_inputs: Some(wiring.pending_user_inputs),
             mcp_handle: wiring.mcp_handle,
@@ -207,7 +218,9 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
             mcp_loading: wiring.mcp_loading,
             mcp_index: mcp_index.clone(),
             tool_search_limit: wiring.tool_search_limit,
-            package_tools: super::package_executors(&wiring.package_tools, &spec.agent_id, &cancel),
+            package_tools,
+            sources,
+            memory_namespace,
         },
         &wiring.a2a_invoker,
         wiring.hook_executor.clone(),
@@ -244,6 +257,8 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
             composition: wiring
                 .composer
                 .map(|composer| Composition { composer, depth }),
+            governance: wiring.governance,
+            unattended,
             ..SessionWiring::default()
         },
         &wiring.runtime_budget,

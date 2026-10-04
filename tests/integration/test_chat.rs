@@ -217,6 +217,18 @@ fn build_chat_app_state(
     let llm_router = Arc::new(LlmRouter::with_backends(backends, "mock-chat"));
 
     let db_path = temp_chat_db();
+    // The governance a booted runtime hands the chat: an "always" answered at a
+    // prompt becomes a standing consent in its database, read on the next call.
+    let governance = apollia_runtime::governance::GovernanceHandle::spawn(
+        apollia_runtime::governance::GovernanceSources {
+            governance_db: db_path.parent().map(|dir| dir.join("governance.db")),
+            config_path: None,
+            policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
+            journal: None,
+            events: None,
+            forbidden_connections: std::collections::HashSet::new(),
+        },
+    );
     let chat_manager = ChatSessionManagerHandle::spawn(
         &db_path,
         Some(llm_router.clone()),
@@ -228,8 +240,6 @@ fn build_chat_app_state(
         None, // no user memory in tests
         registry_handle.clone(),
         None, // no A2A invoker in tests
-        None, // no project context in tests
-        None, // no project repo in tests
         None, // no MCP handle in tests
         None, // no chat tools config in tests
         apollia_mcp::session::LoadingMode::Eager,
@@ -247,6 +257,7 @@ fn build_chat_app_state(
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        governance: Some(governance),
         inference_governance: Default::default(),
         backend: MockBackend,
         llm_router: apollia_runtime::api::server::shared_llm_router_from(Some(llm_router)),
@@ -259,6 +270,7 @@ fn build_chat_app_state(
         tool_registry_handle: Some(tool_registry),
         audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),
+        config_reload: None,
         llm_call_repository: None,
         trigger_def_repo: None,
         notification_repo: None,
@@ -303,6 +315,17 @@ async fn start_chat_server(
     let port = reserved_port.port();
     let socket_path = temp_socket_path();
     let (state, event_rx) = build_chat_app_state(mock_model, budget_config);
+    // `file_write` is described as the built-in writing tool it is, so the
+    // governance reads its family and offers "always" on it.
+    if let Some(registry) = &state.tool_registry_handle {
+        registry
+            .register(apollia_tools::tools::file_write::FileWrite::descriptor())
+            .await
+            .expect("register file_write");
+    }
+    if let (Some(chat), Some(governance)) = (&state.chat_manager, &state.governance) {
+        chat.set_governance(governance.clone()).await;
+    }
     let config = APIServerConfig {
         socket_path: socket_path.clone(),
         tcp_port: Some(port),

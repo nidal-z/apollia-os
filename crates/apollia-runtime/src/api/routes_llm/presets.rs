@@ -27,7 +27,7 @@ use crate::api::routes_llm::backends::{map_backend_error, sync_toml_after_mutati
 use crate::api::routes_llm::servers::{api_err, with_repo, ApiError};
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
-use crate::governance::{NoPolicyGovernance, OverrideChange};
+use crate::governance::{GovernanceHandle, OverrideChange};
 
 /// Who the journal names for a change of an agent's model made through the API.
 const API_ACTOR: &str = "api";
@@ -465,10 +465,10 @@ fn record_model<B: ExecutionBackend + Clone>(
     agent: &str,
     change: OverrideChange,
 ) -> Result<(), ApiError> {
-    let Some(journal) = state.audit_journal.clone() else {
+    let Some(governance) = state.governance.clone().filter(GovernanceHandle::journaled) else {
         return Ok(());
     };
-    record_model_change(&NoPolicyGovernance::new(journal), agent, change, API_ACTOR)
+    record_model_change(&governance, agent, change, API_ACTOR)
         .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))
 }
 

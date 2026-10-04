@@ -2,10 +2,20 @@
   /**
    * Topbar - V3 Operator cockpit header.
    *
-   *   [Mobile menu] [Breadcrumb] ··· [Command bar] ··· [Agents-at-work] [Downloads] [Activity] [Settings] [UserMenu]
+   *   [Mobile menu] [Breadcrumb] ··· [Command bar] ··· [Agents-at-work] [Downloads] [Activity] [Settings] [Help] [Detail sidebar] [UserMenu]
    */
   import { t } from "svelte-i18n";
-  import { Menu, Search, ShieldCheck, Settings as SettingsIcon } from "lucide-svelte";
+  import {
+    CircleHelp,
+    Menu,
+    PanelRight,
+    Search,
+    ShieldCheck,
+    Settings as SettingsIcon,
+  } from "lucide-svelte";
+  import { detailSidebar, guideVisible } from "$lib/stores/detailSidebar";
+  import { onboardingModalOpen } from "$lib/stores/onboarding";
+  import { zLayer } from "$lib/design/tokens";
   import { navigateTo } from "$lib/stores/navigation";
   import { commandPaletteOpen } from "$lib/stores/commandPalette";
   import { sidebarState, layoutActions } from "$lib/stores/layout";
@@ -33,6 +43,7 @@
 
 <header
   class="topbar sticky top-0 z-drawer flex items-center gap-3 border-b border-border bg-muted/80 px-4 backdrop-blur-xl"
+  style:z-index={$onboardingModalOpen ? zLayer.onboardingAbove : undefined}
   data-testid="topbar"
 >
   <!-- Left: breadcrumb (+ hamburger on drawer breakpoint) -->
@@ -108,6 +119,32 @@
       <SettingsIcon size={14} strokeWidth={1.5} />
     </button>
 
+    <button
+      type="button"
+      class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+      class:topbar-icon-active={$guideVisible}
+      onclick={() => detailSidebar.toggleGuide()}
+      aria-label={$t("topbar.help_aria")}
+      aria-pressed={$guideVisible}
+      data-testid="topbar-help"
+      title={$t("topbar.help_aria")}
+    >
+      <CircleHelp size={14} strokeWidth={1.5} />
+    </button>
+
+    <button
+      type="button"
+      class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+      class:topbar-icon-active={$detailSidebar.open}
+      onclick={() => detailSidebar.toggle()}
+      aria-label={$t("topbar.detail_sidebar_aria")}
+      aria-pressed={$detailSidebar.open}
+      data-testid="topbar-detail-sidebar-toggle"
+      title={$t("topbar.detail_sidebar_aria")}
+    >
+      <PanelRight size={14} strokeWidth={1.5} />
+    </button>
+
     <UserMenu />
   </div>
 </header>
@@ -119,6 +156,12 @@
   .topbar {
     height: 3.25rem;
     border-bottom-width: 0.5px;
+  }
+
+  /* Pressed state of the help and detail sidebar icons. */
+  .topbar-icon-active {
+    background: hsl(var(--surface-2));
+    color: hsl(var(--foreground));
   }
 
   /* Command bar width breathes across the operator breakpoints (200 / 320 /

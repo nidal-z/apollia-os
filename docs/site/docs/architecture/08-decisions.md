@@ -95,6 +95,19 @@ memory search. File tools are confined to a resolved root: the path is
 canonicalized and re-checked against the root after resolution, so a symlink
 cannot walk out of it.
 
+The root of an agent's file tools is the union of the folders granted to that
+agent, the built-in chat agent included, on the chat path and on the task path
+alike. A folder of the machine is a connection, chosen with the system picker,
+and its tools are granted to an agent one by one: the reading tools reach every
+folder granted to it, the writing tools only those granted for writing. The
+first folder granted, by the date it was added, anchors a relative path. An
+agent with no folder granted has file tools that refuse with a message saying
+how to grant one. Nothing else is a root: not the home folder, not the data
+directory, not the volume, not the folder of a project. The former
+`[filesystem] trusted_paths` and `[chat] default_workspace` keys are withdrawn;
+the folders they named, the home folder excepted, were added once as
+connections, granted to no agent.
+
 Confinement is not uniform across platforms, and the difference is not
 cosmetic. On Linux, shell execution runs under PID and mount namespaces. On
 macOS the confinement is weaker. On Windows there is none. This is stated
@@ -410,6 +423,14 @@ did not hold, among them a font stack (`skrifa`, `read-fonts`, `write-fonts`,
 `office_oxide`, which it depends on, is held at 0.1.11 in the lock file: its
 0.1.12 release no longer compiles under `pdf_oxide` 0.3.78, so an update of
 either is a decision rather than a refresh.
+
+One crate of that font stack carries an advisory: `ttf-parser` 0.25.1, which
+`pdf_oxide` alone uses to parse the fonts a document embeds, is flagged
+unmaintained (RUSTSEC-2026-0192). No vulnerability is known in it and no newer
+release exists to move to, so the advisory is exempted in `deny.toml`, dated
+2026-10-04, with that reason beside it, and it is revisited at the next minor
+release. It lifts when `pdf_oxide` drops `ttf-parser` or a maintained release
+of it appears.
 
 Word documents and PowerPoint presentations are read in Rust, by code of our
 own over two crates: `zip`, the one that opens the package archive (see

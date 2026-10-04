@@ -33,18 +33,17 @@
     "package-detail-tab-overview",
     "package-detail-tab-triggers",
     "period-7d",
-    "project-tab-context",
-    "project-tab-conversations",
+    "profile-menu-reset",
     "settings-nav-appearance",
     "settings-nav-chat",
     "settings-nav-developer",
     "settings-nav-general",
     "settings-nav-model-hub",
+    "settings-nav-notifications",
     "settings-nav-permissions",
     "settings-nav-profile",
     "settings-nav-stt",
-    "trigger-logs-filter-all",
-    "profile-menu-reset"
+    "trigger-logs-filter-all"
   ],
   "steps": [
     {
@@ -462,7 +461,7 @@
     },
     {
       "kind": "click",
-      "testid": "companion-close"
+      "testid": "detail-sidebar-collapse"
     },
     {
       "kind": "sleep",
@@ -999,223 +998,36 @@
       "label": "chat-discuter-avec-votre-ia-1"
     },
     {
-      "kind": "goto",
-      "route": "projects"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "projects-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "project-row-",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "projects-new-project-btn",
-      "nth": 0,
-      "timeoutMs": 8000
+      "kind": "sleep",
+      "ms": 600
     },
     {
       "kind": "sleep",
       "ms": 600
     },
     {
-      "kind": "screenshot",
-      "label": "projets-creer-un-projet-1"
-    },
-    {
-      "kind": "click",
-      "testid": "projects-new-project-btn",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "new-project-cancel",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "new-project-continue",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "new-project-name-input",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "fill",
-      "testid": "new-project-name-input",
-      "text": "Marketing website 2026",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "fill",
-      "testid": "new-project-description-input",
-      "text": "Landing pages, blog and campaign assets for the 2026 relaunch.",
-      "timeoutMs": 8000
-    },
-    {
       "kind": "sleep",
       "ms": 600
     },
     {
-      "kind": "screenshot",
-      "label": "projets-creer-un-projet-2"
-    },
-    {
-      "kind": "click",
-      "testid": "new-project-back",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "new-project-cancel",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "new-project-cancel",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "new-project-cancel",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "project-row-",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "project-row-",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-tabbar",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "project-tab-conversations",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-conversations-list",
-      "timeoutMs": 8000
-    },
-    {
       "kind": "sleep",
       "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "projets-creer-un-projet-3"
-    },
-    {
-      "kind": "click",
-      "testid": "project-tab-context",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "providers-list",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "provider-card-",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "provider-toggle-",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "projets-activer-les-context-providers-1"
-    },
-    {
-      "kind": "setChecked",
-      "testidPrefix": "provider-toggle-",
-      "nth": 2,
-      "checked": false
     },
     {
       "kind": "sleep",
       "ms": 700
     },
     {
-      "kind": "waitFor",
-      "testid": "providers-list",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "provider-toggle-",
-      "nth": 2,
-      "timeoutMs": 8000
-    },
-    {
       "kind": "sleep",
       "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "projets-activer-les-context-providers-2"
-    },
-    {
-      "kind": "setChecked",
-      "testidPrefix": "provider-toggle-",
-      "nth": 2,
-      "checked": true
     },
     {
       "kind": "sleep",
       "ms": 700
     },
     {
-      "kind": "waitFor",
-      "testidPrefix": "provider-edit-",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "provider-edit-",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "provider-edit-dialog",
-      "timeoutMs": 8000
-    },
-    {
       "kind": "sleep",
       "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "projets-activer-les-context-providers-3"
     },
     {
       "kind": "click",
@@ -1223,27 +1035,8 @@
       "timeoutMs": 8000
     },
     {
-      "kind": "waitGone",
-      "testid": "provider-edit-dialog",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "project-tab-conversations",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-conversations-list",
-      "timeoutMs": 8000
-    },
-    {
       "kind": "sleep",
       "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "projets-lier-un-projet-a-un-chat-1"
     },
     {
       "kind": "goto",
@@ -1303,17 +1096,8 @@
       "timeoutMs": 8000
     },
     {
-      "kind": "waitFor",
-      "testid": "chat-header-menu-link-project",
-      "timeoutMs": 8000
-    },
-    {
       "kind": "sleep",
       "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "projets-lier-un-projet-a-un-chat-2"
     },
     {
       "kind": "click",
@@ -1326,48 +1110,8 @@
       "timeoutMs": 8000
     },
     {
-      "kind": "goto",
-      "route": "projects"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "projects-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "project-row-",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "project-row-",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-tabbar",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "project-tab-conversations",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "project-conversations-list",
-      "timeoutMs": 8000
-    },
-    {
       "kind": "sleep",
       "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "projets-lier-un-projet-a-un-chat-3"
     },
     {
       "kind": "goto",
@@ -2046,7 +1790,16 @@
     },
     {
       "kind": "goto",
-      "route": "notifications"
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-notifications"
     },
     {
       "kind": "waitFor",
@@ -2096,7 +1849,16 @@
     },
     {
       "kind": "goto",
-      "route": "notifications"
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-notifications"
     },
     {
       "kind": "waitFor",

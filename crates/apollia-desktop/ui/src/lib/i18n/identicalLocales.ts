@@ -43,7 +43,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "observability.timeline_window_30min", // 30 min
   "observability.type_llm", // LLM
   "onboarding_permissions.scope_label", // {scope}
-  "projects.provider_type_git", // Git
   "settings.integrations.drive.placeholder", // Apollia
   "settings.integrations.field.client_id", // Client ID
   "settings.integrations.placeholder.api_key", // AIzaSy…
@@ -129,10 +128,11 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "commandPalette.groups.actions", // Actions
   "commandPalette.groups.pages", // Pages
   "commandPalette.groups.sessions", // Sessions
-  "companion.title", // Companion
   "connections.badge_status_attention", // attention
   "connections.custom_test_ok", // Test OK - {result}
   "connections.mcp_settings.transport", // Transport
+  "connections.mailbox.port_label", // Port
+  "detailSidebar.tab_guide", // Guide
   "dev.connections.custom_transport_label", // Transport
   "connections.settings_provider_title", // Provider
   "connections.status_chip_attention", // Attention
@@ -154,15 +154,10 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "memory.namespaces.cat_agent_header", // Agents
   "memory.namespaces.title", // Namespaces
   "nav.chat", // Chat
-  "nav.notifications", // Notifications
   "nav.sidebar.chat", // Chat
-  "nav.sidebar.notifications", // Notifications
   "nav.sidebar.transcriptions", // Transcriptions
   "nav.transcriptions", // Transcriptions
   "notifications.field_type", // Type
-  "notifications.field_type_desktop", // Desktop
-  "notifications.field_type_webhook", // Webhook
-  "notifications.title", // Notifications
   "observability.agent", // Agent
   "observability.filter", // Type
   "observability.hooks_col_timeout", // Timeout
@@ -182,15 +177,10 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "plan_session.origin_initial", // Initial
   "plan_session.tab_journal", // Journal
   "plan_session.tab_plan", // Plan
-  "projects.card_agents", // {n, plural, one {# agent} other {# agents}}
-  "projects.field_description", // Description
-  "projects.provider_field_timeout_ms", // Timeout (ms)
-  "projects.provider_field_type", // Type
-  "projects.provider_type_script", // Script
-  "projects.provider_type_style", // Style
-  "projects.settings_field_description", // Description
-  "projects.tab_agents", // Agents
-  "projects.tab_conversations", // Conversations
+  "project_migration.row_documents_title", // Documents
+  "project_migration.row_instructions_title", // Instructions
+  "project_migration.where_chat_title", // Chat
+  "project_migration.where_sources_title", // Agents › Apollia › Sources
   "settings.about.contact_title", // Contact
   "settings.about.diag_transcription", // Transcription
   "settings.about.docs_title", // Documentation
@@ -212,6 +202,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.nav.chat", // Chat
   "settings.nav.configuration", // Configuration
   "settings.nav.mobile_open", // Sections
+  "settings.nav.notifications", // Notifications
   "settings.permissions.add.action_label", // Action
   "settings.permissions.scope_agent", // Chat / agent
   "settings.permissions.session_badge", // Session

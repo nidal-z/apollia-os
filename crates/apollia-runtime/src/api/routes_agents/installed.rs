@@ -10,6 +10,7 @@
 //!
 //! Installing validates the module through the [`AgentLoader`] of the runtime,
 //! copies it under `<data_dir>/agents/<name>/`, and records it in `agents.db`.
+//! Updating lives in [`lifecycle`].
 
 use std::path::{Path, PathBuf};
 
@@ -25,6 +26,9 @@ use super::{state_to_string, AgentLoader, ErrorResponse};
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 use crate::registry::AgentEntry;
+
+/// Updating an installed agent.
+pub mod lifecycle;
 
 /// Skill declared by an agent in its manifest.
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]

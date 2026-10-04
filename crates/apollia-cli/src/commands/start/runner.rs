@@ -5,9 +5,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use apollia_aip::bridge::AIPBridge;
-use apollia_aip::context::{
-    effective_memory_namespace, DispatcherExecutor, RuntimeContext, ToolProxy, ToolProxyConfig,
-};
+use apollia_aip::context::{DispatcherExecutor, RuntimeContext, ToolProxy, ToolProxyConfig};
 use apollia_aip::memory::MemoryInterface;
 use apollia_core::{AIPResult, AIPTask, AgentManifest};
 use apollia_llm::{LlmRouter, ObservabilityConfig, StepBudgetView, ToolCallHelper};
@@ -22,7 +20,7 @@ use apollia_tools::{
 use pyo3::prelude::*;
 
 use super::chat_runner::task_tool_executors;
-use super::llm_glue::{merge_disabled, sandbox_roots_for_agent, NoopToolInvoker, RouterModel};
+use super::llm_glue::{file_tool_access, NoopToolInvoker, RouterModel};
 use super::open_secret_store;
 
 // ─────────────────────────────────────────────────────────────
@@ -49,11 +47,9 @@ pub(super) struct BridgeRunner {
     pub(super) memory_base_dir: PathBuf,
     /// High-level A2A invoker, `None` if not available.
     pub(super) a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
-    /// Operator-supplied tools configuration loaded from `apollia.toml`.
-    pub(super) tools_config: apollia_core::ToolsConfig,
-    /// Filesystem roots an agent may reach, from `[filesystem] trusted_paths`
-    /// with `~` already resolved. The first is the anchor for relative paths.
-    pub(super) trusted_paths: Vec<std::path::PathBuf>,
+    /// Operator-supplied tools configuration loaded from `apollia.toml`, read
+    /// at each run so a saved change applies to the next one.
+    pub(super) tools_config: apollia_runtime::config_reload::Live<apollia_core::ToolsConfig>,
     /// Manifest opt-in for `ctx.memory.remember_user()` writes into `__user__`.
     pub(super) user_memory_write: bool,
     /// Datasources declared in the manifest.
@@ -72,6 +68,9 @@ pub(super) struct BridgeRunner {
     /// MCP client manager handle, `None` when no MCP server is configured. Used
     /// at `call_run` to build one executor per registered MCP tool.
     pub(super) mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
+    /// The governance actor: the tools it disabled, and whether it fails
+    /// closed. `None` reads `governance.db` when a run starts.
+    pub(super) governance: Option<apollia_runtime::governance::GovernanceHandle>,
     /// Direct-path `StepBudget`, shared with `execute_direct`. A live view of it
     /// is wired into the agent's `ctx.tools` and `ctx.llm` so the Python agent's
     /// tool and LLM calls are counted and cut off (principle #7, non-bypassable).
@@ -84,12 +83,12 @@ pub(super) struct BridgeRunner {
 impl BridgeRunner {
     /// Builds the governed [`ToolProxy`] used to execute orchestrated plan steps.
     ///
-    /// Mirrors the proxy `call_run` builds for the direct/ctx path so the
-    /// orchestrated `ActorLoop` runs tools under the same governed path,
-    /// audit trail, disabled-tool set, and A2A routing. Returns `None` in
-    /// degraded mode (tool registry or audit trail unavailable), matching
-    /// `call_run`, in which case orchestrated tool steps fall back to the
-    /// engine's `NoopToolProxy`.
+    /// The same proxy serves `ctx.tools` on the direct path (with the run's
+    /// budget) and the orchestrated `ActorLoop`, so both run tools under the
+    /// same governed path, audit trail, disabled-tool set, fail-closed state
+    /// and A2A routing. Returns `None` in degraded mode (tool registry or
+    /// audit trail unavailable), in which case orchestrated tool steps fall
+    /// back to the engine's `NoopToolProxy`.
     pub(super) async fn build_tool_proxy(&self, task: &AIPTask) -> Option<ToolProxy> {
         let (registry, audit) = match (self.tool_registry.as_ref(), self.audit_trail.as_ref()) {
             (Some(r), Some(a)) => (r.clone(), a.clone()),
@@ -97,7 +96,7 @@ impl BridgeRunner {
                 tracing::warn!(
                     agent = %self.agent_id,
                     reason = "tool registry or audit trail missing",
-                    detail = "orchestrated tool steps fall back to the no-op proxy",
+                    detail = "the run falls back to its own tool calls",
                     "orchestration.tool_proxy.unavailable"
                 );
                 return None;
@@ -117,24 +116,38 @@ impl BridgeRunner {
             .parent()
             .map(Path::to_path_buf)
             .unwrap_or_else(|| self.memory_base_dir.clone());
-        let snapshot = load_governance_snapshot(&governance_base).unwrap_or_else(|e| {
-            tracing::warn!(
-                error = %e,
-                detail = "every tool is enabled",
-                "tools.governance.unavailable"
-            );
-            Default::default()
-        });
-        let disabled_tools = merge_disabled(&self.tools_config.disabled, snapshot.disabled_tools);
-        let extra_executors = task_tool_executors(
+        let (allowed_tools, folders) = file_tool_access(allowed_tools, &governance_base);
+        // The tools governance disabled stay off, and a governance that cannot
+        // read what it decides from refuses every sensitive call: an
+        // unreadable database never re-enables a tool.
+        let tools_config = self.tools_config.get();
+        let gate = apollia_runtime::governance::tool_gate(
+            self.governance.as_ref(),
+            &governance_base,
+            &tools_config.disabled,
+        );
+        let brave_api_key = load_governance_snapshot(&governance_base)
+            .ok()
+            .and_then(|snapshot| snapshot.brave_api_key);
+        let disabled_tools = gate.disabled_tools;
+        let mut extra_executors = task_tool_executors(
             &self.mcp_handle,
             task,
             self.manifest.tools_requiring_approval.clone(),
         )
         .await;
+        // A code folder checked for the agent grants `code_context`.
+        let code_context =
+            apollia_runtime::agents::sources::code_context_for(&governance_base, &self.agent_id);
+        let allowed_tools =
+            apollia_tools::granted_with_code_folders(allowed_tools, code_context.is_some());
+        if let Some(tool) = code_context {
+            extra_executors.push(Box::new(tool));
+        }
         let dispatcher = Arc::new(build_dispatcher_with(
             &NativeDispatcherConfig {
-                sandbox_roots: sandbox_roots_for_agent(&self.trusted_paths),
+                sandbox_roots: folders.read,
+                write_roots: folders.write,
                 agent_id: self.agent_id.clone(),
                 venv_base_dir: self
                     .memory_base_dir
@@ -148,11 +161,15 @@ impl BridgeRunner {
                 pending_user_inputs: None,
                 session_id: None,
                 disabled_tools,
-                brave_api_key: snapshot.brave_api_key,
-                web_search_config: self.tools_config.web_search.clone(),
-                web_read_config: self.tools_config.web_read.clone(),
-                python_interpreter: self.tools_config.python_interpreter.clone(),
-                max_output_chars: self.tools_config.max_output_chars,
+                brave_api_key,
+                web_search_config: tools_config.web_search.clone(),
+                web_read_config: tools_config.web_read.clone(),
+                python_interpreter: tools_config.python_interpreter.clone(),
+                max_output_chars: tools_config.max_output_chars,
+                // `memory_search` only when the agent's memory is checked.
+                sources: apollia_tools::SourceAccess::memory_only(
+                    apollia_tools::memory_is_checked(&governance_base, &self.agent_id),
+                ),
             },
             extra_executors,
         ));
@@ -166,7 +183,8 @@ impl BridgeRunner {
             task_id: task.task_id.clone(),
             run_id: task.run_id.clone(),
         })
-        .with_event_bus(self.event_bus.clone());
+        .with_event_bus(self.event_bus.clone())
+        .with_fail_closed(gate.fail_closed);
         let proxy = if let Some(invoker) = self.a2a_invoker.clone() {
             proxy.with_a2a(invoker, 0, None)
         } else {
@@ -186,24 +204,16 @@ impl AgentRunner for BridgeRunner {
         let llm_router = self.llm_router.clone();
         let event_bus = self.event_bus.clone();
         let agent_id = self.agent_id.clone();
-        let allowed_tools = self.allowed_tools.clone();
-        let tool_registry = self.tool_registry.clone();
-        let audit_trail = self.audit_trail.clone();
         let memory_namespace = self.memory_namespace.clone();
         let memory_config = self.manifest.memory_config.clone();
-        let tools_requiring_approval = self.manifest.tools_requiring_approval.clone();
-        let task_for_gate = task.clone();
         let memory_base_dir = self.memory_base_dir.clone();
         let a2a_invoker = self.a2a_invoker.clone();
-        let tools_config = self.tools_config.clone();
-        let trusted_paths = self.trusted_paths.clone();
         let user_memory_write = self.user_memory_write;
         let datasources_declared = self.datasources_declared.clone();
         let templates_declared = self.templates_declared.clone();
         let agent_dir = self.agent_dir.clone();
         let secrets_declared = self.secrets_declared.clone();
         let secrets_data_dir = self.secrets_data_dir.clone();
-        let mcp_handle = self.mcp_handle.clone();
         let declared_backend = self.manifest.llm_backend.clone();
         let package_request = self.manifest.model.as_ref().and_then(|m| m.request.clone());
         // Live view of the Direct-path budget, shared into ctx.tools and ctx.llm.
@@ -218,93 +228,16 @@ impl AgentRunner for BridgeRunner {
                 Arc::new(NoopToolInvoker),
             ));
 
-            // An access to a connector tool without its account names the
-            // single connected account, or nothing.
-            let allowed_tools = apollia_runtime::connectors_bridge::resolve_connector_access(
-                &agent_id,
-                allowed_tools,
-            )
-            .await;
-
-            let governance_base = memory_base_dir
-                .parent()
-                .map(Path::to_path_buf)
-                .unwrap_or_else(|| memory_base_dir.clone());
-            let snapshot = load_governance_snapshot(&governance_base).unwrap_or_else(|e| {
-                tracing::warn!(
-                    error = %e,
-                    detail = "every tool is enabled",
-                    "tools.governance.unavailable"
-                );
-                Default::default()
-            });
-            let disabled_tools = merge_disabled(&tools_config.disabled, snapshot.disabled_tools);
-            // Inject one MCP executor per registered tool so `ctx.tools.call("mcp:...")`
-            // routes through the MCP client manager instead of returning UnknownTool,
-            // plus the SaaS connector executors.
-            let extra_executors =
-                task_tool_executors(&mcp_handle, &task_for_gate, tools_requiring_approval).await;
-            let dispatcher = Arc::new(build_dispatcher_with(
-                &NativeDispatcherConfig {
-                    sandbox_roots: sandbox_roots_for_agent(&trusted_paths),
-                    agent_id: agent_id.clone(),
-                    venv_base_dir: memory_base_dir
-                        .parent()
-                        .map(|p| p.join("venvs"))
-                        .unwrap_or_else(|| memory_base_dir.join("venvs")),
-                    memory_namespace: memory_namespace.clone(),
-                    memory_shared_namespaces: Vec::new(),
-                    memory_base_dir: memory_base_dir.clone(),
-                    http_allowlist: None,
-                    pending_user_inputs: None,
-                    session_id: None,
-                    disabled_tools,
-                    brave_api_key: snapshot.brave_api_key,
-                    web_search_config: tools_config.web_search.clone(),
-                    web_read_config: tools_config.web_read.clone(),
-                    python_interpreter: tools_config.python_interpreter.clone(),
-                    max_output_chars: tools_config.max_output_chars,
-                },
-                extra_executors,
-            ));
-
-            let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref())
-            {
-                (Some(registry), Some(audit)) => {
-                    let proxy = ToolProxy::new(ToolProxyConfig {
-                        registry: registry.clone(),
-                        audit: audit.clone(),
-                        executor: Arc::new(DispatcherExecutor::new(dispatcher)),
-                        allowed_tools,
-                        agent_id: agent_id.clone(),
-                        task_id: task.task_id.clone(),
-                        run_id: task.run_id.clone(),
-                    })
-                    // tool_call_* instrumentation.
-                    .with_event_bus(event_bus.clone())
-                    // Direct-path budget: count and cap the agent's tool calls.
-                    .with_budget(Arc::clone(&budget_view));
-                    let proxy = if let Some(invoker) = a2a_invoker.clone() {
-                        proxy.with_a2a(invoker, 0, None)
-                    } else {
-                        proxy
-                    };
-                    Some(proxy)
-                }
-                _ => {
-                    tracing::warn!(
-                        agent = %agent_id,
-                        reason = "tool registry or audit trail missing",
-                        detail = "the agent falls back to its own tool calls",
-                        "agent.tool_proxy.unavailable"
-                    );
-                    None
-                }
-            };
+            // The governed proxy the orchestrated plan steps run through,
+            // counted here against the Direct-path budget.
+            let tool_proxy = self
+                .build_tool_proxy(&task)
+                .await
+                .map(|proxy| proxy.with_budget(Arc::clone(&budget_view)));
 
             let memory_interface: Option<MemoryInterface> =
                 memory_namespace.as_deref().and_then(|ns| {
-                    let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
+                    let eff_ns = ns.to_owned();
                     let mut manager =
                         MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
                     if let Some(ref memory_config) = memory_config {

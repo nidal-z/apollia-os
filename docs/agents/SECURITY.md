@@ -65,7 +65,8 @@ State :
   exchanged. The desktop surfaces the refusal as `refused_by_policy`.
 - Without a policy the user is free: every connection is admitted. A policy that
   is present but refused (rights, key, signature, schema) cannot be read, and
-  the admission fails closed.
+  the admission fails closed. So does a `governance.db` the runtime cannot
+  read.
 - The decision never comes from the renderer. A value a caller hands the
   runtime is not a gate, since any caller can choose it.
 - `inference.remote_endpoints = "deny"` is parsed but gates no inference call
@@ -173,9 +174,10 @@ Decision outcomes :
 
 | Decision | Meaning |
 |---|---|
-| `allow` | execution proceeds, recorded |
-| `ask` | execution paused, HITL prompt issued |
-| `deny` | execution blocked, recorded |
+| `allowed` | execution proceeds, recorded |
+| `ask_user` | execution paused, HITL prompt issued |
+| `pending` | unattended run: execution waits for an answer given later |
+| `denied` | execution blocked, recorded |
 
 Reach of what is persisted :
 
@@ -190,19 +192,53 @@ Reach of what is persisted :
   (`apollia_permissions::run_access_upgrade`), and every conversion or removal
   is recorded in the audit journal as a change of access.
 
-What actually gates a tool call in the shipped runtime :
+What actually gates a tool call in the shipped runtime : one decision, made by
+the governance actor (`apollia_runtime::governance::GovernanceHandle`) before
+every tool call of every agent, in the chat and outside it alike. The agent
+loop asks it at a single point, before anything runs; nothing else authorizes
+a call by tool name. The actor owns what the decision reads (the organisation
+policy read at boot, the fine rules and the standing consents of
+`governance.db`, the developer mode of `apollia.toml`) and publishes it as one
+state the decision reads without waiting. The order, the first line that
+applies deciding :
 
-1. **Prefix rules** (persisted in `governance.db`). Auto-approve or auto-deny
-   by argument prefix (`arg.starts_with(prefix)`); a rule with no prefix
-   matches any argument. This is where the desktop "always allow" button writes
-   its rules.
-2. **Code-executor guard** (`apollia_permissions::executor_guard`). The
-   invariant described in the next section, applied on every dispatch.
-3. **HITL approval**. Anything not auto-approved reaches the user.
+1. **Organisation policy.** A tool, a connection or an action family the
+   policy refuses is refused, whatever the consent.
+2. **Fine rule `deny`** (persisted in `governance.db`, by argument prefix,
+   `arg.starts_with(prefix)`; a rule with no prefix matches any argument).
+   Refused.
+3. **Reading** (the `read` family, or a tool that acts on the conversation
+   alone). Allowed, no consent asked.
+4. **Executing code.** Allowed only by a fine rule `allow` on a single simple
+   command, in developer mode; otherwise asked, without "always".
+5. **Standing consent** of the agent for the family, or a grant of the run (a
+   batch grants the accesses of its agent for its items). Allowed.
+6. **Otherwise asked**, with three answers: once, always, refuse. A tool
+   nobody classified lands here, without "always".
 
-Those three are the whole of it. Nothing else in `apollia-permissions` sits in
-front of a tool call, and the `[permissions]` section of `apollia.toml` is inert
-(see the withdrawn sections of the configuration reference).
+The decision carries its reason (policy, rule, fail closed, consent) and the
+answers offered.
+
+Governance that cannot read what it decides from fails closed, never open: a
+`governance.db` that exists and cannot be read, or a policy present and
+refused, refuses every sensitive call (line 5 and 6 above become a refusal)
+and every new connection, while reading continues. A database that stops
+being readable keeps its last state in force, its deny rules and its disabled
+tools included; one unreadable at startup keeps only the `[tools] disabled`
+list of `apollia.toml`. The runs that build their own dispatcher (the agent
+runners of the desktop and the daemon) read the same state through
+`governance::tool_gate`. The state is served by `GET /api/v1/governance/state`,
+which reads the sources again before it answers (a database whose permissions
+were repaired keeps its modification time), and each change is announced as
+`RuntimeEvent::GovernanceFailClosed`. The desktop shows it as a banner under
+the top bar, with a retry for an unreadable database.
+
+A run nobody watches (an item of a batch) waits where an attended one would
+ask. An "always" answered at the prompt is written as a
+standing consent for the agent and the family, never as a rule on a tool name.
+Those six lines are the whole of it. Nothing else in `apollia-permissions` sits
+in front of a tool call, and the `[permissions]` section of `apollia.toml` is
+inert (see the withdrawn sections of the configuration reference).
 
 Two consequences worth stating plainly, because they are easy to get wrong :
 
@@ -221,9 +257,10 @@ raw-string prefix is escapable by chaining (`git` would match
 `git status; rm -rf ...`). The permission model enforces one invariant for them
 (the set is `apollia_permissions::CODE_EXECUTOR_TOOLS`) :
 
-- A no-prefix rule never auto-approves a code executor: "always allow" is
-  downgraded to a per-invocation approval, in the chat path and the agent path
-  alike. The current call is still approved once; the next one asks again.
+- A no-prefix rule never auto-approves a code executor, and "always" is never
+  offered for one: every call asks, whichever agent runs it, in a conversation
+  or outside one, since both go through the same decision. A prefix rule
+  approves only in developer mode.
 - A prefix rule on a code executor matches only when the argument is a single
   simple command, with no chaining, pipe, redirection, substitution, or
   backgrounding (`;`, `|`, `&`, `` ` ``, `>`, `<`, `(`, `)`, `{`, `}`, `$(`,

@@ -194,6 +194,28 @@ describe("the refusals of the admission", () => {
     expect(refusalOf("spawn ENOENT")).toBeNull();
   });
 
+  test("a connection the policy denies or leaves out is a refusal by the organisation", () => {
+    // GIVEN the runtime source of the reasons of the two list rules
+    const source = readFileSync(
+      new URL("../../../../../apollia-runtime/src/governance/policy_admission.rs", import.meta.url),
+      "utf8",
+    );
+    const denied = /CONNECTION_DENIED_REASON: &str =\s*"([^"]+)"/.exec(source)?.[1] ?? "";
+    const notAllowed = /CONNECTION_NOT_ALLOWED_REASON: &str =\s*"([^"]+)"/.exec(source)?.[1] ?? "";
+
+    // WHEN each is classified
+    const refusals = [denied, notAllowed].map(refusalOf);
+
+    // THEN each is a refusal by the organisation, told in both languages
+    expect(refusals).toEqual([
+      { code: "policy_denied", by: "organisation", reason: denied },
+      { code: "policy_denied", by: "organisation", reason: notAllowed },
+    ]);
+    const texts = [lookup(en, "connections.refusal.policy_denied"), lookup(fr, "connections.refusal.policy_denied")];
+    expect(texts.every((text) => typeof text === "string" && text.length > 0)).toBe(true);
+    expect(texts[0]).not.toBe(texts[1]);
+  });
+
   test("every refusal code has its texts in both languages", () => {
     // GIVEN the keys of each refusal code
     const keys = Object.values(REFUSAL_TEXT_KEYS).flatMap((k) => [k.title, k.body]);

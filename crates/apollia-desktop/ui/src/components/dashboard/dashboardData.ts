@@ -3,12 +3,12 @@
  *
  * Keeps the reactive `$derived` wiring in Dashboard.svelte thin: this module
  * owns the store-snapshot -> view-row transforms (inbox adapters, deliverable
- * / activity / project rows) with no Svelte reactivity of its own.
+ * / activity rows) with no Svelte reactivity of its own.
  */
 import { formatRelativeTime } from "$lib/utils";
 import type { InboxItem, InboxRisk } from "../inbox/types";
 import type { PendingApproval, PendingChatApproval } from "$lib/types";
-import type { InboxType, ProjectStatus } from "$lib/components/operator";
+import type { InboxType } from "$lib/components/operator";
 
 export interface PendingRow {
   id: string;
@@ -31,26 +31,11 @@ export interface ActivityRow {
   time: string;
 }
 
-export interface ProjectRow {
-  id: string;
-  name: string;
-  description?: string;
-  status: ProjectStatus;
-  lastActivity: string;
-}
-
 interface TaskLike {
   id: string;
   status: string;
   agent_name: string;
   created_at: string;
-}
-
-interface ProjectLike {
-  id: string;
-  name: string;
-  description: string | null;
-  updated_at: string;
 }
 
 export function extractRisk(
@@ -142,23 +127,5 @@ export function toActivityRows(tasks: TaskLike[], locale: string, limit = 4): Ac
       name: tk.agent_name,
       status: tk.status,
       time: formatRelativeTime(tk.created_at, locale),
-    }));
-}
-
-export function toProjectRows(
-  projects: ProjectLike[],
-  limit: number,
-  last24hIso: string,
-  locale: string,
-): ProjectRow[] {
-  return [...projects]
-    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
-    .slice(0, limit)
-    .map((p) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description ?? undefined,
-      status: (p.updated_at >= last24hIso ? "active" : "pause") as ProjectStatus,
-      lastActivity: formatRelativeTime(p.updated_at, locale),
     }));
 }

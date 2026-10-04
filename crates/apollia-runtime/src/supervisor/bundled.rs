@@ -94,12 +94,14 @@ pub(in crate::supervisor) fn auto_load_bundled_agents(
 
 /// Phase 3: register the native tool descriptors, the tools of every native
 /// connector account in `accounts` (one set per account, see
-/// [`crate::connectors_bridge::connection_tools`]) and the mailbox tools over
-/// IMAP. A provider with no connected account publishes no tool; an account
-/// connected later registers its own when it connects.
+/// [`crate::connectors_bridge::connection_tools`]) and, when `mailbox_tools`
+/// says so, the mailbox tools over IMAP. A provider with no connected account
+/// publishes no tool; an account connected later registers its own when it
+/// connects.
 pub(crate) async fn register_builtin_tools(
     tool_registry_handle: &ToolRegistryHandle,
     accounts: &[crate::connections::NativeAccounts],
+    mailbox_tools: bool,
 ) {
     for descriptor in native_tool_descriptors() {
         if let Err(e) = tool_registry_handle.register(descriptor).await {
@@ -107,7 +109,9 @@ pub(crate) async fn register_builtin_tools(
         }
     }
     let mut connector_descriptors = crate::connectors_bridge::connector_descriptors_for(accounts);
-    connector_descriptors.extend(crate::connectors_bridge::imap_tool_descriptors());
+    if mailbox_tools {
+        connector_descriptors.extend(crate::connectors_bridge::imap_tool_descriptors());
+    }
     let connector_descriptor_count = connector_descriptors.len();
     for descriptor in connector_descriptors {
         let tool_name = descriptor.name.clone();
@@ -175,7 +179,7 @@ pub(in crate::supervisor) fn validate_installed_packages(
 
 /// Returns descriptors for native tools bundled with `apollia-tools`.
 ///
-/// Registers all 12 active native tools in the order: existing tools first,
+/// Registers all 14 active native tools in the order: existing tools first,
 /// then new atomic tools grouped by category.
 pub(in crate::supervisor) fn native_tool_descriptors() -> Vec<apollia_tools::ToolDescriptor> {
     // `mut` is used only when at least one web-* feature is active; allow the
@@ -192,9 +196,11 @@ pub(in crate::supervisor) fn native_tool_descriptors() -> Vec<apollia_tools::Too
         apollia_tools::tools::file_grep::FileGrep::descriptor(),
         apollia_tools::tools::http_fetch::HttpFetch::descriptor(),
         apollia_tools::tools::memory_search::MemorySearchTool::descriptor(),
+        apollia_tools::tools::source_search::SourceSearchTool::descriptor(),
         apollia_tools::tools::notebook_read::NotebookRead::descriptor(),
         apollia_tools::tools::notebook_edit::NotebookEdit::descriptor(),
         apollia_tools::tools::ask_user::AskUser::descriptor(),
+        apollia_tools::CodeContext::descriptor(),
     ];
 
     // Web tools are always advertised in the catalogue (so the UI and agent
@@ -223,7 +229,7 @@ mod tests {
     #[tokio::test]
     async fn a_fresh_install_gives_apollia_the_reading_family_only() {
         let registry = ToolRegistryHandle::start();
-        register_builtin_tools(&registry, &[]).await;
+        register_builtin_tools(&registry, &[], true).await;
         let dir = tempfile::tempdir().unwrap();
         let repo = AgentRepository::open(&dir.path().join("agents.db")).unwrap();
         let apollia = repo
@@ -244,6 +250,7 @@ mod tests {
             "mcp_resources_list",
             "mcp_resources_read",
             "notebook_read",
+            "source_search",
         ];
         #[cfg(feature = "web-read")]
         expected.push("web_read");

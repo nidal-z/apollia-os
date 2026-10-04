@@ -6,6 +6,7 @@ use super::bootstrap::{drain_until_all_ready, emit_onboarding_if_needed};
 use super::bundled::register_builtin_tools;
 
 mod agents;
+mod config;
 mod data;
 mod governance;
 mod inference;
@@ -34,7 +35,7 @@ impl Supervisor {
     /// The ToolRegistry is spawned and the three native tools (BashExecutor,
     /// PythonExecutor, FileIo) are registered automatically.
     pub async fn start<B: ExecutionBackend + Clone + From<crate::coordinator::DynBackend>>(
-        self,
+        mut self,
         backend: B,
         agent_loader: Arc<dyn AgentLoader>,
         backend_factory: Option<Arc<dyn crate::api::routes_agents::AgentBackendFactory>>,
@@ -54,6 +55,10 @@ impl Supervisor {
         // what it shuts down is decided where the policy is applied.
         let org_policy = Arc::new(governance::read_org_policy());
 
+        // Phase 1c: the configuration in force, its live sections, and the
+        // reloader that follows the file.
+        let (config_feed, config_reload) = self.start_config_reload(&event_sender, &org_policy);
+
         // Phase 2: AgentRegistry
         info!("supervisor.registry.starting");
         let registry_handle = AgentRegistry::spawn(event_sender.clone());
@@ -62,9 +67,23 @@ impl Supervisor {
         // Phase 3: ToolRegistry + native tool registration
         info!("supervisor.tool_registry.starting");
         let tool_registry_handle = ToolRegistryHandle::start();
+
+        // Phase 3a: the existing connections the policy now refuses (see
+        // `ForbiddenConnections`): not started, their tools never registered.
+        let connection_admission = Arc::new(crate::governance::PolicyAdmission::new(Arc::clone(
+            &org_policy,
+        )));
+        let mcp_store = self.open_mcp_store();
+        let native_accounts = crate::connectors_bridge::connected_accounts().await;
+        let forbidden_connections = Arc::new(self.forbidden_connections(
+            connection_admission.as_ref(),
+            mcp_store.as_ref(),
+            &native_accounts,
+        ));
         register_builtin_tools(
             &tool_registry_handle,
-            &crate::connectors_bridge::connected_accounts().await,
+            &forbidden_connections.allowed_accounts(&native_accounts),
+            forbidden_connections.offers_mailbox_tools(),
         )
         .await;
 
@@ -74,15 +93,23 @@ impl Supervisor {
         // one-shot migration and logs the count. After migration, `mcp.toml` is no
         // longer consulted. Errors are never fatal: the runtime continues and MCP
         // tools are simply unavailable.
-        let (mcp_handle, mcp_server_repo) =
-            self.start_mcp(&tool_registry_handle, &event_sender).await;
+        let (mcp_handle, mcp_server_repo) = self
+            .start_mcp(
+                &tool_registry_handle,
+                &event_sender,
+                mcp_store,
+                &forbidden_connections,
+            )
+            .await;
 
         // The runner sidecar, the local engines, then phases 4 and 4b: the
         // LlmRouter and its call log.
         let inference = self.start_inference(&event_sender, &org_policy).await;
 
         // Phases 4c and 4d: the execution trace and the resilience layer.
-        let shared_resilience_layer = self.spawn_trace_observers(&event_sender).await;
+        let shared_resilience_layer = self
+            .spawn_trace_observers(&event_sender, &config_feed)
+            .await;
 
         // Phase 5 (pos 6): TaskRouter
         info!("supervisor.router.starting");
@@ -109,15 +136,36 @@ impl Supervisor {
                 &core.tool_registry_handle,
                 &core.event_sender,
                 &core.org_policy,
+                governance::Connections {
+                    admission: connection_admission,
+                    forbidden: forbidden_connections,
+                },
             )
             .await;
+
+        // Phase 8e: the folders the former settings named, added once as
+        // folder connections through the admission and the journal.
+        crate::connections::folder_import::import_legacy_folders(
+            self.config.config_path.as_deref(),
+            &self.config.data_dir,
+            &governance.connection,
+        );
 
         // Phases 9 to 13b: the stores the API server is built over.
         let stores = self.open_stores(&core.event_sender).await?;
 
         // Phase 14: ChatSessionManager.
-        let (chat_manager, a2a_invoker) =
-            self.start_chat(&core, &inference, &stores, &agent_loader, &agent_runner);
+        let (chat_manager, a2a_invoker) = self.start_chat(
+            &core,
+            &inference,
+            &stores,
+            &governance,
+            &agent_loader,
+            &agent_runner,
+        );
+        if let Some(chat) = chat_manager.as_ref() {
+            chat.follow_config(config_feed.clone()).await;
+        }
 
         // Phase 15: SttEngine.
         let stt = self.start_stt(&inference, &core.event_sender).await;
@@ -139,7 +187,7 @@ impl Supervisor {
             .await;
         let compat_server = self.spawn_compat_server(&inference, &core.event_sender);
         let batches = executors.batches.take();
-        let state = self.app_state(
+        let mut state = self.app_state(
             &core,
             &inference,
             &governance,
@@ -157,6 +205,7 @@ impl Supervisor {
                 compat_server,
             },
         );
+        state.config_reload = config_reload;
         let api_server = APIServer::new(self.config.api_config, state);
         let api_handle = servers::serve_api(
             api_server,
@@ -170,6 +219,7 @@ impl Supervisor {
 
         servers::spawn_timeout_watcher(
             &self.config.hitl_config,
+            &config_feed.hitl,
             stores.task_repository.as_ref(),
             &core.event_sender,
         );
@@ -199,7 +249,7 @@ impl Supervisor {
                 task_repository: stores.task_repository.as_ref(),
                 agent_repository: self.config.agent_repository.as_ref(),
                 data_dir: &self.config.data_dir,
-                obs_config: &self.config.obs_config,
+                obs_config: &config_feed.observability,
                 idle_unload: Duration::from_secs(self.config.runtime_config.agent_idle_unload_secs),
             },
         )
@@ -215,6 +265,7 @@ impl Supervisor {
             trigger_engine: executors.trigger_engine,
             audit_trail: governance.audit_trail,
             connection_governance: governance.connection,
+            governance: governance.handle,
             audit_journal: governance.audit_journal,
             task_repository: stores.task_repository,
             pending_approvals: stores.pending_approvals,
@@ -229,11 +280,11 @@ impl Supervisor {
             stt_engine: stt.engine,
             stt_repository: stt.repository,
             mcp_handle: core.mcp_handle,
-            project_repository: stores.project_repository,
             runner_supervisor: inference.runner_supervisor,
             llama_server_supervisor: inference.llama_server_supervisor,
             mlx_engine: inference.mlx_engine,
             org_policy: core.org_policy,
+            config_feed,
         })
     }
 }

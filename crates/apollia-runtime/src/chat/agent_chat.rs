@@ -268,7 +268,20 @@ impl AgentChatExecutor {
         });
 
         let key = format!("{}::{}::agent_action", session.id, message_id);
-        let rx = pending_approvals.register(key.clone());
+        let rx = pending_approvals.register_asked(
+            key.clone(),
+            crate::chat::ChatApprovalAsked {
+                session_id: session.id.clone(),
+                message_id: message_id.to_string(),
+                tool_call_id: "agent_action".into(),
+                tool_name: "agent_action".into(),
+                agent_id: session.agent_name.clone(),
+                family: None,
+                prompt: prompt.clone(),
+                answers: crate::governance::NO_ALWAYS_ANSWERS.to_vec(),
+                asked_at: chrono::Utc::now().to_rfc3339(),
+            },
+        );
         pending_approvals.start_timeout(ApprovalTimeoutParams {
             key,
             duration: CHAT_APPROVAL_TIMEOUT,
@@ -402,7 +415,6 @@ fn session_to_task(session: &ChatSession, user_message: &str) -> AIPTask {
         // No skill_id: conversational chat-mode invocation, not an A2A
         // delegation to a targeted skill.
         skill_id: None,
-        project_id: session.project_id.clone(),
         input: AIPInput {
             parts: vec![AIPPart::Text(TextPart {
                 text: user_message.to_string(),
@@ -632,8 +644,6 @@ mod tests {
             title: None,
             parent_session_id: None,
             fork_depth: 0,
-            project_id: None,
-            force_project_context_inject: false,
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(HashSet::new())),
             plan_mode: false,
             plan_phase: super::super::types::PlanPhase::Done,
@@ -707,8 +717,6 @@ mod tests {
             title: None,
             parent_session_id: None,
             fork_depth: 0,
-            project_id: None,
-            force_project_context_inject: false,
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(HashSet::new())),
             plan_mode: false,
             plan_phase: super::super::types::PlanPhase::Done,

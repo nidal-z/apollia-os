@@ -133,8 +133,8 @@ pub struct ExecutionCoordinator<B: ExecutionBackend> {
     backend: Arc<B>,
     /// SQLite repository for observability persistence, `None` in tests.
     task_repo: Option<Arc<TaskRepository>>,
-    /// Truncation configuration for observability.
-    obs_config: ObservabilityConfig,
+    /// Truncation configuration for observability, read at each submission.
+    obs_config: crate::config_reload::Live<ObservabilityConfig>,
 }
 
 impl<B: ExecutionBackend> ExecutionCoordinator<B> {
@@ -158,21 +158,23 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
             event_bus,
             backend: Arc::new(backend),
             task_repo: None,
-            obs_config: ObservabilityConfig::default(),
+            obs_config: ObservabilityConfig::default().into(),
         }
     }
 
     /// Sets the observability repository used to persist task data.
     ///
     /// When configured, the coordinator automatically persists the input,
-    /// output, state transitions, and duration of each task.
+    /// output, state transitions, and duration of each task. A live
+    /// `config` is read at each submission, so a change of the
+    /// `[observability]` section applies to the next task.
     pub fn with_task_repository(
         mut self,
         repo: Arc<TaskRepository>,
-        config: ObservabilityConfig,
+        config: impl Into<crate::config_reload::Live<ObservabilityConfig>>,
     ) -> Self {
         self.task_repo = Some(repo);
-        self.obs_config = config;
+        self.obs_config = config.into();
         self
     }
 
@@ -215,7 +217,7 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
             task_id: TaskId::from(task.task_id.clone()),
             backend: Arc::clone(&self.backend),
             task_repo: self.task_repo.clone(),
-            obs_config: self.obs_config.clone(),
+            obs_config: self.obs_config.get(),
             // Extract the input text for observability persistence.
             input_text: aip_input_to_text(&task.input),
             task,

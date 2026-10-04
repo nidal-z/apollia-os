@@ -150,24 +150,6 @@ pub struct SupervisorConfig {
     /// `false`.
     pub plan_mode_default: bool,
 
-    /// Default working directory for free-chat sessions (the
-    /// `[chat] default_workspace` key of `apollia.toml`).
-    ///
-    /// When set to an existing directory, free-chat file tools anchor there and
-    /// the agent is told its working directory. `None` falls back to
-    /// `~/.apollia`. Read once at boot.
-    pub chat_default_workspace: Option<String>,
-
-    /// Paths an agent may read and write without an approval prompt, from the
-    /// `[filesystem] trusted_paths` key of `apollia.toml`, `~` already
-    /// resolved. Read once at boot.
-    ///
-    /// It is a friction boundary, not a wall: a path outside every entry is
-    /// classified one level higher, which asks the user rather than refusing.
-    /// An empty list therefore means every write outside the working directory
-    /// is asked about. Default: the user's home directory.
-    pub filesystem_trusted_paths: Vec<std::path::PathBuf>,
-
     /// Temperature applied to a chat turn that advertises tools (the
     /// `[chat] tool_turn_temperature` key of `apollia.toml`).
     ///
@@ -179,6 +161,12 @@ pub struct SupervisorConfig {
     /// The `[workflows]` section of `apollia.toml`: the budget a workflow run
     /// starts with, shared by everything it runs. Read once at boot.
     pub workflows_config: apollia_core::WorkflowsConfig,
+
+    /// The section channels of the configuration, when the caller built
+    /// consumers before the runtime that follow them (the agent runners of the
+    /// daemon). `None`: the supervisor builds them from this configuration.
+    /// Given to the configuration reloader when `config_path` is set.
+    pub config_channels: Option<crate::config_reload::ConfigChannels>,
 }
 
 impl SupervisorConfig {
@@ -243,6 +231,9 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `AppState` so the desktop journals what it changes outside the HTTP
     /// routes (a native account connected or disconnected).
     pub connection_governance: crate::governance::ConnectionGovernance,
+    /// The governance actor every tool call is decided by, shared with
+    /// `AppState` and the chat.
+    pub governance: crate::governance::GovernanceHandle,
     /// The hash-chained audit journal, shared with `AppState`, so the host
     /// records what it installs outside the HTTP routes (the packages its
     /// binary ships). `None` when the journal could not be opened.
@@ -310,11 +301,6 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `Some` when `~/.apollia/mcp.toml` exists and at least one server connected.
     /// `None` when the config file is absent, empty, or all servers failed to start.
     pub mcp_handle: Option<McpClientManagerHandle>,
-    /// Projects repository (SQLite).
-    ///
-    /// `Some` when `projects.db` opened successfully.
-    /// `None` when the open failed (warning logged).
-    pub project_repository: Option<std::sync::Arc<apollia_tools::ProjectRepository>>,
     /// Supervisor of the local sidecar runner.
     ///
     /// `Some` when a runner started successfully (GPU detected, binary present,
@@ -322,6 +308,9 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// process alive: the supervisor owns the child `Child` with
     /// `kill_on_drop(true)`. Propagated to `RuntimeHandle` on the embedded path.
     pub runner_supervisor: Option<Arc<crate::runner_supervisor::RunnerSupervisor>>,
+    /// The live sections of the configuration, for the consumers the host
+    /// builds once the runtime is up.
+    pub config_feed: crate::config_reload::ConfigFeed,
     /// Managed embedded `llama-server` (local LLM engine), or `None` when the
     /// binary is absent. Whisper STT stays on `runner_supervisor`.
     pub llama_server_supervisor: Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
@@ -396,8 +385,9 @@ struct AutoLoadCtx<'a, B: ExecutionBackend> {
     agent_repository: Option<&'a AgentRepository>,
     /// Data directory, used to locate per-agent venvs.
     data_dir: &'a std::path::Path,
-    /// Observability config wired into each agent's coordinator.
-    obs_config: &'a apollia_core::ObservabilityConfig,
+    /// Observability config wired into each agent's coordinator, read at
+    /// each submission.
+    obs_config: &'a crate::config_reload::Live<apollia_core::ObservabilityConfig>,
     /// How long an agent stays loaded after its last call.
     idle_unload: std::time::Duration,
 }

@@ -97,6 +97,33 @@ pub(in crate::chat::manager) fn apollia_access(
     }
 }
 
+/// The first folder granted to `agent` (the Apollia agent when `None`), read
+/// beside `governance_db`: where its relative paths land. `None` when it is
+/// granted no folder or its store cannot be read.
+pub(in crate::chat::manager) fn granted_folder_anchor(
+    governance_db: Option<&Path>,
+    agent: Option<&str>,
+) -> Option<std::path::PathBuf> {
+    let data_dir = governance_db?.parent()?;
+    let agents_db = DataFile::Agents.path(data_dir);
+    if !agents_db.exists() {
+        return None;
+    }
+    let repo = AgentRepository::open(&agents_db).ok()?;
+    let resolved = repo
+        .resolved(
+            agent.unwrap_or(APOLLIA_AGENT_ID),
+            None,
+            crate::agents::global_default_autonomy(),
+        )
+        .ok()??;
+    let AgentAccess::Listed(tools) = AgentAccess::of(&resolved) else {
+        return None;
+    };
+    let (_, folders) = apollia_tools::granted_folders(tools, data_dir);
+    folders.read.into_iter().next()
+}
+
 /// The model assigned to Apollia in the `system.db` at `path`, if any.
 fn read_model(path: &Path) -> Option<apollia_core::model_preset::AgentModel> {
     if !path.exists() {
@@ -142,7 +169,6 @@ mod tests {
 
         assert_eq!(out.system_prompt.as_deref(), Some("Answer in French."));
         assert_eq!(out.llm_backend.as_deref(), Some("qwen"));
-        assert!(out.pre_authorized_tools.is_empty());
     }
 
     // GIVEN a data directory without agents.db

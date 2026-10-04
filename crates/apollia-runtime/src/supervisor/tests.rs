@@ -42,10 +42,10 @@ impl ExecutionBackend for MockBackend {
 fn native_tool_descriptors_returns_expected_count() {
     // GIVEN: the native_tool_descriptors() function
     // WHEN: called
-    // THEN: 13 baseline tools, plus optional web tools when their features
+    // THEN: 15 baseline tools, plus optional web tools when their features
     // are on.
     let expected_count =
-        13 + cfg!(feature = "web-search") as usize + cfg!(feature = "web-read") as usize;
+        15 + cfg!(feature = "web-search") as usize + cfg!(feature = "web-read") as usize;
     let descriptors = native_tool_descriptors();
     assert_eq!(descriptors.len(), expected_count);
 }
@@ -73,11 +73,13 @@ const NATIVE_TOOL_FAMILIES: &[(&str, apollia_tools::ActionFamily)] = &[
     ("file_glob", apollia_tools::ActionFamily::Read),
     ("file_grep", apollia_tools::ActionFamily::Read),
     ("notebook_read", apollia_tools::ActionFamily::Read),
+    ("code_context", apollia_tools::ActionFamily::Read),
     ("web_search", apollia_tools::ActionFamily::Read),
     ("web_read", apollia_tools::ActionFamily::Read),
     ("mcp_resources_list", apollia_tools::ActionFamily::Read),
     ("mcp_resources_read", apollia_tools::ActionFamily::Read),
     ("memory_search", apollia_tools::ActionFamily::ReadPersonal),
+    ("source_search", apollia_tools::ActionFamily::Read),
     ("file_write", apollia_tools::ActionFamily::WriteOrDelete),
     ("file_edit", apollia_tools::ActionFamily::WriteOrDelete),
     ("notebook_edit", apollia_tools::ActionFamily::WriteOrDelete),
@@ -212,10 +214,9 @@ fn test_config(port: u16, socket_path: PathBuf) -> (SupervisorConfig, tempfile::
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
+        config_channels: None,
     };
     (config, temp_dir)
 }
@@ -420,10 +421,9 @@ async fn test_startup_timeout_rollback() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
+        config_channels: None,
     };
     let supervisor = Supervisor::new(config);
 
@@ -511,10 +511,9 @@ async fn test_start_without_llm_config_succeeds() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
+        config_channels: None,
     };
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();
@@ -575,8 +574,10 @@ async fn test_app_state_clone_with_llm_router_none() {
         audit_trail: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        governance: None,
         inference_governance: Default::default(),
         obs_config: apollia_core::ObservabilityConfig::default(),
+        config_reload: None,
         llm_call_repository: None,
         trigger_def_repo: None,
         notification_repo: None,
@@ -652,10 +653,9 @@ async fn test_supervisor_starts_with_zero_triggers() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
+        config_channels: None,
     };
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();
@@ -727,10 +727,9 @@ async fn test_no_notifications_section_starts_ok() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
+        config_channels: None,
     };
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();
@@ -815,10 +814,9 @@ async fn test_trigger_engine_loads_from_sqlite() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
+        config_channels: None,
     };
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();
@@ -1078,10 +1076,9 @@ async fn test_story187_appstate_contains_repos() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
+        config_channels: None,
     };
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();

@@ -6,7 +6,6 @@
   import { Shield, ChevronDown } from "lucide-svelte";
   import { slide } from "svelte/transition";
   import { Button } from "$lib/components/ui/button";
-  import { currentSession } from "$lib/stores/chat";
   import RejectReasonDialog from "../inbox/RejectReasonDialog.svelte";
 
   interface Props {
@@ -23,16 +22,10 @@
 
   const resolvedToolCallId = $derived(toolCallId ?? toolCall.tool_name);
 
-  /** See ApprovalCard: greys out "Always for this project" outside a project. */
-  const hasProject = $derived(
-    $currentSession?.id === sessionId && $currentSession?.project_id !== null,
-  );
-
   /** Maps onto the runtime enum `AlwaysAcceptScope` (snake_case through serde). */
   type AlwaysScope =
     | "this_session"
     | "this_agent"
-    | "this_project"
     | "global";
 
   const display = $derived(resolveToolDisplay(toolCall));
@@ -200,21 +193,6 @@
         <div class="font-medium text-foreground">{$t("approval.scope.agent_title")}</div>
         <div class="text-micro text-muted-foreground">
           {$t("approval.scope.agent_desc_apollia")}
-        </div>
-      </button>
-      <button
-        type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-surface-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-        disabled={isProcessing || !hasProject}
-        onclick={() => handleAlwaysAccept("this_project")}
-        data-testid="operator-approval-scope-project-{toolCall.tool_name}"
-        title={!hasProject ? $t("approval.scope.project_no_project") : undefined}
-      >
-        <div class="font-medium text-foreground">{$t("approval.scope.project_title")}</div>
-        <div class="text-micro text-muted-foreground">
-          {hasProject
-            ? $t("approval.scope.project_desc")
-            : $t("approval.scope.project_unavailable")}
         </div>
       </button>
       <button

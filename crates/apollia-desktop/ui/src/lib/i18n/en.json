@@ -73,7 +73,6 @@
     "or": "or",
     "no_input": "No input",
     "delete": "Delete",
-    "edit": "Edit",
     "clear": "Clear",
     "status": {
       "ready": "READY",
@@ -89,7 +88,6 @@
     "saving": "Saving…",
     "finalize": "Finalize",
     "finalizing": "Finalizing…",
-    "error_details": "Details",
     "copy": "Copy",
     "relative": {
       "just_now": "just now",
@@ -100,16 +98,13 @@
       "ago": "{time} ago"
     }
   },
+  "detailSidebar": {
+    "aria_label": "Detail panel",
+    "tab_guide": "Guide",
+    "collapse": "Collapse the detail panel"
+  },
   "companion": {
-    "aria_label": "Apollia Companion",
-    "title": "Companion",
-    "minimize": "Minimize Companion",
-    "close": "Close Companion",
     "no_session": "No active session.",
-    "drag": {
-      "handle_aria": "Drag to move Companion",
-      "resize_aria": "Resize Companion"
-    },
     "session": {
       "connecting": "Connecting to agent…",
       "creating": "Creating session…",
@@ -153,8 +148,7 @@
         "cause_2": "Configuration is invalid",
         "cause_3": "An internal error occurred"
       }
-    },
-    "header_toolbar": "Companion toolbar"
+    }
   },
   "a11y": {
     "skip_to_content": "Skip to content",
@@ -185,7 +179,6 @@
     "llm": "LLM models",
     "automations": "Automations",
     "memory": "Memory",
-    "notifications": "Notifications",
     "observability": "Observability",
     "transcriptions": "Transcriptions",
     "chat": "Chat",
@@ -195,16 +188,13 @@
     "close_sidebar": "Close navigation",
     "sidebar_label": "Main navigation",
     "developer_group": "Developer mode",
-    "projects": "Projects",
     "sidebar": {
       "dashboard": "Home",
       "chat": "Chat",
       "agents": "Agents",
-      "projects": "Projects",
       "tasks": "My work",
       "automations": "Automations",
       "inbox": "Inbox",
-      "notifications": "Notifications",
       "memory": "Memory",
       "observability": "Observability",
       "llm": "LLM models",
@@ -230,6 +220,8 @@
       "runtime_down": "Runtime offline - reconnecting"
     },
     "search_aria": "Search and command palette",
+    "help_aria": "Help on this screen",
+    "detail_sidebar_aria": "Show or hide the detail panel",
     "agents_at_work": "{count} agents at work",
     "downloads": {
       "button_aria": "Downloads",
@@ -260,7 +252,6 @@
     "settings": "Settings",
     "shortcuts": "Keyboard shortcuts",
     "reset_onboarding": "Reset onboarding",
-    "help": "Help",
     "about": "About",
     "quit": "Quit"
   },
@@ -357,6 +348,8 @@
     },
     "native_google_description": "Gmail (send + drafts), Calendar, Drive Workspace",
     "native_microsoft_description": "Outlook Mail, Outlook Calendar, OneDrive",
+    "forbidden_by_policy": "Forbidden by the policy",
+    "sidebar_forbidden_section": "Forbidden by the policy ({count})",
     "error_refused_by_policy": "Refused by your organisation's policy.",
     "error_oauth_client_missing": "Missing OAuth client ID - enter it on this connection's page, in Connections.",
     "error_oauth_client_secret_missing": "Missing OAuth client secret - add it on this connection's page, in Connections.",
@@ -462,6 +455,11 @@
     "catalogue_loading": "Loading the catalogue…",
     "badge_official": "Official",
     "badge_community": "Community",
+    "badge_rule": "Official: published by the editor of the service, under a domain the public catalogue has verified, or marked so in Apollia's selection. Everything else is community.",
+    "catalogue_search_placeholder": "Search for a connection…",
+    "catalogue_explore_note": "The public catalogue is only asked when you ask for it.",
+    "catalogue_explore_all": "Explore all",
+    "catalogue_back_to_selection": "Back to the selection",
     "badge_installed": "Installed",
     "catalogue_by": "by",
     "catalogue_manage": "Manage →",
@@ -553,12 +551,64 @@
       "organisation_title": "Refused by the organisation's policy",
       "permissions_title": "Refused by your permissions",
       "remote_denied": "Your organisation does not allow connections to online services.",
+      "policy_denied": "Your organisation does not allow this connection.",
       "policy_unreadable": "Your organisation's policy could not be read, so no connection can be added until it is fixed.",
       "nothing_installed": "Nothing was installed or downloaded.",
       "ask_administrator": "To change this rule, contact your organisation's administrator.",
       "open_policy": "See the policy",
       "open_permissions": "See the permissions"
-    }
+    },
+    "mailbox": {
+      "entry_name": "Mailbox",
+      "entry_description": "Gmail, iCloud, Yahoo, Orange, Free, La Poste or any mailbox that accepts an app password",
+      "title": "Add a mailbox",
+      "subtitle": "With its address and an app password",
+      "email_label": "Address",
+      "email_placeholder": "claire@example.com",
+      "email_hint": "The mail server is worked out from the address.",
+      "password_label": "App password",
+      "password_hint": "An app password is a code your mail provider creates for Apollia, in place of your usual password.",
+      "advanced": "Advanced",
+      "advanced_hint": "Filled in from the address, editable.",
+      "host_label": "Incoming server",
+      "port_label": "Port",
+      "add": "Add",
+      "add_hint": "Apollia tries the connection before adding it.",
+      "trying": "Trying the connection to the mailbox…",
+      "added": "Trial succeeded: {email} is added to your connections.",
+      "added_where": "Your agents can now read it, and never send or delete anything there. It is in the list of connections.",
+      "error": {
+        "credentials_rejected": "The server refuses the password. Check the app password, then try again.",
+        "unreachable": "The mail server does not answer. Check the address, or the server and port under “Advanced”.",
+        "tls": "The secure connection to the server failed. Check the server and port under “Advanced”.",
+        "invalid_email": "This is not an email address.",
+        "invalid_host": "Give the incoming server under “Advanced”.",
+        "invalid_port": "The port given under “Advanced” is not valid.",
+        "invalid_password": "The password is empty or too long.",
+        "protocol": "The server answered in an unexpected way. Check that it is an incoming mail server (IMAP).",
+        "secret_store": "The password could not be kept in this computer's keychain. Nothing was added.",
+        "runtime": "Apollia is not answering right now. Try again in a moment.",
+        "generic": "The mailbox could not be added. Try again."
+      }
+    },
+    "folder": {
+      "name": "Folder",
+      "description": "A folder of your computer, opened to agents",
+      "picker_title": "Choose the folder to open to agents",
+      "added_title": "Folder added: {name}",
+      "added_subtitle": "On this computer · nothing to download",
+      "abilities_title": "What agents will be able to do in it",
+      "ability_read": "Read: open and search the files of the folder",
+      "ability_write": "Write or delete: only with your agreement",
+      "bounds": "Nothing outside this folder. You choose which agents have access from their page.",
+      "not_added_title": "Folder not added",
+      "add_failed": "This folder could not be added.",
+      "choose_another": "Choose another folder",
+      "done": "Done",
+      "remove": "Remove",
+      "remove_confirm": "Remove the folder {name} from the connections? Its files stay on your computer."
+    },
+    "badge_builtin": "Built in"
   },
   "integrations": {
     "disclaimer": {
@@ -690,24 +740,18 @@
     "subtitle_deliverables_one": "{count} deliverable ready",
     "subtitle_deliverables_other": "{count} deliverables ready",
     "subtitle_calm": "All quiet. Start a conversation whenever you are ready.",
-    "header_action_projects": "Projects",
     "header_action_new_chat": "New conversation",
     "card_pending_title": "Decisions waiting",
     "card_deliverables_title": "Ready deliverables",
     "card_agents_title": "At work",
     "see_all_arrow": "See all →",
     "see_all_short_arrow": "See all →",
-    "see_all_projects_arrow": "All projects →",
     "see_all_pending_aria": "See all pending decisions",
     "pending_empty_title": "Nothing waiting for you",
     "pending_empty_desc": "You are up to date. Pending decisions will appear here.",
     "deliverables_empty": "No deliverable completed today.",
     "agents_empty": "No active agent right now.",
     "recent_activity_title": "Recent activity",
-    "pinned_projects_title": "Pinned projects",
-    "projects_empty_title": "No project yet",
-    "projects_empty_desc": "Create a project to group conversations, agents and deliverables.",
-    "open_projects": "Open Projects",
     "inbox_more_one": "+ {count} more in the inbox →",
     "inbox_more_other": "+ {count} more in the inbox →",
     "open_task_aria": "Open task {name}",
@@ -717,8 +761,7 @@
     "ctx_open_deliverable": "Open deliverable",
     "ctx_agent_detail": "Open agent details",
     "ctx_agent_logs": "View logs",
-    "ctx_open_task": "Open task",
-    "ctx_open_project": "Open project"
+    "ctx_open_task": "Open task"
   },
   "agents": {
     "install": {
@@ -1133,8 +1176,6 @@
       "this_session_desc": "Approve matching actions until this chat session ends.",
       "this_agent": "This agent",
       "this_agent_desc": "Approve matching actions whenever this agent runs.",
-      "this_project": "This project",
-      "this_project_desc": "Approve matching actions inside the current project workspace.",
       "global": "Globally",
       "global_desc": "Approve matching actions everywhere on this machine."
     }
@@ -1541,35 +1582,20 @@
     "injected_principle": "Principle 6 - memory is never injected automatically."
   },
   "notifications": {
-    "title": "Notifications",
-    "subtitle": "Alert channels and notification history",
     "channels_title": "Channels",
-    "history_moved": "The delivery history now lives in the Inbox → Notifications sent tab.",
-    "history_open_inbox": "Open history",
     "empty_history": "No notifications in history.",
-    "enabled": "Enabled",
-    "disabled": "Disabled",
     "all_events": "All events",
     "test": "Test",
     "filter_by_channel": "Filter by channel:",
     "all_channels": "All channels",
-    "new_channel": "New channel",
-    "create_channel": "Create channel",
     "edit_channel": "Edit channel",
     "creating": "Creating...",
     "saving": "Saving...",
-    "created_toast": "Channel \"{id}\" created",
-    "updated_toast": "Channel \"{id}\" updated",
-    "deleted_toast": "Channel \"{id}\" deleted",
     "delete_confirm_title": "Delete channel",
-    "delete_confirm_message": "Are you sure you want to delete channel \"{id}\"? This action cannot be undone.",
     "delete_confirm_yes": "Delete",
-    "scope_title": "Notification scope",
-    "scope_desc": "Only events enabled here can trigger a notification. Each channel can then narrow down to a subset.",
     "global_events_error": "Failed to save global events: {message}",
     "field_label": "Name",
-    "field_label_placeholder": "Slack team alerts",
-    "field_label_help": "Display name shown in the UI, free-form (spaces, accents and emojis accepted)",
+    "field_label_placeholder": "This computer",
     "field_label_too_long": "Name must be 80 characters or fewer",
     "field_id_advanced": "Technical identifier (advanced)",
     "field_id": "Channel ID",
@@ -1577,33 +1603,30 @@
     "field_id_help": "Unique identifier (lowercase, hyphens allowed). Generated automatically from the Name.",
     "field_id_required": "ID is required",
     "field_id_invalid": "ID must be lowercase alphanumeric with hyphens",
-    "test_success": "Channel test succeeded",
-    "toggle_enabled_toast": "Channel {label} enabled",
-    "toggle_disabled_toast": "Channel {label} disabled",
     "events": {
       "task": {
-        "completed": "Task completed successfully",
+        "completed": "Task completed",
         "failed": "Task failed",
-        "input_required": "Approval required"
+        "input_required": "Decision awaited"
       },
       "agent": {
-        "degraded": "Agent degraded"
+        "degraded": "Agent with reduced capability"
       },
       "trigger": {
-        "error": "Trigger error"
+        "error": "Automation not triggered"
       },
       "llm": {
-        "backend_down": "LLM provider unavailable"
+        "backend_down": "AI unavailable"
       },
       "chat": {
-        "user_input_required": "Agent question"
+        "user_input_required": "Question from an agent"
       }
     },
     "events_desc": {
       "task": {
         "completed": "An agent has just completed its mission.",
         "failed": "An agent task aborted on failure.",
-        "input_required": "An agent is waiting for your decision (HITL)."
+        "input_required": "An agent is waiting for your decision."
       },
       "agent": {
         "degraded": "An optional tool is unavailable; the agent continues with reduced capability."
@@ -1615,11 +1638,9 @@
         "backend_down": "The configured AI provider is no longer responding."
       },
       "chat": {
-        "user_input_required": "An agent is waiting for your answer to a question (ask_user)."
+        "user_input_required": "An agent is waiting for your answer to a question."
       }
     },
-    "field_throttle": "Throttle notifications",
-    "field_throttle_help": "At most one notification per window, per (channel, event type). Extra notifications are grouped into a summary.",
     "field_throttle_too_large": "Interval too long (max 86400 s = 24 h)",
     "throttle_options": {
       "none": "No limit",
@@ -1630,17 +1651,12 @@
     },
     "throttle_custom_label": "Minimum interval (seconds)",
     "field_type": "Type",
-    "field_type_desktop": "Desktop",
-    "field_type_webhook": "Webhook",
     "field_enabled": "Enabled",
-    "field_url": "Webhook URL",
     "field_url_placeholder": "https://hooks.example.com/notify",
     "field_url_required": "URL is required",
     "field_headers": "Headers (JSON)",
     "field_headers_placeholder": "{\"Authorization\": \"Bearer ...\"}",
     "field_headers_invalid": "Headers must be valid JSON",
-    "field_events": "Events",
-    "field_events_hint": "Leave unchecked to receive all global events",
     "edit": "Edit",
     "delete": "Delete",
     "table": {
@@ -1663,7 +1679,6 @@
       "tool_failure_title": "Tool failed - Apollia OS",
       "tool_failure_body": "Tool “{tool}” failed (session {id})"
     },
-    "toggle_action": "Enable / disable",
     "error_details": "Technical details"
   },
   "trace": {
@@ -2048,7 +2063,8 @@
       "chat": "Chat",
       "model_defaults": "Model defaults",
       "engines": "Engines",
-      "hardware": "Hardware"
+      "hardware": "Hardware",
+      "notifications": "Notifications"
     },
     "help": {
       "intro": "Apollia OS runs your AI agents locally, on your own machine, with your own models. The topics below cover the essentials to get up and running.",
@@ -2221,8 +2237,7 @@
         "chat_stop": "Cancel the current generation",
         "settings_save": "Save the current settings panel",
         "settings_close": "Close dialog or sheet",
-        "companion_toggle": "Show / hide Apollia Help",
-        "companion_move": "Move the Companion across the screen",
+        "companion_toggle": "Open the guide on the current screen",
         "companion_focus": "Focus the Companion input",
         "approvals_accept": "Accept the current approval",
         "approvals_refuse": "Refuse the current approval",
@@ -2905,13 +2920,34 @@
     "save_hint": "to save",
     "save_shortcut_hint": "⌘S",
     "appearance": {
-      "subtitle": "Theme and onboarding reminders.",
+      "subtitle": "Theme, chat style, reasoning and onboarding reminders.",
       "preview_message": "Hello Apollia",
       "preview_active_now": "Active now",
       "reminders_title": "Onboarding reminders",
       "reminders_reset_label": "Reset onboarding reminders",
-      "reminders_reset_hint": "The welcome flow and the discovery tips show again. No data is deleted.",
-      "reminders_reset_button": "Reset"
+      "reminders_reset_hint": "Every reminder below shows again, and the get-to-know-you conversation starts over. No data is deleted.",
+      "reminders_reset_button": "Reset all",
+      "reminders": {
+        "onboarding": "Get to know each other",
+        "next_steps": "Next-step suggestions",
+        "reset_one": "Reset \"{name}\""
+      },
+      "chat_style_title": "Chat style",
+      "font_size_label": "Font size",
+      "font_size_hint": "Applies to chat messages.",
+      "font_size_value": "Step {step} of {max}",
+      "font_size_reset": "Reset",
+      "font_weight_label": "Font weight",
+      "font_weight_normal": "Normal",
+      "font_weight_medium": "Medium",
+      "density_label": "Density",
+      "density_hint": "Tightens chat messages and the conversation list.",
+      "density_comfortable": "Comfortable",
+      "density_compact": "Compact",
+      "full_width_label": "Expand the chat to the window width",
+      "reasoning_title": "Reasoning",
+      "reasoning_expand_label": "Expand reasoning blocks by default",
+      "reasoning_expand_hint": "A block you open or close keeps your choice."
     },
     "configuration": {},
     "integrations": {
@@ -3095,6 +3131,42 @@
       "subtitle": "The values a model receives when nothing else sets them.",
       "empty": "No default can be set here yet: each model keeps the values of the AI screen."
     },
+    "notifications": {
+      "subtitle": "Where Apollia warns you, and about what.",
+      "intro": "Channels say where Apollia warns you: a notification on this computer, or a web call to a tool of your team. Notified events say about what.",
+      "add_channel": "Add a channel",
+      "type_desktop": "Notification on this computer",
+      "type_webhook": "Web call",
+      "field_address": "Web call address",
+      "field_channel_events": "Channel events",
+      "field_channel_events_hint": "By default, the channel receives every notified event. Uncheck “All events” to keep only some of them.",
+      "event_off": "Off in the notified events",
+      "field_frequency": "Maximum frequency",
+      "field_frequency_hint": "Beyond it, Apollia gathers the notifications into a summary.",
+      "events_title": "Notified events",
+      "events_desc": "Only the events switched on here trigger a notification. A channel can keep only some of them.",
+      "channels_error": "The channels could not be read.",
+      "recent_title": "Recent sends",
+      "recent_empty": "No notification sent yet.",
+      "recent_error": "The recent sends could not be read.",
+      "recent_sent": "Sent",
+      "recent_failed": "Failed",
+      "created_toast": "Channel “{name}” added",
+      "updated_toast": "Channel “{name}” saved",
+      "deleted_toast": "Channel “{name}” deleted",
+      "delete_message": "The channel “{name}” will receive nothing more. The other channels and the notified events do not change.",
+      "row": {
+        "no_limit": "No limit",
+        "custom_limit": "1 every {seconds} s",
+        "event_count": "{count, plural, one {# event} other {# events}}",
+        "test_pending": "Sending…",
+        "test_ok": "Test passed",
+        "test_ok_latency": "Test passed in {ms} ms",
+        "test_failed": "Failed: {reason}",
+        "more_actions": "More actions for {name}",
+        "enabled_label": "Channel {name} on"
+      }
+    },
     "engines": {
       "subtitle": "The engines that run the models and dictation on this machine."
     },
@@ -3260,7 +3332,6 @@
       "palette": "Open command palette",
       "search_sidebar": "Focus sidebar search",
       "toggle_sidebar": "Toggle sessions sidebar",
-      "help": "Keyboard shortcuts",
       "next_message": "Next message",
       "prev_message": "Previous message",
       "stop_or_close": "Stop streaming / close modal"
@@ -3396,15 +3467,8 @@
     "a2a_no_workers": "No worker agents available",
     "mode_auto": "Auto",
     "scroll_to_bottom": "Jump to latest",
-    "link_project": "Link to a project",
-    "unlink_project": "Unlink from {name}",
-    "no_project_to_link": "No projects available",
-    "linked_project_tooltip": "Linked to project \"{name}\" - click to open",
-    "project_linked_toast": "Conversation linked to project \"{name}\"",
-    "project_unlinked_toast": "Conversation unlinked from project",
     "exchange_error": "Error: {error}",
     "exchange_error_generic": "the response could not be completed",
-    "project_link_failed": "Failed to link conversation to project",
     "toggle_context_drawer": "Toggle context drawer",
     "a2a_delegating": "Delegating to {agent} ({skill})…",
     "reasoning": {
@@ -3445,8 +3509,6 @@
     "tool_empty_results": "No results.",
     "a2a_authorize_skill": "Authorize skill",
     "a2a_via_worker": "via worker agent",
-    "project_selector": "Project",
-    "no_project": "No project",
     "quickpicker": {
       "title": "Start a conversation",
       "prompt_label": "What do you want to do?",
@@ -3694,6 +3756,8 @@
       "web_search": "Web search",
       "web_read": "Web article",
       "memory_search": "Memory search",
+      "code_context": "Code folder",
+      "source_search": "Source search",
       "todo_write": "To-do list",
       "ask_user": "Question",
       "plan_propose": "Plan proposal",
@@ -3734,7 +3798,9 @@
       "web_search_backend": "Searching with {backend} for \"{query}\"",
       "web_read": "Reading {hostname}",
       "memory_search": "Searching memory for \"{query}\"",
+      "code_context": "Reading the state of a code folder",
       "memory_search_ns": "Searching \"{query}\" in {namespace} memory",
+      "source_search": "Searching the checked sources",
       "connector": "{provider}: {action}",
       "plan_propose": "Proposing a plan",
       "plan_add_step": "Adding a step to the plan",
@@ -3943,144 +4009,48 @@
       "reveal_aria": "Reveal in file manager"
     }
   },
-  "projects": {
-    "title": "Projects",
-    "subtitle": "Organize agent context with custom instructions, documents, and providers",
-    "kicker": "WORKSPACES · {count} {label}",
-    "kicker_singular": "PROJECT",
-    "new_project": "New Project",
-    "new_project_short": "New",
-    "status_active": "active",
-    "tab_conversations": "Conversations",
-    "tab_tasks": "Tasks",
-    "tab_memory": "Memory",
-    "tab_context": "Context",
-    "tab_settings": "Settings",
-    "no_conversations": "No conversation linked to this project",
-    "start_conversation_hint": "Start a new chat to frame the work.",
-    "no_tasks": "No task scheduled",
-    "empty_memory_title": "No document attached",
-    "field_id": "Identifier",
-    "search_placeholder": "Search a project...",
-    "no_match": "No project matches the filters",
-    "create_project": "Create project",
-    "edit_project": "Edit",
-    "created_toast": "Project \"{name}\" created",
-    "deleted_toast": "Project \"{name}\" deleted",
-    "document_removed": "Document removed",
-    "empty_title": "No projects yet",
-    "empty_subtitle": "Create a project to organize context for your agents",
-    "name_required": "Project name is required",
-    "field_name": "Name",
-    "field_description": "Description",
-    "delete_confirm_title": "Delete project",
-    "delete_confirm_message": "Are you sure you want to delete project \"{name}\"? This cannot be undone.",
-    "delete_confirm_yes": "Delete",
-    "section_agents": "Linked Agents",
-    "new_chat": "New Chat",
-    "add_agent": "Add Agent",
-    "no_agents": "No agents linked to this project",
-    "agent_added": "Agent added to project",
-    "agent_removed": "Agent removed from project",
-    "field_workspace": "Workspace folder",
-    "field_workspace_placeholder": "Click Browse to choose a folder",
-    "template_blank": "Blank project",
-    "template_blank_desc": "Start with no pre-configured setup.",
-    "template_developer": "Developer project",
-    "template_developer_desc": "Pre-configures code-oriented context providers: git, file tree, APOLLIA.md.",
-    "template_developer_provider_failed": "Could not add provider \"{name}\": {err}",
-    "template_developer_provider_git": "Git status",
-    "template_developer_provider_tree": "File tree",
-    "template_developer_provider_rules": "APOLLIA.md rules",
-    "context_intro": "Context providers feed every agent with live information about this project: git status, tree, internal rules, custom scripts. They are collected at every run.",
-    "context_empty_title": "No provider configured",
-    "context_empty_desc": "Add a provider to enrich the context handed to this project's agents.",
-    "context_add_provider": "Add provider",
-    "context_priority_label": "Priority",
-    "context_enabled_label": "Enabled",
-    "context_snapshot_preview": "Preview context",
-    "context_snapshot_refresh": "Refresh",
-    "context_snapshot_empty": "No provider applicable to the current directory.",
-    "context_snapshot_errors": "{count} provider(s) failed during collection.",
-    "context_snapshot_cwd_hint": "Collected from the process current working directory.",
-    "provider_type_git": "Git",
-    "provider_type_git_desc": "Git repository state: current branch, modified files, recent commits.",
-    "provider_type_tree": "File tree",
-    "provider_type_tree_desc": "Workspace structure (up to N lines). Helps the agent navigate.",
-    "provider_type_rules": "Project rules",
-    "provider_type_rules_desc": "Automatically loads APOLLIA.md, .cursorrules, AGENTS.md or an equivalent rules file.",
-    "provider_type_script": "Script",
-    "provider_type_script_desc": "Runs a shell script or binary that emits JSON on stdout.",
-    "provider_type_style": "Style",
-    "provider_type_style_desc": "Automatically detects code style via LLM (language, conventions, formatting).",
-    "provider_type_style_warning": "Requires a configured LLM router; will be skipped otherwise.",
-    "provider_unknown_desc": "Unknown provider type: {type}.",
-    "provider_disabled_label": "disabled",
-    "provider_pick_subtitle": "Choose the type of provider to add to this project.",
-    "provider_pick_script": "Choose script…",
-    "provider_priority_hint": "1 = collected first",
-    "provider_edit_title": "Edit provider",
-    "provider_create_title": "New provider",
-    "provider_field_type": "Type",
-    "provider_field_name": "Name",
-    "provider_field_max_lines": "Max lines",
-    "provider_field_script_path": "Script path",
-    "provider_field_timeout_ms": "Timeout (ms)",
-    "provider_saved_toast": "Provider saved.",
-    "provider_deleted_toast": "Provider deleted.",
-    "provider_delete_confirm_title": "Delete provider",
-    "provider_delete_confirm_message": "Are you sure you want to delete provider \"{name}\"?",
-    "settings_saved_toast": "Project updated.",
-    "settings_field_name": "Name",
-    "settings_field_description": "Description",
-    "settings_field_instructions": "System instructions",
-    "settings_field_instructions_placeholder": "Instructions injected into every agent run for this project…",
-    "settings_field_workspace_pick": "Choose folder…",
-    "dialog": {
-      "step_1_of_2": "STEP 1 / 2",
-      "step_2_of_2": "STEP 2 / 2 · {name}",
-      "step1_title": "Start from a template?",
-      "step1_subtitle": "Templates pre-configure agents, connections and milestones. You can change everything later.",
-      "step2_title": "Name your project.",
-      "manual_config": "Manual configuration",
-      "name_placeholder": "My project",
-      "color_label": "Color",
-      "ready_title": "Ready to start",
-      "ready_detail": "{count} agents pre-assigned · ready to configure."
+  "project_migration": {
+    "title_done": "Your projects are now sources",
+    "title_failed": "Moving your projects did not finish",
+    "subtitle_done": "This update removes the Projects screen. Here is what became of their content, and where to find it.",
+    "subtitle_failed": "This update removes the Projects screen, but their content could not be carried over this time.",
+    "became_title": "What became of your {count, plural, one {# project} other {# projects}}",
+    "row_documents_title": "Documents",
+    "row_documents_desc": "{count, plural, one {# document, now a source} other {# documents, now sources}} of the “Apollia” agent, filed under the name of their project",
+    "row_instructions_title": "Instructions",
+    "row_instructions_desc": "One source per project: searchable, never added to your conversations on their own",
+    "row_folders_title": "Working folders",
+    "row_folders_desc": "{count, plural, one {# folder, now a folder connection} other {# folders, now folder connections}} to grant in Connections",
+    "row_conversations_title": "Conversations and memory",
+    "row_conversations_desc": "Conversations moved to the “Apollia” agent, project memory kept",
+    "badge_done": "Carried over",
+    "badge_to_grant": "To grant",
+    "gaps_title": "{count, plural, one {# item was not carried over} other {# items were not carried over}}",
+    "gap_line": "“{subject}”, from project “{project}”: {reason}",
+    "gap_line_no_project": "“{subject}”: {reason}",
+    "reason": {
+      "missing": "not found where it was",
+      "unreadable": "cannot be read",
+      "wrong_kind": "not the file or folder expected",
+      "agent_not_installed": "this agent is no longer installed",
+      "failed": "could not be saved",
+      "not_carried_over": "nothing replaces it among sources"
     },
-    "memory_documents": "Memory documents",
-    "memory_namespaces": "Memory namespaces",
-    "no_project_memory": "No project memory yet",
-    "no_project_memory_desc": "Agents in this project haven't stored memory yet.",
-    "no_tasks_desc": "Tasks created by agents will appear here.",
-    "tasks_need_agents": "Tasks need at least one agent",
+    "gaps_complete_hint": "If you find a document again, add it as a source from the agent card.",
+    "gaps_partial_hint": "Apollia will try again at the next start. Until then, your former Projects are kept.",
+    "failed_title": "Nothing was carried over",
+    "failed_body": "The Projects database could not be read. Nothing was moved or deleted: your former Projects are kept as they were.",
+    "where_title": "Where to find them",
+    "where_sources_title": "Agents › Apollia › Sources",
+    "where_sources_desc": "The documents and the instructions, grouped by project",
+    "where_connections_title": "Connections",
+    "where_connections_desc": "{count, plural, one {The working folder, to grant} other {The # working folders, to grant}}",
+    "where_chat_title": "Chat",
+    "where_chat_desc": "The conversations of the projects, with the “Apollia” agent",
     "open": "Open",
-    "no_match_hint": "No project matches your search. Adjust or clear the filter.",
-    "tab_agents": "Agents",
-    "agents_hint": "Attaching an agent groups it under this project and narrows the Tasks tab to its tasks. It does not change how the agent runs: project instructions, documents and context providers are injected into chats opened from this project, never into agent tasks.",
-    "agent_pick_placeholder": "Choose an agent to attach...",
-    "agents_all_attached": "Every installed agent is already attached",
-    "no_agents_desc": "Attach an installed agent to group it under this project and follow its tasks from the Tasks tab.",
-    "agent_not_installed": "Agent not installed on this machine",
-    "remove_agent": "Detach this agent",
-    "attach_document": "Attach a file",
-    "attaching_document": "Attaching...",
-    "empty_documents_desc": "Attach a text file so conversations opened from this project can read it.",
-    "document_added": "Document \"{name}\" attached",
-    "remove_document": "Detach this document",
-    "detach_agent_confirm": "Detach \"{name}\" from this project?",
-    "detach_agent_confirm_action": "Detach",
-    "detach_document_confirm": "Detach \"{name}\" from this project? The file stays on disk.",
-    "detach_document_confirm_action": "Detach",
-    "document_filter_text": "Text file",
-    "card_status": {
-      "active": "active",
-      "paused": "paused",
-      "blocked": "blocked",
-      "done": "done"
-    },
-    "card_delivered": "delivered",
-    "card_agents": "{n, plural, one {# agent} other {# agents}}"
+    "note_once": "This notice shows only once.",
+    "note_retry": "Apollia will try again at the next start.",
+    "understood": "Got it"
   },
   "hitl": {
     "impact": {
@@ -4144,8 +4114,8 @@
       "secondary_cta": "See installed agents"
     },
     "notifications": {
-      "title": "Silence is golden - until it isn't",
-      "description": "Add a desktop or webhook channel so your agents can reach you when they need attention or finish a long run.",
+      "title": "No channel yet",
+      "description": "A channel says where Apollia warns you: a notification on this computer, or a web call to a tool of your team.",
       "primary_cta": "Add a channel",
       "secondary_cta": "See notification events"
     },
@@ -4190,7 +4160,7 @@
       "createAgent": "Create agent",
       "createTrigger": "Create trigger",
       "toggleDeveloperMode": "Turn developer mode on / off",
-      "toggleCompanion": "Toggle Companion"
+      "toggleCompanion": "Open or close the guide"
     },
     "help": {
       "shortcuts": "Open Keyboard shortcuts",
@@ -4230,10 +4200,6 @@
       "agent_title": "Always for this assistant",
       "agent_desc": "The current assistant will no longer ask.",
       "agent_desc_apollia": "Apollia Chat (or the current agent) will no longer ask.",
-      "project_title": "Always for this project",
-      "project_desc": "All assistants used in this project.",
-      "project_unavailable": "Unavailable - the session is not attached to any project.",
-      "project_no_project": "This session is not attached to any project.",
       "global_title": "Always, everywhere",
       "global_desc": "All assistants, all projects."
     }
@@ -4434,7 +4400,7 @@
       "catalogue_tab_discover": "MCP catalogue",
       "catalogue_tab_custom": "Custom MCP",
       "catalogue_loading": "Loading the MCP catalogue…",
-      "custom_intro": "To wire up an internal, community, or in-development MCP server. For a curated service (Notion, GitHub, Local Files…), use a catalogue card instead.",
+      "custom_intro": "To wire up an internal, community, or in-development MCP server. For a curated service (Notion, Linear, Brave Search…), use a catalogue card instead.",
       "custom_transport_label": "Transport",
       "custom_transport_stdio": "stdio (local subprocess)",
       "custom_transport_http": "Streamable HTTP (MCP 2025-11-25)",
@@ -4446,6 +4412,23 @@
       "wizard": {
         "node_downloading": "Downloading a required component: Node.js"
       }
+    }
+  },
+  "governance": {
+    "fail_closed": {
+      "title": "Sensitive actions blocked",
+      "store_unreadable": "The permissions database cannot be read: Apollia refuses anything that writes, sends or runs. Reading continues.",
+      "policy_invalid": "The organization policy is invalid ({reason}): sensitive actions and new connections are refused. Reading continues.",
+      "policy_reason": {
+        "schema": "content does not conform",
+        "signature": "signature not recognized",
+        "key": "organization key not recognized",
+        "owner": "files can be modified by someone other than the administrator",
+        "unknown": "unknown reason"
+      },
+      "retry": "Retry",
+      "view_policy": "View the policy",
+      "retry_failed": "The state of permissions could not be read again."
     }
   }
 }

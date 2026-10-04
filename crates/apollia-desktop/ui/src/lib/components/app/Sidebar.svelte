@@ -1,8 +1,8 @@
 <script lang="ts" module>
   import type { Route } from "$lib/stores/navigation";
   import {
-    LayoutDashboard, MessageSquare, Bot, FolderKanban, ListChecks, ShieldCheck,
-    Repeat, Brain, Database, Activity, Mic, Bell,
+    LayoutDashboard, MessageSquare, Bot, ListChecks, ShieldCheck,
+    Repeat, Brain, Database, Activity, Mic,
   } from "lucide-svelte";
 
   type Badge = "none" | "chat" | "tasks" | "approvals";
@@ -23,11 +23,9 @@
     { route: "dashboard"      as Route, Icon: LayoutDashboard, labelKey: "nav.sidebar.dashboard",      badge: "none"      },
     { route: "chat"           as Route, Icon: MessageSquare,   labelKey: "nav.sidebar.chat",           badge: "chat"      },
     { route: "agents"         as Route, Icon: Bot,             labelKey: "nav.sidebar.agents",         badge: "none"      },
-    { route: "projects"       as Route, Icon: FolderKanban,    labelKey: "nav.sidebar.projects",       badge: "none"      },
     { route: "tasks"          as Route, Icon: ListChecks,      labelKey: "nav.sidebar.tasks",          badge: "tasks"     },
     { route: "automations"    as Route, Icon: Repeat,          labelKey: "nav.sidebar.automations",    badge: "none"      },
     { route: "inbox"          as Route, Icon: ShieldCheck,     labelKey: "nav.sidebar.inbox",          badge: "approvals" },
-    { route: "notifications"  as Route, Icon: Bell,            labelKey: "nav.sidebar.notifications",  badge: "none"      },
     { route: "llm"            as Route, Icon: Brain,           labelKey: "nav.sidebar.llm",            badge: "none"      },
   ];
 

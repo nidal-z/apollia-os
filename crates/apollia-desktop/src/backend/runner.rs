@@ -7,9 +7,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use apollia_aip::bridge::AIPBridge;
-use apollia_aip::context::{
-    effective_memory_namespace, DispatcherExecutor, RuntimeContext, ToolProxy, ToolProxyConfig,
-};
+use apollia_aip::context::{DispatcherExecutor, RuntimeContext, ToolProxy, ToolProxyConfig};
 use apollia_aip::memory::MemoryInterface;
 use apollia_core::{
     AIPError, AIPResult, AIPTask, AgentManifest, ORIAConfig, PendingApprovals, TaskStatus,
@@ -37,7 +35,7 @@ use futures::stream;
 use pyo3::prelude::*;
 
 use super::factory::{direct_path_budget, wire_engine_with_llm};
-use super::{default_data_dir, merge_disabled, open_secret_store};
+use super::{default_data_dir, open_secret_store};
 
 // ─── LLM wrappers ─────────────────────────────────────────────────────────────
 
@@ -86,28 +84,16 @@ impl ToolInvoker for NoopToolInvoker {
     }
 }
 
-// ─── Sandbox root helper ──────────────────────────────────────────────────────
+// ─── File tool roots ──────────────────────────────────────────────────────────
 
-/// Return the filesystem roots used by file-oriented native tools.
-///
-/// `trusted` is `[filesystem] trusted_paths`, `~` already resolved. It defaults
-/// to the user's home directory, which is what the root used to be, hardcoded:
-/// an agent whose work lives on a mounted volume or under `/opt` had no way to
-/// reach it and no setting to change that.
-///
-/// The home directory is the fallback when the list is empty, rather than
-/// nothing at all: a file tool needs an anchor for relative paths, and an agent
-/// with no reachable root is an agent that fails on its first call.
-fn sandbox_roots_for_agent(trusted: &[PathBuf]) -> Vec<PathBuf> {
-    let roots: Vec<PathBuf> = trusted
-        .iter()
-        .filter(|p| !p.as_os_str().is_empty())
-        .cloned()
-        .collect();
-    if roots.is_empty() {
-        return vec![apollia_core::paths::home_dir_or_temp()];
-    }
-    roots
+/// The access an agent's executor checks, and the folders its file tools
+/// reach: the folders granted to it, read from the `system.db` of `data_dir`.
+/// An agent granted no folder reaches none, and its file tools say so.
+fn file_tool_access(
+    allowed_tools: Vec<String>,
+    data_dir: &Path,
+) -> (Vec<String>, apollia_tools::FolderRoots) {
+    apollia_tools::granted_folders(allowed_tools, data_dir)
 }
 
 // ─── Fallback backend ─────────────────────────────────────────────────────────
@@ -158,6 +144,9 @@ pub(super) struct AIPProductionBackend {
     /// `McpToolExecutor` per active MCP tool and inject it into the agent's
     /// dispatcher.
     pub(super) mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
+    /// The governance actor of the runtime: the tools it disabled, and whether
+    /// it fails closed. `None` reads `governance.db` when the run starts.
+    pub(super) governance: Option<apollia_runtime::governance::GovernanceHandle>,
     /// A2A orchestrator exposed both as virtual `a2a:*` tools (via `ToolProxy.with_a2a`
     /// and `allowed_tools` augmentation) and through `ctx.a2a_invoke()` for Python agents.
     pub(super) a2a_invoker: Option<Arc<A2AInvoker>>,
@@ -165,11 +154,9 @@ pub(super) struct AIPProductionBackend {
     /// async messages without going through A2A skill delegation.
     pub(super) mailbox: Option<AgentMailboxHandle>,
     /// Operator-supplied tools configuration (`[tools]` section of apollia.toml).
-    /// Drives `web_search`, `web_read`, `http_allowlist`, and statically-disabled tools.
-    pub(super) tools_config: ToolsConfig,
-    /// Filesystem roots an agent may reach (`[filesystem] trusted_paths`, `~`
-    /// already resolved). The first is the anchor for relative paths.
-    pub(super) trusted_paths: Vec<PathBuf>,
+    /// Drives `web_search`, `web_read`, `http_allowlist`, and statically-disabled
+    /// tools; read at each run so a saved change applies to the next one.
+    pub(super) tools_config: apollia_runtime::config_reload::Live<ToolsConfig>,
     /// Datasources YAML declared in the manifest.
     pub(super) datasources_declared: Vec<String>,
     /// Jinja2 templates declared in the manifest.
@@ -208,10 +195,10 @@ impl Clone for AIPProductionBackend {
             task_repository: self.task_repository.clone(),
             user_memory_write: self.user_memory_write,
             mcp_handle: self.mcp_handle.clone(),
+            governance: self.governance.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
             mailbox: self.mailbox.clone(),
             tools_config: self.tools_config.clone(),
-            trusted_paths: self.trusted_paths.clone(),
             datasources_declared: self.datasources_declared.clone(),
             templates_declared: self.templates_declared.clone(),
             agent_dir: self.agent_dir.clone(),
@@ -243,16 +230,17 @@ pub(super) struct BridgeRunner {
     /// `McpToolExecutor` per registered MCP tool and inject it into the agent's
     /// `ToolDispatcher`. `None` when MCP is not configured.
     pub(super) mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
+    /// The governance actor of the runtime: the tools it disabled, and whether
+    /// it fails closed. `None` reads `governance.db` when the run starts.
+    pub(super) governance: Option<apollia_runtime::governance::GovernanceHandle>,
     /// Shared A2A orchestrator. When `Some`, `allowed_tools` is augmented with
     /// virtual `a2a:*` descriptors and the `ToolProxy` gets `.with_a2a(...)`.
     pub(super) a2a_invoker: Option<Arc<A2AInvoker>>,
     /// Inter-agent mailbox handle, exposed as `ctx.mailbox`.
     pub(super) mailbox: Option<AgentMailboxHandle>,
-    /// Operator-supplied tools configuration (`[tools]` apollia.toml).
-    pub(super) tools_config: ToolsConfig,
-    /// Filesystem roots an agent may reach (`[filesystem] trusted_paths`, `~`
-    /// already resolved). The first is the anchor for relative paths.
-    pub(super) trusted_paths: Vec<std::path::PathBuf>,
+    /// Operator-supplied tools configuration (`[tools]` apollia.toml), read at
+    /// each run.
+    pub(super) tools_config: apollia_runtime::config_reload::Live<ToolsConfig>,
     /// Datasources YAML declared in the manifest.
     pub(super) datasources_declared: Vec<String>,
     /// Jinja2 templates declared in the manifest.
@@ -274,6 +262,143 @@ pub(super) struct BridgeRunner {
     pub(super) cancel: CancellationToken,
 }
 
+impl BridgeRunner {
+    /// The governed [`ToolProxy`] of a run: the dispatcher without the tools
+    /// governance disabled, refusing every sensitive call while governance
+    /// fails closed. `None` in degraded mode (no tool registry or audit
+    /// trail).
+    pub(super) async fn build_tool_proxy(
+        &self,
+        task: &AIPTask,
+        budget_view: &Arc<apollia_llm::StepBudgetView>,
+    ) -> Option<ToolProxy> {
+        let governance_base = self
+            .memory_base_dir
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| self.memory_base_dir.clone());
+        // The tools governance disabled stay off, and a governance that
+        // cannot read what it decides from refuses every sensitive call:
+        // an unreadable database never re-enables a tool.
+        let tools_config = self.tools_config.get();
+        let gate = apollia_runtime::governance::tool_gate(
+            self.governance.as_ref(),
+            &governance_base,
+            &tools_config.disabled,
+        );
+        let brave_api_key = load_governance_snapshot(&governance_base)
+            .ok()
+            .and_then(|snapshot| snapshot.brave_api_key);
+
+        // An access to a connector tool without its account names the
+        // single connected account, or nothing.
+        let allowed_tools = apollia_runtime::connectors_bridge::resolve_connector_access(
+            &self.agent_id,
+            self.allowed_tools.clone(),
+        )
+        .await;
+        // The folders granted to the agent are the roots of its file tools.
+        let (allowed_tools, folders) = file_tool_access(allowed_tools, &governance_base);
+
+        let disabled_tools = gate.disabled_tools;
+        // Build one McpToolExecutor per registered MCP tool so the agent's
+        // ToolDispatcher can route `mcp:<server>/<tool>` invocations
+        // through the MCP client manager. Without this, the registry
+        // surfaces the tool to the agent's prompt but the dispatcher
+        // returns UnknownTool at call time. The response the task was
+        // resumed with, if any, gates the MCP calls that need a human.
+        let mut extra_executors = build_mcp_executors(
+            &self.mcp_handle,
+            apollia_mcp::task_approval::TaskApproval::new(task.input_response.clone()),
+            self.manifest.tools_requiring_approval.clone(),
+        )
+        .await;
+
+        // Append the SaaS connector executors from the runtime: one per
+        // operation and per account connected when the run starts, each
+        // bound to the token of its account.
+        extra_executors
+            .extend(apollia_runtime::connectors_bridge::build_connector_executors().await);
+
+        // A code folder checked for the agent grants `code_context`, bound to
+        // its folders; without one the tool is neither granted nor dispatched.
+        let code_context =
+            apollia_runtime::agents::sources::code_context_for(&governance_base, &self.agent_id);
+        let allowed_tools =
+            apollia_tools::granted_with_code_folders(allowed_tools, code_context.is_some());
+        if let Some(tool) = code_context {
+            extra_executors.push(Box::new(tool));
+        }
+
+        let dispatcher = Arc::new(build_dispatcher_with(
+            &NativeDispatcherConfig {
+                session_id: None,
+                sandbox_roots: folders.read,
+                write_roots: folders.write,
+                agent_id: self.agent_id.clone(),
+                venv_base_dir: self
+                    .memory_base_dir
+                    .parent()
+                    .map(|p| p.join("venvs"))
+                    .unwrap_or_else(|| self.memory_base_dir.join("venvs")),
+                memory_namespace: self.memory_namespace.clone(),
+                memory_shared_namespaces: Vec::new(),
+                memory_base_dir: self.memory_base_dir.clone(),
+                http_allowlist: None,
+                pending_user_inputs: self.pending_user_inputs.clone(),
+                disabled_tools,
+                brave_api_key,
+                web_search_config: tools_config.web_search.clone(),
+                web_read_config: tools_config.web_read.clone(),
+                python_interpreter: tools_config.python_interpreter.clone(),
+                max_output_chars: tools_config.max_output_chars,
+                // `memory_search` only when the agent's memory is checked.
+                sources: apollia_tools::SourceAccess::memory_only(
+                    apollia_tools::memory_is_checked(&governance_base, &self.agent_id),
+                ),
+            },
+            extra_executors,
+        ));
+
+        match (self.tool_registry.as_ref(), self.audit_trail.as_ref()) {
+            (Some(registry), Some(audit)) => {
+                let proxy = ToolProxy::new(ToolProxyConfig {
+                    registry: registry.clone(),
+                    audit: audit.clone(),
+                    executor: Arc::new(DispatcherExecutor::new(dispatcher)),
+                    allowed_tools,
+                    agent_id: self.agent_id.clone(),
+                    task_id: task.task_id.clone(),
+                    run_id: task.run_id.clone(),
+                })
+                // tool_call_* instrumentation on the EventBus.
+                .with_event_bus(self.event_bus.clone())
+                // Direct-path budget: count and cap the agent's tool calls.
+                .with_budget(Arc::clone(budget_view))
+                .with_fail_closed(gate.fail_closed.clone());
+                // Wire A2A so `ctx.tools.invoke("a2a:<skill>")` routes through
+                // the orchestrator. Without this, the registry would still
+                // surface `a2a:*` in allowed_tools but the dispatcher would
+                // return UnknownTool at call time.
+                let proxy = if let Some(ref invoker) = self.a2a_invoker {
+                    proxy.with_a2a(Arc::clone(invoker), 0, None)
+                } else {
+                    proxy
+                };
+                Some(proxy)
+            }
+            _ => {
+                tracing::warn!(
+                    agent = %self.agent_id,
+                    reason = "tool registry or audit trail missing",
+                    "agent.tool_proxy.unavailable"
+                );
+                None
+            }
+        }
+    }
+}
+
 impl AgentRunner for BridgeRunner {
     fn call_run(
         &self,
@@ -284,20 +409,10 @@ impl AgentRunner for BridgeRunner {
         let llm_router = self.llm_router.clone();
         let event_bus = self.event_bus.clone();
         let agent_id = self.agent_id.clone();
-        let allowed_tools = self.allowed_tools.clone();
-        let tool_registry = self.tool_registry.clone();
-        let audit_trail = self.audit_trail.clone();
         let memory_namespace = self.memory_namespace.clone();
         let memory_config = self.manifest.memory_config.clone();
         let memory_base_dir = self.memory_base_dir.clone();
         let user_memory_write = self.user_memory_write;
-        let pending_user_inputs = self.pending_user_inputs.clone();
-        let mcp_handle = self.mcp_handle.clone();
-        // This run's approval state: the response the task was resumed with, if
-        // any, gates the MCP calls that need a human.
-        let mcp_task_approval =
-            apollia_mcp::task_approval::TaskApproval::new(task.input_response.clone());
-        let mcp_tools_requiring_approval = self.manifest.tools_requiring_approval.clone();
         let supports_mailbox = self.manifest.supports_mailbox;
         let mailbox_allowlist = self.manifest.mailbox_allowlist.clone();
         let mailbox_send_gated = self
@@ -307,7 +422,6 @@ impl AgentRunner for BridgeRunner {
             .any(|t| t == "mailbox:send");
         let a2a_invoker = self.a2a_invoker.clone();
         let mailbox = self.mailbox.clone();
-        let tools_config = self.tools_config.clone();
         let datasources_declared = self.datasources_declared.clone();
         let templates_declared = self.templates_declared.clone();
         let agent_dir = self.agent_dir.clone();
@@ -326,107 +440,10 @@ impl AgentRunner for BridgeRunner {
                 Arc::new(NoopToolInvoker),
             ));
 
-            let governance_base = memory_base_dir
-                .parent()
-                .map(Path::to_path_buf)
-                .unwrap_or_else(|| memory_base_dir.clone());
-            let snapshot = load_governance_snapshot(&governance_base).unwrap_or_else(|e| {
-                tracing::warn!(
-                    error = %e,
-                    detail = "every tool is enabled",
-                    "tools.governance.unavailable"
-                );
-                Default::default()
-            });
-
-            // An access to a connector tool without its account names the
-            // single connected account, or nothing.
-            let allowed_tools = apollia_runtime::connectors_bridge::resolve_connector_access(
-                &agent_id,
-                allowed_tools,
-            )
-            .await;
-
-            // Merge operator-disabled (apollia.toml `[tools].disabled`) with
-            // governance.db runtime-disabled: either source disables the tool.
-            let disabled_tools = merge_disabled(&tools_config.disabled, snapshot.disabled_tools);
-            // Build one McpToolExecutor per registered MCP tool so the agent's
-            // ToolDispatcher can route `mcp:<server>/<tool>` invocations
-            // through the MCP client manager. Without this, the registry
-            // surfaces the tool to the agent's prompt but the dispatcher
-            // returns UnknownTool at call time.
-            let mut extra_executors =
-                build_mcp_executors(&mcp_handle, mcp_task_approval, mcp_tools_requiring_approval)
-                    .await;
-
-            // Append the SaaS connector executors from the runtime: one per
-            // operation and per account connected when the run starts, each
-            // bound to the token of its account.
-            extra_executors
-                .extend(apollia_runtime::connectors_bridge::build_connector_executors().await);
-
-            let dispatcher = Arc::new(build_dispatcher_with(
-                &NativeDispatcherConfig {
-                    session_id: None,
-                    sandbox_roots: sandbox_roots_for_agent(&self.trusted_paths),
-                    agent_id: agent_id.clone(),
-                    venv_base_dir: memory_base_dir
-                        .parent()
-                        .map(|p| p.join("venvs"))
-                        .unwrap_or_else(|| memory_base_dir.join("venvs")),
-                    memory_namespace: memory_namespace.clone(),
-                    memory_shared_namespaces: Vec::new(),
-                    memory_base_dir: memory_base_dir.clone(),
-                    http_allowlist: None,
-                    pending_user_inputs,
-                    disabled_tools,
-                    brave_api_key: snapshot.brave_api_key,
-                    web_search_config: tools_config.web_search.clone(),
-                    web_read_config: tools_config.web_read.clone(),
-                    python_interpreter: tools_config.python_interpreter.clone(),
-                    max_output_chars: tools_config.max_output_chars,
-                },
-                extra_executors,
-            ));
-
-            let tool_proxy = match (tool_registry.as_ref(), audit_trail.as_ref()) {
-                (Some(registry), Some(audit)) => {
-                    let proxy = ToolProxy::new(ToolProxyConfig {
-                        registry: registry.clone(),
-                        audit: audit.clone(),
-                        executor: Arc::new(DispatcherExecutor::new(dispatcher)),
-                        allowed_tools,
-                        agent_id: agent_id.clone(),
-                        task_id: task.task_id.clone(),
-                        run_id: task.run_id.clone(),
-                    })
-                    // tool_call_* instrumentation on the EventBus.
-                    .with_event_bus(event_bus.clone())
-                    // Direct-path budget: count and cap the agent's tool calls.
-                    .with_budget(Arc::clone(&budget_view));
-                    // Wire A2A so `ctx.tools.invoke("a2a:<skill>")` routes through
-                    // the orchestrator. Without this, the registry would still
-                    // surface `a2a:*` in allowed_tools but the dispatcher would
-                    // return UnknownTool at call time.
-                    let proxy = if let Some(ref invoker) = a2a_invoker {
-                        proxy.with_a2a(Arc::clone(invoker), 0, None)
-                    } else {
-                        proxy
-                    };
-                    Some(proxy)
-                }
-                _ => {
-                    tracing::warn!(
-                        agent = %agent_id,
-                        reason = "tool registry or audit trail missing",
-                        "agent.tool_proxy.unavailable"
-                    );
-                    None
-                }
-            };
+            let tool_proxy = self.build_tool_proxy(&task, &budget_view).await;
 
             let memory_interface = memory_namespace.as_deref().and_then(|ns| {
-                let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
+                let eff_ns = ns.to_owned();
                 let mut manager =
                     MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
                 if let Some(ref memory_config) = memory_config {
@@ -606,10 +623,10 @@ impl ExecutionBackend for AIPProductionBackend {
             // Task-mode backend: no chat UI to answer `ask_user` prompts.
             pending_user_inputs: None,
             mcp_handle: self.mcp_handle.clone(),
+            governance: self.governance.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
             mailbox: self.mailbox.clone(),
             tools_config: self.tools_config.clone(),
-            trusted_paths: self.trusted_paths.clone(),
             datasources_declared: self.datasources_declared.clone(),
             templates_declared: self.templates_declared.clone(),
             agent_dir: self.agent_dir.clone(),
@@ -680,43 +697,49 @@ impl ExecutionBackend for AIPProductionBackend {
 
 #[cfg(test)]
 mod tests {
-    use super::sandbox_roots_for_agent;
-    use std::path::PathBuf;
+    use super::file_tool_access;
+    use apollia_core::paths::DataFile;
+    use apollia_core::FolderConnectionStore;
 
     #[test]
-    fn an_empty_trusted_list_still_yields_a_root() {
-        // GIVEN an operator who emptied `[filesystem] trusted_paths`
-        let trusted: Vec<PathBuf> = Vec::new();
+    fn a_task_reaches_the_folders_granted_to_its_agent_and_no_other() {
+        // GIVEN two stored folders, the agent granted the first to read only
+        let data = tempfile::tempdir().expect("tempdir");
+        let granted = tempfile::tempdir().expect("tempdir");
+        let other = tempfile::tempdir().expect("tempdir");
+        let store = FolderConnectionStore::open(&DataFile::System.path(data.path()))
+            .expect("open system.db");
+        let granted = store
+            .add(&granted.path().to_string_lossy(), None)
+            .expect("add");
+        store
+            .add(&other.path().to_string_lossy(), None)
+            .expect("add");
+        let access = vec![format!("conn:folder:{}/file_read", granted.id)];
 
-        // WHEN the agent roots are derived
-        let roots = sandbox_roots_for_agent(&trusted);
+        // WHEN the task path derives the roots of its file tools
+        let (tools, roots) = file_tool_access(access, data.path());
 
-        // THEN one root remains. An empty list reaches `SandboxRoot::new` as a
-        // construction failure, and the dispatcher logs and skips a tool it
-        // cannot build: emptying a setting would silently remove every file
-        // tool from the agent rather than narrow it.
-        assert_eq!(roots.len(), 1);
-        assert!(!roots[0].as_os_str().is_empty());
+        // THEN file_read is granted over that folder alone, and nothing writes
+        assert_eq!(tools, vec!["file_read".to_owned()]);
+        assert_eq!(roots.read, vec![std::path::PathBuf::from(&granted.path)]);
+        assert!(roots.write.is_empty());
     }
 
     #[test]
-    fn configured_roots_are_kept_in_order_and_empties_dropped() {
-        // GIVEN a configured list carrying an entry that resolved to nothing
-        let trusted = vec![
-            PathBuf::from("/mnt/work"),
-            PathBuf::new(),
-            PathBuf::from("/opt/data"),
-        ];
+    fn a_task_whose_agent_has_no_folder_reaches_none() {
+        // GIVEN an agent granted file_read but no folder, the home folder
+        // being no longer a default root
+        let data = tempfile::tempdir().expect("tempdir");
 
-        // WHEN the agent roots are derived
-        let roots = sandbox_roots_for_agent(&trusted);
+        // WHEN the task path derives the roots of its file tools
+        let (tools, roots) = file_tool_access(vec!["file_read".to_owned()], data.path());
 
-        // THEN order is preserved, since the first entry is the anchor relative
-        // paths land under, and the empty entry is gone: every path starts with
-        // it, so keeping one would trust the whole disk.
-        assert_eq!(
-            roots,
-            vec![PathBuf::from("/mnt/work"), PathBuf::from("/opt/data")]
-        );
+        // THEN the tool stays granted and reaches nothing
+        assert_eq!(tools, vec!["file_read".to_owned()]);
+        assert!(roots.read.is_empty() && roots.write.is_empty());
     }
 }
+
+#[cfg(test)]
+mod fail_closed_tests;

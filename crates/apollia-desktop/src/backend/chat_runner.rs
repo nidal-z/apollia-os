@@ -45,6 +45,8 @@ pub struct ProductionChatAgentRunner {
     /// BridgeRunner can inject McpToolExecutor instances into the
     /// dispatcher at run time.
     pub mcp_handle: Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>>,
+    /// The governance actor of the runtime, read when a run starts.
+    pub governance: Arc<std::sync::OnceLock<apollia_runtime::governance::GovernanceHandle>>,
     /// Agent registry handle, required to build the A2A invoker so chat-agent
     /// Python agents can call `ctx.a2a_invoke(...)` like task-mode agents.
     pub agent_registry: Arc<std::sync::OnceLock<AgentRegistryHandle>>,
@@ -53,10 +55,7 @@ pub struct ProductionChatAgentRunner {
     /// Inter-agent mailbox handle, exposed as `ctx.mailbox`.
     pub mailbox_handle: Arc<std::sync::OnceLock<AgentMailboxHandle>>,
     /// Operator tools configuration (`[tools]` apollia.toml).
-    pub tools_config: Arc<std::sync::OnceLock<ToolsConfig>>,
-    /// Filesystem roots an agent may reach (`[filesystem] trusted_paths`, `~`
-    /// already resolved). Set after the runtime boots, like every lock here.
-    pub trusted_paths: Arc<std::sync::OnceLock<Vec<std::path::PathBuf>>>,
+    pub tools_config: Arc<std::sync::OnceLock<apollia_runtime::config_reload::Live<ToolsConfig>>>,
 }
 
 #[async_trait::async_trait]
@@ -123,7 +122,7 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             .tools_config
             .get()
             .cloned()
-            .unwrap_or_else(ToolsConfig::default);
+            .unwrap_or_else(|| ToolsConfig::default().into());
 
         // Build the A2A invoker when registry+router are available.
         // Gives chat-agent Python agents the same A2A capabilities as task-mode
@@ -167,10 +166,10 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             user_memory_write,
             pending_user_inputs: self.pending_user_inputs.get().cloned(),
             mcp_handle: self.mcp_handle.get().cloned(),
+            governance: self.governance.get().cloned(),
             a2a_invoker,
             mailbox,
             tools_config,
-            trusted_paths: self.trusted_paths.get().cloned().unwrap_or_default(),
             datasources_declared,
             templates_declared,
             agent_dir,

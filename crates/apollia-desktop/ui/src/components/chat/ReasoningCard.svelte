@@ -1,3 +1,25 @@
+<script lang="ts" module>
+  import type { ReasoningItem as ReasoningItemKind } from "$lib/chat/reasoning";
+
+  /**
+   * The state a card opens in. What the user chose on this very block (the
+   * stored "1" or "0") wins; then a caller override; then the Appearance
+   * setting "unfold reasoning blocks by default"; then the per-kind default,
+   * where only a retry chain opens, being short and a sign of trouble.
+   */
+  export function resolveInitialExpanded(input: {
+    stored: string | null;
+    defaultExpanded: boolean | undefined;
+    expandByDefault: boolean;
+    kind: ReasoningItemKind["kind"];
+  }): boolean {
+    if (input.stored === "1") return true;
+    if (input.stored === "0") return false;
+    if (input.defaultExpanded !== undefined) return input.defaultExpanded;
+    return input.expandByDefault || input.kind === "retry";
+  }
+</script>
+
 <script lang="ts">
   /**
    * Unified reasoning item renderer.
@@ -15,6 +37,8 @@
   import { JSON_LINE_THRESHOLD } from "$lib/chat/reasoning";
   import { formatSecondsLocalized } from "$lib/chat/duration";
   import ReasoningCardShell from "./ReasoningCardShell.svelte";
+  import { get } from "svelte/store";
+  import { reasoningExpandedByDefault } from "$lib/stores/chatAppearance";
   import { t, locale } from "svelte-i18n";
   import {
     Check,
@@ -86,20 +110,16 @@
   const storageKey = $derived(`apollia.reasoning.expanded.${item.id}`);
 
   function loadExpanded(): boolean {
-    if (!persist || typeof sessionStorage === "undefined") {
-      return defaultExpanded ?? defaultForKind(item.kind);
-    }
-    const raw = sessionStorage.getItem(storageKey);
-    if (raw === "1") return true;
-    if (raw === "0") return false;
-    return defaultExpanded ?? defaultForKind(item.kind);
-  }
-
-  function defaultForKind(kind: ReasoningItem["kind"]): boolean {
-    // All variants collapsed by default - the user can expand on demand.
-    // Retry chains stay open since they are short and signal a problem
-    // worth surfacing immediately.
-    return kind === "retry";
+    const stored =
+      persist && typeof sessionStorage !== "undefined"
+        ? sessionStorage.getItem(storageKey)
+        : null;
+    return resolveInitialExpanded({
+      stored,
+      defaultExpanded,
+      expandByDefault: get(reasoningExpandedByDefault),
+      kind: item.kind,
+    });
   }
 
   let expanded = $state(loadExpanded());

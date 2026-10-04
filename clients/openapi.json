@@ -1067,6 +1067,79 @@
         }
       }
     },
+    "/api/v1/agents/installed/{name}": {
+      "put": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Handler for `PUT /api/v1/agents/installed/{name}`.",
+        "description": "Validates the new module, replaces the installed one, records the new\nversion, and cycles the runtime instance when there is one. The cycle is the\npoint of the route: the interpreter holds the module it imported at start\ntime, so without the stop and the start the window would report a new\nversion while the old one keeps answering. Emits\n`RuntimeEvent::AgentInstalled` once the runtime has settled.",
+        "operationId": "update_agent",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Name of the installed agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Agent updated, with what happened to its running instance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateAgentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "File absent or module refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No installed agent of that name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The update cannot be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/agents/installed/{name}/uninstall": {
       "post": {
         "tags": [
@@ -3347,6 +3420,129 @@
         }
       }
     },
+    "/api/v1/connections/folders": {
+      "post": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "`POST /api/v1/connections/folders`: add a folder of this machine.",
+        "operationId": "add_folder_connection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddFolderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Folder added as a connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The path is not a folder of this machine",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the connection admission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The folder is already a connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "system.db could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connections/folders/{id}": {
+      "delete": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "`DELETE /api/v1/connections/folders/{id}`: remove a folder connection.",
+        "operationId": "remove_folder_connection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identifier of the stored folder, the part of the connection identifier after `folder:`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Folder connection removed; the connection it was",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No folder connection has this identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "system.db could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connectors/accounts": {
       "get": {
         "tags": [
@@ -3655,6 +3851,27 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/imap/providers": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`GET /api/v1/connectors/imap/providers`: the providers whose server and\nport are filled from the address. Reads a table compiled into the runtime;\nnothing is reached, nothing is stored.",
+        "operationId": "list_imap_providers",
+        "responses": {
+          "200": {
+            "description": "The providers known from the address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapProvidersResponse"
                 }
               }
             }
@@ -4207,8 +4424,19 @@
           "events"
         ],
         "summary": "`GET /api/v1/events`, every runtime event as SSE.",
-        "description": "Each `runtime` frame carries one event of the bus serialized as the bus\ncarries it; a `lagged` frame reports how many events this subscriber\nmissed. The stream stays open until the client disconnects.",
+        "description": "Each `runtime` frame carries one event of the bus serialized as the bus\ncarries it; a `lagged` frame reports how many events this subscriber\nmissed. The stream stays open until the client disconnects, which releases\nthe leases of the `client` it names.",
         "operationId": "stream_events",
+        "parameters": [
+          {
+            "name": "client",
+            "in": "query",
+            "description": "The client holding the stream, as it names itself when it opens\nleases on local models. When the stream ends, its leases are released.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "SSE stream of every runtime event: `runtime` frames carry one event each, `lagged` frames the count of events dropped for this subscriber",
@@ -4518,6 +4746,27 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance/state": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/governance/state`: whether governance fails closed, and why.",
+        "operationId": "get_governance_state",
+        "responses": {
+          "200": {
+            "description": "The state of governance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovernanceStateBody"
                 }
               }
             }
@@ -6024,6 +6273,110 @@
         }
       }
     },
+    "/api/v1/llm/leases": {
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `POST /api/v1/llm/leases`.",
+        "description": "A conversation moved to another model releases its lease on the previous\none, which is unloaded when nothing else holds it.",
+        "operationId": "open_model_lease",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenLeaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Lease open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A blank field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No local engine on this host",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/leases/release": {
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `POST /api/v1/llm/leases/release`.",
+        "description": "Releasing the last lease on a model unloads it at once, unless it is\npinned or answering a request.",
+        "operationId": "release_model_lease",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseLeaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Lease released, or none was open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseLeaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A blank field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No local engine on this host",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/loaded-models": {
       "get": {
         "tags": [
@@ -6386,6 +6739,97 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PingResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/pins": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `GET /api/v1/llm/pins`.",
+        "operationId": "list_model_pins",
+        "responses": {
+          "200": {
+            "description": "The pinned models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinsResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No local engine on this host",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `PUT /api/v1/llm/pins`.",
+        "description": "A pinned model is never unloaded on its own. Unpinning a model that nothing\nelse holds leaves it to the idle delay; it is not unloaded at once.",
+        "operationId": "set_model_pin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelPin"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Pin saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelPin"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty model path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The pin could not be saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No local engine on this host",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
                 }
               }
             }
@@ -8335,6 +8779,16 @@
               }
             }
           },
+          "403": {
+            "description": "Refused by the connection admission, or forbidden since the last start",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Server not found",
             "content": {
@@ -8449,6 +8903,16 @@
           },
           "400": {
             "description": "Fallback connect failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden by the organisation policy since the last start",
             "content": {
               "application/json": {
                 "schema": {
@@ -10718,6 +11182,99 @@
         }
       }
     },
+    "/api/v1/pending-decisions": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/pending-decisions`: every decision waiting for the user.",
+        "operationId": "list_pending_decisions",
+        "responses": {
+          "200": {
+            "description": "The decisions waiting for the user, empty when none",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingDecisionList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pending-decisions/decide": {
+      "post": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`POST /api/v1/pending-decisions/decide`: answer one waiting decision.",
+        "description": "The answer goes through the call that answers the item where it was born,\nso the conversation, the task or the batch item goes on as if it had been\nanswered there. After `always` on a batch item, every waiting item of the\nsame agent the consent covers runs again.",
+        "operationId": "decide_pending",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The decision was applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecideResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such item waits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The item can no longer take this answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The item does not take this answer, or the answer is malformed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The subsystem the item belongs to is not running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/permissions/proposals": {
       "get": {
         "tags": [
@@ -11675,41 +12232,6 @@
           },
           "503": {
             "description": "The profile store did not open",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/projects/{id}/sessions": {
-      "get": {
-        "tags": [
-          "chat"
-        ],
-        "summary": "Handler for `GET /api/v1/projects/{id}/sessions`, the sessions of a\nproject.",
-        "operationId": "list_project_sessions",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Session list"
-          },
-          "503": {
-            "description": "Chat subsystem unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -13586,61 +14108,6 @@
         }
       }
     },
-    "/api/v1/sessions/{id}/project": {
-      "put": {
-        "tags": [
-          "chat"
-        ],
-        "summary": "Handler for `PUT /api/v1/sessions/{id}/project`, link the session to a\nproject or, with `null`, unlink it.",
-        "operationId": "link_session_project",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Session id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LinkProjectBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Link stored"
-          },
-          "404": {
-            "description": "Session or project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Chat subsystem unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/sessions/{id}/resume": {
       "post": {
         "tags": [
@@ -14188,7 +14655,7 @@
             }
           },
           "422": {
-            "description": "Unknown kind, blank label, or a folder, file or mailbox without a reference",
+            "description": "Unknown kind, blank label, or a folder, file, mailbox or code folder without a reference",
             "content": {
               "application/json": {
                 "schema": {
@@ -14203,6 +14670,42 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources/folder-kinds": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "`GET /api/v1/sources/folder-kinds`: the kinds offered for a source made\non a folder connection.",
+        "description": "The code folder is offered only when the developer mode is on. This is\nwhat the user is offered, not a check: `POST /api/v1/sources` accepts a\ncode folder whatever the mode.",
+        "operationId": "folder_kinds",
+        "parameters": [
+          {
+            "name": "developerMode",
+            "in": "query",
+            "description": "Whether the developer mode is on, as `[desktop] developer_mode`\nsays; off when absent.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The kinds offered on a folder connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceKindDto"
+                  }
                 }
               }
             }
@@ -14260,6 +14763,47 @@
           },
           "422": {
             "description": "Not a workbook or a CSV file, protected, damaged, or a sheet or row the file lacks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources/project-migration": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "`GET /api/v1/sources/project-migration`: what the migration of the former\nprojects carried over, and what it listed instead.",
+        "operationId": "project_migration_report",
+        "responses": {
+          "200": {
+            "description": "The report of the last run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationReport"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No migration of projects has run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The report cannot be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -14950,6 +15494,59 @@
         }
       }
     },
+    "/api/v1/tasks/{id}/delegation-tree": {
+      "get": {
+        "tags": [
+          "a2a"
+        ],
+        "summary": "Handler for `GET /api/v1/tasks/{id}/delegation-tree`.",
+        "description": "A task with no recorded delegation answers its root with no children.",
+        "operationId": "get_delegation_tree",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Parent task id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The task and its delegations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DelegationTreeNode"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The delegations cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sidechain logging not initialized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/tasks/{id}/plan-decision": {
       "post": {
         "tags": [
@@ -15012,6 +15609,58 @@
           },
           "503": {
             "description": "Plan gate not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/record": {
+      "delete": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Handler for `DELETE /api/v1/tasks/{id}/record`.",
+        "operationId": "delete_task_record",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Task id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether a stored record was removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskRecordDeleted"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The task store refused the deletion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Task persistence is not available",
             "content": {
               "application/json": {
                 "schema": {
@@ -17016,6 +17665,26 @@
           "sensitive": {
             "type": "boolean",
             "description": "Using it is sensitive."
+          }
+        }
+      },
+      "AddFolderBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/connections/folders`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name shown to the user; the folder's own name when absent."
+          },
+          "path": {
+            "type": "string",
+            "description": "Absolute path of the folder, as the system picker answered it."
           }
         }
       },
@@ -19079,9 +19748,9 @@
           "pendingRestart": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/PendingRestartKey"
             },
-            "description": "Keys changed in the file that wait for a restart of the runtime."
+            "description": "Keys changed since the runtime started that wait for its restart, each\nwith its line; empty in a runtime that does not follow its file."
           },
           "sha256": {
             "type": "string",
@@ -19142,7 +19811,7 @@
           },
           "id": {
             "type": "string",
-            "description": "Stable identifier: `mcp:<server>`, `native:<provider>:<account>`,\n`imap:<address>`."
+            "description": "Stable identifier: `mcp:<server>`, `native:<provider>:<account>`,\n`imap:<address>`, `folder:<id>`."
           },
           "kind": {
             "$ref": "#/components/schemas/ConnectionKind",
@@ -19155,6 +19824,13 @@
           "official": {
             "type": "boolean",
             "description": "Published by the service's own publisher."
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Folder of this machine the connection opens, for a folder."
           },
           "provenance": {
             "type": "string",
@@ -19195,7 +19871,8 @@
           "degraded",
           "needs_reauth",
           "unavailable",
-          "stopped"
+          "stopped",
+          "forbidden_by_policy"
         ]
       },
       "ConnectionTool": {
@@ -19579,13 +20256,6 @@
             "type": "string",
             "description": "Session mode: `\"libre\"` or `\"agent\"`."
           },
-          "project_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Project to link this session to."
-          },
           "system_prompt": {
             "type": [
               "string",
@@ -19630,7 +20300,7 @@
               "string",
               "null"
             ],
-            "description": "What the source points at; required for `folder`, `file` and `mail`."
+            "description": "What the source points at; required for `folder`, `file`, `mail` and\n`code_folder`, whose reference is a folder connection."
           }
         }
       },
@@ -19821,6 +20491,78 @@
           }
         }
       },
+      "DecideRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/pending-decisions/decide`.",
+        "required": [
+          "id",
+          "answer"
+        ],
+        "properties": {
+          "answer": {
+            "$ref": "#/components/schemas/PendingAnswer",
+            "description": "One of the answers the item takes."
+          },
+          "answers": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object"
+            },
+            "description": "The answers to a question, one per question, matched by its `id`."
+          },
+          "id": {
+            "type": "string",
+            "description": "The `id` of the item, as listed."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why, for a refusal; handed to the agent."
+          },
+          "value": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The answer to the typed question of a paused task: a proposition id,\nfree text when it allows it, or a value."
+          }
+        }
+      },
+      "DecideResponse": {
+        "type": "object",
+        "description": "What a decision did.",
+        "required": [
+          "id",
+          "answer",
+          "resumed",
+          "message"
+        ],
+        "properties": {
+          "answer": {
+            "$ref": "#/components/schemas/PendingAnswer",
+            "description": "The answer applied."
+          },
+          "id": {
+            "type": "string",
+            "description": "The item answered."
+          },
+          "message": {
+            "type": "string",
+            "description": "What happened, to show the user."
+          },
+          "resumed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many waiting runs, conversations or items went on.",
+            "minimum": 0
+          }
+        }
+      },
       "DefaultModelResponse": {
         "type": "object",
         "description": "The default model of the machine.",
@@ -19868,6 +20610,44 @@
             "format": "int64",
             "description": "Delegation timeout in seconds (default: 120).",
             "minimum": 0
+          }
+        }
+      },
+      "DelegationTreeNode": {
+        "type": "object",
+        "description": "One node of the delegation tree.",
+        "required": [
+          "agent_id",
+          "agent_name",
+          "status",
+          "children"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "description": "Agent identifier (runtime UUID, or name if resolution fails)."
+          },
+          "agent_name": {
+            "type": "string",
+            "description": "Human-readable agent name."
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DelegationTreeNode"
+            },
+            "description": "Child delegations (A2A subtasks)."
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 8601 start timestamp (None for the root if unknown)."
+          },
+          "status": {
+            "type": "string",
+            "description": "Current status: `submitted`, `working`, `completed`, `failed`, `running`, etc."
           }
         }
       },
@@ -20435,6 +21215,56 @@
           "json"
         ]
       },
+      "FailClosed": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "`governance.db` exists and cannot be read.",
+            "required": [
+              "detail",
+              "cause"
+            ],
+            "properties": {
+              "cause": {
+                "type": "string",
+                "enum": [
+                  "store_unreadable"
+                ]
+              },
+              "detail": {
+                "type": "string",
+                "description": "What the read failed on."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "An organisation policy is deposited and refused.",
+            "required": [
+              "reason",
+              "detail",
+              "cause"
+            ],
+            "properties": {
+              "cause": {
+                "type": "string",
+                "enum": [
+                  "policy_invalid"
+                ]
+              },
+              "detail": {
+                "type": "string",
+                "description": "What exactly was refused."
+              },
+              "reason": {
+                "type": "string",
+                "description": "The reason class: `schema`, `signature`, `key` or `owner`."
+              }
+            }
+          }
+        ],
+        "description": "Why governance fails closed."
+      },
       "FireResponse": {
         "type": "object",
         "description": "Response for `POST /api/v1/triggers/:id/fire`.",
@@ -20456,6 +21286,24 @@
           "might_fit",
           "too_large"
         ]
+      },
+      "FolderErrorBody": {
+        "type": "object",
+        "description": "A refused folder: the message and its stable code.",
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable code: `not_a_folder`, `already_added`, `admission_refused`,\n`not_found`, `store`."
+          },
+          "error": {
+            "type": "string",
+            "description": "What went wrong, for a person. For `admission_refused`, the reason\nthe admission gave, as is."
+          }
+        }
       },
       "ForkSessionRequest": {
         "type": "object",
@@ -20656,6 +21504,23 @@
           "timestamp": {
             "type": "string",
             "description": "ISO 8601 timestamp."
+          }
+        }
+      },
+      "GovernanceStateBody": {
+        "type": "object",
+        "description": "Answer of `GET /api/v1/governance/state`.",
+        "properties": {
+          "fail_closed": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FailClosed",
+                "description": "Why governance fails closed, `null` while it decides normally. While it\nfails closed, every sensitive tool call and every new connection is\nrefused; reading continues."
+              }
+            ]
           }
         }
       },
@@ -20900,6 +21765,62 @@
           "error": {
             "type": "string",
             "description": "What went wrong, for a person."
+          }
+        }
+      },
+      "ImapProviderResponse": {
+        "type": "object",
+        "description": "A provider whose IMAP server is known from the address.",
+        "required": [
+          "name",
+          "domains",
+          "host",
+          "port"
+        ],
+        "properties": {
+          "domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Address domains it serves, lowercase."
+          },
+          "host": {
+            "type": "string",
+            "description": "IMAP server."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the provider."
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32",
+            "description": "IMAP port, implicit TLS.",
+            "minimum": 0
+          }
+        }
+      },
+      "ImapProvidersResponse": {
+        "type": "object",
+        "description": "The providers known from the address, and the port of any other server.",
+        "required": [
+          "providers",
+          "defaultPort"
+        ],
+        "properties": {
+          "defaultPort": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Port of a server outside the list, implicit TLS.",
+            "minimum": 0
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImapProviderResponse"
+            },
+            "description": "Every provider prefilled from the address."
           }
         }
       },
@@ -21508,6 +22429,32 @@
           }
         }
       },
+      "IssueItem": {
+        "type": "string",
+        "description": "What an issue is about.",
+        "enum": [
+          "store",
+          "document",
+          "instructions",
+          "agent",
+          "folder",
+          "provider",
+          "memory",
+          "conversations"
+        ]
+      },
+      "IssueReason": {
+        "type": "string",
+        "description": "Why an item was not carried over.",
+        "enum": [
+          "missing",
+          "unreadable",
+          "wrong_kind",
+          "agent_not_installed",
+          "failed",
+          "not_carried_over"
+        ]
+      },
       "ItemPreview": {
         "type": "object",
         "description": "One Python tool of the package.",
@@ -21628,16 +22575,22 @@
           }
         }
       },
-      "LinkProjectBody": {
+      "LeaseResponse": {
         "type": "object",
-        "description": "Request body for `PUT /api/v1/sessions/{id}/project`.",
+        "description": "Response body for `POST /api/v1/llm/leases`.",
+        "required": [
+          "modelPath",
+          "leases"
+        ],
         "properties": {
-          "project_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The project to link, `null` to unlink."
+          "leases": {
+            "type": "integer",
+            "description": "Open conversations designating it, this one included.",
+            "minimum": 0
+          },
+          "modelPath": {
+            "type": "string",
+            "description": "The model the lease holds."
           }
         }
       },
@@ -21895,7 +22848,7 @@
           },
           "kind": {
             "$ref": "#/components/schemas/ModelKind",
-            "description": "What the model serves: `chat`, or `embeddings` for the instance that\nserves search by meaning, which does not count against `maxLoaded`."
+            "description": "What the model serves: `chat`, or `embeddings` for the instance that\nserves search by meaning, which counts neither against `maxLoaded` nor\nagainst the memory the guardrail weighs."
           },
           "lastUsedAt": {
             "type": "string",
@@ -21946,7 +22899,6 @@
         "description": "Response body for `GET /api/v1/llm/loaded-models`.",
         "required": [
           "engineAvailable",
-          "maxLoaded",
           "models"
         ],
         "properties": {
@@ -21955,8 +22907,11 @@
             "description": "Whether a local engine exists on this host. `false` means nothing can\never be loaded, not merely that nothing is."
           },
           "maxLoaded": {
-            "type": "integer",
-            "description": "How many models may stay resident at once; `0` without an engine.",
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The explicit ceiling on resident models (`APOLLIA_LLAMA_MAX_LOADED`);\n`null` when the load guardrail alone decides how many stay loaded, and\nwithout an engine.",
             "minimum": 0
           },
           "models": {
@@ -22336,6 +23291,28 @@
           }
         }
       },
+      "MemoryMerge": {
+        "type": "object",
+        "description": "A memory space of a project merged into the space of the same name.",
+        "properties": {
+          "entriesAdded": {
+            "type": "integer",
+            "description": "Entries this run added; 0 when they were already there.",
+            "default": 0,
+            "minimum": 0
+          },
+          "from": {
+            "type": "string",
+            "description": "The space of the project, `<project id>:<space>`.",
+            "default": ""
+          },
+          "into": {
+            "type": "string",
+            "description": "The space it was merged into.",
+            "default": ""
+          }
+        }
+      },
       "MemoryRemoved": {
         "type": "object",
         "description": "Answer of the clear and purge routes.",
@@ -22425,6 +23402,121 @@
           }
         }
       },
+      "MigrationIssue": {
+        "type": "object",
+        "description": "One item the migration did not carry over.",
+        "properties": {
+          "blocking": {
+            "type": "boolean",
+            "description": "Whether the issue keeps the migration partial. A missing document is\nlisted and does not: running again would not bring it back.",
+            "default": false
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The underlying error, when there is one.",
+            "default": null
+          },
+          "item": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IssueItem",
+                "description": "What the issue is about."
+              }
+            ],
+            "default": "store"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the project, if the issue belongs to one.",
+            "default": null
+          },
+          "projectName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the project, if the issue belongs to one.",
+            "default": null
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IssueReason",
+                "description": "Why it was not carried over."
+              }
+            ],
+            "default": "failed"
+          },
+          "subject": {
+            "type": "string",
+            "description": "The path, agent or space concerned.",
+            "default": ""
+          }
+        }
+      },
+      "MigrationReport": {
+        "type": "object",
+        "description": "The report of a run of the migration.",
+        "properties": {
+          "conversationsDetached": {
+            "type": "integer",
+            "description": "Conversations detached from a project by this run.",
+            "default": 0,
+            "minimum": 0
+          },
+          "formatVersion": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Version of this format.",
+            "default": 0,
+            "minimum": 0
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationIssue"
+            },
+            "description": "What was not carried over.",
+            "default": []
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectOutcome"
+            },
+            "description": "One entry per project found.",
+            "default": []
+          },
+          "ranAt": {
+            "type": "string",
+            "description": "When the run ended, RFC 3339 in UTC.",
+            "default": ""
+          },
+          "status": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MigrationStatus",
+                "description": "Where the run ended."
+              }
+            ],
+            "default": "partial"
+          }
+        }
+      },
+      "MigrationStatus": {
+        "type": "string",
+        "description": "Where a run of the migration ended.",
+        "enum": [
+          "complete",
+          "partial"
+        ]
+      },
       "ModelCardsResponse": {
         "type": "object",
         "description": "The catalogue's cards, or why there are none.",
@@ -22497,6 +23589,24 @@
           "chat",
           "embeddings"
         ]
+      },
+      "ModelPin": {
+        "type": "object",
+        "description": "Request and response body for `PUT /api/v1/llm/pins`.",
+        "required": [
+          "modelPath",
+          "pinned"
+        ],
+        "properties": {
+          "modelPath": {
+            "type": "string",
+            "description": "Path of the model, as the resident list reports it."
+          },
+          "pinned": {
+            "type": "boolean",
+            "description": "`true` keeps it loaded until it is unloaded by hand."
+          }
+        }
       },
       "ModelSourceDto": {
         "type": "string",
@@ -23002,6 +24112,29 @@
           }
         }
       },
+      "OpenLeaseRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/llm/leases`.",
+        "required": [
+          "clientId",
+          "conversationId",
+          "modelPath"
+        ],
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "description": "The interface holding the conversation, the `client` it passes to\n`GET /api/v1/events`."
+          },
+          "conversationId": {
+            "type": "string",
+            "description": "The conversation on screen."
+          },
+          "modelPath": {
+            "type": "string",
+            "description": "Path of the model the conversation designates, as the resident list\nreports it."
+          }
+        }
+      },
       "PackageErrorBody": {
         "type": "object",
         "description": "Error body of the package routes: the message, and a stable code a client\ncan act on.",
@@ -23289,6 +24422,16 @@
           }
         }
       },
+      "PendingAnswer": {
+        "type": "string",
+        "description": "An answer a decision takes.",
+        "enum": [
+          "once",
+          "always",
+          "refuse",
+          "answer"
+        ]
+      },
       "PendingApprovalResponse": {
         "type": "object",
         "description": "One pending HITL approval entry.\n\nCarries the same pause as a `GET /api/v1/tasks?status=input_required` item,\ntyped payload included, so a card can be drawn from either list.",
@@ -23330,6 +24473,203 @@
           },
           "task_id": {
             "type": "string"
+          }
+        }
+      },
+      "PendingDecision": {
+        "type": "object",
+        "description": "One decision waiting for the user.",
+        "required": [
+          "id",
+          "kind",
+          "summary",
+          "answers",
+          "allowOther",
+          "origin"
+        ],
+        "properties": {
+          "access": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The tool or the access asked for, for a consent and a batch item."
+          },
+          "agentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent that waits, when known."
+          },
+          "allowOther": {
+            "type": "boolean",
+            "description": "A free answer is taken besides the proposed choices."
+          },
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingAnswer"
+            },
+            "description": "The answers it takes."
+          },
+          "askedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When it was asked, RFC 3339, when known."
+          },
+          "family": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its action family (`read_personal`, `write_or_delete`, `send_external`,\n`execute_code`, `unclassified`), when known."
+          },
+          "id": {
+            "type": "string",
+            "description": "Identifier to answer it by, stable while it waits."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PendingKind",
+            "description": "Where it comes from."
+          },
+          "origin": {
+            "$ref": "#/components/schemas/PendingOrigin",
+            "description": "Where it was born."
+          },
+          "questions": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The questions of a question, each with its proposed choices, or the\ntyped payload of a paused task."
+          },
+          "summary": {
+            "type": "string",
+            "description": "What is asked, in a sentence."
+          }
+        }
+      },
+      "PendingDecisionList": {
+        "type": "object",
+        "description": "The decisions waiting for the user.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingDecision"
+            }
+          }
+        }
+      },
+      "PendingErrorBody": {
+        "type": "object",
+        "description": "Error body of these routes.",
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "A stable code: `UNKNOWN_ITEM`, `ANSWER_NOT_OFFERED`, `INVALID_ANSWER`,\n`UNAVAILABLE`, or the code of the call the decision went through."
+          },
+          "error": {
+            "type": "string",
+            "description": "What went wrong."
+          }
+        }
+      },
+      "PendingKind": {
+        "type": "string",
+        "description": "Where a decision waiting for the user comes from.",
+        "enum": [
+          "consent",
+          "task_pause",
+          "batch_item",
+          "question"
+        ]
+      },
+      "PendingOrigin": {
+        "type": "object",
+        "description": "Where the decision is to be found where it was born.",
+        "properties": {
+          "batchId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The batch of an item."
+          },
+          "messageId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The message whose turn asked."
+          },
+          "rank": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Position of the item in its source, from 0.",
+            "minimum": 0
+          },
+          "requestId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The `ask_user` request of a question."
+          },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The conversation, for a consent or a question asked in one."
+          },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The paused task."
+          },
+          "toolCallId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The tool call a consent is about."
+          }
+        }
+      },
+      "PendingRestartKey": {
+        "type": "object",
+        "description": "A key changed since the start that waits for a restart, with its line in\nthe file.",
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Dotted key."
+          },
+          "line": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "1-based line of the key, or of its table, in the file; `None` when the\nfile no longer writes it (removed, back to its default).",
+            "minimum": 0
           }
         }
       },
@@ -23474,6 +24814,22 @@
             "format": "int64",
             "description": "Round-trip latency in milliseconds (only set when `available` is `true`).",
             "minimum": 0
+          }
+        }
+      },
+      "PinsResponse": {
+        "type": "object",
+        "description": "Response body for `GET /api/v1/llm/pins`.",
+        "required": [
+          "pins"
+        ],
+        "properties": {
+          "pins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Paths of the pinned models, in path order."
           }
         }
       },
@@ -23935,6 +25291,70 @@
           }
         }
       },
+      "ProjectOutcome": {
+        "type": "object",
+        "description": "What the migration did for one project.",
+        "properties": {
+          "agentsChecked": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Agents its sources are checked for.",
+            "default": []
+          },
+          "codeFolderSource": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the code folder source made on that connection, when\nthe project read its git state, its rules or its tree.",
+            "default": null
+          },
+          "documentSources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Identifiers of the sources made of its documents.",
+            "default": []
+          },
+          "folderConnection": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the folder connection made of its working folder.",
+            "default": null
+          },
+          "id": {
+            "type": "string",
+            "description": "Identifier of the project.",
+            "default": ""
+          },
+          "instructionsSource": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the source made of its instructions, if it had any.",
+            "default": null
+          },
+          "memory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryMerge"
+            },
+            "description": "Its memory spaces, merged.",
+            "default": []
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the project, which is also the group of its sources.",
+            "default": ""
+          }
+        }
+      },
       "ProposedRuleView": {
         "type": "object",
         "description": "One proposed permission rule, as the approval card draws it.",
@@ -24115,6 +25535,44 @@
           "reason": {
             "type": "string",
             "description": "Why the user declined to answer."
+          }
+        }
+      },
+      "ReleaseLeaseRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/llm/leases/release`.",
+        "required": [
+          "clientId",
+          "conversationId"
+        ],
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "description": "The interface that opened the lease."
+          },
+          "conversationId": {
+            "type": "string",
+            "description": "The conversation that left the screen."
+          }
+        }
+      },
+      "ReleaseLeaseResponse": {
+        "type": "object",
+        "description": "Response body for `POST /api/v1/llm/leases/release`.",
+        "required": [
+          "unloaded"
+        ],
+        "properties": {
+          "released": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model no open conversation designates any more; absent when the\nlease did not exist or another conversation still holds the model."
+          },
+          "unloaded": {
+            "type": "boolean",
+            "description": "Whether that model was unloaded. It stays loaded when pinned or\nanswering a request."
           }
         }
       },
@@ -25978,6 +27436,19 @@
           }
         }
       },
+      "TaskRecordDeleted": {
+        "type": "object",
+        "description": "Response to a deletion.",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "`true` when a record was removed, `false` when no stored task matched\n(already gone, or never persisted)."
+          }
+        }
+      },
       "TaskResponse": {
         "type": "object",
         "description": "Response body for task operations.",
@@ -27145,6 +28616,54 @@
             "type": "integer",
             "description": "Processes stopped: one, or more when the model ran with several\ncontext windows.",
             "minimum": 0
+          }
+        }
+      },
+      "UpdateAgentRequest": {
+        "type": "object",
+        "description": "Request body for `PUT /api/v1/agents/installed/{name}`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path of the new Python module on this machine."
+          }
+        }
+      },
+      "UpdateAgentResponse": {
+        "type": "object",
+        "description": "Response to an agent update.\n\nDistinct from the install answer because an update has an outcome an\ninstall cannot have: a runtime instance that had to be cycled.",
+        "required": [
+          "name",
+          "version",
+          "install_path",
+          "restart_outcome"
+        ],
+        "properties": {
+          "install_path": {
+            "type": "string",
+            "description": "Install path on disk."
+          },
+          "name": {
+            "type": "string",
+            "description": "Unique name of the updated agent."
+          },
+          "restart_error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Raw cause when the stop or the start failed, `None` otherwise."
+          },
+          "restart_outcome": {
+            "type": "string",
+            "description": "One of the [`restart_outcome`] constants."
+          },
+          "version": {
+            "type": "string",
+            "description": "Semver version read from the new module's manifest."
           }
         }
       },

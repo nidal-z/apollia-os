@@ -15,7 +15,7 @@
     getPendingChatApprovalForSession,
     getPendingUserInputForSession, removePendingUserInput,
   } from "$lib/stores/chat";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { planModeDefault } from "$lib/stores/planModeSetting";
   import { setPlanMode } from "$lib/ipc/planMode";
   import type {
@@ -214,7 +214,6 @@
    */
   const actions = createSessionActions(
     () => sessionId,
-    () => sessionDetail?.project_id ?? null,
     () => refreshSession(),
   );
   const subscriptions = createSubscriptionGuard();
@@ -224,7 +223,7 @@
 
   /** Reasoning skin for the live timeline (mirrors the finalized sequence). */
   const liveSkin = $derived<"builder" | "operator">(
-    $uiMode === "builder" ? "builder" : "operator",
+    $developerMode ? "builder" : "operator",
   );
 
   // The live chain is rendered in invocation order (no dedup): each tool call
@@ -284,7 +283,6 @@
   onMount(async () => {
     await loadSession();
     restoreGlobalState();
-    void actions.loadProjects();
 
     subscriptions.keep(await listen<{ session_id: string; message_id: string; token: string }>(
       "chat-token",
@@ -656,10 +654,6 @@
       {oncontextopen}
       onrename={(title) => void actions.rename(title)}
       ondelete={handleDeleteSession}
-      linkedProject={actions.linkedProject}
-      availableProjects={actions.availableProjects}
-      onlink={(projectId) => void actions.link(projectId)}
-      onprojectopen={() => actions.openProjects()}
       {planMode}
       onplanmodechange={(enabled) => {
         planMode = enabled;
@@ -739,7 +733,7 @@
       <NextStepsPanel
         scopeKey={sessionEndScope}
         context="session_end"
-        mode={$uiMode === "builder" ? "builder" : "operator"}
+        mode={$developerMode ? "builder" : "operator"}
         facts={nextStepsFacts}
         title={$t("next_steps.session_title")}
       />

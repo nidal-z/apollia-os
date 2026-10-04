@@ -1,7 +1,7 @@
-//! An "always accept" on a code executor covers the current call only.
+//! An "always accept" is a standing consent for the agent and the family of
+//! the tool, never a grant by name; on a code executor or on a tool nobody
+//! classified it covers the current call only.
 //!
-//! `bash_executor` and `python_executor` take an arbitrary-code payload, so a
-//! grant by name would let every later call of the same exchange run unseen.
 //! These tests drive the chat loop with a scripted model that asks for the same
 //! tool twice in one exchange and count the approval prompts it raises.
 
@@ -95,7 +95,14 @@ struct ExchangeRun {
 /// Run one exchange where the model calls `tool` twice. The first call is
 /// answered "always accept"; the second call is answered "accept" if, and only
 /// if, the loop raises a prompt for it within [`PROMPT_WAIT`].
-async fn run_two_call_exchange(tool: &'static str) -> ExchangeRun {
+///
+/// `family`, when given, registers the tool under that family; `governance`
+/// decides the calls, the empty state when absent.
+async fn run_two_call_exchange(
+    tool: &'static str,
+    family: Option<apollia_tools::ActionFamily>,
+    governance: Option<crate::governance::GovernanceHandle>,
+) -> ExchangeRun {
     let model: Arc<dyn CompletionModel> = Arc::new(TwoCallsThenText {
         tool,
         iteration: AtomicU32::new(0),
@@ -105,6 +112,14 @@ async fn run_two_call_exchange(tool: &'static str) -> ExchangeRun {
     let router = Arc::new(LlmRouter::with_backends(backends, "default"));
     let (event_bus, mut events) = tokio::sync::broadcast::channel(128);
     let tool_registry = ToolRegistryHandle::start();
+    if let Some(family) = family {
+        let mut descriptor = crate::connectors_bridge::google_tool_descriptors()[0].clone();
+        descriptor.name = tool.to_owned();
+        descriptor.family = family;
+        descriptor.is_read_only = false;
+        descriptor.input_schema = serde_json::json!({ "type": "object" });
+        tool_registry.register(descriptor).await.unwrap();
+    }
     let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
         llm_router: router,
         tool_registry: tool_registry.clone(),
@@ -113,7 +128,8 @@ async fn run_two_call_exchange(tool: &'static str) -> ExchangeRun {
         user_memory: None,
         todo: None,
         plan: None,
-    });
+    })
+    .with_governance(governance);
     let budget = StepBudget::with_max(10);
     let approvals = PendingChatApprovals::new();
     let second_resolved = Arc::new(AtomicBool::new(false));
@@ -181,7 +197,7 @@ async fn always_on_bash_executor_prompts_again_for_the_next_call() {
     // GIVEN an exchange where the model calls bash_executor on two successive
     // iterations, and the operator answers "always" to the first prompt
     // WHEN the exchange runs
-    let run = run_two_call_exchange("bash_executor").await;
+    let run = run_two_call_exchange("bash_executor", None, None).await;
 
     // THEN both calls ran, and the second one went through its own prompt
     assert_eq!(run.prompts, vec!["c0".to_string(), "c1".to_string()]);
@@ -200,7 +216,7 @@ async fn always_on_bash_executor_prompts_again_for_the_next_call() {
 async fn always_on_python_executor_is_not_granted_by_name() {
     // GIVEN the same exchange shape with python_executor
     // WHEN the operator answers "always" to the first prompt
-    let run = run_two_call_exchange("python_executor").await;
+    let run = run_two_call_exchange("python_executor", None, None).await;
 
     // THEN the second call is prompted and no name grant leaves the loop
     assert_eq!(run.prompts, vec!["c0".to_string(), "c1".to_string()]);
@@ -208,13 +224,31 @@ async fn always_on_python_executor_is_not_granted_by_name() {
 }
 
 #[tokio::test]
-async fn always_on_an_ordinary_tool_still_covers_the_exchange() {
-    // GIVEN an exchange where the model calls file_read twice, and the
-    // operator answers "always" to the first prompt
-    // WHEN the exchange runs
-    let run = run_two_call_exchange("file_read").await;
+async fn always_on_a_writing_tool_is_a_family_consent() {
+    // GIVEN governance over an empty governance.db, and an exchange where the
+    // model calls a writing tool twice, the operator answering "always" to
+    // the first prompt
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("governance.db");
+    let governance =
+        crate::governance::GovernanceHandle::spawn(crate::governance::GovernanceSources {
+            governance_db: Some(db.clone()),
+            config_path: None,
+            policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
+            journal: None,
+            events: None,
+            forbidden_connections: Default::default(),
+        });
 
-    // THEN only the first call prompted, the second ran under the grant
+    // WHEN the exchange runs
+    let run = run_two_call_exchange(
+        "file_write",
+        Some(apollia_tools::ActionFamily::WriteOrDelete),
+        Some(governance),
+    )
+    .await;
+
+    // THEN only the first call prompted, the second ran under the consent
     assert_eq!(run.prompts, vec!["c0".to_string()]);
     assert!(!run.second_resolved);
     assert_eq!(run.response.tool_calls.len(), 2);
@@ -223,29 +257,35 @@ async fn always_on_an_ordinary_tool_still_covers_the_exchange() {
         .tool_calls
         .iter()
         .all(|c| c.status == ToolCallStatus::Executed));
-    // AND the grant is reported for persistence, as before
-    assert_eq!(run.response.newly_authorized, vec!["file_read".to_string()]);
+    // AND the consent is held for the agent and the family, no rule by name
+    // is written and no name grant leaves the loop
+    let consents = apollia_permissions::FamilyConsentStore::new(&db)
+        .unwrap()
+        .list_permanent()
+        .unwrap();
+    assert_eq!(
+        consents,
+        vec![(
+            crate::chat::manager::APOLLIA_CHAT_AGENT_ID.to_owned(),
+            apollia_permissions::ConsentFamily::WriteOrDelete
+        )]
+    );
+    assert!(apollia_permissions::PrefixRuleEngine::new(&db)
+        .unwrap()
+        .list_rules()
+        .unwrap()
+        .is_empty());
+    assert!(run.response.newly_authorized.is_empty());
 }
 
-#[test]
-fn correction_turn_carry_never_holds_a_code_executor() {
-    // GIVEN a carried set seeded with an ordinary grant, and a turn that
-    // reports grants for both code executors and for an ordinary tool
-    let mut carried: HashSet<String> = HashSet::from(["web_search".to_string()]);
-    let newly = vec![
-        "bash_executor".to_string(),
-        "file_read".to_string(),
-        "python_executor".to_string(),
-    ];
+#[tokio::test]
+async fn always_on_an_unclassified_tool_asks_again() {
+    // GIVEN an exchange where the model calls a tool nothing classifies twice,
+    // the operator answering "always" to the first prompt
+    // WHEN the exchange runs
+    let run = run_two_call_exchange("mcp:files/move", None, None).await;
 
-    // WHEN the grants are carried into the next correction turn
-    super::react_loop::carry_grants(&mut carried, &newly);
-
-    // THEN the ordinary grants are carried and no code executor is
-    let expected: HashSet<String> =
-        HashSet::from(["web_search".to_string(), "file_read".to_string()]);
-    assert_eq!(carried, expected);
-    assert!(!carried
-        .iter()
-        .any(|name| apollia_permissions::is_code_executor(name)));
+    // THEN the second call is prompted as well
+    assert_eq!(run.prompts, vec!["c0".to_string(), "c1".to_string()]);
+    assert!(run.second_resolved, "the second call raised no prompt");
 }

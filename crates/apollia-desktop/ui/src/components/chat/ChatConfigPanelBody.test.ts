@@ -30,7 +30,7 @@ vi.mock("@tauri-apps/plugin-notification", () => ({
 }));
 
 import ChatConfigPanelBody from "./ChatConfigPanelBody.svelte";
-import { uiMode } from "$lib/stores/mode";
+import { developerMode } from "$lib/stores/developerMode";
 import { isSensitiveFamily } from "$lib/tools/action-family";
 import type { ChatSessionDetail } from "$lib/types";
 
@@ -48,7 +48,6 @@ function libreSession(): ChatSessionDetail {
     closed_at: null,
     llm_backend: null,
     title: null,
-    project_id: null,
     plan_mode: false,
     plan_phase: "discovery",
   };
@@ -106,7 +105,7 @@ describe("isSensitiveFamily", () => {
 describe("ChatConfigPanelBody - tool sensitivity follows the action family", () => {
   test("a reading tool is plain, every other family is marked", () => {
     // GIVEN the builder view of a libre session's configuration
-    uiMode.set("builder");
+    developerMode.set(true);
 
     // WHEN the panel renders its tool list
     const html = render();
@@ -131,7 +130,7 @@ describe("ChatConfigPanelBody - tool sensitivity follows the action family", () 
 
   test("the operator view keeps the colour but drops the warning glyph", () => {
     // GIVEN the operator view
-    uiMode.set("operator");
+    developerMode.set(false);
 
     // WHEN the panel renders
     const html = render();

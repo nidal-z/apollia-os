@@ -7,14 +7,15 @@
   import { SkipToContent } from "$lib/components/layout";
   import KeyboardHintOverlay from "./components/common/KeyboardHintOverlay.svelte";
   import OnboardingModal from "./components/onboarding/OnboardingModal.svelte";
+  import ProjectMigrationNotice from "./components/projectMigration/ProjectMigrationNotice.svelte";
   import { ToastContainer } from "$lib/components/ui/toast";
   import PlanModeHost from "$lib/components/operator/PlanModeHost.svelte";
   import CompanionContextProvider from "./components/companion/CompanionContextProvider.svelte";
-  import CompanionPanel from "./components/companion/CompanionPanel.svelte";
   import { companionStore } from "$lib/stores/companion";
   import { Tooltip } from "bits-ui";
   import { createSSEConnection } from "$lib/stores/sse";
   import { initTheme } from "$lib/stores/theme";
+  import { initChatAppearance } from "$lib/stores/chatAppearance";
   import { hydratePlanModeDefault } from "$lib/stores/planModeSetting";
   import { hydrateDeveloperMode } from "$lib/stores/developerMode";
   import { navigateTo } from "$lib/stores/navigation";
@@ -69,6 +70,7 @@
 
   onMount(() => {
     initTheme();
+    initChatAppearance();
     void hydratePlanModeDefault();
     void hydrateDeveloperMode();
     const cleanup = createSSEConnection();
@@ -216,12 +218,14 @@
         <Sidebar />
         <Main />
       </div>
-      <CompanionPanel />
     </CompanionContextProvider>
     <PlanModeHost />
     <ToastContainer />
     {#if $onboardingModalOpen}
       <OnboardingModal onclose={handleOnboardingClose} />
+    {:else}
+      <!-- Shown once, after the former projects became sources. -->
+      <ProjectMigrationNotice />
     {/if}
   {/if}
 

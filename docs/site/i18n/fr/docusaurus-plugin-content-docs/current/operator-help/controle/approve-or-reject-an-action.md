@@ -38,16 +38,15 @@ Quel que soit le point d'entrée (chat ou Boîte de réception pour un appel d'o
 
    La raison est **transmise à l'agent** : elle est injectée dans le message d'outil que voit le LLM à l'itération suivante, sous la forme *« Outil refusé par l'utilisateur. Raison : … »*. Cela permet à l'agent de corriger sa trajectoire plutôt que de retenter aveuglément. La raison est aussi **persistée** dans l'historique récent (voir plus bas) pour retrouver le contexte plus tard.
 
-3. **Toujours autoriser** - ouvre un menu avec **4 portées** au choix, dans la carte du chat :
+3. **Toujours autoriser** - ouvre un menu avec **3 portées** au choix, dans la carte du chat :
 
    | Portée | Effet |
    |---|---|
    | **Pour cette session** | Auto-approuvé jusqu'à la fermeture du chat. Non persistée. |
    | **Toujours pour cet assistant** | Règle persistée - l'assistant courant ne redemandera plus pour cet outil. |
-   | **Toujours pour ce projet** | Règle persistée pour tous les assistants utilisés dans le projet courant. *Désactivée si la session n'est rattachée à aucun projet.* |
-   | **Toujours, partout** | Règle persistée globalement - tous les assistants, tous les projets. Affichée en orange comme signal de la portée maximale. |
+   | **Toujours, partout** | Règle persistée globalement - tous les assistants. Affichée en orange comme signal de la portée maximale. |
 
-   La demande d'approbation déclenchée par une écriture fichier jugée risquée est une autre surface, et elle en propose **cinq** : les quatre ci-dessus plus **Cet outil uniquement**, qui autorise ce seul outil et rien d'autre.
+   La demande d'approbation déclenchée par une écriture fichier jugée risquée est une autre surface, et elle en propose **quatre** : les trois ci-dessus plus **Cet outil uniquement**, qui autorise ce seul outil et rien d'autre.
 
    Les règles persistées sont consultables et révocables dans **Paramètres → Autorisations** (voir [Gérer les autorisations d'outils](manage-tool-permissions.md)).
 
@@ -104,7 +103,6 @@ L'historique est en **lecture seule** ; il ne se remplace pas par la page Param�
 - **Aucune carte n'apparaît alors que l'agent semble bloqué** : ouvrez la **Boîte de réception** depuis la sidebar. Les agents en arrière-plan y déposent leurs demandes au lieu de les afficher dans le chat.
 - **L'agent réessaie sans cesse la même action refusée** : la raison n'était peut-être pas exploitable par l'agent. Ouvrez ses logs depuis **Mes assistants** ; la raison transmise s'y retrouve dans la sortie de l'outil refusé. Refusez à nouveau avec une raison plus actionnable (chemin alternatif, valeur attendue…).
 - **Une règle "Toujours" crée trop d'actions automatiques** : ouvrez **Paramètres → Autorisations** et révoquez ou affinez le périmètre de la règle. Voir [Gérer les autorisations d'outils](manage-tool-permissions.md).
-- **L'option "Toujours pour ce projet" est grisée** : la session de chat courante n'est rattachée à aucun projet. Liez-la depuis l'en-tête du chat, ou utilisez la portée *Toujours pour cet assistant* à la place.
 - **Moins de demandes d'approbation que d'habitude** : c'est normal si l'agent tourne en palier `supervised` ou supérieur. La boucle de vérification automatique résout une partie des situations sans vous solliciter. Si vous souhaitez rétablir un contrôle complet, relancez l'agent avec `--autonomy assisted`.
 
 > **Concept :** [Explication Apollia](/explanation)

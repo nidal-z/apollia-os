@@ -357,8 +357,7 @@ a run, and nothing reads them back.
   or launcher on top no longer pollutes them. If a capture is ever wrong, check
   the window is a normal (non-minimized) window.
 - **A native file dialog is answered by a stub, or not at all.**
-  `memory-export-button`, `memory-import-pick`, `project-doc-attach-btn` and
-  `agent-update-btn` open an OS picker the runner cannot drive: an unstubbed
+  `memory-export-button`, `memory-import-pick` and `agent-update-btn` open an OS picker the runner cannot drive: an unstubbed
   click never returns and every later step of the boot fails. Arm
   `stubInvoke { command: "plugin:dialog|open", resolve: "${HOME}/...", once: true }`
   (`plugin:dialog|save` for the export) right before the click, or `resolve:
@@ -372,9 +371,10 @@ a run, and nothing reads them back.
   retire the armed state. Same shape wherever a confirm is rendered inline
   rather than as a dialog: check that the way back is reachable before writing
   the arming click.
-- **Two HITL surfaces**: file tools show the generic `ApprovalCard`
-  (`approval-card-*`, `approval-accept-*`, ...), not the `hitl-fs-modal`
-  fast-path. `bash_executor` is auto-refused with no card.
+- **Two HITL surfaces**: file tools show the inline approval card, not the
+  `hitl-fs-modal` fast-path. Developer mode off (the seed default), it is
+  `OperatorApprovalCard` (`operator-approval-*`, `operator-approval-accept-*`,
+  ...); on, the raw `ApprovalCard` (`approval-card-*`, `approval-accept-*`). `bash_executor` is auto-refused with no card.
 - **The seed default backend** is `local-llama-server` (an OpenAI-compatible
   backend pointing at the llama-server on :8899). Deterministic runs never
   connect to it; the `-llama` runs route real inference through it.

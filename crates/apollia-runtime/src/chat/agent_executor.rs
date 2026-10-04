@@ -11,9 +11,8 @@
 //! `workflow:<id>`) are tools of the run when a composer is wired: a call
 //! runs nested in this run, see [`crate::composition`].
 //!
-//! The three context injections that principle 6 allows (the user persona
-//! brief, the summaries of past sessions, the project context) belong to the
-//! Apollia agent alone. An executor built for any other agent drops them, so
+//! The two context injections that principle 6 allows (the user persona
+//! brief, the summaries of past sessions) belong to the Apollia agent alone. An executor built for any other agent drops them, so
 //! no other agent ever receives memory it did not ask for.
 
 use std::collections::HashSet;
@@ -30,15 +29,12 @@ use apollia_oria::verification::{CriticPass, VerificationLoop};
 use apollia_tools::{ResolvedAgent, ToolRegistryHandle};
 use tokio_util::sync::CancellationToken;
 
-use crate::chat::builtin_agent::{
-    BuiltInChatAgent, BuiltInChatAgentDeps, ChatAgentResponse, PrefixChecker,
-};
+use crate::chat::builtin_agent::{BuiltInChatAgent, BuiltInChatAgentDeps, ChatAgentResponse};
 use crate::chat::manager::APOLLIA_CHAT_AGENT_ID;
 use crate::chat::plan_actor::PlanHandle;
 use crate::chat::todo_handle::TodoHandle;
 use crate::chat::types::{
     ChatError, ChatMessage, InjectedInstruction, PendingChatApprovals, PlanPhase,
-    ProjectContextProvider,
 };
 use crate::composition::{CallerRun, Composer, ComposingInvoker};
 use crate::eventbus::EventBusSender;
@@ -80,15 +76,7 @@ impl AgentRunSpec {
     }
 }
 
-/// Where the project context block is read from.
-pub struct ProjectContextSource {
-    /// The project linked to the conversation.
-    pub project_id: String,
-    /// Builds the block for that project.
-    pub provider: Arc<dyn ProjectContextProvider>,
-}
-
-/// The three injections principle 6 reserves to the Apollia agent. Handed to
+/// The two injections principle 6 reserves to the Apollia agent. Handed to
 /// [`AgentExecutor::new`], they are kept only when the agent is Apollia.
 #[derive(Default)]
 pub struct ApolliaContext {
@@ -97,13 +85,11 @@ pub struct ApolliaContext {
     pub user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
     /// Block summarising earlier, unrelated sessions.
     pub past_sessions: Option<String>,
-    /// Project context to append to the system prompt.
-    pub project: Option<ProjectContextSource>,
 }
 
 impl ApolliaContext {
     fn is_empty(&self) -> bool {
-        self.user_memory.is_none() && self.past_sessions.is_none() && self.project.is_none()
+        self.user_memory.is_none() && self.past_sessions.is_none()
     }
 }
 
@@ -125,8 +111,9 @@ pub struct AgentExecutorDeps {
 
 /// Settings of the conversation the run belongs to. The default is a run
 /// outside any conversation: no workspace, no deferred tool index, plan mode
-/// off, no hook, no injected instruction, no prefix rule, and an approval that
-/// waits for the human however long it takes.
+/// off, no hook, no injected instruction, decisions read from an empty
+/// governance state, a run someone watches, and an approval that waits for
+/// the human however long it takes.
 #[derive(Default)]
 pub struct SessionWiring {
     /// Working directory named in the prompt and used by the tools.
@@ -145,8 +132,13 @@ pub struct SessionWiring {
     pub pending_injection: Option<InjectedInstruction>,
     /// Temperature of a turn that offers tools; the tuned default when absent.
     pub tool_turn_temperature: Option<f32>,
-    /// Per-invocation permission rules consulted before a human approval.
-    pub prefix_checker: Option<Arc<PrefixChecker>>,
+    /// The governance every tool call of the run is decided by; `None`
+    /// decides from an empty state, where reading runs and everything
+    /// sensitive asks.
+    pub governance: Option<crate::governance::GovernanceHandle>,
+    /// Nobody watches the run (an item of a batch): a call that would ask
+    /// waits instead.
+    pub unattended: bool,
     /// Delay after which a pending tool approval is refused; `None` never
     /// refuses on its own.
     pub approval_timeout: Option<Duration>,
@@ -202,7 +194,6 @@ pub struct AgentExecutor {
     critic: Option<CriticPass>,
     cancel: CancellationToken,
     past_sessions: Option<String>,
-    project: Option<ProjectContextSource>,
 }
 
 impl AgentExecutor {
@@ -286,7 +277,8 @@ impl AgentExecutor {
         .with_hook_executor(wiring.hook_executor)
         .with_pending_injection(wiring.pending_injection)
         .with_tool_turn_temperature(wiring.tool_turn_temperature)
-        .with_prefix_checker(wiring.prefix_checker)
+        .with_governance(wiring.governance)
+        .with_unattended(wiring.unattended)
         .with_approval_timeout(wiring.approval_timeout)
         .with_preferred_backend(spec.model.clone())
         .with_turn_id(wiring.turn_id);
@@ -299,7 +291,6 @@ impl AgentExecutor {
             critic,
             cancel,
             past_sessions: apollia.past_sessions,
-            project: apollia.project,
         }
     }
 
@@ -327,18 +318,12 @@ impl AgentExecutor {
     }
 
     /// The mission, then the Apollia injections when the agent is Apollia:
-    /// the past sessions block, then the project context block.
+    /// the past sessions block.
     pub async fn system_prompt(&self) -> String {
         let mut prompt = self.spec.mission.clone();
         if let Some(block) = &self.past_sessions {
             prompt.push_str("\n\n");
             prompt.push_str(block);
-        }
-        if let Some(source) = &self.project {
-            if let Some(block) = source.provider.build_context(&source.project_id).await {
-                prompt.push_str("\n\n");
-                prompt.push_str(&block);
-            }
         }
         prompt
     }
@@ -380,5 +365,7 @@ impl AgentExecutor {
     }
 }
 
+#[cfg(test)]
+mod governance_tests;
 #[cfg(test)]
 mod tests;

@@ -3,8 +3,8 @@
    * SplitLayout - canonical sidebar + detail route shell.
    *
    * Replaces the hand-rolled `flex min-h-0` + `w-[NNNpx] shrink-0 border-r` +
-   * `flex-1` scaffolding duplicated across Tasks (split), Agents, Projects,
-   * Connections and Settings. The sidebar width is standardized (280 by default)
+   * `flex-1` scaffolding duplicated across Tasks (split), Agents, Connections
+   * and Settings. The sidebar width is standardized (280 by default)
    * to remove the 240/280/300/320 fragmentation; override only with a documented
    * reason.
    *

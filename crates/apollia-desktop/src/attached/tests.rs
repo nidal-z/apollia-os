@@ -17,7 +17,6 @@ fn session(id: &str) -> SessionInfo {
         status: SessionStatus::Active,
         created_at: "2026-10-01T00:00:00Z".to_owned(),
         title: Some("Une conversation".to_owned()),
-        project_id: None,
     }
 }
 
@@ -25,9 +24,9 @@ fn session(id: &str) -> SessionInfo {
 
 #[test]
 fn test_a_command_not_routed_is_refused_in_attached_mode_with_a_readable_error() {
-    // GIVEN the application attached to a daemon, and a command whose body
-    // reads state only the embedded runtime builds
-    let command = "get_delegation_tree";
+    // GIVEN the application attached to a daemon, and a command on neither
+    // list, named so that no family routed later can take it
+    let command = "read_state_only_the_embedded_runtime_builds";
 
     // WHEN the gate is asked before the body runs
     let refusal = gate(LinkMode::Attached, command);
@@ -38,14 +37,8 @@ fn test_a_command_not_routed_is_refused_in_attached_mode_with_a_readable_error()
     assert!(matches!(&error, AttachedError::NotRouted { command: c } if c == command));
     let fr = error.for_display(UiLocale::Fr);
     let en = error.for_display(UiLocale::En);
-    assert!(
-        fr.contains("get_delegation_tree") && fr.contains("en service"),
-        "{fr}"
-    );
-    assert!(
-        en.contains("get_delegation_tree") && en.contains("as a service"),
-        "{en}"
-    );
+    assert!(fr.contains(command) && fr.contains("en service"), "{fr}");
+    assert!(en.contains(command) && en.contains("as a service"), "{en}");
 }
 
 #[test]
@@ -86,7 +79,10 @@ fn test_every_routed_command_passes_the_gate_in_attached_mode() {
 fn test_the_embedded_mode_lets_every_command_through() {
     // GIVEN the runtime running in this process
     // WHEN a command not routed is gated
-    let verdict = gate(LinkMode::Embedded, "get_delegation_tree");
+    let verdict = gate(
+        LinkMode::Embedded,
+        "read_state_only_the_embedded_runtime_builds",
+    );
 
     // THEN it runs as it always did
     assert!(verdict.is_ok());
@@ -164,7 +160,6 @@ async fn test_a_session_is_created_over_http_from_the_interface_request() {
         agent_name: None,
         system_prompt: None,
         tools: Vec::new(),
-        project_id: None,
     };
 
     // WHEN the attached arm creates a free conversation
@@ -632,11 +627,6 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
             "/api/v1/sessions/s%201/title",
             serde_json::json!({ "title": "Plan" }),
         ),
-        (
-            "PUT",
-            "/api/v1/sessions/s%201/project",
-            serde_json::json!({ "project_id": "p-1" }),
-        ),
     ];
     for (verb, route, body) in routes {
         Mock::given(method(verb))
@@ -658,13 +648,6 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
         .expect(1)
         .mount(&server)
         .await;
-    Mock::given(method("GET"))
-        .and(path("/api/v1/projects/p%2F1/sessions"))
-        .and(header("authorization", auth.as_str()))
-        .respond_with(ResponseTemplate::new(200).set_body_json(vec![session("s-2")]))
-        .expect(1)
-        .mount(&server)
-        .await;
     let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
     let update = crate::commands::chat::UpdateSessionRequest {
         system_prompt: Some("Brief.".to_owned()),
@@ -679,21 +662,13 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
         .unwrap();
     conversations::erase(&client, "s 1").await.unwrap();
     conversations::rename(&client, "s 1", "Plan").await.unwrap();
-    conversations::link_project(&client, "s 1", Some("p-1"))
-        .await
-        .unwrap();
     let title = conversations::name(&client, "s 1", "Help me")
         .await
         .unwrap();
-    let sessions = conversations::project_sessions(&client, "p/1")
-        .await
-        .unwrap();
 
-    // THEN each reached its own route once (the mocks verify it on drop), the
-    // generated title and the project's sessions come back as the daemon said
+    // THEN each reached its own route once (the mocks verify it on drop), and
+    // the generated title comes back as the daemon said
     assert_eq!(title, "CV help");
-    assert_eq!(sessions.len(), 1);
-    assert_eq!(sessions[0].id, "s-2");
 }
 
 #[tokio::test]
@@ -735,8 +710,6 @@ fn test_the_conversation_commands_pass_the_gate_attached() {
     let commands = [
         "delete_chat_session",
         "generate_chat_session_name",
-        "link_chat_to_project",
-        "list_chats_by_project",
         "rename_chat_session",
         "update_chat_session",
     ];

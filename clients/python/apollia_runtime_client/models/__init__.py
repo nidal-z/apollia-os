@@ -10,6 +10,7 @@ from .a2a_skill_dto import A2ASkillDto
 from .a2a_skill_dto_input_schema_type_0 import A2ASkillDtoInputSchemaType0
 from .a2a_skills_response import A2ASkillsResponse
 from .access_preview import AccessPreview
+from .add_folder_body import AddFolderBody
 from .add_permission_rule_body import AddPermissionRuleBody
 from .added_access import AddedAccess
 from .added_permission_rule import AddedPermissionRule
@@ -124,9 +125,14 @@ from .credential_entry_view import CredentialEntryView
 from .credential_test_view import CredentialTestView
 from .daily_cost_entry import DailyCostEntry
 from .daily_costs_response import DailyCostsResponse
+from .decide_request import DecideRequest
+from .decide_request_answers_type_0_item import DecideRequestAnswersType0Item
+from .decide_request_value_type_0 import DecideRequestValueType0
+from .decide_response import DecideResponse
 from .default_model_response import DefaultModelResponse
 from .delegate_request import DelegateRequest
 from .delegate_request_input import DelegateRequestInput
+from .delegation_tree_node import DelegationTreeNode
 from .delete_backend_response import DeleteBackendResponse
 from .delete_preset_response import DeletePresetResponse
 from .delete_response import DeleteResponse
@@ -162,8 +168,13 @@ from .events_response import EventsResponse
 from .export_agent_request import ExportAgentRequest
 from .export_format import ExportFormat
 from .export_memory_namespace_response_200 import ExportMemoryNamespaceResponse200
+from .fail_closed_type_0 import FailClosedType0
+from .fail_closed_type_0_cause import FailClosedType0Cause
+from .fail_closed_type_1 import FailClosedType1
+from .fail_closed_type_1_cause import FailClosedType1Cause
 from .fire_response import FireResponse
 from .fit_dto import FitDto
+from .folder_error_body import FolderErrorBody
 from .fork_session_request import ForkSessionRequest
 from .fs_hitl_decision_body_type_0 import FsHitlDecisionBodyType0
 from .fs_hitl_decision_body_type_0_decision import FsHitlDecisionBodyType0Decision
@@ -180,6 +191,7 @@ from .get_model_card_response_200 import GetModelCardResponse200
 from .gguf_model_info import GgufModelInfo
 from .global_timeline_event import GlobalTimelineEvent
 from .global_timeline_event_detail import GlobalTimelineEventDetail
+from .governance_state_body import GovernanceStateBody
 from .guardrail_check_dto import GuardrailCheckDto
 from .guardrail_level import GuardrailLevel
 from .guardrail_refused_body import GuardrailRefusedBody
@@ -190,6 +202,8 @@ from .health_response import HealthResponse
 from .imap_account_body import ImapAccountBody
 from .imap_account_response import ImapAccountResponse
 from .imap_error_body import ImapErrorBody
+from .imap_provider_response import ImapProviderResponse
+from .imap_providers_response import ImapProvidersResponse
 from .import_memory_body import ImportMemoryBody
 from .import_memory_body_content import ImportMemoryBodyContent
 from .import_oauth_client_body import ImportOauthClientBody
@@ -217,13 +231,15 @@ from .install_report import InstallReport
 from .installed_agent_view import InstalledAgentView
 from .invoke_request import InvokeRequest
 from .invoke_request_input import InvokeRequestInput
+from .issue_item import IssueItem
+from .issue_reason import IssueReason
 from .item_preview import ItemPreview
 from .journal_anchor import JournalAnchor
 from .journal_break import JournalBreak
 from .journal_break_reason import JournalBreakReason
 from .last_loaded_model_response import LastLoadedModelResponse
 from .last_loaded_model_response_load import LastLoadedModelResponseLoad
-from .link_project_body import LinkProjectBody
+from .lease_response import LeaseResponse
 from .list_plan_mutations_response_200_item import ListPlanMutationsResponse200Item
 from .llm_backend_response import LlmBackendResponse
 from .llm_backend_response_config_json import LlmBackendResponseConfigJson
@@ -256,15 +272,20 @@ from .memory_entry_deleted import MemoryEntryDeleted
 from .memory_entry_view import MemoryEntryView
 from .memory_estimate_dto import MemoryEstimateDto
 from .memory_imported import MemoryImported
+from .memory_merge import MemoryMerge
 from .memory_removed import MemoryRemoved
 from .memory_search_result_view import MemorySearchResultView
 from .memory_wiped import MemoryWiped
 from .message_dto import MessageDto
+from .migration_issue import MigrationIssue
+from .migration_report import MigrationReport
+from .migration_status import MigrationStatus
 from .model_cards_response import ModelCardsResponse
 from .model_cards_response_cards_item import ModelCardsResponseCardsItem
 from .model_cards_response_publishers import ModelCardsResponsePublishers
 from .model_info import ModelInfo
 from .model_kind import ModelKind
+from .model_pin import ModelPin
 from .model_source_dto import ModelSourceDto
 from .models_list_response import ModelsListResponse
 from .next_steps_reply import NextStepsReply
@@ -291,6 +312,7 @@ from .onboarding_profile_body import OnboardingProfileBody
 from .onboarding_reset import OnboardingReset
 from .onboarding_state import OnboardingState
 from .onboarding_stats import OnboardingStats
+from .open_lease_request import OpenLeaseRequest
 from .package_error_body import PackageErrorBody
 from .package_install_request import PackageInstallRequest
 from .package_notice_type_0 import PackageNoticeType0
@@ -305,13 +327,22 @@ from .package_preview import PackagePreview
 from .package_preview_request import PackagePreviewRequest
 from .parse_automation_request import ParseAutomationRequest
 from .parse_automation_response_200 import ParseAutomationResponse200
+from .pending_answer import PendingAnswer
 from .pending_approval_response import PendingApprovalResponse
 from .pending_approval_response_context_type_0 import PendingApprovalResponseContextType0
 from .pending_approval_response_payload_type_0 import PendingApprovalResponsePayloadType0
+from .pending_decision import PendingDecision
+from .pending_decision_list import PendingDecisionList
+from .pending_decision_questions_type_0 import PendingDecisionQuestionsType0
+from .pending_error_body import PendingErrorBody
+from .pending_kind import PendingKind
+from .pending_origin import PendingOrigin
+from .pending_restart_key import PendingRestartKey
 from .pending_user_input_view import PendingUserInputView
 from .permission_rule_dto import PermissionRuleDto
 from .ping_request import PingRequest
 from .ping_response import PingResponse
+from .pins_response import PinsResponse
 from .plan_action_response import PlanActionResponse
 from .plan_cache_stats_response import PlanCacheStatsResponse
 from .plan_decision_request import PlanDecisionRequest
@@ -335,6 +366,7 @@ from .profile_reset import ProfileReset
 from .profile_summary_view import ProfileSummaryView
 from .profile_update import ProfileUpdate
 from .profile_update_fields import ProfileUpdateFields
+from .project_outcome import ProjectOutcome
 from .proposed_rule_view import ProposedRuleView
 from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
@@ -344,6 +376,8 @@ from .readme_response import ReadmeResponse
 from .reasoning_profile_dto import ReasoningProfileDto
 from .reject_plan_request import RejectPlanRequest
 from .reject_user_input_request import RejectUserInputRequest
+from .release_lease_request import ReleaseLeaseRequest
+from .release_lease_response import ReleaseLeaseResponse
 from .reload_last_request import ReloadLastRequest
 from .reload_response import ReloadResponse
 from .reload_router_response import ReloadRouterResponse
@@ -427,6 +461,7 @@ from .system_info import SystemInfo
 from .task_list_item import TaskListItem
 from .task_list_item_payload_type_0 import TaskListItemPayloadType0
 from .task_list_response import TaskListResponse
+from .task_record_deleted import TaskRecordDeleted
 from .task_response import TaskResponse
 from .task_response_result_type_0 import TaskResponseResultType0
 from .task_response_token_budget_type_0 import TaskResponseTokenBudgetType0
@@ -488,6 +523,8 @@ from .uninstall_report import UninstallReport
 from .uninstall_request import UninstallRequest
 from .unload_model_request import UnloadModelRequest
 from .unload_model_response import UnloadModelResponse
+from .update_agent_request import UpdateAgentRequest
+from .update_agent_response import UpdateAgentResponse
 from .update_artifact_request import UpdateArtifactRequest
 from .update_channel_request import UpdateChannelRequest
 from .update_channel_request_config_type_0 import UpdateChannelRequestConfigType0
@@ -531,6 +568,7 @@ __all__ = (
     "AccessPreview",
     "AddedAccess",
     "AddedPermissionRule",
+    "AddFolderBody",
     "AddPermissionRuleBody",
     "AdvancePhaseBody",
     "AgentListResponse",
@@ -643,9 +681,14 @@ __all__ = (
     "CredentialTestView",
     "DailyCostEntry",
     "DailyCostsResponse",
+    "DecideRequest",
+    "DecideRequestAnswersType0Item",
+    "DecideRequestValueType0",
+    "DecideResponse",
     "DefaultModelResponse",
     "DelegateRequest",
     "DelegateRequestInput",
+    "DelegationTreeNode",
     "DeleteBackendResponse",
     "DeletedArtifact",
     "DeletedCredential",
@@ -681,8 +724,13 @@ __all__ = (
     "ExportAgentRequest",
     "ExportFormat",
     "ExportMemoryNamespaceResponse200",
+    "FailClosedType0",
+    "FailClosedType0Cause",
+    "FailClosedType1",
+    "FailClosedType1Cause",
     "FireResponse",
     "FitDto",
+    "FolderErrorBody",
     "ForkSessionRequest",
     "FsHitlDecisionBodyType0",
     "FsHitlDecisionBodyType0Decision",
@@ -699,6 +747,7 @@ __all__ = (
     "GgufModelInfo",
     "GlobalTimelineEvent",
     "GlobalTimelineEventDetail",
+    "GovernanceStateBody",
     "GuardrailCheckDto",
     "GuardrailLevel",
     "GuardrailRefusedBody",
@@ -709,6 +758,8 @@ __all__ = (
     "ImapAccountBody",
     "ImapAccountResponse",
     "ImapErrorBody",
+    "ImapProviderResponse",
+    "ImapProvidersResponse",
     "ImportMemoryBody",
     "ImportMemoryBodyContent",
     "ImportOauthClientBody",
@@ -736,13 +787,15 @@ __all__ = (
     "InstallReport",
     "InvokeRequest",
     "InvokeRequestInput",
+    "IssueItem",
+    "IssueReason",
     "ItemPreview",
     "JournalAnchor",
     "JournalBreak",
     "JournalBreakReason",
     "LastLoadedModelResponse",
     "LastLoadedModelResponseLoad",
-    "LinkProjectBody",
+    "LeaseResponse",
     "ListPlanMutationsResponse200Item",
     "LlmBackendResponse",
     "LlmBackendResponseConfigJson",
@@ -775,15 +828,20 @@ __all__ = (
     "MemoryEntryView",
     "MemoryEstimateDto",
     "MemoryImported",
+    "MemoryMerge",
     "MemoryRemoved",
     "MemorySearchResultView",
     "MemoryWiped",
     "MessageDto",
+    "MigrationIssue",
+    "MigrationReport",
+    "MigrationStatus",
     "ModelCardsResponse",
     "ModelCardsResponseCardsItem",
     "ModelCardsResponsePublishers",
     "ModelInfo",
     "ModelKind",
+    "ModelPin",
     "ModelsListResponse",
     "ModelSourceDto",
     "NextStepsReply",
@@ -810,6 +868,7 @@ __all__ = (
     "OnboardingReset",
     "OnboardingState",
     "OnboardingStats",
+    "OpenLeaseRequest",
     "PackageErrorBody",
     "PackageInstallRequest",
     "PackageNoticeType0",
@@ -824,13 +883,22 @@ __all__ = (
     "PackagePreviewRequest",
     "ParseAutomationRequest",
     "ParseAutomationResponse200",
+    "PendingAnswer",
     "PendingApprovalResponse",
     "PendingApprovalResponseContextType0",
     "PendingApprovalResponsePayloadType0",
+    "PendingDecision",
+    "PendingDecisionList",
+    "PendingDecisionQuestionsType0",
+    "PendingErrorBody",
+    "PendingKind",
+    "PendingOrigin",
+    "PendingRestartKey",
     "PendingUserInputView",
     "PermissionRuleDto",
     "PingRequest",
     "PingResponse",
+    "PinsResponse",
     "PlanActionResponse",
     "PlanCacheStatsResponse",
     "PlanDecisionRequest",
@@ -852,6 +920,7 @@ __all__ = (
     "ProfileSummaryView",
     "ProfileUpdate",
     "ProfileUpdateFields",
+    "ProjectOutcome",
     "ProposedRuleView",
     "PurgeMemoryBody",
     "PutMcpSecretBody",
@@ -861,6 +930,8 @@ __all__ = (
     "ReasoningProfileDto",
     "RejectPlanRequest",
     "RejectUserInputRequest",
+    "ReleaseLeaseRequest",
+    "ReleaseLeaseResponse",
     "ReloadLastRequest",
     "ReloadResponse",
     "ReloadRouterResponse",
@@ -942,6 +1013,7 @@ __all__ = (
     "TaskListItem",
     "TaskListItemPayloadType0",
     "TaskListResponse",
+    "TaskRecordDeleted",
     "TaskResponse",
     "TaskResponseResultType0",
     "TaskResponseTokenBudgetType0",
@@ -999,6 +1071,8 @@ __all__ = (
     "UninstallRequest",
     "UnloadModelRequest",
     "UnloadModelResponse",
+    "UpdateAgentRequest",
+    "UpdateAgentResponse",
     "UpdateArtifactRequest",
     "UpdateChannelRequest",
     "UpdateChannelRequestConfigType0",

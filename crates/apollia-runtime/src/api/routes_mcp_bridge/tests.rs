@@ -147,8 +147,6 @@ async fn fixture(agents: &[&str], config: &str) -> Fixture {
         None,
         None,
         None,
-        None,
-        None,
         LoadingMode::Eager,
         20,
         None,

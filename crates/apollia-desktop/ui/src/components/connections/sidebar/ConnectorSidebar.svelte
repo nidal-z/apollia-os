@@ -23,9 +23,13 @@
   import type { BuiltinToolsCount, StatusFilter, McpRowAction } from "../shared/types";
   import ConnectionListRow from "./ConnectionListRow.svelte";
   import ConnectorTile from "../shared/ConnectorTile.svelte";
+  import ForbiddenConnectionRows from "./ForbiddenConnectionRows.svelte";
+  import type { Connection } from "$lib/types";
 
   interface Props {
     rows: ConnectionRow[];
+    /** Connections the organisation policy forbade at the last start. */
+    forbidden?: Connection[];
     selection: RowSelection | null;
     loading: boolean;
     loadError: string | null;
@@ -37,6 +41,7 @@
 
   let {
     rows,
+    forbidden = [],
     selection,
     loading,
     loadError,
@@ -168,6 +173,8 @@
       </ListRow>
     </section>
   {/if}
+
+  <ForbiddenConnectionRows connections={forbidden} />
 </div>
 
 <div class="border-t border-border px-3 py-2">

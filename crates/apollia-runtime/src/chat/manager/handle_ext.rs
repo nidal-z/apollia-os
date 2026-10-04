@@ -201,12 +201,31 @@ impl ChatSessionManagerHandle {
         let _ = self.tx.send(ChatCommand::SetPackageTools { host }).await;
     }
 
+    /// Hand over the live sections of the configuration: from then on a
+    /// change of `[tools]`, `[chat]`, `[filesystem]`, `[mcp]` or `[hooks]`
+    /// applies to the next conversation and the next exchange.
+    pub async fn follow_config(&self, feed: crate::config_reload::ConfigFeed) {
+        let _ = self.tx.send(ChatCommand::FollowConfig { feed }).await;
+    }
+
     /// Hand over the composer of the granted agent and workflow calls.
     ///
     /// Every run that starts afterwards, in the chat or outside it, is offered
     /// the agents and workflows its agent is granted.
     pub async fn set_composer(&self, composer: Arc<dyn crate::composition::Composer>) {
         let _ = self.tx.send(ChatCommand::SetComposer { composer }).await;
+    }
+
+    /// Hand over the governance every tool call is decided by.
+    ///
+    /// Every run that starts afterwards, in the chat or outside it, asks it
+    /// before each tool call. Until it is set, a run decides from an empty
+    /// state: reading runs, everything sensitive asks.
+    pub async fn set_governance(&self, governance: crate::governance::GovernanceHandle) {
+        let _ = self
+            .tx
+            .send(ChatCommand::SetGovernance { governance })
+            .await;
     }
 
     /// List the N most recent sessions with their first user message.
@@ -348,67 +367,6 @@ impl ChatSessionManagerHandle {
     /// List all A2A skills available from active worker agents.
     ///
     /// Returns an empty vec when A2A is not wired or the actor is unreachable.
-    /// Link or unlink a session to a project.
-    pub async fn link_session_to_project(
-        &self,
-        session_id: SessionId,
-        project_id: Option<String>,
-    ) -> Result<(), ChatError> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        self.tx
-            .send(ChatCommand::LinkSessionToProject {
-                session_id,
-                project_id,
-                reply: reply_tx,
-            })
-            .await
-            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
-
-        reply_rx
-            .await
-            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
-    }
-
-    /// List sessions belonging to a specific project.
-    pub async fn list_sessions_by_project(&self, project_id: String) -> Vec<SessionInfo> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        let sent = self
-            .tx
-            .send(ChatCommand::ListSessionsByProject {
-                project_id,
-                reply: reply_tx,
-            })
-            .await;
-
-        if sent.is_err() {
-            return Vec::new();
-        }
-
-        reply_rx.await.unwrap_or_default()
-    }
-
-    /// Orphan all sessions linked to a project (called on project deletion).
-    ///
-    /// Fire and forget: the caller has already deleted the project and must
-    /// not fail on this. A dropped command is traced here, a failed database
-    /// write is traced by the actor.
-    pub async fn orphan_project_sessions(&self, project_id: String) {
-        let sent = self
-            .tx
-            .send(ChatCommand::OrphanProjectSessions {
-                project_id: project_id.clone(),
-            })
-            .await;
-
-        if sent.is_err() {
-            warn!(
-                project_id = %project_id,
-                cause = "chat actor channel closed",
-                "chat.orphan_project_sessions.dropped"
-            );
-        }
-    }
-
     pub async fn list_a2a_skills(&self) -> Vec<crate::a2a::SkillListing> {
         let (reply_tx, reply_rx) = oneshot::channel();
         if self

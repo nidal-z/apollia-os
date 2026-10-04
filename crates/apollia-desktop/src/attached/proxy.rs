@@ -7,7 +7,7 @@
 
 use serde_json::Value;
 
-use super::RuntimeLink;
+use super::{AttachedError, RuntimeLink};
 use crate::commands::{
     http_delete_json, http_get_json, http_patch_json, http_post_for_file, http_post_json,
     http_put_json,
@@ -19,6 +19,23 @@ impl RuntimeLink {
         match self {
             Self::Embedded(runtime) => http_get_json(runtime.api_port, path).await,
             Self::Attached(remote) => Ok(remote.get(path).await?),
+        }
+    }
+
+    /// [`Self::get_json`], `Ok(None)` when the route answers 404: a state the
+    /// interface shows, not a failure.
+    pub(crate) async fn get_json_or_none(&self, path: &str) -> Result<Option<Value>, String> {
+        match self {
+            Self::Embedded(runtime) => match http_get_json(runtime.api_port, path).await {
+                Ok(value) => Ok(Some(value)),
+                Err(e) if e.starts_with("API error (404)") => Ok(None),
+                Err(e) => Err(e),
+            },
+            Self::Attached(remote) => match remote.get::<Value>(path).await {
+                Ok(value) => Ok(Some(value)),
+                Err(AttachedError::Refused { status: 404, .. }) => Ok(None),
+                Err(e) => Err(e.into()),
+            },
         }
     }
 

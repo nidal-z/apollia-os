@@ -33,6 +33,7 @@ apollia-aip           = { workspace = true, optional = true }
 pyo3                  = { workspace = true, optional = true }
 apollia-memory       = { workspace = true }
 apollia-mcp          = { workspace = true }
+apollia-permissions  = { workspace = true }
 apollia-notifications = { workspace = true }
 rusqlite              = { workspace = true }
 chrono                = { workspace = true }

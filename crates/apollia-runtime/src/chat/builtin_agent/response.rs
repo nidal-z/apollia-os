@@ -7,7 +7,9 @@ pub struct ChatAgentResponse {
     pub content: String,
     /// All tool calls made during the exchange.
     pub tool_calls: Vec<ToolCallRecord>,
-    /// Tool names newly added to the session allowlist (via AlwaysAccept).
+    /// Tool names newly added to the session allowlist by the agent mode
+    /// that resumes a code agent after its approval. The built-in loop leaves
+    /// it empty: its "always" is a standing consent governance holds.
     pub newly_authorized: Vec<String>,
     /// Cumulative token usage across all LLM calls in the exchange.
     pub tokens_used: TokenUsage,

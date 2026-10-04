@@ -12,6 +12,7 @@ use clap::Parser;
 
 use crate::commands::a2a::A2aCommand;
 use crate::commands::agent::{AgentCommand, PackageCommand};
+use crate::commands::approvals::ApprovalsCommand;
 use crate::commands::audit::AuditCommand;
 use crate::commands::chat::ChatHygieneCommand;
 use crate::commands::chat_config::ChatConfigCommand;
@@ -23,7 +24,6 @@ use crate::commands::memory::{MemoryCommand, MemoryType};
 use crate::commands::package::{PackageCommand as ApoPackageCommand, TrustCommand};
 use crate::commands::permissions::PermissionsCommand;
 use crate::commands::policy::PolicyCommand;
-use crate::commands::project::{ProjectAgentsCommand, ProjectCommand, ProjectTemplatesCommand};
 use crate::commands::service::ServiceCommand;
 use crate::commands::task::TaskCommand;
 use crate::commands::tools::{
@@ -1327,148 +1327,19 @@ fn test_cli_parses_profile_import_overwriting() {
     assert!(db.is_none());
 }
 
-// ─── project ─────────────────────────────────────────────────────────────────
+// ─── project (retired) ───────────────────────────────────────────────────────
 
 #[test]
-fn test_cli_parses_project_update_renaming() {
-    // GIVEN "apollia-os project update p-1 --name Facturation"
-    // WHEN the top-level parser reads it
-    let cli = parse(&[
-        "apollia-os",
-        "project",
-        "update",
-        "p-1",
-        "--name",
-        "Facturation",
-    ]);
-    // THEN only the field given on the command line is Some
-    let Commands::Project {
-        command:
-            ProjectCommand::Update {
-                id,
-                name,
-                description,
-                instructions,
-                workspace,
-                db,
-            },
-    } = cli.command
-    else {
-        panic!("expected project update");
-    };
-    assert_eq!(id, "p-1");
-    assert_eq!(name.as_deref(), Some("Facturation"));
-    assert!(description.is_none());
-    assert!(instructions.is_none());
-    assert!(workspace.is_none());
-    assert!(db.is_none());
-}
-
-#[test]
-fn test_cli_parses_project_delete_with_confirm() {
-    // GIVEN "apollia-os project delete p-1 --confirm"
-    // WHEN the top-level parser reads it
-    let cli = parse(&["apollia-os", "project", "delete", "p-1", "--confirm"]);
-    // THEN the identifier is carried and the destruction flag is set
-    let Commands::Project {
-        command: ProjectCommand::Delete { id, confirm, db },
-    } = cli.command
-    else {
-        panic!("expected project delete");
-    };
-    assert_eq!(id, "p-1");
-    assert!(confirm);
-    assert!(db.is_none());
-}
-
-#[test]
-fn test_cli_parses_project_agents_list() {
-    // GIVEN "apollia-os project agents list p-1"
-    // WHEN the top-level parser reads it
-    let cli = parse(&["apollia-os", "project", "agents", "list", "p-1"]);
-    // THEN the nested agents sub-command carries the project
-    let Commands::Project {
-        command: ProjectCommand::Agents { command },
-    } = cli.command
-    else {
-        panic!("expected project agents");
-    };
-    let ProjectAgentsCommand::List { project, db } = command else {
-        panic!("expected project agents list");
-    };
-    assert_eq!(project, "p-1");
-    assert!(db.is_none());
-}
-
-#[test]
-fn test_cli_parses_project_agents_remove_with_confirm() {
-    // GIVEN "apollia-os project agents remove p-1 invoice-reader --confirm"
-    // WHEN the top-level parser reads it
-    let cli = parse(&[
-        "apollia-os",
-        "project",
-        "agents",
-        "remove",
-        "p-1",
-        "invoice-reader",
-        "--confirm",
-    ]);
-    // THEN the pair is positional and the destruction flag is set
-    let Commands::Project {
-        command: ProjectCommand::Agents { command },
-    } = cli.command
-    else {
-        panic!("expected project agents");
-    };
-    let ProjectAgentsCommand::Remove {
-        project,
-        agent,
-        confirm,
-        db,
-    } = command
-    else {
-        panic!("expected project agents remove");
-    };
-    assert_eq!(project, "p-1");
-    assert_eq!(agent, "invoice-reader");
-    assert!(confirm);
-    assert!(db.is_none());
-}
-
-#[test]
-fn test_cli_parses_project_templates_list() {
-    // GIVEN "apollia-os project templates list"
-    // WHEN the top-level parser reads it
-    let cli = parse(&["apollia-os", "project", "templates", "list"]);
-    // THEN the nested templates sub-command is List
-    let Commands::Project {
-        command: ProjectCommand::Templates { command },
-    } = cli.command
-    else {
-        panic!("expected project templates");
-    };
-    let ProjectTemplatesCommand::List { db } = command else {
-        panic!("expected project templates list");
-    };
-    assert!(db.is_none());
-}
-
-#[test]
-fn test_cli_parses_project_templates_seed_builtins() {
-    // GIVEN "apollia-os project templates seed-builtins"
-    // WHEN the top-level parser reads it
-    let cli = parse(&["apollia-os", "project", "templates", "seed-builtins"]);
-    // THEN the kebab-case leaf resolves to SeedBuiltins
-    let Commands::Project {
-        command: ProjectCommand::Templates { command },
-    } = cli.command
-    else {
-        panic!("expected project templates");
-    };
-    let ProjectTemplatesCommand::SeedBuiltins { db } = command else {
-        panic!("expected project templates seed-builtins");
-    };
-    assert!(db.is_none());
+fn test_cli_refuses_the_retired_project_noun() {
+    // GIVEN the projects, which became sources
+    // WHEN `project list` and `project link` are parsed
+    let list = Cli::try_parse_from(["apollia-os", "project", "list"]);
+    let link = Cli::try_parse_from(["apollia-os", "project", "link", "p-1", "--session", "s-1"]);
+    // THEN clap refuses both as an unknown subcommand
+    for parsed in [list, link] {
+        let kind = parsed.err().map(|err| err.kind());
+        assert_eq!(kind, Some(clap::error::ErrorKind::InvalidSubcommand));
+    }
 }
 
 // ─── bare verbs ──────────────────────────────────────────────────────────────
@@ -1910,4 +1781,19 @@ fn test_cli_parses_service_status() {
         panic!("expected service");
     };
     assert!(matches!(command, ServiceCommand::Status));
+}
+
+// ─── approvals ──────────────────────────────────────────────────────────────
+
+#[test]
+fn test_cli_parses_approvals_pending() {
+    // GIVEN "apollia-os approvals pending --json"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "approvals", "pending", "--json"]);
+    // THEN the pending verb of the approvals noun is selected, in JSON
+    assert!(cli.json);
+    let Commands::Approvals(args) = cli.command else {
+        panic!("expected approvals");
+    };
+    assert!(matches!(args.command, ApprovalsCommand::Pending));
 }

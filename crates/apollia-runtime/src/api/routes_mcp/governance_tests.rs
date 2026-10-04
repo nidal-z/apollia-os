@@ -17,7 +17,7 @@ use axum::http::StatusCode;
 use axum::Json;
 use tempfile::TempDir;
 
-use super::{add_server, remove_server, update_server_config};
+use super::{add_server, remove_server, restart_server, update_server_config};
 use crate::api::server::AppState;
 use crate::audit_journal::{AuditJournalHandle, JournalEntryKind};
 use crate::coordinator::{DynBackend, ExecutionBackend};
@@ -150,8 +150,10 @@ async fn harness(admission: Arc<dyn ConnectionAdmission>) -> Harness {
         audit_trail: None,
         audit_journal: Some(journal.clone()),
         connection_governance: ConnectionGovernance::new(admission, Some(journal.clone())),
+        governance: None,
         inference_governance: Default::default(),
         obs_config: apollia_core::ObservabilityConfig::default(),
+        config_reload: None,
         llm_call_repository: None,
         trigger_def_repo: None,
         notification_repo: None,
@@ -222,6 +224,87 @@ async fn test_refused_addition_writes_nothing() {
         .query_run(&connection_run_id("mcp:calc"))
         .await
         .is_empty());
+    h.manager.shutdown().await;
+}
+
+// A server whose npm package the policy denies is refused by the policy, and
+// nothing is written.
+#[tokio::test]
+async fn test_denied_package_is_refused_by_the_policy_and_writes_nothing() {
+    // GIVEN a deposited policy denying one npm package
+    let admission = crate::governance::PolicyAdmission::new(
+        crate::governance::policy_admission::valid_verdict_with_connections(
+            "deny = [\"package:npm:denied-server\"]",
+        ),
+    );
+    let h = harness(Arc::new(admission)).await;
+    let mut config = mock_server("denied");
+    config.command = "npx".into();
+    config.args = vec!["-y".into(), "denied-server@1.0.0".into()];
+
+    // WHEN the server running it is added through the route
+    let (code, Json(body)) = add_server(State(h.state.clone()), Json(config))
+        .await
+        .unwrap_err();
+
+    // THEN it is forbidden, the reason saying the policy refused it
+    assert_eq!(code, StatusCode::FORBIDDEN);
+    assert_eq!(body["error"], crate::governance::CONNECTION_DENIED_REASON);
+    assert!(body["error"]
+        .as_str()
+        .unwrap()
+        .starts_with(crate::governance::POLICY_REFUSAL_PREFIX));
+    // AND nothing started, mcp.db holds no server, no mcp.toml exists
+    assert!(h.manager.status().await.is_empty());
+    assert!(persisted(&h).is_empty());
+    assert!(!h.dir.path().join("mcp.toml").exists());
+    h.manager.shutdown().await;
+}
+
+// A server the policy forbade at boot is not started again by a restart.
+#[tokio::test]
+async fn test_a_forbidden_server_is_not_restarted() {
+    // GIVEN a policy allowing only Google accounts, under which the stored
+    // server was forbidden at boot
+    let admission = crate::governance::PolicyAdmission::new(
+        crate::governance::policy_admission::valid_verdict_with_connections(
+            "allow = [\"native:google\"]",
+        ),
+    );
+    let forbidden = crate::governance::ForbiddenConnections::compute(
+        &admission,
+        &[mock_server("calc")],
+        &[],
+        &[],
+    );
+    let mut h = harness(Arc::new(admission)).await;
+    h.state.connection_governance = h
+        .state
+        .connection_governance
+        .clone()
+        .with_forbidden(Arc::new(forbidden));
+    h.state
+        .mcp_server_repo
+        .as_ref()
+        .unwrap()
+        .lock()
+        .unwrap()
+        .save(&mock_server("calc"))
+        .unwrap();
+
+    // WHEN it is restarted through the route
+    let (code, Json(body)) = restart_server(State(h.state.clone()), Path("calc".to_string()))
+        .await
+        .unwrap_err();
+
+    // THEN it is refused by the policy, no session starts, and it is kept
+    assert_eq!(code, StatusCode::FORBIDDEN);
+    assert_eq!(
+        body["error"],
+        crate::governance::FORBIDDEN_CONNECTION_REASON
+    );
+    assert!(h.manager.status().await.is_empty());
+    assert_eq!(persisted(&h).len(), 1);
     h.manager.shutdown().await;
 }
 

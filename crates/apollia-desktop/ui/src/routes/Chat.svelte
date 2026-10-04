@@ -11,9 +11,8 @@
   } from "$lib/stores/chat";
   import { chatSessions } from "$lib/stores/sse";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import type { ChatSessionSummary, ProjectSummary } from "$lib/types";
+  import type { ChatSessionSummary } from "$lib/types";
   import { deleteChatSession, renameChatSession } from "$lib/ipc/chat";
-  import { listProjects } from "$lib/ipc/projects";
   import ChatConversation from "../components/chat/ChatConversation.svelte";
   import EmptySessionsState from "../components/chat/EmptySessionsState.svelte";
   import QuickPicker from "../components/chat/QuickPicker.svelte";
@@ -21,6 +20,7 @@
   import {
     decoratedSessions,
     markSessionRead,
+    sidebarDensity,
     type DecoratedSession,
   } from "$lib/stores/chatSessions";
   import {
@@ -45,7 +45,6 @@
   import { developerMode } from "$lib/stores/developerMode";
   import { registerShortcuts } from "$lib/stores/shortcuts";
   import CommandPalette from "../components/chat/CommandPalette.svelte";
-  import ShortcutsHelpDialog from "../components/chat/ShortcutsHelpDialog.svelte";
 
   // Operator design-system primitives - V3 Chat Refonte v2.
   import {
@@ -61,7 +60,6 @@
 
   let selectedSessionId = $state<string | null>(null);
   let showNewChatPicker = $state(false);
-  let showShortcutsHelp = $state(false);
   let sessionSearchQuery = $state("");
   // The journal follows the developer mode: the technical reading when it
   // is on, the plain one otherwise. There is no per-screen switch.
@@ -133,15 +131,6 @@
       run: () => toggleSessionsSidebar(),
     },
     {
-      id: "chat.help",
-      chord: { code: "Slash", modifiers: ["mod"] },
-      group: "chat.shortcut_group.navigation",
-      descriptionKey: "chat.shortcut.help",
-      keys: [MOD_LABEL, "/"],
-      allowInTextarea: true,
-      run: () => (showShortcutsHelp = !showShortcutsHelp),
-    },
-    {
       id: "chat.next_message",
       chord: { code: "KeyJ", forbid: ["mod", "shift", "alt"] },
       group: "chat.shortcut_group.messages",
@@ -168,10 +157,6 @@
           commandPaletteOpen.set(false);
           return;
         }
-        if (showShortcutsHelp) {
-          showShortcutsHelp = false;
-          return;
-        }
         // Streaming abort + per-modal Esc are handled by the owning
         // components - fall through so they keep working.
         return false;
@@ -179,23 +164,7 @@
     },
   ];
 
-  // Projects loaded once so we can render a small "Project X" chip on
-  // each conversation row (mirrors the badge in the open conversation
-  // header). Refreshed when the user creates/links sessions elsewhere.
-  let projectList = $state<ProjectSummary[]>([]);
-  const projectNameById = $derived(
-    new Map(projectList.map((p) => [p.id, p.name])),
-  );
-  async function reloadProjectList(): Promise<void> {
-    try {
-      projectList = await listProjects();
-    } catch {
-      // Non-blocking - the chip just won't render.
-    }
-  }
-
   onMount(() => {
-    void reloadProjectList();
     const unsub = pendingChatSessionId.subscribe((id) => {
       if (id) { selectedSessionId = id; pendingChatSessionId.set(null); }
     });
@@ -439,7 +408,6 @@
   onnewChat={openNewChatPicker}
   onslashCommand={appendSlashCommand}
 />
-<ShortcutsHelpDialog bind:open={showShortcutsHelp} />
 
 <!--
   V3 Operator chat layout: left sessions rail / center thread / right journal.
@@ -540,13 +508,11 @@
             timestamp={relativeTime(session.lastActivityAt)}
             state={rowState(session, session.id === selectedSessionId)}
             live={session.status === "processing"}
-            projectLabel={session.project_id
-              ? (projectNameById.get(session.project_id) ?? undefined)
-              : undefined}
             onclick={() => { navigateToSession(session.id); closeSessionsDrawer(); }}
             onrename={(newTitle) => void handleRenameSession(session.id, newTitle)}
             ondelete={() => void handleDeleteSession(session.id)}
             onconfigure={() => { openConfig(session.id); closeSessionsDrawer(); }}
+            density={$sidebarDensity}
           />
         {/each}
       {/if}

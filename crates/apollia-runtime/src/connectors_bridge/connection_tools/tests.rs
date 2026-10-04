@@ -106,7 +106,7 @@ fn test_no_account_publishes_no_connector_tool() {
 async fn test_boot_without_account_announces_no_connector_tool() {
     let registry = ToolRegistryHandle::start();
 
-    crate::supervisor::register_builtin_tools(&registry, &[]).await;
+    crate::supervisor::register_builtin_tools(&registry, &[], true).await;
 
     let names: Vec<String> = registry
         .list()
@@ -131,7 +131,8 @@ async fn test_boot_without_account_announces_no_connector_tool() {
 #[tokio::test]
 async fn test_an_account_connected_later_announces_its_tools() {
     let registry = ToolRegistryHandle::start();
-    crate::supervisor::register_builtin_tools(&registry, &[google(&["pro@example.com"])]).await;
+    crate::supervisor::register_builtin_tools(&registry, &[google(&["pro@example.com"])], true)
+        .await;
 
     register_account_tools(&registry, ConnectorProvider::Google, "home@example.com")
         .await

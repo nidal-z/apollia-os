@@ -11,6 +11,7 @@ use std::time::Instant;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 
+use apollia_runtime::governance::FailClosed;
 use apollia_tools::{AuditTrailHandle, ToolDescriptor, ToolDispatcher, ToolRegistryHandle};
 
 use crate::context::tool_invoke::{
@@ -53,6 +54,16 @@ pub enum ToolProxyError {
         gesture: String,
         /// The operator's reason, when one was given.
         reason: Option<String>,
+    },
+
+    /// Governance cannot read what it decides from, and the tool is
+    /// sensitive: the call is refused without running.
+    #[error("tool '{tool}' refused: governance fails closed ({detail})")]
+    FailClosed {
+        /// The refused tool.
+        tool: String,
+        /// What governance cannot read.
+        detail: String,
     },
 }
 
@@ -208,6 +219,10 @@ pub struct ToolProxy {
     /// cut off here (principle #7). `None` in orchestrated mode, whose ActorLoop
     /// accounts the budget itself, so the counter is never charged twice.
     pub(crate) budget: Option<Arc<apollia_llm::StepBudgetView>>,
+    /// Set when governance failed closed as the run started: every sensitive
+    /// tool call is refused, reading continues. Holds what governance cannot
+    /// read.
+    pub(crate) fail_closed: Option<String>,
 }
 #[pymethods]
 impl ToolProxy {
@@ -349,6 +364,7 @@ impl ToolProxy {
         let agent_id = self.agent_id.clone();
         let task_id = self.task_id.clone();
         let run_id = self.run_id.clone();
+        let fail_closed = self.fail_closed.clone();
         let bus_for_async = self.event_bus.clone();
         let started_event_id_clone = started_event_id.clone();
         let tool_name_for_async = tool_name.clone();
@@ -364,6 +380,7 @@ impl ToolProxy {
                     agent_id: &agent_id,
                     task_id: &task_id,
                     run_id: run_id.as_ref().map(|r| r.as_str()),
+                    fail_closed: fail_closed.as_deref(),
                 },
                 &tool_name,
                 input_value,
@@ -493,7 +510,16 @@ impl ToolProxy {
             chain_deadline: None,
             event_bus: None,
             budget: None,
+            fail_closed: None,
         }
+    }
+
+    /// Refuses every sensitive tool call of the run while `fail_closed` is
+    /// set: governance could not read what it decides from when the run
+    /// started.
+    pub fn with_fail_closed(mut self, fail_closed: Option<FailClosed>) -> Self {
+        self.fail_closed = fail_closed.as_ref().map(FailClosed::detail);
+        self
     }
 
     /// Wires the live `StepBudget` view enforced on the Direct path.
@@ -611,6 +637,7 @@ impl ToolProxy {
                 agent_id: &self.agent_id,
                 task_id: &self.task_id,
                 run_id: self.run_id.as_ref().map(|r| r.as_str()),
+                fail_closed: self.fail_closed.as_deref(),
             },
             tool_name,
             input,
