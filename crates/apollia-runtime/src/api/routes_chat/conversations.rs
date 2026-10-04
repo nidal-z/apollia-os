@@ -1,13 +1,10 @@
 //! The conversations of the chat as the list manages them: change a session's
-//! configuration, rename it, name it from its first message, erase it, link it
-//! to a project, and list the sessions of a project.
+//! configuration, rename it, name it from its first message, and erase it.
 //!
 //! - `PATCH  /api/v1/sessions/{id}`                , instructions, tools, server
 //! - `PUT    /api/v1/sessions/{id}/title`          , the title the user typed
 //! - `POST   /api/v1/sessions/{id}/title/generate` , a title drawn by the model
 //! - `POST   /api/v1/sessions/{id}/erase`          , the session and its messages
-//! - `PUT    /api/v1/sessions/{id}/project`        , link or unlink a project
-//! - `GET    /api/v1/projects/{id}/sessions`       , the sessions of a project
 //!
 //! `DELETE /api/v1/sessions/{id}` closes a session and keeps its history;
 //! erasing is a separate action, so the two never share a verb.
@@ -15,7 +12,7 @@
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::routing::{get, post, put};
+use axum::routing::{post, put};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
@@ -60,13 +57,6 @@ pub struct GeneratedTitle {
     pub title: String,
 }
 
-/// Request body for `PUT /api/v1/sessions/{id}/project`.
-#[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
-pub struct LinkProjectBody {
-    /// The project to link, `null` to unlink.
-    pub project_id: Option<String>,
-}
-
 /// Build the router of these routes. `PATCH /api/v1/sessions/{id}` is mounted
 /// with the other methods of that path, in the root router.
 pub fn conversations_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
@@ -77,14 +67,6 @@ pub fn conversations_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>
             post(generate_session_title::<B>),
         )
         .route("/api/v1/sessions/:id/erase", post(erase_session::<B>))
-        .route(
-            "/api/v1/sessions/:id/project",
-            put(link_session_project::<B>),
-        )
-        .route(
-            "/api/v1/projects/:id/sessions",
-            get(list_project_sessions::<B>),
-        )
 }
 
 type Refusal = (StatusCode, Json<ApiErrorBody>);
@@ -231,52 +213,6 @@ pub async fn erase_session<B: ExecutionBackend + Clone>(
         .await
         .map_err(chat_refusal)?;
     Ok(done("erased"))
-}
-
-/// Handler for `PUT /api/v1/sessions/{id}/project`, link the session to a
-/// project or, with `null`, unlink it.
-#[utoipa::path(
-    put,
-    path = "/api/v1/sessions/{id}/project",
-    tag = "chat",
-    params(("id" = String, Path, description = "Session id")),
-    request_body = LinkProjectBody,
-    responses(
-        (status = 200, description = "Link stored"),
-        (status = 404, description = "Session or project not found", body = crate::api::openapi::ApiErrorBody),
-        (status = 503, description = "Chat subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
-    )
-)]
-pub async fn link_session_project<B: ExecutionBackend + Clone>(
-    State(state): State<AppState<B>>,
-    Path(id): Path<String>,
-    Json(body): Json<LinkProjectBody>,
-) -> Result<axum::response::Response, Refusal> {
-    manager(&state)?
-        .link_session_to_project(id, body.project_id)
-        .await
-        .map_err(chat_refusal)?;
-    Ok(done("linked"))
-}
-
-/// Handler for `GET /api/v1/projects/{id}/sessions`, the sessions of a
-/// project.
-#[utoipa::path(
-    get,
-    path = "/api/v1/projects/{id}/sessions",
-    tag = "chat",
-    params(("id" = String, Path, description = "Project id")),
-    responses(
-        (status = 200, description = "Session list"),
-        (status = 503, description = "Chat subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
-    )
-)]
-pub async fn list_project_sessions<B: ExecutionBackend + Clone>(
-    State(state): State<AppState<B>>,
-    Path(id): Path<String>,
-) -> Result<axum::response::Response, Refusal> {
-    let sessions = manager(&state)?.list_sessions_by_project(id).await;
-    Ok((StatusCode::OK, Json(sessions)).into_response())
 }
 
 #[cfg(test)]

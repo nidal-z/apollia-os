@@ -4,7 +4,7 @@
 //! unloaded after a delay without use, nor when the last conversation that
 //! uses it closes. A model is keyed by the path it is loaded from, the key the
 //! list of resident models and an unload take. The table is created by
-//! `system_db::migrate_v8`.
+//! `system_db::migrate_v11`.
 
 use rusqlite::params;
 
@@ -106,5 +106,46 @@ mod tests {
         // THEN it is refused and nothing is written
         assert!(matches!(refused, Err(LlmBackendError::InvalidPreset(_))));
         assert!(repo.pinned_models().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_a_v10_file_gains_the_pins_table_and_keeps_its_rows() {
+        // GIVEN a system.db written at version ten, with a source registered
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("system.db");
+        {
+            let conn = rusqlite::Connection::open(&path).unwrap();
+            for step in &crate::system_db::SYSTEM_DB_MIGRATIONS[..10] {
+                step(&conn).unwrap();
+            }
+            conn.pragma_update(None, "user_version", 10).unwrap();
+            conn.execute(
+                "INSERT INTO sources (id, kind, label) VALUES ('memory', 'memory', 'Memory')",
+                [],
+            )
+            .unwrap();
+        }
+
+        // WHEN the repository opens it and a model is pinned
+        let repo = LlmBackendRepository::open(&path).unwrap();
+        repo.set_model_pinned("/models/a.gguf", true).unwrap();
+
+        // THEN the file is at the current version, the pin is read back, and
+        //      the row written before the migration is kept
+        assert_eq!(repo.pinned_models().unwrap(), vec!["/models/a.gguf"]);
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(
+            version,
+            i64::from(crate::system_db::SYSTEM_DB_SCHEMA_VERSION)
+        );
+        let label: String = conn
+            .query_row("SELECT label FROM sources WHERE id = 'memory'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(label, "Memory");
     }
 }

@@ -42,9 +42,9 @@ check_exit "update refuses while the lock is held" 1 bash -c "/usr/bin/touch \"\
 
 # ── A.2 config (seeded apollia.toml) ────────────────────────────────────────
 section "A.2 config"
-check_grep   "config show has seeded [chat] workspace" "default_workspace" "$BIN" config show
+check_grep   "config show has seeded [chat] temperature" "tool_turn_temperature" "$BIN" config show
 check_json   "config show --json"                       "$BIN" config show --json
-check        "config get chat.default_workspace"        "$BIN" config get chat.default_workspace
+check        "config get chat.tool_turn_temperature"    "$BIN" config get chat.tool_turn_temperature
 check_json   "config get --json"                        "$BIN" config get --json
 # Mutations on a throwaway config file (never touch the seeded one).
 SCFG="$SCRATCH/apollia.toml"
@@ -77,32 +77,25 @@ RH="$SCRATCH/reset-home"; /bin/mkdir -p "$RH/nested"; /usr/bin/touch "$RH/dummy"
 check        "config reset --dry-run"                   "$BIN" config reset --dry-run --home "$RH"
 [[ -f "$RH/dummy" ]] && _pass "config reset --dry-run preserved files" || _fail "config reset --dry-run preserved files" "deleted"
 check        "config reset --confirm"                   "$BIN" config reset --confirm --home "$RH"
+# A first `config` command under an empty home writes the documented default
+# file at ~/.apollia/apollia.toml; a present file is never written over.
+FH="$SCRATCH/first-home"; /bin/mkdir -p "$FH"
+check        "config show (empty home)"                 env HOME="$FH" "$BIN" config show
+if [[ -f "$FH/.apollia/apollia.toml" ]] && /usr/bin/head -1 "$FH/.apollia/apollia.toml" | /usr/bin/grep -q "^# apollia.toml, the configuration of Apollia OS"; then
+    _pass "config show wrote the default file with its header"
+else
+    _fail "config show wrote the default file with its header" "absent or without its header"
+fi
+check_json   "config keys --json"                       "$BIN" config keys --json
+check_grep   "config keys lists api.port" "api.port"    "$BIN" config keys
 check        "hooks list --dry-run"                     "$BIN" hooks list --dry-run
 check_json   "hooks list --dry-run --json"              "$BIN" --json hooks list --dry-run
 
-# ── A.3 project (2 seeded: alpha, beta) ─────────────────────────────────────
+# ── A.3 project (retired) ───────────────────────────────────────────────────
+# Projects became sources: the noun is gone, refused as a usage error (1).
 section "A.3 project"
-check_content "project list shows Seed Project Alpha" "Seed Project Alpha"  "$BIN" project list
-check_content "project list shows Seed Project Beta"  "Seed Project Beta"   "$BIN" project list
-check         "project show alpha"                     "$BIN" project show seed-project-alpha
-check_json_field "project show alpha id"    "d['id']"          "seed-project-alpha" "$BIN" project show seed-project-alpha --json
-check_json_field "project show alpha name"  "d['name']"        "Seed Project Alpha" "$BIN" project show seed-project-alpha --json
-check_content "project show alpha: 3 providers" "Providers +3|Providers[[:space:]]+3" "$BIN" project show seed-project-alpha
-# CRUD on a fresh project (leaves the seeded rows intact).
-PID=$("$BIN" project create e2e-tmp --description demo --json 2>/dev/null | "${E2E_PYTHON:-python3}" -c "import sys,json;print(json.load(sys.stdin)['id'])" 2>/dev/null)
-[[ -n "$PID" ]] && _pass "project create + JSON id parse" || { _fail "project create" ""; PID=ghost; }
-check         "project update --name e2e-tmp2"         "$BIN" project update "$PID" --name e2e-tmp2
-check         "project agents add"                     "$BIN" project agents add "$PID" my-agent
-check_content "project agents list has my-agent" "my-agent" "$BIN" project agents list "$PID"
-check         "project agents remove"                  "$BIN" project agents remove "$PID" my-agent --confirm
-check         "project templates list"                 "$BIN" project templates list
-check         "project templates seed-builtins"        "$BIN" project templates seed-builtins
-# Link a seeded chat session to the seeded project, list, unlink.
-check         "project link (seed session)"            "$BIN" project link seed-project-alpha --session seed-session-1
-check         "project chats"                          "$BIN" project chats seed-project-alpha
-check         "project link --unlink"                  "$BIN" project link seed-project-alpha --session seed-session-1 --unlink
-check_exit    "project link empty session → 1"  1      "$BIN" project link seed-project-alpha --session ""
-check         "project delete --confirm"               "$BIN" project delete "$PID" --confirm
+check_exit    "project list (retired) → 1"       1     "$BIN" project list
+check_exit    "project link (retired) → 1"       1     "$BIN" project link seed-project-alpha --session seed-session-1
 
 # ── A.4 profile (3 seeded __user__ keys) ────────────────────────────────────
 # The seed is a profile written before profiles existed: the first open migrates
@@ -316,12 +309,8 @@ check_json   "chat export .json is valid JSON"       /bin/cat "$SCRATCH/c.json"
 check_exit   "chat export unknown session"  1        "$BIN" chat export ghost-sess-id
 check        "chat delete seed-session-4 --confirm"  "$BIN" chat delete seed-session-4 --confirm
 
-# ── A.11 llm (threshold + setup validation, no daemon) ──────────────────────
+# ── A.11 llm (setup validation, no daemon) ──────────────────────────────────
 section "A.11 llm (offline)"
-LCFG="$SCRATCH/llm.toml"
-check        "llm costs --get-threshold (absent)"    "$BIN" llm costs --get-threshold --config "$LCFG"
-check        "llm costs --threshold 0.5"             "$BIN" llm costs --threshold 0.5 --config "$LCFG"
-check_grep   "llm costs threshold = 0.5" "0.5"       "$BIN" llm costs --get-threshold --config "$LCFG"
 check_exit   "llm setup without --local"  1          "$BIN" llm setup --model /tmp/never.gguf
 check_exit   "llm setup --local missing model"  1    "$BIN" llm setup --local --model /definitely/missing.gguf
 
@@ -467,6 +456,24 @@ check_exit   "model recommend (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model re
 # identifier against the registry: daemon off, both leaves refuse with 2.
 check_exit   "model embeddings show (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model embeddings show
 check_exit   "model embeddings set-default (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model embeddings set-default multilingual-e5-small
+# The registry of sources lives in the daemon's system.db, owned by its actor:
+# daemon off, each leaf refuses with 2; a deletion without --confirm outside a
+# terminal is refused with 1 before any call.
+check_exit   "source list (off) → 2"           2     "$BIN" --socket "$OFFSOCK" source list
+check_exit   "source create (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source create --kind folder --label Contracts --reference conn-contracts
+check_exit   "source delete (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source delete src-absent --confirm
+check_exit   "source delete without --confirm → 1" 1 "$BIN" --socket "$OFFSOCK" source delete src-absent
+# The report of the migration of the former projects is read from the daemon:
+# daemon off it refuses with 2, in human and in --json mode.
+check_exit   "source report (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source report
+check_exit   "source report --json (off) → 2"  2     "$BIN" --socket "$OFFSOCK" --json source report
+# The preview of a workbook or a CSV file is read by the daemon: daemon off it
+# refuses with 2, in human and in --json mode; a file that is not there is
+# refused with 1 before any call.
+printf 'name,city\nAda,London\n' > "$SCRATCH/inspect.csv"
+check_exit   "source inspect (off) → 2"        2     "$BIN" --socket "$OFFSOCK" source inspect "$SCRATCH/inspect.csv"
+check_exit   "source inspect --json (off) → 2" 2     "$BIN" --socket "$OFFSOCK" --json source inspect "$SCRATCH/inspect.csv" --sheet inspect --header-row 1
+check_exit   "source inspect missing file → 1" 1     "$BIN" --socket "$OFFSOCK" source inspect "$SCRATCH/no-such-file.xlsx"
 check        "agent list (off, local fallback)"      "$BIN" --socket "$OFFSOCK" agent list
 check_content "agent list shows 4 seeded agents" "apollia-chat" "$BIN" --socket "$OFFSOCK" agent list
 check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK" agent install /tmp/never-exists.py

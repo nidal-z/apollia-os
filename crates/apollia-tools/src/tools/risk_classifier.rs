@@ -152,7 +152,8 @@ impl RiskClassifier {
         risks
     }
 
-    /// Merge the session's working directory into the operator's trusted paths.
+    /// Merge the session's working directory into the folders granted to the
+    /// agent for writing.
     ///
     /// The working directory is where relative paths land, so it is trusted by
     /// construction. Naming that here rather than at each call site is what
@@ -179,9 +180,9 @@ impl RiskClassifier {
     /// 3. The credential paths (write -> `High`; read -> `Low`)
     /// 4. Whether the path sits under one of the `trusted` roots
     ///
-    /// `trusted` is what the operator has said an agent may work in without
-    /// being asked: the session's working directory, plus `[filesystem]
-    /// trusted_paths`. It raises no wall. A path outside every root is
+    /// `trusted` is what the user has said an agent may work in without being
+    /// asked: the session's working directory, plus the folders granted to the
+    /// agent for writing. It raises no wall. A path outside every root is
     /// classified one level higher, which is what suspends the operation for
     /// approval, and an empty list means every write is asked about rather
     /// than that nothing can be written.

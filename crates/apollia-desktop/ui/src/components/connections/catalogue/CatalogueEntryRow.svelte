@@ -10,6 +10,7 @@
   import { Plus, Link as LinkIcon } from "lucide-svelte";
   import { ListRow } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
+  import { Tooltip } from "$lib/components/ui/tooltip";
   import ConnectorTile from "../shared/ConnectorTile.svelte";
   import { accentTokenFor } from "$lib/connections/accent";
   import { vendorLabel } from "$lib/connections/vendor";
@@ -43,11 +44,17 @@
   <div class="min-w-0 flex-1">
     <div class="mb-0.5 flex min-w-0 flex-wrap items-center gap-2">
       <span class="truncate text-body-sm font-medium text-foreground">{displayName}</span>
-      {#if official}
-        <Badge size="sm" variant="primary">{$t("connections.badge_official")}</Badge>
-      {:else}
-        <Badge size="sm" variant="neutral" outline>{$t("connections.badge_community")}</Badge>
-      {/if}
+      <Tooltip content={$t("connections.badge_rule")}>
+        {#if official}
+          <Badge size="sm" variant="primary" data-testid="catalogue-badge-official"
+            >{$t("connections.badge_official")}</Badge
+          >
+        {:else}
+          <Badge size="sm" variant="neutral" outline data-testid="catalogue-badge-community"
+            >{$t("connections.badge_community")}</Badge
+          >
+        {/if}
+      </Tooltip>
       {#if installed}
         <Badge size="sm" variant="success">{$t("connections.badge_installed")}</Badge>
       {/if}

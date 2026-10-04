@@ -335,7 +335,7 @@ mod tests {
                 "name": "triage",
                 "mission": "Sorts the inbox.",
                 "examples": ["Sort today"],
-                "defaults": {"access": ["file_read", "web_fetch"], "sources": ["mail"]}
+                "defaults": {"access": ["file_read", "web_fetch"]}
             })
         );
         let broken: String = conn

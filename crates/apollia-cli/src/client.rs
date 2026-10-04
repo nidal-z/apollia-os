@@ -6,7 +6,7 @@
 //!
 //! On **Windows**: a named pipe, `\\.\pipe\apollia-runtime-<user>`. It plays
 //! the role the socket plays elsewhere. This used to be a TCP connection to
-//! `127.0.0.1:DEFAULT_TCP_PORT`, which obliged the runtime to hold a listening
+//! the native API port, which obliged the runtime to hold a listening
 //! port open for the CLI alone; the pipe removes it. Access control differs
 //! between the two: the socket is unauthenticated behind `0o600`, the pipe
 //! takes a default security descriptor and is guarded by the bearer token this
@@ -85,9 +85,6 @@ async fn connect_runtime(_socket_path: &Path) -> std::io::Result<RuntimeStream> 
 pub fn default_socket_path() -> PathBuf {
     apollia_core::paths::socket_path_or_temp()
 }
-
-/// Default TCP port for the Apollia runtime.
-pub const DEFAULT_TCP_PORT: u16 = 7771;
 
 /// Parameters for [`RuntimeClient::authorize_tool`].
 ///

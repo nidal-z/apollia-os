@@ -175,8 +175,6 @@ impl ChatSessionManager {
                 title: row.title,
                 parent_session_id: row.parent_session_id,
                 fork_depth: row.fork_depth,
-                project_id: row.project_id,
-                force_project_context_inject: false,
                 fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
                     std::collections::HashSet::new(),
                 )),

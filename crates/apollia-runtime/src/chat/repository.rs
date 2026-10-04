@@ -12,7 +12,6 @@ use super::types::{ChatError, ChatMode, ChatRole, PlanPhase, SessionStatus};
 
 mod approvals;
 mod forking;
-mod projects;
 mod search;
 
 /// Raw row from the `chat_sessions` table.
@@ -44,8 +43,6 @@ pub struct SessionRow {
     pub parent_session_id: Option<String>,
     /// Fork depth: 0 for root sessions, N+1 for a fork of a depth-N session.
     pub fork_depth: i64,
-    /// Project this session belongs to (application-level link, no FK).
-    pub project_id: Option<String>,
     /// Whether this session runs in first-class plan mode (stored as 0/1).
     pub plan_mode: bool,
     /// Plan-mode lifecycle phase string (`"discovery"`, `"drafting"`, etc.).
@@ -178,16 +175,15 @@ impl ChatSessionRepository {
         available_tools: &[String],
         created_at: &str,
         llm_backend: Option<&str>,
-        project_id: Option<&str>,
     ) -> Result<(), ChatError> {
         let tools_json = serde_json::to_string(available_tools)
             .map_err(|e| ChatError::InternalError(format!("tools serialization: {e}")))?;
 
         self.conn
             .execute(
-                "INSERT INTO chat_sessions (id, mode, agent_name, system_prompt, available_tools, created_at, llm_backend, project_id)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                params![id, mode.as_sql(), agent_name, system_prompt, tools_json, created_at, llm_backend, project_id],
+                "INSERT INTO chat_sessions (id, mode, agent_name, system_prompt, available_tools, created_at, llm_backend)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![id, mode.as_sql(), agent_name, system_prompt, tools_json, created_at, llm_backend],
             )
             .map_err(|e| ChatError::InternalError(format!("create_session: {e}")))?;
 
@@ -364,7 +360,7 @@ impl ChatSessionRepository {
             .conn
             .prepare(
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
-                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id,
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
                         plan_mode, plan_phase
                  FROM chat_sessions WHERE id = ?1",
             )
@@ -383,14 +379,14 @@ impl ChatSessionRepository {
         let (sql, param): (&str, Option<&str>) = match status {
             Some(s) => (
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
-                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id,
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
                         plan_mode, plan_phase
                  FROM chat_sessions WHERE status = ?1 ORDER BY created_at DESC",
                 Some(s),
             ),
             None => (
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
-                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id,
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
                         plan_mode, plan_phase
                  FROM chat_sessions ORDER BY created_at DESC",
                 None,
@@ -670,9 +666,8 @@ fn row_to_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRow> {
         title: row.get(10)?,
         parent_session_id: row.get(11)?,
         fork_depth: row.get(12)?,
-        project_id: row.get(13)?,
-        plan_mode: row.get::<_, i64>(14)? != 0,
-        plan_phase: row.get(15)?,
+        plan_mode: row.get::<_, i64>(13)? != 0,
+        plan_phase: row.get(14)?,
     })
 }
 
@@ -748,7 +743,6 @@ mod tests {
             &[],
             "2026-03-20T10:00:00Z",
             None,
-            None,
         )
         .expect("create");
 
@@ -776,7 +770,6 @@ mod tests {
             "",
             &[],
             "2026-06-10T10:00:00Z",
-            None,
             None,
         )
         .expect("create");
@@ -818,7 +811,6 @@ mod tests {
             &[],
             "2026-03-20T10:00:00Z",
             None,
-            None,
         )
         .expect("create s1");
         repo.create_session(
@@ -828,7 +820,6 @@ mod tests {
             "",
             &[],
             "2026-03-20T11:00:00Z",
-            None,
             None,
         )
         .expect("create s2");
@@ -858,7 +849,6 @@ mod tests {
             "",
             &[],
             "2026-03-20T10:00:00Z",
-            None,
             None,
         )
         .expect("create");
@@ -896,7 +886,6 @@ mod tests {
             "",
             &[],
             "2026-03-20T10:00:00Z",
-            None,
             None,
         )
         .expect("create");
@@ -939,7 +928,6 @@ mod tests {
             "",
             &[],
             "2026-03-20T10:00:00Z",
-            None,
             None,
         )
         .expect("create");
@@ -1027,7 +1015,6 @@ mod tests {
             &[],
             "2026-03-20T10:00:00Z",
             None,
-            None,
         )
         .expect("create");
 
@@ -1069,7 +1056,6 @@ mod tests {
             &[],
             "2026-03-20T10:00:00Z",
             None,
-            None,
         )
         .expect("create");
 
@@ -1094,7 +1080,6 @@ mod tests {
             "",
             &[],
             "2026-03-20T10:00:00Z",
-            None,
             None,
         )
         .expect("create");
@@ -1121,7 +1106,6 @@ mod tests {
             "",
             &["bash_executor".into(), "file_io".into()],
             "2026-03-20T10:00:00Z",
-            None,
             None,
         )
         .expect("create");
@@ -1165,7 +1149,6 @@ mod tests {
             &["bash_executor".to_string(), "file_io".to_string()],
             "2026-03-20T10:00:00Z",
             None,
-            None,
         )
         .expect("create");
 
@@ -1197,7 +1180,7 @@ mod tests {
                 "2026-03-15T10:00:00Z",
             ),
         ] {
-            repo.create_session(id, &ChatMode::Libre, None, "", &[], ts, None, None)
+            repo.create_session(id, &ChatMode::Libre, None, "", &[], ts, None)
                 .expect("create");
             repo.close_session(id, ts).expect("close");
             repo.update_summary(id, summary).expect("update summary");
@@ -1225,7 +1208,6 @@ mod tests {
             "",
             &[],
             "2026-03-20T10:00:00Z",
-            None,
             None,
         )
         .expect("create");
@@ -1255,7 +1237,6 @@ mod tests {
             &[],
             "2026-03-20T10:00:00Z",
             None,
-            None,
         )
         .expect("create");
         repo.update_summary("s1", "Some summary text")
@@ -1280,7 +1261,6 @@ mod tests {
             &[],
             "2026-03-20T10:00:00Z",
             None,
-            None,
         )
         .expect("create s1");
         repo.append_message(&AppendMessageParams {
@@ -1302,7 +1282,6 @@ mod tests {
             "",
             &[],
             "2026-03-20T11:00:00Z",
-            None,
             None,
         )
         .expect("create s2");
@@ -1340,7 +1319,6 @@ mod tests {
             "System prompt",
             &["bash_executor".to_string()],
             "2026-03-20T10:00:00Z",
-            None,
             None,
         )
         .expect("create");
@@ -1402,7 +1380,6 @@ mod tests {
             "System prompt",
             &[],
             "2026-03-20T10:00:00Z",
-            None,
             None,
         )
         .expect("create session");
@@ -1649,7 +1626,6 @@ mod tests {
             "",
             &[],
             "2026-01-01T00:00:00Z",
-            None,
             None,
         )
         .expect("companion accepted after the v10 recreate");

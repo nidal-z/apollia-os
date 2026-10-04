@@ -1,9 +1,9 @@
 //! Cross-platform GPU detection at daemon boot.
 //!
 //! At startup, the `RunnerSupervisor` queries [`detect_gpu`] to get the local
-//! GPU's characteristics, then applies [`resolve_backend`] to produce the final
-//! `RunnerBackend` (accounting for an optional user override via
-//! `[llm.runner].backend` in `apollia.toml`).
+//! GPU's characteristics, then applies [`boot_backend`] to produce the final
+//! `RunnerBackend`, degraded onto a runner this build ships. No setting
+//! overrides the choice.
 //!
 //! The decision hierarchy is: Apple Silicon, NVIDIA + CUDA >= 12.0, AMD + ROCm,
 //! Vulkan fallback, CPU fallback.
@@ -12,7 +12,6 @@
 //! probes are subprocesses (`nvidia-smi`, `rocm-smi`, `system_profiler`,
 //! `vulkaninfo`) or `/sys` reads.
 
-use apollia_core::LlmRunnerConfig;
 use serde::{Deserialize, Serialize};
 
 // Public types
@@ -65,26 +64,12 @@ impl RunnerBackend {
             Self::Cpu => "apollia-runner-cpu",
         }
     }
-
-    /// Parse a text value (from `apollia.toml` or a test) into the matching
-    /// variant. Returns `Err(())` if the string is not recognized.
-    fn from_str(s: &str) -> Result<Self, ()> {
-        match s {
-            "cuda" => Ok(Self::Cuda),
-            "rocm" => Ok(Self::Rocm),
-            "vulkan" => Ok(Self::Vulkan),
-            "metal" => Ok(Self::Metal),
-            "cpu" => Ok(Self::Cpu),
-            _ => Err(()),
-        }
-    }
 }
 
 /// GPU information collected by [`detect_gpu`].
 ///
-/// The `recommended_backend` field reflects the auto-detection decision:
-/// it can be overridden by [`resolve_backend`] if the operator set
-/// `[llm.runner].backend` to something other than `"auto"`.
+/// The `recommended_backend` field reflects the auto-detection decision, which
+/// [`boot_backend`] degrades onto a runner this build ships.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GpuInfo {
     /// Identified vendor.
@@ -263,51 +248,7 @@ fn log_detected(info: &GpuInfo) {
     );
 }
 
-// User override
-
-/// Resolve the final `RunnerBackend` by combining auto-detection and the user
-/// override `[llm.runner].backend`.
-///
-/// Decision hierarchy:
-/// 1. `"auto"`: use `detected.recommended_backend`.
-/// 2. Valid explicit value AND matching binary present: use that value.
-/// 3. Invalid value or missing binary: log a warning and fall back to detection.
-pub fn resolve_backend(config: &LlmRunnerConfig, detected: &GpuInfo) -> RunnerBackend {
-    let raw = config.backend.trim();
-    if raw.is_empty() || raw.eq_ignore_ascii_case("auto") {
-        tracing::info!(
-            backend = ?detected.recommended_backend,
-            "runner.backend.auto",
-        );
-        return degrade_to_something_present(detected.recommended_backend);
-    }
-
-    let parsed = match RunnerBackend::from_str(&raw.to_ascii_lowercase()) {
-        Ok(b) => b,
-        Err(()) => {
-            tracing::warn!(
-                requested = %raw,
-                detail = "falling back to auto-detection", "runner.backend.override.invalid",
-            );
-            return detected.recommended_backend;
-        }
-    };
-
-    if !is_backend_available(parsed) {
-        tracing::warn!(
-            requested = ?parsed,
-            detail = "using the detected backend", "runner.backend.override.unavailable",
-        );
-        return degrade_to_something_present(detected.recommended_backend);
-    }
-
-    tracing::info!(
-        requested = ?parsed,
-        detected = ?detected.recommended_backend,
-        "runner.backend.override.applied",
-    );
-    parsed
-}
+// Backend choice
 
 /// Returns a backend whose binary is actually in this build, starting from the
 /// one that was chosen.
@@ -337,8 +278,9 @@ pub fn resolve_backend(config: &LlmRunnerConfig, detected: &GpuInfo) -> RunnerBa
 /// own, so the runner failed to start and took dictation and the local model
 /// down with it. Measured on 2026-09-09, on Windows with a Radeon RX 6900 XT.
 ///
-/// `resolve_backend` held the degradation and had test callers only. This is
-/// the seam boot goes through, so the two agree by construction.
+/// This is the one seam boot goes through: the operator override that used to
+/// sit beside it, `[llm.runner] backend`, had test callers only and is
+/// withdrawn.
 pub(crate) fn boot_backend(detected: &GpuInfo) -> RunnerBackend {
     degrade_to_something_present(detected.recommended_backend)
 }
@@ -412,13 +354,13 @@ pub(super) fn runner_dir_lock() -> std::sync::MutexGuard<'static, ()> {
 /// `degrade_to_something_present` to end up on one that exists.
 ///
 /// A test or dev environment where the current executable cannot be resolved
-/// answers `true`, so `resolve_backend` keeps working there.
+/// answers `true`, so `boot_backend` keeps working there.
 fn is_backend_available(backend: RunnerBackend) -> bool {
     // Delegate to the spawn-path resolver so detection and spawning agree on
     // every bundle layout (macOS .app `Contents/Resources/runners/`, the CLI
     // self-contained bundle, and the Linux packages). If the current executable
     // cannot be resolved (some test harnesses), assume available so
-    // `resolve_backend` keeps working.
+    // `boot_backend` keeps working.
     if std::env::current_exe().is_err() {
         return true;
     }
@@ -716,12 +658,6 @@ fn rocm_supports_card(name: &str) -> bool {
 mod tests {
     use super::*;
 
-    fn make_runner_config(backend: &str) -> LlmRunnerConfig {
-        LlmRunnerConfig {
-            backend: backend.to_string(),
-        }
-    }
-
     fn nvidia_detected() -> GpuInfo {
         GpuInfo {
             vendor: Vendor::Nvidia,
@@ -740,78 +676,6 @@ mod tests {
         assert_eq!(info.vendor, Vendor::Unknown);
         assert_eq!(info.recommended_backend, RunnerBackend::Cpu);
         assert_eq!(info.memory_total_mb, 0);
-    }
-
-    #[test]
-    fn override_auto_uses_detection() {
-        // GIVEN an NVIDIA detected, override = "auto", and no runner staged:
-        // resolution reads what ships, so the case says so rather than
-        // inheriting whatever a neighbouring case left behind
-        let _guard = runner_dir_lock();
-        remove_every_runner();
-        let detected = nvidia_detected();
-        let cfg = make_runner_config("auto");
-        // WHEN resolving the backend
-        let backend = resolve_backend(&cfg, &detected);
-        // THEN auto-detection is used
-        assert_eq!(backend, RunnerBackend::Cuda);
-    }
-
-    #[test]
-    fn override_auto_case_insensitive() {
-        // GIVEN override = "Auto" (mixed case) and no runner staged
-        let _guard = runner_dir_lock();
-        remove_every_runner();
-        let detected = nvidia_detected();
-        let cfg = make_runner_config("Auto");
-        // WHEN the backend is resolved
-        // THEN treated as auto
-        assert_eq!(resolve_backend(&cfg, &detected), RunnerBackend::Cuda);
-    }
-
-    #[test]
-    fn override_empty_uses_detection() {
-        // GIVEN override = "" (config absent from the toml) and no runner staged
-        let _guard = runner_dir_lock();
-        remove_every_runner();
-        let detected = nvidia_detected();
-        let cfg = make_runner_config("");
-        // WHEN the backend is resolved
-        // THEN fall back to detection
-        assert_eq!(resolve_backend(&cfg, &detected), RunnerBackend::Cuda);
-    }
-
-    #[test]
-    fn override_explicit_used_if_available() {
-        let _guard = runner_dir_lock();
-        remove_every_runner();
-        // GIVEN an NVIDIA detected and override = "vulkan".
-        // The test creates a dummy `apollia-runner-vulkan` binary next to the
-        // test executable to simulate a complete bundle.
-        let exe_dir = std::env::current_exe()
-            .expect("current_exe must succeed in test")
-            .parent()
-            .expect("current_exe has a parent")
-            .to_path_buf();
-        let suffix = if cfg!(windows) { ".exe" } else { "" };
-        let dummy = exe_dir.join(format!("apollia-runner-vulkan{}", suffix));
-        let _ = std::fs::write(&dummy, b"#!/bin/sh\n");
-        // Cleanup guard to avoid polluting other tests.
-        struct Cleanup(std::path::PathBuf);
-        impl Drop for Cleanup {
-            fn drop(&mut self) {
-                let _ = std::fs::remove_file(&self.0);
-            }
-        }
-        let _guard = Cleanup(dummy.clone());
-
-        let detected = nvidia_detected();
-        let cfg = make_runner_config("vulkan");
-
-        // WHEN resolving
-        let backend = resolve_backend(&cfg, &detected);
-        // THEN the override is applied (binary present)
-        assert_eq!(backend, RunnerBackend::Vulkan);
     }
 
     fn write_runner(name: &str) -> std::path::PathBuf {
@@ -851,13 +715,12 @@ mod tests {
         remove_every_runner();
         let cpu = write_runner("apollia-runner-cpu");
 
-        // WHEN the backend is resolved with no override, the default path
-        let cfg = make_runner_config("auto");
+        // WHEN boot picks the backend to start
         let detected = GpuInfo {
             recommended_backend: RunnerBackend::Vulkan,
             ..GpuInfo::cpu_fallback()
         };
-        let backend = resolve_backend(&cfg, &detected);
+        let backend = boot_backend(&detected);
 
         // THEN it lands on the runner that exists rather than on one that does
         // not: asking for the absent name cost dictation and the local model
@@ -924,10 +787,9 @@ mod tests {
         remove_every_runner();
         let vulkan = write_runner("apollia-runner-vulkan");
 
-        // WHEN the backend is resolved
-        let cfg = make_runner_config("auto");
+        // WHEN boot picks the backend to start
         let detected = GpuInfo::cpu_fallback();
-        let backend = resolve_backend(&cfg, &detected);
+        let backend = boot_backend(&detected);
 
         // THEN the runner that ships is used, because refusing here disables
         // dictation on a build that carries a working one
@@ -941,50 +803,16 @@ mod tests {
         let _guard = runner_dir_lock();
         remove_every_runner();
 
-        // WHEN the backend is resolved
-        let cfg = make_runner_config("auto");
+        // WHEN boot picks the backend to start
         let detected = GpuInfo {
             recommended_backend: RunnerBackend::Cuda,
             ..GpuInfo::cpu_fallback()
         };
-        let backend = resolve_backend(&cfg, &detected);
+        let backend = boot_backend(&detected);
 
         // THEN the detected backend is kept and the spawn reports the missing
         // binary by name, which is the diagnosis a reader needs
         assert_eq!(backend, RunnerBackend::Cuda);
-    }
-
-    #[test]
-    fn override_falls_back_if_binary_missing() {
-        let _guard = runner_dir_lock();
-        remove_every_runner();
-        // GIVEN an NVIDIA detected and override = "rocm".
-        // The `apollia-runner-rocm` binary is NOT next to the test executable.
-        // (current_exe points to target/debug/deps/<test-binary>, we look for
-        //  target/debug/deps/apollia-runner-rocm which does not exist).
-        let detected = nvidia_detected();
-        let cfg = make_runner_config("rocm");
-        // WHEN the backend is resolved
-        let backend = resolve_backend(&cfg, &detected);
-
-        // THEN the resolved backend is ROCm when its binary is there, and the detected CUDA when it is not
-        // Accept both cases: binary absent -> fallback, binary present -> Rocm.
-        // This test reflects the invariant: if absent, fall back to detected.
-        if !is_backend_available(RunnerBackend::Rocm) {
-            assert_eq!(backend, RunnerBackend::Cuda);
-        } else {
-            assert_eq!(backend, RunnerBackend::Rocm);
-        }
-    }
-
-    #[test]
-    fn override_invalid_value_falls_back() {
-        // GIVEN override = "potato" (unknown value)
-        let detected = nvidia_detected();
-        let cfg = make_runner_config("potato");
-        // WHEN the backend is resolved
-        // THEN warning + fallback to detection
-        assert_eq!(resolve_backend(&cfg, &detected), RunnerBackend::Cuda);
     }
 
     #[test]
@@ -1046,29 +874,6 @@ mod tests {
         assert_eq!(RunnerBackend::Vulkan.binary_name(), "apollia-runner-vulkan");
         assert_eq!(RunnerBackend::Metal.binary_name(), "apollia-runner-metal");
         assert_eq!(RunnerBackend::Cpu.binary_name(), "apollia-runner-cpu");
-    }
-
-    #[test]
-    fn runner_backend_from_str_roundtrip() {
-        // GIVEN the five backend names, plus auto and an unknown word
-        // WHEN each is read back through from_str
-        // THEN the five round-trip and the other two are rejected
-        assert_eq!(RunnerBackend::from_str("cuda"), Ok(RunnerBackend::Cuda));
-        assert_eq!(RunnerBackend::from_str("rocm"), Ok(RunnerBackend::Rocm));
-        assert_eq!(RunnerBackend::from_str("vulkan"), Ok(RunnerBackend::Vulkan));
-        assert_eq!(RunnerBackend::from_str("metal"), Ok(RunnerBackend::Metal));
-        assert_eq!(RunnerBackend::from_str("cpu"), Ok(RunnerBackend::Cpu));
-        assert_eq!(RunnerBackend::from_str("auto"), Err(()));
-        assert_eq!(RunnerBackend::from_str("xyz"), Err(()));
-    }
-
-    #[test]
-    fn llm_runner_config_default_is_auto() {
-        // GIVEN LlmRunnerConfig::default()
-        let cfg = LlmRunnerConfig::default();
-        // WHEN the backend field is read
-        // THEN backend == "auto"
-        assert_eq!(cfg.backend, "auto");
     }
 
     #[test]

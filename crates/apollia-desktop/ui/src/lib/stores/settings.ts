@@ -28,8 +28,7 @@ export type SettingsSubRoute =
   | "llm"
   | "model-hub"
   | "tools"
-  | "permissions"
-  | "integrations";
+  | "permissions";
 
 export const SETTINGS_SUB_ROUTES: SettingsSubRoute[] = [
   "general",
@@ -45,7 +44,6 @@ export const SETTINGS_SUB_ROUTES: SettingsSubRoute[] = [
   "model-hub",
   "tools",
   "permissions",
-  "integrations",
 ];
 
 /**

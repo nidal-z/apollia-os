@@ -11,7 +11,6 @@ sidebar_position: 1
 ## Prérequis
 
 - Un fournisseur d'IA est connecté (pastille verte dans le bandeau supérieur).
-- (Optionnel) Un projet est lié pour injecter automatiquement votre contexte de travail.
 - (Optionnel) Un agent Assistant est démarré si vous voulez discuter avec un agent spécialisé.
 
 ## Étapes
@@ -54,6 +53,6 @@ Votre conversation apparaît dans la liste de gauche avec un titre et la date du
 
 - **Pas de réponse :** vérifiez que la pastille du fournisseur est verte dans le bandeau supérieur.
 - **Réponse en erreur ou tronquée :** changez de modèle dans le panneau de configuration, ou consultez [Le fournisseur d'IA ne répond pas](../troubleshooting/the-ai-provider-does-not-answer.md).
-- **L'IA ne connaît pas vos fichiers :** liez la conversation à un projet et activez les context providers.
+- **L'IA ne connaît pas vos fichiers :** vérifiez les sources de l'agent avec qui vous parlez, et accordez-lui le dossier qui les contient dans **Connexions**.
 
 > **Concept :** [Explication Apollia](/explanation) - comprendre comment le contexte est injecté et comment les modes Libre et Agent diffèrent.

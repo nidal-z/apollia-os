@@ -150,8 +150,6 @@ async fn fixture(definitions: Vec<TriggerDefinition>) -> Fixture {
         None,
         None,
         None,
-        None,
-        None,
         LoadingMode::Eager,
         20,
         None,

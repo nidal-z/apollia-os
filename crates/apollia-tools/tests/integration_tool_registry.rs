@@ -39,7 +39,8 @@ fn dispatcher_config(
     disabled: Vec<String>,
 ) -> NativeDispatcherConfig {
     NativeDispatcherConfig {
-        sandbox_roots: vec![sandbox],
+        sandbox_roots: vec![sandbox.clone()],
+        write_roots: vec![sandbox],
         agent_id: "test-agent".to_string(),
         venv_base_dir: venv,
         memory_namespace: None,
@@ -53,6 +54,8 @@ fn dispatcher_config(
         web_search_config: WebSearchConfig::default(),
         web_read_config: WebReadConfig::default(),
         python_interpreter: None,
+        max_output_chars: apollia_tools::executor::DEFAULT_MAX_OUTPUT_CHARS,
+        sources: apollia_tools::SourceAccess::default(),
     }
 }
 

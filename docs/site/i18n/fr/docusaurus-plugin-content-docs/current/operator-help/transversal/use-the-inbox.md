@@ -42,7 +42,6 @@ L'onglet actif est mémorisé entre les sessions (rafraîchir la page conserve v
 
 Cliquez sur une ligne d'approbation pour la déplier en carte de décision. Voir la page dédiée [Approuver ou refuser une action d'agent](../controle/approve-or-reject-an-action.md) pour le détail des portées de *Toujours autoriser* et du dialog de raison de refus (5 à 500 caractères).
 
-Une différence avec la fenêtre de chat : l'inbox liste des items venant de plusieurs sessions à la fois et ne porte pas le projet auquel chacun appartient, donc *Toujours pour ce projet* y reste grisé. Utilisez la même approbation depuis la conversation concernée si vous voulez cette portée.
 
 ### Répondre à une question d'agent (`ask_user`)
 
