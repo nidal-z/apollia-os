@@ -21,7 +21,7 @@ const REFUSAL: &str = "Missing or invalid token. Create one in Apollia and send 
 
 /// The token a request presents: the `Authorization: Bearer` value first,
 /// then `x-api-key`.
-fn presented_token(headers: &HeaderMap) -> Option<String> {
+pub(super) fn presented_token(headers: &HeaderMap) -> Option<String> {
     let bearer = headers
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
@@ -38,10 +38,16 @@ fn presented_token(headers: &HeaderMap) -> Option<String> {
 
 /// The 401 answer, in the format of the endpoint `path` names.
 fn unauthorized(path: &str) -> Response {
+    unauthorized_with(path, REFUSAL)
+}
+
+/// The 401 answer carrying `message`, in the format of the endpoint `path`
+/// names.
+pub(super) fn unauthorized_with(path: &str, message: &'static str) -> Response {
     error_response(
         Family::of_path(path),
         ErrorKind::Unauthorized,
-        REFUSAL.to_owned(),
+        message.to_owned(),
     )
 }
 

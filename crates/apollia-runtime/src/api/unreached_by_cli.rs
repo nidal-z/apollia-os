@@ -369,6 +369,7 @@ fn base_state(data_dir: &std::path::Path) -> AppState<MockBackend> {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     }
 }
 

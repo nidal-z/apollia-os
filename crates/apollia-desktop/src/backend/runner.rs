@@ -384,6 +384,7 @@ impl AgentRunner for BridgeRunner {
                     web_search_config: tools_config.web_search.clone(),
                     web_read_config: tools_config.web_read.clone(),
                     python_interpreter: tools_config.python_interpreter.clone(),
+                    max_output_chars: tools_config.max_output_chars,
                 },
                 extra_executors,
             ));

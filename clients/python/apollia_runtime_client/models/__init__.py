@@ -101,7 +101,6 @@ from .connection_state import ConnectionState
 from .connection_tool import ConnectionTool
 from .connector_account_response import ConnectorAccountResponse
 from .conversation_stats_view import ConversationStatsView
-from .cost_alert_threshold_response import CostAlertThresholdResponse
 from .cost_summary_row import CostSummaryRow
 from .costs_response import CostsResponse
 from .counted_language_model import CountedLanguageModel
@@ -113,9 +112,11 @@ from .create_llm_backend_request_config_json import CreateLlmBackendRequestConfi
 from .create_preset_request import CreatePresetRequest
 from .create_preset_request_load import CreatePresetRequestLoad
 from .create_preset_request_request import CreatePresetRequestRequest
+from .create_profile_body import CreateProfileBody
 from .create_server_request import CreateServerRequest
 from .create_server_token_request import CreateServerTokenRequest
 from .create_session_request import CreateSessionRequest
+from .create_source_body import CreateSourceBody
 from .create_trigger_request import CreateTriggerRequest
 from .create_trigger_request_workflow_inputs_type_0 import CreateTriggerRequestWorkflowInputsType0
 from .created_server_token_view import CreatedServerTokenView
@@ -133,6 +134,7 @@ from .delete_server_response import DeleteServerResponse
 from .deleted_artifact import DeletedArtifact
 from .deleted_credential import DeletedCredential
 from .deleted_installed_model import DeletedInstalledModel
+from .deleted_profile import DeletedProfile
 from .deleted_profile_entry import DeletedProfileEntry
 from .dictation_configured import DictationConfigured
 from .dictation_models_response import DictationModelsResponse
@@ -191,6 +193,7 @@ from .imap_error_body import ImapErrorBody
 from .import_memory_body import ImportMemoryBody
 from .import_memory_body_content import ImportMemoryBodyContent
 from .import_oauth_client_body import ImportOauthClientBody
+from .index_state_dto import IndexStateDto
 from .inject_message_body import InjectMessageBody
 from .inject_message_body_payload import InjectMessageBodyPayload
 from .inject_message_response import InjectMessageResponse
@@ -320,8 +323,13 @@ from .preset_response import PresetResponse
 from .preset_response_load import PresetResponseLoad
 from .preset_response_request import PresetResponseRequest
 from .presets_list_response import PresetsListResponse
+from .profile_detail_view import ProfileDetailView
 from .profile_entry_view import ProfileEntryView
+from .profile_field_view import ProfileFieldView
 from .profile_reset import ProfileReset
+from .profile_summary_view import ProfileSummaryView
+from .profile_update import ProfileUpdate
+from .profile_update_fields import ProfileUpdateFields
 from .proposed_rule_view import ProposedRuleView
 from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
@@ -393,6 +401,8 @@ from .skill_listing import SkillListing
 from .skill_listing_input_schema_type_0 import SkillListingInputSchemaType0
 from .source_descriptor import SourceDescriptor
 from .source_descriptor_options import SourceDescriptorOptions
+from .source_kind_dto import SourceKindDto
+from .source_response import SourceResponse
 from .sse_mailbox_event import SseMailboxEvent
 from .sse_task_event import SseTaskEvent
 from .start_agent_request import StartAgentRequest
@@ -601,7 +611,6 @@ __all__ = (
     "ConnectionTool",
     "ConnectorAccountResponse",
     "ConversationStatsView",
-    "CostAlertThresholdResponse",
     "CostsResponse",
     "CostSummaryRow",
     "CountedLanguageModel",
@@ -614,9 +623,11 @@ __all__ = (
     "CreatePresetRequest",
     "CreatePresetRequestLoad",
     "CreatePresetRequestRequest",
+    "CreateProfileBody",
     "CreateServerRequest",
     "CreateServerTokenRequest",
     "CreateSessionRequest",
+    "CreateSourceBody",
     "CreateTriggerRequest",
     "CreateTriggerRequestWorkflowInputsType0",
     "CredentialEntryView",
@@ -630,6 +641,7 @@ __all__ = (
     "DeletedArtifact",
     "DeletedCredential",
     "DeletedInstalledModel",
+    "DeletedProfile",
     "DeletedProfileEntry",
     "DeletePresetResponse",
     "DeleteResponse",
@@ -691,6 +703,7 @@ __all__ = (
     "ImportMemoryBody",
     "ImportMemoryBodyContent",
     "ImportOauthClientBody",
+    "IndexStateDto",
     "InjectedMemoryEntryView",
     "InjectMessageBody",
     "InjectMessageBodyPayload",
@@ -818,8 +831,13 @@ __all__ = (
     "PresetResponseLoad",
     "PresetResponseRequest",
     "PresetsListResponse",
+    "ProfileDetailView",
     "ProfileEntryView",
+    "ProfileFieldView",
     "ProfileReset",
+    "ProfileSummaryView",
+    "ProfileUpdate",
+    "ProfileUpdateFields",
     "ProposedRuleView",
     "PurgeMemoryBody",
     "PutMcpSecretBody",
@@ -889,6 +907,8 @@ __all__ = (
     "SkillListingInputSchemaType0",
     "SourceDescriptor",
     "SourceDescriptorOptions",
+    "SourceKindDto",
+    "SourceResponse",
     "SseMailboxEvent",
     "SseTaskEvent",
     "StartAgentRequest",

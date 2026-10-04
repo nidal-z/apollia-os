@@ -31,7 +31,7 @@ pub struct ServerConfig {
     /// Whether the compatible server listens. Off by default.
     #[serde(default)]
     pub enabled: bool,
-    /// TCP port of the compatible server, on the loopback interface.
+    /// TCP port of the compatible server.
     #[serde(default = "default_port")]
     pub port: u16,
     /// Whether a request must carry a token of the server. Off by default.
@@ -39,6 +39,14 @@ pub struct ServerConfig {
     /// applies a change.
     #[serde(default)]
     pub require_auth: bool,
+    /// Whether the compatible server listens on every interface, so the other
+    /// devices of the local network reach it, rather than on the loopback
+    /// interface alone. Off by default, and independent of `require_auth`:
+    /// models answer the network without a token when that is off, agents and
+    /// workflows never do. The native API stays on the loopback interface
+    /// whatever this says.
+    #[serde(default)]
+    pub serve_on_lan: bool,
 }
 
 impl Default for ServerConfig {
@@ -47,6 +55,7 @@ impl Default for ServerConfig {
             enabled: false,
             port: DEFAULT_COMPAT_SERVER_PORT,
             require_auth: false,
+            serve_on_lan: false,
         }
     }
 }
@@ -87,6 +96,7 @@ mod tests {
         assert!(!server.enabled);
         assert_eq!(server.port, 7772);
         assert!(!server.require_auth);
+        assert!(!server.serve_on_lan);
     }
 
     #[test]
@@ -112,6 +122,19 @@ mod tests {
 
         // THEN a token is required
         assert!(server.require_auth);
+    }
+
+    #[test]
+    fn test_server_config_reads_serve_on_lan_apart_from_require_auth() {
+        // GIVEN a [server] section opening the local network, with no token
+        let content = "[server]\nserve_on_lan = true\nrequire_auth = false\n";
+
+        // WHEN it is read
+        let server = ServerConfig::from_toml_str(content).unwrap();
+
+        // THEN the network is open and no token is required
+        assert!(server.serve_on_lan);
+        assert!(!server.require_auth);
     }
 
     #[test]

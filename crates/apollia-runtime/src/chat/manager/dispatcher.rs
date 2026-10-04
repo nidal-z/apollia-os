@@ -259,6 +259,7 @@ fn build_full_chat_dispatcher(
         web_search_config: cfg.tools_config.web_search.clone(),
         web_read_config: cfg.tools_config.web_read.clone(),
         python_interpreter: cfg.tools_config.python_interpreter.clone(),
+        max_output_chars: cfg.tools_config.max_output_chars,
     };
 
     // Wrap the HITL-sensitive natives with the approval-flow guard. The

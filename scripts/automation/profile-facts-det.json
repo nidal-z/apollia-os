@@ -10,7 +10,8 @@
     "The row's edit and delete buttons live in a group-hover container at opacity 0. They are in the DOM and carry no pointer-events:none, and the runner clicks the element directly, so the hover is not needed. The opacity is why they are asserted by click rather than by screenshot.",
     "ProfileFactRow renders a ConfirmDialog with data-testid=profile-fact-delete-dialog, so its two buttons are the composed profile-fact-delete-dialog-cancel and profile-fact-delete-dialog-confirm.",
     "The edit input is a controlled Input bound to editValue; cancelEdit restores the stored value, which is why the cancel pass asserts the row still shows the first value.",
-    "profile-fact is a role=button row with its own keyboard map (ProfileFactRow.svelte:21-36, :151-162): Enter starts the inline edit, Delete/Backspace only REQUEST a deletion through the same confirmation. The row is played with `press Enter` right after the fact is created (the first match is the row this script owns), and the editor is closed with profile-fact-edit-discard, so nothing is persisted."
+    "profile-fact is a role=button row with its own keyboard map (ProfileFactRow.svelte:21-36, :151-162): Enter starts the inline edit, Delete/Backspace only REQUEST a deletion through the same confirmation. The row is played with `press Enter` right after the fact is created (the first match is the row this script owns), and the editor is closed with profile-fact-edit-discard, so nothing is persisted.",
+    "Since the profiles screen (2026-10): a fact is added as one sentence, its key typed only in developer mode (this script runs with it off), so no step targets profile-fact-add-key and the rows are asserted on their value, the only text they show with developer mode off. The facts belong to the displayed profile, the default one here."
   ],
   "dynamicTestids": [
     "settings-nav-profile"
@@ -69,11 +70,6 @@
     },
     {
       "kind": "waitFor",
-      "testid": "profile-fact-add-key",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
       "testid": "profile-fact-add-value",
       "timeoutMs": 4000
     },
@@ -98,11 +94,6 @@
       "kind": "waitFor",
       "testid": "profile-fact-add-form",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "fill",
-      "testid": "profile-fact-add-key",
-      "text": "automation_probe"
     },
     {
       "kind": "fill",
@@ -135,7 +126,7 @@
     {
       "kind": "expect",
       "testid": "profile-fact",
-      "contains": "automation_probe"
+      "contains": "created by the gestural automaton"
     },
     {
       "kind": "screenshot",
@@ -263,7 +254,7 @@
     {
       "kind": "expect",
       "testid": "profile-fact",
-      "contains": "automation_probe"
+      "contains": "edited by the gestural automaton"
     },
     {
       "kind": "screenshot",

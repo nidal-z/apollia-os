@@ -1,13 +1,22 @@
 <script lang="ts">
   /**
-   * CatalogueSheet - the "add a connector" Sheet: discover + custom MCP.
+   * CatalogueSheet - the "add a connection" Sheet: the catalogue and a custom
+   * connection.
    *
-   * The public MCP catalogue and the custom-server form share one Sheet (same
-   * audience). Discover renders ranked suggestions + the rest of the registry
-   * with trust-level filter chips and IntersectionObserver auto-pagination.
+   * The catalogue and the custom form share one Sheet (same audience). The
+   * catalogue opens on the native accounts Apollia ships (Google, Microsoft),
+   * whose page is where their client is entered and their accounts connected,
+   * then the ranked suggestions and the rest of the registry with trust-level
+   * filter chips and IntersectionObserver auto-pagination. The technical names
+   * of the catalogue and of the custom form are shown in developer mode only.
    */
   import { t } from "svelte-i18n";
-  import { Sparkles } from "lucide-svelte";
+  import { Sparkles, UserRound } from "lucide-svelte";
+  import { ListRow } from "$lib/components/operator";
+  import { developerMode } from "$lib/stores/developerMode";
+  import { NATIVE_PROVIDERS, NATIVE_PROVIDER_KEYS } from "$lib/connections/connectionRows";
+  import type { ProviderId } from "$lib/connections/capabilities";
+  import ConnectorTile from "../shared/ConnectorTile.svelte";
   import { EmptyState, FilterChipBar } from "$lib/components/operator";
   import { Button } from "$lib/components/ui/button";
   import { Spinner } from "$lib/components/ui/progress";
@@ -36,6 +45,8 @@
     onconnect: (entry: RegistryServerView) => void;
     onmanage: (name: string) => void;
     oninstalled: () => void;
+    /** Open the page of a native provider, to set its client or connect an account. */
+    onaddnative: (provider: ProviderId) => void;
   }
 
   let {
@@ -50,6 +61,7 @@
     onconnect,
     onmanage,
     oninstalled,
+    onaddnative,
   }: Props = $props();
 
   const CATALOG_PAGE = 48;
@@ -117,8 +129,10 @@
 
 <Sheet {open} {onclose} class="w-full sm:max-w-[920px]">
   <SheetHeader
-    title={$t("connections.add_connector")}
-    subtitle={$t("connections.catalogue_subtitle")}
+    title={$t("connections.add_connection")}
+    subtitle={$developerMode
+      ? $t("dev.connections.catalogue_subtitle")
+      : $t("connections.catalogue_subtitle")}
     {onclose}
   />
   <SheetContent padding="flush" class="flex flex-col">
@@ -128,8 +142,19 @@
         testidPrefix="catalogue"
         activeTab={tab}
         items={[
-          { key: "discover", label: $t("connections.catalogue_tab_discover"), count: filtered.length },
-          { key: "custom", label: $t("connections.catalogue_tab_custom") },
+          {
+            key: "discover",
+            label: $developerMode
+              ? $t("dev.connections.catalogue_tab_discover")
+              : $t("connections.catalogue_tab_discover"),
+            count: filtered.length,
+          },
+          {
+            key: "custom",
+            label: $developerMode
+              ? $t("dev.connections.catalogue_tab_custom")
+              : $t("connections.catalogue_tab_custom"),
+          },
         ]}
         ontabchange={(k) => (tab = k as CatalogueTab)}
       />
@@ -151,11 +176,39 @@
       />
 
       <div class="flex-1 overflow-auto px-6 pb-6">
+        <ul class="mb-3 space-y-1.5" data-testid="catalogue-native-list">
+          {#each NATIVE_PROVIDERS as provider (provider)}
+            <li>
+              <ListRow
+                variant="row"
+                border={false}
+                pad="snug"
+                class="rounded-lg border border-border/60 bg-card elev-interactive hover:border-primary/40"
+                onclick={() => onaddnative(provider)}
+                data-testid="catalogue-native-{provider}"
+              >
+                <ConnectorTile size="md" accent="hsl(var(--primary))">
+                  {#snippet icon()}<UserRound size={14} />{/snippet}
+                </ConnectorTile>
+                <div class="min-w-0 flex-1">
+                  <div class="truncate text-body-sm font-medium text-foreground">
+                    {$t(NATIVE_PROVIDER_KEYS[provider].name)}
+                  </div>
+                  <div class="truncate text-caption text-muted-foreground">
+                    {$t(NATIVE_PROVIDER_KEYS[provider].description)}
+                  </div>
+                </div>
+              </ListRow>
+            </li>
+          {/each}
+        </ul>
         {#if registryLoading && entries.length === 0}
           <div class="space-y-2" data-testid="catalogue-loading">
             <div class="flex items-center gap-2 text-body-xs text-muted-foreground">
               <Spinner size={12} />
-              {$t("connections.catalogue_loading")}
+              {$developerMode
+                ? $t("dev.connections.catalogue_loading")
+                : $t("connections.catalogue_loading")}
             </div>
             {#each Array(6) as _, i (i)}
               <Skeleton class="h-16 rounded-lg border border-border bg-surface-1" />

@@ -100,9 +100,12 @@ fn build_config_view(
                 },
                 ConfigEntry {
                     key: "api_port".to_string(),
-                    value: toml_value
-                        .map(|t| toml_string(t, "runtime", "api_port", "7771"))
-                        .unwrap_or_else(|| "7771".to_string()),
+                    value: {
+                        let fallback = apollia_core::config::DEFAULT_API_PORT.to_string();
+                        toml_value
+                            .map(|t| toml_string(t, "api", "port", &fallback))
+                            .unwrap_or(fallback)
+                    },
                 },
                 ConfigEntry {
                     key: "max_concurrent_agents".to_string(),
@@ -329,9 +332,9 @@ pub async fn get_observability_config() -> Result<ObservabilityView, String> {
 /// Persists the observability policy to the `[observability]` section of
 /// `~/.apollia/apollia.toml`.
 ///
-/// The write is comment-preserving: it parses the file with `toml_edit`, edits
-/// only the `[observability]` keys, and re-serialises, so the operator's
-/// hand-written comments and other sections survive the round-trip.
+/// The write goes through the one writer of `apollia.toml`, which edits only
+/// the `[observability]` keys, so the operator's hand-written comments and
+/// other sections survive the round-trip.
 ///
 /// The change is applied at the next runtime start (the loader reads the
 /// section into the embedded config on boot). The already-running runtime keeps
@@ -473,10 +476,12 @@ mod tests {
 
     #[test]
     fn test_build_config_view_with_toml() {
-        // GIVEN a TOML value with custom runtime port
+        // GIVEN a TOML value with a custom native API port
         let toml_str = r#"
+            [api]
+            port = 9999
+
             [runtime]
-            api_port = 9999
             socket_path = "/custom/path.sock"
 
             [logging]

@@ -38,6 +38,8 @@
     "catalogue-filter-community",
     "catalogue-filter-installed",
     "catalogue-filter-official",
+    "catalogue-native-google",
+    "catalogue-native-microsoft",
     "catalogue-tab-custom",
     "catalogue-tab-discover",
     "channel-card-det-auto-channel",
@@ -103,6 +105,8 @@
     "namespace-sidebar-cat-user",
     "namespace-sidebar-item-apollia-guide",
     "namespace-sidebar-item-onboarding-agent",
+    "native-client-google",
+    "native-client-microsoft",
     "native-detail-tab-accounts",
     "native-detail-tab-capabilities",
     "native-detail-tab-settings",
@@ -123,8 +127,6 @@
     "nav-transcriptions",
     "oauth-add-account-google",
     "oauth-add-account-microsoft",
-    "oauth-card-google",
-    "oauth-card-microsoft",
     "oauth-configure-google",
     "observability-tab-audit-trail",
     "observability-tab-capture",
@@ -142,8 +144,15 @@
     "period-365d",
     "period-7d",
     "period-90d",
-    "profile-compliance-rgpd",
-    "profile-integ-github",
+    "profile-field-free_text",
+    "profile-field-function",
+    "profile-field-name",
+    "profile-field-preferences",
+    "profile-field-role",
+    "profile-field-tools",
+    "profile-menu-delete",
+    "profile-menu-reset",
+    "profile-menu-set_default",
     "project-agent-remove-cancel-seed-classifier",
     "project-agent-remove-confirm-onboarding-agent",
     "project-agent-remove-confirm-seed-classifier",
@@ -170,7 +179,6 @@
     "settings-nav-general",
     "settings-nav-hardware",
     "settings-nav-hardware-shortcut",
-    "settings-nav-integrations",
     "settings-nav-llm",
     "settings-nav-model-defaults",
     "settings-nav-model-hub",
@@ -180,8 +188,6 @@
     "settings-nav-tools",
     "sidebar-mcp-automation-stub-mcp",
     "sidebar-mcp-seed-stub",
-    "sidebar-native-google",
-    "sidebar-native-microsoft",
     "task-detail-tab-output",
     "task-detail-tab-overview",
     "task-detail-tab-technical",
@@ -10024,8 +10030,18 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-google",
+      "testid": "connections-open-catalogue",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-google",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-google",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -10080,7 +10096,17 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-microsoft",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-microsoft",
       "timeoutMs": 3000
     },
     {
@@ -10099,7 +10125,17 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-google",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-google",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-google",
       "timeoutMs": 3000
     },
     {
@@ -10114,17 +10150,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "settings-integrations-oauth",
+      "testid": "native-client-google",
       "timeoutMs": 8000
     },
     {
-      "kind": "waitFor",
-      "testid": "oauth-card-google",
-      "timeoutMs": 4000
-    },
-    {
       "kind": "screenshot",
-      "label": "07-oauth-configure-lands-on-credential-settings"
+      "label": "07-oauth-configure-lands-on-connection-client"
     },
     {
       "kind": "goto",
@@ -10238,8 +10269,13 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "mcp-settings-command",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-args-input",
       "timeoutMs": 5000
     },
     {
@@ -10294,6 +10330,11 @@
       "kind": "waitFor",
       "testid": "mcp-settings-url-input",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "mcp-settings-transport",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -10415,8 +10456,13 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "mcp-settings-command",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-args-input",
       "timeoutMs": 5000
     },
     {
@@ -10491,8 +10537,18 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-microsoft",
+      "testid": "connections-open-catalogue",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -10579,6 +10635,91 @@
     {
       "kind": "screenshot",
       "label": "13-catalogue-discover-live-boundary"
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-custom",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-name-input",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "custom-mcp-transport-select",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-url-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b-custom-connection-operator-no-transport"
+    },
+    {
+      "kind": "press",
+      "testid": "custom-mcp-name-input",
+      "key": "Escape",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "custom-mcp-name-input",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tabbar",
+      "timeoutMs": 8000
     },
     {
       "kind": "click",
@@ -10854,8 +10995,18 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-google",
+      "testid": "connections-open-catalogue",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-google",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-google",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -11021,39 +11172,6 @@
     {
       "kind": "waitFor",
       "testid": "settings-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-integrations",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-integrations-oauth",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "oauth-card-google",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "oauth-card-microsoft",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "28-settings-integrations-oauth"
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
@@ -11089,8 +11207,18 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-microsoft",
+      "testid": "connections-open-catalogue",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -11324,8 +11452,18 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-microsoft",
+      "testid": "connections-open-catalogue",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -11631,8 +11769,18 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-microsoft",
+      "testid": "connections-open-catalogue",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -11797,8 +11945,13 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "mcp-settings-command",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-args-input",
       "timeoutMs": 5000
     },
     {
@@ -11832,8 +11985,18 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-microsoft",
+      "testid": "connections-open-catalogue",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -12080,8 +12243,18 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-microsoft",
+      "testid": "connections-open-catalogue",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -12128,13 +12301,8 @@
     },
     {
       "kind": "waitFor",
-      "testid": "settings-integrations-oauth",
+      "testid": "native-client-microsoft",
       "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "oauth-card-microsoft",
-      "timeoutMs": 4000
     },
     {
       "kind": "clearStubs",
@@ -12165,8 +12333,18 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-microsoft",
+      "testid": "connections-open-catalogue",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -12364,8 +12542,18 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-google",
+      "testid": "connections-open-catalogue",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-google",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-google",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -14032,18 +14220,6 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-integrations"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-nav-integrations"
-    },
-    {
-      "kind": "click",
       "testid": "settings-nav-engines"
     },
     {
@@ -15234,18 +15410,6 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-integrations"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "45-builder-nav-integrations"
-    },
-    {
-      "kind": "click",
       "testid": "settings-nav-engines"
     },
     {
@@ -15778,12 +15942,12 @@
     },
     {
       "kind": "fill",
-      "testid": "profile-input-name",
+      "testid": "profile-field-name",
       "text": "Automation Tester"
     },
     {
       "kind": "fill",
-      "testid": "profile-input-role",
+      "testid": "profile-field-role",
       "text": "Automation QA engineer"
     },
     {
@@ -15838,22 +16002,22 @@
     },
     {
       "kind": "fill",
-      "testid": "profile-input-tech-stack",
-      "text": "Rust, Svelte, Python"
+      "testid": "profile-field-function",
+      "text": "Desktop quality"
     },
     {
       "kind": "fill",
-      "testid": "profile-input-tools-daily",
+      "testid": "profile-field-tools",
       "text": "VSCode, Terminal, Figma"
     },
     {
       "kind": "fill",
-      "testid": "profile-input-agent-domains",
-      "text": "email triage, reporting"
+      "testid": "profile-field-preferences",
+      "text": "Short answers, in English"
     },
     {
       "kind": "fill",
-      "testid": "profile-textarea-goals",
+      "testid": "profile-field-free_text",
       "text": "Automate desktop UI regression coverage."
     },
     {
@@ -15862,61 +16026,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "02-profile-inputs-filled"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "profile-select-sector",
-      "value": "fintech",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 300
-    },
-    {
-      "kind": "selectOption",
-      "testid": "profile-select-team-size",
-      "value": "2-5",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 300
-    },
-    {
-      "kind": "selectOption",
-      "testid": "profile-select-proficiency",
-      "value": "avance",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 300
-    },
-    {
-      "kind": "selectOption",
-      "testid": "profile-select-language",
-      "value": "en",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 300
-    },
-    {
-      "kind": "selectOption",
-      "testid": "profile-select-llm",
-      "value": "local",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "screenshot",
-      "label": "03-profile-selects-chosen"
+      "label": "02-profile-fields-filled"
     },
     {
       "kind": "waitFor",
@@ -15926,98 +16036,6 @@
     {
       "kind": "screenshot",
       "label": "04-profile-unsaved-badge"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-radio-hitl",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-radio-trigger",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-radio-sovereignty",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "profile-radio-hitl",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "profile-radio-trigger",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "profile-radio-sovereignty",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 200
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-profile-radios-present"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-integ-github",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "profile-integ-github"
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "screenshot",
-      "label": "06-profile-integ-on"
-    },
-    {
-      "kind": "click",
-      "testid": "profile-integ-github"
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-compliance-rgpd",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "profile-compliance-rgpd"
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-profile-compliance-on"
-    },
-    {
-      "kind": "click",
-      "testid": "profile-compliance-rgpd"
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-profile-enrichment-banner-best-effort"
     },
     {
       "kind": "waitFor",
@@ -16040,37 +16058,160 @@
     },
     {
       "kind": "screenshot",
-      "label": "08b-profile-saved"
+      "label": "05-profile-saved"
     },
     {
       "kind": "click",
-      "testid": "profile-reset-button"
+      "testid": "profile-new"
     },
     {
       "kind": "waitFor",
-      "testid": "profile-reset-confirm",
+      "testid": "profile-create-dialog",
       "timeoutMs": 4000
     },
     {
+      "kind": "fill",
+      "testid": "profile-create-name",
+      "text": "Formateur"
+    },
+    {
       "kind": "screenshot",
-      "label": "09-profile-reset-confirm-open"
+      "label": "06-profile-create-dialog"
     },
     {
       "kind": "click",
-      "testid": "profile-reset-confirm-cancel"
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
+      "testid": "profile-create-confirm"
     },
     {
       "kind": "waitGone",
-      "testid": "profile-reset-confirm",
+      "testid": "profile-create-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "profile-list",
+      "contains": "Formateur"
+    },
+    {
+      "kind": "expect",
+      "testid": "profile-fields",
+      "contains": "Formateur"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-profile-formateur-displayed"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-row-menu",
+      "nth": 1
+    },
+    {
+      "kind": "click",
+      "testid": "profile-menu-set_default",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "expect",
+      "testid": "profile-row",
+      "nth": 0,
+      "contains": "Formateur"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-profile-formateur-default"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-row-menu",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-menu-delete-reason",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "10-profile-reset-cancelled"
+      "label": "09-profile-default-delete-refused"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-menu-reset",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-reset-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-reset-and-onboard",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-profile-reset-default-choices"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-reset-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "profile-reset-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "profile-row-menu",
+      "nth": 1
+    },
+    {
+      "kind": "click",
+      "testid": "profile-menu-set_default",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "click",
+      "testid": "profile-row-menu",
+      "nth": 1
+    },
+    {
+      "kind": "click",
+      "testid": "profile-menu-delete",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-delete-dialog-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-profile-delete-confirm"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-delete-dialog-confirm"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "profile-delete-dialog-confirm",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-profile-formateur-deleted"
     },
     {
       "kind": "goto",
@@ -16118,36 +16259,26 @@
     },
     {
       "kind": "screenshot",
-      "label": "11-profile-builder"
+      "label": "13-profile-builder"
     },
     {
       "kind": "waitFor",
-      "testid": "profile-select-sector",
+      "testid": "profile-list",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "profile-select-llm",
+      "testid": "profile-field-name",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "profile-radio-hitl",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-integ-github",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-reset-button",
+      "testid": "profile-field-free_text",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "12-profile-builder-fields-invariant"
+      "label": "14-profile-builder-fields-invariant"
     },
     {
       "kind": "goto",
@@ -16195,7 +16326,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "13-back-operator"
+      "label": "15-back-operator"
     },
     {
       "kind": "screenshot",
@@ -16355,20 +16486,6 @@
     {
       "kind": "screenshot",
       "label": "05-llm-builder-stats"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-cost-threshold",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-cost-threshold-unset",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "05b-llm-cost-threshold-unset (the seed config declares no ceiling)"
     },
     {
       "kind": "goto",

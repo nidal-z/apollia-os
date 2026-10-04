@@ -170,11 +170,11 @@ TEST_ONLY_RATCHET: frozenset[str] = frozenset([
     "plan_with_tombstones@apollia-runtime", "prune_deleted@apollia-memory", "query_by_task@apollia-llm",
     "query_last@apollia-tools", "recall_all_for_injection@apollia-memory", "register_tool@apollia-oria",
     "remove_rule@apollia-permissions", "remove_rules_by_creator@apollia-permissions",
-    "reset_timer@apollia-notifications", "resolve_backend@apollia-runtime", "seed_session_cost_usd@apollia-llm",
+    "reset_timer@apollia-notifications", "seed_session_cost_usd@apollia-llm",
     "set_last_onboarding_session@apollia-memory", "set_section@apollia-aip", "set_turn_id@apollia-aip",
     "supports_service@apollia-connectors", "sweep_now@apollia-runtime", "telemetry_for@apollia-runtime",
     "tracked_turns@apollia-memory", "try_with_default_backends@apollia-tools", "validate_id@apollia-triggers",
-    "with_consequences@apollia-core", "with_index_path@apollia-auth", "with_max_output_chars@apollia-tools",
+    "with_consequences@apollia-core", "with_index_path@apollia-auth",
     "with_namespace@apollia-aip", "with_pattern@apollia-tools", "with_produced_plan@apollia-runtime",
 ])
 

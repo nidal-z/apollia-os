@@ -21,6 +21,7 @@ use crate::search::{MemorySearch, SearchQuery, SearchSource};
 use crate::semantic::{RememberInput, SemanticMemory};
 use crate::store::MemoryStore;
 
+mod facts;
 mod migration;
 mod persona;
 mod profiles;
@@ -263,7 +264,7 @@ impl UserMemoryRepository {
     }
 
     /// Upserts an entry for the profile `profile`: a schema key writes its
-    /// field, any other key a free-form entry, shared by every profile.
+    /// field, any other key a fact of that profile ([`facts`]).
     pub fn set_in(
         &self,
         profile: &Profile,
@@ -275,7 +276,7 @@ impl UserMemoryRepository {
         if is_canonical(key) {
             return profiles::set_field(self.store.conn(), &profile.id, key, Some(value));
         }
-        self.write_raw(key, value, written_by)
+        self.write_raw_in(&facts::namespace_of(profile), key, value, written_by)
     }
 
     /// Reads a single entry by key.  Returns `Ok(None)` when missing.
@@ -285,7 +286,7 @@ impl UserMemoryRepository {
     }
 
     /// Reads a single entry of `profile` by key: a schema key reads its
-    /// field, any other key the free-form entry.
+    /// field, any other key a fact of that profile.
     pub fn get_in(
         &self,
         profile: &Profile,
@@ -296,7 +297,7 @@ impl UserMemoryRepository {
         }
         let sem = SemanticMemory::new(&self.store);
         let entry = sem
-            .recall(USER_NAMESPACE, key)
+            .recall(&facts::namespace_of(profile), key)
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
         Ok(entry.map(|se| Self::semantic_to_profile(&se)))
     }
@@ -308,11 +309,11 @@ impl UserMemoryRepository {
         self.list_all_in(&profile)
     }
 
-    /// Lists the filled fields of `profile` in schema order, then the
-    /// free-form entries alphabetically.
+    /// Lists the filled fields of `profile` in schema order, then its facts
+    /// alphabetically.
     pub fn list_all_in(&self, profile: &Profile) -> Result<Vec<ProfileEntry>, UserMemoryError> {
         let mut ordered = Self::profile_entries(profile);
-        let mut extras = self.visible_extras()?;
+        let mut extras = self.visible_extras_in(&facts::namespace_of(profile))?;
         extras.sort_by(|a, b| a.key.cmp(&b.key));
         ordered.extend(extras);
         Ok(ordered)
@@ -340,47 +341,16 @@ impl UserMemoryRepository {
     /// default profile.  Returns [`UserMemoryError::NotFound`] when the key
     /// held nothing.
     pub fn forget(&self, key: &str) -> Result<(), UserMemoryError> {
-        Self::validate_external_key(key)?;
-        if is_canonical(key) {
-            let profile = self.default_profile()?;
-            if profile.field(key).is_none() {
-                return Err(UserMemoryError::NotFound(key.to_owned()));
-            }
-            return profiles::set_field(self.store.conn(), &profile.id, key, None);
-        }
-        let sem = SemanticMemory::new(&self.store);
-        let deleted = sem
-            .forget(USER_NAMESPACE, key)
-            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
-        if deleted {
-            Ok(())
-        } else {
-            Err(UserMemoryError::NotFound(key.to_owned()))
-        }
+        let profile = self.default_profile()?;
+        self.forget_in(&profile, key)
     }
 
-    /// Empties the default profile and deletes every user-visible free-form
-    /// entry.  Internal state markers (onboarding bookkeeping) are preserved.
-    /// Returns the number of removed entries.
+    /// Empties the default profile and deletes its facts.  Internal state
+    /// markers (onboarding bookkeeping) are preserved.  Returns the number of
+    /// removed entries.
     pub fn reset(&self) -> Result<usize, UserMemoryError> {
         let profile = self.default_profile()?;
-        let mut count = 0usize;
-        for field in PROFILE_SCHEMA {
-            if profile.field(field.key).is_some() {
-                profiles::set_field(self.store.conn(), &profile.id, field.key, None)?;
-                count += 1;
-            }
-        }
-        let sem = SemanticMemory::new(&self.store);
-        for entry in self.visible_extras()? {
-            let removed = sem
-                .forget(USER_NAMESPACE, &entry.key)
-                .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
-            if removed {
-                count += 1;
-            }
-        }
-        Ok(count)
+        self.reset_in(&profile)
     }
 
     /// Updates the value of an existing entry, preserving its provenance.
@@ -560,11 +530,22 @@ impl UserMemoryRepository {
         value: &str,
         written_by: WrittenBy,
     ) -> Result<(), UserMemoryError> {
+        self.write_raw_in(USER_NAMESPACE, key, value, written_by)
+    }
+
+    /// [`Self::write_raw`] into `namespace`.
+    fn write_raw_in(
+        &self,
+        namespace: &str,
+        key: &str,
+        value: &str,
+        written_by: WrittenBy,
+    ) -> Result<(), UserMemoryError> {
         let sem = SemanticMemory::new(&self.store);
         let json_value = serde_json::Value::String(value.to_owned());
         let source_tag = written_by.tag();
         sem.remember(RememberInput {
-            namespace: USER_NAMESPACE,
+            namespace,
             key,
             value: &json_value,
             confidence: 1.0,
@@ -591,9 +572,14 @@ impl UserMemoryRepository {
     /// The user-visible free-form entries of the namespace, unordered. A key
     /// that names a schema field is not one: the field lives in the profile.
     fn visible_extras(&self) -> Result<Vec<ProfileEntry>, UserMemoryError> {
+        self.visible_extras_in(USER_NAMESPACE)
+    }
+
+    /// [`Self::visible_extras`] of `namespace`.
+    fn visible_extras_in(&self, namespace: &str) -> Result<Vec<ProfileEntry>, UserMemoryError> {
         let sem = SemanticMemory::new(&self.store);
         let all = sem
-            .recall_all(USER_NAMESPACE, None)
+            .recall_all(namespace, None)
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
         Ok(all
             .iter()

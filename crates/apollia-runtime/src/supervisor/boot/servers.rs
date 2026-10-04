@@ -110,6 +110,7 @@ impl Supervisor {
             batches: owned.batches,
             workflows: executors.workflows.clone(),
             compat_server: Some(owned.compat_server),
+            source_registry: crate::agents::sources::open_registry(&inference.system_db_path),
         }
     }
 }

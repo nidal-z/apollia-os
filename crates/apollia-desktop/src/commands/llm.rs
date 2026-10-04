@@ -309,23 +309,6 @@ pub(crate) async fn ping_and_record(
     result
 }
 
-/// Returns the configured LLM cost-alert threshold in USD.
-///
-/// Delegates to `GET /api/v1/llm/cost-alert-threshold`, which reads the live
-/// router. Returns `None` when no threshold is set.
-#[tauri::command]
-pub async fn get_cost_alert_threshold(link: State<'_, RuntimeLink>) -> Result<Option<f64>, String> {
-    cost_alert_threshold(&link).await
-}
-
-/// The cost alert threshold of the runtime `link` drives.
-pub(crate) async fn cost_alert_threshold(link: &RuntimeLink) -> Result<Option<f64>, String> {
-    let json = link.get_json("/api/v1/llm/cost-alert-threshold").await?;
-    Ok(json
-        .get("threshold_usd")
-        .and_then(serde_json::Value::as_f64))
-}
-
 /// Fetches the cost/token statistics aggregated over N days.
 ///
 /// Delegates to `GET /api/v1/llm/costs?days=N`.

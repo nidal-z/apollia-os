@@ -32,7 +32,7 @@ fn a_valid_text_is_written_and_its_fingerprint_returned() {
     let before = read_snapshot(&path).unwrap();
 
     // WHEN a valid text is saved against that fingerprint
-    let text = "# mine\n[api]\nport = 7772\n";
+    let text = "# mine\n[api]\nport = 7773\n";
     let written = write_config(
         &path,
         ConfigEdit::Text(text.to_owned()),
@@ -158,7 +158,7 @@ fn a_file_modified_since_it_was_read_is_not_overwritten() {
     // WHEN the first writer saves against its reading
     let refused = write_config(
         &path,
-        ConfigEdit::Text("[api]\nport = 7772\n".to_owned()),
+        ConfigEdit::Text("[api]\nport = 7774\n".to_owned()),
         &read_first.sha256,
         &PolicySettings::none(),
     );
@@ -182,7 +182,7 @@ fn the_write_goes_through_a_sibling_file_renamed_over_the_original() {
     // WHEN a key is changed
     update_config(
         &path,
-        ConfigEdit::Keys(vec![KeyChange::set("api.port", json!(7772))]),
+        ConfigEdit::Keys(vec![KeyChange::set("api.port", json!(7773))]),
         &PolicySettings::none(),
     )
     .unwrap();
@@ -213,7 +213,7 @@ fn a_key_change_keeps_the_comments_and_the_order_of_the_file() {
     // WHEN the port changes
     update_config(
         &path,
-        ConfigEdit::Keys(vec![KeyChange::set("api.port", json!(7772))]),
+        ConfigEdit::Keys(vec![KeyChange::set("api.port", json!(7773))]),
         &PolicySettings::none(),
     )
     .unwrap();
@@ -221,7 +221,7 @@ fn a_key_change_keeps_the_comments_and_the_order_of_the_file() {
     // THEN only the value changed
     assert_eq!(
         read(&path),
-        original.replace("port = 7771", "port = 7772"),
+        original.replace("port = 7771", "port = 7773"),
         "comments and order are kept"
     );
 }
@@ -324,14 +324,14 @@ fn an_absent_file_is_created_against_the_fingerprint_of_an_empty_text() {
     assert!(!snapshot.exists);
     write_config(
         &path,
-        ConfigEdit::Text("[api]\nport = 7772\n".to_owned()),
+        ConfigEdit::Text("[api]\nport = 7773\n".to_owned()),
         &snapshot.sha256,
         &PolicySettings::none(),
     )
     .unwrap();
 
     // THEN the file exists with the text
-    assert_eq!(read(&path), "[api]\nport = 7772\n");
+    assert_eq!(read(&path), "[api]\nport = 7773\n");
 }
 
 #[test]

@@ -62,7 +62,7 @@ PURPOSES = {
              "handler that times out, fails to deliver, or answers with something "
              "unparseable falls back to `allow`, so the tool call proceeds.",
     "chat": "Chat session defaults.",
-    "filesystem": "The reversible journal, and the paths an agent works in without "
+    "filesystem": "The paths an agent works in without "
                   "being asked. `trusted_paths` sets friction rather than a wall, and "
                   "the two surfaces read it differently; see *Trusted paths, and what "
                   "happens outside them* below.",
@@ -75,8 +75,8 @@ PURPOSES = {
     "desktop": "Settings of the desktop application that the engine reads.",
     "engines": "Settings of the local inference engines.",
     "author": "The publisher name of the agents exported from this machine.",
-    "observability": "Trace capture and retention. Read by the desktop application "
-                     "only.",
+    "observability": "Trace capture and retention. Read by the daemon and by the "
+                     "desktop application.",
     "ui": "The opt-in link preview of the desktop application.",
 }
 

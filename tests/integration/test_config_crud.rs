@@ -167,6 +167,7 @@ async fn build_app_state_with_repos(
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     }
 }
 

@@ -162,11 +162,16 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // The export of an agent from its sheet: the runtime builds and signs the
     // archive, this process writes the file the user chose.
     "export_agent",
-    // The user profile, over `/api/v1/profile`.
-    "delete_profile_entry",
-    "get_profile",
-    "reset_user_profile",
-    "set_profile_entry",
+    // The user profiles and their facts, over `/api/v1/profiles`.
+    "create_profile",
+    "delete_profile",
+    "delete_profile_fact",
+    "get_profile_by_id",
+    "list_profiles",
+    "reset_profile",
+    "set_default_profile",
+    "set_profile_fact",
+    "update_profile",
     // The credentials of the native tools, over `/api/v1/tool-credentials`.
     "governance_delete_credential",
     "governance_list_credentials",
@@ -298,10 +303,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // Models: the removal of an installed model, refused while a backend or
     // the dictation engine of the runtime uses it.
     "delete_installed_model",
-    // LLM engines: the list, the test, the reload, the cost alert threshold.
-    // The last ping of each engine stays in this window's memory, which
-    // [`run`] manages in both modes.
-    "get_cost_alert_threshold",
+    // LLM engines: the list, the test, the reload. The last ping of each
+    // engine stays in this window's memory, which [`run`] manages in both
+    // modes.
     "list_llm_backends",
     "ping_llm_backend",
     "reload_llm",
@@ -379,6 +383,10 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "link_preview",
         "fetches the card of a link the window shows",
+    ),
+    (
+        "get_api_port",
+        "reads the port this window resolved at startup, the daemon's when attached",
     ),
     (
         "list_audio_input_devices",
@@ -645,6 +653,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(RuntimeLink::Attached(client))
+        .manage(crate::startup::ApiPort(port))
         .manage(dictation.clone())
         .manage(
             std::sync::Arc::new(tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()))

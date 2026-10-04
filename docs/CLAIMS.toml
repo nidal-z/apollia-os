@@ -1524,22 +1524,23 @@ convention the prompts now follow is no longer the one the bridge accepts.
 [[claim]]
 id = "daemon-binds-tcp-by-default"
 scope = "public"
-symbol = "DEFAULT_TCP_PORT"
+symbol = "resolve_tcp_port"
 status = "wired"
 proof = "crates/apollia-cli/src/commands/start.rs"
 evidence = ""
 note = """
 Six pages said the daemon opens a TCP port only when one is given, in six
 different formulations, so no single search found them. The code has no such
-condition: `apollia-os start` runs `port.unwrap_or(DEFAULT_TCP_PORT)` and passes
-`Some(tcp_port)` unconditionally, so `--port` chooses the number and nothing
-leaves the port closed. The embedded runtime is the one that defaults to
+condition: `apollia-os start` resolves its port with `resolve_tcp_port`
+(`--port`, then `[api].port`, then 7771) and passes `Some(tcp_port)`
+unconditionally, so the flag or the file choose the number and nothing leaves
+the port closed. The embedded runtime is the one that defaults to
 Unix-socket-only, and that page is correct.
 
-The residual this claim does not cover: `wired` proves the constant is read, not
-that it is read unconditionally. A reintroduced `if let Some(port)` would keep
-this green, because the replay resolves a symbol and never reads the value or the
-shape of the expression around it.
+The residual this claim does not cover: `wired` proves the function is called,
+not that its result is used unconditionally. A reintroduced `if let Some(port)`
+would keep this green, because the replay resolves a symbol and never reads the
+value or the shape of the expression around it.
 """
 
 [[claim]]

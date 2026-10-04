@@ -151,20 +151,24 @@ pub(crate) fn initiate_quit(app: &AppHandle) {
 
     // Attached to a daemon, this process owns no runtime: quitting closes the
     // window and leaves the daemon serving.
-    let embedded = app
+    let embedded_port = app
         .try_state::<apollia_runtime::embedded::RuntimeHandle>()
-        .is_some();
-    if quit_plan(embedded) == QuitPlan::LeaveDaemonServing {
+        .map(|runtime| runtime.api_port);
+    let (QuitPlan::ShutDownEmbedded, Some(api_port)) =
+        (quit_plan(embedded_port.is_some()), embedded_port)
+    else {
         app.exit(0);
         return;
-    }
+    };
 
     let app_handle = app.clone();
     // Fire-and-forget: send POST /api/v1/shutdown then exit
     tauri::async_runtime::spawn(async move {
-        // Best-effort shutdown request to the embedded runtime
+        // Best-effort shutdown request to the embedded runtime, on the port it
+        // serves
         let _ =
-            crate::commands::http_post_json(7771, "/api/v1/shutdown", &serde_json::json!({})).await;
+            crate::commands::http_post_json(api_port, "/api/v1/shutdown", &serde_json::json!({}))
+                .await;
         app_handle.exit(0);
     });
 }

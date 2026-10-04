@@ -221,6 +221,7 @@ async fn test_shutdown_drains_active_tasks() {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -340,6 +341,7 @@ async fn test_shutdown_stops_all_agents() {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -449,6 +451,7 @@ async fn test_shutdown_broadcasts_requested_event() {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -580,6 +583,7 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
     let api = APIServer::new(
         APIServerConfig {

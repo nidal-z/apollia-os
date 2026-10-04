@@ -111,6 +111,10 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os model embeddings show`↴](#apollia-os-model-embeddings-show)
 * [`apollia-os model embeddings set-default`↴](#apollia-os-model-embeddings-set-default)
 * [`apollia-os model delete`↴](#apollia-os-model-delete)
+* [`apollia-os source`↴](#apollia-os-source)
+* [`apollia-os source list`↴](#apollia-os-source-list)
+* [`apollia-os source create`↴](#apollia-os-source-create)
+* [`apollia-os source delete`↴](#apollia-os-source-delete)
 * [`apollia-os trigger`↴](#apollia-os-trigger)
 * [`apollia-os trigger list`↴](#apollia-os-trigger-list)
 * [`apollia-os trigger status`↴](#apollia-os-trigger-status)
@@ -331,6 +335,7 @@ Apollia OS CLI binary (apollia-os)
 * `memory` - Memory management
 * `llm` - LLM backend diagnostics (status, ping, chat, costs, backends, reload)
 * `model` - Local model file management
+* `source` - The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete)
 * `trigger` - Trigger management (list, status, fire, enable, disable, logs, reload, create, update, delete)
 * `notify` - Notification channel management (test, list, logs, create, update, delete, events)
 * `stt` - Speech-to-Text management (status, transcribe, transcriptions, model, config)
@@ -390,7 +395,7 @@ Start the runtime in foreground
 
 ###### **Options:**
 
-* `--port <PORT>` - TCP port to listen on (default: 7771)
+* `--port <PORT>` - TCP port to listen on; overrides `[api].port` (default: 7771)
 * `--config <PATH>` - Configuration file to load instead of `~/.apollia/apollia.toml`
 
 
@@ -528,7 +533,7 @@ Display detailed information about an agent, with its definition as resolved (pa
 
 Override one field of an agent's definition; a package update keeps it.
 
-Fields: `name`, `mission`, `autonomy` and `profile` (a profile identifier, see `profile list`) take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). The source `profile` lets the agent read your profile through `ctx.profile`: `agent set <id> sources profile` checks it, a list without it unchecks it, and `agent reset --field sources` goes back to the package default. Recorded in the audit journal.
+Fields: `name`, `mission`, `autonomy` and `profile` (a profile identifier, see `profile list`) take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). A source is an identifier of `source list`, `profile` or `memory`; the runtime refuses any other. The source `profile` lets the agent read your profile through `ctx.profile`: `agent set <id> sources profile` checks it, a list without it unchecks it, and `agent reset --field sources` goes back to the package default. Recorded in the audit journal.
 
 **Usage:** `apollia-os agent set <AGENT_ID> <FIELD> [VALUES]...`
 
@@ -1623,17 +1628,9 @@ Send a direct prompt to an LLM backend and print the response
 
 ## `apollia-os llm costs`
 
-Display aggregated usage and costs (tokens and estimated cost per backend).
+Display aggregated usage and costs (tokens and estimated cost per backend)
 
-Without flags, prints the cost table. Use `--get-threshold` to print `[llm] cost_alert_threshold_usd` from `apollia.toml`, or `--threshold N` to set it.
-
-**Usage:** `apollia-os llm costs [OPTIONS]`
-
-###### **Options:**
-
-* `--get-threshold` - Read the cost alert threshold from `apollia.toml` instead of the cost table
-* `--threshold <USD>` - Set the cost alert threshold (USD). Writes `[llm] cost_alert_threshold_usd = N` to `apollia.toml`. Pass `0` or a negative value to clear the threshold
-* `--config <PATH>` - Optional `apollia.toml` path override. Without it, the same file the runtime loads at startup: `~/.apollia/apollia.toml`
+**Usage:** `apollia-os llm costs`
 
 
 
@@ -1928,6 +1925,59 @@ Remove a local model file from `~/.apollia/models/`
 ###### **Options:**
 
 * `--confirm` - Skip the confirmation prompt
+
+
+
+## `apollia-os source`
+
+The sources an agent may consult once checked: folders, files, mailboxes, the profile, memory (list, create, delete)
+
+**Usage:** `apollia-os source <COMMAND>`
+
+###### **Subcommands:**
+
+* `list` - List the sources, oldest first
+* `create` - Add a source
+* `delete` - Remove a source. Agents that list it stop seeing it
+
+
+
+## `apollia-os source list`
+
+List the sources, oldest first
+
+**Usage:** `apollia-os source list`
+
+
+
+## `apollia-os source create`
+
+Add a source
+
+**Usage:** `apollia-os source create [OPTIONS] --kind <KIND> --label <LABEL>`
+
+###### **Options:**
+
+* `--kind <KIND>` - What the source is: folder, file, mail, profile, memory or code_folder
+* `--label <LABEL>` - The name the user sees
+* `--reference <REFERENCE>` - What the source points at: a folder connection, a file path, a mail connection, a memory space. Required for folder, file and mail
+* `--group <GROUP>` - A group the source belongs to, such as the files of one project
+
+
+
+## `apollia-os source delete`
+
+Remove a source. Agents that list it stop seeing it
+
+**Usage:** `apollia-os source delete [OPTIONS] <ID>`
+
+###### **Arguments:**
+
+* `<ID>` - Source identifier, as `source list` shows it
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
