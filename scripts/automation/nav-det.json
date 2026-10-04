@@ -623,27 +623,32 @@
     },
     {
       "kind": "click",
-      "testid": "topbar-user-menu",
+      "testid": "topbar-help",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "topbar-user-menu-content",
+      "testid": "detail-sidebar",
       "timeoutMs": 4000
     },
     {
-      "kind": "click",
-      "testid": "user-menu-help",
-      "timeoutMs": 3000
-    },
-    {
       "kind": "waitFor",
-      "testid": "help-section",
-      "timeoutMs": 8000
+      "testid": "companion-panel",
+      "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "40-user-menu-help"
+      "label": "40-topbar-help-guide"
+    },
+    {
+      "kind": "click",
+      "testid": "detail-sidebar-collapse",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "detail-sidebar",
+      "timeoutMs": 4000
     },
     {
       "kind": "goto",

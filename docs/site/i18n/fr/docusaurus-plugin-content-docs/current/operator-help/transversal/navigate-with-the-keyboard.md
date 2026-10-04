@@ -49,7 +49,7 @@ Pour parcourir tous les raccourcis (globaux, navigation, chat, paramètres, comp
 - **Cmd+B / Ctrl+B** - replier / déplier la sidebar.
 - **Cmd+[ / Ctrl+[** - page précédente (navigation historique).
 - **Cmd+] / Ctrl+]** - page suivante.
-- **Cmd+/ / Ctrl+/** - basculer l'affichage de l'**Aide Apollia** (le Companion).
+- **Cmd+/ / Ctrl+/** - ouvrir ou replier l'onglet **Guide** sur l'écran courant.
 - **Cmd+Enter / Ctrl+Enter** - envoyer le message courant (dans un chat).
 - **Échap** - fermer le dialog / chat-input courant.
 

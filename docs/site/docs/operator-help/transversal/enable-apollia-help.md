@@ -6,61 +6,49 @@ sidebar_position: 4
 
 # Enable Apollia Help
 
-> For operators who want a floating assistant one click away, able to answer a quick question without leaving the current screen.
+> For operators who want help on the screen they are looking at, one click away, without leaving it.
 
 ## Prerequisites
 
 - At least one AI provider is configured and ready. The state is visible **in the top left corner**: a **coloured dot to the left of the word *Apollia*** in the top bar shows the combined runtime + LLM state.
-  - 🟢 green - healthy runtime + at least one LLM ready, Apollia Help can start.
-  - 🟡 amber - no LLM connected, the button is greyed out.
+  - 🟢 green - healthy runtime + at least one LLM ready, the guide can answer.
+  - 🟡 amber - no LLM connected, the guide cannot answer yet.
   - 🔴 red - runtime disconnected, nothing will work; quit and relaunch the application.
 
   To configure an LLM, go to **Settings → LLM models**.
 
 ## Steps
 
-1. Press **Cmd+/** (macOS) or **Ctrl+/** (Windows and Linux) from anywhere in the application. There is no button: the shortcut and the command palette are the two ways in. In the palette, opened with **Cmd+K**, the action is **Toggle Apollia Help**.
+1. Click the **help icon** (a question mark in a circle) in the top bar. It is on every screen, always at the same place. **Cmd+/** (macOS) or **Ctrl+/** (Windows and Linux) does the same from anywhere, even while typing, and so does the **Open or close the guide** action of the command palette (**Cmd+K**).
 
-   Nothing opens as long as no AI provider is ready.
+   ![The Home screen, with the help icon of the top bar](/img/operator-help/transversal-activer-la-compagnonne-ia-1.png)
 
-   ![The Home screen, with the Apollia Help panel about to open](/img/operator-help/transversal-activer-la-compagnonne-ia-1.png)
+2. The **detail sidebar** opens on the right of the screen, on its **Guide** tab. A dedicated chat session starts, and a short spinner shows while it is created (1 to 2 seconds).
 
-2. A **floating panel** opens, docked to the right of the screen by default. A dedicated chat session starts, and a short spinner shows while it is created (1 to 2 seconds).
+3. Ask a quick question. The guide answers in the column while the screen stays usable on its left.
 
-3. Ask a quick question. Apollia Help answers without interrupting your work on the main page.
+   ![The Guide tab open in the detail sidebar, with the input area](/img/operator-help/transversal-activer-la-compagnonne-ia-2.png)
 
-   ![Apollia Help panel open, with its welcome message and the input area](/img/operator-help/transversal-activer-la-compagnonne-ia-2.png)
+4. The guide **knows which screen you are on**, and which record is open in it. On the Agents screen, with an agent open, asking *"what does this agent do on its own?"* is enough: it knows which agent you mean.
 
-4. **Move the panel**: grab the **handle at the top of the panel** (grip-handle icon) and drag it wherever you want. It snaps to the screen edges so it stays reachable.
+5. **Collapse**: click the collapse icon at the top right of the column, the help icon again, or press **Cmd+/** again. The session stays open, so the next opening comes back to the same conversation.
 
-5. **Resize**: drag the **bottom right corner** to adjust width and height. With that corner focused, the arrow keys resize by 20 pixels a press.
-
-   Your preferred position and size are **remembered** from one session to the next.
-
-6. Apollia Help **knows which page you are looking at**. If you are on *My Assistants* and you ask *"why did this agent fail?"*, it will know what you are referring to.
-
-7. **Collapse into a bubble**: click the Minus icon (−) at the top of the panel. It shrinks into a clickable mini-bubble that you can expand again later. The conversation history is kept.
-
-8. **Close**: click the X icon at the top of the panel, or press **Cmd+/** again from anywhere in the app. The panel disappears but the session stays open, so the next Cmd+/ comes back to the same conversation.
+The help icon also works during the first launch: the top bar and the detail sidebar stay above the welcome window, and the guide is then told you are in the first launch.
 
 ## Keyboard shortcut
 
-- **Cmd+/** (macOS) / **Ctrl+/** (Windows and Linux) - opens and closes the panel. Handy to hide Help quickly during a demo and bring it back afterwards.
-- **Cmd+Shift+C** - opens the panel *and* puts the cursor in its input, from anywhere. Use this one when you intend to type straight away.
-- **Cmd+Alt** plus an arrow key - moves the panel to another edge. It only works while the panel itself has focus, which is why nothing happens if you try it from the main page.
+- **Cmd+/** (macOS) / **Ctrl+/** (Windows and Linux) - opens and collapses the Guide tab.
+- **Cmd+Shift+C** - opens the Guide tab *and* puts the cursor in its input, from anywhere. Use this one when you intend to type straight away.
 
 ## Verification
 
-- Clicking the **Apollia Help** button opens the panel in under 2 seconds.
-- The panel can be moved and resized without ending up off screen.
-- The **Cmd+/** shortcut toggles the display instantly.
-- Help answers *"which page am I on?"* by naming the current page correctly.
+- Clicking the help icon opens the Guide tab in under 2 seconds.
+- The **Cmd+/** shortcut opens and collapses it instantly.
+- The guide answers *"which screen am I on?"* by naming the current screen correctly.
 
 ## If it does not work
 
-- **Help does not answer / no reply arrives**: check the **Apollia state dot** in the top bar. If it is amber, configure an LLM provider in **Settings → LLM models**.
-- **The panel opens then shows an error**: the session could not start. Click **Retry** in the panel, or close it and press Cmd+/ again.
-- **The panel is invisible even though I already opened it**: it may be minimised into a bubble in a corner of the screen. Look for the Apollia Help bubble; otherwise **Cmd+/** forces it back open.
-- **The panel opens in a corner I cannot reach**: give it focus, then use **Cmd+Alt** with an arrow key to bring it back to a visible edge.
+- **The guide does not answer / no reply arrives**: check the **Apollia state dot** in the top bar. If it is amber, configure an LLM provider in **Settings → LLM models**.
+- **The Guide tab opens then shows an error**: the session could not start. Click **Retry** in the tab, or collapse it and open it again.
 
 > **Concept:** [Apollia explanation](/explanation)
