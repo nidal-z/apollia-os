@@ -173,6 +173,9 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "onboarding.profile_selector.builder_title", // Builder
   "onboarding_stt.mic_label", // Microphone
   "onboarding_welcome.feature_local_title", // Local-first
+  "packages.preview.content.kind_agent", // Agent
+  "packages.preview.content.kind_workflow", // Workflow
+  "packages.preview.version", // version {version}
   "plan_mode.history_pause", // Pause
   "plan_session.origin_initial", // Initial
   "plan_session.tab_journal", // Journal

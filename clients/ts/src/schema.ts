@@ -5953,6 +5953,12 @@ export interface components {
              *     `pkg:<package>/<tool>`.
              */
             accessId: string;
+            /**
+             * @description Action family: `read`, `read_personal`, `write_or_delete`,
+             *     `send_external`, `execute_code`, or `unclassified` when nothing
+             *     classifies it (a tool of a connection not added yet, an agent).
+             */
+            family: string;
             /** @description What the access lets the agent do. */
             permits: string;
             /** @description Using it is sensitive. */
@@ -5982,6 +5988,11 @@ export interface components {
             accessId: string;
             /** @description Agent that gains it. */
             agentId: string;
+            /**
+             * @description Action family: `read`, `read_personal`, `write_or_delete`,
+             *     `send_external`, `execute_code`, or `unclassified`.
+             */
+            family: string;
             /** @description What it lets the agent do. */
             permits: string;
             /** @description Using it is sensitive. */
@@ -9978,6 +9989,11 @@ export interface components {
             declaredPublisher: string;
             /** @description SHA-256 fingerprint of the signing key, when the signature holds. */
             keyFingerprint?: string | null;
+            /**
+             * @description The signing public key, 64 hexadecimal characters, when the signature
+             *     holds: what trusting the publisher imports into the keyring.
+             */
+            publicKey?: string | null;
             /**
              * @description Name to show for the publisher: the label of the keyring when the key
              *     is trusted, otherwise the name the package declares.

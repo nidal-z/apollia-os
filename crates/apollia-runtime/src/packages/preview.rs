@@ -4,18 +4,15 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use apollia_tools::apo_archive::{ApoArchive, ApoError, SignatureState};
-use apollia_tools::apollia_manifest::{
-    self, ActionFamily as PackageFamily, AgentDecl, ApolliaManifest, TriggerSource,
-    PACKAGE_TOOL_PREFIX,
-};
+use apollia_tools::apollia_manifest::{self, AgentDecl, ApolliaManifest, TriggerSource};
 use apollia_tools::{
-    ActionFamily, AgentOrigin, AgentRepository, PackageRepository, ToolDescriptor,
-    TrustedKeyRepository,
+    AgentOrigin, AgentRepository, PackageRepository, ToolDescriptor, TrustedKeyRepository,
 };
 use serde::Serialize;
 
 use crate::connections::{Connection, ConnectionKind};
 use crate::governance::{DeclaredAccess, GovernanceContract, InstallSubject};
+use crate::packages::preview_access::{access_family, declared_access, family_name};
 use crate::packages::PackageError;
 
 /// What the preview reads besides the archive.
@@ -61,6 +58,9 @@ pub struct SignaturePreview {
     pub declared_publisher: String,
     /// SHA-256 fingerprint of the signing key, when the signature holds.
     pub key_fingerprint: Option<String>,
+    /// The signing public key, 64 hexadecimal characters, when the signature
+    /// holds: what trusting the publisher imports into the keyring.
+    pub public_key: Option<String>,
     /// The signing key is in the keyring.
     pub trusted: bool,
     /// Why the signature does not hold, when it does not.
@@ -78,6 +78,10 @@ pub struct AccessPreview {
     pub permits: String,
     /// Using it is sensitive.
     pub sensitive: bool,
+    /// Action family: `read`, `read_personal`, `write_or_delete`,
+    /// `send_external`, `execute_code`, or `unclassified` when nothing
+    /// classifies it (a tool of a connection not added yet, an agent).
+    pub family: String,
 }
 
 /// One agent of the package.
@@ -184,6 +188,9 @@ pub struct AddedAccess {
     pub permits: String,
     /// Using it is sensitive.
     pub sensitive: bool,
+    /// Action family: `read`, `read_personal`, `write_or_delete`,
+    /// `send_external`, `execute_code`, or `unclassified`.
+    pub family: String,
 }
 
 /// What an update changes, against the installed version.
@@ -359,8 +366,14 @@ pub fn preview(path: &Path, sources: &PreviewSources<'_>) -> Result<PackagePrevi
         Err(ApoError::InvalidSignature { reason }) => Err(reason),
         Err(other) => return Err(other.into()),
     };
+    let public_key = match signature_state {
+        Ok(SignatureState::Signed { .. }) => archive.signing_public_key()?,
+        _ => None,
+    };
     let manifest = archive.manifest().clone();
-    build(&manifest, signature_state, sources, PackageOrigin::File)
+    let mut preview = build(&manifest, signature_state, sources, PackageOrigin::File)?;
+    preview.signature.public_key = public_key;
+    Ok(preview)
 }
 
 /// Where a package comes from, as the caller knows it. The archive itself
@@ -557,6 +570,7 @@ fn signature_preview(
             publisher: declared.to_owned(),
             declared_publisher: declared.to_owned(),
             key_fingerprint: None,
+            public_key: None,
             trusted: false,
             reason: None,
         },
@@ -572,6 +586,7 @@ fn signature_preview(
                     .map_or_else(|| declared.to_owned(), |key| key.label.clone()),
                 declared_publisher: declared.to_owned(),
                 key_fingerprint: Some(key_fingerprint),
+                public_key: None,
                 trusted: trusted.is_some(),
                 reason: None,
             }
@@ -581,6 +596,7 @@ fn signature_preview(
             publisher: declared.to_owned(),
             declared_publisher: declared.to_owned(),
             key_fingerprint: None,
+            public_key: None,
             trusted: false,
             reason: Some(reason),
         },
@@ -603,6 +619,7 @@ fn agent_preview(
         .effective_accesses(&agent.id, &declared)
         .into_iter()
         .map(|access| AccessPreview {
+            family: access_family(manifest, &access.access_id, sources.tools),
             access_id: access.access_id,
             permits: access.permits,
             sensitive: access.sensitive,
@@ -614,42 +631,6 @@ fn agent_preview(
         mission: agent.mission.clone(),
         examples: agent.examples.clone(),
         access,
-    }
-}
-
-/// The access `access_id` as an agent of `manifest` declares it.
-///
-/// A tool of the package is described by its descriptor in the manifest; a
-/// tool the registry holds, by its descriptor there. Anything else (a tool
-/// of a connection not added yet) is described by its name and counted as
-/// sensitive, since nothing classifies it.
-fn declared_access(
-    manifest: &ApolliaManifest,
-    access_id: &str,
-    tools: &[ToolDescriptor],
-) -> DeclaredAccess {
-    let own_prefix = format!("{PACKAGE_TOOL_PREFIX}{}/", manifest.package.name);
-    if let Some(tool) = access_id
-        .strip_prefix(&own_prefix)
-        .and_then(|name| manifest.tools.iter().find(|t| t.name == name))
-    {
-        return DeclaredAccess {
-            access_id: access_id.to_owned(),
-            permits: tool.description.clone(),
-            declared_sensitive: tool.is_sensitive(),
-        };
-    }
-    if let Some(tool) = tools.iter().find(|t| t.name == access_id) {
-        return DeclaredAccess {
-            access_id: access_id.to_owned(),
-            permits: tool.description.clone(),
-            declared_sensitive: tool.family != ActionFamily::Read,
-        };
-    }
-    DeclaredAccess {
-        access_id: access_id.to_owned(),
-        permits: format!("use {access_id}"),
-        declared_sensitive: true,
     }
 }
 
@@ -679,6 +660,7 @@ fn update_diff(
                     access_id: access.access_id.clone(),
                     permits: access.permits.clone(),
                     sensitive: access.sensitive,
+                    family: access.family.clone(),
                 });
             }
         }
@@ -759,16 +741,6 @@ fn refusal(
         }
     }
     Ok(None)
-}
-
-fn family_name(family: PackageFamily) -> &'static str {
-    match family {
-        PackageFamily::Read => "read",
-        PackageFamily::ReadPersonal => "read_personal",
-        PackageFamily::WriteOrDelete => "write_or_delete",
-        PackageFamily::SendExternal => "send_external",
-        PackageFamily::ExecuteCode => "execute_code",
-    }
 }
 
 fn trigger_source_name(source: &TriggerSource) -> &'static str {

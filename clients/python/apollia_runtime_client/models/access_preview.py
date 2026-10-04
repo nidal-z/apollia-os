@@ -16,17 +16,23 @@ class AccessPreview:
     Attributes:
         access_id (str): Identifier of the access: a tool name, `mcp:<server>/<tool>`, or
             `pkg:<package>/<tool>`.
+        family (str): Action family: `read`, `read_personal`, `write_or_delete`,
+            `send_external`, `execute_code`, or `unclassified` when nothing
+            classifies it (a tool of a connection not added yet, an agent).
         permits (str): What the access lets the agent do.
         sensitive (bool): Using it is sensitive.
     """
 
     access_id: str
+    family: str
     permits: str
     sensitive: bool
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         access_id = self.access_id
+
+        family = self.family
 
         permits = self.permits
 
@@ -37,6 +43,7 @@ class AccessPreview:
         field_dict.update(
             {
                 "accessId": access_id,
+                "family": family,
                 "permits": permits,
                 "sensitive": sensitive,
             }
@@ -49,12 +56,15 @@ class AccessPreview:
         d = dict(src_dict)
         access_id = d.pop("accessId")
 
+        family = d.pop("family")
+
         permits = d.pop("permits")
 
         sensitive = d.pop("sensitive")
 
         access_preview = cls(
             access_id=access_id,
+            family=family,
             permits=permits,
             sensitive=sensitive,
         )

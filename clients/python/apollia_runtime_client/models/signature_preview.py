@@ -23,6 +23,8 @@ class SignaturePreview:
         status (SignatureStatus): State of the signature of a package.
         trusted (bool): The signing key is in the keyring.
         key_fingerprint (None | str | Unset): SHA-256 fingerprint of the signing key, when the signature holds.
+        public_key (None | str | Unset): The signing public key, 64 hexadecimal characters, when the signature
+            holds: what trusting the publisher imports into the keyring.
         reason (None | str | Unset): Why the signature does not hold, when it does not.
     """
 
@@ -31,6 +33,7 @@ class SignaturePreview:
     status: SignatureStatus
     trusted: bool
     key_fingerprint: None | str | Unset = UNSET
+    public_key: None | str | Unset = UNSET
     reason: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -48,6 +51,12 @@ class SignaturePreview:
             key_fingerprint = UNSET
         else:
             key_fingerprint = self.key_fingerprint
+
+        public_key: None | str | Unset
+        if isinstance(self.public_key, Unset):
+            public_key = UNSET
+        else:
+            public_key = self.public_key
 
         reason: None | str | Unset
         if isinstance(self.reason, Unset):
@@ -67,6 +76,8 @@ class SignaturePreview:
         )
         if key_fingerprint is not UNSET:
             field_dict["keyFingerprint"] = key_fingerprint
+        if public_key is not UNSET:
+            field_dict["publicKey"] = public_key
         if reason is not UNSET:
             field_dict["reason"] = reason
 
@@ -92,6 +103,15 @@ class SignaturePreview:
 
         key_fingerprint = _parse_key_fingerprint(d.pop("keyFingerprint", UNSET))
 
+        def _parse_public_key(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        public_key = _parse_public_key(d.pop("publicKey", UNSET))
+
         def _parse_reason(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -107,6 +127,7 @@ class SignaturePreview:
             status=status,
             trusted=trusted,
             key_fingerprint=key_fingerprint,
+            public_key=public_key,
             reason=reason,
         )
 
