@@ -1518,21 +1518,23 @@
     },
     {
       "kind": "waitFor",
-      "testid": "shortcuts-help-dialog",
+      "testid": "detail-sidebar",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "37-shortcuts-help"
+      "label": "37-guide-shortcut"
     },
     {
-      "kind": "click",
-      "testid": "shortcuts-help-close",
-      "timeoutMs": 3000
+      "kind": "press",
+      "testid": "chat-input",
+      "key": "/",
+      "timeoutMs": 3000,
+      "mod": true
     },
     {
       "kind": "waitGone",
-      "testid": "shortcuts-help-dialog",
+      "testid": "detail-sidebar",
       "timeoutMs": 4000
     },
     {

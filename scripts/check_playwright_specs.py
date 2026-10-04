@@ -110,7 +110,9 @@ MAX_UNREACHABLE_NAVIGATIONS = 8
 # inside `multi-viewport.spec.ts` whose three siblings run. This number
 # descends. It is the count of cases the corpus has stopped covering, and the
 # only honest way down is repairing a spec, never widening the ceiling.
-MAX_SKIP_SITES = 5
+# Lowered to 4 on 2026-10-04: the skipped companion drag spec went with the
+# floating panel it tested, replaced by the Guide tab of the detail sidebar.
+MAX_SKIP_SITES = 4
 
 # A reason shorter than this names nothing. The shortest condition in the
 # corpus is a full sentence naming a file and a symbol.

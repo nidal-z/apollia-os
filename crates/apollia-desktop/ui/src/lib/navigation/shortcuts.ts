@@ -179,13 +179,6 @@ export const SHORTCUTS: ShortcutEntry[] = [
     category: "companion",
   },
   {
-    id: "companion.move",
-    combo: { mac: "⌘+⌥+Arrows", win: "Ctrl+Alt+Arrows" },
-    descriptionKey: "settings.shortcuts.items.companion_move",
-    scope: "global",
-    category: "companion",
-  },
-  {
     id: "companion.focus",
     combo: { mac: "⌘+⇧+C", win: "Ctrl+Shift+C" },
     descriptionKey: "settings.shortcuts.items.companion_focus",

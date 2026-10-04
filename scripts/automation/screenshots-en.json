@@ -460,7 +460,7 @@
     },
     {
       "kind": "click",
-      "testid": "companion-close"
+      "testid": "detail-sidebar-collapse"
     },
     {
       "kind": "sleep",
