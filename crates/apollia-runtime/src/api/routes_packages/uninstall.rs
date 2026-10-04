@@ -20,7 +20,7 @@ use apollia_tools::{AgentRepository, PackageRepository};
 use super::{agents_db, api_err, internal, ApiError, PackageErrorBody, StateMcp, API_ACTOR};
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
-use crate::governance::NoPolicyGovernance;
+use crate::governance::GovernanceHandle;
 use crate::packages::{self, UninstallError, UninstallOptions, UninstallReport, UninstallTargets};
 
 /// Body of both uninstall routes: what the user chose to erase.
@@ -125,17 +125,20 @@ async fn run<B: ExecutionBackend + Clone>(
     subject: Subject<'_>,
     request: &UninstallRequest,
 ) -> Result<Json<UninstallReport>, ApiError> {
-    let journal = state.audit_journal.clone().ok_or_else(|| {
-        api_err(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "journal_unavailable",
-            "audit journal not available: nothing is uninstalled without its record",
-        )
-    })?;
+    let governance = state
+        .governance
+        .clone()
+        .filter(GovernanceHandle::journaled)
+        .ok_or_else(|| {
+            api_err(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "journal_unavailable",
+                "audit journal not available: nothing is uninstalled without its record",
+            )
+        })?;
     let db = agents_db(state);
     let packages = PackageRepository::open(&db).map_err(internal)?;
     let agents = AgentRepository::open(&db).map_err(internal)?;
-    let governance = NoPolicyGovernance::new(journal);
     let mcp = StateMcp { state };
     let targets = UninstallTargets {
         packages: &packages,

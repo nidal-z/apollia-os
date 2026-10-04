@@ -23,7 +23,11 @@ impl BuiltInChatAgent {
             hook_executor: None,
             pending_injection: None,
             tool_turn_temperature: DEFAULT_TOOL_TURN_TEMPERATURE,
-            prefix_checker: None,
+            governance: crate::governance::GovernanceHandle::detached(
+                crate::governance::GovernanceState::default(),
+                None,
+            ),
+            unattended: false,
             preferred_backend: None,
             agent_id: crate::chat::manager::APOLLIA_CHAT_AGENT_ID.to_string(),
             approval_timeout: Some(CHAT_APPROVAL_TIMEOUT),
@@ -72,11 +76,22 @@ impl BuiltInChatAgent {
         self
     }
 
-    /// Attach the per-invocation prefix-rule checker. `None` keeps the
-    /// previous behavior: a tool call outside the name-only authorization set
-    /// goes straight to human approval.
-    pub fn with_prefix_checker(mut self, checker: Option<Arc<PrefixChecker>>) -> Self {
-        self.prefix_checker = checker;
+    /// Decide every tool call with `governance`. `None` keeps the empty
+    /// state the agent starts with: reading runs, everything sensitive asks.
+    pub fn with_governance(
+        mut self,
+        governance: Option<crate::governance::GovernanceHandle>,
+    ) -> Self {
+        if let Some(governance) = governance {
+            self.governance = governance;
+        }
+        self
+    }
+
+    /// Mark the run as watched by nobody: a call that would ask waits for an
+    /// answer given later instead.
+    pub fn with_unattended(mut self, unattended: bool) -> Self {
+        self.unattended = unattended;
         self
     }
 

@@ -231,6 +231,9 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `AppState` so the desktop journals what it changes outside the HTTP
     /// routes (a native account connected or disconnected).
     pub connection_governance: crate::governance::ConnectionGovernance,
+    /// The governance actor every tool call is decided by, shared with
+    /// `AppState` and the chat.
+    pub governance: crate::governance::GovernanceHandle,
     /// The hash-chained audit journal, shared with `AppState`, so the host
     /// records what it installs outside the HTTP routes (the packages its
     /// binary ships). `None` when the journal could not be opened.

@@ -216,6 +216,18 @@ impl ChatSessionManagerHandle {
         let _ = self.tx.send(ChatCommand::SetComposer { composer }).await;
     }
 
+    /// Hand over the governance every tool call is decided by.
+    ///
+    /// Every run that starts afterwards, in the chat or outside it, asks it
+    /// before each tool call. Until it is set, a run decides from an empty
+    /// state: reading runs, everything sensitive asks.
+    pub async fn set_governance(&self, governance: crate::governance::GovernanceHandle) {
+        let _ = self
+            .tx
+            .send(ChatCommand::SetGovernance { governance })
+            .await;
+    }
+
     /// List the N most recent sessions with their first user message.
     ///
     /// Returns an empty vec if the actor is unreachable or the query fails.

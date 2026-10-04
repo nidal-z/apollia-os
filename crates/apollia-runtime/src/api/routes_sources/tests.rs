@@ -11,8 +11,9 @@ use crate::audit_journal::AuditJournalHandle;
 
 const KEY: &[u8] = b"sources-routes-journal-key-00001";
 
-/// A runtime on `dir` with the source registry, and with a signed journal and
-/// one stored agent, `veille`, declaring no source, when `agent` is set.
+/// A runtime on `dir` with the source registry, and with a signed journal, the
+/// governance that records through it, and one stored agent, `veille`,
+/// declaring no source, when `agent` is set.
 async fn state(dir: &tempfile::TempDir, agent: bool) -> AppState<MockBackend> {
     let mut state = app_state(
         Arc::new(StemLoader { refusal: None }),
@@ -34,11 +35,15 @@ async fn state(dir: &tempfile::TempDir, agent: bool) -> AppState<MockBackend> {
                 updated_at: "2026-10-03T00:00:00Z".into(),
             })
             .unwrap();
-        state.audit_journal = Some(
+        let journal =
             AuditJournalHandle::open_with_key_bytes(&dir.path().join("journal.db"), KEY.to_vec())
                 .await
-                .unwrap(),
-        );
+                .unwrap();
+        state.governance = Some(crate::governance::GovernanceHandle::detached(
+            crate::governance::GovernanceState::default(),
+            Some(journal.clone()),
+        ));
+        state.audit_journal = Some(journal);
     }
     state
 }

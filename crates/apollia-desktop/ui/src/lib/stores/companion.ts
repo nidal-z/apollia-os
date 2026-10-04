@@ -1,25 +1,22 @@
 /**
- * Companion panel state store.
+ * Guide state store.
  *
- * The Companion is a floating chat panel that provides contextual help on
- * every page. Panel geometry (position, size, visibility) is persisted in
- * localStorage. The enabled preference is persisted in UserMemory so it
- * survives application reinstalls.
+ * The guide lives in the Guide tab of the detail sidebar
+ * (`$lib/stores/detailSidebar`), which owns whether it is shown. This store
+ * holds the guide's chat session and the context it was given: the route,
+ * the sub-screen the screen declares and the object it shows
+ * (`$lib/stores/guideContext`). The enabled preference is persisted in
+ * UserMemory so it survives application reinstalls.
  */
-import { writable } from "svelte/store";
+import { get, writable } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
+import { detailSidebar, guideVisible } from "$lib/stores/detailSidebar";
 import {
-  COMPANION_MIN_SIZE,
-  clampPosition,
-  clampSize,
-  validateGeometry,
-  type Position,
-  type Size,
-  type Viewport,
-} from "$lib/companion/snapGeometry";
-
-export type CompanionPosition = Position;
-export type CompanionSize = Size;
+  guidePromptDetails,
+  type GuideContext,
+  type GuideObject,
+  type GuideSubscreen,
+} from "$lib/stores/guideContext";
 
 /** Lifecycle stage of the embedded chat session. */
 export type CompanionSessionStatus =
@@ -54,131 +51,35 @@ export interface CompanionState {
    * Initialised to `false`; call `initFromMemory()` on app startup to restore.
    */
   enabled: boolean;
-  /** Companion panel is open (not hidden). */
-  visible: boolean;
   /** Active chat session identifier, `null` when no session has been created. */
   sessionId: string | null;
-  /** `true` when the panel is collapsed to a round icon button. */
-  minimized: boolean;
-  /** Panel position in viewport pixels. `x === -1` means bottom-right auto. */
-  position: CompanionPosition;
-  /** Panel size in pixels. */
-  size: CompanionSize;
-  /** Application route currently shown, used to build contextual prompts. */
+  /** Application route the guide was last given, or `onboarding`. */
   currentRoute: string;
-  /** Contextual help text for the current route, populated by `updateContext`. */
+  /** Sub-screen the screen declared, `null` on the screen itself. */
+  currentSubscreen: GuideSubscreen | null;
+  /** Object the sub-screen shows, `null` when none. */
+  currentObject: GuideObject | null;
+  /** Instructions given to the guide for the current context. */
   currentContext: string;
   /** Lifecycle of the embedded chat session. */
   sessionStatus: CompanionSessionStatus;
   /** Structured error populated when session creation fails. */
   error: CompanionError | null;
-  /** Unread message count displayed on the restore button. */
-  unreadCount: number;
-  /** `true` while the restore button should run its one-shot pulse animation. */
-  restorePulseActive: boolean;
 }
-
-const STORAGE_KEY = "apollia_companion";
-const GEOMETRY_KEY = "companionGeometry";
 
 /** Timeout after which a session-creation attempt falls back to an error. */
 export const COMPANION_SESSION_TIMEOUT_MS = 10_000;
 
 const DEFAULT_COMPANION_STATE: CompanionState = {
   enabled: false,
-  visible: false,
   sessionId: null,
-  minimized: false,
-  position: { x: -1, y: -1 },
-  size: { width: 380, height: 520 },
   currentRoute: "dashboard",
+  currentSubscreen: null,
+  currentObject: null,
   currentContext: "",
   sessionStatus: "idle",
   error: null,
-  unreadCount: 0,
-  restorePulseActive: true,
 };
-
-function viewport(): Viewport {
-  return { width: globalThis.innerWidth, height: globalThis.innerHeight };
-}
-
-function isAutoPosition(pos: CompanionPosition): boolean {
-  return pos.x === -1 && pos.y === -1;
-}
-
-function safeClampPosition(
-  pos: CompanionPosition,
-  size: CompanionSize,
-): CompanionPosition {
-  if (isAutoPosition(pos)) return pos;
-  if (globalThis.window === undefined) return pos;
-  return clampPosition(pos, size, viewport());
-}
-
-function safeClampSize(size: CompanionSize): CompanionSize {
-  if (globalThis.window === undefined) {
-    return {
-      width: Math.max(COMPANION_MIN_SIZE.width, size.width),
-      height: Math.max(COMPANION_MIN_SIZE.height, size.height),
-    };
-  }
-  return clampSize(size, viewport());
-}
-
-/**
- * Reads persisted geometry from localStorage, falling back to defaults.
- * Geometry is stored under {@link GEOMETRY_KEY}; legacy state blobs stored
- * under {@link STORAGE_KEY} are still honoured for backwards compatibility.
- */
-/** Reads `position`/`size` from the canonical or legacy localStorage blob. */
-function readStoredGeometry(): { position?: Position; size?: Size } {
-  const geoRaw = localStorage.getItem(GEOMETRY_KEY);
-  if (geoRaw) {
-    const geo = JSON.parse(geoRaw) as { position?: Position; size?: Size };
-    return { position: geo.position, size: geo.size };
-  }
-  const legacy = localStorage.getItem(STORAGE_KEY);
-  if (legacy) {
-    const parsed = JSON.parse(legacy) as Partial<CompanionState>;
-    return { position: parsed.position, size: parsed.size };
-  }
-  return {};
-}
-
-function loadFromStorage(): CompanionState {
-  try {
-    const state: CompanionState = { ...DEFAULT_COMPANION_STATE };
-    const stored = readStoredGeometry();
-    if (stored.size) state.size = stored.size;
-    if (stored.position) state.position = stored.position;
-
-    const hasWindow = globalThis.window !== undefined;
-    if (!isAutoPosition(state.position) && hasWindow) {
-      const validated = validateGeometry(
-        { position: state.position, size: state.size },
-        viewport(),
-      );
-      state.position = validated.position;
-      state.size = validated.size;
-    } else {
-      state.size = safeClampSize(state.size);
-    }
-    return state;
-  } catch {
-    return { ...DEFAULT_COMPANION_STATE };
-  }
-}
-
-/** Writes panel geometry to `localStorage.companionGeometry`. */
-function saveGeometry(state: CompanionState): void {
-  try {
-    const payload = { position: state.position, size: state.size };
-    localStorage.setItem(GEOMETRY_KEY, JSON.stringify(payload));
-  } catch {
-    // Silently ignore quota errors or missing localStorage (SSR/tests).
-  }
-}
 
 function buildError(err: unknown): CompanionError {
   const message = err instanceof Error ? err.message : String(err);
@@ -237,112 +138,32 @@ async function withTimeout<T>(
 }
 
 function createCompanionStore() {
-  const initial =
-    typeof localStorage === "undefined"
-      ? { ...DEFAULT_COMPANION_STATE }
-      : loadFromStorage();
+  const { subscribe, update, set } = writable<CompanionState>({
+    ...DEFAULT_COMPANION_STATE,
+  });
 
-  const { subscribe, update, set } = writable<CompanionState>(initial);
-
-  /** Applies a state mutation; callers that change geometry must persist. */
   function mutate(fn: (s: CompanionState) => CompanionState): void {
     update((s) => fn(s));
-  }
-
-  function mutateGeometry(
-    fn: (s: CompanionState) => CompanionState,
-  ): void {
-    update((s) => {
-      const next = fn(s);
-      saveGeometry(next);
-      return next;
-    });
   }
 
   const store = {
     subscribe,
 
     /**
-     * Toggles enabled and visible together (sidebar button action).
-     * When enabling, the panel is shown; when disabling, the panel is hidden.
-     * The new enabled state is persisted asynchronously to UserMemory.
+     * Opens the Guide tab, or collapses it when it is already shown (palette
+     * action). The resulting visibility is persisted to UserMemory as the
+     * enabled preference.
      */
     toggleCompanion(): void {
-      let persistEnabled: boolean | null = null;
-      mutate((s) => {
-        // If minimized, just restore - don't toggle the enabled preference
-        if (s.enabled && s.minimized) {
-          return { ...s, minimized: false, unreadCount: 0, restorePulseActive: false };
-        }
-        const nextEnabled = !s.enabled;
-        persistEnabled = nextEnabled;
-        return {
-          ...s,
-          enabled: nextEnabled,
-          visible: nextEnabled,
-          minimized: false,
-        };
-      });
-      if (persistEnabled !== null) {
-        invoke("set_companion_enabled", { enabled: persistEnabled }).catch(() => {});
-      }
+      detailSidebar.toggleGuide();
+      const enabled = get(guideVisible);
+      mutate((s) => ({ ...s, enabled }));
+      invoke("set_companion_enabled", { enabled }).catch(() => {});
     },
 
-    /**
-     * Toggles visibility without changing the enabled preference.
-     * Used by the Cmd+/ (macOS) / Ctrl+/ keyboard shortcut.
-     */
-    toggleVisibility(): void {
-      mutate((s) => ({ ...s, visible: !s.visible, minimized: false }));
-    },
-
+    /** Opens the detail sidebar on the Guide tab. */
     openCompanion(): void {
-      mutate((s) => ({ ...s, visible: true, minimized: false }));
-    },
-
-    closeCompanion(): void {
-      mutate((s) => ({ ...s, visible: false }));
-    },
-
-    /** Collapses the panel to a round icon button. */
-    minimizeCompanion(): void {
-      mutate((s) => ({ ...s, minimized: true }));
-    },
-
-    /** Restores the panel from its collapsed icon state. */
-    restoreCompanion(): void {
-      mutate((s) => ({
-        ...s,
-        minimized: false,
-        unreadCount: 0,
-        restorePulseActive: false,
-      }));
-    },
-
-    /** Increments the unread count shown on the restore button. */
-    incrementUnread(): void {
-      mutate((s) => ({ ...s, unreadCount: s.unreadCount + 1 }));
-    },
-
-    updateRoute(route: string): void {
-      mutate((s) => ({ ...s, currentRoute: route }));
-    },
-
-    /** Stores the position after a drag operation, clamping to viewport. */
-    setPosition(pos: CompanionPosition): void {
-      mutateGeometry((s) => ({
-        ...s,
-        position: safeClampPosition(pos, s.size),
-      }));
-    },
-
-    /** Stores the size after a resize, clamped to min/max bounds. */
-    setSize(size: CompanionSize): void {
-      mutateGeometry((s) => {
-        const clamped = safeClampSize(size);
-        const position = safeClampPosition(s.position, clamped);
-        return { ...s, size: clamped, position };
-      });
+      detailSidebar.openGuide();
     },
 
     setSessionId(id: string | null): void {
@@ -390,13 +211,29 @@ function createCompanionStore() {
       }
     },
 
-    async updateContext(route: string): Promise<void> {
+    /**
+     * Gives the guide the context of the screen: the route's text, followed
+     * by the declared sub-screen and the object it shows. The text is looked
+     * up by route; the sub-screen and the object reach the guide through the
+     * lines `guidePromptDetails` appends.
+     */
+    async updateContext(context: GuideContext): Promise<void> {
       try {
-        const text = await invoke<string>("get_companion_context", { route });
+        const routeText = await invoke<string>("get_companion_context", {
+          route: context.route,
+        });
+        const details = guidePromptDetails(context);
+        const text = details ? `${routeText}\n\n${details}` : routeText;
         let currentSessionId: string | null = null;
         update((s) => {
           currentSessionId = s.sessionId;
-          return { ...s, currentRoute: route, currentContext: text };
+          return {
+            ...s,
+            currentRoute: context.route,
+            currentSubscreen: context.subscreen,
+            currentObject: context.object,
+            currentContext: text,
+          };
         });
         if (currentSessionId) {
           // Tauri camel-cases the names of command arguments before looking
@@ -417,27 +254,19 @@ function createCompanionStore() {
       try {
         const enabled = await invoke<boolean>("get_companion_enabled");
         if (enabled) {
-          // Restore the opt-in (feature stays enabled) but keep the panel
-          // closed at startup. Auto-showing it on launch spawns an empty chat
-          // session every time; the user opens the companion on demand via the
-          // toggle or the global shortcut instead.
-          mutate((s) => ({ ...s, enabled: true, visible: false }));
+          // Restore the opt-in but keep the Guide tab closed at startup.
+          // Opening it on launch spawns an empty chat session every time; the
+          // user opens the guide on demand from the help icon or Cmd+/.
+          mutate((s) => ({ ...s, enabled: true }));
         }
       } catch {
         // Non-critical - companion defaults to disabled on error.
       }
     },
 
-    /** Resets the store to defaults and clears localStorage. */
+    /** Resets the store to defaults. */
     reset(): void {
-      const next = { ...DEFAULT_COMPANION_STATE };
-      set(next);
-      try {
-        localStorage.removeItem(GEOMETRY_KEY);
-        localStorage.removeItem(STORAGE_KEY);
-      } catch {
-        // ignore
-      }
+      set({ ...DEFAULT_COMPANION_STATE });
     },
   };
 
@@ -445,18 +274,3 @@ function createCompanionStore() {
 }
 
 export const companionStore = createCompanionStore();
-
-export function isCompanionRestoreVisible(state: CompanionState): boolean {
-  return state.visible && state.minimized;
-}
-
-export function isCompanionPanelVisible(state: CompanionState): boolean {
-  return state.visible && !state.minimized;
-}
-
-/**
- * @deprecated Use {@link isCompanionRestoreVisible}.
- */
-export function isCompanionToggleVisible(state: CompanionState): boolean {
-  return isCompanionRestoreVisible(state);
-}

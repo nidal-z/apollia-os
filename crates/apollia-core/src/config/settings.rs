@@ -26,8 +26,8 @@ use serde::Serialize;
 use serde_json::Value;
 
 use super::{
-    AuthorConfig, DesktopConfig, EnginesConfig, McpConfig, ModelsConfig, ServerConfig,
-    ENGINE_LOG_LEVELS,
+    AuthorConfig, DesktopConfig, EnginesConfig, LlmResidencyConfig, McpConfig, ModelsConfig,
+    ServerConfig, ENGINE_LOG_LEVELS,
 };
 
 /// Wire names of the load guardrail levels, the values `llm.guardrails.level`
@@ -160,7 +160,9 @@ pub enum SettingError {
 /// `models.registry_mirror_url`, `models.registry_enabled`), the import rule
 /// (`models.import.require_verified`) and the load guardrail
 /// (`llm.guardrails.level`, `llm.guardrails.ceiling_gb`, where `0` sets no
-/// ceiling), then the whole `[server]` and `[engines]` sections.
+/// ceiling), the idle unload delay of a local model
+/// (`llm.residency.idle_unload_minutes`, where `0` never unloads), then the
+/// whole `[server]` and `[engines]` sections.
 fn defaults() -> serde_json::Map<String, Value> {
     let mut sections = serde_json::Map::new();
     // A struct of plain fields always serializes; a failure would only make
@@ -175,10 +177,14 @@ fn defaults() -> serde_json::Map<String, Value> {
         );
         sections.insert("models".to_owned(), Value::Object(models));
     }
-    sections.insert(
-        "llm".to_owned(),
-        serde_json::json!({ "guardrails": { "level": "balanced", "ceiling_gb": 0.0 } }),
-    );
+    let mut llm = serde_json::json!({ "guardrails": { "level": "balanced", "ceiling_gb": 0.0 } });
+    if let (Some(llm), Ok(residency)) = (
+        llm.as_object_mut(),
+        serde_json::to_value(LlmResidencyConfig::default()),
+    ) {
+        llm.insert("residency".to_owned(), residency);
+    }
+    sections.insert("llm".to_owned(), llm);
     if let Ok(mcp) = serde_json::to_value(McpConfig::default()) {
         sections.insert("mcp".to_owned(), mcp);
     }

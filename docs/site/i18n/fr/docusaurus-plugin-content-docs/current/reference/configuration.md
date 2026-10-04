@@ -169,6 +169,7 @@ Backends LLM, routage, et le runner de transcription. Le fichier par défaut lai
 | `llm.routing` | table | non définie | Backends qui répondent aux requêtes précises et rapides, et le plafond du routage hybride. |
 | `llm.guardrails.level` | l'une de disabled, lenient, balanced, strict, ceiling | `"balanced"` | Sévérité avec laquelle le lancement d'un modèle local est tenu à la mémoire de la machine ; un niveau inconnu vaut balanced. La politique de l'organisation peut l'imposer. |
 | `llm.guardrails.ceiling_gb` | décimal | non définie | Plus grande estimation, en gigaoctets, que le niveau ceiling lance. La politique de l'organisation peut l'imposer. |
+| `llm.residency.idle_unload_minutes` | entier | `60` | Minutes sans requête au bout desquelles un modèle local que rien ne retient est déchargé ; 0 ne décharge jamais. La politique de l'organisation peut l'imposer. |
 
 ### `[api]`
 
@@ -535,6 +536,40 @@ donne l'estimation et la limite : `POST /api/v1/llm/chat` et
 niveau `ceiling` sans `ceiling_gb` positif valent `balanced` : une faute de
 frappe ne coupe jamais le garde-fou. Un modèle dont l'empreinte ne peut pas être
 estimée est lancé.
+
+Plusieurs modèles peuvent rester chargés ensemble, autant que le garde-fou en
+admet : un modèle est jugé avec l'empreinte des modèles déjà chargés ajoutée à
+la sienne. Quand cette somme est refusée, les modèles chargés que rien ne
+retient (aucune conversation ouverte, aucune épingle, aucune réponse en cours)
+sont déchargés, le moins récemment utilisé d'abord et seulement autant qu'il le
+faut ; quand même cela ne suffirait pas, rien n'est déchargé et le chargement
+est refusé.
+
+## Résidence des modèles (`[llm.residency]`)
+
+Un modèle local que rien n'utilise rend sa mémoire de lui-même.
+
+```toml
+[llm.residency]
+idle_unload_minutes = 60   # 0 garde chargé un modèle inutilisé
+```
+
+| Règle | Décharge |
+| --- | --- |
+| Délai d'inactivité | un modèle qu'aucune requête n'a utilisé depuis `idle_unload_minutes`, vérifié toutes les trente secondes |
+| Dernière conversation fermée | un modèle aussitôt, quand la dernière conversation ouverte qui l'utilise se ferme |
+
+Un modèle que l'utilisateur a épinglé n'est déchargé par aucune des deux règles,
+et un modèle qui sert une réponse n'est jamais déchargé. L'épingle est gardée
+dans `system.db` et survit à un redémarrage. La clé est relue à chaque
+vérification : un changement s'applique sans redémarrage. Une interface dit
+quelles conversations sont ouvertes avec `POST /api/v1/llm/leases` et
+`POST /api/v1/llm/leases/release`, et épingle un modèle avec
+`PUT /api/v1/llm/pins`. Quand le flux d'événements qu'elle a ouvert avec
+`GET /api/v1/events?client=<id>` se termine, les conversations de ce client
+comptent comme fermées. Chaque déchargement est publié sur le bus d'événements
+sous `LlmModelUnloaded`, avec sa raison : `idle`, `last_conversation`,
+`requested` ou `make_room`.
 
 ## Dictée (`system.db`, pas `apollia.toml`)
 

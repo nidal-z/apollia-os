@@ -321,6 +321,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agents/installed/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Handler for `PUT /api/v1/agents/installed/{name}`.
+         * @description Validates the new module, replaces the installed one, records the new
+         *     version, and cycles the runtime instance when there is one. The cycle is the
+         *     point of the route: the interpreter holds the module it imported at start
+         *     time, so without the stop and the start the window would report a new
+         *     version while the old one keeps answering. Emits
+         *     `RuntimeEvent::AgentInstalled` once the runtime has settled.
+         */
+        put: operations["update_agent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agents/installed/{name}/uninstall": {
         parameters: {
             query?: never;
@@ -1415,7 +1440,8 @@ export interface paths {
          * `GET /api/v1/events`, every runtime event as SSE.
          * @description Each `runtime` frame carries one event of the bus serialized as the bus
          *     carries it; a `lagged` frame reports how many events this subscriber
-         *     missed. The stream stays open until the client disconnects.
+         *     missed. The stream stays open until the client disconnects, which releases
+         *     the leases of the `client` it names.
          */
         get: operations["stream_events"];
         put?: never;
@@ -1942,6 +1968,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/leases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/llm/leases`.
+         * @description A conversation moved to another model releases its lease on the previous
+         *     one, which is unloaded when nothing else holds it.
+         */
+        post: operations["open_model_lease"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/leases/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/llm/leases/release`.
+         * @description Releasing the last lease on a model unloads it at once, unless it is
+         *     pinned or answering a request.
+         */
+        post: operations["release_model_lease"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/loaded-models": {
         parameters: {
             query?: never;
@@ -2060,6 +2128,28 @@ export interface paths {
          *     - The backend call fails (key missing, network error, etc.).
          */
         post: operations["ping_llm_backend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/pins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/llm/pins`. */
+        get: operations["list_model_pins"];
+        /**
+         * Handler for `PUT /api/v1/llm/pins`.
+         * @description A pinned model is never unloaded on its own. Unpinning a model that nothing
+         *     else holds leaves it to the idle delay; it is not unloaded at once.
+         */
+        put: operations["set_model_pin"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5087,6 +5177,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tasks/{id}/delegation-tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/tasks/{id}/delegation-tree`.
+         * @description A task with no recorded delegation answers its root with no children.
+         */
+        get: operations["get_delegation_tree"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tasks/{id}/plan-decision": {
         parameters: {
             query?: never;
@@ -5110,6 +5220,23 @@ export interface paths {
          */
         post: operations["submit_plan_decision"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}/record": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Handler for `DELETE /api/v1/tasks/{id}/record`. */
+        delete: operations["delete_task_record"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6968,6 +7095,19 @@ export interface components {
              */
             timeout_secs?: number | null;
         };
+        /** @description One node of the delegation tree. */
+        DelegationTreeNode: {
+            /** @description Agent identifier (runtime UUID, or name if resolution fails). */
+            agent_id: string;
+            /** @description Human-readable agent name. */
+            agent_name: string;
+            /** @description Child delegations (A2A subtasks). */
+            children: components["schemas"]["DelegationTreeNode"][];
+            /** @description ISO 8601 start timestamp (None for the root if unknown). */
+            started_at?: string | null;
+            /** @description Current status: `submitted`, `working`, `completed`, `failed`, `running`, etc. */
+            status: string;
+        };
         /** @description Response body for `DELETE /api/v1/llm/backends/:name`. */
         DeleteBackendResponse: {
             /** @description Name of the deleted backend. */
@@ -7751,6 +7891,13 @@ export interface components {
             /** @description The model, by the identifier the model index gives it. */
             modelId: string;
         };
+        /** @description Response body for `POST /api/v1/llm/leases`. */
+        LeaseResponse: {
+            /** @description Open conversations designating it, this one included. */
+            leases: number;
+            /** @description The model the lease holds. */
+            modelPath: string;
+        };
         /** @description Response body for a single backend. */
         LlmBackendResponse: {
             /** @description Provider-specific configuration. */
@@ -7870,7 +8017,8 @@ export interface components {
             engine: components["schemas"]["EngineName"];
             /**
              * @description What the model serves: `chat`, or `embeddings` for the instance that
-             *     serves search by meaning, which does not count against `maxLoaded`.
+             *     serves search by meaning, which counts neither against `maxLoaded` nor
+             *     against the memory the guardrail weighs.
              */
             kind: components["schemas"]["ModelKind"];
             /** @description When a request last used the model, RFC 3339. */
@@ -7910,8 +8058,12 @@ export interface components {
              *     ever be loaded, not merely that nothing is.
              */
             engineAvailable: boolean;
-            /** @description How many models may stay resident at once; `0` without an engine. */
-            maxLoaded: number;
+            /**
+             * @description The explicit ceiling on resident models (`APOLLIA_LLAMA_MAX_LOADED`);
+             *     `null` when the load guardrail alone decides how many stay loaded, and
+             *     without an engine.
+             */
+            maxLoaded?: number | null;
             /** @description The resident models, most recently used first. */
             models: components["schemas"]["LoadedModelDto"][];
         };
@@ -8244,6 +8396,13 @@ export interface components {
          * @enum {string}
          */
         ModelKind: "chat" | "embeddings";
+        /** @description Request and response body for `PUT /api/v1/llm/pins`. */
+        ModelPin: {
+            /** @description Path of the model, as the resident list reports it. */
+            modelPath: string;
+            /** @description `true` keeps it loaded until it is unloaded by hand. */
+            pinned: boolean;
+        };
         /**
          * @description Where a model runs.
          * @enum {string}
@@ -8496,6 +8655,21 @@ export interface components {
              */
             total_time_sec: number;
         };
+        /** @description Request body for `POST /api/v1/llm/leases`. */
+        OpenLeaseRequest: {
+            /**
+             * @description The interface holding the conversation, the `client` it passes to
+             *     `GET /api/v1/events`.
+             */
+            clientId: string;
+            /** @description The conversation on screen. */
+            conversationId: string;
+            /**
+             * @description Path of the model the conversation designates, as the resident list
+             *     reports it.
+             */
+            modelPath: string;
+        };
         /**
          * @description Error body of the package routes: the message, and a stable code a client
          *     can act on.
@@ -8679,6 +8853,11 @@ export interface components {
              * @description Round-trip latency in milliseconds (only set when `available` is `true`).
              */
             latency_ms?: number | null;
+        };
+        /** @description Response body for `GET /api/v1/llm/pins`. */
+        PinsResponse: {
+            /** @description Paths of the pinned models, in path order. */
+            pins: string[];
         };
         /** @description Response body of the plan-mode writes. */
         PlanActionResponse: {
@@ -9013,6 +9192,26 @@ export interface components {
         RejectUserInputRequest: {
             /** @description Why the user declined to answer. */
             reason: string;
+        };
+        /** @description Request body for `POST /api/v1/llm/leases/release`. */
+        ReleaseLeaseRequest: {
+            /** @description The interface that opened the lease. */
+            clientId: string;
+            /** @description The conversation that left the screen. */
+            conversationId: string;
+        };
+        /** @description Response body for `POST /api/v1/llm/leases/release`. */
+        ReleaseLeaseResponse: {
+            /**
+             * @description The model no open conversation designates any more; absent when the
+             *     lease did not exist or another conversation still holds the model.
+             */
+            released?: string | null;
+            /**
+             * @description Whether that model was unloaded. It stays loaded when pinned or
+             *     answering a request.
+             */
+            unloaded: boolean;
         };
         /** @description Body of `POST /api/v1/llm/loaded-models/last/reload`. */
         ReloadLastRequest: {
@@ -9891,6 +10090,14 @@ export interface components {
             /** @description All tasks matching the optional filter. */
             tasks: components["schemas"]["TaskListItem"][];
         };
+        /** @description Response to a deletion. */
+        TaskRecordDeleted: {
+            /**
+             * @description `true` when a record was removed, `false` when no stored task matched
+             *     (already gone, or never persisted).
+             */
+            deleted: boolean;
+        };
         /** @description Response body for task operations. */
         TaskResponse: {
             /** @description Error message (present when failed). */
@@ -10375,6 +10582,29 @@ export interface components {
              *     context windows.
              */
             stopped: number;
+        };
+        /** @description Request body for `PUT /api/v1/agents/installed/{name}`. */
+        UpdateAgentRequest: {
+            /** @description Path of the new Python module on this machine. */
+            path: string;
+        };
+        /**
+         * @description Response to an agent update.
+         *
+         *     Distinct from the install answer because an update has an outcome an
+         *     install cannot have: a runtime instance that had to be cycled.
+         */
+        UpdateAgentResponse: {
+            /** @description Install path on disk. */
+            install_path: string;
+            /** @description Unique name of the updated agent. */
+            name: string;
+            /** @description Raw cause when the stop or the start failed, `None` otherwise. */
+            restart_error?: string | null;
+            /** @description One of the [`restart_outcome`] constants. */
+            restart_outcome: string;
+            /** @description Semver version read from the new module's manifest. */
+            version: string;
         };
         /** @description The fields of an artifact a change may replace; an absent one is kept. */
         UpdateArtifactRequest: {
@@ -11501,6 +11731,60 @@ export interface operations {
                 };
             };
             /** @description The install cannot be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    update_agent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Name of the installed agent */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description Agent updated, with what happened to its running instance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateAgentResponse"];
+                };
+            };
+            /** @description File absent or module refused */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No installed agent of that name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The update cannot be written */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -14180,7 +14464,13 @@ export interface operations {
     };
     stream_events: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description The client holding the stream, as it names itself when it opens
+                 *     leases on local models. When the stream ends, its leases are released.
+                 */
+                client?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -15652,6 +15942,90 @@ export interface operations {
             };
         };
     };
+    open_model_lease: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenLeaseRequest"];
+            };
+        };
+        responses: {
+            /** @description Lease open */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaseResponse"];
+                };
+            };
+            /** @description A blank field */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No local engine on this host */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    release_model_lease: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseLeaseRequest"];
+            };
+        };
+        responses: {
+            /** @description Lease released, or none was open */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleaseLeaseResponse"];
+                };
+            };
+            /** @description A blank field */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No local engine on this host */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     list_loaded_models: {
         parameters: {
             query?: never;
@@ -15961,6 +16335,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PingResponse"];
+                };
+            };
+        };
+    };
+    list_model_pins: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pinned models */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PinsResponse"];
+                };
+            };
+            /** @description No local engine on this host */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_model_pin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelPin"];
+            };
+        };
+        responses: {
+            /** @description Pin saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelPin"];
+                };
+            };
+            /** @description Empty model path */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The pin could not be saved */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No local engine on this host */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };
@@ -22894,6 +23348,47 @@ export interface operations {
             };
         };
     };
+    get_delegation_tree: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Parent task id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The task and its delegations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DelegationTreeNode"];
+                };
+            };
+            /** @description The delegations cannot be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Sidechain logging not initialized */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     submit_plan_decision: {
         parameters: {
             query?: never;
@@ -22938,6 +23433,47 @@ export interface operations {
                 };
             };
             /** @description Plan gate not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_task_record: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Task id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether a stored record was removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskRecordDeleted"];
+                };
+            };
+            /** @description The task store refused the deletion */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Task persistence is not available */
             503: {
                 headers: {
                     [name: string]: unknown;

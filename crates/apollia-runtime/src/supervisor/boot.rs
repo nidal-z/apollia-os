@@ -235,6 +235,7 @@ impl Supervisor {
             trigger_engine: executors.trigger_engine,
             audit_trail: governance.audit_trail,
             connection_governance: governance.connection,
+            governance: governance.handle,
             audit_journal: governance.audit_journal,
             task_repository: stores.task_repository,
             pending_approvals: stores.pending_approvals,

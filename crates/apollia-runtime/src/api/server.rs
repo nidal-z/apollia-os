@@ -202,6 +202,10 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// Production journals into [`Self::audit_journal`] with no policy
     /// deposited; the default admits everything and journals nothing.
     pub connection_governance: crate::governance::ConnectionGovernance,
+    /// The governance the runtime runs on: the decision on every tool call,
+    /// the signature question of an installation, and the records of changes
+    /// of access. `None` in tests that mount no governance.
+    pub governance: Option<crate::governance::GovernanceHandle>,
     /// The `[inference]` section and the fixed settings of the organisation
     /// policy: an inference server is checked before it is added and before a
     /// request reaches it, and the model registry follows the fixed settings.
@@ -394,6 +398,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             audit_trail: self.audit_trail.clone(),
             audit_journal: self.audit_journal.clone(),
             connection_governance: self.connection_governance.clone(),
+            governance: self.governance.clone(),
             inference_governance: self.inference_governance.clone(),
             obs_config: self.obs_config.clone(),
             config_reload: self.config_reload.clone(),
@@ -843,6 +848,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             config_reload: None,

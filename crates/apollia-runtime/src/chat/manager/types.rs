@@ -57,14 +57,12 @@ pub struct SessionAuthorizationView {
 pub(in crate::chat::manager) struct ChatLibreOverrides {
     pub(in crate::chat::manager) system_prompt: Option<String>,
     pub(in crate::chat::manager) llm_backend: Option<String>,
-    pub(in crate::chat::manager) pre_authorized_tools: std::collections::HashSet<String>,
 }
 
 /// Per-session defaults derived from the Libre-mode governance overrides.
 #[derive(Debug, Default)]
 pub(in crate::chat::manager) struct LibreSessionDefaults {
     pub(in crate::chat::manager) llm_backend: Option<String>,
-    pub(in crate::chat::manager) pre_authorized: std::collections::HashSet<String>,
 }
 
 /// Inputs for [`resolve_exchange_summary`].
@@ -75,17 +73,6 @@ pub(in crate::chat::manager) struct ExchangeSummaryParams<'a> {
     pub(in crate::chat::manager) llm_for_summarize: &'a Option<Arc<LlmRouter>>,
     pub(in crate::chat::manager) tx: &'a mpsc::Sender<ChatCommand>,
     pub(in crate::chat::manager) sid: &'a str,
-}
-
-/// Scope-resolution inputs for `persist_always_accept_scope`, captured before
-/// the session borrow is released so governance persistence can use a disjoint
-/// `&self`.
-pub(in crate::chat::manager) struct AlwaysAcceptScopeCtx<'a> {
-    pub(in crate::chat::manager) scope: &'a super::super::types::AlwaysAcceptScope,
-    pub(in crate::chat::manager) session_mode: ChatMode,
-    pub(in crate::chat::manager) session_agent_name: Option<String>,
-    pub(in crate::chat::manager) session_id: &'a str,
-    pub(in crate::chat::manager) tool_name: &'a str,
 }
 
 /// Owned, `Send` inputs for a spawned Libre/Companion exchange.
@@ -117,7 +104,6 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     pub(in crate::chat::manager) available_tools: apollia_tools::AgentAccess,
     pub(in crate::chat::manager) authorized_tools: std::collections::HashSet<String>,
     pub(in crate::chat::manager) system_prompt: String,
-    pub(in crate::chat::manager) is_companion: bool,
     pub(in crate::chat::manager) context_window_size: usize,
     pub(in crate::chat::manager) stored_summary: Option<String>,
     pub(in crate::chat::manager) llm_for_summarize: Option<Arc<LlmRouter>>,
@@ -129,6 +115,8 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     pub(in crate::chat::manager) package_tools: Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
     /// Runs the agents and workflows the Apollia agent was granted.
     pub(in crate::chat::manager) composer: Option<Arc<dyn crate::composition::Composer>>,
+    /// The governance every tool call of the exchange is decided by.
+    pub(in crate::chat::manager) governance: Option<crate::governance::GovernanceHandle>,
     pub(in crate::chat::manager) chat_tools_config_for_session: Option<Arc<ChatToolsConfig>>,
     pub(in crate::chat::manager) mcp_loading: LoadingMode,
     pub(in crate::chat::manager) tool_search_limit: usize,

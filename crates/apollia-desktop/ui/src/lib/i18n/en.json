@@ -98,16 +98,13 @@
       "ago": "{time} ago"
     }
   },
+  "detailSidebar": {
+    "aria_label": "Detail panel",
+    "tab_guide": "Guide",
+    "collapse": "Collapse the detail panel"
+  },
   "companion": {
-    "aria_label": "Apollia Companion",
-    "title": "Companion",
-    "minimize": "Minimize Companion",
-    "close": "Close Companion",
     "no_session": "No active session.",
-    "drag": {
-      "handle_aria": "Drag to move Companion",
-      "resize_aria": "Resize Companion"
-    },
     "session": {
       "connecting": "Connecting to agent…",
       "creating": "Creating session…",
@@ -151,8 +148,7 @@
         "cause_2": "Configuration is invalid",
         "cause_3": "An internal error occurred"
       }
-    },
-    "header_toolbar": "Companion toolbar"
+    }
   },
   "a11y": {
     "skip_to_content": "Skip to content",
@@ -226,6 +222,8 @@
       "runtime_down": "Runtime offline - reconnecting"
     },
     "search_aria": "Search and command palette",
+    "help_aria": "Help on this screen",
+    "detail_sidebar_aria": "Show or hide the detail panel",
     "agents_at_work": "{count} agents at work",
     "downloads": {
       "button_aria": "Downloads",
@@ -256,7 +254,6 @@
     "settings": "Settings",
     "shortcuts": "Keyboard shortcuts",
     "reset_onboarding": "Reset onboarding",
-    "help": "Help",
     "about": "About",
     "quit": "Quit"
   },
@@ -2264,8 +2261,7 @@
         "chat_stop": "Cancel the current generation",
         "settings_save": "Save the current settings panel",
         "settings_close": "Close dialog or sheet",
-        "companion_toggle": "Show / hide Apollia Help",
-        "companion_move": "Move the Companion across the screen",
+        "companion_toggle": "Open the guide on the current screen",
         "companion_focus": "Focus the Companion input",
         "approvals_accept": "Accept the current approval",
         "approvals_refuse": "Refuse the current approval",
@@ -3303,7 +3299,6 @@
       "palette": "Open command palette",
       "search_sidebar": "Focus sidebar search",
       "toggle_sidebar": "Toggle sessions sidebar",
-      "help": "Keyboard shortcuts",
       "next_message": "Next message",
       "prev_message": "Previous message",
       "stop_or_close": "Stop streaming / close modal"
@@ -4132,7 +4127,7 @@
       "createAgent": "Create agent",
       "createTrigger": "Create trigger",
       "toggleDeveloperMode": "Turn developer mode on / off",
-      "toggleCompanion": "Toggle Companion"
+      "toggleCompanion": "Open or close the guide"
     },
     "help": {
       "shortcuts": "Open Keyboard shortcuts",
