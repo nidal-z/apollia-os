@@ -3801,6 +3801,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/server/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/server/restart`: closes and reopens the compatible server so
+         *     it applies the `[server]` settings as they stand (port, local network,
+         *     token check). The native API is not reopened and keeps answering.
+         *     Restarting a stopped server changes nothing.
+         */
+        post: operations["restart_server"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/server/start": {
         parameters: {
             query?: never;
@@ -4470,6 +4492,41 @@ export interface paths {
          */
         post: operations["shutdown_handler"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/sources`: every source, oldest first. */
+        get: operations["list_sources"];
+        put?: never;
+        /** `POST /api/v1/sources`: add a source. */
+        post: operations["create_source"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** `DELETE /api/v1/sources/{id}`: remove a source. */
+        delete: operations["delete_source"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6153,6 +6210,11 @@ export interface components {
              * @description How many tokens of the server are in use (not revoked).
              */
             activeTokens: number;
+            /**
+             * @description The address a client copies: `http://127.0.0.1:<port>` on the machine
+             *     alone, `http://<IPv4 address on the local network>:<port>` otherwise.
+             */
+            address: string;
             /** @description Why the last start failed, cleared by the next successful start. */
             lastError?: string | null;
             /**
@@ -6162,6 +6224,11 @@ export interface components {
             port: number;
             /** @description Whether the listener is open. */
             running: boolean;
+            /**
+             * @description Whether it listens on every interface, reachable from the local
+             *     network, or the configured choice when it is stopped.
+             */
+            serveOnLan: boolean;
         };
         /** @description Body of `POST /api/v1/connectors/oauth/complete`. */
         CompleteConsentBody: {
@@ -6419,6 +6486,17 @@ export interface components {
             system_prompt?: string | null;
             /** @description List of tool names available in this session. */
             tools?: string[];
+        };
+        /** @description Body of `POST /api/v1/sources`. */
+        CreateSourceBody: {
+            /** @description A group the source belongs to. */
+            group?: string | null;
+            /** @description `folder`, `file`, `mail`, `profile`, `memory` or `code_folder`. */
+            kind: string;
+            /** @description The name the user sees. */
+            label: string;
+            /** @description What the source points at; required for `folder`, `file` and `mail`. */
+            reference?: string | null;
         };
         /** @description Request body for `POST /api/v1/triggers`, trigger creation. */
         CreateTriggerRequest: {
@@ -6931,6 +7009,11 @@ export interface components {
              */
             client_json: string;
         };
+        /**
+         * @description Where the index of a source stands.
+         * @enum {string}
+         */
+        IndexStateDto: "absent" | "indexing" | "ready" | "error" | "keywords_only";
         /** @description Request body for `POST /api/v1/agents/:name/messages`. */
         InjectMessageBody: {
             /**
@@ -8659,6 +8742,7 @@ export interface components {
             /**
              * @description The user's value: a string for `name` and `mission`, a tier name for
              *     `autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`.
+             *     A `sources` entry is a source identifier of `GET /api/v1/sources`, `profile` or `memory`.
              */
             value: Record<string, never>;
         };
@@ -8783,6 +8867,31 @@ export interface components {
             options?: {
                 [key: string]: string;
             };
+        };
+        /**
+         * @description What a source is.
+         * @enum {string}
+         */
+        SourceKindDto: "folder" | "file" | "mail" | "profile" | "memory" | "code_folder";
+        /** @description A source of the registry. */
+        SourceResponse: {
+            /** @description When it was added, RFC 3339 in UTC. */
+            addedAt: string;
+            /** @description The group the source belongs to, if any. */
+            group?: string | null;
+            /** @description Identifier, the form an agent's `sources` list names it by. */
+            id: string;
+            /** @description Where its index stands. */
+            indexState: components["schemas"]["IndexStateDto"];
+            /** @description What the source is. */
+            kind: components["schemas"]["SourceKindDto"];
+            /** @description The name the user sees. */
+            label: string;
+            /**
+             * @description What the source points at: a folder connection, a file path, a mail
+             *     connection, a memory space.
+             */
+            reference?: string | null;
         };
         /** @description SSE frame emitted by the mailbox observation stream. */
         SseMailboxEvent: Record<string, never> & {
@@ -10126,7 +10235,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
-            /** @description Unknown field, or a value of the wrong shape */
+            /** @description Unknown field, a value of the wrong shape, or a source the registry does not hold */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10135,7 +10244,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
-            /** @description Audit journal not available */
+            /** @description Audit journal, or the source registry a sources list needs, not available */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -18662,6 +18771,53 @@ export interface operations {
             };
         };
     };
+    restart_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The compatible server applies its settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompatServerStatus"];
+                };
+            };
+            /** @description Another program holds the port */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The listener or the setting failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No compatible server in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     start_server: {
         parameters: {
             query?: never;
@@ -20334,6 +20490,118 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShutdownResponse"];
+                };
+            };
+        };
+    };
+    list_sources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The sources of the registry */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceResponse"][];
+                };
+            };
+            /** @description Source registry not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    create_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSourceBody"];
+            };
+        };
+        responses: {
+            /** @description Source added */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceResponse"];
+                };
+            };
+            /** @description Unknown kind, blank label, or a folder, file or mailbox without a reference */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Source registry not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Source identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Source removed; the source as it was */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceResponse"];
+                };
+            };
+            /** @description Source not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Source registry not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };

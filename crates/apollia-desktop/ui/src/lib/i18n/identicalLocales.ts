@@ -46,8 +46,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "settings.integrations.placeholder.api_key", // AIzaSy…
   "settings.integrations.placeholder.client_id_google", // 1234567890-abcdefgh.apps.googleusercontent.com
   "settings.integrations.placeholder.client_secret", // GOCSPX-…
-  "settings.integrations.provider.google", // Google Workspace
-  "settings.integrations.provider.microsoft", // Microsoft 365
   "settings.language_en", // English
   "settings.language_fr", // Français
   "settings.llm_dialog.field_top_k", // Top-K

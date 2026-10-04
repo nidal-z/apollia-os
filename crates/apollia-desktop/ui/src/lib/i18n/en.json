@@ -2031,7 +2031,6 @@
       "configuration": "Configuration",
       "tools": "Tools",
       "permissions": "Permissions",
-      "integrations": "OAuth integrations",
       "system": "System info",
       "shortcuts": "Shortcuts",
       "observability": "Observability",
@@ -2461,11 +2460,11 @@
         "reset_done": "Profile reset"
       },
       "memory": {
-        "title": "Memory facts",
-        "subtitle": "Details your agents retained across conversations. Right-click to edit or delete.",
+        "title": "What your agents remembered about you",
+        "subtitle": "The details your agents kept from your conversations. You can correct or delete each one.",
         "empty": {
           "title": "No facts yet",
-          "detail": "Your agents will note useful details here as you talk."
+          "detail": "Your agents will note here what they remember about you as you talk."
         },
         "add": "Add a fact",
         "key_placeholder": "Key (e.g. prefs.schedule)",
@@ -2474,7 +2473,7 @@
         "copy_value": "Copy value",
         "delete_dialog": {
           "title": "Delete this fact?",
-          "message": "The fact \"{key}\" will be forgotten. This cannot be undone.",
+          "message": "\"{value}\" will be forgotten by all your agents. This cannot be undone.",
           "confirm": "Delete fact"
         }
       }
@@ -2991,7 +2990,6 @@
     },
     "configuration": {},
     "integrations": {
-      "subtitle": "OAuth client credentials for the Google and Microsoft connectors. Microsoft is ready to connect; Google needs a client you register yourself.",
       "required": "Required",
       "optional": "Optional",
       "source": {
@@ -3011,54 +3009,24 @@
         "client_secret": "Client secret",
         "api_key": "API key (Picker)"
       },
-      "provider": {
-        "google": "Google Workspace",
-        "microsoft": "Microsoft 365"
-      },
-      "provider_meta": {
-        "google": "Gmail, Calendar, Drive · \"Desktop app\" type",
-        "microsoft": "Outlook, Calendar · public client (PKCE)"
-      },
       "placeholder": {
         "client_id_google": "1234567890-abcdefgh.apps.googleusercontent.com",
         "client_id_microsoft": "00000000-0000-0000-0000-000000000000",
         "client_secret": "GOCSPX-…",
         "api_key": "AIzaSy…"
       },
-      "help": {
-        "client_secret": "Next to the Client ID in Google Cloud Console › Credentials. Google treats this secret as non-confidential for native apps, but its token endpoint still requires it.",
-        "api_key": "Google Cloud Console › APIs & Services › Credentials › API key. Restrict it to the Google Picker and Drive APIs.",
-        "ms_builtin": "Microsoft 365 connects out of the box: Apollia ships the client ID of its own public client registration. Fill this in only to point the connector at your own Azure app registration. A public client needs no secret either way."
-      },
-      "redirect_note": "This client must allow Apollia's loopback redirect. Add this URI to the client's \"Authorized redirect URIs\":",
       "copied": "Copied",
-      "stored_note": "The secret and the API key are kept in the system keychain, never in a file",
-      "ms_no_secret": "No client secret required for Microsoft",
-      "explain_intro": "Resolution order for each credential: the first non-empty source wins. Leave a field empty to fall back to the next step.",
-      "empty_title": "No OAuth connector available",
-      "empty_body": "This build of Apollia exposes no Google or Microsoft connector. Credentials will appear here as soon as a connector is active.",
-      "load_error_title": "Unable to read the OAuth configuration",
-      "load_error_body": "The service did not respond. Check that Apollia is running, then retry.",
       "raw_detail": "Technical detail",
       "drive": {
-        "title": "Google Drive folders",
-        "description": "Per connected account, the Drive folder Apollia's agents work in.",
-        "effective": "Effective:",
         "drive_root": "(your Drive root)",
-        "explicit": "explicit choice",
         "default_tag": "(default)",
-        "custom_tag": "(custom)",
         "placeholder": "Apollia",
         "folder_path": "Drive folder path",
-        "reset": "Default",
-        "help": "Apollia's workspace in your Drive. Agents create and list their files here by default. Enter a path, or leave empty and save to use the Drive root directly. The drive.file scope only exposes files Apollia created or that you opened for it.",
         "saved": "Drive folder saved.",
         "reset_done": "Drive folder reset to default."
       },
-      "test_config": "Test configuration",
       "test_valid": "Configuration looks valid.",
-      "test_invalid": "Configuration issue.",
-      "import_json": "Import JSON"
+      "test_invalid": "Configuration issue."
     },
     "language_label": "Interface language",
     "theme_help": "Light, dark, or synced to your system.",

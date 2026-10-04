@@ -373,7 +373,6 @@
       "settings.developer.mcp.title",
       "settings.developer.mcp.write_failed",
       "settings.help.topic_model_body",
-      "settings.integrations.help.client_secret",
       "settings.llm.delete_message",
       "settings.llm.delete_title",
       "settings.llm.delete_toast",

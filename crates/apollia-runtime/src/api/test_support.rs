@@ -152,6 +152,7 @@ pub(crate) fn app_state(loader: Arc<dyn AgentLoader>, data_dir: PathBuf) -> AppS
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     }
 }
 

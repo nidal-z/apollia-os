@@ -125,11 +125,18 @@ fn main() {
         );
     }
 
+    // The port of the native API: the one a serving daemon recorded, else
+    // `[api].port`, else the default.
+    let config_text = apollia_core::paths::config_file()
+        .filter(|p| p.exists())
+        .and_then(|p| std::fs::read_to_string(p).ok());
+    let runtime_port = startup::resolve_port(&apollia_data_dir, config_text.as_deref());
+
     // Start, attach or refuse, before PyO3, any database or any listener of
     // the runtime. The claimed port is handed to the runtime below as is.
     // When the runtime is installed as a service of the session, it is
     // brought up first, so the decision finds it serving and attaches.
-    let runtime_addr = std::net::SocketAddr::from(([127, 0, 0, 1], startup::RUNTIME_PORT));
+    let runtime_addr = std::net::SocketAddr::from(([127, 0, 0, 1], runtime_port));
     startup::service::bring_up(runtime_addr, &apollia_data_dir);
     let claimed_port = match startup::decide(
         runtime_addr,
@@ -146,12 +153,10 @@ fn main() {
                         version = %version,
                         "desktop.startup.attach"
                     );
-                    attached::run(startup::RUNTIME_PORT, token, tauri_context())
+                    attached::run(runtime_port, token, tauri_context())
                 }
                 None => startup::refuse(
-                    &startup::RefusalReason::TokenRefused {
-                        port: startup::RUNTIME_PORT,
-                    },
+                    &startup::RefusalReason::TokenRefused { port: runtime_port },
                     &apollia_data_dir,
                     tauri_context(),
                 ),
@@ -330,7 +335,7 @@ fn main() {
         backend_factory: Some(factory.clone()),
         agent_repository: None,
         chat_agent_runner,
-        tcp_port: Some(startup::RUNTIME_PORT),
+        tcp_port: Some(runtime_port),
         tcp_listener: Some(claimed_port),
         api_token: Some(api_token),
         ..EmbeddedConfig::default()
@@ -438,6 +443,7 @@ fn main() {
         // is the canonical replacement.
         .plugin(tauri_plugin_opener::init())
         .manage(runtime_handle.clone())
+        .manage(startup::ApiPort(runtime_handle.api_port))
         .manage(attached::RuntimeLink::Embedded(Box::new(runtime_handle.clone())))
         .manage(agent_repo)
         .manage(agent_loader)

@@ -143,13 +143,11 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
     pattern: new RegExp(
       `^settings\\.integrations\\.placeholder\\.client_id_${SEG}$`,
     ),
-    builtBy: "routes/settings/Integrations.svelte",
+    builtBy: "components/connections/detail/NativeClientSection.svelte",
   },
   {
-    pattern: new RegExp(
-      `^settings\\.integrations\\.provider(_meta)?\\.${SEG}$`,
-    ),
-    builtBy: "routes/settings/Integrations.svelte",
+    pattern: new RegExp(`^settings\\.integrations\\.status\\.${SEG}$`),
+    builtBy: "components/connections/detail/NativeClientSection.svelte",
   },
   {
     pattern: new RegExp(`^settings\\.integrations\\.source\\.${SEG}$`),

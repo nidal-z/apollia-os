@@ -123,7 +123,7 @@ pub const KEYS: &[ConfigKey] = &[
     withdrawn("llm.vertex", "the Google Vertex AI client was removed; declare an OpenAI-compatible server instead"),
     // [api]
     key("api.bind", KeyType::String, Some("\"127.0.0.1\""), Restart, "Address the daemon's TCP listener binds to."),
-    key("api.port", Integer, Some("7771"), Restart, "TCP port of the native API."),
+    key("api.port", Integer, Some("7771"), Restart, "TCP port of the native API, read at the next start; the --port option of apollia-os start wins over it, and it must differ from server.port."),
     key("api.require_token", Boolean, Some("true"), Restart, "Require a bearer token on every TCP request to the daemon."),
     key("api.unix_socket", Path, Some("\"~/.apollia/runtime.sock\""), Restart, "Local socket of the embedded runtime; its folder must exist."),
     key("api.tls_cert", Path, None, Restart, "PEM certificate chain for TLS on the daemon's TCP listener; set with api.tls_key."),
@@ -184,12 +184,13 @@ pub const KEYS: &[ConfigKey] = &[
     key("workflows.wall_clock_secs", Integer, Some("3600"), Restart, "Seconds a workflow run may last."),
     // [desktop]
     locked(key("desktop.developer_mode", Boolean, Some("false"), Reloadable, "Show the advanced surfaces of the application.")),
-    locked(key("desktop.update_channel", Enum(&["stable", "preview"]), Some("\"stable\""), Reloadable, "Update channel the application reads its update manifest from.")),
+    locked(key("desktop.update_channel", Enum(&["stable", "preview"]), Some("\"stable\""), Reloadable, "Update channel of the application: stable receives the published versions, preview the trial versions as well.")),
     locked(key("desktop.background_service_allowed", Boolean, Some("true"), Reloadable, "Allow the application to install the engine as a service of the user's session.")),
     // [server]
     locked(key("server.enabled", Boolean, Some("false"), Restart, "Start the compatible server (OpenAI and Anthropic formats) with the engine.")),
-    locked(key("server.port", Integer, Some("7772"), Restart, "TCP port of the compatible server, on the loopback interface.")),
+    locked(key("server.port", Integer, Some("7772"), Restart, "TCP port of the compatible server.")),
     locked(key("server.require_auth", Boolean, Some("false"), Restart, "Require a token of the compatible server on every request; read when the listener opens.")),
+    locked(key("server.serve_on_lan", Boolean, Some("false"), Restart, "Open the compatible server to the local network, on every interface; the native API stays on the loopback interface. Read when the listener opens.")),
     // [engines]
     locked(key("engines.log_level", Enum(&["error", "warning", "info", "debug"]), Some("\"debug\""), Reloadable, "Log level of the local engine, applied when a model is next loaded.")),
     // [author]

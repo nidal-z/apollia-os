@@ -34,6 +34,10 @@
 //!   the runner; `apollia-llm` re-exports its shapes.
 //! - [`UiConfig`]: `[ui]`, the desktop link preview.
 //!
+//! [`default_file_text`] renders the registry as the `apollia.toml` written on a
+//! first start, every key commented at its default under its documentation,
+//! and [`write_default_file_if_absent`] writes it without ever replacing a file.
+//!
 //! The other types in this module are runtime parameters, not `apollia.toml`
 //! sections. No loader deserializes an `[a2a]` or an `[oria]` table, both are
 //! withdrawn keys of the registry: [`A2AConfig`] reaches the runtime from its
@@ -48,6 +52,7 @@ mod api;
 mod author;
 mod autonomy;
 mod chat;
+mod default_file;
 mod desktop;
 mod engines;
 mod filesystem;
@@ -76,6 +81,8 @@ mod workflows;
 #[cfg(test)]
 mod autonomy_tests;
 #[cfg(test)]
+mod default_file_tests;
+#[cfg(test)]
 mod keys_tests;
 #[cfg(test)]
 mod settings_tests;
@@ -85,12 +92,13 @@ mod tests;
 mod validate_tests;
 
 pub use a2a::A2AConfig;
-pub use api::ApiConfig;
+pub use api::{ApiConfig, DEFAULT_API_PORT};
 pub use author::{AuthorConfig, AUTHOR_NAME_KEY};
 pub use autonomy::{
     AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, AutonomyLevelParseError, GatePolicy,
 };
 pub use chat::ChatConfig;
+pub use default_file::{default_file_text, write_default_file_if_absent};
 pub use desktop::{DesktopConfig, UpdateChannel};
 pub use engines::{EngineLogLevel, EnginesConfig, ENGINE_LOG_LEVELS};
 pub use filesystem::{FilesystemConfig, JournalConfig};
