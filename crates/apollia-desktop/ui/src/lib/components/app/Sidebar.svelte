@@ -2,7 +2,7 @@
   import type { Route } from "$lib/stores/navigation";
   import {
     LayoutDashboard, MessageSquare, Bot, ListChecks, ShieldCheck,
-    Repeat, Brain, Database, Activity, Mic, Bell,
+    Repeat, Brain, Database, Activity, Mic,
   } from "lucide-svelte";
 
   type Badge = "none" | "chat" | "tasks" | "approvals";
@@ -26,7 +26,6 @@
     { route: "tasks"          as Route, Icon: ListChecks,      labelKey: "nav.sidebar.tasks",          badge: "tasks"     },
     { route: "automations"    as Route, Icon: Repeat,          labelKey: "nav.sidebar.automations",    badge: "none"      },
     { route: "inbox"          as Route, Icon: ShieldCheck,     labelKey: "nav.sidebar.inbox",          badge: "approvals" },
-    { route: "notifications"  as Route, Icon: Bell,            labelKey: "nav.sidebar.notifications",  badge: "none"      },
     { route: "llm"            as Route, Icon: Brain,           labelKey: "nav.sidebar.llm",            badge: "none"      },
   ];
 

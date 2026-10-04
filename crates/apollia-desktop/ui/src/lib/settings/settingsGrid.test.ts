@@ -46,8 +46,9 @@ describe("settings navigation column", () => {
     // WHEN its groups and entries are listed
     const layout = SETTINGS_NAV.map((g) => [g.labelKey, g.entries.map((e) => e.key)]);
 
-    // THEN Settings comes first, Developer closes its use-ranked part, the
-    // sections leaving the settings follow, and System holds Engines and Hardware
+    // THEN Settings comes first, Notifications sits just before Developer, which
+    // closes its use-ranked part, the sections leaving the settings follow, and
+    // System holds Engines and Hardware
     expect(layout).toEqual([
       [
         "settings.nav.cluster_settings",
@@ -58,6 +59,7 @@ describe("settings navigation column", () => {
           "chat",
           "stt",
           "model-defaults",
+          "notifications",
           "developer",
           "llm",
           "model-hub",
@@ -92,6 +94,32 @@ describe("settings navigation column", () => {
     for (const key of labels) {
       expect(typeof lookup(tree, key), `${key} in ${locale}`).toBe("string");
     }
+  });
+});
+
+describe("Notifications, a section of the settings", () => {
+  it("is a section of the Settings group, just before Developer, and no longer a screen", () => {
+    // GIVEN the Settings group of the column and the application routes
+    const settings = SETTINGS_NAV[0].entries.map((e) => e.key);
+    const navigation = source("lib/stores/navigation.ts");
+
+    // WHEN the place of Notifications is read
+    const at = settings.indexOf("notifications");
+
+    // THEN it comes right after the model defaults and right before Developer
+    expect(settings[at - 1]).toBe("model-defaults");
+    expect(settings[at + 1]).toBe("developer");
+    // and the Route union no longer holds a notifications screen
+    expect(navigation).not.toMatch(/\| "notifications"/);
+  });
+
+  it("mounts its section from the settings shell", () => {
+    // GIVEN the settings shell
+    const shell = source("routes/Settings.svelte");
+
+    // WHEN its section loaders are read
+    // THEN Notifications loads the section under routes/settings/
+    expect(shell).toContain('notifications: () => import("./settings/Notifications.svelte")');
   });
 });
 

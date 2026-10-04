@@ -20,7 +20,6 @@
     "nav-integrations",
     "nav-llm",
     "nav-memory",
-    "nav-notifications",
     "nav-observability",
     "nav-settings",
     "nav-tasks",
@@ -129,15 +128,6 @@
     {
       "kind": "click",
       "testid": "nav-inbox"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "nav-notifications"
     },
     {
       "kind": "waitFor",
