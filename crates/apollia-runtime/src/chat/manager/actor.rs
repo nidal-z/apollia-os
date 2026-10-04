@@ -10,7 +10,6 @@ impl ChatSessionManager {
                     agent_name,
                     system_prompt,
                     tools,
-                    project_id,
                     reply,
                 } => {
                     let result = self
@@ -19,7 +18,6 @@ impl ChatSessionManager {
                             agent_name,
                             system_prompt,
                             tools,
-                            project_id,
                         })
                         .await;
                     let _ = reply.send(result);
@@ -255,22 +253,6 @@ impl ChatSessionManager {
                     let result = self.handle_list_children(&session_id);
                     let _ = reply.send(result);
                 }
-                ChatCommand::LinkSessionToProject {
-                    session_id,
-                    project_id,
-                    reply,
-                } => {
-                    let result =
-                        self.handle_link_session_to_project(&session_id, project_id.as_deref());
-                    let _ = reply.send(result);
-                }
-                ChatCommand::ListSessionsByProject { project_id, reply } => {
-                    let result = self.handle_list_sessions_by_project(&project_id);
-                    let _ = reply.send(result);
-                }
-                ChatCommand::OrphanProjectSessions { project_id } => {
-                    self.handle_orphan_project_sessions(&project_id);
-                }
                 ChatCommand::ListSessionAuthorizations { reply } => {
                     let _ = reply.send(self.handle_list_session_authorizations());
                 }
@@ -309,6 +291,10 @@ impl ChatSessionManager {
                 ChatCommand::SetComposer { composer } => {
                     info!("chat.composer.set");
                     self.composer = Some(composer);
+                }
+                ChatCommand::SetGovernance { governance } => {
+                    info!("chat.governance.set");
+                    self.governance = Some(governance);
                 }
                 ChatCommand::ResolveFsHitl {
                     request_id,

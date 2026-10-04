@@ -522,7 +522,7 @@
             }
           },
           "422": {
-            "description": "Unknown field, or a value of the wrong shape",
+            "description": "Unknown field, a value of the wrong shape, or a source the registry does not hold",
             "content": {
               "application/json": {
                 "schema": {
@@ -532,7 +532,7 @@
             }
           },
           "503": {
-            "description": "Audit journal not available",
+            "description": "Audit journal, or the source registry a sources list needs, not available",
             "content": {
               "application/json": {
                 "schema": {
@@ -1056,6 +1056,79 @@
           },
           "500": {
             "description": "The install cannot be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents/installed/{name}": {
+      "put": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Handler for `PUT /api/v1/agents/installed/{name}`.",
+        "description": "Validates the new module, replaces the installed one, records the new\nversion, and cycles the runtime instance when there is one. The cycle is the\npoint of the route: the interpreter holds the module it imported at start\ntime, so without the stop and the start the window would report a new\nversion while the old one keeps answering. Emits\n`RuntimeEvent::AgentInstalled` once the runtime has settled.",
+        "operationId": "update_agent",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Name of the installed agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Agent updated, with what happened to its running instance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateAgentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "File absent or module refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No installed agent of that name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The update cannot be written",
             "content": {
               "application/json": {
                 "schema": {
@@ -2931,6 +3004,388 @@
         }
       }
     },
+    "/api/v1/config": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "`GET /api/v1/config`: the text of `apollia.toml`, its fingerprint, its\nfaults, the keys the policy fixes and the keys waiting for a restart.",
+        "operationId": "read_config",
+        "responses": {
+          "200": {
+            "description": "The configuration file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigView"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No configuration file in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "config"
+        ],
+        "summary": "`PUT /api/v1/config`: saves a whole text through the writer.",
+        "operationId": "save_config",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The file as saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A line gives a key the policy fixes another value (`locked`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The file changed since it was read (`modified`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The text does not validate (`invalid`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file cannot be read or written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No configuration file in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/config/default": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "`GET /api/v1/config/default`: the default text of the file, the keys the\npolicy fixes written at their value.",
+        "operationId": "default_config",
+        "responses": {
+          "200": {
+            "description": "The default text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigDefaultText"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/config/observability": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "`GET /api/v1/config/observability`: the capture and retention policy.",
+        "operationId": "read_observability",
+        "responses": {
+          "200": {
+            "description": "The observability policy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservabilitySettings"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file cannot be read or parsed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No configuration file in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "config"
+        ],
+        "summary": "`PUT /api/v1/config/observability`: writes the policy, applied at the next\nstart of the runtime.",
+        "operationId": "save_observability",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObservabilitySettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The policy as saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservabilitySettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The policy fixes one of the keys (`locked`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A value is refused (`invalid`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file cannot be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No configuration file in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/config/python-interpreter": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "`GET /api/v1/config/python-interpreter`: the chosen interpreter and the\none this runtime ships.",
+        "operationId": "read_python_interpreter",
+        "responses": {
+          "200": {
+            "description": "The Python interpreter setting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PythonInterpreterSetting"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No configuration file in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "config"
+        ],
+        "summary": "`PUT /api/v1/config/python-interpreter`: chooses an interpreter, checked\nbefore it is written (it exists, starts, and has the minor version of the\nbundled standard library), or returns to the bundled one. Applies to the\nagents started after it.",
+        "operationId": "save_python_interpreter",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PythonInterpreterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The setting as saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PythonInterpreterSetting"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The policy fixes the key (`locked`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The interpreter is refused, with the condition it failed (`invalid`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file cannot be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No configuration file in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/config/validate": {
+      "post": {
+        "tags": [
+          "config"
+        ],
+        "summary": "`POST /api/v1/config/validate`: what the writer would say of a text,\nwithout writing it.",
+        "operationId": "validate_config",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigValidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The verdict, with every fault at its line",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigValidation"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connections": {
       "get": {
         "tags": [
@@ -2958,6 +3413,129 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connections/folders": {
+      "post": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "`POST /api/v1/connections/folders`: add a folder of this machine.",
+        "operationId": "add_folder_connection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddFolderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Folder added as a connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The path is not a folder of this machine",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the connection admission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The folder is already a connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "system.db could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connections/folders/{id}": {
+      "delete": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "`DELETE /api/v1/connections/folders/{id}`: remove a folder connection.",
+        "operationId": "remove_folder_connection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identifier of the stored folder, the part of the connection identifier after `folder:`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Folder connection removed; the connection it was",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No folder connection has this identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "system.db could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
                 }
               }
             }
@@ -3273,6 +3851,27 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/imap/providers": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`GET /api/v1/connectors/imap/providers`: the providers whose server and\nport are filled from the address. Reads a table compiled into the runtime;\nnothing is reached, nothing is stored.",
+        "operationId": "list_imap_providers",
+        "responses": {
+          "200": {
+            "description": "The providers known from the address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapProvidersResponse"
                 }
               }
             }
@@ -5152,28 +5751,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/llm/cost-alert-threshold": {
-      "get": {
-        "tags": [
-          "llm"
-        ],
-        "summary": "Handler for `GET /api/v1/llm/cost-alert-threshold`.",
-        "description": "Reads the threshold of the router the runtime serves now, the one a reload\nswapped in. A runtime without a router has no threshold, which is an answer\nand not an error, as the desktop has always read it.",
-        "operationId": "get_cost_alert_threshold",
-        "responses": {
-          "200": {
-            "description": "The cost alert threshold of the live router",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CostAlertThresholdResponse"
                 }
               }
             }
@@ -11023,18 +11600,101 @@
         }
       }
     },
-    "/api/v1/projects/{id}/sessions": {
+    "/api/v1/profiles": {
       "get": {
         "tags": [
-          "chat"
+          "profile"
         ],
-        "summary": "Handler for `GET /api/v1/projects/{id}/sessions`, the sessions of a\nproject.",
-        "operationId": "list_project_sessions",
+        "summary": "`GET /api/v1/profiles`: every profile, the default first.",
+        "operationId": "list_profiles",
+        "responses": {
+          "200": {
+            "description": "The profiles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProfileSummaryView"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The profile store did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "`POST /api/v1/profiles`: creates a profile with empty fields.",
+        "operationId": "create_profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProfileBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The profile created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileSummaryView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The profile store did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/profiles/{id}": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "`GET /api/v1/profiles/{id}`: one profile, its fields and its facts.",
+        "operationId": "get_profile_by_id",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Project id",
+            "description": "Profile identifier, or `default`",
             "required": true,
             "schema": {
               "type": "string"
@@ -11043,10 +11703,401 @@
         ],
         "responses": {
           "200": {
-            "description": "Session list"
+            "description": "The profile in full",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileDetailView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No profile has this identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Chat subsystem unavailable",
+            "description": "The profile store did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "`DELETE /api/v1/profiles/{id}`: deletes a profile and its facts.",
+        "operationId": "delete_profile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Profile identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The profile is gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedProfile"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No profile has this identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The default profile cannot be deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The profile store did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "`PATCH /api/v1/profiles/{id}`: renames a profile and writes its fields.",
+        "operationId": "update_profile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Profile identifier, or `default`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The profile in full",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileDetailView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty name or key outside the schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No profile has this identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The profile store did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/profiles/{id}/default": {
+      "post": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "`POST /api/v1/profiles/{id}/default`: makes a profile the default.",
+        "operationId": "set_default_profile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Profile identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The new default profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileSummaryView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No profile has this identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The profile store did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/profiles/{id}/facts/{key}": {
+      "put": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "`PUT /api/v1/profiles/{id}/facts/{key}`: retains a fact in a profile, as\nwritten by the user.",
+        "operationId": "set_profile_fact",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Profile identifier, or `default`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "description": "Key of the fact",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetProfileEntryBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The fact as stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileEntryView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty, reserved or schema key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No profile has this identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The profile store did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "`DELETE /api/v1/profiles/{id}/facts/{key}`: forgets a fact of a profile.",
+        "operationId": "delete_profile_fact",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Profile identifier, or `default`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "description": "Key of the fact",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The fact is gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedProfileEntry"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such profile or fact",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The profile store did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/profiles/{id}/reset": {
+      "post": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "`POST /api/v1/profiles/{id}/reset`: empties a profile and deletes its\nfacts.",
+        "operationId": "reset_profile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Profile identifier, or `default`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "How many entries were removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileReset"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No profile has this identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The profile store did not open",
             "content": {
               "application/json": {
                 "schema": {
@@ -11176,6 +12227,37 @@
         }
       }
     },
+    "/api/v1/security-posture": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/security-posture`: the confinement of native tools and the\ntrust model of agent code where this runtime runs them.",
+        "operationId": "security_posture",
+        "responses": {
+          "200": {
+            "description": "The active security posture",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The probe did not finish",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/server": {
       "get": {
         "tags": [
@@ -11265,6 +12347,57 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClearedServerLogs"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/server/restart": {
+      "post": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`POST /api/v1/server/restart`: closes and reopens the compatible server so\nit applies the `[server]` settings as they stand (port, local network,\ntoken check). The native API is not reopened and keeps answering.\nRestarting a stopped server changes nothing.",
+        "operationId": "restart_server",
+        "responses": {
+          "200": {
+            "description": "The compatible server applies its settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompatServerStatus"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another program holds the port",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The listener or the setting failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
                 }
               }
             }
@@ -12841,61 +13974,6 @@
         }
       }
     },
-    "/api/v1/sessions/{id}/project": {
-      "put": {
-        "tags": [
-          "chat"
-        ],
-        "summary": "Handler for `PUT /api/v1/sessions/{id}/project`, link the session to a\nproject or, with `null`, unlink it.",
-        "operationId": "link_session_project",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Session id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LinkProjectBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Link stored"
-          },
-          "404": {
-            "description": "Session or project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Chat subsystem unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/sessions/{id}/resume": {
       "post": {
         "tags": [
@@ -13375,6 +14453,279 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ShutdownResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "`GET /api/v1/sources`: every source, oldest first.",
+        "operationId": "list_sources",
+        "responses": {
+          "200": {
+            "description": "The sources of the registry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceResponse"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Source registry not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "`POST /api/v1/sources`: add a source.",
+        "operationId": "create_source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSourceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Source added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unknown kind, blank label, or a folder, file, mailbox or code folder without a reference",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Source registry not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources/folder-kinds": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "`GET /api/v1/sources/folder-kinds`: the kinds offered for a source made\non a folder connection.",
+        "description": "The code folder is offered only when the developer mode is on. This is\nwhat the user is offered, not a check: `POST /api/v1/sources` accepts a\ncode folder whatever the mode.",
+        "operationId": "folder_kinds",
+        "parameters": [
+          {
+            "name": "developerMode",
+            "in": "query",
+            "description": "Whether the developer mode is on, as `[desktop] developer_mode`\nsays; off when absent.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The kinds offered on a folder connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceKindDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources/preview": {
+      "post": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "`POST /api/v1/sources/preview`: the preview of a workbook or a CSV file.",
+        "operationId": "preview_source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewSourceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The proposed sheet and header row, the first rows and the write flags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourcePreviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The path is not absolute",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No file at that path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not a workbook or a CSV file, protected, damaged, or a sheet or row the file lacks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources/project-migration": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "`GET /api/v1/sources/project-migration`: what the migration of the former\nprojects carried over, and what it listed instead.",
+        "operationId": "project_migration_report",
+        "responses": {
+          "200": {
+            "description": "The report of the last run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationReport"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No migration of projects has run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The report cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources/{id}": {
+      "delete": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "`DELETE /api/v1/sources/{id}`: remove a source.",
+        "operationId": "delete_source",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Source identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Source removed; the source as it was",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Source not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Source registry not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
                 }
               }
             }
@@ -14009,6 +15360,59 @@
         }
       }
     },
+    "/api/v1/tasks/{id}/delegation-tree": {
+      "get": {
+        "tags": [
+          "a2a"
+        ],
+        "summary": "Handler for `GET /api/v1/tasks/{id}/delegation-tree`.",
+        "description": "A task with no recorded delegation answers its root with no children.",
+        "operationId": "get_delegation_tree",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Parent task id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The task and its delegations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DelegationTreeNode"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The delegations cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sidechain logging not initialized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/tasks/{id}/plan-decision": {
       "post": {
         "tags": [
@@ -14071,6 +15475,58 @@
           },
           "503": {
             "description": "Plan gate not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/record": {
+      "delete": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Handler for `DELETE /api/v1/tasks/{id}/record`.",
+        "operationId": "delete_task_record",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Task id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether a stored record was removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskRecordDeleted"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The task store refused the deletion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Task persistence is not available",
             "content": {
               "application/json": {
                 "schema": {
@@ -16078,6 +17534,26 @@
           }
         }
       },
+      "AddFolderBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/connections/folders`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name shown to the user; the folder's own name when absent."
+          },
+          "path": {
+            "type": "string",
+            "description": "Absolute path of the folder, as the system picker answered it."
+          }
+        }
+      },
       "AddPermissionRuleBody": {
         "type": "object",
         "description": "Request body for `POST /api/v1/permissions/rules`.",
@@ -17869,6 +19345,8 @@
         "required": [
           "running",
           "port",
+          "serveOnLan",
+          "address",
           "activeTokens"
         ],
         "properties": {
@@ -17877,6 +19355,10 @@
             "format": "int64",
             "description": "How many tokens of the server are in use (not revoked).",
             "minimum": 0
+          },
+          "address": {
+            "type": "string",
+            "description": "The address a client copies: `http://127.0.0.1:<port>` on the machine\nalone, `http://<IPv4 address on the local network>:<port>` otherwise."
           },
           "lastError": {
             "type": [
@@ -17894,6 +19376,10 @@
           "running": {
             "type": "boolean",
             "description": "Whether the listener is open."
+          },
+          "serveOnLan": {
+            "type": "boolean",
+            "description": "Whether it listens on every interface, reachable from the local\nnetwork, or the configured choice when it is stopped."
           }
         }
       },
@@ -17969,6 +19455,179 @@
           }
         }
       },
+      "ConfigDefaultText": {
+        "type": "object",
+        "description": "The default text of the file.",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Every key commented at its default, the keys the policy fixes written\nat their value."
+          }
+        }
+      },
+      "ConfigDiagnosticBody": {
+        "type": "object",
+        "description": "One fault of a configuration text, at its line.",
+        "required": [
+          "line",
+          "column",
+          "path",
+          "message"
+        ],
+        "properties": {
+          "column": {
+            "type": "integer",
+            "description": "1-based column, in characters.",
+            "minimum": 0
+          },
+          "line": {
+            "type": "integer",
+            "description": "1-based line.",
+            "minimum": 0
+          },
+          "message": {
+            "type": "string",
+            "description": "What is wrong, in English."
+          },
+          "path": {
+            "type": "string",
+            "description": "Dotted path of the key at fault; empty at the root."
+          }
+        }
+      },
+      "ConfigErrorBody": {
+        "type": "object",
+        "description": "The error of a configuration route.",
+        "required": [
+          "error",
+          "code",
+          "diagnostics"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "`modified`, `invalid`, `locked`, `unavailable` or `internal`."
+          },
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfigDiagnosticBody"
+            },
+            "description": "The faults of the text, for `invalid` and `locked`."
+          },
+          "error": {
+            "type": "string",
+            "description": "What went wrong, for the user; the same sentence the command line\nprints for the same refusal."
+          }
+        }
+      },
+      "ConfigSaveRequest": {
+        "type": "object",
+        "description": "A text to save, with the fingerprint of the text it was made from.",
+        "required": [
+          "text",
+          "sha256"
+        ],
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "description": "SHA-256 of the text the change was made from, as `GET` returned it."
+          },
+          "text": {
+            "type": "string",
+            "description": "The whole text of the new `apollia.toml`."
+          }
+        }
+      },
+      "ConfigValidateRequest": {
+        "type": "object",
+        "description": "A text to check.",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The whole text of a candidate `apollia.toml`."
+          }
+        }
+      },
+      "ConfigValidation": {
+        "type": "object",
+        "description": "The verdict on a text.",
+        "required": [
+          "valid",
+          "diagnostics"
+        ],
+        "properties": {
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfigDiagnosticBody"
+            },
+            "description": "Every fault, each at its line."
+          },
+          "valid": {
+            "type": "boolean",
+            "description": "Whether the writer would accept the text."
+          }
+        }
+      },
+      "ConfigView": {
+        "type": "object",
+        "description": "`apollia.toml` as the runtime reads it.",
+        "required": [
+          "path",
+          "exists",
+          "text",
+          "sha256",
+          "diagnostics",
+          "locked",
+          "pendingRestart"
+        ],
+        "properties": {
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfigDiagnosticBody"
+            },
+            "description": "The faults of the text, each at its line; empty when it is valid."
+          },
+          "exists": {
+            "type": "boolean",
+            "description": "Whether the file exists; an absent file reads as an empty text."
+          },
+          "locked": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LockedKeyBody"
+            },
+            "description": "The keys the organisation policy fixes, with their value."
+          },
+          "path": {
+            "type": "string",
+            "description": "Where the file lives."
+          },
+          "pendingRestart": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Keys changed in the file that wait for a restart of the runtime."
+          },
+          "sha256": {
+            "type": "string",
+            "description": "SHA-256 of `text`, to present when saving."
+          },
+          "text": {
+            "type": "string",
+            "description": "The text of the file."
+          }
+        }
+      },
       "ConnectedAccountResponse": {
         "type": "object",
         "description": "Answer of `POST /api/v1/connectors/oauth/complete`.",
@@ -18018,7 +19677,7 @@
           },
           "id": {
             "type": "string",
-            "description": "Stable identifier: `mcp:<server>`, `native:<provider>:<account>`,\n`imap:<address>`."
+            "description": "Stable identifier: `mcp:<server>`, `native:<provider>:<account>`,\n`imap:<address>`, `folder:<id>`."
           },
           "kind": {
             "$ref": "#/components/schemas/ConnectionKind",
@@ -18031,6 +19690,13 @@
           "official": {
             "type": "boolean",
             "description": "Published by the service's own publisher."
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Folder of this machine the connection opens, for a folder."
           },
           "provenance": {
             "type": "string",
@@ -18154,20 +19820,6 @@
           "user_memory_injected": {
             "type": "boolean",
             "description": "Whether the user profile was injected into the system prompt."
-          }
-        }
-      },
-      "CostAlertThresholdResponse": {
-        "type": "object",
-        "description": "Response body for `GET /api/v1/llm/cost-alert-threshold`.",
-        "properties": {
-          "threshold_usd": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double",
-            "description": "The cost alert threshold of the live router in USD, `null` when none is\nset or no router is configured."
           }
         }
       },
@@ -18396,6 +20048,19 @@
           }
         }
       },
+      "CreateProfileBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/profiles`.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name of the new profile."
+          }
+        }
+      },
       "CreateServerRequest": {
         "type": "object",
         "description": "Body of `POST /api/v1/llm/servers`.",
@@ -18456,13 +20121,6 @@
             "type": "string",
             "description": "Session mode: `\"libre\"` or `\"agent\"`."
           },
-          "project_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Project to link this session to."
-          },
           "system_prompt": {
             "type": [
               "string",
@@ -18476,6 +20134,38 @@
               "type": "string"
             },
             "description": "List of tool names available in this session."
+          }
+        }
+      },
+      "CreateSourceBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/sources`.",
+        "required": [
+          "kind",
+          "label"
+        ],
+        "properties": {
+          "group": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A group the source belongs to."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`folder`, `file`, `mail`, `profile`, `memory` or `code_folder`."
+          },
+          "label": {
+            "type": "string",
+            "description": "The name the user sees."
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the source points at; required for `folder`, `file`, `mail` and\n`code_folder`, whose reference is a folder connection."
           }
         }
       },
@@ -18716,6 +20406,44 @@
           }
         }
       },
+      "DelegationTreeNode": {
+        "type": "object",
+        "description": "One node of the delegation tree.",
+        "required": [
+          "agent_id",
+          "agent_name",
+          "status",
+          "children"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "description": "Agent identifier (runtime UUID, or name if resolution fails)."
+          },
+          "agent_name": {
+            "type": "string",
+            "description": "Human-readable agent name."
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DelegationTreeNode"
+            },
+            "description": "Child delegations (A2A subtasks)."
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 8601 start timestamp (None for the root if unknown)."
+          },
+          "status": {
+            "type": "string",
+            "description": "Current status: `submitted`, `working`, `completed`, `failed`, `running`, etc."
+          }
+        }
+      },
       "DeleteBackendResponse": {
         "type": "object",
         "description": "Response body for `DELETE /api/v1/llm/backends/:name`.",
@@ -18805,6 +20533,19 @@
           "deleted": {
             "type": "string",
             "description": "The path removed, as it was asked for."
+          }
+        }
+      },
+      "DeletedProfile": {
+        "type": "object",
+        "description": "Answer of `DELETE /api/v1/profiles/{id}`.",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "string",
+            "description": "The identifier removed, as the request named it."
           }
         }
       },
@@ -19289,6 +21030,24 @@
           "too_large"
         ]
       },
+      "FolderErrorBody": {
+        "type": "object",
+        "description": "A refused folder: the message and its stable code.",
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable code: `not_a_folder`, `already_added`, `admission_refused`,\n`not_found`, `store`."
+          },
+          "error": {
+            "type": "string",
+            "description": "What went wrong, for a person. For `admission_refused`, the reason\nthe admission gave, as is."
+          }
+        }
+      },
       "ForkSessionRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/sessions/:id/fork`.",
@@ -19735,6 +21494,62 @@
           }
         }
       },
+      "ImapProviderResponse": {
+        "type": "object",
+        "description": "A provider whose IMAP server is known from the address.",
+        "required": [
+          "name",
+          "domains",
+          "host",
+          "port"
+        ],
+        "properties": {
+          "domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Address domains it serves, lowercase."
+          },
+          "host": {
+            "type": "string",
+            "description": "IMAP server."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the provider."
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32",
+            "description": "IMAP port, implicit TLS.",
+            "minimum": 0
+          }
+        }
+      },
+      "ImapProvidersResponse": {
+        "type": "object",
+        "description": "The providers known from the address, and the port of any other server.",
+        "required": [
+          "providers",
+          "defaultPort"
+        ],
+        "properties": {
+          "defaultPort": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Port of a server outside the list, implicit TLS.",
+            "minimum": 0
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImapProviderResponse"
+            },
+            "description": "Every provider prefilled from the address."
+          }
+        }
+      },
       "ImportMemoryBody": {
         "type": "object",
         "description": "Request body for `POST /api/v1/memory/namespaces/{namespace}/import`.",
@@ -19765,6 +21580,17 @@
             "description": "The text of the JSON file the provider's console exported, read by the\nwindow that picked it."
           }
         }
+      },
+      "IndexStateDto": {
+        "type": "string",
+        "description": "Where the index of a source stands.",
+        "enum": [
+          "absent",
+          "indexing",
+          "ready",
+          "error",
+          "keywords_only"
+        ]
       },
       "InjectMessageBody": {
         "type": "object",
@@ -20329,6 +22155,32 @@
           }
         }
       },
+      "IssueItem": {
+        "type": "string",
+        "description": "What an issue is about.",
+        "enum": [
+          "store",
+          "document",
+          "instructions",
+          "agent",
+          "folder",
+          "provider",
+          "memory",
+          "conversations"
+        ]
+      },
+      "IssueReason": {
+        "type": "string",
+        "description": "Why an item was not carried over.",
+        "enum": [
+          "missing",
+          "unreadable",
+          "wrong_kind",
+          "agent_not_installed",
+          "failed",
+          "not_carried_over"
+        ]
+      },
       "ItemPreview": {
         "type": "object",
         "description": "One Python tool of the package.",
@@ -20465,19 +22317,6 @@
           "modelPath": {
             "type": "string",
             "description": "The model the lease holds."
-          }
-        }
-      },
-      "LinkProjectBody": {
-        "type": "object",
-        "description": "Request body for `PUT /api/v1/sessions/{id}/project`.",
-        "properties": {
-          "project_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The project to link, `null` to unlink."
           }
         }
       },
@@ -20820,6 +22659,24 @@
               "$ref": "#/components/schemas/LoadedModelDto"
             },
             "description": "The resident models, most recently used first."
+          }
+        }
+      },
+      "LockedKeyBody": {
+        "type": "object",
+        "description": "A key the organisation policy fixes, with its value.",
+        "required": [
+          "key",
+          "value"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Dotted key."
+          },
+          "value": {
+            "type": "object",
+            "description": "The value the policy imposes."
           }
         }
       },
@@ -21173,6 +23030,28 @@
           }
         }
       },
+      "MemoryMerge": {
+        "type": "object",
+        "description": "A memory space of a project merged into the space of the same name.",
+        "properties": {
+          "entriesAdded": {
+            "type": "integer",
+            "description": "Entries this run added; 0 when they were already there.",
+            "default": 0,
+            "minimum": 0
+          },
+          "from": {
+            "type": "string",
+            "description": "The space of the project, `<project id>:<space>`.",
+            "default": ""
+          },
+          "into": {
+            "type": "string",
+            "description": "The space it was merged into.",
+            "default": ""
+          }
+        }
+      },
       "MemoryRemoved": {
         "type": "object",
         "description": "Answer of the clear and purge routes.",
@@ -21261,6 +23140,121 @@
             "description": "Role of the message sender."
           }
         }
+      },
+      "MigrationIssue": {
+        "type": "object",
+        "description": "One item the migration did not carry over.",
+        "properties": {
+          "blocking": {
+            "type": "boolean",
+            "description": "Whether the issue keeps the migration partial. A missing document is\nlisted and does not: running again would not bring it back.",
+            "default": false
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The underlying error, when there is one.",
+            "default": null
+          },
+          "item": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IssueItem",
+                "description": "What the issue is about."
+              }
+            ],
+            "default": "store"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the project, if the issue belongs to one.",
+            "default": null
+          },
+          "projectName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the project, if the issue belongs to one.",
+            "default": null
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IssueReason",
+                "description": "Why it was not carried over."
+              }
+            ],
+            "default": "failed"
+          },
+          "subject": {
+            "type": "string",
+            "description": "The path, agent or space concerned.",
+            "default": ""
+          }
+        }
+      },
+      "MigrationReport": {
+        "type": "object",
+        "description": "The report of a run of the migration.",
+        "properties": {
+          "conversationsDetached": {
+            "type": "integer",
+            "description": "Conversations detached from a project by this run.",
+            "default": 0,
+            "minimum": 0
+          },
+          "formatVersion": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Version of this format.",
+            "default": 0,
+            "minimum": 0
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationIssue"
+            },
+            "description": "What was not carried over.",
+            "default": []
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectOutcome"
+            },
+            "description": "One entry per project found.",
+            "default": []
+          },
+          "ranAt": {
+            "type": "string",
+            "description": "When the run ended, RFC 3339 in UTC.",
+            "default": ""
+          },
+          "status": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MigrationStatus",
+                "description": "Where the run ended."
+              }
+            ],
+            "default": "partial"
+          }
+        }
+      },
+      "MigrationStatus": {
+        "type": "string",
+        "description": "Where a run of the migration ended.",
+        "enum": [
+          "complete",
+          "partial"
+        ]
       },
       "ModelCardsResponse": {
         "type": "object",
@@ -21593,6 +23587,62 @@
           "provider": {
             "type": "string",
             "description": "Provider id (`\"google\"` / `\"microsoft\"`)."
+          }
+        }
+      },
+      "ObservabilitySettings": {
+        "type": "object",
+        "description": "The observability policy, one form over the two sections that hold it.\n\nEvery field but `debug_log_prompt` is a key of `[observability]`;\n`debug_log_prompt` is the key of `[llm.observability]`, read by a different\ntype, and is written there: under `[observability]` nothing would read it.\nAn absent field reads as its default.",
+        "properties": {
+          "capture_agent_logs": {
+            "type": "boolean",
+            "description": "Whether the logs an agent writes are kept on its trace.",
+            "default": true
+          },
+          "capture_thoughts": {
+            "type": "boolean",
+            "description": "Whether the reasoning of an agent is kept on its trace.",
+            "default": true
+          },
+          "capture_tool_args": {
+            "type": "boolean",
+            "description": "Whether the arguments of tool calls are kept.",
+            "default": true
+          },
+          "capture_tool_outputs": {
+            "type": "boolean",
+            "description": "Whether the outputs of tool calls are kept.",
+            "default": true
+          },
+          "debug_log_prompt": {
+            "type": "boolean",
+            "description": "Logs the whole prompt at `TRACE`, and persists nothing.",
+            "default": false
+          },
+          "max_input_bytes": {
+            "type": "integer",
+            "description": "Max size of task and step inputs, in bytes.",
+            "default": 32768,
+            "minimum": 0
+          },
+          "max_output_bytes": {
+            "type": "integer",
+            "description": "Max size of task, step and completion outputs, in bytes.",
+            "default": 32768,
+            "minimum": 0
+          },
+          "max_tool_output_bytes": {
+            "type": "integer",
+            "description": "Max size of a tool's stdout and stderr, in bytes.",
+            "default": 10240,
+            "minimum": 0
+          },
+          "retention_days": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Days the trace is kept before it is purged.",
+            "default": 90,
+            "minimum": 0
           }
         }
       },
@@ -22496,6 +24546,125 @@
           }
         }
       },
+      "PreviewColumn": {
+        "type": "object",
+        "description": "One column of the table under the header row.",
+        "required": [
+          "letter",
+          "name"
+        ],
+        "properties": {
+          "letter": {
+            "type": "string",
+            "description": "Column letter, as the spreadsheet shows it; a batch checks a column by it."
+          },
+          "name": {
+            "type": "string",
+            "description": "The name its header cell gives it, made unique."
+          }
+        }
+      },
+      "PreviewRowView": {
+        "type": "object",
+        "description": "One row of the preview.",
+        "required": [
+          "row",
+          "cells"
+        ],
+        "properties": {
+          "cells": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The text of each cell, column A first."
+          },
+          "row": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Row number, from 1.",
+            "minimum": 0
+          }
+        }
+      },
+      "PreviewSheet": {
+        "type": "object",
+        "description": "One sheet of the file.",
+        "required": [
+          "name",
+          "nonEmptyRows"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the sheet."
+          },
+          "nonEmptyRows": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many of its rows hold at least one non-blank cell.",
+            "minimum": 0
+          }
+        }
+      },
+      "PreviewSourceBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/sources/preview`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "headerRow": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The header row, from 1, on the shown sheet; the proposed row when absent.",
+            "minimum": 0
+          },
+          "path": {
+            "type": "string",
+            "description": "Absolute path of a `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.ods` or `.csv` file."
+          },
+          "sheet": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The sheet to show; the proposed sheet when absent."
+          }
+        }
+      },
+      "ProfileDetailView": {
+        "type": "object",
+        "description": "One profile in full: its summary, its fields in schema order, its facts.",
+        "required": [
+          "profile",
+          "fields",
+          "facts"
+        ],
+        "properties": {
+          "facts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileEntryView"
+            },
+            "description": "The facts retained about the user in this profile."
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileFieldView"
+            },
+            "description": "Every field of the schema, filled or not."
+          },
+          "profile": {
+            "$ref": "#/components/schemas/ProfileSummaryView",
+            "description": "The profile as the list shows it."
+          }
+        }
+      },
       "ProfileEntryView": {
         "type": "object",
         "description": "One profile entry, as the profile page draws it.",
@@ -22534,6 +24703,49 @@
           }
         }
       },
+      "ProfileFieldView": {
+        "type": "object",
+        "description": "One field of a profile, with what a form needs to draw it.",
+        "required": [
+          "key",
+          "label_fr",
+          "label_en",
+          "help_fr",
+          "help_en",
+          "long_text",
+          "value"
+        ],
+        "properties": {
+          "help_en": {
+            "type": "string",
+            "description": "English help or example."
+          },
+          "help_fr": {
+            "type": "string",
+            "description": "French help or example."
+          },
+          "key": {
+            "type": "string",
+            "description": "Storage key of the field."
+          },
+          "label_en": {
+            "type": "string",
+            "description": "English label."
+          },
+          "label_fr": {
+            "type": "string",
+            "description": "French label."
+          },
+          "long_text": {
+            "type": "boolean",
+            "description": "`true` when the field takes several lines."
+          },
+          "value": {
+            "type": "string",
+            "description": "Current value, empty when the field is not filled."
+          }
+        }
+      },
       "ProfileReset": {
         "type": "object",
         "description": "Answer of `POST /api/v1/profile/reset`.",
@@ -22545,6 +24757,133 @@
             "type": "integer",
             "description": "How many entries were removed.",
             "minimum": 0
+          }
+        }
+      },
+      "ProfileSummaryView": {
+        "type": "object",
+        "description": "One profile in the list of the profile screen.",
+        "required": [
+          "id",
+          "name",
+          "is_default",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "description": "ISO 8601 creation timestamp."
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A line that tells the profile apart: its role, else its function."
+          },
+          "id": {
+            "type": "string",
+            "description": "Stable identifier."
+          },
+          "is_default": {
+            "type": "boolean",
+            "description": "`true` for the one default profile."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name of the profile."
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "ISO 8601 last-update timestamp."
+          }
+        }
+      },
+      "ProfileUpdate": {
+        "type": "object",
+        "description": "A change to a profile: a new name, new field values, or both. An empty\nvalue empties its field.",
+        "properties": {
+          "fields": {
+            "type": "object",
+            "description": "New values, by field key.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New display name."
+          }
+        }
+      },
+      "ProjectOutcome": {
+        "type": "object",
+        "description": "What the migration did for one project.",
+        "properties": {
+          "agentsChecked": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Agents its sources are checked for.",
+            "default": []
+          },
+          "codeFolderSource": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the code folder source made on that connection, when\nthe project read its git state, its rules or its tree.",
+            "default": null
+          },
+          "documentSources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Identifiers of the sources made of its documents.",
+            "default": []
+          },
+          "folderConnection": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the folder connection made of its working folder.",
+            "default": null
+          },
+          "id": {
+            "type": "string",
+            "description": "Identifier of the project.",
+            "default": ""
+          },
+          "instructionsSource": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the source made of its instructions, if it had any.",
+            "default": null
+          },
+          "memory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryMerge"
+            },
+            "description": "Its memory spaces, merged.",
+            "default": []
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the project, which is also the group of its sources.",
+            "default": ""
           }
         }
       },
@@ -22616,6 +24955,48 @@
           "value": {
             "type": "string",
             "description": "The secret. Stored, never answered back."
+          }
+        }
+      },
+      "PythonInterpreterRequest": {
+        "type": "object",
+        "description": "The interpreter to use: an absolute path, or none to return to the bundled\none.",
+        "properties": {
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Absolute path of an interpreter; `null` or blank returns to the bundled\ninterpreter."
+          }
+        }
+      },
+      "PythonInterpreterSetting": {
+        "type": "object",
+        "description": "The Python interpreter setting.",
+        "required": [
+          "required_minor"
+        ],
+        "properties": {
+          "bundled": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Absolute path of the interpreter this runtime ships, when it knows it;\n`None` in a development tree, where no bundle is staged."
+          },
+          "chosen": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The absolute path in `[tools] python_interpreter`, or `None` when the\nbundled interpreter is in use."
+          },
+          "required_minor": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Minor version the bundled standard library requires of any chosen\ninterpreter.",
+            "minimum": 0
           }
         }
       },
@@ -23815,7 +26196,7 @@
         "properties": {
           "value": {
             "type": "object",
-            "description": "The user's value: a string for `name` and `mission`, a tier name for\n`autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`."
+            "description": "The user's value: a string for `name` and `mission`, a tier name for\n`autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`.\nA `sources` entry is a source identifier of `GET /api/v1/sources`, `profile` or `memory`."
           }
         }
       },
@@ -24102,6 +26483,156 @@
             "propertyNames": {
               "type": "string"
             }
+          }
+        }
+      },
+      "SourceKindDto": {
+        "type": "string",
+        "description": "What a source is.",
+        "enum": [
+          "folder",
+          "file",
+          "mail",
+          "profile",
+          "memory",
+          "code_folder"
+        ]
+      },
+      "SourcePreviewResponse": {
+        "type": "object",
+        "description": "What a batch on the file would read.",
+        "required": [
+          "format",
+          "sourceType",
+          "sheets",
+          "columns",
+          "rows",
+          "estimatedItems",
+          "canModifyOriginal",
+          "formattingNotKept"
+        ],
+        "properties": {
+          "canModifyOriginal": {
+            "type": "boolean",
+            "description": "True for `.xlsx` and `.xlsm`: results may be written into the original."
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewColumn"
+            },
+            "description": "The columns under the header row."
+          },
+          "estimatedItems": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many items a batch would read: the non-empty rows below the header.",
+            "minimum": 0
+          },
+          "format": {
+            "type": "string",
+            "description": "`xlsx`, `xlsm`, `xlsb`, `xls`, `ods` or `csv`."
+          },
+          "formattingNotKept": {
+            "type": "boolean",
+            "description": "True for `.xls`, `.xlsb` and `.ods`: the copy of results is a new\nworkbook without the original formatting."
+          },
+          "headerRow": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The header row used: the one asked for, or the proposed one.",
+            "minimum": 0
+          },
+          "proposedHeaderRow": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The header row proposed on the shown sheet.",
+            "minimum": 0
+          },
+          "proposedSheet": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The sheet proposed: the only one, or the one with the most non-empty rows."
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewRowView"
+            },
+            "description": "The first twenty rows of the shown sheet, from its top."
+          },
+          "sheet": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The sheet shown: the one asked for, or the proposed one."
+          },
+          "sheets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewSheet"
+            },
+            "description": "Every sheet, in the file's order; a CSV file has one, named after it."
+          },
+          "sourceType": {
+            "type": "string",
+            "description": "The batch source type that reads the file: `spreadsheet` or `csv`."
+          }
+        }
+      },
+      "SourceResponse": {
+        "type": "object",
+        "description": "A source of the registry.",
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "indexState",
+          "addedAt"
+        ],
+        "properties": {
+          "addedAt": {
+            "type": "string",
+            "description": "When it was added, RFC 3339 in UTC."
+          },
+          "group": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The group the source belongs to, if any."
+          },
+          "id": {
+            "type": "string",
+            "description": "Identifier, the form an agent's `sources` list names it by."
+          },
+          "indexState": {
+            "$ref": "#/components/schemas/IndexStateDto",
+            "description": "Where its index stands."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SourceKindDto",
+            "description": "What the source is."
+          },
+          "label": {
+            "type": "string",
+            "description": "The name the user sees."
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the source points at: a folder connection, a file path, a mail\nconnection, a memory space."
           }
         }
       },
@@ -24434,6 +26965,19 @@
               "$ref": "#/components/schemas/TaskListItem"
             },
             "description": "All tasks matching the optional filter."
+          }
+        }
+      },
+      "TaskRecordDeleted": {
+        "type": "object",
+        "description": "Response to a deletion.",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "`true` when a record was removed, `false` when no stored task matched\n(already gone, or never persisted)."
           }
         }
       },
@@ -25607,6 +28151,54 @@
           }
         }
       },
+      "UpdateAgentRequest": {
+        "type": "object",
+        "description": "Request body for `PUT /api/v1/agents/installed/{name}`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path of the new Python module on this machine."
+          }
+        }
+      },
+      "UpdateAgentResponse": {
+        "type": "object",
+        "description": "Response to an agent update.\n\nDistinct from the install answer because an update has an outcome an\ninstall cannot have: a runtime instance that had to be cycled.",
+        "required": [
+          "name",
+          "version",
+          "install_path",
+          "restart_outcome"
+        ],
+        "properties": {
+          "install_path": {
+            "type": "string",
+            "description": "Install path on disk."
+          },
+          "name": {
+            "type": "string",
+            "description": "Unique name of the updated agent."
+          },
+          "restart_error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Raw cause when the stop or the start failed, `None` otherwise."
+          },
+          "restart_outcome": {
+            "type": "string",
+            "description": "One of the [`restart_outcome`] constants."
+          },
+          "version": {
+            "type": "string",
+            "description": "Semver version read from the new module's manifest."
+          }
+        }
+      },
       "UpdateArtifactRequest": {
         "type": "object",
         "description": "The fields of an artifact a change may replace; an absent one is kept.",
@@ -26452,6 +29044,14 @@
     {
       "name": "server",
       "description": "Starting and stopping the compatible server, the second listener"
+    },
+    {
+      "name": "config",
+      "description": "The configuration file apollia.toml: read, validate, save, default text"
+    },
+    {
+      "name": "sources",
+      "description": "The registry of sources an agent may consult once checked"
     },
     {
       "name": "connectors",

@@ -23,16 +23,14 @@ use apollia_llm::{LlmRouter, ToolInvoker};
 use apollia_mcp::session::LoadingMode;
 use apollia_mcp::tool_search::{ToolIndexSnapshot, ToolSearchExecutor};
 use apollia_memory::user_memory::UserMemoryRepository;
-use apollia_permissions::prefix_rule_engine::RuleAction;
-use apollia_permissions::PrefixRuleEngine;
 use apollia_tools::governance_db::GOVERNANCE_DB_FILENAME;
-use apollia_tools::{ProjectRepository, ToolRegistryHandle};
+use apollia_tools::ToolRegistryHandle;
 
 use super::a2a_tools::CompositeToolInvoker;
 use super::agent_chat::{AgentChatExecutor, AgentChatRequest, ChatAgentRunner};
 use super::agent_executor::{
-    AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, Composition,
-    ProjectContextSource, RunInput, SessionWiring,
+    AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, Composition, RunInput,
+    SessionWiring,
 };
 use super::builtin_agent::{
     ChatAgentResponse, HitlInvokerParams, NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE,
@@ -45,8 +43,8 @@ use super::todo_handle::TodoHandle;
 use super::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, InjectedInstruction,
     MessageId, PauseState, PendingChatApprovals, PendingFilesystemApprovals, PlanPhase,
-    ProjectContextProvider, RecentSessionSummary, SessionDetail, SessionId, SessionInfo,
-    SessionMetrics, SessionStatus, ToolCallRecord, ToolDecision,
+    RecentSessionSummary, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
+    ToolCallRecord, ToolDecision,
 };
 use crate::a2a::A2AInvoker;
 use crate::api::routes_agents::AgentLoader;
@@ -128,10 +126,6 @@ struct ChatSessionManager {
     tx: mpsc::Sender<ChatCommand>,
     /// Optional A2A invoker, when present, worker agent skills are exposed as virtual tools.
     a2a_invoker: Option<Arc<A2AInvoker>>,
-    /// Optional project context provider for injecting project context into system prompts.
-    project_context: Option<Arc<dyn ProjectContextProvider>>,
-    /// Optional project repository for resolving workspace_path per session.
-    project_repo: Option<Arc<ProjectRepository>>,
     /// Pending user input registry for the `ask_user` tool.
     pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs,
     /// MCP manager handle, populated when the supervisor's MCP bootstrap
@@ -187,6 +181,9 @@ struct ChatSessionManager {
     /// the workflow engine is up. `None` offers no `agent:` or `workflow:`
     /// tool.
     composer: Option<Arc<dyn crate::composition::Composer>>,
+    /// The governance every tool call of a run is decided by, set once the
+    /// supervisor has started it. `None` decides from an empty state.
+    governance: Option<crate::governance::GovernanceHandle>,
     /// Per-session cooperative pause tokens.
     ///
     /// A fresh [`CancellationToken`] is inserted when a turn is dispatched and a
@@ -219,6 +216,7 @@ mod actor;
 mod agent_task;
 mod apollia_agent;
 mod authz;
+mod code_context;
 mod command;
 mod control;
 mod declarative;
@@ -230,6 +228,7 @@ mod handle_ext;
 mod libre;
 mod plan;
 mod session;
+mod sources;
 mod types;
 mod user_input;
 
@@ -244,13 +243,12 @@ pub(in crate::chat::manager) use dispatcher::{
     now_rfc3339, resolve_workspace_for_session, session_to_info,
 };
 pub(in crate::chat::manager) use libre::{
-    accumulate_exchange_metrics, apply_libre_overrides, load_chat_libre_overrides,
-    log_resolution_metadata, merge_live_authorized_tools, persist_chat_allow_rule,
-    run_libre_exchange,
+    accumulate_exchange_metrics, apply_libre_overrides, log_resolution_metadata,
+    run_libre_exchange, session_run_grants,
 };
 pub(in crate::chat::manager) use types::{
-    AlwaysAcceptScopeCtx, ChatLibreOverrides, ExchangeSummaryParams, FullDispatcherParams,
-    LibreExchangeParams, LibreSessionDefaults, PendingUserInputMeta, RegisterUserInputReplyParams,
+    ChatLibreOverrides, ExchangeSummaryParams, FullDispatcherParams, LibreExchangeParams,
+    LibreSessionDefaults, PendingUserInputMeta, RegisterUserInputReplyParams,
     ResolvedSessionInvoker, WorkspaceResolutionParams,
 };
 

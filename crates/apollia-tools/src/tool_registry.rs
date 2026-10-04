@@ -39,6 +39,7 @@ pub const NATIVE_TOOL_NAMES: &[&str] = &[
     "web_search",
     "web_read",
     "memory_search",
+    "source_search",
     "ask_user",
 ];
 

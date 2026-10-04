@@ -99,3 +99,36 @@ describe("an npm connection is always asked at an exact version", () => {
     );
   });
 });
+
+describe("a registry entry is added with the badge it was shown under", () => {
+  function remoteInputs(trust: RegistryServerView["trust_level"]): ConnectorConfigInputs {
+    return {
+      server: {
+        name: "com.example/mcp",
+        title: "Example",
+        enrichment: null,
+        trust_level: trust,
+      } as unknown as RegistryServerView,
+      connectionMode: "remote",
+      remote: { type: "streamable-http", url: "https://mcp.example.com/mcp", headers: [] },
+      pkg: null,
+      oauthResolved: false,
+      envValues: {},
+      argValues: {},
+      approvalLevel: "auto",
+    };
+  }
+
+  test("an official entry records official, a community one does not", () => {
+    // GIVEN the same registry entry badged official, community verified and community
+    // WHEN the configuration each one installs is built
+    const official = buildConnectorConfig(remoteInputs("verified_official"), false);
+    const verified = buildConnectorConfig(remoteInputs("community_verified"), false);
+    const community = buildConnectorConfig(remoteInputs("community"), false);
+
+    // THEN only the official one carries the official origin
+    expect(official?.origin).toEqual({ provenance: "registry", official: true });
+    expect(verified?.origin).toEqual({ provenance: "registry", official: false });
+    expect(community?.origin).toEqual({ provenance: "registry", official: false });
+  });
+});

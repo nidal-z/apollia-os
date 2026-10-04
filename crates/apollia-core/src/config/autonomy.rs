@@ -196,7 +196,11 @@ fn default_autonomy_level() -> AutonomyLevel {
     AutonomyLevel::Assisted
 }
 
-/// Autonomy tiers configuration (`[autonomy]` section in `apollia.toml`).
+/// Autonomy tiers configuration, a runtime parameter.
+///
+/// Not a section of `apollia.toml`: no loader reads an `[autonomy]` table, and
+/// a file that carries one is refused as an unknown key. The chat takes
+/// [`AutonomyConfig::default`]; a caller may override the tiers in code.
 ///
 /// Absent per-tier fields fall back to [`AutonomyLevelConfig::default_for`].
 /// Each tier is validated against the runtime ceiling in [`AutonomyConfig::validate`]:

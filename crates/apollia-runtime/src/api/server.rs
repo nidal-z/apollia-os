@@ -202,6 +202,10 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// Production journals into [`Self::audit_journal`] with no policy
     /// deposited; the default admits everything and journals nothing.
     pub connection_governance: crate::governance::ConnectionGovernance,
+    /// The governance the runtime runs on: the decision on every tool call,
+    /// the signature question of an installation, and the records of changes
+    /// of access. `None` in tests that mount no governance.
+    pub governance: Option<crate::governance::GovernanceHandle>,
     /// The `[inference]` section and the fixed settings of the organisation
     /// policy: an inference server is checked before it is added and before a
     /// request reaches it, and the model registry follows the fixed settings.
@@ -343,6 +347,10 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `/api/v1/server` routes start and stop. `None` in unit tests; those
     /// routes return 503.
     pub compat_server: Option<crate::compat_server::CompatServerHandle>,
+    /// Handle to the actor that owns the registry of sources in `system.db`.
+    /// `None` in unit tests; the `/api/v1/sources` routes return 503, and so
+    /// does a write of an agent's `sources` override, which is checked against it.
+    pub source_registry: Option<apollia_sources::SourceRegistryHandle>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -365,6 +373,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             audit_trail: self.audit_trail.clone(),
             audit_journal: self.audit_journal.clone(),
             connection_governance: self.connection_governance.clone(),
+            governance: self.governance.clone(),
             inference_governance: self.inference_governance.clone(),
             obs_config: self.obs_config.clone(),
             llm_call_repository: self.llm_call_repository.clone(),
@@ -391,6 +400,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             batches: self.batches.clone(),
             workflows: self.workflows.clone(),
             compat_server: self.compat_server.clone(),
+            source_registry: self.source_registry.clone(),
         }
     }
 }
@@ -812,6 +822,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
@@ -838,6 +849,7 @@ mod tests {
             batches: None,
             workflows: None,
             compat_server: None,
+            source_registry: None,
         }
     }
 

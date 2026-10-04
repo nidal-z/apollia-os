@@ -18,10 +18,11 @@ impl LlmRouter {
     /// Call the backend and automatically emit [`RuntimeEvent::LlmCallCompleted`].
     ///
     /// Execution sequence:
-    /// 1. Log the prompt at `TRACE` level if `obs.debug_log_prompt` is enabled.
+    /// 1. Log the prompt at `TRACE` level if `debug_log_prompt` is enabled, by
+    ///    `obs` or by the router's own `[llm.observability]`.
     /// 2. Call `backend.complete(req)`.
     /// 3. Emit `LlmCallCompleted` fire-and-forget on the bus (when present).
-    /// 4. Log tokens/latency at `INFO` level per the `obs` flags.
+    /// 4. Log tokens and latency at `INFO` level.
     /// 5. Return `Ok(response)`.
     ///
     /// The `EventBusSender` is optional: `None` disables emission without
@@ -48,7 +49,7 @@ impl LlmRouter {
             })?;
 
         // Log the prompt at TRACE only, never at INFO.
-        if obs.debug_log_prompt {
+        if obs.debug_log_prompt || self.observability.debug_log_prompt {
             tracing::trace!(prompt = ?req.messages, "llm.request.prompt");
         }
 
@@ -101,22 +102,17 @@ impl LlmRouter {
             ));
         }
 
-        if obs.log_token_usage {
-            tracing::info!(
-                backend = backend_key,
-                prompt_tokens = response.usage.prompt_tokens,
-                completion_tokens = response.usage.completion_tokens,
-                "llm.usage.tokens"
-            );
-        }
-
-        if obs.log_latency {
-            tracing::info!(
-                backend = backend_key,
-                latency_ms = latency_ms,
-                "llm.request.latency"
-            );
-        }
+        tracing::info!(
+            backend = backend_key,
+            prompt_tokens = response.usage.prompt_tokens,
+            completion_tokens = response.usage.completion_tokens,
+            "llm.usage.tokens"
+        );
+        tracing::info!(
+            backend = backend_key,
+            latency_ms = latency_ms,
+            "llm.request.latency"
+        );
 
         Ok(response)
     }
@@ -212,7 +208,7 @@ impl LlmRouter {
                 reason: "not found in router".to_owned(),
             })?;
 
-        if obs.debug_log_prompt {
+        if obs.debug_log_prompt || self.observability.debug_log_prompt {
             tracing::trace!(prompt = ?req.messages, "llm.stream.prompt");
         }
 

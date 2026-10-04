@@ -11,6 +11,7 @@ import type {
   RegistryRemoteView,
   RegistryServerView,
 } from "$lib/types";
+import { isOfficial } from "$lib/connections/vendor";
 
 /**
  * Backend validate_name() in apollia-mcp enforces `[a-z0-9_-]+` strictly,
@@ -121,8 +122,9 @@ export interface ConnectorConfigInputs {
  * literal secret the operator just typed, while an install stores a
  * `${APOLLIA_SECRET:...}` placeholder the transport resolves at each request.
  *
- * Every catalogue entry is sent as coming from the registry; the desktop
- * records the ones that match the curated selection as such.
+ * Every catalogue entry is sent as coming from the registry, with the official
+ * badge it was shown under; the desktop records the ones that match the
+ * curated selection as such, and decides their badge itself.
  */
 export function buildConnectorConfig(
   inputs: ConnectorConfigInputs,
@@ -174,7 +176,7 @@ export function buildConnectorConfig(
       env,
       requires_approval: approvalLevel === "ask",
       tags: [],
-      origin: { provenance: "registry" },
+      origin: { provenance: "registry", official: isOfficial(server) },
     };
   }
   if (connectionMode === "package" && pkg) {
@@ -207,7 +209,7 @@ export function buildConnectorConfig(
       transport: pkg.transport?.type ?? "stdio",
       requires_approval: approvalLevel === "ask",
       tags: [],
-      origin: { provenance: "registry" },
+      origin: { provenance: "registry", official: isOfficial(server) },
     };
   }
   return null;

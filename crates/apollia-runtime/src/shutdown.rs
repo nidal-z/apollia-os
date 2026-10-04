@@ -626,6 +626,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
@@ -652,6 +653,7 @@ mod tests {
             batches: None,
             workflows: None,
             compat_server: None,
+            source_registry: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -809,6 +811,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
@@ -835,6 +838,7 @@ mod tests {
             batches: None,
             workflows: None,
             compat_server: None,
+            source_registry: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -941,6 +945,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
@@ -967,6 +972,7 @@ mod tests {
             batches: None,
             workflows: None,
             compat_server: None,
+            source_registry: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1068,6 +1074,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
@@ -1094,6 +1101,7 @@ mod tests {
             batches: None,
             workflows: None,
             compat_server: None,
+            source_registry: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -1287,6 +1295,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
@@ -1313,6 +1322,7 @@ mod tests {
             batches: None,
             workflows: None,
             compat_server: None,
+            source_registry: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

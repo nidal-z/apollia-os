@@ -85,6 +85,7 @@ impl Supervisor {
             audit_trail: governance.audit_trail.clone(),
             audit_journal: governance.audit_journal.clone(),
             connection_governance: governance.connection.clone(),
+            governance: Some(governance.handle.clone()),
             inference_governance: crate::governance::InferenceGovernance::new(Arc::clone(
                 &core.org_policy,
             )),
@@ -113,6 +114,7 @@ impl Supervisor {
             batches: owned.batches,
             workflows: executors.workflows.clone(),
             compat_server: Some(owned.compat_server),
+            source_registry: inference.source_registry.clone(),
         }
     }
 }

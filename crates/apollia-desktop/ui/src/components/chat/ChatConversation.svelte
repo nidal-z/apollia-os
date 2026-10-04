@@ -46,7 +46,7 @@
     regenerateChatResponse,
     sendChatMessage,
   } from "$lib/ipc/chat";
-  import { getProfile } from "$lib/ipc/profile";
+  import { DEFAULT_PROFILE, getProfileById } from "$lib/ipc/profile";
   import { type PendingAttachment, composeUserPayload } from "$lib/chat/attachments";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
   import ContextIndicator from "./ContextIndicator.svelte";
@@ -214,7 +214,6 @@
    */
   const actions = createSessionActions(
     () => sessionId,
-    () => sessionDetail?.project_id ?? null,
     () => refreshSession(),
   );
   const subscriptions = createSubscriptionGuard();
@@ -284,7 +283,6 @@
   onMount(async () => {
     await loadSession();
     restoreGlobalState();
-    void actions.loadProjects();
 
     subscriptions.keep(await listen<{ session_id: string; message_id: string; token: string }>(
       "chat-token",
@@ -491,8 +489,10 @@
       conversationStats = null;
     }
     try {
-      const profile = await getProfile();
-      memoryEntryCount.set(profile.entries.length);
+      const profile = await getProfileById(DEFAULT_PROFILE);
+      memoryEntryCount.set(
+        profile.fields.filter((f) => f.value.trim()).length + profile.facts.length,
+      );
     } catch {
       memoryEntryCount.set(0);
     }
@@ -654,10 +654,6 @@
       {oncontextopen}
       onrename={(title) => void actions.rename(title)}
       ondelete={handleDeleteSession}
-      linkedProject={actions.linkedProject}
-      availableProjects={actions.availableProjects}
-      onlink={(projectId) => void actions.link(projectId)}
-      onprojectopen={() => actions.openProjects()}
       {planMode}
       onplanmodechange={(enabled) => {
         planMode = enabled;

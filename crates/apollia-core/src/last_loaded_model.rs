@@ -182,8 +182,7 @@ mod tests {
         // WHEN the repository opens it
         let repo = LlmBackendRepository::open(&path).unwrap();
 
-        // THEN the file is at the current version, the table answers, and the
-        //      row is kept
+        // THEN the file is at the current version, the table answers, and the row is kept
         assert_eq!(repo.last_loaded_model().unwrap(), None);
         let conn = repo.conn.borrow();
         let version: i64 = conn

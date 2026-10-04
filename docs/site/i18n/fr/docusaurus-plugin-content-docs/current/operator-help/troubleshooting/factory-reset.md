@@ -6,11 +6,11 @@ sidebar_position: 6
 
 # Réinitialiser Apollia (factory reset)
 
-> Pour tout operator qui souhaite remettre Apollia dans son état d'usine : effacer agents, mémoire, projets, intégrations et préférences. Cette action est irréversible - lisez chaque étape avant d'agir.
+> Pour tout operator qui souhaite remettre Apollia dans son état d'usine : effacer agents, mémoire, sources, intégrations et préférences. Cette action est irréversible - lisez chaque étape avant d'agir.
 
 ## Avant de commencer - à lire impérativement
 
-Une réinitialisation supprime **toutes** vos données locales : agents installés, mémoire des conversations, projets, intégrations MCP, transcriptions, historique de chat, règles de permissions, clés API enregistrées et préférences.
+Une réinitialisation supprime **toutes** vos données locales : agents installés, mémoire des conversations, sources, intégrations MCP, transcriptions, historique de chat, règles de permissions, clés API enregistrées et préférences.
 
 **Aucune de ces données n'est récupérable après confirmation.** Les fichiers stockés ailleurs sur votre disque (vos documents, vos rapports) ne sont pas touchés.
 
@@ -46,7 +46,7 @@ Une fenêtre de confirmation s'ouvre avec une **pause de sécurité de 3 seconde
 1. Apollia redémarre automatiquement. Si le redémarrage automatique échoue (environnement de développement sans bundle packagé), un bandeau orange vous invite à relancer l'application manuellement.
 2. Au redémarrage, le **parcours de configuration en quatre étapes** s'ouvre automatiquement : **Accueil → Profil → Modèles → Calibrage**. C'est le même parcours qu'au tout premier lancement.
 3. À l'étape **Modèles**, vous devez reconfigurer le LLM (téléchargement d'un modèle local ou ajout d'un backend cloud) - la réinitialisation a effacé l'ensemble de vos backends LLM. Voir aussi [Connecter un modele distant](../installation/connecter-un-modele-distant.md) si vous préférez ne pas passer par le parcours intégré.
-4. Une fois le parcours terminé, réinstallez vos agents, vos intégrations MCP et vos projets selon votre besoin.
+4. Une fois le parcours terminé, réinstallez vos agents et vos intégrations MCP, et ajoutez de nouveau vos sources, selon votre besoin.
 5. Si vous avez exporté votre mémoire via la CLI à l'étape 1, réimportez-la avec `apollia-os memory import --namespace <namespace> --input <fichier>`.
 
 ## Si quelque chose se passe mal

@@ -163,8 +163,6 @@ fn supervisor_config(
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
     }

@@ -24,8 +24,42 @@ use std::time::Duration;
 
 pub(crate) use refusal::refuse;
 
-/// The TCP port the runtime serves, whichever process runs it.
-pub(crate) const RUNTIME_PORT: u16 = 7771;
+/// How long a port recorded by a daemon has to accept a connection before the
+/// record is taken for a leftover.
+const RECORD_PROBE_TIMEOUT: Duration = Duration::from_millis(500);
+
+/// The port of the native API this window serves or attaches to, resolved
+/// once at startup and the same in both modes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ApiPort(pub(crate) u16);
+
+/// The TCP port the desktop claims, or attaches to.
+///
+/// A daemon records the port it serves in the data folder, whatever gave it
+/// that port (`--port` or `[api].port`); a record something listens on wins.
+/// Otherwise `[api].port` of `config_text`, the content of `apollia.toml`, and
+/// the default when the file is absent or refused (the desktop then starts on
+/// its defaults and says so).
+pub(crate) fn resolve_port(data_dir: &Path, config_text: Option<&str>) -> u16 {
+    let configured = config_text
+        .and_then(|text| apollia_core::config::validate(text).ok())
+        .map_or(apollia_core::config::DEFAULT_API_PORT, |config| {
+            config.api.port
+        });
+    match apollia_runtime::api::read_port_file(data_dir) {
+        Some(recorded) if recorded != configured && listens(recorded) => recorded,
+        _ => configured,
+    }
+}
+
+/// Whether something accepts a connection on the loopback `port`.
+fn listens(port: u16) -> bool {
+    TcpStream::connect_timeout(
+        &SocketAddr::from(([127, 0, 0, 1], port)),
+        RECORD_PROBE_TIMEOUT,
+    )
+    .is_ok()
+}
 
 /// How long the holder of the port has to answer the health request.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);

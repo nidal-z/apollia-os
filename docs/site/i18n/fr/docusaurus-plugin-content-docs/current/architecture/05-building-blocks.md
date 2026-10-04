@@ -110,6 +110,7 @@ service dans la [référence SDK](/reference/sdk). Les quinze services sont
 | **apollia-stt** | Reconnaissance vocale locale sur `whisper` : transcription et traduction par lots, plus une chaîne de traitement audio. Uniquement par lots, sans diffusion en continu. |
 | **apollia-workspace** | Le contexte projet (Git, un fournisseur de règles `APOLLIA.md`, une arborescence de fichiers, un fournisseur de scripts) et des commandes slash personnalisées : la couche harnais autour d'un agent. |
 | **apollia-auth** | Les flux OAuth et PKCE qui alimentent les connecteurs, avec les secrets qui atterrissent dans le trousseau ou dans un fichier age. |
+| **apollia-sources** | Les sources qu'un agent peut consulter une fois cochées pour lui : dossiers indexés, fichiers, boîtes mail, profil et mémoire. Porte l'acteur qui possède leur registre, une table de `system.db` ; la liste `sources` d'un agent en nomme les identifiants, ou `profile` et `memory`. |
 
 Pour la liste complète des outils natifs, voir le [catalogue des outils
 natifs](/reference/native-tools).

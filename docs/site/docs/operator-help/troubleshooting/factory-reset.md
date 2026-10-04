@@ -6,11 +6,11 @@ sidebar_position: 6
 
 # Reset Apollia (factory reset)
 
-> For operators who want to put Apollia back in its factory state: erase agents, memory, projects, integrations and preferences. This action is irreversible - read every step before acting.
+> For operators who want to put Apollia back in its factory state: erase agents, memory, sources, integrations and preferences. This action is irreversible - read every step before acting.
 
 ## Before you start - read this carefully
 
-A reset deletes **all** your local data: installed agents, conversation memory, projects, MCP integrations, transcriptions, chat history, permission rules, saved API keys and preferences.
+A reset deletes **all** your local data: installed agents, conversation memory, sources, MCP integrations, transcriptions, chat history, permission rules, saved API keys and preferences.
 
 **None of this data can be recovered after confirmation.** Files stored elsewhere on your disk (your documents, your reports) are untouched.
 
@@ -46,7 +46,7 @@ A confirmation window opens with a **3-second safety pause** during which the co
 1. Apollia restarts automatically. If the automatic restart fails (development environment without a packaged bundle), an orange banner invites you to relaunch the application manually.
 2. On restart, the **four-step setup flow** opens automatically: **Welcome → Profile → Models → Calibration**. It is the same flow as on the very first launch.
 3. At the **Models** step, you must configure the LLM again (download a local model or add a cloud backend) - the reset erased all your LLM backends. See also [Connect a remote model](../installation/connecter-un-modele-distant.md) if you would rather not go through the built-in flow.
-4. Once the flow is finished, reinstall your agents, your MCP integrations and your projects as needed.
+4. Once the flow is finished, reinstall your agents and your MCP integrations, and add your sources again, as needed.
 5. If you exported your memory through the CLI in step 1, import it back with `apollia-os memory import --namespace <namespace> --input <file>`.
 
 ## If something goes wrong

@@ -185,6 +185,7 @@ async fn test_shutdown_drains_active_tasks() {
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        governance: None,
         inference_governance: Default::default(),
         backend: MockBackend::slow(Duration::from_millis(300)),
         llm_router: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
@@ -221,6 +222,7 @@ async fn test_shutdown_drains_active_tasks() {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -304,6 +306,7 @@ async fn test_shutdown_stops_all_agents() {
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        governance: None,
         inference_governance: Default::default(),
         backend: MockBackend::slow(Duration::ZERO),
         llm_router: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
@@ -340,6 +343,7 @@ async fn test_shutdown_stops_all_agents() {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -413,6 +417,7 @@ async fn test_shutdown_broadcasts_requested_event() {
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        governance: None,
         inference_governance: Default::default(),
         backend: MockBackend::slow(Duration::ZERO),
         llm_router: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
@@ -449,6 +454,7 @@ async fn test_shutdown_broadcasts_requested_event() {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -544,6 +550,7 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        governance: None,
         inference_governance: Default::default(),
         backend: NeverBackend,
         llm_router: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
@@ -580,6 +587,7 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
     let api = APIServer::new(
         APIServerConfig {

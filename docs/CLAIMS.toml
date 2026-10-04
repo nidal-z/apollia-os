@@ -118,29 +118,29 @@ evidence = ""
 note = """
 This is where the anti-chaining protection actually lives. It went dark once,
 its only call chain leading to an aggregate no binary installed while the docs
-promised it anyway; it is live through the chat loop's per-invocation prefix
-checker (`build_prefix_checker` -> `check_with_scope` ->
-`code_executor_prefix_matches`). If that checker ever loses its caller, this
-claim must flip back to not-wired together with the pages that state it.
+promised it anyway; it is live through the governance decision every tool call
+of every agent goes through (`governance::decide` -> `rule_matches` ->
+`code_executor_prefix_matches`, and `decide` itself for a code call allowed by
+a rule). If that decision ever loses its caller, this claim must flip back to
+not-wired together with the pages that state it.
 """
 
 [[claim]]
 id = "prefix-rules-evaluated-per-invocation"
 scope = "public"
-symbol = "build_prefix_checker"
+symbol = "rule_matches"
 status = "wired"
-proof = "crates/apollia-runtime/src/chat/manager/libre.rs"
+proof = "crates/apollia-runtime/src/governance/decision.rs"
 evidence = ""
 note = """
 The onboarding round found the previous state the hard way: a rule allowing
 `ls` was recorded and free chat still asked for approval, because the chat
 authorization was a name-only HashSet and no production code evaluated the
-stored prefixes. The checker built here closes that gap: on a miss of the
-name-only set, the ReAct loop consults `check_with_scope` with the call's
-first argument, per invocation, Libre sessions only. The name-only seeding
-still drops arg-prefix rules from the set; that is now complemented, not
-contradicted, by the per-invocation evaluation. If this checker loses its
-caller, replace this claim with the not-wired retraction it superseded.
+stored prefixes. The governance decision closes that gap: before every tool
+call of every agent, in the chat and outside it, it matches the stored rules
+against the call's first argument, per invocation. No name-only set is seeded
+from the rules any more. If the decision loses its caller, replace this claim
+with the not-wired retraction it superseded.
 """
 
 [[claim]]
@@ -1357,20 +1357,19 @@ parameter goes back to having no effect whatsoever.
 """
 
 [[claim]]
-id = "chat-file-root-is-home-without-project"
+id = "file-tools-root-is-the-granted-folders"
 scope = "public"
-symbol = "home_dir_or_temp"
+symbol = "granted_folders"
 status = "wired"
-proof = "crates/apollia-runtime/src/chat/manager/dispatcher.rs"
+proof = "crates/apollia-tools/src/folder_access.rs"
 note = """
-A chat with no project used to root its file tools at the system temp directory,
-which made the assistant unable to reach anything the user owns while protecting
-nothing: the trust model already states that an installed agent runs with the
-user's rights, and the prompt tells the model in so many words that it may read
-and write elsewhere on the machine. The root is the home directory now, and temp
-is only the fallback when home cannot be resolved. If this call reverts to
-`std::env::temp_dir`, the reference page becomes false again and the assistant
-goes back to seeing an empty machine.
+The file tools of an agent reach the folders granted to it and nothing else, on
+the chat path and on the task path. They used to reach the home folder by
+default, and in the chat also the volume and the project's folder, so the list
+of folders on an agent's sheet bounded nothing. The roots are now read from the
+agent's granted accesses and the folder connections in system.db. If a runner
+stops calling this function, its file tools fall back to no root at all, and the
+reference page that says which folders an agent reaches becomes false.
 """
 
 [[claim]]
@@ -1524,22 +1523,23 @@ convention the prompts now follow is no longer the one the bridge accepts.
 [[claim]]
 id = "daemon-binds-tcp-by-default"
 scope = "public"
-symbol = "DEFAULT_TCP_PORT"
+symbol = "resolve_tcp_port"
 status = "wired"
 proof = "crates/apollia-cli/src/commands/start.rs"
 evidence = ""
 note = """
 Six pages said the daemon opens a TCP port only when one is given, in six
 different formulations, so no single search found them. The code has no such
-condition: `apollia-os start` runs `port.unwrap_or(DEFAULT_TCP_PORT)` and passes
-`Some(tcp_port)` unconditionally, so `--port` chooses the number and nothing
-leaves the port closed. The embedded runtime is the one that defaults to
+condition: `apollia-os start` resolves its port with `resolve_tcp_port`
+(`--port`, then `[api].port`, then 7771) and passes `Some(tcp_port)`
+unconditionally, so the flag or the file choose the number and nothing leaves
+the port closed. The embedded runtime is the one that defaults to
 Unix-socket-only, and that page is correct.
 
-The residual this claim does not cover: `wired` proves the constant is read, not
-that it is read unconditionally. A reintroduced `if let Some(port)` would keep
-this green, because the replay resolves a symbol and never reads the value or the
-shape of the expression around it.
+The residual this claim does not cover: `wired` proves the function is called,
+not that its result is used unconditionally. A reintroduced `if let Some(port)`
+would keep this green, because the replay resolves a symbol and never reads the
+value or the shape of the expression around it.
 """
 
 [[claim]]

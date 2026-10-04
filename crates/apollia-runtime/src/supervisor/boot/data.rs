@@ -1,15 +1,14 @@
 //! Data at boot: the execution trace and its observers, the trigger
 //! definitions, and the stores the API server and the agents share (tasks,
-//! user memory, notifications, plan cache, mailbox, projects).
+//! user memory, notifications, plan cache, mailbox, and the migration of the
+//! former projects).
 
 use crate::supervisor::*;
 
 use crate::supervisor::bootstrap::{
     load_trigger_definitions, seed_default_desktop_channel_if_needed,
 };
-use crate::supervisor::persistence::{
-    open_plan_cache, open_project_repository, open_task_repository, open_user_memory,
-};
+use crate::supervisor::persistence::{open_plan_cache, open_task_repository, open_user_memory};
 
 /// The trigger definitions read at boot and the repository they come from.
 pub(super) struct TriggerDefinitions {
@@ -30,7 +29,6 @@ pub(super) struct Stores {
     pub(super) plan_cache:
         Option<Arc<std::sync::Mutex<apollia_oria::plan_cache::PlanCacheRepository>>>,
     pub(super) mailbox_handle: crate::mailbox::AgentMailboxHandle,
-    pub(super) project_repository: Option<Arc<apollia_tools::ProjectRepository>>,
 }
 
 impl Supervisor {
@@ -192,8 +190,9 @@ impl Supervisor {
         // Phase 13: UserMemoryRepository was promoted above (before notifications)
         // to support the seed bootstrap of the default desktop channel.
 
-        // Phase 13b: ProjectRepository, SQLite projects.db.
-        let project_repository = open_project_repository(&self.config.data_dir);
+        // Phase 13a: the former projects become sources, before the chat
+        // manager loads the sessions it detaches.
+        crate::project_migration::run_at_boot(&self.config.data_dir).await;
 
         Ok(Stores {
             task_repository,
@@ -205,7 +204,6 @@ impl Supervisor {
             notification_engine,
             plan_cache,
             mailbox_handle,
-            project_repository,
         })
     }
 }

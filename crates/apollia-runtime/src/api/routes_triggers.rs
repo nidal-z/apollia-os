@@ -722,6 +722,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
@@ -748,6 +749,7 @@ mod tests {
             batches: None,
             workflows: None,
             compat_server: None,
+            source_registry: None,
         }
     }
 
@@ -1238,6 +1240,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
@@ -1264,6 +1267,7 @@ mod tests {
             batches: None,
             workflows: None,
             compat_server: None,
+            source_registry: None,
         };
 
         let router = Router::new()

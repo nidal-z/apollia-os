@@ -72,13 +72,6 @@ impl Supervisor {
                 stores.user_memory.clone(),
                 core.registry_handle.clone(),
                 Some(a2a_invoker.clone()),
-                stores.project_repository.as_ref().map(|repo| {
-                    std::sync::Arc::new(crate::chat::DefaultProjectContextProvider::new(
-                        repo.clone(),
-                    ))
-                        as std::sync::Arc<dyn crate::chat::ProjectContextProvider>
-                }),
-                stores.project_repository.clone(),
                 core.mcp_handle.clone(),
                 // Feed the chat dispatcher the same global config the Agent-mode
                 // dispatcher uses. Native tools that need app-level config
@@ -89,13 +82,8 @@ impl Supervisor {
                     data_dir: self.config.data_dir.clone(),
                     brave_api_key: None, // resolved lazily by web_search when missing
                     tools_config: self.config.tools_config.clone(),
-                    default_workspace: self
-                        .config
-                        .chat_default_workspace
-                        .clone()
-                        .map(std::path::PathBuf::from),
                     tool_turn_temperature: self.config.chat_tool_turn_temperature,
-                    trusted_paths: self.config.filesystem_trusted_paths.clone(),
+                    source_registry: inference.source_registry.clone(),
                 })),
                 self.config.mcp_loading,
                 self.config.tool_search_limit,
@@ -129,8 +117,9 @@ impl Supervisor {
     ) -> Executors {
         // The batch engine runs an agent without code on every item of a
         // source; it needs the task store and the agent executor, and resumes
-        // the batches left running as soon as it starts. No source reader is
-        // registered yet: a launch on any kind answers that it is unknown.
+        // the batches left running as soon as it starts. It reads workbooks
+        // (`spreadsheet`) and CSV files (`csv`); a launch on any other kind
+        // answers that it is unknown.
         // Governance says which accesses of the agent are sensitive.
         // One agent executor path, shared by batches, workflow steps and
         // triggers; `None` without the executor or the task store.
@@ -144,11 +133,11 @@ impl Supervisor {
         let batches = match (&stores.task_repository, &launcher) {
             (Some(repo), Some(launcher)) => Some(crate::batch::BatchHandle::spawn(
                 repo.clone(),
-                Arc::new(apollia_core::batch_source::SourceRegistry::new()),
+                Arc::new(batch_sources()),
                 batch_runner(
                     launcher.clone(),
                     self.config.data_dir.clone(),
-                    governance.audit_journal.clone(),
+                    governance.handle.clone(),
                 ),
                 core.event_sender.clone(),
             )),
@@ -174,6 +163,9 @@ impl Supervisor {
                 agents,
             )
         });
+        if let Some(chat) = chat_manager {
+            chat.set_governance(governance.handle.clone()).await;
+        }
         // An agent calls the agents and workflows it was granted through the
         // same executor and the same engine a workflow step uses.
         if let (Some(chat), Some(agents), Some(engine)) = (chat_manager, step_agents, &workflows) {
@@ -246,19 +238,25 @@ pub(super) async fn load_agents_after_ready<
     Supervisor::auto_load_installed_agents(ctx).await;
 }
 
-/// The item runner of the batch engine, asking the default governance which
-/// accesses are sensitive when the audit journal is open; without it, an
-/// access is sensitive when its tool declares it so, the same rule.
+/// The item runner of the batch engine, asking governance which accesses
+/// are sensitive.
 fn batch_runner<B: crate::coordinator::ExecutionBackend>(
     launcher: crate::agents::task::AgentTaskLauncher<B>,
     data_dir: std::path::PathBuf,
-    journal: Option<crate::audit_journal::AuditJournalHandle>,
+    governance: crate::governance::GovernanceHandle,
 ) -> crate::batch::AgentItemRunner<B> {
-    let runner = crate::batch::AgentItemRunner::new(launcher, data_dir);
-    match journal {
-        Some(journal) => runner.with_governance(Arc::new(
-            crate::governance::NoPolicyGovernance::new(journal),
-        )),
-        None => runner,
+    crate::batch::AgentItemRunner::new(launcher, data_dir).with_governance(Arc::new(governance))
+}
+
+/// The batch source kinds this runtime reads.
+fn batch_sources() -> apollia_core::batch_source::SourceRegistry {
+    let mut registry = apollia_core::batch_source::SourceRegistry::new();
+    if let Err(error) = apollia_sources::register_table_sources(&mut registry) {
+        tracing::event!(
+            tracing::Level::ERROR,
+            error = %error,
+            "batch.source_registration_failed"
+        );
     }
+    registry
 }

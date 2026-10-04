@@ -110,23 +110,6 @@ pub(super) fn resolve_writable_config_path() -> Result<PathBuf, i32> {
     Ok(path)
 }
 
-pub(super) fn read_or_empty(path: &Path) -> std::io::Result<String> {
-    match std::fs::read_to_string(path) {
-        Ok(s) => Ok(s),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
-        Err(e) => Err(e),
-    }
-}
-
-pub(super) fn write_config_file(path: &Path, content: &str) -> std::io::Result<()> {
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            std::fs::create_dir_all(parent)?;
-        }
-    }
-    std::fs::write(path, content)
-}
-
 pub(super) fn format_unix_date(ts: i64) -> String {
     chrono::DateTime::<chrono::Utc>::from_timestamp(ts, 0)
         .map(|dt| dt.format("%Y-%m-%d").to_string())

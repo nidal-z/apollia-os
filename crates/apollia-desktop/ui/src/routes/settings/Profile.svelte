@@ -9,124 +9,96 @@
 
 <script lang="ts">
   /**
-   * Settings > Profile - the user's identity, agent-supervision preferences,
-   * tools, constraints, and the off-schema memory facts.
+   * Settings > Profile - the profiles of the user: the list with the default
+   * marked, the fields of the displayed profile, the facts retained in it.
    *
-   * The profile is a flat key/value store (`__user__`) whose schema is declared
-   * in Rust (PROFILE_SCHEMA); this form mirrors it by hand. It is an
-   * explicit-save page: field edits accumulate locally and persist together via
-   * the shared frame's Save (footer / Cmd+S / nav guard). Memory facts are
-   * agent-owned and persist immediately, outside the form's save cycle.
+   * The fields come from Rust with the profile (`get_profile_by_id`); this page
+   * carries no copy of the schema. Field edits accumulate locally and persist
+   * together via the shared frame's Save (footer / Cmd+S / nav guard), and are
+   * saved before another profile is displayed. Profile changes (create,
+   * rename, default, reset, delete) and facts persist immediately.
    */
   import { onMount } from "svelte";
+  import { t } from "svelte-i18n";
   import { setRouteState } from "$lib/stores/settingsDirty";
+  import { addToast } from "$lib/components/ui/toast";
   import { reportError } from "$lib/errors/reportError";
   import {
-    getProfile,
-    setProfileEntry,
-    deleteProfileEntry,
-    type ProfileEntryView,
+    createProfile,
+    deleteProfile,
+    getProfileById,
+    listProfiles,
+    resetProfile,
+    setDefaultProfile,
+    triggerOnboarding,
+    updateProfile,
+    type ProfileDetailView,
+    type ProfileSummaryView,
   } from "$lib/ipc/profile";
   import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
   import ProfileEnrichmentBanner from "../../components/settings/profile/ProfileEnrichmentBanner.svelte";
-  import ProfileIdentityCard from "../../components/settings/profile/ProfileIdentityCard.svelte";
-  import ProfileSupervisionCard from "../../components/settings/profile/ProfileSupervisionCard.svelte";
-  import ProfileToolsCard from "../../components/settings/profile/ProfileToolsCard.svelte";
-  import ProfileConstraintsCard from "../../components/settings/profile/ProfileConstraintsCard.svelte";
-  import ProfilePreferencesCard from "../../components/settings/profile/ProfilePreferencesCard.svelte";
+  import ProfileListCard from "../../components/settings/profile/ProfileListCard.svelte";
+  import ProfileFieldsCard from "../../components/settings/profile/ProfileFieldsCard.svelte";
   import ProfileMemoryFactsCard from "../../components/settings/profile/ProfileMemoryFactsCard.svelte";
-  import ProfileDangerZone from "../../components/settings/profile/ProfileDangerZone.svelte";
-  import type { ProfileFieldApi } from "../../components/settings/profile/profileForm";
+  import {
+    applyReset,
+    changedFields,
+    fieldValues,
+    profileAfterDelete,
+    type ResetChoice,
+  } from "../../components/settings/profile/profileForm";
 
   let loading = $state(true);
+  let profiles = $state<ProfileSummaryView[]>([]);
+  let selectedId = $state<string | null>(null);
+  let detail = $state<ProfileDetailView | null>(null);
   let values = $state<Record<string, string>>({});
-  let sources = $state<Record<string, string>>({});
-  let original = $state<Record<string, string>>({});
-  let facts = $state<ProfileEntryView[]>([]);
   let factsNonce = $state(0);
 
-  const api: ProfileFieldApi = {
-    get values() {
-      return values;
-    },
-    get sources() {
-      return sources;
-    },
-    set: (key: string, value: string) => {
-      values[key] = value;
-    },
-  };
+  const changed = $derived(detail ? changedFields(detail.fields, values) : {});
+  const dirty = $derived(Object.keys(changed).length > 0);
+
+  function show(next: ProfileDetailView): void {
+    detail = next;
+    selectedId = next.profile.id;
+    values = fieldValues(next.fields);
+    factsNonce += 1;
+  }
+
+  async function refreshList(): Promise<void> {
+    profiles = await listProfiles();
+  }
+
+  async function open(id: string): Promise<void> {
+    show(await getProfileById(id));
+  }
 
   onMount(async () => {
     try {
-      const profile = await getProfile();
-      const valMap: Record<string, string> = {};
-      const srcMap: Record<string, string> = {};
-      for (const e of profile.entries ?? []) {
-        valMap[e.key] = e.value;
-        srcMap[e.key] = e.written_by;
-      }
-      values = valMap;
-      sources = srcMap;
-      original = { ...valMap };
-      facts = profile.extras ?? [];
-    } catch {
-      // A missing profile is an empty form, not an error.
-      values = {};
-      sources = {};
-      original = {};
-      facts = [];
+      await refreshList();
+      const first = profiles.find((p) => p.is_default) ?? profiles[0];
+      if (first) await open(first.id);
+    } catch (err) {
+      reportError(err, { surface: "inline" });
     } finally {
       loading = false;
     }
   });
 
-  function changedKeys(): string[] {
-    const keys = new Set([...Object.keys(original), ...Object.keys(values)]);
-    const out: string[] = [];
-    for (const key of keys) {
-      const cur = (values[key] ?? "").trim();
-      const orig = (original[key] ?? "").trim();
-      if (cur !== orig) out.push(key);
-    }
-    return out;
-  }
-
   // Keep the shell's dirty affordance (nav guard, sidebar dot, Save button) in
   // sync with local edits.
   $effect(() => {
     if (loading) return;
-    setRouteState("profile", { dirty: changedKeys().length > 0 });
+    setRouteState("profile", { dirty });
   });
 
   async function save(): Promise<boolean> {
+    if (!detail) return true;
     setRouteState("profile", { savingState: "saving", lastError: null });
-    const changed = changedKeys();
     try {
-      for (const key of changed) {
-        const next = (values[key] ?? "").trim();
-        if (next === "") {
-          try {
-            await deleteProfileEntry(key);
-          } catch {
-            // Ignore NOT_FOUND: an emptied field that was never persisted.
-          }
-        } else {
-          await setProfileEntry(key, next);
-        }
-      }
-      for (const key of changed) {
-        const next = (values[key] ?? "").trim();
-        if (next === "") {
-          delete values[key];
-          delete sources[key];
-        } else {
-          values[key] = next;
-          sources[key] = "user";
-        }
-      }
-      original = { ...values };
+      show(await updateProfile(detail.profile.id, { fields: changed }));
+      await refreshList();
       setRouteState("profile", { dirty: false, savingState: "saved" });
       return true;
     } catch (err) {
@@ -140,17 +112,78 @@
   }
 
   function reset(): void {
-    values = { ...original };
+    if (detail) values = fieldValues(detail.fields);
     setRouteState("profile", { dirty: false, savingState: "idle" });
   }
 
-  function afterProfileReset(): void {
-    values = {};
-    sources = {};
-    original = {};
-    facts = [];
-    factsNonce += 1;
-    setRouteState("profile", { dirty: false, savingState: "idle" });
+  async function select(id: string): Promise<void> {
+    if (id === selectedId) return;
+    if (dirty && !(await save())) return;
+    try {
+      await open(id);
+    } catch (err) {
+      reportError(err, { surface: "toast" });
+    }
+  }
+
+  async function attempt(action: () => Promise<void>): Promise<boolean> {
+    try {
+      await action();
+      return true;
+    } catch (err) {
+      reportError(err, { surface: "toast" });
+      return false;
+    }
+  }
+
+  function onCreate(name: string): Promise<boolean> {
+    return attempt(async () => {
+      const created = await createProfile(name);
+      await refreshList();
+      if (dirty) await save();
+      await open(created.id);
+      addToast($t("settings.profile.toast.created", { values: { name: created.name } }), "success");
+    });
+  }
+
+  function onRename(profile: ProfileSummaryView, name: string): Promise<boolean> {
+    return attempt(async () => {
+      const renamed = await updateProfile(profile.id, { name });
+      await refreshList();
+      if (renamed.profile.id === selectedId && detail) {
+        detail = { ...detail, profile: renamed.profile };
+      }
+    });
+  }
+
+  async function onSetDefault(profile: ProfileSummaryView): Promise<void> {
+    await attempt(async () => {
+      await setDefaultProfile(profile.id);
+      await refreshList();
+      addToast(
+        $t("settings.profile.toast.default_set", { values: { name: profile.name } }),
+        "success",
+      );
+    });
+  }
+
+  function onReset(profile: ProfileSummaryView, choice: ResetChoice): Promise<boolean> {
+    return attempt(async () => {
+      await applyReset(profile, choice, { reset: resetProfile, onboard: triggerOnboarding });
+      await refreshList();
+      if (profile.id === selectedId) await open(profile.id);
+      addToast($t("settings.profile.toast.reset_done"), "success");
+    });
+  }
+
+  function onDelete(profile: ProfileSummaryView): Promise<boolean> {
+    return attempt(async () => {
+      await deleteProfile(profile.id);
+      const next = profileAfterDelete(profiles, profile.id);
+      await refreshList();
+      if (profile.id === selectedId && next) await open(next);
+      addToast($t("settings.profile.toast.deleted"), "success");
+    });
   }
 </script>
 
@@ -163,15 +196,33 @@
     onReset={reset}
     data-testid="profile-section"
   >
-    <ProfileEnrichmentBanner {api} />
-    <ProfileIdentityCard {api} />
-    <ProfileSupervisionCard {api} />
-    <ProfileToolsCard {api} />
-    <ProfileConstraintsCard {api} />
-    {#key factsNonce}
-      <ProfileMemoryFactsCard {facts} />
-    {/key}
-    <ProfilePreferencesCard {api} />
-    <ProfileDangerZone onReset={afterProfileReset} />
+    <ProfileListCard
+      {profiles}
+      {selectedId}
+      onSelect={(id: string) => void select(id)}
+      {onCreate}
+      {onRename}
+      {onSetDefault}
+      {onReset}
+      {onDelete}
+    />
+    {#if detail}
+      {#key factsNonce}
+        <ProfileEnrichmentBanner fields={detail.fields} />
+      {/key}
+      <ProfileFieldsCard
+        profileName={detail.profile.name}
+        fields={detail.fields}
+        {values}
+        onchange={(key: string, value: string) => (values[key] = value)}
+      />
+      {#key factsNonce}
+        <ProfileMemoryFactsCard
+          profileId={detail.profile.id}
+          profileName={detail.profile.name}
+          facts={detail.facts}
+        />
+      {/key}
+    {/if}
   </SettingsSubPage>
 {/if}

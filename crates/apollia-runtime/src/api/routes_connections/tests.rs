@@ -91,6 +91,7 @@ async fn router(dir: &TempDir) -> Router {
         audit_trail: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        governance: None,
         inference_governance: Default::default(),
         obs_config: apollia_core::ObservabilityConfig::default(),
         llm_call_repository: None,
@@ -117,6 +118,7 @@ async fn router(dir: &TempDir) -> Router {
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
     Router::new().route(
         "/api/v1/connections",

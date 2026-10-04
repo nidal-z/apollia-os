@@ -116,7 +116,7 @@ backup already exists, and picks up the narrative overlay from
 Read that line: without the overlay you get the test fixture, and half the
 screens below show a thinner state than what they describe.
 
-`APOLLIA_SEED_PROJECT_ROOT` is what the project pages, the permission cards and
+`APOLLIA_SEED_PROJECT_ROOT` is what the permission cards and
 the audit trail display. Left unset it is this repository checkout, which means
 your own machine's path ends up on a published image. Point it at a directory
 that exists (create an empty one if you have none) unless you have decided you
@@ -280,8 +280,6 @@ different stories, and the reader notices.
 | Chat question, row 25 (reasoning) | `Read reports/atlas-audit.md and tell me how many pages need a manual pass.` |
 | Chat question, row 61 (MCP approval) | `List the files under legacy/ using the filesystem connector.` |
 | Approval rejection reason, row 51 | `That would remove batches 1 to 3 as well. Clear batch 4 by name instead.` |
-| New project name, row 40 | `Client Digest 2027` |
-| New project template, row 40 | **Developer project** |
 | New automation sentence, rows 45 and 46 | `Every weekday at 8am, summarise what moved on Atlas Migration.` |
 | New channel name, row 75 | `Ops desk` |
 | Custom MCP name, rows 57 to 59 | `Notes server` |
@@ -306,7 +304,6 @@ is converting, one batch failed on a malformed table and had to be redone.
 
 | Where | What is there |
 |---|---|
-| Projects | `Atlas Migration` (active minutes ago) and `Client Digest` |
 | Chat | 5 conversations, the top one `Auditing the legacy documentation set`, which carries 5 tool cards: 3 executed, 1 failed, 1 refused |
 | Plan | 6 steps: 3 done (one of them replanned), 1 running, 1 pending, 1 failed |
 | Automations | 2 active, 2 paused; 8 history rows across fired / skipped / error |
@@ -379,20 +376,6 @@ marked `hand` only because the automaton frames the whole window.
 | 33 | `agents-installer-un-agent-2bis.png` | Same preview, a package with a webhook trigger. | The webhook trigger card with its Configure button | see N5 | dialog | hand, see N5 |
 | 34 | `agents-installer-un-agent-3.png` | Preview → Configure. | Configure step: webhook card, endpoint URL, HMAC-SHA256 secret field | see N5 | dialog | hand, see N5 |
 | 35 | `agents-installer-un-agent-4.png` | Configure → Install. | "Package installed!" with the agent and trigger counters, Close | see N5 | dialog | hand, see N5 |
-
-## Projects
-
-| # | File | Route and gesture | What must be on screen | Values | Crop | How |
-|---|---|---|---|---|---|---|
-| 36 | `projets-activer-les-context-providers-1.png` | Projects → `Atlas Migration` → Context. | The provider list with its ON/OFF toggles. Three providers | none | panel | auto |
-| 37 | `projets-activer-les-context-providers-2.png` | Same section, no click needed. | Git status ON (green), Directory tree OFF (grey) | none, the seed sets them that way | panel | auto |
-| 38 | `projets-activer-les-context-providers-3.png` | Click **Preview context** (Workspace Snapshot). | The provider preview with real git diff and file tree content | none; needs `APOLLIA_SEED_PROJECT_ROOT` to be a real git checkout | panel | auto |
-| 39 | `projets-creer-un-projet-1.png` | Projects. | The list, **+ New Project** highlighted top right | none | page | auto |
-| 40 | `projets-creer-un-projet-2.png` | Click + New Project. | The modal: Name, Root folder, Template | name `Client Digest 2027`, template **Developer project**, leave the folder as offered | dialog | auto |
-| 41 | `projets-creer-un-projet-3.png` | Cancel, then click the `Atlas Migration` row. | The detail pane: header with the agent count and New chat, the six-tab bar (Conversations, Tasks, Agents, Memory, Context, Settings), open on Conversations | none | panel | auto |
-| 42 | `projets-lier-un-projet-a-un-chat-1.png` | Same sheet. | **+ New Chat** highlighted | none | dialog | auto |
-| 43 | `projets-lier-un-projet-a-un-chat-2.png` | Chat → open any conversation → header menu (three dots). | The menu open on **Link to a project** | open `Weekly check-in` | panel | auto |
-| 44 | `projets-lier-un-projet-a-un-chat-3.png` | Back to the project sheet, Chats section. | The linked chats with their titles and dates | none, the seed links two, `Weekly check-in` and `Auditing the legacy documentation set` | dialog | auto |
 
 ## Automations
 

@@ -13,7 +13,7 @@ import type { Route } from "$lib/stores/navigation";
 export const DEFAULT_ROUTE: Route = "dashboard";
 
 /** The screens shown only with the developer mode on, in sidebar order. */
-export const DEVELOPER_ROUTES: readonly Route[] = ["transcriptions", "observability"];
+export const DEVELOPER_ROUTES: readonly Route[] = ["transcriptions", "observability", "memory"];
 
 /** Whether `route` is reserved to the developer mode. */
 export function isDeveloperRoute(route: Route): boolean {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { tick } from "svelte";
-  import { MessageCircle, Pin, Archive, MoreHorizontal, Edit3, Trash2, Check, X, FolderOpen, Settings2 } from "lucide-svelte";
+  import { MessageCircle, Pin, Archive, MoreHorizontal, Edit3, Trash2, Check, X, Settings2 } from "lucide-svelte";
   import StatusDot from "./StatusDot.svelte";
   import { Button } from "$lib/components/ui/button";
   import { ActionMenu } from "$lib/components/ui/action-menu";
@@ -35,8 +35,6 @@
     ondelete?: () => void;
     /** Optional configure action - adds a "Configuration" kebab entry. */
     onconfigure?: () => void;
-    /** Project this conversation is linked to (displayed as a small chip). */
-    projectLabel?: string;
   }
 
   let {
@@ -50,7 +48,6 @@
     onrename,
     ondelete,
     onconfigure,
-    projectLabel,
   }: Props = $props();
 
   const isActive = $derived(rowStateProp === "active");
@@ -190,16 +187,6 @@
     <div class="text-micro-lg text-muted-foreground mt-0.5 inline-flex items-center gap-1.5 flex-wrap">
       {#if lastMessage}<span class="truncate">{lastMessage}</span>{/if}
       <span>· {$t("common.relative.ago", { values: { time: timestamp } })}</span>
-      {#if projectLabel}
-        <span
-          class="inline-flex items-center gap-0.5 rounded-sm px-1 py-px text-micro-sm text-primary/80 bg-primary/10 max-w-[9rem]"
-          title={projectLabel}
-          data-testid="conversation-row-project-chip"
-        >
-          <FolderOpen size={9} class="shrink-0" />
-          <span class="truncate">{projectLabel}</span>
-        </span>
-      {/if}
       {#if live}
         <span>·</span>
         <span class="text-primary inline-flex items-center gap-1">

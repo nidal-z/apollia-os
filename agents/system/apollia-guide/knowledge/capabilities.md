@@ -71,7 +71,6 @@ Use only these routes in an action block:
 - `/agents`: the agents, their cards, installing a package.
 - `/tasks`: the tasks agents ran, with their results.
 - `/inbox`: the approvals and questions waiting for you.
-- `/projects`: projects and the agents attached to them.
 - `/automations`: schedules, intervals, file watches and webhooks.
 - `/integrations`: MCP servers and connected accounts.
 - `/llm`: models, local and remote, and the default model.

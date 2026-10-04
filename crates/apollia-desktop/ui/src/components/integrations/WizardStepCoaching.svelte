@@ -1,8 +1,6 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { onMount } from "svelte";
-  import { AlertTriangle } from "lucide-svelte";
-  import ApprovalLevelSelector from "$lib/components/operator/approval/ApprovalLevelSelector.svelte";
   import CapabilityExampleCard from "./CapabilityExampleCard.svelte";
   import { Spinner } from "$lib/components/ui/progress";
   import {
@@ -10,33 +8,21 @@
     type CoachingExample,
   } from "$lib/ipc/connections";
 
-  type ApprovalLevel = "auto" | "ask";
-
   interface Props {
     serverName: string;
     serverTitle: string | null;
-    hasWriteTools: boolean;
-    approvalLevel: ApprovalLevel;
-    onchange: (level: ApprovalLevel) => void;
     ontry?: (prompt: string) => void;
   }
 
   let {
     serverName,
     serverTitle,
-    hasWriteTools,
-    approvalLevel,
-    onchange,
     ontry = () => {},
   }: Props = $props();
 
   let examples = $state<CoachingExample[]>([]);
   let loading = $state(true);
   let loadError = $state<string | null>(null);
-
-  const showDangerousComboWarning = $derived(
-    approvalLevel === "auto" && hasWriteTools,
-  );
 
   onMount(() => {
     void loadExamples();
@@ -56,39 +42,7 @@
   }
 </script>
 
-<div class="space-y-6" data-testid="wizard-step-coaching">
-  <!-- Approval level -->
-  <section aria-labelledby="coaching-approval-heading" class="space-y-2">
-    <div>
-      <h3
-        id="coaching-approval-heading"
-        class="text-sm font-semibold text-foreground"
-      >
-        {$t("integrations.wizard.coaching.approval_title")}
-      </h3>
-      <p class="mt-0.5 text-xs text-muted-foreground">
-        {$t("integrations.wizard.coaching.approval_subtitle")}
-      </p>
-    </div>
-    <ApprovalLevelSelector level={approvalLevel} {onchange} />
-
-    {#if showDangerousComboWarning}
-      <div
-        class="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2"
-        data-testid="coaching-dangerous-combo"
-      >
-        <AlertTriangle
-          size={14}
-          class="mt-0.5 shrink-0 text-destructive"
-          aria-hidden="true"
-        />
-        <p class="text-xs text-destructive">
-          {$t("integrations.wizard.coaching.auto_write_warning")}
-        </p>
-      </div>
-    {/if}
-  </section>
-
+<div class="space-y-3" data-testid="wizard-step-coaching">
   <!-- Post-install coaching -->
   <section aria-labelledby="coaching-examples-heading" class="space-y-3">
     <div>

@@ -1,14 +1,15 @@
 <script lang="ts">
   /**
    * Topbar user menu. Avatar/initials trigger → dropdown
-   * with Settings, Keyboard shortcuts, Reset Onboarding, Help, About, Quit.
+   * with Settings, Keyboard shortcuts, Reset Onboarding, About, Quit. Help
+   * lives behind the help icon of the top bar.
    *
    * NOTE: there is no dedicated `DropdownMenu` primitive in the codebase
    * yet - the shared `Popover` already supports the required semantics
    * (portal, transition, keyboard dismissal) and is used here.
    */
   import { t } from "svelte-i18n";
-  import { UserRound, Settings, Keyboard, RotateCcw, LifeBuoy, BadgeInfo, LogOut } from "lucide-svelte";
+  import { UserRound, Settings, Keyboard, RotateCcw, BadgeInfo, LogOut } from "lucide-svelte";
   import { Popover } from "$lib/components/ui/popover";
   import { navigateToSettings } from "$lib/router";
   import { quitApp } from "$lib/ipc/app";
@@ -39,11 +40,6 @@
       el?.scrollIntoView({ behavior: "smooth", block: "center" });
       (el?.querySelector("button") as HTMLButtonElement | null)?.focus();
     }, 150);
-    close();
-  }
-
-  function goHelp() {
-    navigateToSettings("general");
     close();
   }
 
@@ -105,18 +101,6 @@
         >
           <RotateCcw size={14} strokeWidth={1.75} />
           <span>{$t('userMenu.reset_onboarding')}</span>
-        </button>
-      </li>
-      <li role="none">
-        <button
-          role="menuitem"
-          type="button"
-          class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-muted"
-          onclick={goHelp}
-          data-testid="user-menu-help"
-        >
-          <LifeBuoy size={14} strokeWidth={1.75} />
-          <span>{$t('userMenu.help')}</span>
         </button>
       </li>
       <li role="none">

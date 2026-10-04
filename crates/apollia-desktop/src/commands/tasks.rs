@@ -3,13 +3,12 @@
 //! `list_tasks` and `submit_task` delegate to the runtime handles.
 //! `get_task_timeline` calls the internal REST API `GET /api/v1/tasks/{id}/timeline`
 //! to avoid duplicating the aggregation logic. The list, the launch, the
-//! detail and the cancellation also serve a desktop attached to a daemon,
-//! through the routes of `/api/v1/tasks`.
+//! detail, the cancellation, the deletion and the delegation tree also serve
+//! a desktop attached to a daemon, through the routes of `/api/v1/tasks`.
 
 use apollia_core::{AIPInput, AIPPart, TextPart};
-use apollia_runtime::api::routes_tasks::summaries::{task_summaries, PERSISTED_TASK_LIMIT};
-use apollia_runtime::embedded::RuntimeHandle;
-use serde::Serialize;
+use apollia_runtime::api::routes_tasks::record::TaskRecordDeleted;
+use apollia_runtime::api::routes_tasks::summaries::task_summaries;
 use tauri::State;
 
 use super::http_get_json;
@@ -21,8 +20,8 @@ pub use apollia_runtime::api::routes_tasks::summaries::TaskFilter;
 /// Summary of a task for display in the UI, the one the daemon route answers.
 pub use apollia_runtime::api::routes_tasks::summaries::TaskSummary;
 
-/// The snake_case name of a status, as the API spells it.
-use apollia_runtime::api::routes_tasks::summaries::status_label as status_to_string;
+/// Node of the A2A delegation tree, the one the runtime route answers.
+pub use apollia_runtime::api::routes_tasks::delegation::DelegationTreeNode;
 
 /// Lists all tasks with optional filtering by status or agent.
 ///
@@ -132,12 +131,20 @@ pub async fn cancel_task(link: State<'_, RuntimeLink>, task_id: String) -> Resul
 /// on a finished or cancelled task. Returns `true` when a record was removed,
 /// `false` when no persisted task matched (already gone, or runtime-only with
 /// nothing persisted). Errors only when the persistence layer is unavailable.
+/// Served by `DELETE /api/v1/tasks/{id}/record`, in this process or on the
+/// daemon.
 #[tauri::command]
-pub async fn delete_task(state: State<'_, RuntimeHandle>, task_id: String) -> Result<bool, String> {
-    let Some(repo) = state.task_repository.as_ref() else {
-        return Err("task persistence is not available".to_string());
-    };
-    repo.delete_task(&task_id).await.map_err(|e| e.to_string())
+pub async fn delete_task(link: State<'_, RuntimeLink>, task_id: String) -> Result<bool, String> {
+    delete_task_on(link.inner(), &task_id).await
+}
+
+/// The body of [`delete_task`], on either arm of the seam.
+pub(crate) async fn delete_task_on(link: &RuntimeLink, task_id: &str) -> Result<bool, String> {
+    let path = format!("/api/v1/tasks/{}/record", segment(task_id));
+    let answer = link.delete_json(&path).await?;
+    let deleted: TaskRecordDeleted =
+        serde_json::from_value(answer).map_err(|e| format!("invalid deletion answer: {e}"))?;
+    Ok(deleted.deleted)
 }
 
 /// Fetches a task's timeline via the internal REST API.
@@ -168,197 +175,38 @@ pub async fn get_task_timeline(
     }
 }
 
-/// Node of the A2A delegation tree returned to the frontend.
-#[derive(Debug, Serialize)]
-pub struct DelegationTreeNode {
-    /// Agent identifier (runtime UUID, or name if resolution fails).
-    pub agent_id: String,
-    /// Human-readable agent name.
-    pub agent_name: String,
-    /// Current status: `submitted`, `working`, `completed`, `failed`, `running`, etc.
-    pub status: String,
-    /// ISO 8601 start timestamp (None for the root if unknown).
-    pub started_at: Option<String>,
-    /// Child delegations (A2A subtasks).
-    pub children: Vec<DelegationTreeNode>,
-}
-
 /// Fetches the A2A delegation tree for a task.
 ///
 /// The root is the parent task; the children are the delegations recorded in
-/// `task_sidechains` via `GET /api/v1/tasks/{id}/sidechains`.
-///
-/// If no delegation was recorded for the task (404 or empty list), returns a
-/// root tree with no children.
+/// `task_sidechains`. The runtime builds it (`GET
+/// /api/v1/tasks/{id}/delegation-tree`), in this process or on the daemon; a
+/// task with no recorded delegation is a root with no children.
 #[tauri::command]
 pub async fn get_delegation_tree(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     task_id: String,
 ) -> Result<DelegationTreeNode, String> {
-    // 1. Resolve the root (agent_id, agent_name, status, started_at).
-    let mut root = resolve_runtime_root(&state, &task_id).await;
-
-    // b) Fallback: look in the persisted tasks.
-    if root.agent_name.is_empty() {
-        apply_persisted_root_fallback(&state, &task_id, &mut root).await;
-    }
-
-    if root.agent_name.is_empty() {
-        root.agent_name = task_id.clone();
-    }
-
-    // 2. Fetch the delegations via the internal REST API.
-    let path = format!("/api/v1/tasks/{task_id}/sidechains");
-    let children = match http_get_json(state.api_port, &path).await {
-        Ok(json) => parse_sidechains(json),
-        Err(e) if e.contains("404") => Vec::new(),
-        Err(e) => return Err(e),
-    };
-
-    Ok(DelegationTreeNode {
-        agent_id: if root.agent_id.is_empty() {
-            task_id
-        } else {
-            root.agent_id
-        },
-        agent_name: root.agent_name,
-        status: root.status,
-        started_at: root.started_at,
-        children,
-    })
+    delegation_tree_on(link.inner(), &task_id).await
 }
 
-/// Partially-resolved root node fields (before sidechains are attached).
-struct RootInfo {
-    agent_id: String,
-    agent_name: String,
-    status: String,
-    started_at: Option<String>,
+/// The body of [`get_delegation_tree`], on either arm of the seam.
+pub(crate) async fn delegation_tree_on(
+    link: &RuntimeLink,
+    task_id: &str,
+) -> Result<DelegationTreeNode, String> {
+    let path = format!("/api/v1/tasks/{}/delegation-tree", segment(task_id));
+    let answer = link.get_json(&path).await?;
+    serde_json::from_value(answer).map_err(|e| format!("invalid delegation tree: {e}"))
 }
 
-/// Resolve the root node from the in-memory runtime (active task), if present.
-async fn resolve_runtime_root(state: &RuntimeHandle, task_id: &str) -> RootInfo {
-    let mut root = RootInfo {
-        agent_id: String::new(),
-        agent_name: String::new(),
-        status: String::from("unknown"),
-        started_at: None,
-    };
-
-    let Ok(all) = state.router_handle.all_tasks().await else {
-        return root;
-    };
-    let Some((_, agent_id, status)) = all.iter().find(|(tid, _, _)| tid.as_str() == task_id) else {
-        return root;
-    };
-    root.agent_id = agent_id.to_string();
-    root.status = status_to_string(status);
-    if let Ok(Some(entry)) = state.registry_handle.get_agent(agent_id.as_str()).await {
-        root.agent_name = entry.manifest.name.clone();
-    }
-    root
-}
-
-/// Fill missing root fields from the persisted task store.
-async fn apply_persisted_root_fallback(state: &RuntimeHandle, task_id: &str, root: &mut RootInfo) {
-    let Some(repo) = state.task_repository.as_ref() else {
-        return;
-    };
-    let Ok(persisted) = repo.list_recent_tasks(PERSISTED_TASK_LIMIT).await else {
-        return;
-    };
-    let Some(row) = persisted.into_iter().find(|r| r.task_id == task_id) else {
-        return;
-    };
-    if root.agent_name.is_empty() {
-        root.agent_name = row.agent_name;
-    }
-    if root.status == "unknown" {
-        root.status = row.status;
-    }
-    root.started_at = Some(row.created_at);
-}
-
-/// Converts the `/sidechains` JSON response into child nodes.
-fn parse_sidechains(json: serde_json::Value) -> Vec<DelegationTreeNode> {
-    let arr = match json.as_array() {
-        Some(arr) => arr,
-        None => return Vec::new(),
-    };
-    arr.iter()
-        .map(|row| {
-            let agent_name = row
-                .get("agent_name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let status = row
-                .get("status")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string();
-            let started_at = row
-                .get("started_at")
-                .and_then(|v| v.as_str())
-                .map(String::from);
-            DelegationTreeNode {
-                agent_id: agent_name.clone(),
-                agent_name,
-                status,
-                started_at,
-                children: Vec::new(),
-            }
-        })
-        .collect()
-}
+#[cfg(test)]
+mod attached_tests;
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use apollia_core::TaskStatus;
-
-    #[test]
-    fn test_parse_sidechains_extracts_fields() {
-        // GIVEN a JSON array of sidechain rows
-        let json = serde_json::json!([
-            {
-                "sidechain_n": 1,
-                "agent_name": "agent-recherche",
-                "status": "completed",
-                "input_summary": "...",
-                "output_summary": "...",
-                "started_at": "2026-04-30T10:00:00Z",
-                "completed_at": "2026-04-30T10:00:02Z"
-            },
-            {
-                "sidechain_n": 2,
-                "agent_name": "agent-synthese",
-                "status": "running",
-                "started_at": "2026-04-30T10:00:03Z"
-            }
-        ]);
-
-        // WHEN parsed
-        let nodes = parse_sidechains(json);
-
-        // THEN one node per row, with agent_name/status/started_at populated
-        assert_eq!(nodes.len(), 2);
-        assert_eq!(nodes[0].agent_name, "agent-recherche");
-        assert_eq!(nodes[0].status, "completed");
-        assert_eq!(nodes[0].started_at.as_deref(), Some("2026-04-30T10:00:00Z"));
-        assert!(nodes[0].children.is_empty());
-        assert_eq!(nodes[1].status, "running");
-    }
-
-    #[test]
-    fn test_parse_sidechains_handles_non_array() {
-        // GIVEN a non-array JSON value
-        let json = serde_json::json!({ "error": "boom" });
-        // WHEN parsed
-        let nodes = parse_sidechains(json);
-        // THEN no children produced
-        assert!(nodes.is_empty());
-    }
+    use apollia_runtime::api::routes_tasks::summaries::status_label as status_to_string;
 
     #[test]
     fn test_status_to_string_all_variants() {

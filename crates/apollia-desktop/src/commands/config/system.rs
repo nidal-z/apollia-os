@@ -4,6 +4,7 @@
 use apollia_runtime::api::routes_local_ai::SetupLlmBody;
 use apollia_runtime::local_ai::{self, SetupLlmResult};
 use serde::Serialize;
+use serde_json::{json, Value};
 use tauri::State;
 
 use super::default_config_path;
@@ -85,14 +86,26 @@ pub async fn get_system_info() -> Result<SystemInfo, String> {
     })
 }
 
-/// Returns the active security posture for the Security section of Settings.
+/// Route of the security posture on the runtime.
+pub(crate) const POSTURE_ROUTE: &str = "/api/v1/security-posture";
+
+/// Returns the active security posture for the Security section of Settings,
+/// as the runtime that runs the tools detects it, over `GET
+/// /api/v1/security-posture`.
 ///
 /// Surfaces the isolation level of native tools and the agent-code trust model
 /// so the operator can see, without reading logs, what confinement is active on
 /// their platform.
 #[tauri::command]
-pub async fn get_security_posture() -> Result<apollia_core::SecurityPosture, String> {
-    Ok(apollia_core::SecurityPosture::detect())
+pub async fn get_security_posture(link: State<'_, RuntimeLink>) -> Result<Value, String> {
+    link.get_json(POSTURE_ROUTE).await
+}
+
+/// The port of the native API this window serves or attaches to, for the
+/// addresses the interface shows (a webhook endpoint).
+#[tauri::command]
+pub async fn get_api_port(port: State<'_, crate::startup::ApiPort>) -> Result<u16, String> {
+    Ok(port.0)
 }
 
 /// The daemon route of the local language model setup.
@@ -151,6 +164,123 @@ pub async fn setup_local_llm(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{body_json, header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    use crate::attached::{gate, LinkMode};
+
+    const TOKEN: &str = "token-of-this-installation";
+
+    fn attached(server: &MockServer) -> RuntimeLink {
+        RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap())
+    }
+
+    fn authorized(verb: &str, route: &str) -> wiremock::MockBuilder {
+        Mock::given(method(verb))
+            .and(path(route))
+            .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+    }
+
+    #[tokio::test]
+    async fn test_the_interpreter_setting_and_the_posture_are_read_from_the_daemon() {
+        // GIVEN a daemon with a chosen interpreter, on a machine without a
+        // tool sandbox
+        let server = MockServer::start().await;
+        authorized("GET", PYTHON_INTERPRETER_ROUTE)
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "chosen": "/opt/python/bin/python3", "bundled": null, "required_minor": 13,
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        authorized("GET", POSTURE_ROUTE)
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "platform": "macos aarch64", "tool_sandbox": "dev_no_sandbox",
+                "agent_execution": "in_process_trusted", "rlimits_active": true,
+                "unshare_available": false,
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let link = attached(&server);
+
+        // WHEN the settings read the interpreter and the posture
+        let interpreter = link.get_json(PYTHON_INTERPRETER_ROUTE).await.unwrap();
+        let posture = link.get_json(POSTURE_ROUTE).await.unwrap();
+
+        // THEN both are the daemon's
+        assert_eq!(interpreter["chosen"], "/opt/python/bin/python3");
+        assert_eq!(posture["tool_sandbox"], "dev_no_sandbox");
+    }
+
+    #[tokio::test]
+    async fn test_an_interpreter_is_chosen_then_the_bundled_one_again_on_the_daemon() {
+        // GIVEN a daemon that takes a path, then none
+        let server = MockServer::start().await;
+        authorized("PUT", PYTHON_INTERPRETER_ROUTE)
+            .and(body_json(json!({ "path": "/opt/python/bin/python3" })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "chosen": "/opt/python/bin/python3", "bundled": null, "required_minor": 13,
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        authorized("PUT", PYTHON_INTERPRETER_ROUTE)
+            .and(body_json(json!({ "path": null })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "chosen": null, "bundled": null, "required_minor": 13,
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let link = attached(&server);
+
+        // WHEN the setting names an interpreter, then returns to the bundled one
+        let chosen =
+            save_python_interpreter_on(&link, Some("/opt/python/bin/python3".into())).await;
+        let bundled = save_python_interpreter_on(&link, None).await;
+
+        // THEN both writes succeed
+        assert!(chosen.is_ok(), "{chosen:?}");
+        assert!(bundled.is_ok(), "{bundled:?}");
+    }
+
+    #[tokio::test]
+    async fn test_an_interpreter_the_daemon_refuses_shows_its_sentence() {
+        // GIVEN a daemon that refuses a relative path
+        let server = MockServer::start().await;
+        authorized("PUT", PYTHON_INTERPRETER_ROUTE)
+            .respond_with(ResponseTemplate::new(422).set_body_json(json!({
+                "error": "the path is relative", "code": "invalid", "diagnostics": [],
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        // WHEN the setting names a relative path
+        let refused =
+            save_python_interpreter_on(&attached(&server), Some("bin/python3".into())).await;
+
+        // THEN the error is the daemon's sentence, word for word
+        assert_eq!(refused.unwrap_err(), "the path is relative");
+    }
+
+    #[test]
+    fn test_the_system_settings_are_routed_and_the_system_info_stays_with_the_window() {
+        // GIVEN the commands of the system settings
+        let commands = [
+            "get_python_interpreter",
+            "set_python_interpreter",
+            "get_security_posture",
+            "get_system_info",
+        ];
+
+        // WHEN each passes the gate of an attached window
+        // THEN none is refused
+        for command in commands {
+            assert!(gate(LinkMode::Attached, command).is_ok(), "{command}");
+        }
+    }
 
     // Deliberately not a `#[tokio::test]`. The home guard is a `std` mutex, and
     // holding one across an await point is denied workspace-wide, for the usual
@@ -231,112 +361,39 @@ mod tests {
     }
 }
 
-/// The Python interpreter setting, as the Advanced section shows it.
-#[derive(Debug, Serialize)]
-pub struct PythonInterpreterSetting {
-    /// The absolute path in `[tools] python_interpreter`, or `None` when the
-    /// bundled interpreter is in use.
-    pub chosen: Option<String>,
-    /// Absolute path of the bundled interpreter, when this process knows it.
-    ///
-    /// `None` in a development tree, where no bundle is staged. The panel says
-    /// so rather than naming a path that does not exist.
-    pub bundled: Option<String>,
-    /// Minor version the bundled standard library requires of any chosen
-    /// interpreter, so the panel can state the condition before it is failed.
-    pub required_minor: u32,
+/// Route of the Python interpreter setting on the runtime.
+pub(crate) const PYTHON_INTERPRETER_ROUTE: &str = "/api/v1/config/python-interpreter";
+
+/// Chooses an interpreter on the runtime this application drives, or returns
+/// to the bundled one with `None`; the runtime checks the path before it
+/// writes it, and its refusal names the condition that failed.
+pub(crate) async fn save_python_interpreter_on(
+    link: &RuntimeLink,
+    path: Option<String>,
+) -> Result<(), String> {
+    link.put_json(PYTHON_INTERPRETER_ROUTE, &json!({ "path": path }))
+        .await
+        .map(|_| ())
 }
 
-/// Returns the Python interpreter setting for the Advanced section of Settings.
+/// Returns the Python interpreter setting for the Advanced section of
+/// Settings: the chosen path, the interpreter the runtime ships, and the minor
+/// version it requires, over `GET /api/v1/config/python-interpreter`.
 #[tauri::command]
-pub async fn get_python_interpreter() -> Result<PythonInterpreterSetting, String> {
-    let chosen = read_config_tools_python_interpreter().await;
-    Ok(PythonInterpreterSetting {
-        chosen,
-        bundled: apollia_tools::tools::python_discovery::bundled_interpreter()
-            .map(|p| p.display().to_string()),
-        required_minor: apollia_tools::tools::python_discovery::BUNDLED_PYTHON_MINOR,
-    })
+pub async fn get_python_interpreter(link: State<'_, RuntimeLink>) -> Result<Value, String> {
+    link.get_json(PYTHON_INTERPRETER_ROUTE).await
 }
 
-/// Chooses a Python interpreter, or returns to the bundled one.
+/// Chooses a Python interpreter, or returns to the bundled one, over `PUT
+/// /api/v1/config/python-interpreter`.
 ///
 /// `path` names an interpreter by absolute path; `None`, or a blank string,
-/// removes the setting and returns to the interpreter Apollia ships with, which
-/// is the configuration that depends on nothing installed on the machine.
-///
-/// The path is checked before it is written: it has to exist, start, and report
-/// a minor version the bundled standard library can be read by. A refusal comes
-/// back as the message to show, naming which of the three conditions failed.
-/// The change applies to the agents started after it.
+/// returns to the interpreter Apollia ships with. The change applies to the
+/// agents started after it.
 #[tauri::command]
-pub async fn set_python_interpreter(path: Option<String>) -> Result<(), String> {
-    let chosen = path.map(|p| p.trim().to_string()).filter(|p| !p.is_empty());
-
-    if let Some(candidate) = chosen.as_deref() {
-        apollia_tools::tools::python_discovery::validate_chosen_interpreter(std::path::Path::new(
-            candidate,
-        ))
-        .map_err(|e| e.to_string())?;
-    }
-
-    let config_path = default_config_path();
-    if let Some(parent) = config_path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|e| format!("failed to create config directory: {e}"))?;
-    }
-    let mut doc = if config_path.exists() {
-        tokio::fs::read_to_string(&config_path)
-            .await
-            .map_err(|e| format!("failed to read {}: {e}", config_path.display()))?
-            .parse::<toml_edit::DocumentMut>()
-            .map_err(|e| format!("failed to parse {}: {e}", config_path.display()))?
-    } else {
-        toml_edit::DocumentMut::new()
-    };
-
-    let tools = doc
-        .entry("tools")
-        .or_insert_with(|| toml_edit::Item::Table(toml_edit::Table::new()));
-    if tools.as_table_mut().is_none() {
-        *tools = toml_edit::Item::Table(toml_edit::Table::new());
-    }
-    if let Some(table) = tools.as_table_mut() {
-        match chosen.as_deref() {
-            Some(candidate) => table["python_interpreter"] = toml_edit::value(candidate),
-            // Removed rather than blanked: an absent key and the default are the
-            // same thing, and a blank string in the file reads as a setting
-            // somebody meant.
-            None => {
-                table.remove("python_interpreter");
-            }
-        }
-    }
-
-    tokio::fs::write(&config_path, doc.to_string())
-        .await
-        .map_err(|e| format!("failed to write {}: {e}", config_path.display()))?;
-
-    tracing::info!(
-        chosen = chosen.as_deref().unwrap_or("<bundled>"),
-        "python.interpreter.setting_saved"
-    );
-    Ok(())
-}
-
-/// Read `[tools] python_interpreter` out of `apollia.toml`.
-///
-/// `None` when the file is absent, unreadable, or does not carry the key, which
-/// are all the same answer: the bundled interpreter is in use.
-async fn read_config_tools_python_interpreter() -> Option<String> {
-    let path = default_config_path();
-    let content = tokio::fs::read_to_string(&path).await.ok()?;
-    let parsed: toml::Value = content.parse().ok()?;
-    parsed
-        .get("tools")?
-        .get("python_interpreter")?
-        .as_str()
-        .map(str::to_string)
-        .filter(|s| !s.trim().is_empty())
+pub async fn set_python_interpreter(
+    link: State<'_, RuntimeLink>,
+    path: Option<String>,
+) -> Result<(), String> {
+    save_python_interpreter_on(link.inner(), path).await
 }

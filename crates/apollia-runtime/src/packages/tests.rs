@@ -45,7 +45,9 @@ impl GovernanceContract for TestGovernance {
     }
 
     fn decide(&self, _call: &AccessCall<'_>) -> AccessDecision {
-        AccessDecision::Allowed
+        AccessDecision::Allowed {
+            reason: crate::governance::DecisionReason::NoConsentNeeded,
+        }
     }
 
     fn signature_required(&self, _subject: &InstallSubject<'_>) -> bool {
@@ -105,6 +107,7 @@ pub(super) fn connection(id: &str, kind: ConnectionKind) -> Connection {
         kind,
         label: id.rsplit(':').next().unwrap_or(id).to_owned(),
         account: None,
+        path: None,
         provenance: Provenance::Custom,
         remote: false,
         official: false,

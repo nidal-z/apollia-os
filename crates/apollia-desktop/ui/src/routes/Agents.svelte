@@ -13,6 +13,7 @@
   import { agents } from "$lib/stores/agents";
   import { connectionStatus } from "$lib/stores/sse";
   import { navigateTo } from "$lib/stores/navigation";
+  import { declareGuideSubscreen } from "$lib/stores/guideContext";
   import { pendingChatSessionId } from "$lib/stores/chat";
   import {
     agentPackages,
@@ -111,6 +112,15 @@
       ? null
       : ($agents.find((a) => a.name === selectedName) ?? null),
   );
+  // The open agent is the sub-screen the guide explains, and it names it.
+  $effect(() => {
+    if (!selected) return;
+    return declareGuideSubscreen("agents.fiche", {
+      id: selected.id ?? selected.name,
+      name: selected.name,
+    });
+  });
+
   const selectedPackage = $derived(
     selectedPackageName === null
       ? null

@@ -12,8 +12,6 @@ pub enum ChatCommand {
         system_prompt: Option<String>,
         /// Tool names available in this session.
         tools: Vec<String>,
-        /// Project to link this session to (None = standalone).
-        project_id: Option<String>,
         /// Response channel.
         reply: oneshot::Sender<Result<SessionInfo, ChatError>>,
     },
@@ -276,6 +274,11 @@ pub enum ChatCommand {
         /// Used by every run that starts afterwards.
         composer: Arc<dyn crate::composition::Composer>,
     },
+    /// Hand the governance every tool call is decided by to the actor.
+    SetGovernance {
+        /// Used by every run that starts afterwards.
+        governance: crate::governance::GovernanceHandle,
+    },
     /// Fork a session, creating a child with a copy of the history.
     ForkSession {
         /// Parent session to fork from.
@@ -291,27 +294,6 @@ pub enum ChatCommand {
         session_id: SessionId,
         /// Response channel.
         reply: oneshot::Sender<Vec<SessionInfo>>,
-    },
-    /// Link or unlink a session to a project.
-    LinkSessionToProject {
-        /// Target session.
-        session_id: SessionId,
-        /// Project ID (None to unlink).
-        project_id: Option<String>,
-        /// Response channel.
-        reply: oneshot::Sender<Result<(), ChatError>>,
-    },
-    /// List sessions belonging to a specific project.
-    ListSessionsByProject {
-        /// Project identifier.
-        project_id: String,
-        /// Response channel.
-        reply: oneshot::Sender<Vec<SessionInfo>>,
-    },
-    /// Unlink all sessions from a project (orphan them on project deletion).
-    OrphanProjectSessions {
-        /// Project identifier.
-        project_id: String,
     },
     /// List in-memory tool authorizations across all active sessions
     /// (used by the desktop Settings > Permissions page to surface

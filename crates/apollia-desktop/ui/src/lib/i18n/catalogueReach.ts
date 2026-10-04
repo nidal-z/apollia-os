@@ -130,9 +130,8 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
     builtBy: "components/observability/PlanMutationRow.svelte",
   },
   {
-    pattern: new RegExp(`^projects\\.provider_type_${SEG}$`),
-    builtBy:
-      "components/project/ProviderEditDialog.svelte, components/project/ProviderCard.svelte",
+    pattern: new RegExp(`^project_migration\\.reason\\.${SEG}$`),
+    builtBy: "components/projectMigration/ProjectMigrationNotice.svelte",
   },
   {
     pattern: new RegExp(`^settings\\.about\\.local_${SEG}$`),
@@ -152,13 +151,11 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
     pattern: new RegExp(
       `^settings\\.integrations\\.placeholder\\.client_id_${SEG}$`,
     ),
-    builtBy: "routes/settings/Integrations.svelte",
+    builtBy: "components/connections/detail/NativeClientSection.svelte",
   },
   {
-    pattern: new RegExp(
-      `^settings\\.integrations\\.provider(_meta)?\\.${SEG}$`,
-    ),
-    builtBy: "routes/settings/Integrations.svelte",
+    pattern: new RegExp(`^settings\\.integrations\\.status\\.${SEG}$`),
+    builtBy: "components/connections/detail/NativeClientSection.svelte",
   },
   {
     pattern: new RegExp(`^settings\\.integrations\\.source\\.${SEG}$`),

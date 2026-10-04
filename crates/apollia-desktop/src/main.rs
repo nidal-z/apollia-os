@@ -41,7 +41,6 @@ mod handlers;
 pub mod i18n;
 pub mod mcp;
 mod process_job;
-mod project_context;
 mod startup;
 pub mod stt;
 mod token_coalescer;
@@ -125,11 +124,18 @@ fn main() {
         );
     }
 
+    // The port of the native API: the one a serving daemon recorded, else
+    // `[api].port`, else the default.
+    let config_text = apollia_core::paths::config_file()
+        .filter(|p| p.exists())
+        .and_then(|p| std::fs::read_to_string(p).ok());
+    let runtime_port = startup::resolve_port(&apollia_data_dir, config_text.as_deref());
+
     // Start, attach or refuse, before PyO3, any database or any listener of
     // the runtime. The claimed port is handed to the runtime below as is.
     // When the runtime is installed as a service of the session, it is
     // brought up first, so the decision finds it serving and attaches.
-    let runtime_addr = std::net::SocketAddr::from(([127, 0, 0, 1], startup::RUNTIME_PORT));
+    let runtime_addr = std::net::SocketAddr::from(([127, 0, 0, 1], runtime_port));
     startup::service::bring_up(runtime_addr, &apollia_data_dir);
     let claimed_port = match startup::decide(
         runtime_addr,
@@ -146,12 +152,10 @@ fn main() {
                         version = %version,
                         "desktop.startup.attach"
                     );
-                    attached::run(startup::RUNTIME_PORT, token, tauri_context())
+                    attached::run(runtime_port, token, tauri_context())
                 }
                 None => startup::refuse(
-                    &startup::RefusalReason::TokenRefused {
-                        port: startup::RUNTIME_PORT,
-                    },
+                    &startup::RefusalReason::TokenRefused { port: runtime_port },
                     &apollia_data_dir,
                     tauri_context(),
                 ),
@@ -210,8 +214,6 @@ fn main() {
         Arc::new(std::sync::OnceLock::new());
     // Tools config (`[tools]` from apollia.toml) drives web_search/web_read
     // params and statically-disabled tools. Populated from RuntimeHandle.
-    let trusted_paths_lock: Arc<std::sync::OnceLock<Vec<std::path::PathBuf>>> =
-        Arc::new(std::sync::OnceLock::new());
     let tools_config_lock: Arc<std::sync::OnceLock<ToolsConfig>> =
         Arc::new(std::sync::OnceLock::new());
     // Plan-gate registry, forwarded to per-agent engines so the desktop UI can
@@ -239,7 +241,6 @@ fn main() {
             task_router: task_router_lock.clone(),
             mailbox_handle: mailbox_handle_lock.clone(),
             tools_config: tools_config_lock.clone(),
-            trusted_paths: trusted_paths_lock.clone(),
             plan_gates: plan_gates_lock.clone(),
             plan_cache: plan_cache_lock.clone(),
             agents_db: Some(
@@ -300,7 +301,6 @@ fn main() {
                 task_router: task_router_lock.clone(),
                 mailbox_handle: mailbox_handle_lock.clone(),
                 tools_config: tools_config_lock.clone(),
-                trusted_paths: trusted_paths_lock.clone(),
             })),
             Err(e) => {
                 tracing::warn!(
@@ -330,7 +330,7 @@ fn main() {
         backend_factory: Some(factory.clone()),
         agent_repository: None,
         chat_agent_runner,
-        tcp_port: Some(startup::RUNTIME_PORT),
+        tcp_port: Some(runtime_port),
         tcp_listener: Some(claimed_port),
         api_token: Some(api_token),
         ..EmbeddedConfig::default()
@@ -381,9 +381,9 @@ fn main() {
         let registry = runtime_handle.tool_registry_handle.clone();
         let chat = runtime_handle.chat_manager.clone();
         let workflows = runtime_handle.workflows.clone();
-        let journal = runtime_handle.audit_journal.clone();
+        let governance = runtime_handle.governance.clone();
         worker.spawn(async move {
-            bundled_packages::install_bundled_packages(&data_dir, journal).await;
+            bundled_packages::install_bundled_packages(&data_dir, governance).await;
             apollia_aip::package_tools::attach(
                 &data_dir,
                 &registry,
@@ -395,11 +395,6 @@ fn main() {
             apollia_aip::package_tools::workflows::attach(&data_dir, workflows.as_ref()).await;
         });
     }
-    // The agent-mode file tools read these roots. They come from the same
-    // `[filesystem] trusted_paths` the chat classifies against, so one setting
-    // governs both surfaces instead of the hardcoded home directory this used
-    // to be.
-    let _ = trusted_paths_lock.set(runtime_handle.filesystem_trusted_paths.clone());
     if let Some(gates) = runtime_handle.plan_gates.clone() {
         let _ = plan_gates_lock.set(gates);
     }
@@ -438,6 +433,7 @@ fn main() {
         // is the canonical replacement.
         .plugin(tauri_plugin_opener::init())
         .manage(runtime_handle.clone())
+        .manage(startup::ApiPort(runtime_handle.api_port))
         .manage(attached::RuntimeLink::Embedded(Box::new(runtime_handle.clone())))
         .manage(agent_repo)
         .manage(agent_loader)
