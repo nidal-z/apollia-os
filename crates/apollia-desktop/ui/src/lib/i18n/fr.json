@@ -890,7 +890,8 @@
     "update_restart_stop_failed_action": "Arrêtez l'agent, puis redémarrez-le pour charger la nouvelle version.",
     "update_restart_start_failed": "{name} a été arrêté pour charger la nouvelle version et n'a pas redémarré : il n'exécute plus rien.",
     "update_restart_start_failed_action": "Redémarrez l'agent depuis sa ligne. La cause ci-dessous indique ce que le runtime a refusé.",
-    "automate": "Automatiser"
+    "automate": "Automatiser",
+    "install_apo_button": "Installer un paquet .apo"
   },
   "tasks": {
     "subtitle": "Suivez les requêtes envoyées à vos assistants et leurs résultats",
@@ -4378,6 +4379,132 @@
     "integrations": {
       "wizard": {
         "node_downloading": "Téléchargement d'un composant nécessaire : Node.js"
+      }
+    }
+  },
+  "packages": {
+    "preview": {
+      "loading_title": "Aperçu du paquet",
+      "loading": "Lecture du paquet…",
+      "load_error": "Ce fichier ne peut pas être lu comme un paquet.",
+      "title_install": "Installer « {name} »",
+      "title_update": "Mettre à jour « {name} »",
+      "title_refused": "Installation refusée",
+      "version": "version {version}",
+      "version_change": "de la version {from} à la version {to}",
+      "origin_files": "ouvert depuis vos fichiers",
+      "origin_update": "choisi avec « Mettre à jour… »",
+      "nothing_before_consent": "Rien n'est installé avant votre accord.",
+      "install_error": "L'installation n'a pas abouti.",
+      "installed_toast": "« {name} » {version} est installé.",
+      "updated_toast": "« {name} » est mis à jour en version {version}.",
+      "publisher": {
+        "title": "Éditeur",
+        "unknown": "Éditeur inconnu",
+        "declared": "Se présente comme « {name} », sans signature pour le confirmer.",
+        "trusted": "Éditeur de confiance, paquet signé",
+        "signed_untrusted": "Paquet signé, éditeur pas encore de confiance",
+        "unsigned": "Paquet non signé",
+        "invalid": "Signature invalide",
+        "fingerprint": "Empreinte",
+        "trust_button": "Faire confiance à cet éditeur",
+        "trust_note": "La liste des éditeurs de confiance se gère dans Autorisations.",
+        "trusted_toast": "« {name} » est désormais un éditeur de confiance."
+      },
+      "content": {
+        "title": "Ce que le paquet apporte",
+        "counts": "{agents, plural, =0 {aucun agent} one {# agent} other {# agents}}, {workflows, plural, =0 {aucun workflow} one {# workflow} other {# workflows}}, {tools, plural, =0 {aucun outil} one {# outil} other {# outils}}",
+        "kind_agent": "Agent",
+        "kind_workflow": "Workflow",
+        "kind_tool": "Outil",
+        "python": "Installe aussi {count, plural, one {# composant Python} other {# composants Python}} pour ses outils."
+      },
+      "access": {
+        "title": "Accès demandés, par famille",
+        "none": "Aucun agent de ce paquet ne demande d'accès. Ses outils et workflows s'accordent ensuite à vos agents.",
+        "sensitive": "Sensible",
+        "family": {
+          "read": {
+            "title": "Lire",
+            "hint": "Consulter des données, sans rien modifier."
+          },
+          "read_personal": {
+            "title": "Lire des données personnelles",
+            "hint": "Vos mails, votre agenda, vos documents."
+          },
+          "write_or_delete": {
+            "title": "Écrire ou supprimer",
+            "hint": "Créer, modifier ou effacer des données."
+          },
+          "send_external": {
+            "title": "Envoyer vers l'extérieur",
+            "hint": "Envoyer un message ou une requête hors de cette machine."
+          },
+          "execute_code": {
+            "title": "Exécuter du code",
+            "hint": "Lancer du code sur cette machine."
+          },
+          "unclassified": {
+            "title": "Autres accès",
+            "hint": "Rien ne les classe encore : ils sont traités comme sensibles."
+          }
+        }
+      },
+      "connections": {
+        "title": "Connexions",
+        "none": "Ce paquet ne demande aucune connexion.",
+        "missing": "Manquante",
+        "present": "Connectée",
+        "brought": "Apportée",
+        "add": "Ajouter"
+      },
+      "unsigned": {
+        "title": "Ce paquet n'est pas signé",
+        "body": "Rien ne dit qui l'a produit ni qu'il n'a pas été modifié. Installez-le seulement si vous savez d'où il vient."
+      },
+      "update": {
+        "title_access": "Accès nouveaux, à accepter avant la mise à jour",
+        "title_connection": "Connexions nouvelles, à accepter avant la mise à jour",
+        "accept_hint": "Cochez chaque accès nouveau et chaque connexion nouvelle pour mettre à jour. Une connexion manquante s'ajoute maintenant ou plus tard.",
+        "nothing_new": "Cette mise à jour n'ajoute aucun accès ni aucune connexion.",
+        "overrides_kept": "Vos réglages sur la fiche sont conservés.",
+        "new_badge": "Nouveau"
+      },
+      "refusal": {
+        "invalid_signature": {
+          "title": "La signature de ce paquet ne correspond pas à son contenu",
+          "body": "Le fichier a pu être modifié après sa signature. Rien n'a été installé : demandez une nouvelle copie à son éditeur."
+        },
+        "signature_required": {
+          "title": "Votre organisation exige des paquets signés",
+          "body": "Ce paquet n'est pas signé : il ne peut pas être installé ici. Demandez une version signée à son éditeur."
+        },
+        "publisher_not_trusted": {
+          "title": "Votre organisation ne reconnaît pas cet éditeur",
+          "body": "Ce paquet est signé par un éditeur que la politique de votre organisation ne compte pas parmi les siens."
+        },
+        "downgrade": {
+          "title": "Cette version est plus ancienne",
+          "body": "La version {incoming} est plus ancienne que la version {installed} déjà installée."
+        },
+        "agent_taken": {
+          "title": "Un agent porte déjà ce nom",
+          "body": "L'agent « {agent} » existe déjà sur cette machine, créé dans l'application."
+        },
+        "agent_taken_owned": {
+          "body": "L'agent « {agent} » existe déjà sur cette machine, installé par le paquet « {owner} »."
+        }
+      },
+      "policy": {
+        "see_policy": "Voir la politique"
+      },
+      "action": {
+        "install": "Installer",
+        "install_anyway": "Installer quand même",
+        "update": "Mettre à jour",
+        "installing": "Installation…",
+        "copy_detail": "Copier le détail",
+        "copied": "Détail copié."
       }
     }
   }

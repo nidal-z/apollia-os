@@ -176,6 +176,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // The export of an agent from its sheet: the runtime builds and signs the
     // archive, this process writes the file the user chose.
     "export_agent",
+    // The preview of a `.apo` package before it is installed or updated, its
+    // installation, and the trust of its publisher, over `/api/v1/packages`.
+    "install_package_file",
+    "preview_package_file",
+    "trust_package_publisher",
     // The user profiles and their facts, over `/api/v1/profiles`.
     "create_profile",
     "delete_profile",

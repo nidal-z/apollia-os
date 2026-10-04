@@ -17517,12 +17517,17 @@
         "required": [
           "accessId",
           "permits",
-          "sensitive"
+          "sensitive",
+          "family"
         ],
         "properties": {
           "accessId": {
             "type": "string",
             "description": "Identifier of the access: a tool name, `mcp:<server>/<tool>`, or\n`pkg:<package>/<tool>`."
+          },
+          "family": {
+            "type": "string",
+            "description": "Action family: `read`, `read_personal`, `write_or_delete`,\n`send_external`, `execute_code`, or `unclassified` when nothing\nclassifies it (a tool of a connection not added yet, an agent)."
           },
           "permits": {
             "type": "string",
@@ -17591,7 +17596,8 @@
           "agentId",
           "accessId",
           "permits",
-          "sensitive"
+          "sensitive",
+          "family"
         ],
         "properties": {
           "accessId": {
@@ -17601,6 +17607,10 @@
           "agentId": {
             "type": "string",
             "description": "Agent that gains it."
+          },
+          "family": {
+            "type": "string",
+            "description": "Action family: `read`, `read_personal`, `write_or_delete`,\n`send_external`, `execute_code`, or `unclassified`."
           },
           "permits": {
             "type": "string",
@@ -26378,6 +26388,13 @@
               "null"
             ],
             "description": "SHA-256 fingerprint of the signing key, when the signature holds."
+          },
+          "publicKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The signing public key, 64 hexadecimal characters, when the signature\nholds: what trusting the publisher imports into the keyring."
           },
           "publisher": {
             "type": "string",
