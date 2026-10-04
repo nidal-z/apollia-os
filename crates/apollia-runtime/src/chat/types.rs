@@ -74,6 +74,10 @@ pub struct ChatSession {
     /// Persisted across restarts.
     #[serde(default)]
     pub plan_phase: PlanPhase,
+    /// Profile the conversation designates; `None` follows the current
+    /// default profile. Persisted across restarts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile_id: Option<String>,
 }
 
 /// Lifecycle phase of a session running in plan mode.
@@ -686,6 +690,21 @@ pub struct SessionInfo {
     pub title: Option<String>,
 }
 
+/// A change to a session's configuration. An absent field keeps its value;
+/// for `llm_backend` and `profile_id`, `Some(None)` returns the session to
+/// the runtime default.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SessionConfigUpdate {
+    /// New system prompt.
+    pub system_prompt: Option<String>,
+    /// New list of tools available in the session.
+    pub available_tools: Option<Vec<String>>,
+    /// Preferred LLM backend.
+    pub llm_backend: Option<Option<String>>,
+    /// Profile the conversation designates.
+    pub profile_id: Option<Option<String>>,
+}
+
 /// Detailed session view for single-session responses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionDetail {
@@ -819,6 +838,7 @@ mod tests {
             )),
             plan_mode: false,
             plan_phase: PlanPhase::Done,
+            profile_id: None,
         };
 
         // WHEN we serialize and deserialize

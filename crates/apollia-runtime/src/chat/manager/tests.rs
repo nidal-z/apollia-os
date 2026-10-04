@@ -420,6 +420,7 @@ async fn test_resolve_tool_approval() {
         ),
         plan_mode: false,
         plan_phase: PlanPhase::Done,
+        profile_id: None,
     };
     manager.sessions.insert("sess-1".into(), session);
 
@@ -507,6 +508,7 @@ async fn test_always_accept_grants_no_tool_by_name() {
         ),
         plan_mode: false,
         plan_phase: PlanPhase::Done,
+        profile_id: None,
     };
     manager.sessions.insert("sess-1".into(), session);
 
@@ -1008,6 +1010,7 @@ pub(super) fn manager_with_session_in_phase(
         ),
         plan_mode: true,
         plan_phase: phase,
+        profile_id: None,
     };
     manager.sessions.insert("sess-1".into(), session);
     (manager, event_rx)

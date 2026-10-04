@@ -3964,7 +3964,10 @@ export interface paths {
         get: operations["get_profile_by_id"];
         put?: never;
         post?: never;
-        /** `DELETE /api/v1/profiles/{id}`: deletes a profile and its facts. */
+        /**
+         * `DELETE /api/v1/profiles/{id}`: deletes a profile and its facts.
+         * @description The conversations that designated it return to the default profile.
+         */
         delete: operations["delete_profile"];
         options?: never;
         head?: never;
@@ -10687,6 +10690,11 @@ export interface components {
         UpdateSessionBody: {
             /** @description Inference server of the session. */
             llm_backend?: string | null;
+            /**
+             * @description Profile the conversation designates; `null` returns it to the current
+             *     default profile.
+             */
+            profile_id?: string | null;
             /** @description New system prompt. */
             system_prompt?: string | null;
             /** @description New list of tools available in the session. */

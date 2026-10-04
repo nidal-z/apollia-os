@@ -634,6 +634,7 @@ mod tests {
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(HashSet::new())),
             plan_mode: false,
             plan_phase: super::super::types::PlanPhase::Done,
+            profile_id: None,
         }
     }
 
@@ -707,6 +708,7 @@ mod tests {
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(HashSet::new())),
             plan_mode: false,
             plan_phase: super::super::types::PlanPhase::Done,
+            profile_id: None,
         }
     }
 

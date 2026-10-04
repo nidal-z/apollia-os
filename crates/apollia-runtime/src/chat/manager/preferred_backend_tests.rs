@@ -16,7 +16,7 @@ use apollia_tools::ToolRegistryHandle;
 
 use crate::api::routes_agents::StubAgentLoader;
 use crate::chat::manager::{ChatSessionManagerHandle, CreateSessionParams};
-use crate::chat::types::ChatMode;
+use crate::chat::types::{ChatMode, SessionConfigUpdate};
 use crate::test_support::poll_until;
 
 /// A backend that counts the turns streamed through it.
@@ -125,7 +125,13 @@ async fn test_free_chat_turn_routes_to_the_preferred_backend() {
         .await
         .unwrap();
     handle
-        .update_session(info.id.clone(), None, None, Some(Some("preferred".into())))
+        .update_session(
+            info.id.clone(),
+            SessionConfigUpdate {
+                llm_backend: Some(Some("preferred".into())),
+                ..SessionConfigUpdate::default()
+            },
+        )
         .await
         .unwrap();
 

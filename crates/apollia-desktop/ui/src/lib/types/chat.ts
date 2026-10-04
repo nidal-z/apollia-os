@@ -35,6 +35,11 @@ export interface ChatSessionDetail {
   plan_mode: boolean;
   /** Plan-mode lifecycle phase as a stable lowercase string. */
   plan_phase: PlanPhase;
+  /**
+   * Profile the conversation designates; absent or `null` when it follows
+   * the current default profile.
+   */
+  profile_id?: string | null;
 }
 
 /** Plan-mode lifecycle phase of a chat session. */
@@ -50,6 +55,8 @@ export interface UpdateSessionRequest {
   system_prompt?: string;
   tools?: string[];
   llm_backend?: string | null;
+  /** Profile of the conversation; `null` returns it to the default profile. */
+  profile_id?: string | null;
 }
 
 /** Single message inside a chat session. */

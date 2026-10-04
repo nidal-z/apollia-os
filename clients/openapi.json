@@ -11739,6 +11739,7 @@
           "profile"
         ],
         "summary": "`DELETE /api/v1/profiles/{id}`: deletes a profile and its facts.",
+        "description": "The conversations that designated it return to the default profile.",
         "operationId": "delete_profile",
         "parameters": [
           {
@@ -28393,6 +28394,13 @@
               "null"
             ],
             "description": "Inference server of the session."
+          },
+          "profile_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Profile the conversation designates; `null` returns it to the current\ndefault profile."
           },
           "system_prompt": {
             "type": [

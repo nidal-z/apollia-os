@@ -182,18 +182,13 @@ impl ChatSessionManager {
                 }
                 ChatCommand::UpdateSession {
                     session_id,
-                    system_prompt,
-                    available_tools,
-                    llm_backend,
+                    update,
                     reply,
                 } => {
-                    let result = self.handle_update_session(
-                        &session_id,
-                        system_prompt.as_deref(),
-                        available_tools.as_deref(),
-                        llm_backend.as_ref(),
-                    );
-                    let _ = reply.send(result);
+                    let _ = reply.send(self.handle_update_session(&session_id, update));
+                }
+                ChatCommand::ReleaseProfile { profile_id, reply } => {
+                    let _ = reply.send(self.handle_release_profile(&profile_id));
                 }
                 ChatCommand::RegenerateResponse {
                     session_id,

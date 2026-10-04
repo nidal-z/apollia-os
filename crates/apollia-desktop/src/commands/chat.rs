@@ -67,6 +67,8 @@ pub struct ChatSessionDetail {
     /// Current plan-mode lifecycle phase as a stable lowercase string
     /// (`discovery`, `drafting`, `awaiting_approval`, `executing`, `done`).
     pub plan_phase: String,
+    /// Profile the conversation designates; `None` follows the default.
+    pub profile_id: Option<String>,
 }
 
 /// Request payload for updating session configuration.
@@ -75,6 +77,14 @@ pub struct UpdateSessionRequest {
     pub system_prompt: Option<String>,
     pub tools: Option<Vec<String>>,
     pub llm_backend: Option<Option<String>>,
+    /// Profile of the conversation: absent keeps it, `null` returns the
+    /// conversation to the current default profile.
+    #[serde(
+        default,
+        deserialize_with = "apollia_runtime::api::routes_chat::conversations::present_or_null",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub profile_id: Option<Option<String>>,
 }
 
 /// Individual message view for the frontend.
@@ -231,9 +241,12 @@ pub async fn update_chat_session(
     manager
         .update_session(
             session_id,
-            update.system_prompt,
-            update.tools,
-            update.llm_backend,
+            apollia_runtime::chat::SessionConfigUpdate {
+                system_prompt: update.system_prompt,
+                available_tools: update.tools,
+                llm_backend: update.llm_backend,
+                profile_id: update.profile_id,
+            },
         )
         .await
         .map_err(|e| e.to_string())
@@ -661,6 +674,7 @@ fn session_detail_to_flat(detail: SessionDetail) -> ChatSessionDetail {
         title: session.title,
         plan_mode: session.plan_mode,
         plan_phase: session.plan_phase.as_sql().to_string(),
+        profile_id: session.profile_id,
     }
 }
 

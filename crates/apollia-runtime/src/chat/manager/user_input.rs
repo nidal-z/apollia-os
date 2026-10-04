@@ -172,6 +172,7 @@ impl ChatSessionManager {
                 )),
                 plan_mode,
                 plan_phase,
+                profile_id: row.profile_id,
             };
             self.sessions.insert(row.id, session);
         }
