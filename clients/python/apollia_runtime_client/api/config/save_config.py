@@ -87,6 +87,12 @@ def sync_detailed(
 ) -> Response[ConfigErrorBody | ConfigView]:
     """`PUT /api/v1/config`: saves a whole text through the writer.
 
+     The change is written to the signed journal under the origin the caller
+    declares. A caller that wrote the file itself, as the command line does,
+    presents the text it wrote with its own fingerprint: nothing is written
+    again, and the change it made is journaled under its origin instead of as
+    a file changed from outside.
+
     Args:
         body (ConfigSaveRequest): A text to save, with the fingerprint of the text it was made
             from.
@@ -117,6 +123,12 @@ def sync(
 ) -> ConfigErrorBody | ConfigView | None:
     """`PUT /api/v1/config`: saves a whole text through the writer.
 
+     The change is written to the signed journal under the origin the caller
+    declares. A caller that wrote the file itself, as the command line does,
+    presents the text it wrote with its own fingerprint: nothing is written
+    again, and the change it made is journaled under its origin instead of as
+    a file changed from outside.
+
     Args:
         body (ConfigSaveRequest): A text to save, with the fingerprint of the text it was made
             from.
@@ -141,6 +153,12 @@ async def asyncio_detailed(
     body: ConfigSaveRequest,
 ) -> Response[ConfigErrorBody | ConfigView]:
     """`PUT /api/v1/config`: saves a whole text through the writer.
+
+     The change is written to the signed journal under the origin the caller
+    declares. A caller that wrote the file itself, as the command line does,
+    presents the text it wrote with its own fingerprint: nothing is written
+    again, and the change it made is journaled under its origin instead of as
+    a file changed from outside.
 
     Args:
         body (ConfigSaveRequest): A text to save, with the fingerprint of the text it was made
@@ -169,6 +187,12 @@ async def asyncio(
     body: ConfigSaveRequest,
 ) -> ConfigErrorBody | ConfigView | None:
     """`PUT /api/v1/config`: saves a whole text through the writer.
+
+     The change is written to the signed journal under the origin the caller
+    declares. A caller that wrote the file itself, as the command line does,
+    presents the text it wrote with its own fingerprint: nothing is written
+    again, and the change it made is journaled under its origin instead of as
+    a file changed from outside.
 
     Args:
         body (ConfigSaveRequest): A text to save, with the fingerprint of the text it was made

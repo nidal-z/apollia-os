@@ -379,6 +379,20 @@ digest differs from the last one applied, `PolicyUnreadable` with its reason,
 and `FailClosedTriggered` on each entry into fail-closed. `JournalExported`
 goes to `governance:journal:export`.
 
+A change of `apollia.toml` is `ConfigurationChanged`, in the run
+`governance:configuration`, written by the configuration reloader
+(`crates/apollia-runtime/src/config_reload/journal.rs`) each time it applies a
+text. The payload names the dotted keys whose value changed, the origin
+(`editor`, `settings`, `cli`, `api`, `external_file`, `at_startup`) and the
+SHA-256 of the text before and after; it never carries a value. A caller of
+`PUT /api/v1/config` declares its origin; a file found changed by the watcher
+is `external_file`; a file whose fingerprint at startup is not the last one
+journaled is `at_startup`, which is how a write of the CLI made with no
+runtime running is journaled. The keys of that last case come from the copy of
+the last text applied, kept beside the file as `apollia.toml.applied` and
+trusted only when its fingerprint is the journaled one; otherwise the entry
+has no `keys` field.
+
 ---
 
 ## 10. Telemetry export

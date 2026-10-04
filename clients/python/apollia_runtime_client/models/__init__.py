@@ -129,6 +129,7 @@ from .decide_request import DecideRequest
 from .decide_request_answers_type_0_item import DecideRequestAnswersType0Item
 from .decide_request_value_type_0 import DecideRequestValueType0
 from .decide_response import DecideResponse
+from .declared_origin import DeclaredOrigin
 from .default_model_response import DefaultModelResponse
 from .delegate_request import DelegateRequest
 from .delegate_request_input import DelegateRequestInput
@@ -683,6 +684,7 @@ __all__ = (
     "DecideRequestAnswersType0Item",
     "DecideRequestValueType0",
     "DecideResponse",
+    "DeclaredOrigin",
     "DefaultModelResponse",
     "DelegateRequest",
     "DelegateRequestInput",

@@ -143,6 +143,13 @@ impl Supervisor {
             )
             .await;
 
+        // The journal is open: the reloader writes to it the change of
+        // `apollia.toml` made while the runtime was stopped, then every
+        // change it applies.
+        if let (Some(reload), Some(journal)) = (&config_reload, &governance.audit_journal) {
+            reload.attach_journal(journal.clone()).await;
+        }
+
         // Phase 8e: the folders the former settings named, added once as
         // folder connections through the admission and the journal.
         crate::connections::folder_import::import_legacy_folders(

@@ -2987,6 +2987,7 @@
           "config"
         ],
         "summary": "`PUT /api/v1/config`: saves a whole text through the writer.",
+        "description": "The change is written to the signed journal under the origin the caller\ndeclares. A caller that wrote the file itself, as the command line does,\npresents the text it wrote with its own fingerprint: nothing is written\nagain, and the change it made is journaled under its origin instead of as\na file changed from outside.",
         "operationId": "save_config",
         "requestBody": {
           "content": {
@@ -19730,6 +19731,10 @@
           "sha256"
         ],
         "properties": {
+          "origin": {
+            "$ref": "#/components/schemas/DeclaredOrigin",
+            "description": "Where the change comes from, for the journal: `editor`, `settings`,\n`cli` or `api`. A caller that names none is `api`."
+          },
           "sha256": {
             "type": "string",
             "description": "SHA-256 of the text the change was made from, as `GET` returned it."
@@ -20633,6 +20638,16 @@
             "minimum": 0
           }
         }
+      },
+      "DeclaredOrigin": {
+        "type": "string",
+        "description": "The origin a caller of the save route may declare. The two origins the\nruntime finds by itself are not among them.",
+        "enum": [
+          "editor",
+          "settings",
+          "cli",
+          "api"
+        ]
       },
       "DefaultModelResponse": {
         "type": "object",

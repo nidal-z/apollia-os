@@ -138,6 +138,10 @@ pub enum JournalEntryKind {
     /// The journal was exported. The payload is a
     /// [`crate::governance::GovernanceRecord`].
     JournalExported,
+    /// `apollia.toml` changed. The payload is a
+    /// [`crate::config_reload::ConfigChangeRecord`]: the paths of the keys,
+    /// the origin, the fingerprint of the file before and after, never a value.
+    ConfigurationChanged,
     /// A run-scoped event with no explicit mapping; `raw_kind` keeps the
     /// original variant name so coverage stays auditable.
     Unknown {
@@ -196,6 +200,7 @@ impl JournalEntryKind {
             JournalEntryKind::PolicyUnreadable => "policy_unreadable",
             JournalEntryKind::FailClosedTriggered => "fail_closed_triggered",
             JournalEntryKind::JournalExported => "journal_exported",
+            JournalEntryKind::ConfigurationChanged => "configuration_changed",
             JournalEntryKind::Unknown { raw_kind } => raw_kind,
         }
     }
@@ -248,6 +253,7 @@ impl JournalEntryKind {
             "policy_unreadable" => JournalEntryKind::PolicyUnreadable,
             "fail_closed_triggered" => JournalEntryKind::FailClosedTriggered,
             "journal_exported" => JournalEntryKind::JournalExported,
+            "configuration_changed" => JournalEntryKind::ConfigurationChanged,
             other => JournalEntryKind::Unknown {
                 raw_kind: other.to_string(),
             },
@@ -468,8 +474,8 @@ mod tests {
         }
     }
 
-    // The kinds of consents, refusals, rules, batches and policy round-trip
-    // through their stable tags.
+    // The kinds of consents, refusals, rules, batches, policy and
+    // configuration round-trip through their stable tags.
     #[test]
     fn test_decision_and_policy_kinds_tags_round_trip() {
         // GIVEN the kinds and their expected tags
@@ -489,6 +495,10 @@ mod tests {
                 "fail_closed_triggered",
             ),
             (JournalEntryKind::JournalExported, "journal_exported"),
+            (
+                JournalEntryKind::ConfigurationChanged,
+                "configuration_changed",
+            ),
         ];
         for (kind, expected) in cases {
             // WHEN converting to its tag and back

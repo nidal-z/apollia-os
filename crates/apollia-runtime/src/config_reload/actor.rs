@@ -12,7 +12,9 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::{event, Level};
 
 use super::diff::{changed_keys, class_of, split};
+use super::journal::{self, ConfigChangeRecord, ConfigOrigin};
 use super::{ConfigChannels, ConfigFeed};
+use crate::audit_journal::AuditJournalHandle;
 use crate::eventbus::EventBusSender;
 use apollia_core::config::keys::ReloadClass;
 
@@ -48,13 +50,20 @@ pub struct ReloadStatus {
 }
 
 enum Command {
-    /// The save route wrote this text.
+    /// The save route wrote this text, or was shown it by the caller that
+    /// wrote it.
     Saved {
         text: String,
+        origin: ConfigOrigin,
         reply: oneshot::Sender<ReloadStatus>,
     },
     /// The file changed on disk.
     FileChanged { done: Option<oneshot::Sender<()>> },
+    /// The signed journal is open: every change is written to it from now on.
+    Journal {
+        journal: AuditJournalHandle,
+        done: oneshot::Sender<()>,
+    },
     /// What the reloader holds.
     Status(oneshot::Sender<ReloadStatus>),
 }
@@ -88,7 +97,9 @@ impl ConfigReloadHandle {
         events: &EventBusSender,
     ) -> Self {
         let text = read_snapshot(&path).map(|s| s.text).unwrap_or_default();
-        let boot = validate(&text).unwrap_or_default();
+        let parsed = validate(&text);
+        let from_file = parsed.is_ok();
+        let boot = parsed.unwrap_or_default();
         let feed = channels.feed();
         let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
         let actor = Reloader {
@@ -102,6 +113,8 @@ impl ConfigReloadHandle {
             channels,
             events: events.clone(),
             applied: 0,
+            from_file,
+            journal: None,
         };
         let bus = apollia_core::events::subscribe_resilient(events, "config.reload");
         tokio::spawn(actor.run(rx, bus));
@@ -133,14 +146,36 @@ impl ConfigReloadHandle {
         self.feed.clone()
     }
 
-    /// Applies a text the save route has just written, and answers once it is
-    /// applied.
-    pub async fn saved(&self, text: String) -> ReloadStatus {
+    /// Applies a text that has just been written, by the save route or by the
+    /// caller that shows it, and answers once it is applied. `origin` is what
+    /// the journal says of where the change came from.
+    pub async fn saved(&self, text: String, origin: ConfigOrigin) -> ReloadStatus {
         let (reply, rx) = oneshot::channel();
-        if self.tx.send(Command::Saved { text, reply }).await.is_err() {
+        let command = Command::Saved {
+            text,
+            origin,
+            reply,
+        };
+        if self.tx.send(command).await.is_err() {
             return ReloadStatus::default();
         }
         rx.await.unwrap_or_default()
+    }
+
+    /// Hands the signed journal to the reloader, and answers once the change
+    /// the journal has not seen is written to it: a file whose fingerprint is
+    /// not the last one recorded changed while the runtime was stopped. From
+    /// then on every text applied is journaled.
+    pub async fn attach_journal(&self, journal: AuditJournalHandle) {
+        let (done, rx) = oneshot::channel();
+        if self
+            .tx
+            .send(Command::Journal { journal, done })
+            .await
+            .is_ok()
+        {
+            let _ = rx.await;
+        }
     }
 
     /// Reads the file again, as the watcher does after a change, and answers
@@ -184,6 +219,11 @@ struct Reloader {
     channels: ConfigChannels,
     events: EventBusSender,
     applied: u64,
+    /// Whether the configuration in force was read from the file: false when
+    /// the file did not validate at the start and nothing was applied since.
+    from_file: bool,
+    /// The signed journal, once the supervisor has opened it.
+    journal: Option<AuditJournalHandle>,
 }
 
 impl Reloader {
@@ -200,9 +240,13 @@ impl Reloader {
                     Some(_) => {}
                 },
                 command = rx.recv() => match command {
-                    Some(Command::Saved { text, reply }) => {
-                        self.offer(text);
+                    Some(Command::Saved { text, origin, reply }) => {
+                        self.offer(text, origin).await;
                         let _ = reply.send(self.status());
+                    }
+                    Some(Command::Journal { journal, done }) => {
+                        self.attach(journal).await;
+                        let _ = done.send(());
                     }
                     Some(Command::FileChanged { done }) => {
                         self.read_file().await;
@@ -224,7 +268,7 @@ impl Reloader {
         let path = self.path.clone();
         let read = tokio::task::spawn_blocking(move || read_snapshot(&path)).await;
         match read {
-            Ok(Ok(snapshot)) => self.offer(snapshot.text),
+            Ok(Ok(snapshot)) => self.offer(snapshot.text, ConfigOrigin::ExternalFile).await,
             Ok(Err(e)) => {
                 event!(Level::WARN, error = %e, "config.reload.read.failed");
             }
@@ -235,14 +279,15 @@ impl Reloader {
     }
 
     /// Applies `text` unless it was already read; keeps the configuration in
-    /// force when it does not validate.
-    fn offer(&mut self, text: String) {
+    /// force when it does not validate. A text applied is journaled under
+    /// `origin`.
+    async fn offer(&mut self, text: String, origin: ConfigOrigin) {
         let sha = fingerprint(&text);
         if sha == self.seen_sha {
             event!(Level::DEBUG, "config.reload.unchanged");
             return;
         }
-        self.seen_sha = sha;
+        self.seen_sha.clone_from(&sha);
         let faults = check_text(&text, &self.policy);
         let parsed = if faults.is_empty() {
             validate(&text)
@@ -250,12 +295,51 @@ impl Reloader {
             Err(faults)
         };
         match parsed {
-            Ok(config) => self.apply(config, text),
+            Ok(config) => {
+                let change = self.apply(config, text, sha, origin);
+                self.record(&change).await;
+            }
             Err(diagnostics) => self.refuse(diagnostics),
         }
     }
 
-    fn apply(&mut self, config: ApolliaConfig, text: String) {
+    /// Takes the journal and writes to it the change it has not seen.
+    async fn attach(&mut self, journal: AuditJournalHandle) {
+        if self.from_file {
+            let unseen =
+                journal::change_during_stop(&journal, &self.path, &self.text, &self.current).await;
+            if let Some(change) = &unseen {
+                journal::append(&journal, change);
+            }
+            journal::keep_applied_copy(&self.path, self.text.clone()).await;
+        }
+        self.journal = Some(journal);
+    }
+
+    /// Writes `change` to the journal, and keeps the text in force as the
+    /// last one applied.
+    async fn record(&self, change: &ConfigChangeRecord) {
+        let Some(journal) = &self.journal else {
+            return;
+        };
+        journal::append(journal, change);
+        journal::keep_applied_copy(&self.path, self.text.clone()).await;
+    }
+
+    fn apply(
+        &mut self,
+        config: ApolliaConfig,
+        text: String,
+        sha: String,
+        origin: ConfigOrigin,
+    ) -> ConfigChangeRecord {
+        let change = ConfigChangeRecord::new(
+            Some(changed_keys(&self.current, &config)),
+            origin,
+            fingerprint(&self.text),
+            sha,
+        );
+        self.from_file = true;
         let changes = split(&self.current, &config);
         self.channels.publish(&config, &changes.sections);
         self.current = config;
@@ -273,6 +357,7 @@ impl Reloader {
             sections: changes.sections,
             pending_restart: pending,
         });
+        change
     }
 
     fn refuse(&mut self, diagnostics: Vec<ConfigDiagnostic>) {
