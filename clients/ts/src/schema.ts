@@ -6759,8 +6759,11 @@ export interface components {
             locked: components["schemas"]["LockedKeyBody"][];
             /** @description Where the file lives. */
             path: string;
-            /** @description Keys changed in the file that wait for a restart of the runtime. */
-            pendingRestart: string[];
+            /**
+             * @description Keys changed since the runtime started that wait for its restart, each
+             *     with its line; empty in a runtime that does not follow its file.
+             */
+            pendingRestart: components["schemas"]["PendingRestartKey"][];
             /** @description SHA-256 of `text`, to present when saving. */
             sha256: string;
             /** @description The text of the file. */
@@ -8781,6 +8784,19 @@ export interface components {
             skill_id?: string | null;
             suspended_at: string;
             task_id: string;
+        };
+        /**
+         * @description A key changed since the start that waits for a restart, with its line in
+         *     the file.
+         */
+        PendingRestartKey: {
+            /** @description Dotted key. */
+            key: string;
+            /**
+             * @description 1-based line of the key, or of its table, in the file; `None` when the
+             *     file no longer writes it (removed, back to its default).
+             */
+            line?: number | null;
         };
         /** @description Snapshot of a pending `ask_user` request, safe to send across the IPC boundary. */
         PendingUserInputView: {
