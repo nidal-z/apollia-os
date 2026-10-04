@@ -7429,6 +7429,13 @@ export interface components {
             /** @description The cursor of the proposal removed. */
             dismissed: number;
         };
+        /** @description One document as a client sends it. */
+        DocumentAttachment: {
+            /** @description Bytes of the document, in standard base64. */
+            data: string;
+            /** @description File name of the document, with its extension, such as `invoice.pdf`. */
+            name: string;
+        };
         /** @description The Drive folder of one connected Google account. */
         DriveFolderStatus: {
             /** @description Account identifier, the Google email. */
@@ -9762,6 +9769,12 @@ export interface components {
         SendMessageRequest: {
             /** @description Text content of the user message. */
             content: string;
+            /**
+             * @description Documents sent with the message (PDF, Word, PowerPoint, workbook, CSV):
+             *     the runtime extracts their text on reception. At most four, each at
+             *     most 20 MiB once decoded.
+             */
+            documents?: components["schemas"]["DocumentAttachment"][];
             /**
              * @description Images sent after the text, for a model that reads images; at most
              *     eight, each at most 10 MiB once decoded.
@@ -22191,7 +22204,7 @@ export interface operations {
                     "application/json": components["schemas"]["SendMessageResponse"];
                 };
             };
-            /** @description An image is refused: too many, too large, or not decodable */
+            /** @description An image or a document is refused: too many, too large, not decodable, or a document its reader cannot read */
             400: {
                 headers: {
                     [name: string]: unknown;

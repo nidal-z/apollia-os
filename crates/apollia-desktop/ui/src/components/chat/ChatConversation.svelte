@@ -51,8 +51,9 @@
   import {
     type PendingAttachment,
     composeUserPayload,
+    documentPayloads,
     imagePayloads,
-    sentImagesMetadata,
+    sentAttachmentsMetadata,
   } from "$lib/chat/attachments";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
   import ContextIndicator from "./ContextIndicator.svelte";
@@ -542,7 +543,7 @@
       id: `temp-${Date.now()}`, role: "user", content: payload,
       tool_calls: null, tool_name: null,
       seq: (messages ?? []).length, created_at: new Date().toISOString(),
-      metadata: sentImagesMetadata(attachments),
+      metadata: sentAttachmentsMetadata(attachments),
     };
     pendingError = null;
     messages = [...(messages ?? []).filter((m) => m.id !== "exchange-error"), tempMsg];
@@ -550,7 +551,8 @@
     await tick(); scroll.toBottom(true);
 
     try {
-      await sendChatMessage(sessionId, payload, imagePayloads(attachments));
+      const documents = documentPayloads(attachments);
+      await sendChatMessage(sessionId, payload, imagePayloads(attachments), documents);
     } catch (err: unknown) {
       isProcessing = false;
       const errMsg: ChatMessageView = {

@@ -3540,8 +3540,21 @@
         "image_unreadable": "{name} is not a readable image, so it was not attached.",
         "image_format": "{name}: the model of this conversation does not read this image format.",
         "too_large_without_path": "{name} is over 512 kB, and a file picked this way carries no path. Drag it into the conversation to attach it.",
-        "binary_not_text": "{name} is not a text file: its bytes carry no readable text, so nothing useful could be sent. Drag it into the conversation to send its path instead."
+        "document_limit": "{name} refused: at most {max} documents per message. Drag it into the conversation to send its path instead.",
+        "document_too_large": "{name} refused: a document weighs at most {mb} MB. Drag it into the conversation to send its path instead.",
+        "binary_not_text": "{name} refused: this format is not read. PDF, Word, PowerPoint, Excel, CSV and text files are. Drag it into the conversation to send its path instead."
       }
+    },
+    "documents": {
+      "read_pages": "{count, plural, one {# page} other {# pages}}, text read",
+      "read_slides": "{count, plural, one {# slide} other {# slides}}, text read",
+      "read_sheets": "{count, plural, one {# sheet} other {# sheets}}, text read",
+      "read_whole": "text read",
+      "on_demand_pages": "{count, plural, one {# page} other {# pages}}, read on demand",
+      "on_demand_slides": "{count, plural, one {# slide} other {# slides}}, read on demand",
+      "on_demand_sheets": "{count, plural, one {# sheet} other {# sheets}}, read on demand",
+      "on_demand_whole": "read on demand",
+      "no_text": "no text found"
     },
     "images": {
       "open": "Open image {position}",

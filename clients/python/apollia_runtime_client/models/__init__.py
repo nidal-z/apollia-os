@@ -157,6 +157,7 @@ from .dictation_models_response_models_item import DictationModelsResponseModels
 from .dictation_models_response_reason_type_0 import DictationModelsResponseReasonType0
 from .directory_removed import DirectoryRemoved
 from .dismissed_proposal import DismissedProposal
+from .document_attachment import DocumentAttachment
 from .drive_folder_status import DriveFolderStatus
 from .embedding_default_response import EmbeddingDefaultResponse
 from .embedding_models_response import EmbeddingModelsResponse
@@ -720,6 +721,7 @@ __all__ = (
     "DictationModelsResponseReasonType0",
     "DirectoryRemoved",
     "DismissedProposal",
+    "DocumentAttachment",
     "DriveFolderStatus",
     "EmbeddingDefaultResponse",
     "EmbeddingModelsResponse",

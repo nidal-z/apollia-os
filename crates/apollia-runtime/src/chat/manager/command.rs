@@ -26,6 +26,9 @@ pub enum ChatCommand {
         /// Images attached after the text, already decoded and checked for
         /// count and size.
         images: Vec<apollia_llm::message_image::MessageImage>,
+        /// Documents attached to the message, already copied and read: their
+        /// text is part of `content`, this is what the metadata lists.
+        documents: Option<crate::chat::documents::MessageDocuments>,
         /// Response channel.
         reply: oneshot::Sender<Result<MessageId, ChatError>>,
     },

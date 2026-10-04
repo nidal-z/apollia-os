@@ -114,13 +114,16 @@ async fn test_sessions_are_listed_over_http_with_the_token() {
 
 #[tokio::test]
 async fn test_a_message_is_sent_and_a_turn_paused_over_http() {
-    // GIVEN a daemon accepting a message and a pause on one session
+    // GIVEN a daemon accepting a message with a document, and a pause, on one
+    // session
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/api/v1/sessions/s-1/messages"))
-        .and(body_json(
-            serde_json::json!({ "content": "Bonjour", "images": [] }),
-        ))
+        .and(body_json(serde_json::json!({
+            "content": "Bonjour",
+            "images": [],
+            "documents": [{ "name": "devis.pdf", "data": "JVBERg==" }],
+        })))
         .respond_with(
             ResponseTemplate::new(202)
                 .set_body_json(serde_json::json!({ "message_id": "m-9", "status": "processing" })),
@@ -138,8 +141,15 @@ async fn test_a_message_is_sent_and_a_turn_paused_over_http() {
         .await;
     let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
 
-    // WHEN a message is sent, then the turn paused
-    let message_id = client.send_message("s-1", "Bonjour", &[]).await.unwrap();
+    // WHEN a message is sent with its document, then the turn paused
+    let documents = [apollia_runtime::chat::documents::DocumentAttachment {
+        name: "devis.pdf".into(),
+        data: "JVBERg==".into(),
+    }];
+    let message_id = client
+        .send_message("s-1", "Bonjour", &[], &documents)
+        .await
+        .unwrap();
     client.pause_session("s-1").await.unwrap();
 
     // THEN the daemon's message id is returned and both calls reached it

@@ -77,6 +77,12 @@ export interface ChatImageData {
   data: string;
 }
 
+/** One document sent with a message: its file name and base64 bytes. */
+export interface ChatDocumentData {
+  name: string;
+  data: string;
+}
+
 /** Single message inside a chat session. */
 export interface ChatMessageView {
   id: string;

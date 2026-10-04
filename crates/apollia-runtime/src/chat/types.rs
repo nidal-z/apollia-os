@@ -595,6 +595,11 @@ pub enum ChatError {
     /// decodable, or in a format the engine of the model does not read.
     #[error("image refused: {0}")]
     ImageRejected(String),
+    /// A document of a message is refused: too many, too large, empty, of a
+    /// format no reader opens, or one its reader could not read (protected by
+    /// a password, damaged).
+    #[error("document refused: {0}")]
+    DocumentRejected(String),
     /// The hybrid routing cost ceiling was reached and `ceiling_action` is `HardStop`.
     ///
     /// The run stopped cleanly with no data loss. It can be resumed in a new run

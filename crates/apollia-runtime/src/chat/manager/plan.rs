@@ -214,7 +214,7 @@ impl ChatSessionManager {
         session_id: &str,
         directive: &str,
     ) {
-        match self.handle_send_message(session_id, directive, Vec::new()) {
+        match self.handle_send_message(session_id, directive, Vec::new(), None) {
             Ok(_) => {}
             Err(ChatError::SessionBusy(_)) => {
                 self.pending_plan_continuations
