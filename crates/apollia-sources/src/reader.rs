@@ -1,18 +1,21 @@
-//! Readers that turn a workbook or a CSV file into cells of text.
+//! Readers that turn a workbook, a CSV file or a PDF document into text.
 //!
 //! A workbook (`.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.ods`) is read by
 //! [`read_workbook`], a CSV file by [`read_csv`]. Both answer sheets of rows of
 //! [`Cell`]s, each cell carrying its text and where it was read
-//! ([`CellLocation`]). The readers only read: nothing is written, nothing leaves
-//! the machine. They are synchronous and read the whole file, so an async
+//! ([`CellLocation`]). A PDF document is read by [`read_pdf`], which answers
+//! the text of each page with its number ([`PdfPage`]). The readers only read:
+//! nothing is written, nothing leaves the machine. They are synchronous and read the whole file, so an async
 //! caller runs them under `spawn_blocking`.
 
 use std::path::{Path, PathBuf};
 
 mod delimited;
+mod pdf;
 mod workbook;
 
 pub use delimited::{read_csv, CsvFile, Delimiter};
+pub use pdf::{read_pdf, PageText, PdfDocument, PdfPage};
 pub use workbook::{read_workbook, Workbook, WORKBOOK_EXTENSIONS};
 
 /// Where a cell was read: its sheet, its row and its column.
