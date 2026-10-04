@@ -1009,6 +1009,7 @@ mod orchestrated_step_args_master_proof {
             tags: vec![],
             family: apollia_tools::ActionFamily::WriteOrDelete,
             family_source: apollia_tools::FamilySource::Builtin,
+            target_arg: None,
             is_read_only: false,
             risk_score: 5,
             approval_risk_level: None,

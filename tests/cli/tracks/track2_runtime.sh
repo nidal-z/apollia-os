@@ -334,6 +334,13 @@ check         "chat config reset --confirm"        "${Q[@]}" chat config reset -
 check_content "chat config get after reset"        "(runtime default)" "${Q[@]}" chat config get
 check_exit    "agent uninstall apollia:chat (built in) → 1" 1 "${Q[@]}" agent uninstall apollia:chat --confirm
 check         "audit verify (overrides journaled)"  "${Q[@]}" audit verify
+# The overrides above are access changes: each entry of the page carries its
+# summary, and the filters keep that nature and nothing else.
+check_json_field "audit journal --nature access_change --json: summarised, that nature only" "d['count'] > 0 and all(e['summary']['nature'] == 'access_change' for e in d['entries'])" "True" "${Q[@]}" audit journal --nature access_change --limit 50 --json
+check_json_field "audit journal --nature policy --result refused --json: nothing matches" "d['count']" "0" "${Q[@]}" audit journal --nature policy --result refused --json
+check_content "audit journal --nature access_change: a line per entry, in words" "Agent setting (changed|reset)" "${Q[@]}" audit journal --nature access_change --limit 50
+check_exit    "audit journal (unknown nature) → 1" 1 "${Q[@]}" audit journal --nature everything
+check_exit    "audit journal (unreadable date) → 1" 1 "${Q[@]}" audit journal --since last-week
 check         "agent package list"                 "${Q[@]}" agent package list
 check_content "agent package list has seed-office-pack" "seed-office-pack" "${Q[@]}" agent package show seed-office-pack
 check         "agent create scaffold --type react" "$BIN" agent create e2e-scaffold --type react

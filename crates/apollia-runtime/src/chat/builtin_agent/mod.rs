@@ -53,6 +53,7 @@ use crate::hooks::executor::{HookDecision, HookExecutor};
 
 mod approval_request;
 mod builder;
+mod call_journal;
 mod catalog;
 mod context_window;
 mod governed;
@@ -82,6 +83,8 @@ pub use response::{ChatAgentResponse, ConsolidatedVerificationReport};
 pub(in crate::chat::builtin_agent) use response::{NoopCheckInvoker, PlanPhaseTracker, RetryCarry};
 
 /// An "always accept" on a code executor covers the current call only.
+#[cfg(test)]
+mod call_journal_tests;
 #[cfg(test)]
 mod code_executor_grant_tests;
 #[cfg(test)]

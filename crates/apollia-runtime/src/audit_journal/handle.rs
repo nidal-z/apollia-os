@@ -6,11 +6,14 @@ use std::sync::Arc;
 use apollia_auth::SecretStore;
 
 use crate::audit_journal::actor::{JournalActor, JournalMessage, MIGRATIONS, SCHEMA_VERSION};
+use crate::audit_journal::detail::{entry_detail, JournalEntryDetail};
 use crate::audit_journal::entry::{JournalEntry, JournalEntryDraft};
 use crate::audit_journal::error::AuditJournalError;
+use crate::audit_journal::filter::JournalFilter;
 use crate::audit_journal::signer::{
     HmacSigner, JournalSigner, SignerError, SignerUnavailablePolicy,
 };
+use crate::audit_journal::summary::JournalLine;
 use crate::audit_journal::verify::{JournalAnchor, VerifyChainReport, VerifyJournalReport};
 
 /// Capacity of the channel between the handle and the actor.
@@ -157,42 +160,16 @@ impl AuditJournalHandle {
     /// Return one page of entries across every run, newest global position
     /// first.
     ///
-    /// This is the only read of the journal that does not require a run id
-    /// up front: `query_run` answers a run that the caller already knows.
+    /// This and [`Self::query_lines`] are the reads of the journal that do not
+    /// require a run id up front: `query_run` answers a run that the caller
+    /// already knows.
     pub async fn query_page(&self, limit: usize, offset: usize) -> Vec<JournalEntry> {
-        self.page(limit, offset, None).await
-    }
-
-    /// Return one page of the entries of `runs`, newest global position first.
-    ///
-    /// The instance journal holds every run of every agent; a caller that
-    /// follows some agents only pages through theirs instead of walking pages
-    /// that belong to others. An empty `runs` answers an empty page.
-    pub async fn query_page_of_runs(
-        &self,
-        runs: Vec<String>,
-        limit: usize,
-        offset: usize,
-    ) -> Vec<JournalEntry> {
-        if runs.is_empty() {
-            return Vec::new();
-        }
-        self.page(limit, offset, Some(runs)).await
-    }
-
-    async fn page(
-        &self,
-        limit: usize,
-        offset: usize,
-        runs: Option<Vec<String>>,
-    ) -> Vec<JournalEntry> {
         let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
         if self
             .sender
             .send(JournalMessage::QueryPage {
                 limit,
                 offset,
-                runs,
                 reply: reply_tx,
             })
             .await
@@ -201,6 +178,39 @@ impl AuditJournalHandle {
             return Vec::new();
         }
         reply_rx.await.unwrap_or_default()
+    }
+
+    /// Return one page of the entries that pass `filter`, each with its
+    /// summary, newest global position first. `limit` and `offset` count
+    /// matching entries.
+    pub async fn query_lines(
+        &self,
+        filter: JournalFilter,
+        limit: usize,
+        offset: usize,
+    ) -> Vec<JournalLine> {
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+        if self
+            .sender
+            .send(JournalMessage::QueryLines {
+                filter: Box::new(filter),
+                limit,
+                offset,
+                reply: reply_tx,
+            })
+            .await
+            .is_err()
+        {
+            return Vec::new();
+        }
+        reply_rx.await.unwrap_or_default()
+    }
+
+    /// Return the entry `seq` of `run_id` with everything it records: for a
+    /// tool call, its arguments and its output, joined from the entries the
+    /// run captured for replay. `None` when the run has no such entry.
+    pub async fn entry_detail(&self, run_id: &str, seq: u64) -> Option<JournalEntryDetail> {
+        entry_detail(&self.query_run(run_id).await, seq)
     }
 
     /// Return the distinct run ids present in the journal.

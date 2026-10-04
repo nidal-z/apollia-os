@@ -699,9 +699,11 @@ impl BuiltInChatAgent {
             input_preview,
             rationale: rationale.clone(),
         });
+        let call_facts = self.journal_call_started(call, run_id).await;
 
         let invoke_started = std::time::Instant::now();
         let (result, retry_attempts) = self.invoke_through_breaker(call).await;
+        let duration_ms = invoke_started.elapsed().as_millis() as u64;
         // Dispatch to result available, and nothing else. Any HITL approval was
         // awaited upstream of this call and is recorded there as its own sample,
         // so this span carries tool work only. An earlier comment here claimed
@@ -758,6 +760,7 @@ impl BuiltInChatAgent {
             output: captured_output,
             status: if success { "success" } else { "error" }.to_string(),
         });
+        self.journal_call_completed(call_facts, &output, success, duration_ms);
 
         let record = ToolCallRecord {
             tool_name: call.name.clone(),

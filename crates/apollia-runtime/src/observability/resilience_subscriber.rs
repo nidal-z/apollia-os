@@ -93,6 +93,9 @@ mod tests {
             duration_ms: 1,
             success,
             run_id: None,
+            tool_call_id: None,
+            family: None,
+            target: None,
         }
     }
 

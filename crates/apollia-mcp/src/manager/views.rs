@@ -123,6 +123,8 @@ pub(super) async fn register_session_tools_in_registry(
             tags: tool_tags,
             family,
             family_source,
+            // Nobody has designated which argument of an MCP tool is its target.
+            target_arg: None,
             is_read_only,
             risk_score,
             approval_risk_level: None,

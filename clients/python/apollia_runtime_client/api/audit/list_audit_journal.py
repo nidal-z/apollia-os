@@ -15,6 +15,11 @@ def _get_kwargs(
     limit: int | Unset = UNSET,
     offset: int | Unset = UNSET,
     agents: str | Unset = UNSET,
+    family: str | Unset = UNSET,
+    nature: str | Unset = UNSET,
+    result: str | Unset = UNSET,
+    since: str | Unset = UNSET,
+    until: str | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
@@ -24,6 +29,16 @@ def _get_kwargs(
     params["offset"] = offset
 
     params["agents"] = agents
+
+    params["family"] = family
+
+    params["nature"] = nature
+
+    params["result"] = result
+
+    params["since"] = since
+
+    params["until"] = until
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -43,6 +58,11 @@ def _parse_response(
         response_200 = AuditJournalPageResponse.from_dict(response.json())
 
         return response_200
+
+    if response.status_code == 400:
+        response_400 = ApiErrorBody.from_dict(response.json())
+
+        return response_400
 
     if response.status_code == 503:
         response_503 = ApiErrorBody.from_dict(response.json())
@@ -72,19 +92,31 @@ def sync_detailed(
     limit: int | Unset = UNSET,
     offset: int | Unset = UNSET,
     agents: str | Unset = UNSET,
+    family: str | Unset = UNSET,
+    nature: str | Unset = UNSET,
+    result: str | Unset = UNSET,
+    since: str | Unset = UNSET,
+    until: str | Unset = UNSET,
 ) -> Response[ApiErrorBody | AuditJournalPageResponse]:
     """`GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal
-    across every run.
+    across every run, each entry with its summary.
 
      This is the only read of the journal that does not need a run id up front:
     `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,
-    and `GET /api/v1/audit` answers the separate tool-invocation trail. 503 when
-    the journal is not configured.
+    and `GET /api/v1/audit` answers the separate tool-invocation trail. The
+    filters are applied before paging, so `limit` and `offset` count matching
+    entries. 400 on a filter value that cannot be read, 503 when the journal is
+    not configured.
 
     Args:
         limit (int | Unset):
         offset (int | Unset):
         agents (str | Unset):
+        family (str | Unset):
+        nature (str | Unset):
+        result (str | Unset):
+        since (str | Unset):
+        until (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -98,6 +130,11 @@ def sync_detailed(
         limit=limit,
         offset=offset,
         agents=agents,
+        family=family,
+        nature=nature,
+        result=result,
+        since=since,
+        until=until,
     )
 
     response = client.get_httpx_client().request(
@@ -113,19 +150,31 @@ def sync(
     limit: int | Unset = UNSET,
     offset: int | Unset = UNSET,
     agents: str | Unset = UNSET,
+    family: str | Unset = UNSET,
+    nature: str | Unset = UNSET,
+    result: str | Unset = UNSET,
+    since: str | Unset = UNSET,
+    until: str | Unset = UNSET,
 ) -> ApiErrorBody | AuditJournalPageResponse | None:
     """`GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal
-    across every run.
+    across every run, each entry with its summary.
 
      This is the only read of the journal that does not need a run id up front:
     `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,
-    and `GET /api/v1/audit` answers the separate tool-invocation trail. 503 when
-    the journal is not configured.
+    and `GET /api/v1/audit` answers the separate tool-invocation trail. The
+    filters are applied before paging, so `limit` and `offset` count matching
+    entries. 400 on a filter value that cannot be read, 503 when the journal is
+    not configured.
 
     Args:
         limit (int | Unset):
         offset (int | Unset):
         agents (str | Unset):
+        family (str | Unset):
+        nature (str | Unset):
+        result (str | Unset):
+        since (str | Unset):
+        until (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -140,6 +189,11 @@ def sync(
         limit=limit,
         offset=offset,
         agents=agents,
+        family=family,
+        nature=nature,
+        result=result,
+        since=since,
+        until=until,
     ).parsed
 
 
@@ -149,19 +203,31 @@ async def asyncio_detailed(
     limit: int | Unset = UNSET,
     offset: int | Unset = UNSET,
     agents: str | Unset = UNSET,
+    family: str | Unset = UNSET,
+    nature: str | Unset = UNSET,
+    result: str | Unset = UNSET,
+    since: str | Unset = UNSET,
+    until: str | Unset = UNSET,
 ) -> Response[ApiErrorBody | AuditJournalPageResponse]:
     """`GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal
-    across every run.
+    across every run, each entry with its summary.
 
      This is the only read of the journal that does not need a run id up front:
     `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,
-    and `GET /api/v1/audit` answers the separate tool-invocation trail. 503 when
-    the journal is not configured.
+    and `GET /api/v1/audit` answers the separate tool-invocation trail. The
+    filters are applied before paging, so `limit` and `offset` count matching
+    entries. 400 on a filter value that cannot be read, 503 when the journal is
+    not configured.
 
     Args:
         limit (int | Unset):
         offset (int | Unset):
         agents (str | Unset):
+        family (str | Unset):
+        nature (str | Unset):
+        result (str | Unset):
+        since (str | Unset):
+        until (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -175,6 +241,11 @@ async def asyncio_detailed(
         limit=limit,
         offset=offset,
         agents=agents,
+        family=family,
+        nature=nature,
+        result=result,
+        since=since,
+        until=until,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -188,19 +259,31 @@ async def asyncio(
     limit: int | Unset = UNSET,
     offset: int | Unset = UNSET,
     agents: str | Unset = UNSET,
+    family: str | Unset = UNSET,
+    nature: str | Unset = UNSET,
+    result: str | Unset = UNSET,
+    since: str | Unset = UNSET,
+    until: str | Unset = UNSET,
 ) -> ApiErrorBody | AuditJournalPageResponse | None:
     """`GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal
-    across every run.
+    across every run, each entry with its summary.
 
      This is the only read of the journal that does not need a run id up front:
     `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,
-    and `GET /api/v1/audit` answers the separate tool-invocation trail. 503 when
-    the journal is not configured.
+    and `GET /api/v1/audit` answers the separate tool-invocation trail. The
+    filters are applied before paging, so `limit` and `offset` count matching
+    entries. 400 on a filter value that cannot be read, 503 when the journal is
+    not configured.
 
     Args:
         limit (int | Unset):
         offset (int | Unset):
         agents (str | Unset):
+        family (str | Unset):
+        nature (str | Unset):
+        result (str | Unset):
+        since (str | Unset):
+        until (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -216,5 +299,10 @@ async def asyncio(
             limit=limit,
             offset=offset,
             agents=agents,
+            family=family,
+            nature=nature,
+            result=result,
+            since=since,
+            until=until,
         )
     ).parsed

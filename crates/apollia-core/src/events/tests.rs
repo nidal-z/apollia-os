@@ -402,6 +402,9 @@ fn test_all_variants_exist_and_clone() {
             tool_name: "web_search".into(),
             args_json: Some("{\"query\":\"hello\"}".into()),
             run_id: None,
+            tool_call_id: None,
+            family: None,
+            target: None,
         },
         RuntimeEvent::ToolCallCompleted {
             parent_event_id: "01900000-0000-7000-8000-000000000001".into(),
@@ -413,6 +416,9 @@ fn test_all_variants_exist_and_clone() {
             duration_ms: 412,
             success: true,
             run_id: None,
+            tool_call_id: None,
+            family: None,
+            target: None,
         },
         RuntimeEvent::ToolCallDenied {
             parent_event_id: "01900000-0000-7000-8000-000000000002".into(),

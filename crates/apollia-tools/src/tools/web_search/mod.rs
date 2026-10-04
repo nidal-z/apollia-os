@@ -518,6 +518,7 @@ impl WebSearch {
             ],
             family: crate::descriptor::ActionFamily::Read,
             family_source: crate::descriptor::FamilySource::Builtin,
+            target_arg: None,
             is_read_only: true,
             risk_score: 2,
             approval_risk_level: None,

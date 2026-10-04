@@ -231,6 +231,7 @@ impl SourceSearchTool {
             ],
             family: ActionFamily::Read,
             family_source: FamilySource::Builtin,
+            target_arg: None,
             is_read_only: true,
             risk_score: 0,
             approval_risk_level: None,

@@ -64,19 +64,43 @@ apollia-os audit journal --limit 20 --offset 20
 ```
 
 C'est la seule lecture du journal chaîné qui ne nomme pas une exécution à
-l'avance. Elle affiche une ligne par entrée, avec son exécution, sa position
-dans la chaîne de celle-ci, et si l'entrée porte une signature. Un même appel
-d'outil apparaît en deux entrées, une au démarrage et une à la fin, parce que le
-journal enregistre des événements et non des invocations.
+l'avance. Elle affiche une ligne par entrée : quand, quel agent, ce qui s'est
+passé, avec quel outil, sur quoi et avec quel résultat, puis l'exécution de
+l'entrée, sa position dans la chaîne de celle-ci, et si l'entrée porte une
+signature. La ligne est un résumé et ne contient aucun contenu. D'un appel
+d'outil, elle garde la cible, c'est-à-dire le seul argument que l'outil désigne
+comme tel (un chemin, un destinataire, l'hôte d'une adresse) et aucun autre ; un
+outil MCP n'en désigne aucun. Un même appel d'outil apparaît en deux entrées,
+une au démarrage et une à la fin, parce que le journal enregistre des événements
+et non des invocations.
 
-Le journal tient toutes les exécutions de l'instance. Pour ne parcourir que
-celles de certains agents, nommez-les ; par l'API, le même filtre est
-`GET /api/v1/audit/journal?agents=<agent>,<agent>`. Une exécution appartient à un
-agent par la tâche qui l'a lancée, si bien qu'un tour de chat, qui ne lance aucune
-tâche, n'est jamais dans une page filtrée :
+Les arguments et la sortie d'un appel se lisent à la demande, depuis les entrées
+que l'exécution a gardées pour la relecture : `audit show` affiche l'exécution
+entière, et par l'API `GET /api/v1/audit/journal/<run>/entries/<seq>` rend une
+entrée avec les arguments et la sortie de son appel. Un appel fait par le code
+d'un agent, sans qu'un modèle l'ait demandé, n'a pas d'arguments capturés à
+montrer.
+
+Le journal tient toutes les exécutions de l'instance. Cinq filtres resserrent
+une page, et ils se cumulent ; `--limit` et `--offset` comptent alors les
+entrées qui les passent :
+
+| Filtre | Garde | Par l'API |
+|---|---|---|
+| `--agent` | les entrées qui nomment l'agent, et les exécutions de ses tâches | `agents=` |
+| `--family` | une famille d'action : `read`, `read_personal`, `write_or_delete`, `send_external`, `execute_code` | `family=` |
+| `--nature` | `action` (un appel, un consentement, un refus), `access_change` (un accès, une connexion, un secret, une installation, une règle), `policy`, ou `system` (ce que le journal garde pour la relecture) | `nature=` |
+| `--result` | `success`, `failure` ou `refused` | `result=` |
+| `--since`, `--until` | une période, en jours lus en UTC ou en instants RFC 3339, la fin exclue | `since=`, `until=` |
+
+Chaque filtre se répète en ligne de commande et prend des valeurs séparées par
+des virgules par l'API, comme dans
+`GET /api/v1/audit/journal?agents=<agent>,<agent>&result=refused` :
 
 ```sh
 apollia-os audit journal --agent flux-quotes --agent flux-invoices --limit 20
+apollia-os audit journal --nature access_change --since 2026-10-01
+apollia-os audit journal --family send_external --result refused
 ```
 
 Pour extraire la piste d'invocations d'outils à des fins d'archivage ou de revue

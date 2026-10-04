@@ -193,6 +193,7 @@ async fn test_tool_describe_e2e() {
         tags: vec!["test".to_owned(), "integration".to_owned()],
         family: apollia_tools::ActionFamily::Unclassified,
         family_source: apollia_tools::FamilySource::Unsourced,
+        target_arg: None,
         is_read_only: false,
         risk_score: 0,
         approval_risk_level: None,

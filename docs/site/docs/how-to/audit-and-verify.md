@@ -59,19 +59,39 @@ apollia-os audit journal --limit 20 --offset 20
 ```
 
 This is the only read of the chained journal that does not name a run up front.
-It shows one line per entry, with its run, its position in that run's chain, and
-whether the entry carries a signature. A single tool call appears as two entries,
-one when it starts and one when it completes, because the journal records events
-rather than invocations.
+It shows one line per entry: when, which agent, what happened, with which tool,
+on what and with which result, then the run of the entry, its position in that
+run's chain, and whether the entry carries a signature. The line is a summary
+and holds no content. Of a tool call it keeps the target, which is the one
+argument the tool designates as such (a path, a recipient, the host of an
+address) and no other; an MCP tool designates none. A single tool call appears
+as two entries, one when it starts and one when it completes, because the
+journal records events rather than invocations.
 
-The journal holds every run of the instance. To page through the runs of some
-agents only, name them; over the API the same filter is
-`GET /api/v1/audit/journal?agents=<agent>,<agent>`. A run belongs to an agent
-through the task that started it, so a chat turn, which starts no task, is never
-in a filtered page:
+The arguments and the output of a call are read on demand, from the entries the
+run kept for replay: `audit show` prints the run whole, and over the API
+`GET /api/v1/audit/journal/<run>/entries/<seq>` answers one entry with the
+arguments and the output of its call. A call made by an agent's own code, with
+no model asking for it, has no captured arguments to show.
+
+The journal holds every run of the instance. Five filters narrow a page, and
+they add up; `--limit` and `--offset` then count the entries that pass them:
+
+| Filter | Keeps | Over the API |
+|---|---|---|
+| `--agent` | the entries that name the agent, and the runs of its tasks | `agents=` |
+| `--family` | one action family: `read`, `read_personal`, `write_or_delete`, `send_external`, `execute_code` | `family=` |
+| `--nature` | `action` (a call, a consent, a refusal), `access_change` (an access, a connection, a secret, an installation, a rule), `policy`, or `system` (what the journal keeps for replay) | `nature=` |
+| `--result` | `success`, `failure` or `refused` | `result=` |
+| `--since`, `--until` | a period, as days read in UTC or RFC 3339 instants, the end excluded | `since=`, `until=` |
+
+Each filter repeats on the command line and takes comma-separated values over
+the API, as in `GET /api/v1/audit/journal?agents=<agent>,<agent>&result=refused`:
 
 ```sh
 apollia-os audit journal --agent flux-quotes --agent flux-invoices --limit 20
+apollia-os audit journal --nature access_change --since 2026-10-01
+apollia-os audit journal --family send_external --result refused
 ```
 
 To take the tool-invocation trail out for archival or external review:
