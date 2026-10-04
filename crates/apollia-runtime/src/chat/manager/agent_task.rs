@@ -168,11 +168,18 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         budget,
         depth,
     } = run;
-    // The folders granted to the agent are the roots of its file tools.
-    let (granted, folders) = super::dispatcher::granted_folders(
-        access.tools(&wiring.tool_registry).await,
+    let mut package_tools =
+        super::package_executors(&wiring.package_tools, &spec.agent_id, &cancel);
+    let tools = super::code_context::with_code_context(
         wiring.chat_tools_config.as_deref(),
-    );
+        &spec.agent_id,
+        access.tools(&wiring.tool_registry).await,
+        &mut package_tools,
+    )
+    .await;
+    // The folders granted to the agent are the roots of its file tools.
+    let (granted, folders) =
+        super::dispatcher::granted_folders(tools, wiring.chat_tools_config.as_deref());
     spec.granted_tools = granted;
     let mcp_index: Vec<ToolIndexSnapshot> = match (wiring.mcp_loading, &wiring.mcp_handle) {
         (LoadingMode::Deferred, Some(handle)) => handle.get_tool_index().await,
@@ -206,7 +213,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
             mcp_loading: wiring.mcp_loading,
             mcp_index: mcp_index.clone(),
             tool_search_limit: wiring.tool_search_limit,
-            package_tools: super::package_executors(&wiring.package_tools, &spec.agent_id, &cancel),
+            package_tools,
         },
         &wiring.a2a_invoker,
         wiring.hook_executor.clone(),

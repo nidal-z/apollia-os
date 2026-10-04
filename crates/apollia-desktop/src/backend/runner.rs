@@ -348,6 +348,17 @@ impl AgentRunner for BridgeRunner {
             extra_executors
                 .extend(apollia_runtime::connectors_bridge::build_connector_executors().await);
 
+            // A code folder checked for the agent grants `code_context`,
+            // bound to its folders; without one the tool is neither granted
+            // nor dispatched.
+            let code_context =
+                apollia_runtime::agents::sources::code_context_for(&governance_base, &agent_id);
+            let allowed_tools =
+                apollia_tools::granted_with_code_folders(allowed_tools, code_context.is_some());
+            if let Some(tool) = code_context {
+                extra_executors.push(Box::new(tool));
+            }
+
             let dispatcher = Arc::new(build_dispatcher_with(
                 &NativeDispatcherConfig {
                     session_id: None,

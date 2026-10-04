@@ -224,6 +224,7 @@ mod actor;
 mod agent_task;
 mod apollia_agent;
 mod authz;
+mod code_context;
 mod command;
 mod control;
 mod declarative;

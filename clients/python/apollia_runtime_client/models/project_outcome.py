@@ -21,6 +21,8 @@ class ProjectOutcome:
 
     Attributes:
         agents_checked (list[str] | Unset): Agents its sources are checked for.
+        code_folder_source (None | str | Unset): Identifier of the code folder source made on that connection, when
+            the project read its git state, its rules or its tree.
         document_sources (list[str] | Unset): Identifiers of the sources made of its documents.
         folder_connection (None | str | Unset): Identifier of the folder connection made of its working folder.
         id (str | Unset): Identifier of the project. Default: ''.
@@ -30,6 +32,7 @@ class ProjectOutcome:
     """
 
     agents_checked: list[str] | Unset = UNSET
+    code_folder_source: None | str | Unset = UNSET
     document_sources: list[str] | Unset = UNSET
     folder_connection: None | str | Unset = UNSET
     id: str | Unset = ""
@@ -42,6 +45,12 @@ class ProjectOutcome:
         agents_checked: list[str] | Unset = UNSET
         if not isinstance(self.agents_checked, Unset):
             agents_checked = self.agents_checked
+
+        code_folder_source: None | str | Unset
+        if isinstance(self.code_folder_source, Unset):
+            code_folder_source = UNSET
+        else:
+            code_folder_source = self.code_folder_source
 
         document_sources: list[str] | Unset = UNSET
         if not isinstance(self.document_sources, Unset):
@@ -75,6 +84,8 @@ class ProjectOutcome:
         field_dict.update({})
         if agents_checked is not UNSET:
             field_dict["agentsChecked"] = agents_checked
+        if code_folder_source is not UNSET:
+            field_dict["codeFolderSource"] = code_folder_source
         if document_sources is not UNSET:
             field_dict["documentSources"] = document_sources
         if folder_connection is not UNSET:
@@ -96,6 +107,15 @@ class ProjectOutcome:
 
         d = dict(src_dict)
         agents_checked = cast(list[str], d.pop("agentsChecked", UNSET))
+
+        def _parse_code_folder_source(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        code_folder_source = _parse_code_folder_source(d.pop("codeFolderSource", UNSET))
 
         document_sources = cast(list[str], d.pop("documentSources", UNSET))
 
@@ -132,6 +152,7 @@ class ProjectOutcome:
 
         project_outcome = cls(
             agents_checked=agents_checked,
+            code_folder_source=code_folder_source,
             document_sources=document_sources,
             folder_connection=folder_connection,
             id=id,
