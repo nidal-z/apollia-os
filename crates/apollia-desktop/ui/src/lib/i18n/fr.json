@@ -2129,8 +2129,6 @@
       "llm": "Backends LLM",
       "model_hub": "Hub de modèles",
       "configuration": "Configuration",
-      "tools": "Outils",
-      "permissions": "Autorisations",
       "system": "Informations système",
       "shortcuts": "Raccourcis",
       "observability": "Observabilité",
@@ -2805,14 +2803,8 @@
       "title": "Toujours planifier",
       "description": "Les nouvelles conversations démarrent en mode plan."
     },
-    "permissions": {
-      "subtitle": "Les autorisations se lisent et se retirent sur l'écran Autorisations.",
-      "moved": "Les règles fines, les « toujours » donnés et leur retrait sont réunis sur l'écran Autorisations, agent par agent.",
-      "open_authorizations": "Ouvrir Autorisations"
-    },
     "tools_page": {
       "heading": "Outils natifs",
-      "subtitle": "Activez, désactivez et configurez chaque outil mis à disposition des agents.",
       "reload": "Recharger",
       "empty": "Aucun outil natif détecté.",
       "reloaded_toast": "Outils rechargés",
@@ -3934,7 +3926,7 @@
   },
   "onboarding_permissions": {
     "title": "Règles de permissions proposées",
-    "subtitle_html": "D'après tes choix, Apollia te suggère les règles ci-dessous. Applique celles qui te conviennent, ignore les autres - tu pourras toujours les modifier dans <strong>Paramètres → Permissions</strong>.",
+    "subtitle_html": "D'après tes choix, Apollia te suggère les règles ci-dessous. Applique celles qui te conviennent, ignore les autres - tu pourras toujours les modifier sur l'écran <strong>Autorisations</strong>.",
     "loading": "Chargement…",
     "empty": "Aucune règle restante.",
     "apply": "Appliquer",

@@ -64,8 +64,6 @@ describe("settings navigation column", () => {
           "configuration",
           "llm",
           "model-hub",
-          "tools",
-          "permissions",
         ],
       ],
       ["settings.nav.cluster_system", ["engines", "hardware"]],
