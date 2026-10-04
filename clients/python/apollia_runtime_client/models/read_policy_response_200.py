@@ -6,46 +6,29 @@ from typing import Any, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..models.fs_hitl_decision_body_type_0_decision import FsHitlDecisionBodyType0Decision
-
-T = TypeVar("T", bound="FsHitlDecisionBodyType0")
+T = TypeVar("T", bound="ReadPolicyResponse200")
 
 
 @_attrs_define
-class FsHitlDecisionBodyType0:
-    """The user approves this operation.
+class ReadPolicyResponse200:
+    """ """
 
-    Attributes:
-        decision (FsHitlDecisionBodyType0Decision):
-    """
-
-    decision: FsHitlDecisionBodyType0Decision
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        decision = self.decision.value
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update(
-            {
-                "decision": decision,
-            }
-        )
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        decision = FsHitlDecisionBodyType0Decision(d.pop("decision"))
+        read_policy_response_200 = cls()
 
-        fs_hitl_decision_body_type_0 = cls(
-            decision=decision,
-        )
-
-        fs_hitl_decision_body_type_0.additional_properties = d
-        return fs_hitl_decision_body_type_0
+        read_policy_response_200.additional_properties = d
+        return read_policy_response_200
 
     @property
     def additional_keys(self) -> list[str]:

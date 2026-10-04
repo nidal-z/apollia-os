@@ -371,7 +371,6 @@ async fn test_resolve_tool_approval() {
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: pending,
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -415,9 +414,6 @@ async fn test_resolve_tool_approval() {
         title: None,
         parent_session_id: None,
         fork_depth: 0,
-        fs_allow_rules: std::sync::Arc::new(
-            std::sync::Mutex::new(std::collections::HashSet::new()),
-        ),
         plan_mode: false,
         plan_phase: PlanPhase::Done,
     };
@@ -459,7 +455,6 @@ async fn test_always_accept_grants_no_tool_by_name() {
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: pending,
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -502,17 +497,12 @@ async fn test_always_accept_grants_no_tool_by_name() {
         title: None,
         parent_session_id: None,
         fork_depth: 0,
-        fs_allow_rules: std::sync::Arc::new(
-            std::sync::Mutex::new(std::collections::HashSet::new()),
-        ),
         plan_mode: false,
         plan_phase: PlanPhase::Done,
     };
     manager.sessions.insert("sess-1".into(), session);
 
-    let always = ToolDecision::AlwaysAccept {
-        scope: crate::chat::AlwaysAcceptScope::ThisSession,
-    };
+    let always = ToolDecision::AlwaysAccept;
 
     // WHEN "always accept" resolves for the code executor
     manager
@@ -627,7 +617,6 @@ async fn test_cross_session_context_substantive_message() {
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: PendingChatApprovals::new(),
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -705,7 +694,6 @@ async fn test_cross_session_context_trivial_message() {
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: PendingChatApprovals::new(),
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -762,7 +750,6 @@ async fn test_cross_session_context_no_relevant_sessions() {
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: PendingChatApprovals::new(),
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -961,7 +948,6 @@ pub(super) fn manager_with_session_in_phase(
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: PendingChatApprovals::new(),
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: None,
@@ -1003,9 +989,6 @@ pub(super) fn manager_with_session_in_phase(
         title: None,
         parent_session_id: None,
         fork_depth: 0,
-        fs_allow_rules: std::sync::Arc::new(
-            std::sync::Mutex::new(std::collections::HashSet::new()),
-        ),
         plan_mode: true,
         plan_phase: phase,
     };
@@ -1204,6 +1187,7 @@ async fn test_message_during_awaiting_starts_revision_turn() {
         .handle_send_message(
             "sess-1",
             "Please plan the work: audit the repo, fix the tests, then open a PR",
+            Vec::new(),
         )
         .expect("send ok");
 
@@ -1644,7 +1628,7 @@ async fn test_companion_send_without_llm_resets_status_to_active() {
     }
 
     // WHEN a message is sent and the dispatch fails
-    let result = manager.handle_send_message("sess-1", "hello");
+    let result = manager.handle_send_message("sess-1", "hello", Vec::new());
 
     // THEN the error surfaces AND the session is reset to Active (not stuck
     // Processing), with the active exchange cleared

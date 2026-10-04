@@ -21,8 +21,6 @@ class AuthorizeToolRequest:
         tool_name (str): Name of the tool.
         reason (None | str | Unset): Free-form rejection reason shared with the agent. Only honoured when
             `decision == "refuse"`.
-        scope (None | str | Unset): Always-accept scope. Only honoured when `decision == "always_accept"`.
-            Defaults to [`crate::chat::AlwaysAcceptScope::ThisSession`].
         tool_call_id (None | str | Unset): Unique id of the tool call being resolved. Correlates with the
             `approval_required` event so the same tool invoked twice in one turn
             resolves the right pending slot. Defaults to the tool name for legacy
@@ -33,7 +31,6 @@ class AuthorizeToolRequest:
     message_id: str
     tool_name: str
     reason: None | str | Unset = UNSET
-    scope: None | str | Unset = UNSET
     tool_call_id: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -49,12 +46,6 @@ class AuthorizeToolRequest:
             reason = UNSET
         else:
             reason = self.reason
-
-        scope: None | str | Unset
-        if isinstance(self.scope, Unset):
-            scope = UNSET
-        else:
-            scope = self.scope
 
         tool_call_id: None | str | Unset
         if isinstance(self.tool_call_id, Unset):
@@ -73,8 +64,6 @@ class AuthorizeToolRequest:
         )
         if reason is not UNSET:
             field_dict["reason"] = reason
-        if scope is not UNSET:
-            field_dict["scope"] = scope
         if tool_call_id is not UNSET:
             field_dict["tool_call_id"] = tool_call_id
 
@@ -98,15 +87,6 @@ class AuthorizeToolRequest:
 
         reason = _parse_reason(d.pop("reason", UNSET))
 
-        def _parse_scope(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        scope = _parse_scope(d.pop("scope", UNSET))
-
         def _parse_tool_call_id(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -121,7 +101,6 @@ class AuthorizeToolRequest:
             message_id=message_id,
             tool_name=tool_name,
             reason=reason,
-            scope=scope,
             tool_call_id=tool_call_id,
         )
 

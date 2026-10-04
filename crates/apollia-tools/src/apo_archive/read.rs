@@ -209,6 +209,26 @@ impl<R: Read + Seek> ApoArchive<R> {
         }
     }
 
+    /// The public key that travels with the signature, as 64 lowercase
+    /// hexadecimal characters; `None` for an archive without `SIGNATURE.key`.
+    ///
+    /// The key alone proves nothing: [`Self::signature_state`] says whether
+    /// the signature it checks holds. It is what a reader offers to trust
+    /// when the user decides to trust the publisher of a package.
+    ///
+    /// # Errors
+    ///
+    /// [`ApoError::InvalidSignature`] when the key entry is malformed;
+    /// [`ApoError::LimitExceeded`] or [`ApoError::Zip`] while reading it.
+    pub fn signing_public_key(&mut self) -> Result<Option<String>, ApoError> {
+        if !self.has_entry(SIGNATURE_KEY_ENTRY) {
+            return Ok(None);
+        }
+        let text = self.read_small_text(SIGNATURE_KEY_ENTRY)?;
+        let key = parse_public_key(&text)?;
+        Ok(Some(render_public_key(&key).trim_end().to_owned()))
+    }
+
     /// Extracts every entry under `target`, which must not exist yet.
     ///
     /// Entry names were checked when the archive was opened and are checked

@@ -26,9 +26,10 @@ impl ChatSessionManager {
                 ChatCommand::SendMessage {
                     session_id,
                     content,
+                    images,
                     reply,
                 } => {
-                    let result = self.handle_send_message(&session_id, &content);
+                    let result = self.handle_send_message(&session_id, &content, images);
                     let _ = reply.send(result);
                 }
                 ChatCommand::ResolveTool {
@@ -300,13 +301,6 @@ impl ChatSessionManager {
                 ChatCommand::SetGovernance { governance } => {
                     info!("chat.governance.set");
                     self.governance = Some(governance);
-                }
-                ChatCommand::ResolveFsHitl {
-                    request_id,
-                    decision,
-                    reply,
-                } => {
-                    let _ = reply.send(self.handle_resolve_fs_hitl(&request_id, decision));
                 }
                 ChatCommand::ListApprovalHistory { limit, days, reply } => {
                     let result = self.repository.list_tool_approval_history(limit, days);

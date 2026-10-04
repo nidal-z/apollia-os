@@ -35,7 +35,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "dashboard.headline_greeting", // {greeting}.
   "dev.connections.custom_transport_http", // Streamable HTTP (MCP 2025-11-25)
   "dev.connections.custom_transport_sse", // SSE (legacy 2024-11-05)
-  "hitl.fs.preview_mode_label", // {before} → {after}
   "inbox.activity.filter.llm", // LLM
   "llm.loaded.engine_mlx", // MLX
   "notifications.field_headers_placeholder", // {"Authorization": "Bearer ..."}
@@ -173,10 +172,16 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "onboarding.profile_selector.builder_title", // Builder
   "onboarding_stt.mic_label", // Microphone
   "onboarding_welcome.feature_local_title", // Local-first
+  "packages.preview.content.kind_agent", // Agent
+  "packages.preview.content.kind_workflow", // Workflow
+  "packages.preview.version", // version {version}
   "plan_mode.history_pause", // Pause
   "plan_session.origin_initial", // Initial
   "plan_session.tab_journal", // Journal
   "plan_session.tab_plan", // Plan
+  "policy.badge.active", // Active
+  "policy.section.journal.title", // Journal
+  "policy.signature.title", // Signature
   "project_migration.row_documents_title", // Documents
   "project_migration.row_instructions_title", // Instructions
   "project_migration.where_chat_title", // Chat

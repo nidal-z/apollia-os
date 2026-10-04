@@ -21,6 +21,9 @@ pub enum ChatCommand {
         session_id: SessionId,
         /// Text content.
         content: String,
+        /// Images attached after the text, already decoded and checked for
+        /// count and size.
+        images: Vec<apollia_llm::message_image::MessageImage>,
         /// Response channel.
         reply: oneshot::Sender<Result<MessageId, ChatError>>,
     },
@@ -342,18 +345,6 @@ pub enum ChatCommand {
         required_version: String,
         /// Response channel.
         reply: oneshot::Sender<Option<crate::a2a::A2ACompatibilityWarning>>,
-    },
-    /// Resolve a pending filesystem HITL request.
-    ///
-    /// Called by the `respond_hitl_filesystem` Tauri command when the user
-    /// makes a decision in `HitlFilesystemModal`.
-    ResolveFsHitl {
-        /// Unique request identifier emitted in `HitlFilesystemRequired`.
-        request_id: String,
-        /// User decision.
-        decision: super::super::types::FsHitlDecision,
-        /// Response channel.
-        reply: oneshot::Sender<Result<(), ChatError>>,
     },
     /// List recently resolved chat tool approvals.
     ListApprovalHistory {

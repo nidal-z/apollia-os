@@ -201,7 +201,8 @@
       "transcriptions": "Transcriptions",
       "integrations": "Connections",
       "settings": "Settings"
-    }
+    },
+    "policy": "Organization policy"
   },
   "sidebar": {},
   "topbar": {
@@ -891,7 +892,8 @@
     "update_restart_stop_failed_action": "Stop the agent, then start it again to load the new version.",
     "update_restart_start_failed": "{name} was stopped to load the new version and did not start again: it is running nothing right now.",
     "update_restart_start_failed_action": "Start the agent again from its row. The cause below says what the runtime refused.",
-    "automate": "Automate"
+    "automate": "Automate",
+    "install_apo_button": "Install a .apo package"
   },
   "tasks": {
     "subtitle": "Track requests sent to your assistants and their results",
@@ -1068,6 +1070,108 @@
       "revoke_confirm_body": "The rule on \"{tool}\" will be removed. The tool will ask for approval again on its next use. This cannot be undone."
     }
   },
+  "policy": {
+    "title": "Organization policy",
+    "subtitle": "Set by your organization's IT department, it applies to this whole computer. Nobody can change it from Apollia.",
+    "load_failed": "The organization policy could not be read. Try again in a moment.",
+    "badge": {
+      "none": "None",
+      "active": "Active",
+      "invalid": "Invalid",
+      "read_only": "Read only"
+    },
+    "none": {
+      "title": "No policy: you are free",
+      "body": "Only the permissions you grant apply."
+    },
+    "details": "Details",
+    "no_rule": "This policy imposes no rule.",
+    "footer_active": "Nothing here can be changed from Apollia. To change a rule, contact your IT department.",
+    "footer_invalid": "Only your IT department can fix the policy. Give them the reason shown here.",
+    "signature": {
+      "title": "Signature",
+      "description": "Who signed this policy, and when.",
+      "signed_at": "Signing date",
+      "publisher": "Signed by",
+      "verified": "Signature checked",
+      "verified_value": "When Apollia starts",
+      "fingerprint": "Organization key fingerprint"
+    },
+    "file": {
+      "title": "File read",
+      "read_at": "Read",
+      "read_at_value": "When Apollia starts",
+      "location": "File location"
+    },
+    "section": {
+      "connections": {
+        "title": "Connections",
+        "description": "The services and tools agents can reach."
+      },
+      "families": {
+        "title": "Agent actions",
+        "description": "What agents never do on this computer, even with your consent."
+      },
+      "inference": {
+        "title": "AI",
+        "description": "Where models run, and which ones are accepted."
+      },
+      "settings": {
+        "title": "Imposed settings",
+        "description": "Shown as \"Imposed by the policy\" in Settings."
+      },
+      "packages": {
+        "title": "Packages",
+        "description": "The agents that can be installed."
+      },
+      "journal": {
+        "title": "Journal",
+        "description": "What is kept of the agents' activity."
+      }
+    },
+    "rule": {
+      "connections_allow": "Connections allowed, all others refused",
+      "connections_deny": "Connections refused",
+      "connections_remote": "Remote servers",
+      "inference_servers": "AI servers allowed, all others refused",
+      "inference_remote": "Remote addresses",
+      "inference_hash": "Imported models without a known digest",
+      "packages_signature": "Agent package signature",
+      "packages_publishers": "Trusted publishers",
+      "journal_required": "Journal for sensitive actions",
+      "journal_retention": "Entries kept",
+      "journal_detail": "Detail in exports",
+      "journal_daily": "Daily summary export"
+    },
+    "value": {
+      "refused": "Refused",
+      "refused_feminine": "Refused",
+      "forbidden": "Forbidden",
+      "required": "Required",
+      "mandatory": "Mandatory",
+      "days": "{days, plural, one {# day} other {# days}}",
+      "never": "Never",
+      "always": "Always",
+      "continues": "Continues"
+    },
+    "reason": {
+      "signature": "Signature not recognized: the policy file does not match its signature.",
+      "schema": "Format not recognized: a rule of the file is unknown or badly written.",
+      "key": "Organization key missing or unreadable.",
+      "owner": "Files can be changed by an account other than the computer's administrator."
+    },
+    "invalid": {
+      "title": "The organization policy is invalid",
+      "not_read": "Its rules are not read until it is fixed.",
+      "meanwhile_title": "Meanwhile",
+      "meanwhile_sensitive": "Sensitive actions",
+      "meanwhile_connections": "New connections",
+      "meanwhile_read": "Reading",
+      "copy_reason": "Copy the reason",
+      "copied": "Reason copied",
+      "copy_failed": "The reason could not be copied."
+    }
+  },
   "plan_mode": {
     "proposed_plan_title": "Proposed plan",
     "approve": "Approve",
@@ -1157,27 +1261,9 @@
   "approvals": {
     "rejecting": "Rejecting...",
     "unknown_agent": "Unknown agent",
-    "risk": {
-      "low": "Low",
-      "medium": "Medium",
-      "high": "High",
-      "critical": "Critical"
-    },
     "timer": {
       "waiting_since": "Agent waiting since {elapsed}",
       "remaining": "· {remaining} left"
-    },
-    "scope": {
-      "open_disclosure": "Change scope for always-accept",
-      "current": "Scope: {scope}",
-      "this_tool": "Only this tool",
-      "this_tool_desc": "Approve this specific tool for the rest of the session.",
-      "this_session": "This session",
-      "this_session_desc": "Approve matching actions until this chat session ends.",
-      "this_agent": "This agent",
-      "this_agent_desc": "Approve matching actions whenever this agent runs.",
-      "global": "Globally",
-      "global_desc": "Approve matching actions everywhere on this machine."
     }
   },
   "llm": {
@@ -3417,9 +3503,22 @@
       "remove": "Remove attachment",
       "refused": {
         "read_failed": "{name} could not be read, so it was not attached.",
-        "image_not_supported": "{name} is an image: pictures cannot be read by the local engine. Drag the file in to send its path instead.",
+        "image_not_supported": "{name}: the model of this conversation does not read images. Drag the file in to send its path instead.",
+        "image_limit": "{name} refused: at most {max} images per message.",
+        "image_too_large": "{name} refused: an image weighs at most {mb} MB.",
+        "image_unreadable": "{name} is not a readable image, so it was not attached.",
+        "image_format": "{name}: the model of this conversation does not read this image format.",
         "too_large_without_path": "{name} is over 512 kB, and a file picked this way carries no path. Drag it into the conversation to attach it.",
         "binary_not_text": "{name} is not a text file: its bytes carry no readable text, so nothing useful could be sent. Drag it into the conversation to send its path instead."
+      }
+    },
+    "images": {
+      "open": "Open image {position}",
+      "viewer": {
+        "label": "Attached image",
+        "position": "{position} of {total}",
+        "previous": "Previous",
+        "next": "Next"
       }
     },
     "resources": {
@@ -4083,42 +4182,6 @@
     "note_retry": "Apollia will try again at the next start.",
     "understood": "Got it"
   },
-  "hitl": {
-    "impact": {
-      "low": "Low impact",
-      "medium": "Medium impact",
-      "high": "High impact",
-      "critical": "Critical impact"
-    },
-    "fs": {
-      "title": "File operation requires approval",
-      "subtitle": "The assistant wants to perform the following action on your filesystem.",
-      "op_write": "Write",
-      "op_delete": "Delete",
-      "op_chmod": "Change permissions",
-      "op_read": "Read",
-      "path_label": "Path",
-      "preview_diff": "Changes",
-      "preview_content": "File content",
-      "preview_mode": "Permission change",
-      "preview_before": "Before",
-      "preview_after": "After",
-      "preview_truncated": "Preview truncated",
-      "preview_size": "{size} bytes",
-      "preview_mode_label": "{before} → {after}",
-      "approve": "Approve",
-      "deny": "Deny",
-      "always_allow_session": "Always allow this session",
-      "always_allow_desc": "This will skip approval for all {op} operations at {level} risk level for the rest of the session.",
-      "critical_confirm_word": "CONFIRM",
-      "critical_confirm_label": "Type {word} to proceed",
-      "reject_reason_label": "Reason (shared with the agent)",
-      "reject_reason_placeholder": "Explain why you are refusing…",
-      "deny_confirm": "Confirm deny",
-      "always_allow_confirm": "Confirm always allow",
-      "auto_denied": "Operation auto-denied after 5 minutes without a response."
-    }
-  },
   "empty_states": {
     "agents": {
       "title": "Your first assistant is one install away",
@@ -4212,9 +4275,9 @@
   "approval": {
     "action": {
       "allow": "Allow",
-      "allow_once": "Allow once",
       "refuse": "Refuse",
-      "always_allow": "Always allow"
+      "once": "Once",
+      "always_for_agent": "Always for this agent"
     },
     "risk": {
       "low": "low",
@@ -4225,15 +4288,8 @@
     "risk_label": "{level} risk",
     "cost_estimate": "Estimated cost: {cost}",
     "expires_in": "expires in {expires}",
-    "scope": {
-      "session_title": "For this session",
-      "session_desc": "Until this chat is closed.",
-      "agent_title": "Always for this assistant",
-      "agent_desc": "The current assistant will no longer ask.",
-      "agent_desc_apollia": "Apollia Chat (or the current agent) will no longer ask.",
-      "global_title": "Always, everywhere",
-      "global_desc": "All assistants, all projects."
-    }
+    "always_hint": "\"Always for this agent\" lets it repeat this kind of action without asking you again.",
+    "refuse_reason_placeholder": "Reason for refusing (optional), passed to the agent"
   },
   "stt_failure": {
     "no_microphone": "No microphone was detected. Plug one in, then try again.",
@@ -4460,6 +4516,132 @@
       "retry": "Retry",
       "view_policy": "View the policy",
       "retry_failed": "The state of permissions could not be read again."
+    }
+  },
+  "packages": {
+    "preview": {
+      "loading_title": "Package preview",
+      "loading": "Reading the package…",
+      "load_error": "This file cannot be read as a package.",
+      "title_install": "Install “{name}”",
+      "title_update": "Update “{name}”",
+      "title_refused": "Installation refused",
+      "version": "version {version}",
+      "version_change": "from version {from} to version {to}",
+      "origin_files": "opened from your files",
+      "origin_update": "chosen with “Update…”",
+      "nothing_before_consent": "Nothing is installed before you agree.",
+      "install_error": "The installation did not complete.",
+      "installed_toast": "“{name}” {version} is installed.",
+      "updated_toast": "“{name}” is updated to version {version}.",
+      "publisher": {
+        "title": "Publisher",
+        "unknown": "Unknown publisher",
+        "declared": "Presents itself as “{name}”, with no signature to confirm it.",
+        "trusted": "Trusted publisher, signed package",
+        "signed_untrusted": "Signed package, publisher not trusted yet",
+        "unsigned": "Unsigned package",
+        "invalid": "Invalid signature",
+        "fingerprint": "Fingerprint",
+        "trust_button": "Trust this publisher",
+        "trust_note": "The list of trusted publishers is managed in Permissions.",
+        "trusted_toast": "“{name}” is now a trusted publisher."
+      },
+      "content": {
+        "title": "What the package brings",
+        "counts": "{agents, plural, =0 {no agent} one {# agent} other {# agents}}, {workflows, plural, =0 {no workflow} one {# workflow} other {# workflows}}, {tools, plural, =0 {no tool} one {# tool} other {# tools}}",
+        "kind_agent": "Agent",
+        "kind_workflow": "Workflow",
+        "kind_tool": "Tool",
+        "python": "Also installs {count, plural, one {# Python component} other {# Python components}} for its tools."
+      },
+      "access": {
+        "title": "Accesses asked for, by family",
+        "none": "No agent of this package asks for an access. Its tools and workflows are granted to your agents afterwards.",
+        "sensitive": "Sensitive",
+        "family": {
+          "read": {
+            "title": "Read",
+            "hint": "Look at data without changing anything."
+          },
+          "read_personal": {
+            "title": "Read personal data",
+            "hint": "Your mail, your calendar, your documents."
+          },
+          "write_or_delete": {
+            "title": "Write or delete",
+            "hint": "Create, change or erase data."
+          },
+          "send_external": {
+            "title": "Send outside",
+            "hint": "Send a message or a request off this machine."
+          },
+          "execute_code": {
+            "title": "Run code",
+            "hint": "Run code on this machine."
+          },
+          "unclassified": {
+            "title": "Other accesses",
+            "hint": "Nothing classifies them yet: they are treated as sensitive."
+          }
+        }
+      },
+      "connections": {
+        "title": "Connections",
+        "none": "This package asks for no connection.",
+        "missing": "Missing",
+        "present": "Connected",
+        "brought": "Brought",
+        "add": "Add"
+      },
+      "unsigned": {
+        "title": "This package is not signed",
+        "body": "Nothing says who made it or that it was not altered. Install it only if you know where it comes from."
+      },
+      "update": {
+        "title_access": "New accesses, to accept before updating",
+        "title_connection": "New connections, to accept before updating",
+        "accept_hint": "Tick every new access and every new connection to update. A missing connection can be added now or later.",
+        "nothing_new": "This update adds no access and no connection.",
+        "overrides_kept": "Your settings on the agent sheet are kept.",
+        "new_badge": "New"
+      },
+      "refusal": {
+        "invalid_signature": {
+          "title": "The signature of this package does not match its content",
+          "body": "The file may have been altered after it was signed. Nothing was installed: ask its publisher for a new copy."
+        },
+        "signature_required": {
+          "title": "Your organisation requires signed packages",
+          "body": "This package is not signed: it cannot be installed here. Ask its publisher for a signed version."
+        },
+        "publisher_not_trusted": {
+          "title": "Your organisation does not recognise this publisher",
+          "body": "This package is signed by a publisher the policy of your organisation does not count among its own."
+        },
+        "downgrade": {
+          "title": "This version is older",
+          "body": "Version {incoming} is older than version {installed}, already installed."
+        },
+        "agent_taken": {
+          "title": "An agent already has this name",
+          "body": "The agent “{agent}” already exists on this machine, created in the application."
+        },
+        "agent_taken_owned": {
+          "body": "The agent “{agent}” already exists on this machine, installed by the package “{owner}”."
+        }
+      },
+      "policy": {
+        "see_policy": "See the policy"
+      },
+      "action": {
+        "install": "Install",
+        "install_anyway": "Install anyway",
+        "update": "Update",
+        "installing": "Installing…",
+        "copy_detail": "Copy the detail",
+        "copied": "Detail copied."
+      }
     }
   }
 }

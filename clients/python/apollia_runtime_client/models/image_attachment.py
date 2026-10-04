@@ -6,28 +6,33 @@ from typing import Any, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="ResolvedFilesystemApproval")
+T = TypeVar("T", bound="ImageAttachment")
 
 
 @_attrs_define
-class ResolvedFilesystemApproval:
-    """Answer of `POST /api/v1/approvals/filesystem/{request_id}`.
+class ImageAttachment:
+    """One image as a client sends it.
 
     Attributes:
-        request_id (str): The request answered.
+        data (str): Bytes of the image, in standard base64.
+        mime_type (str): Media type of the image, such as `image/png`.
     """
 
-    request_id: str
+    data: str
+    mime_type: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        request_id = self.request_id
+        data = self.data
+
+        mime_type = self.mime_type
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "request_id": request_id,
+                "data": data,
+                "mime_type": mime_type,
             }
         )
 
@@ -36,14 +41,17 @@ class ResolvedFilesystemApproval:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        request_id = d.pop("request_id")
+        data = d.pop("data")
 
-        resolved_filesystem_approval = cls(
-            request_id=request_id,
+        mime_type = d.pop("mime_type")
+
+        image_attachment = cls(
+            data=data,
+            mime_type=mime_type,
         )
 
-        resolved_filesystem_approval.additional_properties = d
-        return resolved_filesystem_approval
+        image_attachment.additional_properties = d
+        return image_attachment
 
     @property
     def additional_keys(self) -> list[str]:

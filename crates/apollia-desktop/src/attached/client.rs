@@ -121,6 +121,7 @@ impl AttachedClient {
         &self,
         session_id: &str,
         content: &str,
+        images: &[apollia_runtime::chat::images::ImageAttachment],
     ) -> Result<String, AttachedError> {
         #[derive(serde::Deserialize)]
         struct Accepted {
@@ -133,7 +134,7 @@ impl AttachedClient {
         let builder = self
             .http
             .post(self.url(&path))
-            .json(&serde_json::json!({ "content": content }));
+            .json(&serde_json::json!({ "content": content, "images": images }));
         let accepted: Accepted = self.send_json(builder).await?;
         Ok(accepted.message_id)
     }

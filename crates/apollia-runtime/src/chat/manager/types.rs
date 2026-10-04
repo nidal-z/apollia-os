@@ -124,7 +124,6 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     pub(in crate::chat::manager) mcp_loading: LoadingMode,
     pub(in crate::chat::manager) tool_search_limit: usize,
     pub(in crate::chat::manager) session_id_str: String,
-    pub(in crate::chat::manager) hitl_params: HitlInvokerParams,
     pub(in crate::chat::manager) sid: String,
     pub(in crate::chat::manager) mid: String,
     pub(in crate::chat::manager) run_id: RunId,
@@ -150,6 +149,9 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// The turn the exchange answers: the identifier its answer is persisted
     /// under.
     pub(in crate::chat::manager) turn_id: Option<String>,
+    /// Images of the message answered and of the earlier user messages in
+    /// the window, read back from disk.
+    pub(in crate::chat::manager) turn_images: crate::chat::images::TurnImages,
 }
 
 /// Resolved tool invoker plus the agent workspace path for a session.
@@ -257,7 +259,6 @@ pub(in crate::chat::manager) struct FullDispatcherParams<'a> {
     pub(in crate::chat::manager) folders: &'a apollia_tools::FolderRoots,
     pub(in crate::chat::manager) pending_user_inputs:
         &'a Option<apollia_tools::tools::ask_user::PendingUserInputs>,
-    pub(in crate::chat::manager) hitl: Option<&'a HitlInvokerParams>,
     pub(in crate::chat::manager) extra_executors:
         Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
     /// The sources the agent of the run has checked.
@@ -271,7 +272,6 @@ pub(in crate::chat::manager) struct WorkspaceResolutionParams {
     /// The folders granted to the agent of the run, the roots of its file
     /// tools; the first anchors a relative path.
     pub(in crate::chat::manager) folders: apollia_tools::FolderRoots,
-    pub(in crate::chat::manager) hitl: Option<HitlInvokerParams>,
     pub(in crate::chat::manager) pending_user_inputs:
         Option<apollia_tools::tools::ask_user::PendingUserInputs>,
     pub(in crate::chat::manager) mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,

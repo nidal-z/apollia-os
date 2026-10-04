@@ -438,26 +438,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/approvals/filesystem/{request_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * `POST /api/v1/approvals/filesystem/{request_id}`: answers a request to
-         *     touch a file, which resumes the turn waiting on it.
-         */
-        post: operations["respond_filesystem_approval"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/approvals/pending": {
         parameters: {
             query?: never;
@@ -1478,6 +1458,23 @@ export interface paths {
         };
         /** `GET /api/v1/governance/audit`: the permission decisions, most recent first. */
         get: operations["list_governance_audit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/governance/policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/governance/policy`: the policy read at startup. */
+        get: operations["read_policy"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4599,6 +4596,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{id}/images/{file}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/{id}/images/{file}`, an image a user
+         *     message of the session carries, as its metadata names it.
+         */
+        get: operations["get_session_image"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{id}/pause": {
         parameters: {
             query?: never;
@@ -5953,6 +5970,12 @@ export interface components {
              *     `pkg:<package>/<tool>`.
              */
             accessId: string;
+            /**
+             * @description Action family: `read`, `read_personal`, `write_or_delete`,
+             *     `send_external`, `execute_code`, or `unclassified` when nothing
+             *     classifies it (a tool of a connection not added yet, an agent).
+             */
+            family: string;
             /** @description What the access lets the agent do. */
             permits: string;
             /** @description Using it is sensitive. */
@@ -5982,6 +6005,11 @@ export interface components {
             accessId: string;
             /** @description Agent that gains it. */
             agentId: string;
+            /**
+             * @description Action family: `read`, `read_personal`, `write_or_delete`,
+             *     `send_external`, `execute_code`, or `unclassified`.
+             */
+            family: string;
             /** @description What it lets the agent do. */
             permits: string;
             /** @description Using it is sensitive. */
@@ -6369,11 +6397,6 @@ export interface components {
              *     `decision == "refuse"`.
              */
             reason?: string | null;
-            /**
-             * @description Always-accept scope. Only honoured when `decision == "always_accept"`.
-             *     Defaults to [`crate::chat::AlwaysAcceptScope::ThisSession`].
-             */
-            scope?: string | null;
             /**
              * @description Unique id of the tool call being resolved. Correlates with the
              *     `approval_required` event so the same tool invoked twice in one turn
@@ -7466,37 +7489,6 @@ export interface components {
             /** @description Number of messages to copy from the parent (None = all). */
             up_to_index?: number | null;
         };
-        /**
-         * @description The user's answer to a request to touch a file, as the approval card sends
-         *     it. The `decision` discriminant is snake_case; the breadth of an "always
-         *     allow" is a separate `scope`, so earlier builds that sent only `op` and
-         *     `level` keep working.
-         */
-        FsHitlDecisionBody: {
-            /** @enum {string} */
-            decision: "approve";
-        } | {
-            /** @enum {string} */
-            decision: "deny";
-            /** @description Free-text reason entered by the user. */
-            reason?: string | null;
-        } | {
-            /** @enum {string} */
-            decision: "always_allow";
-            /** @description Risk level (`medium`, `high`...). */
-            level: string;
-            /** @description Filesystem operation (`write`, `delete`...). */
-            op: string;
-            /** @description Breadth of the rule; absent means this session only. */
-            scope?: string | null;
-        } | {
-            /** @enum {string} */
-            decision: "always_allow_session";
-            /** @description Risk level. */
-            level: string;
-            /** @description Filesystem operation. */
-            op: string;
-        };
         /** @description Request body for `POST /api/v1/sessions/{id}/title/generate`. */
         GenerateTitleBody: {
             /** @description The first user message the title is drawn from. */
@@ -7617,6 +7609,13 @@ export interface components {
             status: string;
             /** @description The version of the runtime answering, as its crate declares it. */
             version: string;
+        };
+        /** @description One image as a client sends it. */
+        ImageAttachment: {
+            /** @description Bytes of the image, in standard base64. */
+            data: string;
+            /** @description Media type of the image, such as `image/png`. */
+            mime_type: string;
         };
         /**
          * @description Body of both mailbox routes. Deliberately without `Debug`: it carries the
@@ -9510,11 +9509,6 @@ export interface components {
             /** Format: int64 */
             wait_duration_ms?: number | null;
         };
-        /** @description Answer of `POST /api/v1/approvals/filesystem/{request_id}`. */
-        ResolvedFilesystemApproval: {
-            /** @description The request answered. */
-            request_id: string;
-        };
         /**
          * @description Error body of `POST /api/v1/tasks/{id}/resume`.
          *
@@ -9622,6 +9616,11 @@ export interface components {
         SendMessageRequest: {
             /** @description Text content of the user message. */
             content: string;
+            /**
+             * @description Images sent after the text, for a model that reads images; at most
+             *     eight, each at most 10 MiB once decoded.
+             */
+            images?: components["schemas"]["ImageAttachment"][];
         };
         /** @description Response body for `POST /api/v1/sessions/:id/messages`. */
         SendMessageResponse: {
@@ -9978,6 +9977,11 @@ export interface components {
             declaredPublisher: string;
             /** @description SHA-256 fingerprint of the signing key, when the signature holds. */
             keyFingerprint?: string | null;
+            /**
+             * @description The signing public key, 64 hexadecimal characters, when the signature
+             *     holds: what trusting the publisher imports into the keyring.
+             */
+            publicKey?: string | null;
             /**
              * @description Name to show for the publisher: the label of the keyring when the key
              *     is trusted, otherwise the name the package declares.
@@ -12199,51 +12203,6 @@ export interface operations {
                 };
             };
             /** @description Mailbox not available */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
-    respond_filesystem_approval: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Id of the pending request */
-                request_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FsHitlDecisionBody"];
-            };
-        };
-        responses: {
-            /** @description The request is answered */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResolvedFilesystemApproval"];
-                };
-            };
-            /** @description No pending request has this id */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description Chat subsystem unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -14738,6 +14697,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    read_policy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The organisation policy the runtime applies: `state` is `none`, `active` or `invalid` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
         };
@@ -22034,6 +22013,15 @@ export interface operations {
                     "application/json": components["schemas"]["SendMessageResponse"];
                 };
             };
+            /** @description An image is refused: too many, too large, or not decodable */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
             /** @description Session not found */
             404: {
                 headers: {
@@ -22045,6 +22033,15 @@ export interface operations {
             };
             /** @description Session closed or busy */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The model of the session does not read images */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -22251,6 +22248,49 @@ export interface operations {
             };
             /** @description Chat subsystem or backend repository unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_session_image: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+                /** @description File name of the image, as the message metadata lists it */
+                file: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The image, its media type and its bytes in base64 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageAttachment"];
+                };
+            };
+            /** @description Not an image file name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No such image in the session */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

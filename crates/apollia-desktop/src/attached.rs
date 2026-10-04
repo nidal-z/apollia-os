@@ -46,6 +46,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_chat_sessions",
     "pause_chat_session",
     "send_chat_message",
+    // The images of the chat: what the model of a conversation reads, and
+    // the stored images of its messages.
+    "get_chat_model_capabilities",
+    "read_chat_image",
     // The conversations as the list manages them: configure, rename, name,
     // erase.
     "delete_chat_session",
@@ -176,6 +180,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // The export of an agent from its sheet: the runtime builds and signs the
     // archive, this process writes the file the user chose.
     "export_agent",
+    // The preview of a `.apo` package before it is installed or updated, its
+    // installation, and the trust of its publisher, over `/api/v1/packages`.
+    "install_package_file",
+    "preview_package_file",
+    "trust_package_publisher",
     // The user profiles and their facts, over `/api/v1/profiles`.
     "create_profile",
     "delete_profile",
@@ -259,13 +268,12 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "factory_reset",
     "mark_onboarded",
     "reset_onboarding",
-    // Permissions: the rules the onboarding agent proposed, a rule written
-    // from an approval card, and the answer to a request to touch a file.
+    // Permissions: the rules the onboarding agent proposed and a rule written
+    // from an approval card.
     "add_permission_prefix_rule",
     "apply_proposed_permission_rule",
     "dismiss_proposed_permission_rule",
     "list_proposed_permission_rules",
-    "respond_hitl_filesystem",
     // Tool governance: the tools, their configuration, the permission rules
     // and the audit, over `/api/v1/governance`.
     "governance_get_tool_config",
@@ -364,6 +372,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_security_posture",
     "set_observability_config",
     "set_python_interpreter",
+    // The organisation policy the runtime applies, read only, over
+    // `/api/v1/governance/policy`.
+    "get_org_policy",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no

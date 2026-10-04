@@ -75,9 +75,6 @@ impl ChatSessionRepository {
             title: row.title,
             parent_session_id: row.parent_session_id,
             fork_depth: row.fork_depth,
-            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
-                std::collections::HashSet::new(),
-            )),
             plan_mode: row.plan_mode,
             plan_phase,
         })

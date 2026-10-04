@@ -1452,68 +1452,6 @@
         }
       }
     },
-    "/api/v1/approvals/filesystem/{request_id}": {
-      "post": {
-        "tags": [
-          "governance"
-        ],
-        "summary": "`POST /api/v1/approvals/filesystem/{request_id}`: answers a request to\ntouch a file, which resumes the turn waiting on it.",
-        "operationId": "respond_filesystem_approval",
-        "parameters": [
-          {
-            "name": "request_id",
-            "in": "path",
-            "description": "Id of the pending request",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FsHitlDecisionBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "The request is answered",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResolvedFilesystemApproval"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No pending request has this id",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Chat subsystem unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/approvals/pending": {
       "get": {
         "tags": [
@@ -4548,6 +4486,27 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance/policy": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/governance/policy`: the policy read at startup.",
+        "operationId": "read_policy",
+        "responses": {
+          "200": {
+            "description": "The organisation policy the runtime applies: `state` is `none`, `active` or `invalid`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
                 }
               }
             }
@@ -13464,6 +13423,16 @@
               }
             }
           },
+          "400": {
+            "description": "An image is refused: too many, too large, or not decodable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Session not found",
             "content": {
@@ -13476,6 +13445,16 @@
           },
           "409": {
             "description": "Session closed or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The model of the session does not read images",
             "content": {
               "application/json": {
                 "schema": {
@@ -13749,6 +13728,67 @@
           },
           "503": {
             "description": "Chat subsystem or backend repository unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/images/{file}": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/images/{file}`, an image a user\nmessage of the session carries, as its metadata names it.",
+        "operationId": "get_session_image",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "file",
+            "in": "path",
+            "description": "File name of the image, as the message metadata lists it",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The image, its media type and its bytes in base64",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageAttachment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an image file name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such image in the session",
             "content": {
               "application/json": {
                 "schema": {
@@ -17651,12 +17691,17 @@
         "required": [
           "accessId",
           "permits",
-          "sensitive"
+          "sensitive",
+          "family"
         ],
         "properties": {
           "accessId": {
             "type": "string",
             "description": "Identifier of the access: a tool name, `mcp:<server>/<tool>`, or\n`pkg:<package>/<tool>`."
+          },
+          "family": {
+            "type": "string",
+            "description": "Action family: `read`, `read_personal`, `write_or_delete`,\n`send_external`, `execute_code`, or `unclassified` when nothing\nclassifies it (a tool of a connection not added yet, an agent)."
           },
           "permits": {
             "type": "string",
@@ -17725,7 +17770,8 @@
           "agentId",
           "accessId",
           "permits",
-          "sensitive"
+          "sensitive",
+          "family"
         ],
         "properties": {
           "accessId": {
@@ -17735,6 +17781,10 @@
           "agentId": {
             "type": "string",
             "description": "Agent that gains it."
+          },
+          "family": {
+            "type": "string",
+            "description": "Action family: `read`, `read_personal`, `write_or_delete`,\n`send_external`, `execute_code`, or `unclassified`."
           },
           "permits": {
             "type": "string",
@@ -18748,13 +18798,6 @@
               "null"
             ],
             "description": "Free-form rejection reason shared with the agent. Only honoured when\n`decision == \"refuse\"`."
-          },
-          "scope": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Always-accept scope. Only honoured when `decision == \"always_accept\"`.\nDefaults to [`crate::chat::AlwaysAcceptScope::ThisSession`]."
           },
           "tool_call_id": {
             "type": [
@@ -21319,105 +21362,6 @@
           }
         }
       },
-      "FsHitlDecisionBody": {
-        "oneOf": [
-          {
-            "type": "object",
-            "description": "The user approves this operation.",
-            "required": [
-              "decision"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "approve"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "description": "The user denies; the operation is cancelled and `reason`, when given,\nreaches the agent.",
-            "required": [
-              "decision"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "deny"
-                ]
-              },
-              "reason": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "description": "Free-text reason entered by the user."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "description": "The user approves and installs an \"always allow\" rule.",
-            "required": [
-              "op",
-              "level",
-              "decision"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "always_allow"
-                ]
-              },
-              "level": {
-                "type": "string",
-                "description": "Risk level (`medium`, `high`...)."
-              },
-              "op": {
-                "type": "string",
-                "description": "Filesystem operation (`write`, `delete`...)."
-              },
-              "scope": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "description": "Breadth of the rule; absent means this session only."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "description": "Legacy form of `always_allow` with the session scope.",
-            "required": [
-              "op",
-              "level",
-              "decision"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "always_allow_session"
-                ]
-              },
-              "level": {
-                "type": "string",
-                "description": "Risk level."
-              },
-              "op": {
-                "type": "string",
-                "description": "Filesystem operation."
-              }
-            }
-          }
-        ],
-        "description": "The user's answer to a request to touch a file, as the approval card sends\nit. The `decision` discriminant is snake_case; the breadth of an \"always\nallow\" is a separate `scope`, so earlier builds that sent only `op` and\n`level` keep working."
-      },
       "GenerateTitleBody": {
         "type": "object",
         "description": "Request body for `POST /api/v1/sessions/{id}/title/generate`.",
@@ -21671,6 +21615,24 @@
           "version": {
             "type": "string",
             "description": "The version of the runtime answering, as its crate declares it."
+          }
+        }
+      },
+      "ImageAttachment": {
+        "type": "object",
+        "description": "One image as a client sends it.",
+        "required": [
+          "mime_type",
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "string",
+            "description": "Bytes of the image, in standard base64."
+          },
+          "mime_type": {
+            "type": "string",
+            "description": "Media type of the image, such as `image/png`."
           }
         }
       },
@@ -25856,19 +25818,6 @@
           }
         }
       },
-      "ResolvedFilesystemApproval": {
-        "type": "object",
-        "description": "Answer of `POST /api/v1/approvals/filesystem/{request_id}`.",
-        "required": [
-          "request_id"
-        ],
-        "properties": {
-          "request_id": {
-            "type": "string",
-            "description": "The request answered."
-          }
-        }
-      },
       "ResumeErrorBody": {
         "type": "object",
         "description": "Error body of `POST /api/v1/tasks/{id}/resume`.\n\nThe historical `{error}` shape, plus a machine `code` on the refusals a\ncaller branches on. `code` is absent on the older errors, so a client that\nread `error` alone keeps working.",
@@ -26070,6 +26019,13 @@
           "content": {
             "type": "string",
             "description": "Text content of the user message."
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImageAttachment"
+            },
+            "description": "Images sent after the text, for a model that reads images; at most\neight, each at most 10 MiB once decoded."
           }
         }
       },
@@ -26838,6 +26794,13 @@
               "null"
             ],
             "description": "SHA-256 fingerprint of the signing key, when the signature holds."
+          },
+          "publicKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The signing public key, 64 hexadecimal characters, when the signature\nholds: what trusting the publisher imports into the keyring."
           },
           "publisher": {
             "type": "string",

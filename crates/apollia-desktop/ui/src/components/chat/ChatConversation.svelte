@@ -40,6 +40,7 @@
   import { createSessionActions } from "./useSessionActions.svelte";
   import {
     editAndResendChatMessage,
+    getChatModelCapabilities,
     getChatSession,
     getConversationStats,
     pauseChatSession,
@@ -47,13 +48,18 @@
     sendChatMessage,
   } from "$lib/ipc/chat";
   import { DEFAULT_PROFILE, getProfileById } from "$lib/ipc/profile";
-  import { type PendingAttachment, composeUserPayload } from "$lib/chat/attachments";
+  import {
+    type ImageSupport,
+    type PendingAttachment,
+    composeUserPayload,
+    imagePayloads,
+    sentImagesMetadata,
+  } from "$lib/chat/attachments";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
   import ContextIndicator from "./ContextIndicator.svelte";
   import { refreshSessionMetrics } from "$lib/stores/chatMetrics";
   import InjectedMemorySheet from "../memory/InjectedMemorySheet.svelte";
   import { latestTurnId } from "$lib/stores/thinking";
-  import HitlFilesystemModal from "./HitlFilesystemModal.svelte";
   import ChatConversationHeader from "./ChatConversationHeader.svelte";
   import NextStepsPanel from "../common/NextStepsPanel.svelte";
   import { sessionScope } from "$lib/stores/nextSteps";
@@ -153,6 +159,17 @@
     injectedSheetOpen = true;
   }
   let sessionDetail = $state<ChatSessionDetail | null>(null);
+  /** What the model of the conversation does with images, re-read when it changes. */
+  let imageSupport = $state<ImageSupport | null>(null);
+  $effect(() => {
+    const id = sessionId;
+    void sessionDetail?.llm_backend;
+    let cancelled = false;
+    getChatModelCapabilities(id)
+      .then((c) => { if (!cancelled) imageSupport = { vision: c.vision, formats: c.image_formats }; })
+      .catch(() => { if (!cancelled) imageSupport = null; });
+    return () => { cancelled = true; };
+  });
   /** Plan-mode state of the active session (drives the header chip + review). */
   let planMode = $state(false);
 
@@ -510,7 +527,7 @@
 
     // Attachments v1: inline small payloads as fenced blocks, reference larger
     // files by absolute path. The backend sees a single user message - the
-    // authoritative tool-side ingestion happens via the filesystem HITL flow.
+    // authoritative tool-side ingestion happens through the file tools.
     // The composer refuses anything that fits neither form, so the rendering
     // below is total and never emits a tag without content nor path.
     const payload = composeUserPayload(content, attachments);
@@ -519,6 +536,7 @@
       id: `temp-${Date.now()}`, role: "user", content: payload,
       tool_calls: null, tool_name: null,
       seq: (messages ?? []).length, created_at: new Date().toISOString(),
+      metadata: sentImagesMetadata(attachments),
     };
     pendingError = null;
     messages = [...(messages ?? []).filter((m) => m.id !== "exchange-error"), tempMsg];
@@ -526,7 +544,7 @@
     await tick(); scroll.toBottom(true);
 
     try {
-      await sendChatMessage(sessionId, payload);
+      await sendChatMessage(sessionId, payload, imagePayloads(attachments));
     } catch (err: unknown) {
       isProcessing = false;
       const errMsg: ChatMessageView = {
@@ -751,6 +769,7 @@
       {planMode}
       onplantoggle={togglePlanMode}
       planDisabled={sessionStatus === "closed"}
+      {imageSupport}
     />
   {/if}
 </div>
@@ -763,5 +782,3 @@
   onupdated={() => void refreshSession()}
 />
 {/if}
-
-<HitlFilesystemModal {sessionId} />
