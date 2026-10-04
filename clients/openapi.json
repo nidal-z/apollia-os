@@ -20582,6 +20582,26 @@
           }
         }
       },
+      "DictationEngine": {
+        "type": "object",
+        "description": "The dictation engine, whisper.cpp inside the runner the daemon starts.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "The runner binary."
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The whisper.cpp version the runner states with `--version`; unknown\nwhen it does not answer."
+          }
+        }
+      },
       "DictationModelsResponse": {
         "type": "object",
         "description": "The dictation category of the registry, and the entry for this machine.",
@@ -20827,6 +20847,13 @@
                 "description": "Variant; unknown for an embedded engine whose build is not stated."
               }
             ]
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The version the engine states at its source: the `--version` banner of\na binary, the package metadata of a Python environment. Unknown when it\ndoes not answer."
           }
         }
       },
@@ -20940,6 +20967,17 @@
           "cuda_proposable": {
             "type": "boolean",
             "description": "True when an NVIDIA card is detected and no CUDA engine is installed."
+          },
+          "dictation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DictationEngine",
+                "description": "The dictation engine, when a runner is in reach."
+              }
+            ]
           },
           "engines": {
             "type": "array",

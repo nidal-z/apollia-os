@@ -7163,6 +7163,16 @@ export interface components {
             /** @description The Whisper model file dictation now reads. */
             model_path: string;
         };
+        /** @description The dictation engine, whisper.cpp inside the runner the daemon starts. */
+        DictationEngine: {
+            /** @description The runner binary. */
+            path: string;
+            /**
+             * @description The whisper.cpp version the runner states with `--version`; unknown
+             *     when it does not answer.
+             */
+            version?: string | null;
+        };
         /** @description The dictation category of the registry, and the entry for this machine. */
         DictationModelsResponse: {
             /** @description The machine the recommendation was made for. */
@@ -7258,6 +7268,12 @@ export interface components {
             /** @description Upstream tag; unknown for an embedded engine. */
             tag?: string | null;
             variant?: null | components["schemas"]["EngineVariant"];
+            /**
+             * @description The version the engine states at its source: the `--version` banner of
+             *     a binary, the package metadata of a Python environment. Unknown when it
+             *     does not answer.
+             */
+            version?: string | null;
         };
         /** @description Body of `POST /api/v1/engines/import`. */
         EngineImportRequest: {
@@ -7304,6 +7320,7 @@ export interface components {
             channel: components["schemas"]["EngineChannel"];
             /** @description True when an NVIDIA card is detected and no CUDA engine is installed. */
             cuda_proposable: boolean;
+            dictation?: null | components["schemas"]["DictationEngine"];
             /** @description Engines embedded in the bundle, then installed ones. */
             engines: components["schemas"]["EngineEntry"][];
             /**

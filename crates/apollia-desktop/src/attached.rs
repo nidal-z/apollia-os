@@ -357,10 +357,12 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // that runs its tools: the observability policy over
     // `/api/v1/config/observability`, the Python interpreter over
     // `/api/v1/config/python-interpreter`, the security posture over
-    // `/api/v1/security-posture`.
+    // `/api/v1/security-posture`, and the engines of the machine with their
+    // versions over `/api/v1/engines`.
     "get_observability_config",
     "get_python_interpreter",
     "get_security_posture",
+    "list_engines",
     "set_observability_config",
     "set_python_interpreter",
 ];

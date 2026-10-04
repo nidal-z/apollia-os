@@ -17,3 +17,12 @@ pub use error::RunnerError;
 pub use lifecycle::RunnerSupervisor;
 pub use proxy::RunnerProxy;
 pub use stt_backend::RunnerSttBackend;
+
+/// The runner binary the daemon starts for dictation on this machine, the one
+/// the engine list asks for its version. `None` when no runner is in reach.
+///
+/// Blocking: detection may spawn a hardware probe.
+pub(crate) fn dictation_runner_binary() -> Option<std::path::PathBuf> {
+    let backend = gpu_detection::boot_backend(&gpu_detection::detect_gpu());
+    lifecycle::locate_runner_binary(backend).ok()
+}

@@ -2163,14 +2163,6 @@
       "copy_success": "Copied to clipboard",
       "copied": "Copied",
       "copy_field": "Copy {field}",
-      "build_title": "Version and build",
-      "build_desc": "Useful for a bug report or a support request.",
-      "info_unavailable": "System information could not be loaded. Make sure Apollia is running, then reopen this page.",
-      "kv_version": "Version",
-      "kv_platform": "Platform",
-      "kv_python": "Python interpreter",
-      "kv_engine": "Inference engine",
-      "kv_stt": "Transcription",
       "kv_license": "SPDX identifier",
       "copy_diagnostics": "Copy diagnostic report",
       "copy_hint": "One click copies the raw value.",
@@ -2182,8 +2174,6 @@
       "diag_unknown": "unknown",
       "diag_platform": "Platform",
       "diag_data_dir": "Data directory",
-      "diag_engine": "Engine",
-      "diag_transcription": "Transcription",
       "diag_license": "License"
     },
     "observability": {
@@ -2620,17 +2610,6 @@
         "deleted_toast": "Model ''{name}'' deleted",
         "help": "Files present in your local models directory."
       },
-      "hardware": {
-        "label": "Your hardware",
-        "detecting": "Detecting hardware…",
-        "ram": "RAM",
-        "available": "Available",
-        "gpu": "GPU / Accelerator",
-        "budget": "Inference budget",
-        "cpu_info": "CPU: {cpu} · {cores} cores",
-        "cpu_only": "CPU only",
-        "help": "Determines which models fit in memory."
-      },
       "downloads": {
         "active": "Active downloads",
         "cancel_aria": "Cancel download",
@@ -2756,7 +2735,7 @@
       "python_interpreter_label": "Python interpreter",
       "python_interpreter_hint_bundled": "Agents run on the interpreter Apollia ships with ({path}), which needs nothing installed on this machine. Name another one by absolute path to use it instead.",
       "python_interpreter_hint_chosen": "Agents run on this interpreter. It has to exist, start, and be a Python 3.{minor}: the bundled standard library cannot be read by another minor version. If it stops being valid, the bundled interpreter takes over.",
-      "python_interpreter_use_bundled": "Use the bundled one",
+      "python_interpreter_use_bundled": "Back to automatic",
       "python_interpreter_saved": "Python interpreter saved",
       "subtitle": "Installation details and configuration paths."
     },
@@ -3135,11 +3114,40 @@
       "empty": "No default can be set here yet: each model keeps the values of the AI screen."
     },
     "engines": {
-      "subtitle": "The engines that run the models and dictation on this machine."
+      "subtitle": "The engines that run the models and dictation on this machine.",
+      "list_title": "Engines and libraries",
+      "list_desc": "Every engine on this computer, with the version it states itself.",
+      "loading": "Reading the engines…",
+      "empty": "No engine found on this computer.",
+      "version_unknown": "Version not stated",
+      "variant_cpu": "Processor",
+      "role_gguf": "Runs the models on this computer, on its graphics chip when it has one.",
+      "role_mlx": "Runs MLX models on Apple silicon Macs.",
+      "role_node": "Runs the tool servers written for Node.js.",
+      "role_dictation": "Dictation: speech turned into text, on this computer."
     },
     "window": {
       "label": "Settings",
       "close": "Close settings"
+    },
+    "hardware": {
+      "detecting": "Detecting the hardware…",
+      "processor": "Processor",
+      "compatible": "Compatible",
+      "cpu_name": "Name",
+      "architecture": "Architecture",
+      "cores": "Cores",
+      "memory": "Memory",
+      "memory_unified": "Unified memory",
+      "memory_dedicated": "Dedicated video memory",
+      "ram": "System memory",
+      "vram": "Video memory",
+      "gb": "{n} GB",
+      "none": "None",
+      "gpu": "GPU",
+      "gpu_detected": "1 GPU detected, {backend}",
+      "gpu_vram": "Video memory {size} · {backend}",
+      "no_gpu": "No GPU detected: models run on the processor."
     }
   },
   "onboarding": {
