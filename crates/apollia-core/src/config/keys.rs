@@ -193,6 +193,7 @@ pub const KEYS: &[ConfigKey] = &[
     locked(key("server.jit_auto_unload", Boolean, Some("true"), Reloadable, "Unload the models the compatible server loaded after their own idle delay rather than the general one.")),
     locked(key("server.jit_idle_ttl_minutes", Integer, Some("60"), Reloadable, "Minutes without a request after which a model the compatible server loaded is unloaded; 0 keeps it loaded.")),
     locked(key("server.jit_keep_last_only", Boolean, Some("true"), Reloadable, "When the compatible server loads a model, unload the other models it loaded that nothing holds.")),
+    locked(key("server.separate_reasoning_content", Boolean, Some("true"), Reloadable, "Keep the reasoning of a model in reasoning_content, apart from content, in the chat completions of the compatible server; off, it goes back into content between think tags.")),
     // [engines]
     locked(key("engines.log_level", Enum(&["error", "warning", "info", "debug"]), Some("\"debug\""), Reloadable, "Log level of the local engine, applied when a model is next loaded.")),
     // [author]

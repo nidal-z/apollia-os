@@ -50,6 +50,7 @@ mod errors;
 mod logs;
 mod models;
 mod origin;
+mod reasoning;
 mod relay;
 mod router;
 mod tokens;
@@ -62,6 +63,8 @@ mod jit_tests;
 mod lan_tests;
 #[cfg(test)]
 mod logs_tests;
+#[cfg(test)]
+mod reasoning_tests;
 #[cfg(test)]
 mod relay_tests;
 #[cfg(test)]

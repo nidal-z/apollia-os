@@ -23,6 +23,10 @@
   import ConfigurationReadOnly from "../../components/settings/ConfigurationReadOnly.svelte";
   import McpServerSection from "../../components/settings/developer/McpServerSection.svelte";
   import BackgroundServiceSection from "../../components/settings/developer/BackgroundServiceSection.svelte";
+  import OnDemandLoadingSection from "../../components/settings/developer/OnDemandLoadingSection.svelte";
+  import ExperimentalSection from "../../components/settings/developer/ExperimentalSection.svelte";
+  import { onDemandVisible } from "../../components/settings/developer/onDemandLoading";
+  import { hydrateServerSettings } from "$lib/stores/serverSettings";
   import { backgroundServiceVisible } from "../../components/settings/developer/backgroundService";
   import { mcpSectionVisible } from "../../components/settings/developer/mcpServer";
   import {
@@ -46,6 +50,7 @@
 
   onMount(() => {
     void hydrateEngineLogLevel();
+    void hydrateServerSettings();
   });
 
   async function choose(on: boolean) {
@@ -120,6 +125,10 @@
     </SettingsFieldRow>
   </SettingsSection>
 
+  {#if onDemandVisible($developerMode)}
+    <OnDemandLoadingSection />
+  {/if}
+
   {#if backgroundServiceVisible($developerMode)}
     <BackgroundServiceSection />
   {/if}
@@ -167,7 +176,13 @@
         {/snippet}
       </SettingsFieldRow>
     </SettingsSection>
+  {/if}
 
+  {#if onDemandVisible($developerMode)}
+    <ExperimentalSection />
+  {/if}
+
+  {#if $developerMode}
     <h2 class="px-1 pt-2 text-overline uppercase text-muted-foreground">
       {$t("settings.nav.configuration")}
     </h2>

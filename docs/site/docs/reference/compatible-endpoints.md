@@ -206,6 +206,26 @@ model never touches a model the application loaded. Each unload is published as
 server loaded another model. The keys are read at every request and every
 check, so a change applies without a restart.
 
+## Reasoning of a thinking model
+
+A thinking model writes its reasoning before its answer. The engine separates
+the two, and a chat completion carries the reasoning in `reasoning_content`, in
+the message of a whole answer and in each delta of a stream, apart from
+`content`. That is what the server relays by default.
+
+```toml
+[server]
+separate_reasoning_content = true   # false: the reasoning goes back into content
+```
+
+With `separate_reasoning_content = false`, the server puts the reasoning back at
+the head of `content`, between `<think>` and `</think>`, and drops
+`reasoning_content`, for a client that reads only `content`. In a stream, the
+tag opens on the first delta of reasoning and closes on the first delta of the
+answer, or on the delta that finishes the choice. Only `/v1/chat/completions`
+is concerned: the responses and messages formats carry reasoning blocks of
+their own, relayed as the engine wrote them. The key is read at every request.
+
 ## Endpoints
 
 The table lists every path the compatible server serves.
