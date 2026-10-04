@@ -353,8 +353,8 @@ async fn test_off_chat_approval_joins_the_chat_queue() {
 // GIVEN a stored agent without code whose access nobody chose, file_read
 //       active as a tool of the reading family, and a model that calls it
 // WHEN a task is submitted
-// THEN file_read is granted by default: the call reaches its approval rather
-//      than being refused
+// THEN file_read is granted by default: the call runs, reading needing no
+//      consent, rather than being refused
 #[tokio::test]
 async fn test_an_agent_without_code_reads_by_default_on_a_task() {
     // GIVEN
@@ -366,16 +366,16 @@ async fn test_an_agent_without_code_reads_by_default_on_a_task() {
     let mut fx = fixture_with(true, None, registry).await;
 
     // WHEN
-    let task_id = submit(&fx).await;
+    submit(&fx).await;
     let first = next_event(&mut fx.events, |e| match e {
-        RuntimeEvent::ChatApprovalRequired { tool_name, .. } => Some(Some(tool_name)),
-        RuntimeEvent::TaskCompleted { task_id: t, .. } if t == task_id.as_str() => Some(None),
+        RuntimeEvent::ChatToolCallStarted { tool_name, .. } => Some(Ok(tool_name)),
+        RuntimeEvent::ChatApprovalRequired { tool_name, .. } => Some(Err(tool_name)),
         _ => None,
     })
     .await;
 
-    // THEN
-    assert_eq!(first.as_deref(), Some("file_read"));
+    // THEN the reading tool runs, without asking: reading needs no consent
+    assert_eq!(first, Ok("file_read".to_string()));
 }
 
 // GIVEN a task whose run waits on a tool approval

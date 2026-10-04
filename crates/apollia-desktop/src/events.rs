@@ -336,6 +336,7 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::LlmModelLoading { .. }
         | RuntimeEvent::LlmModelReady { .. }
         | RuntimeEvent::LlmModelReloaded { .. }
+        | RuntimeEvent::LlmModelUnloaded { .. }
         | RuntimeEvent::LlmModelFailed { .. }
         | RuntimeEvent::LlmCallCompleted { .. }
         | RuntimeEvent::LlmResponseCaptured { .. }
@@ -452,7 +453,7 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         // ── System-level ─────────────────────────────────────────────────
         RuntimeEvent::AllReady | RuntimeEvent::ShutdownRequested => "system",
         // The refused `apollia.toml`; its banner reads the diagnostics.
-        RuntimeEvent::ConfigInvalid { .. } => "system",
+        RuntimeEvent::ConfigInvalid { .. } | RuntimeEvent::ConfigReloaded { .. } => "system",
 
         // ── Triggers (extended) ───────────────────────────────────────────
         RuntimeEvent::TriggerQueueFull { .. } => "trigger-fired",
@@ -810,6 +811,10 @@ mod tests {
             RuntimeEvent::ConfigInvalid {
                 path: "apollia.toml".into(),
                 diagnostics: Vec::new(),
+            },
+            RuntimeEvent::ConfigReloaded {
+                sections: vec!["tools".into()],
+                pending_restart: Vec::new(),
             },
             RuntimeEvent::PlanGenerated {
                 task_id: "t".into(),

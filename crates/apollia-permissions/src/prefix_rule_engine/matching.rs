@@ -49,6 +49,26 @@ pub(super) fn code_executor_prefix_matches(
         (Some(_), None) => false,
     }
 }
+/// Whether `rule` decides a call of `tool_name` with `first_arg` made by
+/// `agent_id` at Unix time `now`: same tool, a rule for every agent or for
+/// this one, not expired, and a prefix that matches the argument, with the
+/// stricter matching of the code executors.
+pub fn rule_matches(
+    rule: &PrefixRule,
+    tool_name: &str,
+    first_arg: Option<&str>,
+    agent_id: &str,
+    now: i64,
+) -> bool {
+    let reaches_agent = match rule.scope {
+        PermissionScope::Global => true,
+        PermissionScope::Agent => rule.agent_id.as_deref() == Some(agent_id),
+    };
+    rule.tool_name == tool_name
+        && reaches_agent
+        && !is_expired(rule.expires_at, now)
+        && prefix_matches(tool_name, rule.arg_prefix.as_deref(), first_arg)
+}
 pub(super) fn row_to_rule(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<Result<PrefixRule, PermissionError>> {

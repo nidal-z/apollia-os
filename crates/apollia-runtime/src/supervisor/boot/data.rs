@@ -36,12 +36,14 @@ impl Supervisor {
     pub(super) async fn spawn_trace_observers(
         &self,
         event_sender: &EventBusSender,
+        config_feed: &crate::config_reload::ConfigFeed,
     ) -> Arc<std::sync::Mutex<apollia_oria::ResilienceLayer>> {
         // Phase 4c: EventPersistor, an append-only log of the agent execution
         // trace (AgentLog, plus thoughts, tool_call_*, llm_call_*, etc.). If the
         // open fails, the runtime continues without persistence (logs still go
         // to `tracing`).
-        self.spawn_event_persistor(event_sender).await;
+        self.spawn_event_persistor(event_sender, &config_feed.observability)
+            .await;
 
         // Phase 4d: shared ResilienceLayer + event subscriber.
         //

@@ -1,8 +1,9 @@
 //! The human decision on a pending tool call.
 //!
-//! Resolves the approval the exchange is waiting on and, when the user asked
-//! for it, persists the always-accept scope. A code executor is never granted
-//! a blanket allow here: each of its invocations keeps its own checkpoint.
+//! Resolves the approval the exchange is waiting on. An "always" is not
+//! written here: the run that asked turns it into a standing consent of its
+//! agent for the family of the tool, through governance, never into a grant
+//! by tool name.
 
 use super::super::*;
 
@@ -26,11 +27,6 @@ impl ChatSessionManager {
         if !self.sessions.contains_key(session_id) {
             return self.resolve_task_approval(session_id, message_id, tool_call_id, decision);
         }
-        let session = self
-            .sessions
-            .get_mut(session_id)
-            .ok_or_else(|| ChatError::SessionNotFound(session_id.to_string()))?;
-
         let key = format!("{session_id}::{message_id}::{tool_call_id}");
         let resolved = self.pending_chat_approvals.resolve(&key, decision.clone());
 
@@ -38,53 +34,6 @@ impl ChatSessionManager {
             return Err(ChatError::SessionNotFound(format!(
                 "no pending approval for {key}"
             )));
-        }
-
-        // AlwaysAccept: dispatch persistence by scope.
-        // - ThisTool / ThisSession: in-memory only (session.authorized_tools).
-        // - ThisAgent  : scope='agent' rule in governance.db (agent_id derived from the mode).
-        // - ThisProject: in-memory only; a persisted rule no longer targets a project.
-        // - Global     : scope='global' rule in governance.db.
-        if let ToolDecision::AlwaysAccept { scope } = &decision {
-            // A code executor (bash/python) is never blanket-authorized: the
-            // current call is still approved once (the pending request was
-            // resolved above), but "always" is downgraded to a one-time approval
-            // so the next invocation asks again. Closes the in-session branch of
-            // the "always allow bash = blank check" finding.
-            if apollia_permissions::is_code_executor(tool_name) {
-                warn!(
-                    tool = %tool_name,
-                    detail = "code executor,
-                    treated as a one-time approval",
-                    "chat.approval.always_accept.downgraded"
-                );
-            } else {
-                // Always update the current session (immediate authorization).
-                session.authorized_tools.insert(tool_name.to_string());
-
-                // Capture the scope-resolution inputs before releasing the session
-                // borrow, so governance.db persistence can use a disjoint &self.
-                let session_mode = session.mode.clone();
-                let session_agent_name = session.agent_name.clone();
-
-                // chat.db.authorized_tools: written to preserve the authorization if
-                // the runtime crashes mid-session. Kept for the ThisTool/ThisSession
-                // scopes (otherwise they would be lost on restart). For the
-                // persistent scopes it is redundant with governance.db but has no
-                // side effect, to be cleaned up later.
-                let now = now_rfc3339();
-                if let Err(e) = self.repository.authorize_tool(session_id, tool_name, &now) {
-                    warn!(error = %e, "chat.authorization.persist.failed");
-                }
-
-                self.persist_always_accept_scope(AlwaysAcceptScopeCtx {
-                    scope,
-                    session_mode,
-                    session_agent_name,
-                    session_id,
-                    tool_name,
-                });
-            }
         }
 
         // Trace-log the enriched metadata (reason / scope) without breaking
@@ -120,61 +69,5 @@ impl ChatSessionManager {
         });
 
         Ok(())
-    }
-
-    /// Persist an `AlwaysAccept` rule in governance.db according to its scope.
-    ///
-    /// `ThisTool` / `ThisSession` are in-session only (no governance write).
-    /// `ThisAgent` derives the agent id from the session mode; `ThisProject`
-    /// holds for the session only.
-    fn persist_always_accept_scope(&self, ctx: AlwaysAcceptScopeCtx<'_>) {
-        let AlwaysAcceptScopeCtx {
-            scope,
-            session_mode,
-            session_agent_name,
-            session_id,
-            tool_name,
-        } = ctx;
-        use crate::chat::types::AlwaysAcceptScope;
-        match scope {
-            AlwaysAcceptScope::ThisTool | AlwaysAcceptScope::ThisSession => {
-                // No governance.db persistence, purely in-session.
-            }
-            AlwaysAcceptScope::ThisAgent => {
-                let agent_id = match session_mode {
-                    ChatMode::Libre | ChatMode::Companion => {
-                        Some(APOLLIA_CHAT_AGENT_ID.to_string())
-                    }
-                    ChatMode::Agent => session_agent_name,
-                };
-                if let Some(aid) = agent_id {
-                    persist_chat_allow_rule(
-                        apollia_permissions::PermissionScope::Agent,
-                        Some(aid),
-                        tool_name,
-                        self.governance_db_path.as_deref(),
-                    );
-                }
-            }
-            AlwaysAcceptScope::ThisProject => {
-                // A persisted rule targets one agent or every agent, never a
-                // project: carrying the answer to every agent would widen it,
-                // so it holds for this session only.
-                warn!(
-                    session_id,
-                    tool_name,
-                    detail = "project scope retired, session-only authorization",
-                    "chat.approval.scope.downgraded"
-                );
-            }
-            AlwaysAcceptScope::Global => {
-                persist_chat_allow_rule(
-                    apollia_permissions::PermissionScope::Global,
-                    None,
-                    tool_name,
-                    self.governance_db_path.as_deref(),
-                );
-            }
-        }
     }
 }

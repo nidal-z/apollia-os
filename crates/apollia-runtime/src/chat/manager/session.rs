@@ -134,7 +134,6 @@ impl ChatSessionManager {
         // Silent fallback when the DB is absent / empty / unreadable: legacy behavior.
         let LibreSessionDefaults {
             llm_backend: libre_llm_backend,
-            pre_authorized,
         } = apply_libre_overrides(
             mode == ChatMode::Libre,
             &mut prompt,
@@ -175,7 +174,7 @@ impl ChatSessionManager {
             system_prompt: prompt,
             status: SessionStatus::Active,
             history: Vec::new(),
-            authorized_tools: pre_authorized,
+            authorized_tools: std::collections::HashSet::new(),
             available_tools: resolved_tools,
             created_at: now.clone(),
             active_exchange: None,

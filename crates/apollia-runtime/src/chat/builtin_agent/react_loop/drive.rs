@@ -84,7 +84,6 @@ impl BuiltInChatAgent {
         let mut last_prompt_tokens: u32 = 0;
         let mut acc = ReactAccumulators {
             all_tool_calls: Vec::new(),
-            newly_authorized: Vec::new(),
             authorized: authorized_tools.clone(),
             llm_calls: Vec::new(),
         };

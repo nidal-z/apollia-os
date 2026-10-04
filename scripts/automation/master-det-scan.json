@@ -850,27 +850,32 @@
     },
     {
       "kind": "click",
-      "testid": "topbar-user-menu",
+      "testid": "topbar-help",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "topbar-user-menu-content",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "user-menu-help",
+      "testid": "detail-sidebar",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "help-section",
+      "testid": "companion-panel",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "40-user-menu-help"
+      "label": "40-topbar-help-guide"
+    },
+    {
+      "kind": "click",
+      "testid": "detail-sidebar-collapse",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "detail-sidebar",
+      "timeoutMs": 3000
     },
     {
       "kind": "goto",
@@ -3242,21 +3247,23 @@
     },
     {
       "kind": "waitFor",
-      "testid": "shortcuts-help-dialog",
+      "testid": "detail-sidebar",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "37-shortcuts-help"
+      "label": "37-guide-shortcut"
     },
     {
-      "kind": "click",
-      "testid": "shortcuts-help-close",
-      "timeoutMs": 3000
+      "kind": "press",
+      "testid": "chat-input",
+      "key": "/",
+      "timeoutMs": 3000,
+      "mod": true
     },
     {
       "kind": "waitGone",
-      "testid": "shortcuts-help-dialog",
+      "testid": "detail-sidebar",
       "timeoutMs": 3000
     },
     {
@@ -12643,88 +12650,22 @@
     },
     {
       "kind": "waitFor",
-      "testid": "companion-minimize",
+      "testid": "detail-sidebar",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "companion-close",
+      "testid": "detail-sidebar-collapse",
       "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "companion-drag-handle",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "companion-resize-handle",
-      "timeoutMs": 2500
     },
     {
       "kind": "screenshot",
-      "label": "04-companion-handles (pointer drag and the mid-drag snap guides are pointer-only; the keyboard nudges below play both handles)"
-    },
-    {
-      "kind": "press",
-      "testid": "companion-drag-handle",
-      "key": "ArrowRight",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 200
-    },
-    {
-      "kind": "screenshot",
-      "label": "04b-companion-nudged-right"
-    },
-    {
-      "kind": "press",
-      "testid": "companion-drag-handle",
-      "key": "ArrowLeft",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 200
-    },
-    {
-      "kind": "press",
-      "testid": "companion-resize-handle",
-      "key": "ArrowRight",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 200
-    },
-    {
-      "kind": "screenshot",
-      "label": "04c-companion-resized-wider"
-    },
-    {
-      "kind": "press",
-      "testid": "companion-resize-handle",
-      "key": "ArrowLeft",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 200
-    },
-    {
-      "kind": "expect",
-      "testid": "companion-panel"
+      "label": "04-guide-tab"
     },
     {
       "kind": "click",
-      "testid": "companion-minimize",
+      "testid": "detail-sidebar-collapse",
       "timeoutMs": 2000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
     },
     {
       "kind": "waitGone",
@@ -12733,7 +12674,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "05-companion-minimized"
+      "label": "05-guide-collapsed"
     },
     {
       "kind": "click",
@@ -12776,7 +12717,7 @@
     },
     {
       "kind": "click",
-      "testid": "companion-close",
+      "testid": "detail-sidebar-collapse",
       "timeoutMs": 2000
     },
     {
@@ -12907,21 +12848,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "10-companion-panel-builder (the panel is a global overlay, mode-invariant: same component, same testids in operator and builder)"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "companion-minimize",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "companion-close",
-      "timeoutMs": 3000
+      "label": "10-companion-panel-builder (the Guide tab is global, mode-invariant: same component, same testids in operator and builder)"
     },
     {
       "kind": "click",
-      "testid": "companion-close",
+      "testid": "detail-sidebar-collapse",
       "timeoutMs": 2000
     },
     {
