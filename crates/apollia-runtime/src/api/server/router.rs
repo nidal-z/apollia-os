@@ -301,7 +301,12 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
                 .patch(update_session::<B>)
                 .delete(close_session::<B>),
         )
-        .route("/api/v1/sessions/:id/messages", post(send_message::<B>))
+        .route(
+            "/api/v1/sessions/:id/messages",
+            post(send_message::<B>).layer(axum::extract::DefaultBodyLimit::max(
+                crate::chat::images::max_message_body_bytes(),
+            )),
+        )
         .route(
             "/api/v1/sessions/:id/messages/:message_id/regenerate",
             post(turns::regenerate_response::<B>),
@@ -327,6 +332,10 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route(
             "/api/v1/sessions/:id/model-capabilities",
             get(crate::api::routes_chat::session_reads::get_session_model_capabilities::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/images/:file",
+            get(crate::api::routes_chat::session_reads::get_session_image::<B>),
         )
         .route(
             "/api/v1/sessions/plan-mode-default",

@@ -26,9 +26,10 @@ impl ChatSessionManager {
                 ChatCommand::SendMessage {
                     session_id,
                     content,
+                    images,
                     reply,
                 } => {
-                    let result = self.handle_send_message(&session_id, &content);
+                    let result = self.handle_send_message(&session_id, &content, images);
                     let _ = reply.send(result);
                 }
                 ChatCommand::ResolveTool {

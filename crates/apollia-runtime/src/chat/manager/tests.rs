@@ -1204,6 +1204,7 @@ async fn test_message_during_awaiting_starts_revision_turn() {
         .handle_send_message(
             "sess-1",
             "Please plan the work: audit the repo, fix the tests, then open a PR",
+            Vec::new(),
         )
         .expect("send ok");
 
@@ -1644,7 +1645,7 @@ async fn test_companion_send_without_llm_resets_status_to_active() {
     }
 
     // WHEN a message is sent and the dispatch fails
-    let result = manager.handle_send_message("sess-1", "hello");
+    let result = manager.handle_send_message("sess-1", "hello", Vec::new());
 
     // THEN the error surfaces AND the session is reset to Active (not stuck
     // Processing), with the active exchange cleared

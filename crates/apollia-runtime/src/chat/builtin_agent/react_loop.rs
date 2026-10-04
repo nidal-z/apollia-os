@@ -99,6 +99,7 @@ impl BuiltInChatAgent {
             user_message,
             summary,
             context_window_size,
+            &self.turn_images,
         );
 
         // A resume turn carrying an operator instruction prepends it as a user

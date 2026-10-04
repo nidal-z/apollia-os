@@ -10,6 +10,7 @@
   import ActivityStrip from "./ActivityStrip.svelte";
   import SourceCards from "./SourceCards.svelte";
   import LinkPreviewList from "./LinkPreviewList.svelte";
+  import MessageImages from "./MessageImages.svelte";
   import { parseStream } from "$lib/chat/streamParser";
   import { extractSources, sumToolDurationMs, reasoningFragmentCount } from "$lib/chat/reasoning";
   import {
@@ -242,8 +243,11 @@
             </button>
           </div>
         </div>
-      {:else if message.content}
-        <p class="whitespace-pre-wrap break-words">{message.content}</p>
+      {:else}
+        <MessageImages {sessionId} messageId={message.id} metadata={message.metadata} />
+        {#if message.content}
+          <p class="whitespace-pre-wrap break-words">{message.content}</p>
+        {/if}
       {/if}
     {:else if isEmptyAgentResponse}
       <p

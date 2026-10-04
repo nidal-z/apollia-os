@@ -52,6 +52,24 @@ export interface UpdateSessionRequest {
   llm_backend?: string | null;
 }
 
+/** What the model of a conversation can do, as the composer reads it. */
+export interface ChatModelCapabilities {
+  /** The backend or model the conversation runs on, `null` when none. */
+  model: string | null;
+  local: boolean;
+  reasoning_profile: "none" | "toggle" | "levels" | null;
+  /** The model reads images. */
+  vision: boolean;
+  /** Image formats its engine decodes, empty without vision. */
+  image_formats: string[];
+}
+
+/** One stored image of a conversation, its media type and base64 bytes. */
+export interface ChatImageData {
+  mime_type: string;
+  data: string;
+}
+
 /** Single message inside a chat session. */
 export interface ChatMessageView {
   id: string;

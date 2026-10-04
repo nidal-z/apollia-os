@@ -126,6 +126,7 @@ impl ChatSessionManager {
             let user_msg = content.to_string();
             let tx = self.tx.clone();
             let context_window_size = DEFAULT_CONTEXT_WINDOW_SIZE;
+            let turn_images = self.turn_images(session_id, &session.history, context_window_size);
 
             let stored_summary = self.repository.get_summary(session_id).unwrap_or(None);
             let llm_for_summarize = self.llm_router.clone();
@@ -193,6 +194,7 @@ impl ChatSessionManager {
                 pending_injection,
                 preferred_backend,
                 turn_id,
+                turn_images,
             }));
         }
 

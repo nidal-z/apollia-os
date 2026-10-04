@@ -3384,9 +3384,22 @@
       "remove": "Remove attachment",
       "refused": {
         "read_failed": "{name} could not be read, so it was not attached.",
-        "image_not_supported": "{name} is an image: pictures cannot be read by the local engine. Drag the file in to send its path instead.",
+        "image_not_supported": "{name}: the model of this conversation does not read images. Drag the file in to send its path instead.",
+        "image_limit": "{name} refused: at most {max} images per message.",
+        "image_too_large": "{name} refused: an image weighs at most {mb} MB.",
+        "image_unreadable": "{name} is not a readable image, so it was not attached.",
+        "image_format": "{name}: the model of this conversation does not read this image format.",
         "too_large_without_path": "{name} is over 512 kB, and a file picked this way carries no path. Drag it into the conversation to attach it.",
         "binary_not_text": "{name} is not a text file: its bytes carry no readable text, so nothing useful could be sent. Drag it into the conversation to send its path instead."
+      }
+    },
+    "images": {
+      "open": "Open image {position}",
+      "viewer": {
+        "label": "Attached image",
+        "position": "{position} of {total}",
+        "previous": "Previous",
+        "next": "Next"
       }
     },
     "resources": {

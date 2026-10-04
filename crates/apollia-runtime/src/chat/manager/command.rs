@@ -21,6 +21,9 @@ pub enum ChatCommand {
         session_id: SessionId,
         /// Text content.
         content: String,
+        /// Images attached after the text, already decoded and checked for
+        /// count and size.
+        images: Vec<apollia_llm::message_image::MessageImage>,
         /// Response channel.
         reply: oneshot::Sender<Result<MessageId, ChatError>>,
     },

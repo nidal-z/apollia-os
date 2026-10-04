@@ -605,6 +605,17 @@ pub enum ChatError {
         /// The phase the session was actually in, as a stable lowercase string.
         current_phase: String,
     },
+    /// A message carries images and the model of the conversation does not
+    /// read them, or its capabilities are not known (a remote server).
+    #[error("the model of this conversation does not read images")]
+    ImagesNotSupported {
+        /// The model the message would have run on, when one is configured.
+        model: Option<String>,
+    },
+    /// An image of a message is refused: too many, too large, empty, not
+    /// decodable, or in a format the engine of the model does not read.
+    #[error("image refused: {0}")]
+    ImageRejected(String),
     /// The hybrid routing cost ceiling was reached and `ceiling_action` is `HardStop`.
     ///
     /// The run stopped cleanly with no data loss. It can be resumed in a new run

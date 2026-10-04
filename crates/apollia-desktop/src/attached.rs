@@ -46,6 +46,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_chat_sessions",
     "pause_chat_session",
     "send_chat_message",
+    // The images of the chat: what the model of a conversation reads, and
+    // the stored images of its messages.
+    "get_chat_model_capabilities",
+    "read_chat_image",
     // The conversations as the list manages them: configure, rename, name,
     // erase.
     "delete_chat_session",

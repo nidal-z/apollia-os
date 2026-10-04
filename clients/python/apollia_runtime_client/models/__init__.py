@@ -190,6 +190,7 @@ from .guardrail_verdict_dto import GuardrailVerdictDto
 from .hardware_response import HardwareResponse
 from .hardware_response_accelerator import HardwareResponseAccelerator
 from .health_response import HealthResponse
+from .image_attachment import ImageAttachment
 from .imap_account_body import ImapAccountBody
 from .imap_account_response import ImapAccountResponse
 from .imap_error_body import ImapErrorBody
@@ -730,6 +731,7 @@ __all__ = (
     "HardwareResponse",
     "HardwareResponseAccelerator",
     "HealthResponse",
+    "ImageAttachment",
     "ImapAccountBody",
     "ImapAccountResponse",
     "ImapErrorBody",

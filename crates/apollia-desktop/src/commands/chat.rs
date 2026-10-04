@@ -13,9 +13,11 @@ use tauri::State;
 use crate::attached::{segment, RuntimeLink};
 
 /// Automatic session naming lives in `naming`, the on-disk export in `export`,
-/// the daemon routes of the conversations in `conversations`.
+/// the daemon routes of the conversations in `conversations`, the images of
+/// the chat in `images`.
 pub(crate) mod conversations;
 pub mod export;
+pub mod images;
 pub mod naming;
 mod remote;
 
@@ -284,16 +286,21 @@ pub async fn rename_chat_session(
 }
 
 /// Sends a user message and launches the async response generation.
+///
+/// `images` travel after the text, for a model that reads images; the runtime
+/// refuses them when the model of the conversation does not.
 #[tauri::command]
 pub async fn send_chat_message(
     link: State<'_, RuntimeLink>,
     session_id: String,
     content: String,
+    images: Option<Vec<apollia_runtime::chat::images::ImageAttachment>>,
 ) -> Result<String, String> {
+    let images = images.unwrap_or_default();
     let state = match link.inner() {
         RuntimeLink::Embedded(runtime) => runtime,
         RuntimeLink::Attached(remote) => {
-            return Ok(remote.send_message(&session_id, &content).await?);
+            return Ok(remote.send_message(&session_id, &content, &images).await?);
         }
     };
     let manager = state
@@ -301,8 +308,10 @@ pub async fn send_chat_message(
         .as_ref()
         .ok_or_else(|| "chat subsystem not available".to_string())?;
 
+    let decoded =
+        apollia_runtime::chat::images::decode_attachments(&images).map_err(|e| e.to_string())?;
     let message_id = manager
-        .send_message(session_id, content)
+        .send_message_with_images(session_id, content, decoded)
         .await
         .map_err(|e| e.to_string())?;
 

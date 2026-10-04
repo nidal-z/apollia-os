@@ -235,6 +235,7 @@ mod dispatcher;
 mod exchange;
 mod handle;
 mod handle_ext;
+mod images;
 mod libre;
 mod live_config;
 mod plan;
@@ -243,6 +244,8 @@ mod sources;
 mod types;
 mod user_input;
 
+#[cfg(test)]
+mod images_tests;
 #[cfg(test)]
 mod live_config_tests;
 #[cfg(test)]
