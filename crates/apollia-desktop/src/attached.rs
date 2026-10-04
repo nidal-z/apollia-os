@@ -173,6 +173,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_agent_definition",
     "get_agent_model_fallback",
     "list_agent_changes",
+    // The journal screen: a page of entries narrowed by its filters, and the
+    // detail of one entry.
+    "get_journal_entry",
+    "list_journal_entries",
     // The adjustment of an agent on its sheet: its overrides, the return to
     // defaults, its model and the presets to choose from.
     "clear_agent_model",

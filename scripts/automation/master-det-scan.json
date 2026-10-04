@@ -112,6 +112,7 @@
     "nav-dashboard",
     "nav-inbox",
     "nav-integrations",
+    "nav-journal",
     "nav-llm",
     "nav-memory",
     "nav-observability",
@@ -20142,6 +20143,1841 @@
       "kind": "waitFor",
       "testid": "app-main",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "section-20-journal-det"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_journal_entries",
+      "resolve": [
+        {
+          "seq": 3,
+          "run_id": "run-journal-det",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "tool_call_completed",
+          "payload": {
+            "agent_id": "apollia:chat",
+            "tool_name": "file_read",
+            "tool_call_id": "call-det-1",
+            "family": "read",
+            "target": "notes/plan.md",
+            "success": true
+          },
+          "prev_hash": "sha256:0002",
+          "hash": "sha256:0003",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "read",
+            "what": "Tool call finished",
+            "tool": "file_read",
+            "target": "notes/plan.md",
+            "outcome": "success",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 2,
+          "run_id": "run-journal-det",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused",
+            "agent_id": "apollia:chat",
+            "access_id": "http_fetch",
+            "family": "send_external"
+          },
+          "prev_hash": "sha256:0001",
+          "hash": "sha256:0002",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 1,
+          "run_id": "governance:connections",
+          "ts": "2026-10-01T15:46:00Z",
+          "kind": "connection_added",
+          "payload": {
+            "event": "added",
+            "connection_id": "mcp:drive",
+            "actor": "user"
+          },
+          "prev_hash": "sha256:0000",
+          "hash": "sha256:0001",
+          "summary": {
+            "agent": null,
+            "nature": "access_change",
+            "family": null,
+            "what": "Connection added",
+            "tool": null,
+            "target": "mcp:drive",
+            "outcome": "success",
+            "ts": "2026-10-01T15:46:00Z"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_journal_entry",
+      "resolve": {
+        "seq": 3,
+        "run_id": "run-journal-det",
+        "ts": "2026-10-02T12:32:00Z",
+        "kind": "tool_call_completed",
+        "payload": {
+          "agent_id": "apollia:chat",
+          "tool_name": "file_read",
+          "tool_call_id": "call-det-1",
+          "family": "read",
+          "target": "notes/plan.md",
+          "success": true
+        },
+        "prev_hash": "sha256:0002",
+        "hash": "sha256:0003",
+        "summary": {
+          "agent": "apollia:chat",
+          "nature": "action",
+          "family": "read",
+          "what": "Tool call finished",
+          "tool": "file_read",
+          "target": "notes/plan.md",
+          "outcome": "success",
+          "ts": "2026-10-02T12:32:00Z"
+        },
+        "tool_call": {
+          "tool_call_id": "call-det-1",
+          "arguments": {
+            "path": "notes/plan.md",
+            "offset": 0
+          },
+          "output": {
+            "content": "the plan of the week"
+          },
+          "status": "success"
+        }
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "nav-journal",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-filters",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-count",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-list",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-day",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-entry",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-entry-sentence",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-entry-target",
+      "timeoutMs": 3000,
+      "contains": "notes/plan.md"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-entry-state",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-entry-detail",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-fold-all",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-journal-list"
+    },
+    {
+      "kind": "click",
+      "testid": "journal-entry-toggle",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "detail-sidebar-entry",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-entry-detail",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-detail-target",
+      "timeoutMs": 3000,
+      "contains": "notes/plan.md"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-detail-parameters",
+      "timeoutMs": 3000,
+      "contains": "notes/plan.md"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-detail-output",
+      "timeoutMs": 3000,
+      "contains": "the plan of the week"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-detail-technical",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-journal-see-more (target, parameters, output)"
+    },
+    {
+      "kind": "click",
+      "testid": "journal-entry-toggle",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "detail-sidebar-entry",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-entry-toggle",
+      "nth": 2,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-detail-record",
+      "timeoutMs": 3000,
+      "contains": "mcp:drive"
+    },
+    {
+      "kind": "click",
+      "testid": "journal-entry-toggle",
+      "nth": 2,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "detail-sidebar-entry",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_journal_entry"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_journal_entry",
+      "resolve": null
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "journal"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-entry-toggle",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-detail-unavailable",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-entry-toggle",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "detail-sidebar-entry",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "journal-filter-agent",
+      "value": "apollia:chat",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "journal-filter-family",
+      "value": "read",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "journal-filter-nature",
+      "value": "action",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "journal-filter-result",
+      "value": "success",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "journal-filter-period",
+      "value": "all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-filters-clear",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-journal-filters"
+    },
+    {
+      "kind": "click",
+      "testid": "journal-filters-clear",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-filters-clear",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_journal_entries"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_journal_entries",
+      "resolve": []
+    },
+    {
+      "kind": "selectOption",
+      "testid": "journal-filter-result",
+      "value": "refused",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-empty-filtered",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-filters-clear",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_journal_entries"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_journal_entries",
+      "reject": "seeded journal failure",
+      "once": true
+    },
+    {
+      "kind": "selectOption",
+      "testid": "journal-filter-result",
+      "value": "failure",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-load-error",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_journal_entries",
+      "resolve": [
+        {
+          "seq": 100,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0099",
+          "hash": "sha256:0100",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 99,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0098",
+          "hash": "sha256:0099",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 98,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0097",
+          "hash": "sha256:0098",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 97,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0096",
+          "hash": "sha256:0097",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 96,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0095",
+          "hash": "sha256:0096",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 95,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0094",
+          "hash": "sha256:0095",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 94,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0093",
+          "hash": "sha256:0094",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 93,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0092",
+          "hash": "sha256:0093",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 92,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0091",
+          "hash": "sha256:0092",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 91,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0090",
+          "hash": "sha256:0091",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 90,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0089",
+          "hash": "sha256:0090",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 89,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0088",
+          "hash": "sha256:0089",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 88,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0087",
+          "hash": "sha256:0088",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 87,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0086",
+          "hash": "sha256:0087",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 86,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0085",
+          "hash": "sha256:0086",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 85,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0084",
+          "hash": "sha256:0085",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 84,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0083",
+          "hash": "sha256:0084",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 83,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0082",
+          "hash": "sha256:0083",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 82,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0081",
+          "hash": "sha256:0082",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 81,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0080",
+          "hash": "sha256:0081",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 80,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0079",
+          "hash": "sha256:0080",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 79,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0078",
+          "hash": "sha256:0079",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 78,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0077",
+          "hash": "sha256:0078",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 77,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0076",
+          "hash": "sha256:0077",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 76,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0075",
+          "hash": "sha256:0076",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 75,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0074",
+          "hash": "sha256:0075",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 74,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0073",
+          "hash": "sha256:0074",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 73,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0072",
+          "hash": "sha256:0073",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 72,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0071",
+          "hash": "sha256:0072",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 71,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0070",
+          "hash": "sha256:0071",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 70,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0069",
+          "hash": "sha256:0070",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 69,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0068",
+          "hash": "sha256:0069",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 68,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0067",
+          "hash": "sha256:0068",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 67,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0066",
+          "hash": "sha256:0067",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 66,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0065",
+          "hash": "sha256:0066",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 65,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0064",
+          "hash": "sha256:0065",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 64,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0063",
+          "hash": "sha256:0064",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 63,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0062",
+          "hash": "sha256:0063",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 62,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0061",
+          "hash": "sha256:0062",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 61,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0060",
+          "hash": "sha256:0061",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 60,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0059",
+          "hash": "sha256:0060",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 59,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0058",
+          "hash": "sha256:0059",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 58,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0057",
+          "hash": "sha256:0058",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 57,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0056",
+          "hash": "sha256:0057",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 56,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0055",
+          "hash": "sha256:0056",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 55,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0054",
+          "hash": "sha256:0055",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 54,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0053",
+          "hash": "sha256:0054",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 53,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0052",
+          "hash": "sha256:0053",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 52,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0051",
+          "hash": "sha256:0052",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 51,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0050",
+          "hash": "sha256:0051",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        }
+      ],
+      "once": true
+    },
+    {
+      "kind": "selectOption",
+      "testid": "journal-filter-result",
+      "value": "refused",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-load-error",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-load-older",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_journal_entries",
+      "resolve": [
+        {
+          "seq": 1,
+          "run_id": "governance:connections",
+          "ts": "2026-10-01T15:46:00Z",
+          "kind": "connection_added",
+          "payload": {
+            "event": "added",
+            "connection_id": "mcp:drive",
+            "actor": "user"
+          },
+          "prev_hash": "sha256:0000",
+          "hash": "sha256:0001",
+          "summary": {
+            "agent": null,
+            "nature": "access_change",
+            "family": null,
+            "what": "Connection added",
+            "tool": null,
+            "target": "mcp:drive",
+            "outcome": "success",
+            "ts": "2026-10-01T15:46:00Z"
+          }
+        }
+      ],
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "journal-load-older",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-load-older",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_journal_entries",
+      "resolve": [
+        {
+          "seq": 3,
+          "run_id": "run-journal-det",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "tool_call_completed",
+          "payload": {
+            "agent_id": "apollia:chat",
+            "tool_name": "file_read",
+            "tool_call_id": "call-det-1",
+            "family": "read",
+            "target": "notes/plan.md",
+            "success": true
+          },
+          "prev_hash": "sha256:0002",
+          "hash": "sha256:0003",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "read",
+            "what": "Tool call finished",
+            "tool": "file_read",
+            "target": "notes/plan.md",
+            "outcome": "success",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 2,
+          "run_id": "run-journal-det",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused",
+            "agent_id": "apollia:chat",
+            "access_id": "http_fetch",
+            "family": "send_external"
+          },
+          "prev_hash": "sha256:0001",
+          "hash": "sha256:0002",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 1,
+          "run_id": "governance:connections",
+          "ts": "2026-10-01T15:46:00Z",
+          "kind": "connection_added",
+          "payload": {
+            "event": "added",
+            "connection_id": "mcp:drive",
+            "actor": "user"
+          },
+          "prev_hash": "sha256:0000",
+          "hash": "sha256:0001",
+          "summary": {
+            "agent": null,
+            "nature": "access_change",
+            "family": null,
+            "what": "Connection added",
+            "tool": null,
+            "target": "mcp:drive",
+            "outcome": "success",
+            "ts": "2026-10-01T15:46:00Z"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_journal_entry",
+      "resolve": {
+        "seq": 3,
+        "run_id": "run-journal-det",
+        "ts": "2026-10-02T12:32:00Z",
+        "kind": "tool_call_completed",
+        "payload": {
+          "agent_id": "apollia:chat",
+          "tool_name": "file_read",
+          "tool_call_id": "call-det-1",
+          "family": "read",
+          "target": "notes/plan.md",
+          "success": true
+        },
+        "prev_hash": "sha256:0002",
+        "hash": "sha256:0003",
+        "summary": {
+          "agent": "apollia:chat",
+          "nature": "action",
+          "family": "read",
+          "what": "Tool call finished",
+          "tool": "file_read",
+          "target": "notes/plan.md",
+          "outcome": "success",
+          "ts": "2026-10-02T12:32:00Z"
+        },
+        "tool_call": {
+          "tool_call_id": "call-det-1",
+          "arguments": {
+            "path": "notes/plan.md",
+            "offset": 0
+          },
+          "output": {
+            "content": "the plan of the week"
+          },
+          "status": "success"
+        }
+      }
+    },
+    {
+      "kind": "goto",
+      "route": "journal"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-fold-all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-entry-detail",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-detail-technical",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-detail-raw-arguments",
+      "timeoutMs": 3000,
+      "contains": "notes/plan.md"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-journal-developer-mode (unfolded by default, technical details)"
+    },
+    {
+      "kind": "click",
+      "testid": "journal-fold-all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-entry-detail",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-entry-toggle",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-detail-technical",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "journal"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-fold-all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-journal-back-to-developer-mode-off"
     }
   ]
 }

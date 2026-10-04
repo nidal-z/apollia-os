@@ -139,6 +139,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "dev.connections.custom_transport_label", // Transport
   "connections.settings_provider_title", // Provider
   "connections.status_chip_attention", // Attention
+  "dev.journal.arguments", // Arguments
   "inbox.chips.questions", // Questions
   "inbox.filter_by_agent", // Agent
   "inbox.history.origin_chat", // Chat
@@ -146,6 +147,12 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "inbox.row.type_question", // question
   "inbox.row.type_trigger", // trigger
   "integrations.wizard.local_loopback_badge", // Local
+  "journal.detail.action", // Action
+  "journal.detail.agent", // Agent
+  "journal.filter.agent", // Agent
+  "journal.filter.nature", // Nature
+  "journal.nature.action", // Actions
+  "journal.title", // Journal
   "library.detail.agents", // Agents
   "library.detail.workflows", // Workflows
   "library.kind.agent", // agent
@@ -163,7 +170,9 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "memory.namespaces.cat_agent_header", // Agents
   "memory.namespaces.title", // Namespaces
   "nav.chat", // Chat
+  "nav.journal", // Journal
   "nav.sidebar.chat", // Chat
+  "nav.sidebar.journal", // Journal
   "nav.sidebar.transcriptions", // Transcriptions
   "nav.transcriptions", // Transcriptions
   "notifications.field_type", // Type

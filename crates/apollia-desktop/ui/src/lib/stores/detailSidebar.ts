@@ -7,8 +7,11 @@
  */
 import { derived, get, writable, type Readable } from "svelte/store";
 
-/** Tabs the column can show. The Guide tab exists on every screen. */
-export type DetailSidebarTab = "guide";
+/**
+ * Tabs the column can show. The Guide tab exists on every screen; `entry` is
+ * the contextual tab of the journal, offered while one of its entries is open.
+ */
+export type DetailSidebarTab = "guide" | "entry";
 
 export interface DetailSidebarState {
   /** `true` while the column is shown. */
@@ -23,6 +26,14 @@ export const DETAIL_SIDEBAR_WIDTH_REM = 22;
 const INITIAL: DetailSidebarState = { open: false, tab: "guide" };
 
 const state = writable<DetailSidebarState>({ ...INITIAL });
+
+/**
+ * The tab the column shows: the contextual tab only while its screen offers
+ * it, the Guide tab otherwise.
+ */
+export function shownTab(tab: DetailSidebarTab, entryOffered: boolean): DetailSidebarTab {
+  return tab === "entry" && entryOffered ? "entry" : "guide";
+}
 
 /** `true` while the column is open on the Guide tab. */
 export const guideVisible: Readable<boolean> = derived(
@@ -58,6 +69,19 @@ export const detailSidebar = {
       return;
     }
     state.set({ open: true, tab: "guide" });
+  },
+
+  /** Opens the column on the contextual tab of the journal. */
+  openEntry(): void {
+    state.set({ open: true, tab: "entry" });
+  },
+
+  /**
+   * Leaves the contextual tab of the journal: the column collapses when that
+   * tab was the one shown, and the next opening is on the Guide tab.
+   */
+  closeEntry(): void {
+    state.update((s) => (s.tab === "entry" ? { open: false, tab: "guide" } : s));
   },
 
   /** Restores the initial state (tests). */

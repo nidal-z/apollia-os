@@ -140,6 +140,8 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::agent_sheet::get_agent_definition,
         commands::agent_sheet::get_agent_model_fallback,
         commands::agent_sheet::list_agent_changes,
+        commands::journal::list_journal_entries,
+        commands::journal::get_journal_entry,
         commands::agent_adjust::set_agent_override,
         commands::agent_adjust::remove_agent_override,
         commands::agent_adjust::reset_agent_overrides,

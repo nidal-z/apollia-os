@@ -30,6 +30,7 @@ import {
   Landmark,
   Library,
   KeyRound,
+  ScrollText,
 } from "lucide-svelte";
 import type { Route } from "$lib/stores/navigation";
 
@@ -56,6 +57,7 @@ export const routeMeta: Record<Route, RouteMeta> = {
   observability: { labelKey: "nav.observability", parent: null, icon: Activity },
   policy: { labelKey: "nav.policy", parent: null, icon: Landmark },
   authorizations: { labelKey: "nav.authorizations", parent: null, icon: KeyRound },
+  journal: { labelKey: "nav.journal", parent: null, icon: ScrollText },
   settings: { labelKey: "nav.settings", parent: null, icon: Settings },
   design: { labelKey: "topbar.route.design", parent: null, icon: Paintbrush },
   "design-motion": { labelKey: "topbar.route.design_motion", parent: "design", icon: Paintbrush },
