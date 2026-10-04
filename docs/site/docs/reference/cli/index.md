@@ -272,6 +272,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os config validate`↴](#apollia-os-config-validate)
 * [`apollia-os config edit`↴](#apollia-os-config-edit)
 * [`apollia-os config show`↴](#apollia-os-config-show)
+* [`apollia-os config keys`↴](#apollia-os-config-keys)
 * [`apollia-os config reset`↴](#apollia-os-config-reset)
 * [`apollia-os profile`↴](#apollia-os-profile)
 * [`apollia-os profile list`↴](#apollia-os-profile-list)
@@ -4227,6 +4228,7 @@ Edits the on-disk config without touching the runtime. The section helpers `tool
 * `validate` - Parse the config file and report any error
 * `edit` - Open the config file in `$EDITOR`
 * `show` - Print the resolved configuration (parsed struct as JSON)
+* `keys` - List every key of apollia.toml: path, type, default, reload class, whether the organization policy can fix it, and whether it is withdrawn
 * `reset` - Wipe `~/.apollia/`, an irreversible factory reset
 
 
@@ -4307,6 +4309,14 @@ Cascades through file > defaults. Environment overlay is performed at runtime st
 ###### **Options:**
 
 * `--file <PATH>` - Optional config file path override
+
+
+
+## `apollia-os config keys`
+
+List every key of apollia.toml: path, type, default, reload class, whether the organization policy can fix it, and whether it is withdrawn
+
+**Usage:** `apollia-os config keys`
 
 
 

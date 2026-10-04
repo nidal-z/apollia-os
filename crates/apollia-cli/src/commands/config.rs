@@ -1,7 +1,8 @@
 //! `apollia-os config` subcommands: manage the global `apollia.toml`.
 //!
 //! These commands operate directly on the on-disk configuration without
-//! touching the runtime. They are orthogonal to the section-specific helpers
+//! touching the runtime. Every one of them except `reset` first writes the
+//! default `~/.apollia/apollia.toml` when that file is absent (see `keys`). They are orthogonal to the section-specific helpers
 //! `tools config` and `stt config`, which target their own respective slices.
 
 use std::io::IsTerminal as _;
@@ -12,6 +13,8 @@ use toml_edit::{value, DocumentMut, Item};
 
 use crate::exit_codes;
 use crate::note;
+
+mod keys;
 
 /// Subcommands of `apollia-os config`.
 #[derive(Debug, Subcommand)]
@@ -71,6 +74,10 @@ pub enum ConfigCommand {
         file: Option<PathBuf>,
     },
 
+    /// List every key of apollia.toml: path, type, default, reload class,
+    /// whether the organization policy can fix it, and whether it is withdrawn.
+    Keys,
+
     /// Wipe `~/.apollia/`, an irreversible factory reset.
     ///
     /// Deletes every SQLite database, log, journal, memory file, OAuth client
@@ -114,11 +121,21 @@ fn validate_value_against_the_machine(key: &str, value: &str) -> Result<(), Stri
 /// Entry point for `apollia-os config <verb>`.
 pub fn run(cmd: &ConfigCommand, json: bool) -> i32 {
     match cmd {
+        ConfigCommand::Get { file, .. }
+        | ConfigCommand::Set { file, .. }
+        | ConfigCommand::Validate { file }
+        | ConfigCommand::Edit { file }
+        | ConfigCommand::Show { file } => keys::ensure_default_file(file.as_deref()),
+        ConfigCommand::Keys => keys::ensure_default_file(None),
+        ConfigCommand::Reset { .. } => {}
+    }
+    match cmd {
         ConfigCommand::Get { key, file } => run_get(key.as_deref(), file.as_deref(), json),
         ConfigCommand::Set { key, value, file } => run_set(key, value, file.as_deref(), json),
         ConfigCommand::Validate { file } => run_validate(file.as_deref(), json),
         ConfigCommand::Edit { file } => run_edit(file.as_deref(), json),
         ConfigCommand::Show { file } => run_show(file.as_deref(), json),
+        ConfigCommand::Keys => keys::run_keys(json),
         ConfigCommand::Reset {
             confirm,
             dry_run,
@@ -183,6 +200,12 @@ fn run_get(key: Option<&str>, file: Option<&Path>, json: bool) -> i32 {
                     emit_error(format!("invalid TOML: {e}"), json);
                     return exit_codes::GENERAL_ERROR;
                 }
+            }
+        } else if crate::output::is_quiet() {
+            // `--quiet` drops blank spacers; the default file has one between
+            // every key.
+            for line in content.lines().filter(|l| !l.trim().is_empty()) {
+                println!("{line}");
             }
         } else {
             print!("{content}");

@@ -250,20 +250,10 @@ pub async fn get_config() -> Result<ApollaConfigView, String> {
 pub async fn open_config_in_editor() -> Result<(), String> {
     let path = default_config_path();
 
-    if !path.exists() {
-        let parent = path
-            .parent()
-            .ok_or_else(|| "cannot resolve config directory".to_string())?;
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|e| format!("failed to create config directory: {e}"))?;
-        tokio::fs::write(
-            &path,
-            "# Apollia OS configuration\n# See documentation for available options.\n",
-        )
-        .await
+    // Written at startup already; a file removed since is written again, with
+    // every key documented, never over an existing one.
+    apollia_core::config::write_default_file_if_absent(&path)
         .map_err(|e| format!("failed to create config file: {e}"))?;
-    }
 
     open::that(&path).map_err(|e| format!("failed to open editor: {e}"))
 }
