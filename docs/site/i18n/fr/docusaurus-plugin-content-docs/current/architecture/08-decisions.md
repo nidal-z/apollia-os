@@ -103,6 +103,20 @@ mémoire. Les outils de fichiers sont confinés à une racine résolue : le chem
 est canonisé puis revérifié contre la racine après résolution, donc un lien
 symbolique ne permet pas d'en sortir.
 
+La racine des outils de fichiers d'un agent est l'union des dossiers accordés à
+cet agent, agent de conversation intégré compris, sur le chemin de la
+conversation comme sur celui des tâches. Un dossier du poste est une connexion,
+choisie au sélecteur du système, et ses outils s'accordent à un agent un par
+un : les outils de lecture atteignent tous les dossiers qui lui sont accordés,
+les outils d'écriture seulement ceux accordés pour écrire. Le premier dossier
+accordé, par date d'ajout, sert d'ancre à un chemin relatif. Un agent sans
+dossier accordé a des outils de fichiers qui refusent avec un message disant
+comment en accorder un. Rien d'autre n'est une racine : ni le dossier
+personnel, ni le dossier de données, ni le volume, ni le dossier d'un projet.
+Les anciennes clés `[filesystem] trusted_paths` et `[chat] default_workspace`
+sont retirées ; les dossiers qu'elles nommaient, dossier personnel excepté, ont
+été ajoutés une fois comme connexions, accordées à aucun agent.
+
 Le confinement n'est pas uniforme selon les plateformes, et la différence n'est
 pas cosmétique. Sous Linux, l'exécution shell tourne sous espaces de noms PID et
 mount. Sous macOS le confinement est plus faible. Sous Windows il n'y en a pas.
@@ -412,6 +426,97 @@ de `zip` entrent donc dans chaque compilation, avec cinq petites crates sous
 nouvelle version, et la version de `zip` qu'elle apporte, est une décision et
 non une mise à jour.
 
+Le texte d'un document PDF s'extrait en Rust par `pdf_oxide` (MIT ou
+Apache-2.0), page par page, chaque page avec son numéro. La bibliothèque est en
+pur Rust, en lecture seule, ne lie aucune bibliothèque système et n'ouvre aucune
+connexion ; ses fonctions par défaut sont désactivées, si bien que ni son moteur
+de profils colorimétriques ni ses modules de rendu, d'OCR ou de signature
+n'entrent dans la compilation, et seule `legacy-crypto` est gardée, pour qu'un
+document verrouillé par un seul mot de passe propriétaire s'ouvre encore. Une
+page qui ne dessine ni lettre ni chiffre est marquée sans texte : c'est la page
+que la reconnaissance optique de caractères devra lire. Un document qui demande
+un mot de passe pour s'ouvrir, ou endommagé, donne une erreur typée, et un
+défaut de l'analyseur sur un fichier malformé est rattrapé et signalé comme un
+fichier endommagé, jamais comme un plantage. La bibliothèque a été mesurée avant
+d'être adoptée, sur vingt documents français réels publiés sous Licence Ouverte
+(pièces de marché et conditions d'utilisation, budgets et grilles tarifaires,
+notes méthodologiques), avec cinq phrases témoins accentuées par document,
+prises à un extracteur indépendant : dix-neuf documents sur vingt rendent leurs
+cinq phrases, tous les accents intacts ; le vingtième perd une phrase dont une
+cellule de tableau répartit les mots sur deux lignes. Le corpus est versionné
+avec les tests qui le lisent, et PDFium, le repli natif envisagé, n'est pas
+livré.
+
+Le coût est nommé : `pdf_oxide` apporte cinquante-trois versions de crates
+absentes du fichier de verrouillage, dont une pile de polices (`skrifa`, `read-fonts`,
+`write-fonts`, `ttf-parser`, `subsetter`), un moteur de mise en page (`taffy`)
+et des secondes versions majeures de `quick-xml`, `brotli`, `sha2` et `aes`.
+`pdf_oxide` est épinglé en 0.3.78, et `office_oxide`, dont il dépend, est tenu
+en 0.1.11 dans le fichier de verrouillage : sa version 0.1.12 ne compile plus
+sous `pdf_oxide` 0.3.78 ; mettre l'une ou l'autre à jour est donc une décision et
+non un rafraîchissement.
+
+Une crate de cette pile de polices porte un avis : `ttf-parser` 0.25.1, dont
+seul `pdf_oxide` se sert pour lire les polices qu'un document embarque, est
+signalée non maintenue (RUSTSEC-2026-0192). Aucune faille n'y est connue et
+aucune version plus récente n'existe vers laquelle monter : l'avis est donc
+exempté dans `deny.toml`, daté du 2026-10-04, avec cette raison à côté, et il
+est revu à la prochaine version mineure. L'exemption tombe quand `pdf_oxide`
+abandonne `ttf-parser` ou qu'une version maintenue en paraît.
+
+Les documents Word et les présentations PowerPoint sont lus en Rust, par un
+code propre posé sur deux crates : `zip`, celle qui ouvre l'archive de paquet
+(voir [Archive de paquet](#package-archive)), ouvre le fichier, et `quick-xml`
+(MIT), un lecteur XML en flux, en lit les parties. Un document Word rend les
+paragraphes et les lignes de tableau de son corps, une ligne par segment, dans
+l'ordre du document et chacun avec son rang ; une présentation rend le texte et
+les notes de chaque diapositive, dans l'ordre numérique, chacune avec son
+numéro. Les en-têtes, pieds de page, commentaires et zones de texte flottantes
+ne sont pas lus. Un fichier aux anciens formats binaires, `.doc` ou `.ppt`, est
+une erreur typée qui nomme les formats lus. L'archive vient d'ailleurs, sa
+lecture est donc bornée : au-delà de 10 000 entrées, ou de 64 Mio décompressés
+sur l'ensemble des parties lues, le fichier est refusé, les octets étant comptés
+à mesure qu'ils sont décompressés et non tels que l'archive les déclare. Une
+crate dédiée n'a pas été retenue : `docx-rs`, celle pesée pour Word, est
+tournée vers l'écriture et ne lit pas PowerPoint, et `office_oxide`, qu'apporte
+le lecteur PDF, est tenue à une ancienne version (voir plus haut) et n'est pas
+appelée directement.
+
+Le coût est nommé : aucune crate n'entre dans le fichier de verrouillage.
+`quick-xml` 0.41 était déjà compilée pour le lecteur de classeurs et le paquet
+du bureau, et devient une dépendance directe, fonctionnalités par défaut
+coupées ; `zip` était déjà une dépendance directe. Ce que ces crates ne couvrent
+pas est à notre charge : la structure des deux formats, lue ici jusqu'à leur
+texte seulement.
+
+Les résultats d'un lot sont écrits dans le tableau qu'il a lu, par défaut dans
+une copie posée à côté de l'original, `<nom> (résultats AAAA-MM-JJ).xlsx`,
+nommée dans la langue de l'interface, si bien que l'original est lu et jamais
+ouvert en écriture. Sur demande explicite, et pour `.xlsx` et `.xlsm` seulement,
+ils vont dans l'original lui-même, après la copie de sauvegarde datée qu'exige
+le contrat des lots ; si la sauvegarde échoue, rien n'est écrit. Dans les deux
+cas, le classeur est édité en place, par du code à nous au-dessus de `zip` et
+de `quick-xml` : les cellules de la colonne ajoutée, après la dernière colonne
+de la feuille, sont insérées dans le XML de cette feuille en chaînes en ligne,
+la chaîne de calcul est retirée pour que le tableur recalcule à l'ouverture, et
+toutes les autres parties de l'archive sont recopiées telles qu'elles sont
+stockées, octet pour octet. La mise en forme, les graphiques, les tableaux
+croisés, les commentaires et les macros sont donc conservés, ce que ne garantit
+pas une bibliothèque qui charge un classeur puis l'enregistre de nouveau :
+`umya-spreadsheet`, celle qui a été pesée, documente des graphiques corrompus,
+des commentaires perdus et des tableaux croisés non lus. L'édition est testée
+sur un corpus versionné de classeurs réels (mise en forme conditionnelle,
+graphique, tableaux croisés, commentaires, fichier enregistré par LibreOffice,
+classeur à macros). Un fichier CSV reçoit une copie avec sa colonne ajoutée,
+jamais une édition de l'original ; un classeur `.xls`, `.xlsb` ou `.ods` reçoit
+une copie `.xlsx` neuve écrite par `rust_xlsxwriter` (voir
+[Export d'un lot](#batch-export)), ses valeurs seulement.
+
+Le coût est nommé : aucune crate n'entre dans le fichier de verrouillage,
+`rust_xlsxwriter` devenant une dépendance directe des lecteurs. Ce qui est à
+notre charge est l'édition de la feuille, une petite partie d'un format dont
+les autres parties ne sont jamais réécrites.
+
 Une boîte mail se connecte en IMAP avec un mot de passe d'application : tout
 fournisseur est joignable, Gmail compris, sans client OAuth et sans relais. Le
 client est `async-imap` (MIT ou Apache-2.0), sur le runtime Tokio, au-dessus de
@@ -449,7 +554,7 @@ fichier de verrouillage, lui-même, `zopfli` et `zlib-rs` (voir
 
 `rust_xlsxwriter` ne sait pas modifier un classeur existant. Écrire les
 résultats dans le fichier d'où un lot a été lu se décide avec le lecteur de
-tableurs, pas ici.
+tableurs (voir [Documents et sources](#documents-and-sources)).
 
 ## Messagerie entre agents {#agent-messaging}
 
@@ -625,6 +730,25 @@ d'autre dépendance que sa propre cale d'édition de liens, et la même version
 était déjà dans l'arbre par d'autres crates : le fichier de verrouillage n'a
 gagné aucun paquet. Le coût est un bloc de code FFI avec sa propre permission
 `unsafe`, confiné à un module.
+
+## Le fichier de configuration {#configuration-file}
+
+`apollia.toml` a un seul écrivain, `apollia_core::config::writer`. Les écrans de
+réglages de l'application de bureau, la ligne de commande, les routes sous
+`/api/v1/config` et les moteurs que le runtime recopie dans le fichier passent
+tous par lui, si bien que les quatre mêmes vérifications tiennent quel que soit
+l'auteur : le texte se valide contre le schéma strict, aucune ligne ne donne à
+une clé que la politique de l'organisation impose une autre valeur, le fichier
+sur le disque est encore celui que l'appelant a lu, comparé par son empreinte
+SHA-256, et le texte remplace le fichier par un fichier voisin renommé
+par-dessus. Une écriture par clé garde les commentaires et l'ordre du fichier.
+La ligne de commande appelle l'écrivain directement : elle fonctionne démon
+arrêté, et un refus se lit dans la même phrase sur chaque surface.
+
+Tenir l'écrivain dans la crate de fondation place `toml`, `toml_edit` et `sha2`
+parmi les dépendances directes d'`apollia-core`. Les trois étaient déjà des
+dépendances de l'espace de travail, et le fichier de verrouillage n'a gagné
+aucun paquet.
 
 ## Ligne de commande {#cli}
 

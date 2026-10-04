@@ -40,6 +40,7 @@ pub mod conversations;
 pub mod pause;
 pub mod plan;
 pub mod session_reads;
+mod session_route;
 mod sse;
 pub mod turns;
 pub mod user_inputs;
@@ -58,8 +59,11 @@ pub struct CreateSessionRequest {
     /// List of tool names available in this session.
     #[serde(default)]
     pub tools: Vec<String>,
-    /// Project to link this session to.
-    pub project_id: Option<String>,
+    /// The model of the session: the identifier of a language model of the
+    /// model index, `<server>/<model>` for a model of a declared server, or
+    /// the name of a backend. Absent keeps the model of the agent.
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 /// Request body for `POST /api/v1/sessions/:id/messages`.
@@ -67,6 +71,10 @@ pub struct CreateSessionRequest {
 pub struct SendMessageRequest {
     /// Text content of the user message.
     pub content: String,
+    /// Images sent after the text, for a model that reads images; at most
+    /// eight, each at most 10 MiB once decoded.
+    #[serde(default)]
+    pub images: Vec<crate::chat::images::ImageAttachment>,
 }
 
 /// Response body for `POST /api/v1/sessions/:id/messages`.
@@ -97,11 +105,6 @@ pub struct AuthorizeToolRequest {
     /// `decision == "refuse"`.
     #[serde(default)]
     pub reason: Option<String>,
-    /// Always-accept scope. Only honoured when `decision == "always_accept"`.
-    /// Defaults to [`crate::chat::AlwaysAcceptScope::ThisSession`].
-    #[serde(default)]
-    #[schema(value_type = Option<String>)]
-    pub scope: Option<crate::chat::AlwaysAcceptScope>,
 }
 
 /// Standard error response body.
@@ -175,13 +178,17 @@ pub async fn create_session<B: ExecutionBackend + Clone>(
         }
     };
 
+    let model = match body.model.filter(|m| !m.trim().is_empty()) {
+        Some(model) => Some(session_route::session_route(&state, model).await),
+        None => None,
+    };
     match manager
         .create_session(crate::chat::manager::CreateSessionParams {
             mode,
             agent_name: body.agent_name,
             system_prompt: body.system_prompt,
             tools: body.tools,
-            project_id: body.project_id,
+            model,
         })
         .await
     {
@@ -383,8 +390,10 @@ pub async fn close_session<B: ExecutionBackend + Clone>(
     request_body = SendMessageRequest,
     responses(
         (status = 202, description = "Message accepted", body = SendMessageResponse),
+        (status = 400, description = "An image is refused: too many, too large, or not decodable", body = crate::api::openapi::ApiErrorBody),
         (status = 404, description = "Session not found", body = crate::api::openapi::ApiErrorBody),
         (status = 409, description = "Session closed or busy", body = crate::api::openapi::ApiErrorBody),
+        (status = 422, description = "The model of the session does not read images", body = crate::api::openapi::ApiErrorBody),
         (status = 503, description = "Chat subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
     )
 )]
@@ -406,7 +415,14 @@ pub async fn send_message<B: ExecutionBackend + Clone>(
         }
     };
 
-    match manager.send_message(id, body.content).await {
+    let images = match crate::chat::images::decode_attachments(&body.images) {
+        Ok(images) => images,
+        Err(e) => return chat_error_to_response(e).into_response(),
+    };
+    match manager
+        .send_message_with_images(id, body.content, images)
+        .await
+    {
         Ok(message_id) => (
             StatusCode::ACCEPTED,
             Json(SendMessageResponse {
@@ -456,11 +472,7 @@ pub async fn authorize_tool<B: ExecutionBackend + Clone>(
         "refuse" => ToolDecision::Refuse {
             reason: body.reason.clone(),
         },
-        "always_accept" => ToolDecision::AlwaysAccept {
-            scope: body
-                .scope
-                .unwrap_or_else(crate::chat::AlwaysAcceptScope::safe_default),
-        },
+        "always_accept" => ToolDecision::AlwaysAccept,
         other => {
             return (
                 StatusCode::BAD_REQUEST,
@@ -719,9 +731,10 @@ fn chat_error_to_response(err: crate::chat::types::ChatError) -> (StatusCode, Js
         ChatError::NoLlmConfigured => (StatusCode::BAD_REQUEST, err.to_string()),
         ChatError::BudgetExhausted => (StatusCode::TOO_MANY_REQUESTS, err.to_string()),
         ChatError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
-        ChatError::ProjectNotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
         ChatError::NotAwaitingApproval { .. } => (StatusCode::CONFLICT, err.to_string()),
         ChatError::CostCeilingExceeded { .. } => (StatusCode::PAYMENT_REQUIRED, err.to_string()),
+        ChatError::ImagesNotSupported { .. } => (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()),
+        ChatError::ImageRejected(_) => (StatusCode::BAD_REQUEST, err.to_string()),
     };
     (status, Json(ErrorResponse { error: msg }))
 }
@@ -860,8 +873,6 @@ mod tests {
             None,
             None,
             None,
-            None,
-            None,
             apollia_mcp::session::LoadingMode::Eager,
             20,
             None, // no hooks in tests
@@ -889,8 +900,10 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            config_reload: None,
             llm_call_repository: None,
             trigger_def_repo: None,
             notification_repo: None,

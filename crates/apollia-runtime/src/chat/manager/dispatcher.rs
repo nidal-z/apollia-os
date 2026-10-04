@@ -1,21 +1,22 @@
 use super::*;
 
-/// Resolves the sandbox root for a chat session based on its project association.
+/// Builds the tool invoker of one message of a chat session, or of one agent
+/// run outside a conversation.
 ///
-/// Called once per message, inside the async tokio task spawned by `handle_send_message`.
-/// Returns a [`NativeChatToolInvoker`] configured with:
-/// - the project's `workspace_path` when the session is linked to a project;
-/// - `~/.apollia/` for free-chat sessions (no project), if that directory exists;
-/// - `None` as a last resort (bash will then inherit the process CWD).
+/// The file tools reach the folders granted to the agent and nothing else
+/// (`params.folders`): reading tools the union of them, writing tools those
+/// granted for writing. The first folder granted, by the date it was added,
+/// anchors a relative path. Neither the data directory, the home folder nor
+/// the volume is a root. An agent granted no folder has
+/// file tools that refuse with a message saying how to grant one.
 ///
-/// When `hitl` is provided, HITL filesystem support is enabled on the returned invoker.
+/// Consent for each call is decided by the agent loop, by action family, before
+/// the invoker is reached; nothing here asks the user anything.
 pub(in crate::chat::manager) async fn resolve_workspace_for_session(
     params: WorkspaceResolutionParams,
 ) -> Result<NativeChatToolInvoker, ChatError> {
     let WorkspaceResolutionParams {
-        project_id,
-        project_repo,
-        hitl,
+        folders,
         pending_user_inputs,
         mcp_handle,
         chat_tools_config,
@@ -24,19 +25,12 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
         mcp_index,
         tool_search_limit,
         package_tools,
+        sources,
+        memory_namespace,
     } = params;
     let session_id = session_id.as_str();
-    let default_workspace = chat_tools_config
-        .as_ref()
-        .and_then(|c| c.default_workspace.clone());
-    let workspace_path =
-        resolve_workspace_path(&project_id, &project_repo, default_workspace.as_deref()).await?;
-    let trusted_paths = chat_tools_config
-        .as_ref()
-        .map(|c| c.trusted_paths.clone())
-        .unwrap_or_default();
-    let mut invoker = NativeChatToolInvoker::new_unrestricted(workspace_path.clone())
-        .with_trusted_paths(trusted_paths.clone());
+    let anchor = folders.anchor().map(std::path::Path::to_path_buf);
+    let mut invoker = NativeChatToolInvoker::new_with_workspace(anchor);
     if let Some(pending) = pending_user_inputs.clone() {
         invoker = invoker.with_ask_user_support(pending, session_id);
     }
@@ -45,9 +39,7 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
     // MCP, Google connectors, read-only natives, future providers, is
     // resolved through a single `ToolDispatcher`.
     // The dispatcher applies the same governed path and audit trail as
-    // the Agent-mode pipeline. HITL-sensitive natives (file_write/edit,
-    // bash, python_executor, notebook_edit) stay in the fast path because
-    // their inline approval flow is not yet ported to events.
+    // the Agent-mode pipeline.
     let mut extra_executors: Vec<Box<dyn apollia_tools::executor::ToolExecutor>> = Vec::new();
 
     // MCP executors. Eager: one per tool registered by a connected server.
@@ -66,96 +58,41 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
     extra_executors.extend(crate::connectors_bridge::build_connector_executors().await);
     extra_executors.extend(package_tools);
 
-    // With no project open, the file tools are rooted at the user's home, not at
-    // the system temp directory. Temp made the assistant unable to reach anything
-    // the user actually owns, while protecting nothing: the trust model already
-    // states that an installed agent runs with the user's rights, and the real
-    // barrier on this path is the human approval on `file_write` / `file_edit`.
-    // It also contradicted the prompt, which tells the model it may read and write
-    // anywhere on the machine. Temp remains the last-resort fallback when the home
-    // directory cannot be resolved.
-    let sandbox_root = workspace_path
-        .clone()
-        .unwrap_or_else(apollia_core::paths::home_dir_or_temp);
-    // The anchor above is where a relative path lands, and a project stays the
-    // natural place to work. What an absolute path may reach is a separate
-    // question, and passing the anchor alone answered it far too narrowly: with
-    // a project open, every tool built here was confined to that one directory,
-    // so the assistant could not read the user's Downloads or Documents.
-    //
-    // In the same conversation, `file_write` and `file_edit` run off the fast
-    // path, built by `new_unrestricted`, and reach the whole machine. So the
-    // assistant could write anywhere and read almost nowhere. Reported on
-    // 2026-09-09, on every system.
-    let sandbox_roots = chat_sandbox_roots(&sandbox_root, &trusted_paths);
-
     // When the supervisor handed us a `ChatToolsConfig`, build the full native
     // dispatcher (same factory the Agent-mode + Triggers pipeline uses). This
     // pulls in web_search, web_read, http_fetch, memory_search and ask_user
     // with the operator's `apollia.toml` cfg.
-    // HITL-sensitive natives (bash, python_executor, file_write/edit,
-    // notebook_edit) stay disabled from the dispatcher so the fast path
-    // continues to drive their inline approval flow; migrating that flow to
-    // EventBus events is tracked separately.
     let dispatcher = if let Some(cfg) = chat_tools_config.as_ref() {
         build_full_chat_dispatcher(FullDispatcherParams {
             cfg,
             session_id,
-            sandbox_root: &sandbox_root,
-            sandbox_roots: &sandbox_roots,
-            workspace_path: &workspace_path,
+            folders: &folders,
             pending_user_inputs: &pending_user_inputs,
-            hitl: hitl.as_ref(),
             extra_executors,
+            sources,
+            memory_namespace,
         })
     } else {
-        build_fallback_chat_dispatcher(&sandbox_roots, extra_executors)
+        build_fallback_chat_dispatcher(&folders.read, extra_executors)
     };
     invoker = invoker.with_fallback_dispatcher(std::sync::Arc::new(
         apollia_tools::dispatcher_invoker::DispatcherToolInvoker::new(std::sync::Arc::new(
             dispatcher,
         )),
     ));
-    if let Some(p) = hitl {
-        Ok(invoker.with_hitl_support(p))
-    } else {
-        Ok(invoker)
-    }
+    Ok(invoker)
 }
 
-/// Resolve the sandbox root path for a chat session.
-async fn resolve_workspace_path(
-    project_id: &Option<String>,
-    project_repo: &Option<Arc<ProjectRepository>>,
-    default_workspace: Option<&std::path::Path>,
-) -> Result<Option<std::path::PathBuf>, ChatError> {
-    match project_id {
-        None => {
-            // Free chat: prefer the operator-configured default workspace
-            // (`[chat] default_workspace`), then `~/.apollia/`, so bash and file
-            // tools never silently inherit the Tauri process CWD.
-            if let Some(p) = default_workspace.filter(|p| p.is_dir()) {
-                return Ok(Some(p.to_path_buf()));
-            }
-            Ok(apollia_core::paths::data_dir().filter(|p| p.is_dir()))
-        }
-        Some(pid) => {
-            let repo = project_repo
-                .as_ref()
-                .ok_or_else(|| ChatError::ProjectNotFound(pid.clone()))?;
-            let detail = repo
-                .get_project_async(pid.clone())
-                .await
-                .map_err(|_| ChatError::ProjectNotFound(pid.clone()))?;
-            if detail.workspace_path.is_none() {
-                warn!(
-                    project_id = %pid,
-                    detail = "falling back to the process working directory",
-                    "project.workspace_path.missing"
-                );
-            }
-            Ok(detail.workspace_path.map(std::path::PathBuf::from))
-        }
+/// The access an executor checks and the folders the file tools reach, from
+/// the granted `tools` and the folders stored beside `cfg`'s data directory.
+/// Without a configuration no folder is reachable.
+pub(in crate::chat::manager) fn granted_folders(
+    tools: Vec<String>,
+    cfg: Option<&ChatToolsConfig>,
+) -> (Vec<String>, apollia_tools::FolderRoots) {
+    match cfg {
+        Some(cfg) => apollia_tools::granted_folders(tools, &cfg.data_dir),
+        None => apollia_tools::resolve_folder_access(tools, &[]),
     }
 }
 
@@ -197,23 +134,23 @@ async fn collect_mcp_executors(
 }
 
 /// Build the full chat dispatcher (every native flows through the dispatcher,
-/// HITL-sensitive natives wrapped, dynamic http_fetch).
+/// the writing and code natives re-added with their own roots, dynamic
+/// http_fetch).
 fn build_full_chat_dispatcher(
     params: FullDispatcherParams<'_>,
 ) -> apollia_tools::executor::ToolDispatcher {
     let FullDispatcherParams {
         cfg,
         session_id,
-        sandbox_roots,
-        sandbox_root,
-        workspace_path,
+        folders,
         pending_user_inputs,
-        hitl,
         mut extra_executors,
+        sources,
+        memory_namespace,
     } = params;
     // We disable the dispatcher's default versions of:
     //   - file_write / file_edit / notebook_edit / bash / python:
-    //     re-added below wrapped in `HitlFilesystemGuard`.
+    //     re-added below, rooted at the session's anchor.
     //   - http_fetch: re-added as `DynamicAllowlistHttpFetch`.
     //
     // The remaining natives (file_read/list/glob/grep, notebook_read,
@@ -240,13 +177,13 @@ fn build_full_chat_dispatcher(
     }
 
     let native_cfg = apollia_tools::NativeDispatcherConfig {
-        sandbox_roots: sandbox_roots.to_vec(),
+        sandbox_roots: folders.read.clone(),
+        write_roots: folders.write.clone(),
         agent_id: format!("apollia:chat:{session_id}"),
         venv_base_dir: cfg.data_dir.join("venvs"),
-        // Per-session memory namespace so `memory_search` reads/writes
-        // the chat session's own slice. Other namespaces could be added
-        // here as shared read-only later.
-        memory_namespace: Some(format!("apollia:chat:{session_id}")),
+        // The memory of the agent of the run; `memory_search` reads it only
+        // when that memory is checked for the agent (`sources`).
+        memory_namespace: Some(memory_namespace),
         memory_shared_namespaces: Vec::new(),
         memory_base_dir: cfg.data_dir.join("memory"),
         // Native http_fetch uses None, the wrapper below provides
@@ -260,24 +197,23 @@ fn build_full_chat_dispatcher(
         web_read_config: cfg.tools_config.web_read.clone(),
         python_interpreter: cfg.tools_config.python_interpreter.clone(),
         max_output_chars: cfg.tools_config.max_output_chars,
+        sources,
     };
 
-    // Wrap the HITL-sensitive natives with the approval-flow guard. The
-    // disabled set is handed down because these executors are re-added after
-    // `build_dispatcher_with` was told to drop them: without the filter, a
-    // disabled `bash_executor` came straight back through this door.
-    if let Some(p) = hitl {
-        push_hitl_natives(
-            &mut extra_executors,
-            HitlNativesParams {
-                hitl: p,
-                workspace_path,
-                sandbox_root,
-                venv_base_dir: &native_cfg.venv_base_dir,
-                disabled: &effective_disabled,
-            },
-        );
-    }
+    // Re-add the writing and code natives. Their consent is the family
+    // decision of the loop, on the same card as every other tool; no second
+    // prompt sits in front of them. The disabled set is handed down because
+    // these executors are re-added after `build_dispatcher_with` was told to
+    // drop them: without the filter, a disabled `bash_executor` came straight
+    // back through this door.
+    push_writing_natives(
+        &mut extra_executors,
+        WritingNativesParams {
+            folders,
+            venv_base_dir: &native_cfg.venv_base_dir,
+            disabled: &effective_disabled,
+        },
+    );
 
     // Dynamic-allowlist http_fetch (preserves the per-call host
     // injection that the legacy fast path did). Same re-add caveat as above.
@@ -295,28 +231,18 @@ fn build_full_chat_dispatcher(
 ///
 /// Either source deactivates the tool, which is the contract
 /// `ToolsConfig::disabled` states and the contract the agent-mode runners
-/// already honour. The snapshot is read here rather than at boot so a tool
+/// already honour. The state is read here rather than at boot so a tool
 /// disabled mid-session takes effect on the next message, without a restart.
-/// An unreadable governance database leaves every tool enabled, the same
-/// tolerance the other runners apply.
+/// A governance database that stops being readable keeps the tools it last
+/// disabled switched off, and the decision of every sensitive call refuses
+/// it: an unreadable database never re-enables a tool.
 pub(in crate::chat::manager) fn effective_disabled_tools(cfg: &ChatToolsConfig) -> Vec<String> {
-    let mut disabled = match apollia_tools::load_governance_snapshot(&cfg.data_dir) {
-        Ok(snapshot) => snapshot.disabled_tools,
-        Err(e) => {
-            warn!(
-                error = %e,
-                detail = "every tool stays enabled",
-                "tools.governance.unavailable"
-            );
-            Vec::new()
-        }
-    };
-    for name in &cfg.tools_config.disabled {
-        if !disabled.iter().any(|d| d == name) {
-            disabled.push(name.clone());
-        }
-    }
-    disabled
+    crate::governance::tool_gate(
+        cfg.governance.as_ref(),
+        &cfg.data_dir,
+        &cfg.tools_config.disabled,
+    )
+    .disabled_tools
 }
 
 /// Virtualenv shared by every chat session's `python_executor`.
@@ -327,98 +253,54 @@ pub(in crate::chat::manager) fn effective_disabled_tools(cfg: &ChatToolsConfig) 
 /// other, and the interpreter is created once on the first execution.
 const CHAT_VENV_ID: &str = "apollia-chat";
 
-/// Inputs of [`push_hitl_natives`], grouped so the function stays inside the
-/// workspace's argument budget.
-struct HitlNativesParams<'a> {
-    hitl: &'a HitlInvokerParams,
-    workspace_path: &'a Option<std::path::PathBuf>,
-    sandbox_root: &'a std::path::Path,
+/// Inputs of [`push_writing_natives`], grouped so the function stays inside
+/// the workspace's argument budget.
+struct WritingNativesParams<'a> {
+    /// The folders granted to the agent: the writing tools reach those
+    /// granted for writing.
+    folders: &'a apollia_tools::FolderRoots,
     venv_base_dir: &'a std::path::Path,
     /// Effective disabled set (operator plus governance): a native named here
     /// is not re-added at all.
     disabled: &'a [String],
 }
 
-/// Wrap and append the HITL-sensitive native executors (file write/edit,
-/// notebook edit, bash, python) behind the filesystem approval guard.
-fn push_hitl_natives(
+/// Append the natives that write files or run code (file write/edit, notebook
+/// edit, bash, python).
+fn push_writing_natives(
     extra_executors: &mut Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
-    params: HitlNativesParams<'_>,
+    params: WritingNativesParams<'_>,
 ) {
-    let HitlNativesParams {
-        hitl: p,
-        workspace_path,
-        sandbox_root,
+    let WritingNativesParams {
+        folders,
         venv_base_dir,
         disabled,
     } = params;
     let is_active = |name: &str| !disabled.iter().any(|d| d == name);
-    let hitl_ctx = crate::chat::native_wrappers::HitlFilesystemContext {
-        event_bus: p.event_bus.clone(),
-        pending_fs: p.pending_fs.clone(),
-        fs_allow_rules: p.fs_allow_rules.clone(),
-        session_id: p.session_id.clone(),
-        workspace_path: workspace_path.clone(),
-        trusted_paths: p.trusted_paths.clone(),
-        sandbox_root: sandbox_root.to_path_buf(),
-        risk_config: p.risk_config.clone(),
-    };
 
-    let push_hitl = |execs: &mut Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
-                     inner: Box<dyn apollia_tools::executor::ToolExecutor>,
-                     op: apollia_tools::FilesystemOp| {
-        execs.push(Box::new(
-            crate::chat::native_wrappers::HitlFilesystemGuard::new(inner, op, hitl_ctx.clone()),
-        ));
-    };
-
-    if is_active("file_write") {
-        if let Ok(t) = apollia_tools::tools::file_write::FileWrite::new(sandbox_root.to_path_buf())
-        {
-            push_hitl(
-                extra_executors,
-                Box::new(t),
-                apollia_tools::FilesystemOp::Write,
-            );
+    // The writing tools reach the folders granted for writing; with none,
+    // they refuse every call with a message saying how to grant one.
+    for name in apollia_tools::folder_access::FOLDER_WRITE_TOOLS {
+        if !is_active(name) {
+            continue;
         }
-    }
-    if is_active("file_edit") {
-        if let Ok(t) = apollia_tools::tools::file_edit::FileEdit::new(sandbox_root.to_path_buf()) {
-            push_hitl(
-                extra_executors,
-                Box::new(t),
-                apollia_tools::FilesystemOp::Write,
-            );
-        }
-    }
-    if is_active("notebook_edit") {
-        if let Ok(t) =
-            apollia_tools::tools::notebook_edit::NotebookEdit::new(sandbox_root.to_path_buf())
-        {
-            push_hitl(
-                extra_executors,
-                Box::new(t),
-                apollia_tools::FilesystemOp::Write,
-            );
+        if folders.write.is_empty() {
+            extra_executors.push(Box::new(apollia_tools::NoFolderGranted::new(name)));
+        } else if let Some(tool) = writing_tool(name, folders.write.clone()) {
+            extra_executors.push(tool);
         }
     }
     if is_active("bash_executor") {
-        push_hitl(
-            extra_executors,
-            Box::new(apollia_tools::tools::bash_executor::BashExecutor::new()),
-            apollia_tools::FilesystemOp::Write,
-        );
+        extra_executors.push(Box::new(
+            apollia_tools::tools::bash_executor::BashExecutor::new(),
+        ));
     }
     if is_active("python_executor") {
         match apollia_tools::tools::python_executor::PythonExecutor::new(
             CHAT_VENV_ID,
             venv_base_dir,
         ) {
-            Ok(t) => push_hitl(
-                extra_executors,
-                Box::new(t),
-                apollia_tools::FilesystemOp::Write,
-            ),
+            Ok(t) => extra_executors.push(Box::new(t)),
             // A host with no Python 3 must hear why. Dropping the executor here
             // left the descriptor advertised to the model and the call answered
             // with UnknownTool, which reads as a wiring bug rather than a missing
@@ -431,57 +313,21 @@ fn push_hitl_natives(
     }
 }
 
-/// What the chat's file tools may reach, anchor first.
-///
-/// The anchor decides where a relative path lands and stays the workspace. The
-/// entries after it only widen what an absolute path may reach, which is what
-/// lets the assistant open a file the user names by its real path.
-///
-/// The volume of the anchor is included rather than a bare `/`: on Windows that
-/// is the drive, which puts Downloads and Documents in reach without having to
-/// enumerate the mounted volumes, and on Unix it is the filesystem root. The
-/// home directory and the configured trusted paths follow, so a home on another
-/// volume and an operator's own entries are covered too.
-///
-/// This is not a widening of the trust model, it is the removal of an
-/// inconsistency: `file_write` on the fast path already reaches the whole
-/// machine, and the human approval on write is the barrier the design names.
-fn chat_sandbox_roots(
-    anchor: &std::path::Path,
-    trusted: &[std::path::PathBuf],
-) -> Vec<std::path::PathBuf> {
-    let mut roots = vec![anchor.to_path_buf()];
-    if let Some(volume) = volume_root(anchor) {
-        roots.push(volume);
-    }
-    roots.push(apollia_core::paths::home_dir_or_temp());
-    roots.extend(
-        trusted
-            .iter()
-            .filter(|p| !p.as_os_str().is_empty())
-            .cloned(),
-    );
-    roots.dedup();
-    roots
-}
-
-/// The volume a path sits on: `/` on Unix, `C:\` and its siblings on Windows.
-///
-/// Returns `None` for a relative path, which has no volume to speak of.
-fn volume_root(path: &std::path::Path) -> Option<std::path::PathBuf> {
-    use std::path::Component;
-    let mut root = std::path::PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::Prefix(prefix) => root.push(prefix.as_os_str()),
-            Component::RootDir => {
-                root.push(component.as_os_str());
-                return Some(root);
-            }
-            _ => break,
-        }
-    }
-    None
+/// The writing file tool `name`, rooted at `roots`; `None` when it cannot be
+/// built.
+fn writing_tool(
+    name: &str,
+    roots: Vec<std::path::PathBuf>,
+) -> Option<Box<dyn apollia_tools::executor::ToolExecutor>> {
+    use apollia_tools::executor::ToolExecutor;
+    use apollia_tools::tools::{file_edit::FileEdit, file_write::FileWrite};
+    let tool: Box<dyn ToolExecutor> = match name {
+        "file_write" => Box::new(FileWrite::new(roots).ok()?),
+        "file_edit" => Box::new(FileEdit::new(roots).ok()?),
+        "notebook_edit" => Box::new(apollia_tools::NotebookEdit::new(roots).ok()?),
+        _ => return None,
+    };
+    Some(tool)
 }
 
 /// Build the fallback dispatcher used when no `ChatToolsConfig` was provided
@@ -517,7 +363,6 @@ pub(in crate::chat::manager) fn session_to_info(session: &ChatSession) -> Sessio
         status: session.status.clone(),
         created_at: session.created_at.clone(),
         title: session.title.clone(),
-        project_id: session.project_id.clone(),
     }
 }
 
@@ -529,89 +374,6 @@ pub(in crate::chat::manager) fn now_rfc3339() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_project_anchors_relative_paths_without_confining_absolute_ones() {
-        // GIVEN a workspace directory, which is what the desktop opens by
-        // default, and no operator trusted path
-        let workspace = std::env::temp_dir().join("apollia-roots-anchor");
-        std::fs::create_dir_all(&workspace).expect("the workspace is created");
-
-        // WHEN the roots of the chat file tools are built from it
-        let roots = chat_sandbox_roots(&workspace, &[]);
-
-        // THEN the workspace comes first, so a relative path still lands in the
-        // project, and the volume follows, so an absolute path elsewhere is
-        // reachable. Passing the workspace alone confined every read-only tool
-        // to it while file_write, built on the fast path, reached the whole
-        // machine.
-        assert_eq!(roots.first(), Some(&workspace));
-        assert!(roots.len() > 1, "roots were {roots:?}");
-        let outside = std::env::temp_dir().join("apollia-roots-outside.txt");
-        let sandbox = apollia_tools::SandboxRoot::new(roots).expect("the roots are usable");
-        let resolved = sandbox.resolve(&outside.to_string_lossy());
-        assert!(
-            resolved.is_ok(),
-            "a path outside the project was refused: {resolved:?}"
-        );
-
-        // AND the control, so this test cannot pass by accident: the anchor on
-        // its own, which is what was passed before, refuses that same path.
-        let anchor_only =
-            apollia_tools::SandboxRoot::new(workspace.clone()).expect("the anchor alone is usable");
-        assert!(
-            anchor_only.resolve(&outside.to_string_lossy()).is_err(),
-            "the anchor alone should refuse, or this test proves nothing"
-        );
-        let _ = std::fs::remove_dir_all(&workspace);
-    }
-
-    #[test]
-    fn an_operator_trusted_path_on_another_volume_is_kept() {
-        // GIVEN a trusted path the operator named in apollia.toml
-        let workspace = std::env::temp_dir().join("apollia-roots-trusted");
-        let trusted = vec![std::path::PathBuf::from("/opt/apollia-elsewhere")];
-
-        // WHEN the roots are built
-        let roots = chat_sandbox_roots(&workspace, &trusted);
-
-        // THEN the operator's entry survives, since a volume it does not sit on
-        // would otherwise drop it
-        assert!(roots.contains(&trusted[0]), "roots were {roots:?}");
-    }
-
-    #[test]
-    fn a_relative_anchor_contributes_no_volume() {
-        // GIVEN a path with no volume to speak of
-        let relative = std::path::Path::new("some/where");
-
-        // WHEN its volume is asked for
-        let volume = volume_root(relative);
-
-        // THEN none is claimed, rather than a root that would silently widen
-        // the reachable surface to everything
-        assert!(volume.is_none());
-    }
-
-    /// HITL parameters that approve every filesystem risk level up front, so a
-    /// test never waits on an approval nobody will answer.
-    fn preapproved_hitl(session_id: &str) -> HitlInvokerParams {
-        let (event_bus, _rx) = crate::eventbus::EventBus::new();
-        let fs_allow_rules = std::sync::Arc::new(std::sync::Mutex::new(
-            ["write:medium", "write:high", "write:critical"]
-                .iter()
-                .map(|s| (*s).to_string())
-                .collect::<std::collections::HashSet<String>>(),
-        ));
-        HitlInvokerParams {
-            session_id: session_id.to_string(),
-            event_bus,
-            pending_fs: crate::chat::types::PendingFilesystemApprovals::new(),
-            fs_allow_rules,
-            risk_config: apollia_core::FilesystemRiskConfig::default(),
-            trusted_paths: Vec::new(),
-        }
-    }
 
     /// Returns `true` if the platform can actually execute code through the
     /// python executor's sandbox. On Linux without `CAP_SYS_ADMIN` (e.g.
@@ -630,14 +392,22 @@ mod tests {
         }
     }
 
+    /// A folder granted to read and to write.
+    fn folders_at(path: &std::path::Path) -> apollia_tools::FolderRoots {
+        apollia_tools::FolderRoots {
+            read: vec![path.to_path_buf()],
+            write: vec![path.to_path_buf()],
+        }
+    }
+
     fn chat_tools_config(data_dir: &std::path::Path) -> std::sync::Arc<ChatToolsConfig> {
         std::sync::Arc::new(ChatToolsConfig {
             data_dir: data_dir.to_path_buf(),
             brave_api_key: None,
             tools_config: apollia_core::ToolsConfig::default(),
-            default_workspace: None,
             tool_turn_temperature: None,
-            trusted_paths: Vec::new(),
+            source_registry: None,
+            governance: None,
         })
     }
 
@@ -656,16 +426,14 @@ mod tests {
         let data_dir = tempfile::tempdir().expect("tempdir");
         let sandbox = tempfile::tempdir().expect("tempdir");
         let cfg = chat_tools_config(data_dir.path());
-        let hitl = preapproved_hitl("session-under-test");
         let dispatcher = build_full_chat_dispatcher(FullDispatcherParams {
             cfg: &cfg,
             session_id: "session-under-test",
-            sandbox_root: sandbox.path(),
-            sandbox_roots: &[sandbox.path().to_path_buf()],
-            workspace_path: &None,
+            folders: &folders_at(sandbox.path()),
             pending_user_inputs: &None,
-            hitl: Some(&hitl),
             extra_executors: Vec::new(),
+            sources: apollia_tools::SourceAccess::default(),
+            memory_namespace: "apollia".to_owned(),
         });
 
         // WHEN
@@ -700,6 +468,43 @@ mod tests {
         );
     }
 
+    // GIVEN the dispatcher a chat session really gets, with no project open and
+    //       no trusted path, where a write used to be classified by risk
+    // WHEN file_write is dispatched on the conversation path
+    // THEN the file is written at once: its consent was the family card of
+    //      the loop, and no prompt of its own sits in front of the executor
+    #[tokio::test]
+    async fn test_chat_dispatcher_writes_without_a_prompt_of_its_own() {
+        // GIVEN
+        let data_dir = tempfile::tempdir().expect("tempdir");
+        let sandbox = tempfile::tempdir().expect("tempdir");
+        let cfg = chat_tools_config(data_dir.path());
+        let dispatcher = build_full_chat_dispatcher(FullDispatcherParams {
+            cfg: &cfg,
+            session_id: "session-under-test",
+            folders: &folders_at(sandbox.path()),
+            pending_user_inputs: &None,
+            extra_executors: Vec::new(),
+            sources: apollia_tools::SourceAccess::default(),
+            memory_namespace: "apollia".to_owned(),
+        });
+
+        // WHEN
+        let result = dispatcher
+            .dispatch(
+                "file_write",
+                serde_json::json!({ "path": "note.txt", "content": "hello" }),
+            )
+            .await;
+
+        // THEN
+        assert!(result.is_ok(), "file_write failed: {result:?}");
+        assert_eq!(
+            std::fs::read_to_string(sandbox.path().join("note.txt")).expect("written"),
+            "hello"
+        );
+    }
+
     /// Switch `tools` off in the governance database of `data_dir`, the way
     /// `apollia-os tools disable` and the desktop tool page write them.
     fn disable_in_governance(data_dir: &std::path::Path, tools: &[&str]) {
@@ -713,7 +518,7 @@ mod tests {
     }
 
     // GIVEN a data directory whose governance database carries a plain native,
-    //       a HITL-wrapped native and the http_fetch wrapper switched off
+    //       a re-added code native and the http_fetch wrapper switched off
     // WHEN the dispatcher a chat session really gets is built over it
     // THEN none of the three is registered, while an untouched native still is
     #[tokio::test]
@@ -726,18 +531,16 @@ mod tests {
             &["file_read", "bash_executor", "http_fetch"],
         );
         let cfg = chat_tools_config(data_dir.path());
-        let hitl = preapproved_hitl("session-under-test");
 
         // WHEN
         let dispatcher = build_full_chat_dispatcher(FullDispatcherParams {
             cfg: &cfg,
             session_id: "session-under-test",
-            sandbox_root: sandbox.path(),
-            sandbox_roots: &[sandbox.path().to_path_buf()],
-            workspace_path: &None,
+            folders: &folders_at(sandbox.path()),
             pending_user_inputs: &None,
-            hitl: Some(&hitl),
             extra_executors: Vec::new(),
+            sources: apollia_tools::SourceAccess::default(),
+            memory_namespace: "apollia".to_owned(),
         });
 
         // THEN
@@ -754,8 +557,7 @@ mod tests {
         );
     }
 
-    // GIVEN a governance database with `bash_executor` switched off, and HITL
-    //       parameters that would have approved the call
+    // GIVEN a governance database with `bash_executor` switched off
     // WHEN bash_executor is dispatched on the conversation path
     // THEN the call is refused as an unknown tool instead of running
     #[tokio::test]
@@ -765,16 +567,14 @@ mod tests {
         let sandbox = tempfile::tempdir().expect("tempdir");
         disable_in_governance(data_dir.path(), &["bash_executor"]);
         let cfg = chat_tools_config(data_dir.path());
-        let hitl = preapproved_hitl("session-under-test");
         let dispatcher = build_full_chat_dispatcher(FullDispatcherParams {
             cfg: &cfg,
             session_id: "session-under-test",
-            sandbox_root: sandbox.path(),
-            sandbox_roots: &[sandbox.path().to_path_buf()],
-            workspace_path: &None,
+            folders: &folders_at(sandbox.path()),
             pending_user_inputs: &None,
-            hitl: Some(&hitl),
             extra_executors: Vec::new(),
+            sources: apollia_tools::SourceAccess::default(),
+            memory_namespace: "apollia".to_owned(),
         });
 
         // WHEN
@@ -795,3 +595,9 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod folder_tests;
+
+#[cfg(test)]
+mod fail_closed_tests;

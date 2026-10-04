@@ -123,7 +123,7 @@ export function installChatShortcuts(bindings: ShortcutBinding[]): () => void {
 
 /**
  * Translate a binding to the lightweight `Shortcut` shape consumed by
- * `ShortcutsHelpDialog`. Pure helper - no side effects.
+ * the `?` shortcuts overlay. Pure helper - no side effects.
  */
 export function describeBinding(binding: ShortcutBinding): Shortcut {
   return {

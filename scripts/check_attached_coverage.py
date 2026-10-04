@@ -98,8 +98,12 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # packages were installed, listed and uninstalled through the daemon, then at
 # 30 once the companion read its preference and opened its guide session
 # through the daemon, then at 29 once the uninstall of an agent went through
-# the runtime.
-EMBEDDED_ONLY_CEILING = 29
+# the runtime, then at 8 once the commands of the former projects, served by
+# the embedded runtime alone, left with their screen, then at 5 once the update
+# of an agent, the deletion of a stored task and its delegation tree had their
+# routes, then at 4 once the read-only view of the configuration gave way to
+# its editor, which goes through the configuration routes.
+EMBEDDED_ONLY_CEILING = 4
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

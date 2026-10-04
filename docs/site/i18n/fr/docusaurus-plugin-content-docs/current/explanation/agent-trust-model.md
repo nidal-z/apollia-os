@@ -62,9 +62,10 @@ qu'Apollia confine :
 Tous les autres outils s'exécutent sans confinement dans le processus
 runtime. Les outils de système de fichiers sont bornés par une vérification
 de préfixe de chemin : une racine canonicalisée qu'ils refusent de quitter,
-échappatoires par lien symbolique incluses. Cette racine est l'espace de
-travail dans une session de chat, et **le répertoire personnel entier de
-l'utilisateur** pour un agent installé. Les outils réseau sont bornés par une
+échappatoires par lien symbolique incluses. Cette racine est **l'union des
+dossiers accordés à l'agent**, dans une session de chat comme pour un agent
+installé ; un agent sans dossier accordé n'en atteint aucun. Les outils réseau
+sont bornés par une
 liste d'autorisation (allowlist) au niveau applicatif. Ni l'une ni l'autre
 n'est une frontière du système d'exploitation.
 
@@ -93,10 +94,11 @@ profondeur.
   droits de l'utilisateur et sans sandbox.
 - **Approbation humaine (HITL).** Dans une session de chat, les écritures de
   fichiers, les modifications, ainsi que l'exécution shell et Python passent
-  par un wrapper d'approbation dont la décision par défaut est de demander :
-  l'action remonte à l'opérateur plutôt que de s'exécuter silencieusement.
+  par la décision de consentement de la boucle de l'agent, qui demande par
+  défaut : l'action remonte à l'opérateur sur la carte d'approbation plutôt que
+  de s'exécuter silencieusement.
   <!-- claim:hitl-wired-in-chat-path-only -->
-  **Ce wrapper n'est pas placé sur le dispatcher d'un agent installé.** Les
+  **Cette décision n'est pas placée sur le dispatcher d'un agent installé.** Les
   propres appels `ctx.tools` d'un agent ne rencontrent aucun point de
   contrôle humain, ce qui est cohérent avec le reste de cette page : un
   agent exécute déjà du code Python arbitraire sous votre compte, donc une

@@ -237,13 +237,22 @@ else
     skip "agent without code" "agents.db has no agents table to write the agent into"
 fi
 
+# ── decisions waiting for the user ──────────────────────────────────────────
+# Nothing in the seed waits for a decision: no paused task, no batch, no
+# conversation running. The list is empty and the command succeeds.
+section "approvals"
+check_json_field "approvals pending --json holds no item" "len(d['items'])" 0 "${Q[@]}" approvals pending --json
+check         "approvals pending (empty)"                    "${Q[@]}" approvals pending
+
 # ── batches ─────────────────────────────────────────────────────────────────
-# The batch engine runs in the daemon. The seed holds no batch, and no source
-# reader is registered yet: a launch on any source type is refused with 1
-# before anything is recorded, and the list stays empty.
+# The batch engine runs in the daemon. The seed holds no batch. It reads
+# workbooks (`spreadsheet`) and CSV files (`csv`): a launch on another source
+# type, or on a file that is not there, is refused with 1 before anything is
+# recorded, and the list stays empty.
 section "batches"
 check_json_field "batch list --json holds no batch" "len(d['batches'])" 0 "${Q[@]}" batch list --json
-check_exit    "batch run unknown source type → 1" 1  "${Q[@]}" batch run apollia-chat --source-type spreadsheet --source /data/requests.xlsx
+check_exit    "batch run unknown source type → 1" 1  "${Q[@]}" batch run apollia-chat --source-type mailbox --source /data/inbox
+check_exit    "batch run missing workbook → 1"    1  "${Q[@]}" batch run apollia-chat --source-type spreadsheet --source /data/requests.xlsx
 check_exit    "batch status unknown → 1"          1  "${Q[@]}" batch status 00000000-0000-0000-0000-000000000000
 check_exit    "batch stop unknown → 1"            1  "${Q[@]}" batch stop 00000000-0000-0000-0000-000000000000
 check_exit    "batch retry unknown → 1"           1  "${Q[@]}" batch retry 00000000-0000-0000-0000-000000000000

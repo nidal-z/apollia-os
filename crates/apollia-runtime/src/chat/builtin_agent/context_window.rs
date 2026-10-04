@@ -44,7 +44,7 @@ impl BuiltInChatAgent {
         ChatAgentResponse {
             content,
             tool_calls: acc.all_tool_calls,
-            newly_authorized: acc.newly_authorized,
+            newly_authorized: Vec::new(),
             tokens_used: total_usage,
             thinking_trace: None,
             reasoning_boundaries: Vec::new(),

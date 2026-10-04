@@ -1,9 +1,10 @@
-//! Governance in force when no policy is deposited.
+//! Governance that allows everything, for the tests that need a contract
+//! without the actor behind it.
 
 use crate::audit_journal::AuditJournalHandle;
 use crate::governance::contract::{
-    AccessCall, AccessDecision, DeclaredAccess, EffectiveAccess, GovernanceContract,
-    GovernanceError, InstallSubject,
+    AccessCall, AccessDecision, DecisionReason, DeclaredAccess, EffectiveAccess,
+    GovernanceContract, GovernanceError, InstallSubject,
 };
 use crate::governance::record::{GovernanceEvent, GovernanceRecord};
 
@@ -39,7 +40,9 @@ impl GovernanceContract for NoPolicyGovernance {
     }
 
     fn decide(&self, _call: &AccessCall<'_>) -> AccessDecision {
-        AccessDecision::Allowed
+        AccessDecision::Allowed {
+            reason: DecisionReason::NoConsentNeeded,
+        }
     }
 
     fn signature_required(&self, _subject: &InstallSubject<'_>) -> bool {
@@ -130,11 +133,17 @@ mod tests {
                 agent_id: "a1",
                 access_id: "bash_executor",
                 argument: Some("rm -rf /tmp/x"),
+                family: apollia_tools::ActionFamily::ExecuteCode,
+                unattended: false,
+                granted_for_run: false,
             },
             AccessCall {
                 agent_id: "a1",
                 access_id: "web_search",
                 argument: None,
+                family: apollia_tools::ActionFamily::Read,
+                unattended: false,
+                granted_for_run: false,
             },
         ];
 
@@ -142,7 +151,7 @@ mod tests {
             // WHEN deciding a call
             let decision = gov.decide(&call);
             // THEN it is allowed
-            assert_eq!(decision, AccessDecision::Allowed);
+            assert!(decision.is_allowed());
         }
         journal.shutdown().await;
         tokio::fs::remove_file(&path).await.ok();

@@ -21,7 +21,9 @@
 //! the `[server] enabled` and `[server] port` settings of `apollia.toml`,
 //! resolved through [`apollia_core::config::resolve_setting`]; starting and
 //! stopping it writes `enabled`, so a runtime that restarts opens the listener
-//! again if it was open.
+//! again if it was open. The `[server] cors` setting, off by default, lets a web
+//! page of another origin call the server (see the `cors` module); it is read
+//! each time the listener opens.
 //!
 //! When `[server] require_auth` is on, every request must present a token of
 //! the server (`apo_...`), created, listed and revoked through the native API
@@ -46,6 +48,7 @@
 
 mod actor;
 mod auth;
+mod cors;
 mod errors;
 mod logs;
 mod models;

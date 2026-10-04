@@ -6,7 +6,6 @@
 // string so the route can humanize it (`reportError`) instead of hiding it.
 
 import { invoke } from "@tauri-apps/api/core";
-import type { AlwaysScope } from "$lib/components/operator/HITLCard.svelte";
 import type {
   AskUserAnswer,
   NotificationChannel,
@@ -95,7 +94,6 @@ export interface AuthorizeChatToolArgs {
   toolName: string;
   decision: "accept" | "refuse" | "always_accept";
   reason?: string | null;
-  scope?: AlwaysScope;
 }
 
 /** Resolves a suspended chat tool call (accept / refuse / always-accept). */
@@ -117,18 +115,4 @@ export async function respondUserInputRejected(
   reason: string,
 ): Promise<void> {
   return invoke<void>("respond_user_input_rejected", { requestId, reason });
-}
-
-/** Operator verdict on a suspended filesystem operation (HITL). */
-export type HitlFilesystemDecision =
-  | { decision: "approve" }
-  | { decision: "deny"; reason: string | null }
-  | { decision: "always_allow"; op: string; level: string; scope: string };
-
-/** Resolves a suspended filesystem HITL request. */
-export async function respondHitlFilesystem(
-  requestId: string,
-  decision: HitlFilesystemDecision,
-): Promise<void> {
-  return invoke<void>("respond_hitl_filesystem", { requestId, decision });
 }

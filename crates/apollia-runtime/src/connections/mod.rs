@@ -4,8 +4,8 @@
 //! reached over IMAP, an MCP server, or a folder of this machine. Each kind
 //! keeps its own store, which this module reads without migrating: `mcp.db`
 //! for the MCP servers, the account index of [`apollia_auth`] for the native
-//! accounts, `imap-accounts.json` for the mailboxes. Folders have no store
-//! yet, and [`folder_connections`] answers none.
+//! accounts, `imap-accounts.json` for the mailboxes, `system.db` for the
+//! folders (see [`folders`]).
 //!
 //! Two attributes are computed here and never entered by anyone:
 //!
@@ -19,9 +19,12 @@
 //!   declares classify its tools, they never pre-authorise one.
 
 mod assemble;
+pub mod folder_import;
+pub mod folders;
 mod packages;
 
 pub use assemble::{assemble, ConnectionSources, NativeAccounts};
+pub use folders::{folder_connection, folder_connection_id, folder_connections, folder_id_of};
 pub use packages::package_connection_names;
 
 use apollia_mcp::Provenance;
@@ -56,6 +59,9 @@ pub enum ConnectionState {
     Unavailable,
     /// Declared, and not started (disabled, or not yet connected).
     Stopped,
+    /// Forbidden by the organisation policy since the last start: not started,
+    /// its tools neither offered nor run, never deleted.
+    ForbiddenByPolicy,
 }
 
 /// One tool a connection brings.
@@ -80,7 +86,7 @@ pub struct ConnectionTool {
 #[serde(rename_all = "camelCase")]
 pub struct Connection {
     /// Stable identifier: `mcp:<server>`, `native:<provider>:<account>`,
-    /// `imap:<address>`.
+    /// `imap:<address>`, `folder:<id>`.
     pub id: String,
     /// Kind of connection.
     pub kind: ConnectionKind,
@@ -88,6 +94,9 @@ pub struct Connection {
     pub label: String,
     /// Account the connection acts as, when it has one.
     pub account: Option<String>,
+    /// Folder of this machine the connection opens, for a folder.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
     /// Where the connection was found before it was added.
     #[schema(value_type = String)]
     pub provenance: Provenance,
@@ -143,12 +152,6 @@ pub fn is_remote_host(host: &str) -> bool {
         host.to_owned()
     };
     !apollia_core::net::is_loopback_host_str(&format!("http://{host}/"))
-}
-
-/// Folder connections. Their store does not exist yet; none is answered.
-#[must_use]
-pub fn folder_connections() -> Vec<Connection> {
-    Vec::new()
 }
 
 #[cfg(test)]

@@ -8,7 +8,6 @@
   import { t } from "svelte-i18n";
   import { Inbox as InboxIcon } from "lucide-svelte";
   import { EmptyState, FilterChipBar, SkeletonList } from "$lib/components/operator";
-  import type { AlwaysScope } from "$lib/components/operator/HITLCard.svelte";
   import { Select } from "$lib/components/ui/select";
   import InboxPendingList from "./InboxPendingList.svelte";
   import InboxHistoryList from "./InboxHistoryList.svelte";
@@ -33,7 +32,7 @@
     onToggleExpand: (item: InboxItem) => void;
     onApprove: (item: InboxItem) => void;
     onReject: (item: InboxItem) => void;
-    onAlwaysAccept: (item: InboxItem, scope: AlwaysScope) => void;
+    onAlwaysAccept: (item: InboxItem) => void;
     onRespondAskUser: (item: InboxItem, answers: AskUserAnswer[]) => void;
     onRejectAskUser: (item: InboxItem, reason: string) => void;
     onOpenChat: (sessionId: string) => void;

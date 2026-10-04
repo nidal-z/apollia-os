@@ -91,7 +91,6 @@ ASYNC_TRAIT_TRAITS = {
     "crates/apollia-notifications/src/engine.rs::NotificationChannel",
     "crates/apollia-oria/src/actor.rs::ToolProxyTrait",
     "crates/apollia-runtime/src/chat/agent_chat.rs::ChatAgentRunner",
-    "crates/apollia-runtime/src/chat/types.rs::ProjectContextProvider",
     "crates/apollia-tools/src/tools/web_search/backend.rs::SearchBackend",
 }
 
@@ -138,7 +137,6 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-desktop/src/backend/factory.rs": 2,
     "crates/apollia-desktop/src/backend/runner.rs": 1,
     "crates/apollia-desktop/src/commands/agents.rs": 1,
-    "crates/apollia-desktop/src/commands/agents/lifecycle.rs": 1,
     "crates/apollia-desktop/src/commands/llm.rs": 1,
     "crates/apollia-desktop/src/commands/model_hub.rs": 1,
     "crates/apollia-desktop/src/commands/stt.rs": 2,
@@ -161,14 +159,11 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-runtime/src/api/routes_triggers/support.rs": 1,
     "crates/apollia-runtime/src/api/server.rs": 14,
     "crates/apollia-runtime/src/chat/agent_executor.rs": 1,
-    "crates/apollia-runtime/src/chat/builtin_agent/invoker.rs": 2,
     "crates/apollia-runtime/src/chat/builtin_agent/mod.rs": 2,
     "crates/apollia-runtime/src/chat/extractor.rs": 4,
     "crates/apollia-runtime/src/chat/manager/handle.rs": 1,
     "crates/apollia-runtime/src/chat/manager/mod.rs": 2,
-    "crates/apollia-runtime/src/chat/native_wrappers.rs": 1,
-    "crates/apollia-runtime/src/chat/types.rs": 1,
-    "crates/apollia-runtime/src/chat/types/approvals.rs": 2,
+    "crates/apollia-runtime/src/chat/types/approvals.rs": 1,
     "crates/apollia-runtime/src/embedded.rs": 3,
     "crates/apollia-runtime/src/llama_server/mod.rs": 4,
     "crates/apollia-runtime/src/observability/resilience_subscriber.rs": 1,
@@ -361,6 +356,11 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # test, never a port released. The reasoning tests of the same server
     # borrow that helper for the engine that answers their recorded replies.
     "crates/apollia-runtime/src/compat_server/relay_tests.rs": 1,
+    # The file on disk is the subject: a valid apollia.toml written by another
+    # editor has to reach the running runtime through the folder watch. One
+    # test, two sites: the wait while the watch is armed, and the poll for the
+    # section it applies.
+    "crates/apollia-runtime/src/config_reload/tests.rs": 2,
     "crates/apollia-runtime/src/hooks/executor.rs": 7,
     # The process is the subject: unloading a resident model has to stop its
     # child, and `kill -0` on the pid is the one observable left once the
@@ -389,6 +389,16 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-runtime/src/session_metrics.rs": 1,
     "crates/apollia-runtime/src/supervisor/tests.rs": 21,
     "crates/apollia-runtime/src/test_support.rs": 4,
+    # The clock is the subject: the watcher of the paused tasks scans on a
+    # timer, and a saved timeout has to start a scan at once rather than at
+    # the next tick. One poll of the task store for the cancellation.
+    "crates/apollia-runtime/src/timeout_watcher.rs": 1,
+    # The file system is the subject: the index of a source follows a file
+    # added, rewritten and deleted with no request, so the only observable is
+    # the index once the watch has delivered. One bounded wait, one poll
+    # interval inside it; every other test of the indexer asks for its pass
+    # and awaits the reply.
+    "crates/apollia-sources/src/indexer/tests.rs": 2,
     "crates/apollia-tools/src/executor.rs": 1,
     "crates/apollia-tools/src/file_path_extractor.rs": 2,
     "crates/apollia-tools/src/journal.rs": 2,
@@ -398,6 +408,11 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-tools/src/tools/web_read/mod.rs": 1,
     "crates/apollia-tools/src/tools/web_search/brave.rs": 1,
     "crates/apollia-tools/src/tools/web_search/duckduckgo.rs": 1,
+    # The clock and the file system are the subject: the watch of
+    # apollia.toml sends one tick once a burst of writes has stayed quiet, and
+    # nothing for a neighbour file. Two waits while the watch is armed, one
+    # bounded wait for the tick.
+    "crates/apollia-triggers/src/handlers/apollia_config_watch.rs": 3,
     "crates/apollia-triggers/src/definition_repository.rs": 1,
     "crates/apollia-triggers/src/engine.rs": 2,
     "crates/apollia-triggers/src/sources/cron.rs": 1,

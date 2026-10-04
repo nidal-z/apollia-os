@@ -29,6 +29,7 @@ hold its state:
 enabled = false        # whether the compatible server listens
 port = 7772            # its TCP port; never the native API's 7771
 require_auth = false   # whether every request must present a token
+cors = false           # whether a web page of another origin may call it
 serve_on_lan = false   # whether the other devices of the local network reach it
 ```
 
@@ -37,6 +38,27 @@ Four more say how it loads and unloads models on demand; see
 
 By default it listens on the loopback interface, `127.0.0.1`, so only the
 applications of this machine reach it.
+
+## Calls from a web page (CORS)
+
+A browser lets a page call a server of another origin only if that server
+allows it, and it asks first: before a request carrying a bearer or a JSON body,
+it sends an `OPTIONS` preflight. With `cors = false`, the default, the
+compatible server sends no cross-origin header at all, and the browser refuses
+the call. With `cors = true`, a page of any origin may call it:
+
+- a preflight is answered `204 No Content` with
+  `Access-Control-Allow-Origin: *`,
+  `Access-Control-Allow-Methods: GET, POST, OPTIONS` and
+  `Access-Control-Allow-Headers: authorization, content-type, x-api-key, anthropic-version`,
+  the headers the OpenAI and Anthropic SDKs send;
+- every other answer, an error included, carries
+  `Access-Control-Allow-Origin: *`.
+
+The preflight needs no token, since a browser never sends one on it; the
+request that follows is checked like any other. The setting is read when the
+server starts: after changing it, stop and start the server. The native API on
+port 7771 never carries these headers, whatever the setting.
 
 ## Starting and stopping it
 

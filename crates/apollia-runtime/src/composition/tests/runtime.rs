@@ -78,6 +78,7 @@ impl Scripted {
 fn text_of(message: &ChatMessage) -> String {
     match &message.content {
         MessageContent::Text(text) => text.clone(),
+        MessageContent::TextWithImages { text, .. } => text.clone(),
         MessageContent::ToolResult { content, .. } => content.clone(),
         MessageContent::WithToolCalls { text, .. } => text.clone(),
     }
@@ -302,8 +303,6 @@ async fn fixture() -> Fixture {
         None,
         state.registry_handle.clone(),
         Some(Arc::clone(&a2a)),
-        None,
-        None,
         None,
         None,
         LoadingMode::Eager,

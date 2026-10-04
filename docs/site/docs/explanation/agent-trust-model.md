@@ -50,8 +50,9 @@ process, and it is the child process, not the agent, that Apollia confines:
 
 Every other tool runs unconfined in the runtime process. Filesystem tools are
 bounded by a path-prefix check: a canonicalised root they refuse to leave, symlink
-escapes included. That root is the workspace in a chat session and **the user's
-whole home directory** for an installed agent. Network tools are bounded by an
+escapes included. That root is **the union of the folders granted to the
+agent**, in a chat session as for an installed agent; an agent granted no folder
+reaches none. Network tools are bounded by an
 application-level allowlist. Neither is an OS boundary.
 
 Three consequences worth carrying. A mount namespace without `pivot_root` is not
@@ -73,10 +74,11 @@ human-in-the-loop, layered as defense in depth.
   before installing it. The command-line install prints a notice restating that
   the agent will run with full user rights and no sandbox.
 - **Human approval (HITL).** In a chat session, file writes, edits, shell and
-  Python execution route through an approval wrapper whose default decision is to
-  ask: the action surfaces to the operator rather than running silently.
+  Python execution go through the consent decision of the agent loop, whose
+  default is to ask: the action surfaces to the operator on the approval card
+  rather than running silently.
   <!-- claim:hitl-wired-in-chat-path-only -->
-  **This wrapper is not placed on an installed agent's dispatcher.** An agent's
+  **This decision is not placed on an installed agent's dispatcher.** An agent's
   own `ctx.tools` calls meet no human checkpoint, which is consistent with the
   rest of this page: an agent already runs arbitrary Python under your account,
   so a gate on one call path would not contain a hostile one. Treat HITL as

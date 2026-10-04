@@ -15,7 +15,6 @@
     ChevronRight,
     Sparkles,
     MessageSquare,
-    FolderOpen,
     Wand2,
     Loader2,
     Undo2,
@@ -26,7 +25,6 @@
     type RewriteFallback,
   } from "$lib/chat/rewriteInput";
   import { Button } from "$lib/components/ui/button";
-  import { Select } from "$lib/components/ui/select";
   import { LoadingSpinner } from "$lib/components/feedback";
   import type {
     ChatSessionSummary,
@@ -34,7 +32,7 @@
   } from "$lib/types";
   import { agents } from "$lib/stores/sse";
   import { listAgents } from "$lib/ipc/connections";
-  import { listProjects, createChatSession } from "$lib/ipc/projects";
+  import { createChatSession } from "$lib/ipc/agents";
   import { sendChatMessage } from "$lib/ipc/chat";
   import {
     agentStatuses,
@@ -43,22 +41,22 @@
   } from "$lib/stores/agentStatus";
   import { triggerAutoName } from "$lib/chat/autoName";
   import { setPlanMode, getPlanModeDefault } from "$lib/ipc/planMode";
-  import { projects } from "$lib/stores/projects";
   import AgentStatusCard from "./AgentStatusCard.svelte";
+  import ChatTargetSelector from "./ChatTargetSelector.svelte";
+  import type { ChatTarget, ConversationTarget } from "$lib/chat/chatTargets";
+  import { startRequest } from "$lib/chat/applyTargetChoice";
   import EmptyAgentsState from "./EmptyAgentsState.svelte";
   import { focusTrap } from "$lib/shortcuts/focusTrap";
   import { Textarea } from "$lib/components/ui/textarea";
 
   interface Props {
-    /** Initial project binding for the created session. */
-    defaultProjectId?: string | null;
     /** Called once the backend returns the created session. */
     oncreated: (session: ChatSessionSummary) => void;
     /** Called when the user dismisses the picker (Esc or close button). */
     onclose: () => void;
   }
 
-  let { defaultProjectId = null, oncreated, onclose }: Props = $props();
+  let { oncreated, onclose }: Props = $props();
 
   // ─── State ────────────────────────────────────────────────────────────────
   // Focus management is owned by `use:focusTrap` on the root - no DOM
@@ -66,6 +64,18 @@
 
   let prompt = $state("");
   let creating = $state(false);
+  // The agent or the model chosen in the selector before the conversation
+  // starts; `null` starts a free chat on Apollia's model.
+  let chosenTarget = $state<ChatTarget | null>(null);
+  const chosenConversation = $derived<ConversationTarget | null>(
+    chosenTarget === null
+      ? null
+      : chosenTarget.kind === "model"
+        ? { mode: "libre", agentName: null, model: chosenTarget.route }
+        : chosenTarget.builtin
+          ? { mode: "libre", agentName: null, model: null }
+          : { mode: "agent", agentName: chosenTarget.id, model: null },
+  );
   // Surfaces a stable, human-readable reason when session creation fails. The
   // most common case is a missing LLM backend: `create_chat_session` rejects
   // with `NoLlmConfigured` for Libre/Companion mode, and this picker is opened
@@ -86,10 +96,6 @@
   let startInPlanMode = $state(false);
   // The default arrives asynchronously; a choice the user already made wins.
   let planModeTouched = false;
-  // Stored as a string ("" == no project) to match the native <Select>'s
-  // value model used by the DS Select component, which expects `bind:value`
-  // on a string.
-  let selectedProjectId = $state<string>(defaultProjectId ?? "");
 
   const EXPANDED_STORAGE_KEY = "apollia.quickpicker.expanded";
   interface ExpandedState {
@@ -130,11 +136,6 @@
     void listAgents()
       .then((list) => agents.set(list))
       .catch(() => { /* SSE will eventually populate */ });
-    // Seed the projects store so the linker is populated even when the
-    // user has not visited the Projects route yet in this session.
-    void listProjects()
-      .then((list) => projects.set(list))
-      .catch(() => { /* link selector will just stay empty */ });
     void getPlanModeDefault()
       .then((on) => {
         if (!planModeTouched) startInPlanMode = on;
@@ -245,13 +246,16 @@
   }
 
   async function createFreeChat(initialPrompt?: string, tools?: string[]): Promise<void> {
+    if (chosenTarget?.kind === "agent" && !chosenTarget.builtin) {
+      await createAgentChat(chosenTarget.id);
+      return;
+    }
     if (creating) return;
     creating = true;
     createError = null;
     try {
       const request: CreateSessionRequest = {
-        mode: "libre",
-        project_id: selectedProjectId || undefined,
+        ...startRequest(chosenTarget),
         tools,
       };
       const session = await createChatSession(request);
@@ -287,7 +291,6 @@
       const request: CreateSessionRequest = {
         mode: "agent",
         agent_name: agentName,
-        project_id: selectedProjectId || undefined,
       };
       const session = await createChatSession(request);
       if (prompt.trim().length > 0) {
@@ -330,6 +333,11 @@
     <div class="flex items-center gap-2">
       <Sparkles size={13} class="text-primary/80" />
       <span class="text-xs font-medium">{$t("chat.quickpicker.title")}</span>
+      <ChatTargetSelector
+        conversation={chosenConversation}
+        onpick={(target) => (chosenTarget = target)}
+        disabled={creating}
+      />
     </div>
     <button
       type="button"
@@ -342,35 +350,6 @@
       <X size={13} />
     </button>
   </div>
-
-  <!-- Project selector - second entry point for the chat ⇄ project link.
-       Hidden only when the user has zero projects; the same action is also
-       available later from the conversation header's kebab menu. -->
-  {#if $projects.length > 0}
-    <div class="mb-3 flex items-center gap-2">
-      <label
-        for="quickpicker-project-select"
-        class="text-caption font-medium text-muted-foreground/80 shrink-0"
-      >
-        {$t("chat.project_selector")}
-      </label>
-      <div class="flex-1 min-w-0">
-        <Select
-          id="quickpicker-project-select"
-          icon={FolderOpen}
-          size="sm"
-          bind:value={selectedProjectId}
-          data-testid="quickpicker-project"
-          disabled={creating}
-        >
-          <option value="">{$t("chat.no_project")}</option>
-          {#each $projects as proj (proj.id)}
-            <option value={proj.id}>{proj.name}</option>
-          {/each}
-        </Select>
-      </div>
-    </div>
-  {/if}
 
   <!-- Prompt textarea -->
   <label class="block">

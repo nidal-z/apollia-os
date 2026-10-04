@@ -226,6 +226,7 @@ async fn a_registry_cut_by_the_policy_says_so_and_the_import_from_a_disk_stays()
             )
             .expect("policy parses"),
             key_fingerprint: "00".into(),
+            policy_digest: "00".into(),
             publisher: "it".into(),
             signed_at: "2026-10-01T09:00:00Z".parse().expect("datetime"),
         }));

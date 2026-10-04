@@ -38,6 +38,8 @@ pub struct ProductionBackendFactory {
     pub pending_approvals: Arc<std::sync::OnceLock<Arc<PendingApprovals>>>,
     pub task_repository: Arc<std::sync::OnceLock<Arc<TaskRepository>>>,
     pub mcp_handle: Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>>,
+    /// The governance actor of the runtime, read when a run starts.
+    pub governance: Arc<std::sync::OnceLock<apollia_runtime::governance::GovernanceHandle>>,
     /// Agent registry handle, required to build the A2A invoker so
     /// trigger-fired agents and manual fires can call `ctx.a2a_invoke(...)`
     /// on parity with Chat Libre.
@@ -47,10 +49,7 @@ pub struct ProductionBackendFactory {
     /// Inter-agent mailbox handle, exposed as `ctx.mailbox`.
     pub mailbox_handle: Arc<std::sync::OnceLock<AgentMailboxHandle>>,
     /// Operator tools configuration (`[tools]` of apollia.toml).
-    pub tools_config: Arc<std::sync::OnceLock<ToolsConfig>>,
-    /// Filesystem roots an agent may reach (`[filesystem] trusted_paths`, `~`
-    /// already resolved). Set after the runtime boots, like every lock here.
-    pub trusted_paths: Arc<std::sync::OnceLock<Vec<std::path::PathBuf>>>,
+    pub tools_config: Arc<std::sync::OnceLock<apollia_runtime::config_reload::Live<ToolsConfig>>>,
     /// Shared plan-gate registry, forwarded to each per-agent engine so the
     /// desktop UI can resolve a pending plan gate.
     pub plan_gates: Arc<std::sync::OnceLock<Arc<PendingPlanGates>>>,
@@ -82,12 +81,13 @@ impl AgentBackendFactory for ProductionBackendFactory {
         let pending_approvals = self.pending_approvals.get().cloned();
         let task_repository = self.task_repository.get().cloned();
         let mcp_handle = self.mcp_handle.get().cloned();
+        let governance = self.governance.get().cloned();
         let mailbox = self.mailbox_handle.get().cloned();
         let tools_config = self
             .tools_config
             .get()
             .cloned()
-            .unwrap_or_else(ToolsConfig::default);
+            .unwrap_or_else(|| ToolsConfig::default().into());
         let plan_gates = self.plan_gates.get().cloned();
         let plan_cache = self.plan_cache.get().cloned();
         let backend_manifest = manifest.clone();
@@ -150,10 +150,10 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 task_repository,
                 user_memory_write,
                 mcp_handle,
+                governance,
                 a2a_invoker,
                 mailbox,
                 tools_config,
-                trusted_paths: self.trusted_paths.get().cloned().unwrap_or_default(),
                 datasources_declared,
                 templates_declared,
                 agent_dir,

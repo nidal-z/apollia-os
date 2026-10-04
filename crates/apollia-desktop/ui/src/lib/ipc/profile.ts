@@ -114,5 +114,5 @@ export async function deleteProfileFact(id: string, key: string): Promise<void> 
 
 /** Relaunch the onboarding agent (offered after resetting the default). */
 export async function triggerOnboarding(): Promise<void> {
-  return invoke<void>("trigger_onboarding", { topic: null, profile: null });
+  return invoke<void>("trigger_onboarding", { topic: null });
 }

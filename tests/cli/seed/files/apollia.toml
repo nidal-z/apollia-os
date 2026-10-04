@@ -1,10 +1,10 @@
 # Seed apollia.toml for the automation verification ecosystem.
 # Placed by build-seed.sh at <SEED_HOME>/.apollia/apollia.toml, the only
-# location any surface reads. Backends live in system.db, so this
-# only pins the chat file-tool workspace to the repo so file tools resolve.
+# location any surface reads. Backends live in system.db, and the folder the
+# chat's file tools reach is a folder connection granted to the Apollia agent
+# (fragments/system.sql and fragments/agents.sql).
 
 [chat]
-default_workspace = "__APOLLIA_SEED_WORKSPACE__"
 # Tool turns are sampled greedily: the model books assert the next tool call,
 # and the automaton's llama-server runs at temperature 0 on a fixed seed for
 # the same reason (justfile, desktop-dev-automation-seeded-llama). The

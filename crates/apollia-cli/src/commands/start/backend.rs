@@ -45,7 +45,6 @@ impl ExecutionBackend for AIPProductionBackend {
             memory_base_dir: self.memory_base_dir.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
             tools_config: self.tools_config.clone(),
-            trusted_paths: self.trusted_paths.clone(),
             user_memory_write: self.user_memory_write,
             datasources_declared: self.datasources_declared.clone(),
             templates_declared: self.templates_declared.clone(),
@@ -53,6 +52,7 @@ impl ExecutionBackend for AIPProductionBackend {
             secrets_declared: self.secrets_declared.clone(),
             secrets_data_dir: self.secrets_data_dir.clone(),
             mcp_handle: self.mcp_handle.clone(),
+            governance: self.governance.clone(),
             budget: Arc::clone(&direct_budget),
             cancel,
         };

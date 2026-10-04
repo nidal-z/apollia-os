@@ -3,4 +3,5 @@
 //! Each handler watches an external resource (config file, directory, …)
 //! and drives live updates without requiring a runtime restart.
 
+pub mod apollia_config_watch;
 pub mod config_watch;

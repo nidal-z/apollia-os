@@ -17,6 +17,7 @@ use crate::governance::admission::{
     admit, AdmissionDecision, AdmissionRequest, ConnectionAdmission, NoPolicyAdmission,
 };
 use crate::governance::contract::GovernanceError;
+use crate::governance::forbidden::ForbiddenConnections;
 
 /// Prefix of the journal run that holds the history of one connection.
 const CONNECTION_RUN_PREFIX: &str = "connection:";
@@ -211,13 +212,14 @@ impl ConnectionRecord {
 }
 
 /// What the places that add, change or remove a connection hold: the
-/// admission policy and the journal.
+/// admission policy, the connections it forbade at boot, and the journal.
 ///
 /// The default admits everything and journals nothing, which is what a host
 /// without a journal (a test, a degraded boot) runs with.
 #[derive(Clone)]
 pub struct ConnectionGovernance {
     admission: Arc<dyn ConnectionAdmission>,
+    forbidden: Arc<ForbiddenConnections>,
     journal: Option<AuditJournalHandle>,
 }
 
@@ -233,7 +235,25 @@ impl ConnectionGovernance {
         admission: Arc<dyn ConnectionAdmission>,
         journal: Option<AuditJournalHandle>,
     ) -> Self {
-        Self { admission, journal }
+        Self {
+            admission,
+            forbidden: Arc::default(),
+            journal,
+        }
+    }
+
+    /// The same governance, holding `forbidden` as the connections the policy
+    /// forbade at boot.
+    #[must_use]
+    pub fn with_forbidden(mut self, forbidden: Arc<ForbiddenConnections>) -> Self {
+        self.forbidden = forbidden;
+        self
+    }
+
+    /// The connections the policy forbade at boot.
+    #[must_use]
+    pub fn forbidden(&self) -> &ForbiddenConnections {
+        &self.forbidden
     }
 
     /// Governance in force when no policy is deposited.

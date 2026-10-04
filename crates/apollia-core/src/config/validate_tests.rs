@@ -206,20 +206,6 @@ fn an_unknown_key_in_chat_is_refused() {
 }
 
 #[test]
-fn an_unknown_key_in_filesystem_is_refused() {
-    // GIVEN a typo in [filesystem]
-    let text = "[filesystem]\ntrusted = []\n";
-    // WHEN the document is validated
-    // THEN it is refused
-    let fault = unknown(text);
-    assert_eq!(
-        (fault.path.as_str(), fault.line),
-        ("filesystem.trusted", 2),
-        "{fault}"
-    );
-}
-
-#[test]
 fn an_unknown_key_in_models_is_refused() {
     // GIVEN a typo in [models]
     let text = "[models]\nregistry = \"x\"\n";

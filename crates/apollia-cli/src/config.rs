@@ -454,14 +454,12 @@ max_sessions = 100
         // caller can mistake it for a setting that does something.
         assert!(apollia_core::config::keys::withdrawn_covering("permissions").is_some());
 
-        // AND `[filesystem.journal]`, which nothing read, is withdrawn too,
-        // while `[filesystem]` stays live: `trusted_paths` reaches the risk
-        // classifier, which is what decides whether an operation runs or asks.
+        // AND `[filesystem]` is withdrawn whole: the file tools reach the
+        // folders granted to each agent, not a list in this file.
         assert!(apollia_core::config::keys::withdrawn_covering("filesystem.journal").is_some());
         assert!(
-            apollia_core::config::keys::withdrawn_covering("filesystem.trusted_paths").is_none()
+            apollia_core::config::keys::withdrawn_covering("filesystem.trusted_paths").is_some()
         );
-        assert!(!config.filesystem.trusted_paths.is_empty());
     }
 
     // GIVEN the four sections that deserialized into an unread struct

@@ -12,8 +12,8 @@ pub enum ChatCommand {
         system_prompt: Option<String>,
         /// Tool names available in this session.
         tools: Vec<String>,
-        /// Project to link this session to (None = standalone).
-        project_id: Option<String>,
+        /// The model chosen for the session, `None` for the agent's.
+        model: Option<String>,
         /// Response channel.
         reply: oneshot::Sender<Result<SessionInfo, ChatError>>,
     },
@@ -23,6 +23,9 @@ pub enum ChatCommand {
         session_id: SessionId,
         /// Text content.
         content: String,
+        /// Images attached after the text, already decoded and checked for
+        /// count and size.
+        images: Vec<apollia_llm::message_image::MessageImage>,
         /// Response channel.
         reply: oneshot::Sender<Result<MessageId, ChatError>>,
     },
@@ -92,18 +95,22 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
-    /// Update session configuration (system_prompt, tools, llm_backend).
+    /// Update session configuration (system_prompt, tools, llm_backend, profile).
     UpdateSession {
         /// Target session.
         session_id: SessionId,
-        /// New system prompt (if Some).
-        system_prompt: Option<String>,
-        /// New available tools (if Some).
-        available_tools: Option<Vec<String>>,
-        /// New LLM backend (if Some, inner None means "use default").
-        llm_backend: Option<Option<String>>,
+        /// The fields to change.
+        update: SessionConfigUpdate,
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
+    },
+    /// Empty the profile of every session designating `profile_id`, the
+    /// profile having been deleted.
+    ReleaseProfile {
+        /// The deleted profile.
+        profile_id: String,
+        /// Response channel: how many sessions designated it.
+        reply: oneshot::Sender<Result<usize, ChatError>>,
     },
     /// Delete a session and all its data.
     DeleteSession {
@@ -271,10 +278,21 @@ pub enum ChatCommand {
         /// Used by every run that starts afterwards.
         host: Arc<dyn crate::package_tools::PackageToolHost>,
     },
+    /// Hand the live sections of the configuration to the actor.
+    FollowConfig {
+        /// Read between two commands: a changed section applies to the next
+        /// conversation and the next exchange.
+        feed: crate::config_reload::ConfigFeed,
+    },
     /// Hand the composer of the granted agent and workflow calls to the actor.
     SetComposer {
         /// Used by every run that starts afterwards.
         composer: Arc<dyn crate::composition::Composer>,
+    },
+    /// Hand the governance every tool call is decided by to the actor.
+    SetGovernance {
+        /// Used by every run that starts afterwards.
+        governance: crate::governance::GovernanceHandle,
     },
     /// Fork a session, creating a child with a copy of the history.
     ForkSession {
@@ -291,27 +309,6 @@ pub enum ChatCommand {
         session_id: SessionId,
         /// Response channel.
         reply: oneshot::Sender<Vec<SessionInfo>>,
-    },
-    /// Link or unlink a session to a project.
-    LinkSessionToProject {
-        /// Target session.
-        session_id: SessionId,
-        /// Project ID (None to unlink).
-        project_id: Option<String>,
-        /// Response channel.
-        reply: oneshot::Sender<Result<(), ChatError>>,
-    },
-    /// List sessions belonging to a specific project.
-    ListSessionsByProject {
-        /// Project identifier.
-        project_id: String,
-        /// Response channel.
-        reply: oneshot::Sender<Vec<SessionInfo>>,
-    },
-    /// Unlink all sessions from a project (orphan them on project deletion).
-    OrphanProjectSessions {
-        /// Project identifier.
-        project_id: String,
     },
     /// List in-memory tool authorizations across all active sessions
     /// (used by the desktop Settings > Permissions page to surface
@@ -354,18 +351,6 @@ pub enum ChatCommand {
         required_version: String,
         /// Response channel.
         reply: oneshot::Sender<Option<crate::a2a::A2ACompatibilityWarning>>,
-    },
-    /// Resolve a pending filesystem HITL request.
-    ///
-    /// Called by the `respond_hitl_filesystem` Tauri command when the user
-    /// makes a decision in `HitlFilesystemModal`.
-    ResolveFsHitl {
-        /// Unique request identifier emitted in `HitlFilesystemRequired`.
-        request_id: String,
-        /// User decision.
-        decision: super::super::types::FsHitlDecision,
-        /// Response channel.
-        reply: oneshot::Sender<Result<(), ChatError>>,
     },
     /// List recently resolved chat tool approvals.
     ListApprovalHistory {

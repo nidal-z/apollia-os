@@ -15,7 +15,7 @@ sidebar_position: 2
 
 ## Comment les autorisations sont-elles créées ?
 
-Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un outil et que vous choisissez une portée persistée dans la carte d'approbation (par exemple : *Ce projet* ou *Partout*). Les règles de chat (portée *Chat*) sont créées via le bouton **"Toujours autoriser"** dans le chat libre. Vous pouvez aussi en créer une à la main, avec le bouton **Ajouter une règle** en haut de la section Règles, ce qui est le moyen d'autoriser quelque chose avant même qu'un agent le demande.
+Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un outil et que vous choisissez une portée persistée dans la carte d'approbation (par exemple : *Toujours pour cet assistant* ou *Toujours, partout*). Les règles de chat (portée *Chat*) sont créées via le bouton **"Toujours autoriser"** dans le chat libre. Vous pouvez aussi en créer une à la main, avec le bouton **Ajouter une règle** en haut de la section Règles, ce qui est le moyen d'autoriser quelque chose avant même qu'un agent le demande.
 
 ## Visualiser les autorisations actives
 

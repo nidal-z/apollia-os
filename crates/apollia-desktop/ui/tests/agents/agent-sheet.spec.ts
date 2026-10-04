@@ -9,7 +9,7 @@ import { test, expect, type Page } from "@playwright/test";
  * one installed agent and of the built-in Apollia agent. The stub answers the
  * commands the sheet calls with a resolved agent holding a mission, a local
  * model that fell back once, three accesses of three families, the profile as
- * a source, one run, one change and two memory entries.
+ * a source, one run, one change and two memory entries, searched by substring.
  */
 
 type InvokeStub = (cmd: string, args: unknown) => unknown;
@@ -63,7 +63,7 @@ async function installTauriStub(page: Page): Promise<void> {
     ];
     const handlers: Record<string, (args: unknown) => unknown> = {
       get_onboarding_state: () => ({ completed: true, skipped: false, started_at: null }),
-      get_config: () => ({ config_path: "~/.apollia/apollia.toml", config_exists: true, sections: [] }),
+      read_config_file: () => ({ path: "~/.apollia/apollia.toml", exists: true, text: "", sha256: "", diagnostics: [], locked: [], pendingRestart: [] }),
       get_system_info: () => ({}),
       list_agents: () => [agent],
       get_agent_definition: (args) => {
@@ -103,6 +103,17 @@ async function installTauriStub(page: Page): Promise<void> {
       get_task_timeline: () => [],
       get_task_trace: () => null,
       list_memory_entries: () => memory,
+      search_memory: (args) => {
+        const { namespace, query } = args as { namespace: string; query: string };
+        if (namespace !== "invoices") return [];
+        const needle = query.toLowerCase();
+        return memory
+          .filter((m) => m.value.toLowerCase().includes(needle))
+          .map((m) => ({
+            id: m.id, entry_type: m.entry_type, content: m.value, score: 1, relevance: null,
+            created_at: m.created_at,
+          }));
+      },
       delete_memory_entry: (args) => {
         const id = (args as { entryId: string }).entryId;
         memory = memory.filter((m) => m.id !== id);
@@ -223,6 +234,34 @@ test.describe("agent sheet", () => {
 
     // THEN the memory is empty
     await expect(page.getByTestId("agent-sheet-memory-empty")).toBeVisible();
+  });
+
+  test("the memory is searched on the sheet, a miss said in words, the full list back once the search is emptied", async ({ page }) => {
+    // GIVEN the sheet of an agent that retained two entries
+    await openAgents(page);
+    await page.getByTestId("agent-list-row").first().click();
+    await expect(page.getByTestId("agent-memory-row")).toHaveCount(2);
+
+    // WHEN a word of one entry is searched
+    await page.getByTestId("agent-sheet-memory-search").fill("Acme");
+
+    // THEN only that entry remains, counted against the whole memory
+    await expect(page.getByTestId("agent-memory-row")).toHaveCount(1);
+    await expect(page.getByTestId("agent-memory-row")).toContainText("Quote 42 sent to Acme");
+    await expect(page.getByTestId("agent-sheet-memory-count")).toContainText("2");
+
+    // WHEN a word no entry holds is searched
+    await page.getByTestId("agent-sheet-memory-search").fill("zeppelin");
+
+    // THEN no row shows and the empty state says nothing matched
+    await expect(page.getByTestId("agent-memory-row")).toHaveCount(0);
+    await expect(page.getByTestId("agent-sheet-memory-empty")).toBeVisible();
+
+    // WHEN the search is emptied
+    await page.getByTestId("agent-sheet-memory-search").fill("");
+
+    // THEN both entries are listed again
+    await expect(page.getByTestId("agent-memory-row")).toHaveCount(2);
   });
 
   test("the Apollia agent has the same sheet", async ({ page }) => {

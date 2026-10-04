@@ -1,8 +1,21 @@
-//! Triggers, notification channels, pipelines and task cancellation.
+//! Triggers, notification channels, pipelines, task cancellation, and the
+//! decisions waiting for the user.
 
 use crate::client::{extract_error, ChannelTestResult, ClientError, RawResponse, RuntimeClient};
 
 impl RuntimeClient {
+    /// The decisions waiting for the user via `GET /api/v1/pending-decisions`.
+    pub async fn pending_decisions(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get("/api/v1/pending-decisions").await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
     /// List all triggers via `GET /api/v1/triggers`.
     pub async fn list_triggers(&self) -> Result<serde_json::Value, ClientError> {
         let resp = self.get("/api/v1/triggers").await?;

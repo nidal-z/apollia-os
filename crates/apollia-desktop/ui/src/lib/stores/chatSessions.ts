@@ -2,7 +2,8 @@
  * Chat sessions sidebar state.
  *
  * Owns the UI-level state for the refonted sessions sidebar: search query,
- * filter segment, sort order, density, and the per-session flags (pinned,
+ * filter segment, sort order, the list density (read from the chat
+ * density of `chatAppearance.ts`), and the per-session flags (pinned,
  * archived, last read) that back the pin/archive/unread features.
  *
  * Persistence is local-first via localStorage - backend SQLite columns
@@ -11,20 +12,19 @@
  */
 import { derived, writable, type Readable } from "svelte/store";
 import { chatSessions } from "./sse";
+import { chatDensity, type ChatDensity } from "./chatAppearance";
 import type { ChatSessionSummary } from "$lib/types";
 
 export type SessionFilter = "active" | "closed" | "archived" | "pinned";
 export type SessionSort = "recent" | "oldest" | "alphabetical" | "most-tokens";
-export type SidebarDensity = "sm" | "md" | "lg";
+export type SidebarDensity = "sm" | "md";
 
 const STORAGE_KEYS = {
   filter: "chat.sidebar.filter",
   sort: "chat.sidebar.sort",
-  density: "chat.sidebar.density",
   pinned: "chat.sidebar.pinned",
   archived: "chat.sidebar.archived",
   lastRead: "chat.sidebar.lastRead",
-  projectFilter: "chat.sidebar.projectFilter",
 } as const;
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -91,16 +91,15 @@ export const sessionSort = writable<SessionSort>(
 );
 sessionSort.subscribe((v) => saveString(STORAGE_KEYS.sort, v));
 
-export const sidebarDensity = writable<SidebarDensity>(
-  loadString<SidebarDensity>(STORAGE_KEYS.density, "md", ["sm", "md", "lg"]),
-);
-sidebarDensity.subscribe((v) => saveString(STORAGE_KEYS.density, v));
+/** The conversation list follows the chat density chosen in Appearance. */
+export function sidebarDensityFor(density: ChatDensity): SidebarDensity {
+  return density === "compact" ? "sm" : "md";
+}
 
-/** Project filter applied to the sidebar (null = all projects). */
-export const sessionProjectFilter = writable<string | null>(
-  loadJson<string | null>(STORAGE_KEYS.projectFilter, null),
+export const sidebarDensity: Readable<SidebarDensity> = derived(
+  chatDensity,
+  sidebarDensityFor,
 );
-sessionProjectFilter.subscribe((v) => saveJson(STORAGE_KEYS.projectFilter, v));
 
 export const pinnedSessionIds = writable<Set<string>>(
   new Set(loadJson<string[]>(STORAGE_KEYS.pinned, [])),
@@ -209,19 +208,17 @@ function compareSessions(a: DecoratedSession, b: DecoratedSession, order: Sessio
   }
 }
 
-/** Sessions passing the current filter + search + project scope, sorted. */
+/** Sessions passing the current filter + search, sorted. */
 export const visibleSessions: Readable<DecoratedSession[]> = derived(
   [
     decoratedSessions,
     sessionFilter,
     sessionSort,
     sessionSearchQuery,
-    sessionProjectFilter,
   ],
-  ([$decorated, $filter, $sort, $query, $project]) => {
+  ([$decorated, $filter, $sort, $query]) => {
     return $decorated
       .filter((s) => {
-        if ($project !== null && s.project_id !== $project) return false;
         switch ($filter) {
           case "active":
             return !s.archived && s.status !== "closed";

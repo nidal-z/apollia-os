@@ -19,9 +19,6 @@
     PanelRight,
     MoreHorizontal,
     Edit3,
-    Folder,
-    FolderOpen,
-    FolderMinus,
     Trash2,
     Clock,
     Gauge,
@@ -32,9 +29,10 @@
   import type {
     ChatSessionDetail,
     ConversationStatsView,
-    ProjectSummary,
   } from "$lib/types";
   import A2AWorkerBadge from "./A2AWorkerBadge.svelte";
+  import ChatTargetSelector from "./ChatTargetSelector.svelte";
+  import type { ChatTarget, ConversationTarget } from "$lib/chat/chatTargets";
   import PlanModeChip from "./PlanModeChip.svelte";
   import { Button } from "$lib/components/ui/button";
   import { ActionMenu } from "$lib/components/ui/action-menu";
@@ -59,20 +57,17 @@
     oncontextopen?: () => void;
     onrename: (title: string) => void;
     ondelete: () => void;
-    /** Project this session is currently linked to (null = standalone). */
-    linkedProject?: ProjectSummary | null;
-    /** Projects the user can link this session to. */
-    availableProjects?: ProjectSummary[];
-    /** Called when the user picks a project (or null to unlink). */
-    onlink?: (projectId: string | null) => void;
-    /** Called when the user clicks the project chip in the meta row. */
-    onprojectopen?: (projectId: string) => void;
     /** Current plan-mode state of the session (drives the header toggle chip). */
     planMode?: boolean;
     /** Called after the plan-mode chip successfully toggles the session. */
     onplanmodechange?: (enabled: boolean) => void;
     /** Bumped by the parent (e.g. /rename) to open the inline title editor. */
     renameTrigger?: number;
+    /** Who the conversation talks to, for its selector. */
+    target?: ConversationTarget | null;
+    /** Called with the agent or the model chosen in the selector; the
+     *  selector is shown only when it is given. */
+    ontargetpick?: (target: ChatTarget) => void;
   }
 
   let {
@@ -90,13 +85,11 @@
     oncontextopen,
     onrename,
     ondelete,
-    linkedProject = null,
-    availableProjects = [],
-    onlink,
-    onprojectopen,
     planMode = false,
     onplanmodechange,
     renameTrigger = 0,
+    target = null,
+    ontargetpick,
   }: Props = $props();
 
   // Open the inline title editor when the parent bumps `renameTrigger` (/rename).
@@ -104,7 +97,6 @@
     if (renameTrigger > 0) void startEdit();
   });
 
-  let linkOpen = $state(false);
   let deleteConfirmOpen = $state(false);
   let editing = $state(false);
   let draftTitle = $state("");
@@ -199,15 +191,6 @@
     }
   }
 
-  function handleLinkPick(projectId: string | null): void {
-    linkOpen = false;
-    closeMenu?.();
-    onlink?.(projectId);
-  }
-
-  function handleProjectChipClick(): void {
-    if (linkedProject && onprojectopen) onprojectopen(linkedProject.id);
-  }
 </script>
 
 <div
@@ -272,6 +255,17 @@
         </button>
       {/if}
     </div>
+
+    <!-- Agent or model of the conversation -->
+    {#if ontargetpick}
+      <div class="min-w-0 shrink">
+        <ChatTargetSelector
+          conversation={target}
+          onpick={ontargetpick}
+          disabled={sessionStatus !== "active"}
+        />
+      </div>
+    {/if}
 
     <!-- Status badge -->
     {#if sessionStatus === "closed"}
@@ -367,67 +361,6 @@
               </button>
             </li>
 
-            <!-- Link to project submenu -->
-            {#if linkedProject}
-              <li role="none">
-                <button
-                  type="button"
-                  role="menuitem"
-                  onclick={() => handleLinkPick(null)}
-                  disabled={!onlink}
-                  class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body-xs text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
-                  data-testid="chat-header-menu-unlink-project"
-                >
-                  <FolderMinus size={12} />
-                  <span class="truncate">
-                    {$t("chat.unlink_project", {
-                      values: { name: linkedProject.name },
-                    })}
-                  </span>
-                </button>
-              </li>
-            {:else}
-              <li role="none" class="relative">
-                <button
-                  type="button"
-                  role="menuitem"
-                  onclick={() => (linkOpen = !linkOpen)}
-                  disabled={!onlink || availableProjects.length === 0}
-                  class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body-xs text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
-                  aria-expanded={linkOpen}
-                  data-testid="chat-header-menu-link-project"
-                >
-                  <Folder size={12} /> {$t("chat.link_project")}
-                </button>
-                {#if linkOpen}
-                  <div
-                    class="absolute right-full top-0 mr-1 min-w-[13rem] max-h-72 overflow-auto rounded-md border border-border/50 bg-card shadow-elev-2 py-1"
-                    role="menu"
-                    data-testid="chat-header-link-project-menu"
-                  >
-                    {#if availableProjects.length === 0}
-                      <div class="px-3 py-1.5 text-caption text-muted-foreground">
-                        {$t("chat.no_project_to_link")}
-                      </div>
-                    {:else}
-                      {#each availableProjects as project (project.id)}
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onclick={() => handleLinkPick(project.id)}
-                          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60"
-                          data-testid="chat-header-link-project-item"
-                        >
-                          <Folder size={12} class="shrink-0" />
-                          <span class="truncate">{project.name}</span>
-                        </button>
-                      {/each}
-                    {/if}
-                  </div>
-                {/if}
-              </li>
-            {/if}
-
             {#if !hideConfig && onconfigtoggle}
               <li role="none" class="md:hidden">
                 <button
@@ -496,20 +429,6 @@
       <Clock size={10} class="shrink-0" />
       <span>{formatElapsedClock(elapsedSeconds)}</span>
     </span>
-    {#if linkedProject}
-      <button
-        type="button"
-        onclick={handleProjectChipClick}
-        title={$t("chat.linked_project_tooltip", {
-          values: { name: linkedProject.name },
-        })}
-        class="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-micro text-primary/80 bg-primary/10 hover:bg-primary/15 transition-colors cursor-pointer max-w-[12rem]"
-        data-testid="chat-header-meta-project"
-      >
-        <FolderOpen size={10} class="shrink-0" />
-        <span class="truncate">{linkedProject.name}</span>
-      </button>
-    {/if}
     <!-- A2A badge on xs viewports - keeps it visible without header overflow. -->
     <div class="sm:hidden ml-auto">
       <A2AWorkerBadge />

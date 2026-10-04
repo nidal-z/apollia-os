@@ -11,6 +11,7 @@
     CheckCircle2,
     XCircle,
     Download,
+    FileCode,
   } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -23,37 +24,48 @@
   import SettingsSection from "../../components/settings/SettingsSection.svelte";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
   import SettingsToggle from "../../components/settings/SettingsToggle.svelte";
+  import HardwareCard from "../../components/settings/system/HardwareCard.svelte";
   import {
     systemInfoStore,
     securityPostureStore,
     cliStatusStore,
     configStore,
+    hardwareStore,
+    pythonInterpreterStore,
     settingsLoaders,
   } from "$lib/stores/settings";
+  import { developerMode } from "$lib/stores/developerMode";
   import { agentInstallPrefs, setAutoInstallPythonDeps } from "$lib/stores/agentInstallPrefs";
   import {
     installCli,
     uninstallCli,
-    getPythonInterpreter,
     setPythonInterpreter,
     type PythonInterpreterSetting,
   } from "$lib/ipc/system";
   import type { CliStatus } from "$lib/types";
 
-  let pythonSetting = $state<PythonInterpreterSetting | null>(null);
+  // System > Hardware. Always: the hardware the inference probed, the version,
+  // the operating system and the security posture. Developer mode only: the
+  // paths, the agent dependency install, the command line, the interpreter.
+  const pythonSetting = $derived($pythonInterpreterStore.data);
   let pythonDraft = $state("");
   let pythonSaving = $state(false);
   let pythonError = $state<string | null>(null);
+  let pythonSyncedFrom: PythonInterpreterSetting | null = null;
 
-  /** Read the interpreter setting and reset the field to what is stored. */
-  async function loadPythonInterpreter(): Promise<void> {
-    try {
-      pythonSetting = await getPythonInterpreter();
-      pythonDraft = pythonSetting.chosen ?? "";
-      pythonError = null;
-    } catch (e) {
-      pythonError = String(e);
+  // The field follows what is stored each time a new setting is read.
+  $effect(() => {
+    const setting = $pythonInterpreterStore.data;
+    if (setting && setting !== pythonSyncedFrom) {
+      pythonSyncedFrom = setting;
+      pythonDraft = setting.chosen ?? "";
     }
+  });
+
+  /** Read the interpreter setting again, resetting the field to what is stored. */
+  async function loadPythonInterpreter(): Promise<void> {
+    await settingsLoaders.pythonInterpreter(true);
+    pythonError = $pythonInterpreterStore.error;
   }
 
   /**
@@ -91,6 +103,7 @@
         settingsLoaders.systemInfo(true),
         settingsLoaders.securityPosture(true),
         settingsLoaders.cliStatus(true),
+        settingsLoaders.hardware(true),
       ]);
       lastRefreshed = new Date();
     } finally {
@@ -139,7 +152,8 @@
     void settingsLoaders.securityPosture();
     void settingsLoaders.cliStatus();
     void settingsLoaders.config();
-    void loadPythonInterpreter();
+    void settingsLoaders.hardware();
+    void settingsLoaders.pythonInterpreter();
     tickHandle = setInterval(() => {
       now = new Date();
     }, 15000);
@@ -216,6 +230,13 @@
       </Button>
     </div>
 
+    <HardwareCard
+      hardware={$hardwareStore.data}
+      loading={$hardwareStore.loading}
+      error={$hardwareStore.error}
+      arch={$systemInfoStore.data?.arch ?? null}
+    />
+
     {#if $systemInfoStore.data}
       {@const systemInfo = $systemInfoStore.data}
       <SettingsSection title={$t("settings.system_info")} data-testid="system-info-section">
@@ -223,17 +244,23 @@
         <div>
           {@render kvText($t("settings.system_version"), systemInfo.version)}
           {@render kvText($t("settings.system_os"), systemInfo.os)}
-          {#if systemInfo.python_path}
-            {@render kvCopyable(
-              $t("settings.system_python"),
-              systemInfo.python_path,
-              "system-info-copy-python",
-            )}
-          {:else}
-            {@render kvText($t("settings.system_python"), $t("settings.system_python_not_found"))}
-          {/if}
-          {#if $configStore.data?.config_path}
-            {@render kvCopyable($t("settings.config.path_label"), $configStore.data.config_path)}
+          {#if $developerMode}
+            {#if systemInfo.python_path}
+              {@render kvCopyable(
+                $t("settings.system_python"),
+                systemInfo.python_path,
+                "system-info-copy-python",
+              )}
+            {:else}
+              {@render kvText($t("settings.system_python"), $t("settings.system_python_not_found"))}
+            {/if}
+            {#if $configStore.data?.path}
+              {@render kvCopyable(
+                $t("settings.config.path_label"),
+                $configStore.data.path,
+                "system-info-copy-config",
+              )}
+            {/if}
           {/if}
         </div>
       </SettingsSection>
@@ -278,143 +305,158 @@
       <ErrorBanner message={$securityPostureStore.error} data-testid="security-posture-error" />
     {/if}
 
-    <SettingsSection
-      title={$t("settings.system.agent_install_section_title")}
-      description={$t("settings.system.agent_install_section_desc")}
-      data-testid="agent-install-section"
-    >
-      {#snippet icon()}<Package size={15} strokeWidth={1.75} />{/snippet}
-      <SettingsToggle
-        id="auto-install-python-deps"
-        label={$t("settings.system.auto_install_python_deps_label")}
-        description={$t("settings.system.auto_install_python_deps_desc")}
-        checked={$agentInstallPrefs.autoInstallPythonDeps}
-        onChange={setAutoInstallPythonDeps}
-        data-testid="auto-install-python-deps-toggle"
-      />
+    {#if $developerMode}
+      <SettingsSection
+        title={$t("settings.system.agent_install_section_title")}
+        description={$t("settings.system.agent_install_section_desc")}
+        data-testid="agent-install-section"
+      >
+        {#snippet icon()}<Package size={15} strokeWidth={1.75} />{/snippet}
+        <SettingsToggle
+          id="auto-install-python-deps"
+          label={$t("settings.system.auto_install_python_deps_label")}
+          description={$t("settings.system.auto_install_python_deps_desc")}
+          checked={$agentInstallPrefs.autoInstallPythonDeps}
+          onChange={setAutoInstallPythonDeps}
+          data-testid="auto-install-python-deps-toggle"
+        />
+      </SettingsSection>
 
-      {#if pythonSetting}
-        <FormField
-          id="python-interpreter"
-          label={$t("settings.system.python_interpreter_label")}
-          hint={pythonSetting.chosen
-            ? $t("settings.system.python_interpreter_hint_chosen", {
-                values: { minor: pythonSetting.required_minor },
-              })
-            : $t("settings.system.python_interpreter_hint_bundled", {
-                values: {
-                  path: pythonSetting.bundled ?? $t("settings.system_python_not_found"),
-                },
-              })}
-          error={pythonError ?? undefined}
-          data-testid="python-interpreter-field"
+      {#if ($cliStatusStore.data as CliStatus | null)?.bundled}
+        {@const cliStatus = $cliStatusStore.data as CliStatus}
+        <SettingsSection
+          title={$t("settings.cli_title")}
+          description={$t("settings.cli_description")}
+          data-testid="cli-section"
         >
-          <div class="flex items-center gap-2">
-            <Input
-              id="python-interpreter"
-              bind:value={pythonDraft}
-              placeholder={pythonSetting.bundled ?? "/usr/local/bin/python3.13"}
-              disabled={pythonSaving}
-              data-testid="python-interpreter-input"
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              loading={pythonSaving}
-              onclick={() => savePythonInterpreter(pythonDraft.trim() || null)}
-              data-testid="python-interpreter-save-btn"
+          {#snippet icon()}<Terminal size={15} strokeWidth={1.75} />{/snippet}
+          <div>
+            <div
+              class="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 border-b border-border/50 py-2"
             >
-              {$t("common.save")}
-            </Button>
-            {#if pythonSetting.chosen}
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={pythonSaving}
-                onclick={() => savePythonInterpreter(null)}
-                data-testid="python-interpreter-reset-btn"
-              >
-                {$t("settings.system.python_interpreter_use_bundled")}
-              </Button>
+              <span class="text-body-sm text-muted-foreground">{$t("settings.cli_status")}</span>
+              <span class="inline-flex items-center gap-1.5 text-body-sm">
+                {#if cliActionLoading}
+                  <Spinner class="h-3.5 w-3.5 text-muted-foreground" />
+                  <span class="text-muted-foreground">{$t("settings.system.cli_working")}</span>
+                {:else if cliStatus.installed}
+                  <CheckCircle2 size={14} class="text-success" />
+                  <span class="font-mono text-code-sm text-foreground"
+                    >{$t("settings.cli_installed")} v{cliStatus.version}</span
+                  >
+                {:else}
+                  <XCircle size={14} class="text-muted-foreground" />
+                  <span class="text-muted-foreground">{$t("settings.cli_not_installed")}</span>
+                {/if}
+              </span>
+            </div>
+            {@render kvCopyable(
+              $t("settings.cli_path"),
+              cliStatus.symlink_path,
+              "system-cli-copy-path",
+            )}
+          </div>
+
+          <div class="mt-1 flex flex-col gap-1.5">
+            {#if cliStatus.installed}
+              <div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  loading={cliActionLoading}
+                  onclick={() => runCli(uninstallCli)}
+                  data-testid="system-cli-uninstall-btn"
+                >
+                  {$t("settings.cli_uninstall")}
+                </Button>
+              </div>
+            {:else}
+              <div>
+                <Button
+                  variant="default"
+                  size="sm"
+                  loading={cliActionLoading}
+                  onclick={() => runCli(installCli)}
+                  data-testid="system-cli-install-btn"
+                >
+                  {#snippet icon()}<Download size={13} />{/snippet}
+                  {$t("settings.cli_install")}
+                </Button>
+              </div>
+              {#if cliStatus.needs_privilege}
+                <p class="text-caption text-muted-foreground">
+                  {$t("settings.cli_needs_privilege")}
+                </p>
+              {/if}
+            {/if}
+            {#if cliError}
+              <ErrorBanner tone="danger" data-testid="cli-error">
+                <p class="font-medium">{cliError.title}</p>
+                <p class="text-caption opacity-90">{cliError.suggested_action}</p>
+              </ErrorBanner>
             {/if}
           </div>
-        </FormField>
+        </SettingsSection>
       {/if}
-    </SettingsSection>
 
-    {#if ($cliStatusStore.data as CliStatus | null)?.bundled}
-      {@const cliStatus = $cliStatusStore.data as CliStatus}
-      <SettingsSection
-        title={$t("settings.cli_title")}
-        description={$t("settings.cli_description")}
-        data-testid="cli-section"
-      >
-        {#snippet icon()}<Terminal size={15} strokeWidth={1.75} />{/snippet}
-        <div>
-          <div
-            class="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 border-b border-border/50 py-2"
+      {#if pythonSetting}
+        <SettingsSection
+          title={$t("settings.system.python_interpreter_label")}
+          data-testid="python-interpreter-section"
+        >
+          {#snippet icon()}<FileCode size={15} strokeWidth={1.75} />{/snippet}
+          <FormField
+            id="python-interpreter"
+            label={$t("settings.system.python_interpreter_label")}
+            hint={pythonSetting.chosen
+              ? $t("settings.system.python_interpreter_hint_chosen", {
+                  values: { minor: pythonSetting.required_minor },
+                })
+              : $t("settings.system.python_interpreter_hint_bundled", {
+                  values: {
+                    path: pythonSetting.bundled ?? $t("settings.system_python_not_found"),
+                  },
+                })}
+            error={pythonError ?? undefined}
+            data-testid="python-interpreter-field"
           >
-            <span class="text-body-sm text-muted-foreground">{$t("settings.cli_status")}</span>
-            <span class="inline-flex items-center gap-1.5 text-body-sm">
-              {#if cliActionLoading}
-                <Spinner class="h-3.5 w-3.5 text-muted-foreground" />
-                <span class="text-muted-foreground">{$t("settings.system.cli_working")}</span>
-              {:else if cliStatus.installed}
-                <CheckCircle2 size={14} class="text-success" />
-                <span class="font-mono text-code-sm text-foreground"
-                  >{$t("settings.cli_installed")} v{cliStatus.version}</span
-                >
-              {:else}
-                <XCircle size={14} class="text-muted-foreground" />
-                <span class="text-muted-foreground">{$t("settings.cli_not_installed")}</span>
-              {/if}
-            </span>
-          </div>
-          {@render kvCopyable(
-            $t("settings.cli_path"),
-            cliStatus.symlink_path,
-            "system-cli-copy-path",
-          )}
-        </div>
-
-        <div class="mt-1 flex flex-col gap-1.5">
-          {#if cliStatus.installed}
-            <div>
+            <div class="flex items-center gap-2">
+              <Input
+                id="python-interpreter"
+                bind:value={pythonDraft}
+                placeholder={pythonSetting.bundled ?? "/usr/local/bin/python3.13"}
+                disabled={pythonSaving}
+                data-testid="python-interpreter-input"
+              />
               <Button
                 variant="outline"
                 size="sm"
-                loading={cliActionLoading}
-                onclick={() => runCli(uninstallCli)}
+                loading={pythonSaving}
+                onclick={() => savePythonInterpreter(pythonDraft.trim() || null)}
+                data-testid="python-interpreter-save-btn"
               >
-                {$t("settings.cli_uninstall")}
+                {$t("common.save")}
               </Button>
+              {#if pythonSetting.chosen}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={pythonSaving}
+                  onclick={() => savePythonInterpreter(null)}
+                  data-testid="python-interpreter-reset-btn"
+                >
+                  {$t("settings.system.python_interpreter_use_bundled")}
+                </Button>
+              {/if}
             </div>
-          {:else}
-            <div>
-              <Button
-                variant="default"
-                size="sm"
-                loading={cliActionLoading}
-                onclick={() => runCli(installCli)}
-              >
-                {#snippet icon()}<Download size={13} />{/snippet}
-                {$t("settings.cli_install")}
-              </Button>
-            </div>
-            {#if cliStatus.needs_privilege}
-              <p class="text-caption text-muted-foreground">
-                {$t("settings.cli_needs_privilege")}
-              </p>
-            {/if}
-          {/if}
-          {#if cliError}
-            <ErrorBanner tone="danger" data-testid="cli-error">
-              <p class="font-medium">{cliError.title}</p>
-              <p class="text-caption opacity-90">{cliError.suggested_action}</p>
-            </ErrorBanner>
-          {/if}
-        </div>
-      </SettingsSection>
+          </FormField>
+        </SettingsSection>
+      {:else if $pythonInterpreterStore.error}
+        <ErrorBanner
+          message={$pythonInterpreterStore.error}
+          data-testid="python-interpreter-error"
+        />
+      {/if}
     {/if}
   </SettingsSubPage>
 {/if}

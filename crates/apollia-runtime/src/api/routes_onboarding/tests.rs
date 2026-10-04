@@ -39,8 +39,6 @@ fn state_with_chat(dir: &TempDir) -> AppState<MockBackend> {
         None,
         None,
         None,
-        None,
-        None,
         apollia_mcp::session::LoadingMode::Eager,
         20,
         None,
@@ -57,46 +55,36 @@ async fn test_a_first_launch_reads_as_welcome_and_the_phases_advance_in_order() 
     let dir = TempDir::new().unwrap();
     let state = state_with_memory(&dir);
 
-    // WHEN a client reads the state, chooses a profile, then moves to the
-    // second phase
+    // WHEN a client reads the state, then moves to the second phase
     let (read, initial) = call(state.clone(), "GET", "/api/v1/onboarding", None).await;
-    let (chosen, with_profile) = call(
-        state.clone(),
-        "PUT",
-        "/api/v1/onboarding/profile",
-        Some(serde_json::json!({ "profile": "operator" })),
-    )
-    .await;
     let (moved, advanced) = call(
         state.clone(),
         "POST",
         "/api/v1/onboarding/phase",
-        Some(serde_json::json!({ "phase": "profile_choice" })),
+        Some(serde_json::json!({ "phase": "ai_setup" })),
     )
     .await;
     let (_, reread) = call(state, "GET", "/api/v1/onboarding", None).await;
 
-    // THEN the state starts at welcome, keeps the profile, moves one phase and
-    // reads back as stored
+    // THEN the state starts at welcome, moves straight to the AI setup with no
+    // usage profile in between, and reads back as stored
     assert_eq!(read, StatusCode::OK, "{initial}");
     assert_eq!(initial["phase"], "welcome");
-    assert_eq!(chosen, StatusCode::OK, "{with_profile}");
-    assert_eq!(with_profile["profile"], "operator");
+    assert!(initial.get("profile").is_none(), "{initial}");
     assert_eq!(moved, StatusCode::OK, "{advanced}");
-    assert_eq!(advanced["phase"], "profile_choice");
+    assert_eq!(advanced["phase"], "ai_setup");
     assert!(advanced["started_at"].is_string());
-    assert_eq!(reread["phase"], "profile_choice");
-    assert_eq!(reread["profile"], "operator");
+    assert_eq!(reread["phase"], "ai_setup");
 }
 
 #[tokio::test]
-async fn test_a_phase_out_of_sequence_an_unknown_phase_and_a_bad_profile_are_refused() {
+async fn test_a_phase_out_of_sequence_an_unknown_phase_and_the_profile_route_are_refused() {
     // GIVEN a daemon at the welcome phase
     let dir = TempDir::new().unwrap();
     let state = state_with_memory(&dir);
 
-    // WHEN a client jumps to the last phase, names an unknown phase and an
-    // unknown profile
+    // WHEN a client jumps to the last phase, names an unknown phase, the
+    // removed profile phase, and the removed profile route
     let (jump, jumped) = call(
         state.clone(),
         "POST",
@@ -111,11 +99,18 @@ async fn test_a_phase_out_of_sequence_an_unknown_phase_and_a_bad_profile_are_ref
         Some(serde_json::json!({ "phase": "nowhere" })),
     )
     .await;
-    let (profile, profile_body) = call(
+    let (removed_phase, _) = call(
+        state.clone(),
+        "POST",
+        "/api/v1/onboarding/phase",
+        Some(serde_json::json!({ "phase": "profile_choice" })),
+    )
+    .await;
+    let (profile, _) = call(
         state,
         "PUT",
         "/api/v1/onboarding/profile",
-        Some(serde_json::json!({ "profile": "hacker" })),
+        Some(serde_json::json!({ "profile": "operator" })),
     )
     .await;
 
@@ -127,8 +122,14 @@ async fn test_a_phase_out_of_sequence_an_unknown_phase_and_a_bad_profile_are_ref
         unknown_body["error"],
         "persistence error: unknown phase: nowhere"
     );
-    assert_eq!(profile, StatusCode::BAD_REQUEST, "{profile_body}");
-    assert!(profile_body["error"].as_str().unwrap().contains("hacker"));
+    assert_eq!(removed_phase, StatusCode::BAD_REQUEST);
+    assert!(
+        matches!(
+            profile,
+            StatusCode::NOT_FOUND | StatusCode::METHOD_NOT_ALLOWED
+        ),
+        "{profile}"
+    );
 }
 
 #[tokio::test]
@@ -218,12 +219,12 @@ async fn test_an_onboarding_conversation_opens_and_resumes_with_the_agent_instal
         .await
         .unwrap();
 
-    // WHEN a client starts a full onboarding with a profile, then resumes it
+    // WHEN a client starts a full onboarding, then resumes it
     let (started, trigger) = call(
         state.clone(),
         "POST",
         "/api/v1/onboarding/sessions",
-        Some(serde_json::json!({ "profile": "builder" })),
+        Some(serde_json::json!({})),
     )
     .await;
     let (resumed, resume) = call(state, "POST", "/api/v1/onboarding/resume", None).await;

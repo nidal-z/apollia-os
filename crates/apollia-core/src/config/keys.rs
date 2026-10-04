@@ -165,10 +165,7 @@ pub const KEYS: &[ConfigKey] = &[
     key("hooks.handlers", TableArray, Some("[]"), Reloadable, "Lifecycle hook handlers, a command or an HTTP endpoint each."),
     // [chat]
     key("chat.plan_mode_default", Boolean, Some("false"), Reloadable, "Start every new conversation in plan mode."),
-    key("chat.default_workspace", Path, None, Reloadable, "Working folder of a conversation outside a project."),
     key("chat.tool_turn_temperature", Float, None, Reloadable, "Model temperature of a turn that offers tools; none means 0.3."),
-    // [filesystem]
-    key("filesystem.trusted_paths", StringArray, Some("[\"~\"]"), Reloadable, "Folders an agent may work in without asking."),
     // [models]
     locked(key("models.registry_url", KeyType::String, Some("\"https://registry.apollia.fr/models/stable/index.json\""), Reloadable, "Address of the signed index of model cards.")),
     locked(key("models.registry_mirror_url", KeyType::String, Some("\"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json\""), Reloadable, "Address tried when the index does not answer; empty disables it.")),
@@ -188,12 +185,13 @@ pub const KEYS: &[ConfigKey] = &[
     locked(key("server.enabled", Boolean, Some("false"), Restart, "Start the compatible server (OpenAI and Anthropic formats) with the engine.")),
     locked(key("server.port", Integer, Some("7772"), Restart, "TCP port of the compatible server.")),
     locked(key("server.require_auth", Boolean, Some("false"), Restart, "Require a token of the compatible server on every request; read when the listener opens.")),
-    locked(key("server.serve_on_lan", Boolean, Some("false"), Restart, "Open the compatible server to the local network, on every interface; the native API stays on the loopback interface. Read when the listener opens.")),
+    locked(key("server.cors", Boolean, Some("false"), Restart, "Let a web page of another origin call the compatible server; read each time the server starts.")),
     locked(key("server.jit_loading", Boolean, Some("true"), Reloadable, "Let a request to the compatible server load the model of this machine it names.")),
     locked(key("server.jit_auto_unload", Boolean, Some("true"), Reloadable, "Unload the models the compatible server loaded after their own idle delay rather than the general one.")),
     locked(key("server.jit_idle_ttl_minutes", Integer, Some("60"), Reloadable, "Minutes without a request after which a model the compatible server loaded is unloaded; 0 keeps it loaded.")),
     locked(key("server.jit_keep_last_only", Boolean, Some("true"), Reloadable, "When the compatible server loads a model, unload the other models it loaded that nothing holds.")),
     locked(key("server.separate_reasoning_content", Boolean, Some("true"), Reloadable, "Keep the reasoning of a model in reasoning_content, apart from content, in the chat completions of the compatible server; off, it goes back into content between think tags.")),
+    locked(key("server.serve_on_lan", Boolean, Some("false"), Restart, "Open the compatible server to the local network, on every interface; the native API stays on the loopback interface. Read when the listener opens.")),
     // [engines]
     locked(key("engines.log_level", Enum(&["error", "warning", "info", "debug"]), Some("\"debug\""), Reloadable, "Log level of the local engine, applied when a model is next loaded.")),
     // [author]
@@ -218,7 +216,8 @@ pub const KEYS: &[ConfigKey] = &[
     withdrawn("notifications", "use the desktop app or the API to manage it"),
     withdrawn("stt", "use the desktop app or the API to manage it"),
     withdrawn("tools.file_path_extraction_pattern", "nothing reads it; remove the key"),
-    withdrawn("filesystem.journal", "nothing reads it; remove the section"),
+    withdrawn("filesystem", "the file tools reach the folders granted to each agent; the paths listed here were added once as folder connections, grant them on the agent's sheet"),
+    withdrawn("chat.default_workspace", "the folder was added once as a folder connection; grant it to an agent on its sheet"),
     withdrawn("ui", "moved: write desktop.link_preview_enabled; ui.link_preview_enabled is still read while it is absent"),
 ];
 

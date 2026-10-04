@@ -203,6 +203,7 @@ async fn recorded_relay(toml: &str) -> Recorded {
         None,
         RelayState::new(models).unwrap(),
         ServerLogsHandle::spawn(&crate::eventbus::EventBus::new().0),
+        false,
     );
     Recorded { dir, router }
 }

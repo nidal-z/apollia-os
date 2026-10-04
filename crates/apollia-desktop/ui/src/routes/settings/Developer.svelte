@@ -20,7 +20,6 @@
   import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
   import SettingsSection from "../../components/settings/SettingsSection.svelte";
   import SettingsFieldRow from "../../components/settings/SettingsFieldRow.svelte";
-  import ConfigurationReadOnly from "../../components/settings/ConfigurationReadOnly.svelte";
   import McpServerSection from "../../components/settings/developer/McpServerSection.svelte";
   import BackgroundServiceSection from "../../components/settings/developer/BackgroundServiceSection.svelte";
   import OnDemandLoadingSection from "../../components/settings/developer/OnDemandLoadingSection.svelte";
@@ -180,13 +179,6 @@
 
   {#if onDemandVisible($developerMode)}
     <ExperimentalSection />
-  {/if}
-
-  {#if $developerMode}
-    <h2 class="px-1 pt-2 text-overline uppercase text-muted-foreground">
-      {$t("settings.nav.configuration")}
-    </h2>
-    <ConfigurationReadOnly />
   {/if}
 
   {#if mcpSectionVisible($developerMode)}

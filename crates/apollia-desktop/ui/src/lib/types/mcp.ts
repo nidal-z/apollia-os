@@ -251,7 +251,10 @@ export type ConnectionState =
   | "degraded"
   | "needs_reauth"
   | "unavailable"
-  | "stopped";
+  | "stopped"
+  /** Forbidden by the organisation policy since the last start: not started,
+   *  its tools neither offered nor run, never deleted. */
+  | "forbidden_by_policy";
 
 /** One tool a connection brings. */
 export interface ConnectionTool {
@@ -268,6 +271,8 @@ export interface Connection {
   kind: ConnectionKind;
   label: string;
   account: string | null;
+  /** Folder of this machine the connection opens, for a folder. */
+  path?: string;
   provenance: ConnectionProvenance;
   /** Sends data off this machine; computed by the runtime. */
   remote: boolean;

@@ -13,11 +13,14 @@ use tauri::State;
 use crate::attached::{segment, RuntimeLink};
 
 /// Automatic session naming lives in `naming`, the on-disk export in `export`,
-/// the daemon routes of the conversations in `conversations`.
+/// the daemon routes of the conversations in `conversations`, the images of
+/// the chat in `images`.
 pub(crate) mod conversations;
 pub mod export;
+pub mod images;
 pub mod naming;
 mod remote;
+pub mod targets;
 
 /// Request payload for creating a new chat session.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,8 +34,11 @@ pub struct CreateSessionRequest {
     /// Tools to make available in this session.
     #[serde(default)]
     pub tools: Vec<String>,
-    /// Project to link this session to (None = standalone).
-    pub project_id: Option<String>,
+    /// The model chosen for the session: the identifier of a language model
+    /// of the model index, or `<server>/<model>`. Absent keeps the model of
+    /// the agent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
 }
 
 /// Summary of a chat session for list responses (flat structure for frontend).
@@ -47,7 +53,6 @@ pub struct ChatSessionSummary {
     pub created_at: String,
     pub closed_at: Option<String>,
     pub title: Option<String>,
-    pub project_id: Option<String>,
 }
 
 /// Detailed view of a chat session (flat structure for frontend).
@@ -65,12 +70,13 @@ pub struct ChatSessionDetail {
     pub closed_at: Option<String>,
     pub llm_backend: Option<String>,
     pub title: Option<String>,
-    pub project_id: Option<String>,
     /// Whether the session runs in first-class conversational plan mode.
     pub plan_mode: bool,
     /// Current plan-mode lifecycle phase as a stable lowercase string
     /// (`discovery`, `drafting`, `awaiting_approval`, `executing`, `done`).
     pub plan_phase: String,
+    /// Profile the conversation designates; `None` follows the default.
+    pub profile_id: Option<String>,
 }
 
 /// Request payload for updating session configuration.
@@ -79,6 +85,14 @@ pub struct UpdateSessionRequest {
     pub system_prompt: Option<String>,
     pub tools: Option<Vec<String>>,
     pub llm_backend: Option<Option<String>>,
+    /// Profile of the conversation: absent keeps it, `null` returns the
+    /// conversation to the current default profile.
+    #[serde(
+        default,
+        deserialize_with = "apollia_runtime::api::routes_chat::conversations::present_or_null",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub profile_id: Option<Option<String>>,
 }
 
 /// Individual message view for the frontend.
@@ -99,6 +113,7 @@ pub struct ChatMessageView {
 /// Creates a new chat session (Libre or Agent mode).
 #[tauri::command]
 pub async fn create_chat_session(
+    app: tauri::AppHandle,
     link: State<'_, RuntimeLink>,
     request: CreateSessionRequest,
 ) -> Result<ChatSessionSummary, String> {
@@ -114,6 +129,10 @@ pub async fn create_chat_session(
         .chat_manager
         .as_ref()
         .ok_or_else(|| "chat subsystem not available".to_string())?;
+    let model = match request.model.filter(|m| !m.trim().is_empty()) {
+        Some(model) => Some(targets::embedded_session_route(&app, state, model).await),
+        None => None,
+    };
 
     let info = manager
         .create_session(apollia_runtime::chat::manager::CreateSessionParams {
@@ -121,7 +140,7 @@ pub async fn create_chat_session(
             agent_name: request.agent_name,
             system_prompt: request.system_prompt,
             tools: request.tools,
-            project_id: request.project_id,
+            model,
         })
         .await
         .map_err(|e| e.to_string())?;
@@ -218,6 +237,7 @@ pub(crate) fn metrics_path(session_id: &str) -> String {
 /// Updates session configuration (instructions, tools, LLM provider).
 #[tauri::command]
 pub async fn update_chat_session(
+    app: tauri::AppHandle,
     link: State<'_, RuntimeLink>,
     session_id: String,
     update: UpdateSessionRequest,
@@ -232,13 +252,22 @@ pub async fn update_chat_session(
         .chat_manager
         .as_ref()
         .ok_or_else(|| "chat subsystem not available".to_string())?;
+    let llm_backend = match update.llm_backend {
+        Some(Some(model)) if !model.trim().is_empty() => Some(Some(
+            targets::embedded_session_route(&app, state, model).await,
+        )),
+        other => other,
+    };
 
     manager
         .update_session(
             session_id,
-            update.system_prompt,
-            update.tools,
-            update.llm_backend,
+            apollia_runtime::chat::SessionConfigUpdate {
+                system_prompt: update.system_prompt,
+                available_tools: update.tools,
+                llm_backend,
+                profile_id: update.profile_id,
+            },
         )
         .await
         .map_err(|e| e.to_string())
@@ -289,16 +318,21 @@ pub async fn rename_chat_session(
 }
 
 /// Sends a user message and launches the async response generation.
+///
+/// `images` travel after the text, for a model that reads images; the runtime
+/// refuses them when the model of the conversation does not.
 #[tauri::command]
 pub async fn send_chat_message(
     link: State<'_, RuntimeLink>,
     session_id: String,
     content: String,
+    images: Option<Vec<apollia_runtime::chat::images::ImageAttachment>>,
 ) -> Result<String, String> {
+    let images = images.unwrap_or_default();
     let state = match link.inner() {
         RuntimeLink::Embedded(runtime) => runtime,
         RuntimeLink::Attached(remote) => {
-            return Ok(remote.send_message(&session_id, &content).await?);
+            return Ok(remote.send_message(&session_id, &content, &images).await?);
         }
     };
     let manager = state
@@ -306,8 +340,10 @@ pub async fn send_chat_message(
         .as_ref()
         .ok_or_else(|| "chat subsystem not available".to_string())?;
 
+    let decoded =
+        apollia_runtime::chat::images::decode_attachments(&images).map_err(|e| e.to_string())?;
     let message_id = manager
-        .send_message(session_id, content)
+        .send_message_with_images(session_id, content, decoded)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -397,12 +433,11 @@ pub async fn pause_chat_session(
 /// Resolves a pending tool approval in a chat session.
 ///
 /// `reason` is forwarded to the agent when `decision == "refuse"` so it can
-/// adapt its plan; it is ignored for `accept`. `scope` is only meaningful for
-/// `always_accept` and defaults to [`AlwaysAcceptScope::ThisSession`] - the
-/// safest sticky option (cf. `ApprovalCardV2`).
+/// adapt its next step; it is ignored otherwise. `always_accept` takes no
+/// scope: it grants the asking agent the action family of the tool.
 #[tauri::command]
-// Tauri command: the session/message/tool identifiers plus the decision, reason
-// and scope exceed 5 by design; they map one-to-one onto the IPC call.
+// Tauri command: the session/message/tool identifiers plus the decision and
+// reason exceed 5 by design; they map one-to-one onto the IPC call.
 // REASON: Tauri command: each parameter is one invoke key or injected State; a struct would change the IPC contract.
 #[allow(clippy::too_many_arguments)]
 pub async fn authorize_chat_tool(
@@ -413,9 +448,8 @@ pub async fn authorize_chat_tool(
     tool_name: String,
     decision: String,
     reason: Option<String>,
-    scope: Option<apollia_runtime::chat::AlwaysAcceptScope>,
 ) -> Result<(), String> {
-    let tool_decision = parse_tool_decision(&decision, reason.clone(), scope)?;
+    let tool_decision = parse_tool_decision(&decision, reason.clone())?;
 
     // Fall back to the tool name when the caller omits the id (matches the
     // pre-correlation key), so single-approval turns keep resolving.
@@ -429,7 +463,6 @@ pub async fn authorize_chat_tool(
                 tool_name,
                 decision,
                 reason,
-                scope,
             };
             return Ok(remote::authorize(remote, &session_id, &body).await?);
         }
@@ -578,57 +611,6 @@ pub struct ResolvedChatApproval {
     pub reason: Option<String>,
 }
 
-/// Links or unlinks a chat session to/from a project.
-///
-/// Pass `project_id = null` to unlink.
-#[tauri::command]
-pub async fn link_chat_to_project(
-    link: State<'_, RuntimeLink>,
-    session_id: String,
-    project_id: Option<String>,
-) -> Result<(), String> {
-    let state = match link.inner() {
-        RuntimeLink::Embedded(runtime) => runtime,
-        RuntimeLink::Attached(remote) => {
-            return conversations::link_project(remote, &session_id, project_id.as_deref()).await;
-        }
-    };
-    let manager = state
-        .chat_manager
-        .as_ref()
-        .ok_or_else(|| "chat subsystem not available".to_string())?;
-
-    manager
-        .link_session_to_project(session_id, project_id)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-/// Lists chat sessions belonging to a specific project.
-#[tauri::command]
-pub async fn list_chats_by_project(
-    link: State<'_, RuntimeLink>,
-    project_id: String,
-) -> Result<Vec<ChatSessionSummary>, String> {
-    let state = match link.inner() {
-        RuntimeLink::Embedded(runtime) => runtime,
-        RuntimeLink::Attached(remote) => {
-            let sessions = conversations::project_sessions(remote, &project_id).await?;
-            return Ok(sessions.iter().map(session_info_to_summary).collect());
-        }
-    };
-    let manager = match state.chat_manager.as_ref() {
-        Some(m) => m,
-        None => return Ok(Vec::new()),
-    };
-
-    let sessions = manager.list_sessions_by_project(project_id).await;
-    Ok(sessions
-        .into_iter()
-        .map(|s| session_info_to_summary(&s))
-        .collect())
-}
-
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
 fn parse_chat_mode(s: &str) -> Result<ChatMode, String> {
@@ -642,18 +624,11 @@ fn parse_session_status(s: &str) -> Result<SessionStatus, String> {
     })
 }
 
-fn parse_tool_decision(
-    s: &str,
-    reason: Option<String>,
-    scope: Option<apollia_runtime::chat::AlwaysAcceptScope>,
-) -> Result<ToolDecision, String> {
-    use apollia_runtime::chat::AlwaysAcceptScope;
+fn parse_tool_decision(s: &str, reason: Option<String>) -> Result<ToolDecision, String> {
     match s {
         "accept" => Ok(ToolDecision::Accept),
         "refuse" => Ok(ToolDecision::Refuse { reason }),
-        "always_accept" => Ok(ToolDecision::AlwaysAccept {
-            scope: scope.unwrap_or_else(AlwaysAcceptScope::safe_default),
-        }),
+        "always_accept" => Ok(ToolDecision::AlwaysAccept),
         _ => Err(format!(
             "invalid tool decision: '{s}' (expected 'accept', 'refuse', or 'always_accept')"
         )),
@@ -675,7 +650,6 @@ fn session_info_to_summary(info: &SessionInfo) -> ChatSessionSummary {
         created_at: info.created_at.clone(),
         closed_at: None,
         title: info.title.clone(),
-        project_id: info.project_id.clone(),
     }
 }
 
@@ -716,9 +690,9 @@ fn session_detail_to_flat(detail: SessionDetail) -> ChatSessionDetail {
         closed_at: None,
         llm_backend: session.llm_backend,
         title: session.title,
-        project_id: session.project_id,
         plan_mode: session.plan_mode,
         plan_phase: session.plan_phase.as_sql().to_string(),
+        profile_id: session.profile_id,
     }
 }
 
@@ -819,49 +793,33 @@ mod tests {
 
     #[test]
     fn test_parse_tool_decision_valid() {
-        use apollia_runtime::chat::AlwaysAcceptScope;
         // GIVEN the three decision names an approval card can send
-        // WHEN each is parsed with neither reason nor scope
-        // THEN accept and refuse come back bare, and always-accept defaults to this session only
+        // WHEN each is parsed without a reason
+        // THEN each comes back as its decision, always-accept with no scope to pick
         assert_eq!(
-            parse_tool_decision("accept", None, None).unwrap(),
+            parse_tool_decision("accept", None).unwrap(),
             ToolDecision::Accept
         );
         assert_eq!(
-            parse_tool_decision("refuse", None, None).unwrap(),
+            parse_tool_decision("refuse", None).unwrap(),
             ToolDecision::Refuse { reason: None }
         );
         assert_eq!(
-            parse_tool_decision("always_accept", None, None).unwrap(),
-            ToolDecision::AlwaysAccept {
-                scope: AlwaysAcceptScope::ThisSession
-            }
+            parse_tool_decision("always_accept", None).unwrap(),
+            ToolDecision::AlwaysAccept
         );
     }
 
     #[test]
-    fn test_parse_tool_decision_carries_reason_and_scope() {
-        use apollia_runtime::chat::AlwaysAcceptScope;
+    fn test_parse_tool_decision_carries_the_reason() {
         // GIVEN operator rejects with a typed reason
         // WHEN the decision is parsed
-        let d = parse_tool_decision("refuse", Some("out of scope".into()), None).unwrap();
+        let d = parse_tool_decision("refuse", Some("out of scope".into())).unwrap();
         // THEN the reason travels with it
         assert_eq!(
             d,
             ToolDecision::Refuse {
                 reason: Some("out of scope".into())
-            }
-        );
-
-        // GIVEN operator picks a project-wide always-accept
-        // WHEN the decision is parsed
-        let d = parse_tool_decision("always_accept", None, Some(AlwaysAcceptScope::ThisProject))
-            .unwrap();
-        // THEN the wider scope travels with it rather than being narrowed to the session
-        assert_eq!(
-            d,
-            ToolDecision::AlwaysAccept {
-                scope: AlwaysAcceptScope::ThisProject
             }
         );
     }
@@ -870,7 +828,7 @@ mod tests {
     fn test_parse_tool_decision_invalid() {
         // GIVEN a decision name that does not exist
         // WHEN it is parsed
-        let result = parse_tool_decision("maybe", None, None);
+        let result = parse_tool_decision("maybe", None);
         // THEN the call is rejected rather than read as a refusal
         assert!(result.is_err());
     }
@@ -922,7 +880,6 @@ mod tests {
             created_at: "2026-03-20T10:00:00Z".into(),
             closed_at: None,
             title: None,
-            project_id: None,
         };
         // WHEN it is serialized and read back
         let json = serde_json::to_string(&summary).expect("serialize");
@@ -945,7 +902,6 @@ mod tests {
             status: SessionStatus::Processing,
             created_at: "2026-03-20T10:00:00Z".into(),
             title: None,
-            project_id: None,
         };
         // WHEN it is converted to the summary the front end reads
         let summary = session_info_to_summary(&info);

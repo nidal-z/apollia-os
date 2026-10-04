@@ -14,8 +14,8 @@ use tokio::sync::RwLock;
 use apollia_core::workspace::{WorkspaceProvider, WorkspaceSlice, WorkspaceSnapshot};
 use apollia_llm::LlmRouter;
 
-use crate::config::{GitProviderConfig, RulesProviderConfig, RuntimeConfig, StyleProviderConfig};
-use crate::providers::{GitProvider, RulesProvider, ScriptProvider, StyleProvider, TreeProvider};
+use crate::config::{RuntimeConfig, StyleProviderConfig};
+use crate::providers::{GitProvider, RulesProvider, StyleProvider, TreeProvider};
 
 /// Per-directory shared cache: collection instant plus the produced snapshot.
 type SnapshotCache = Arc<RwLock<HashMap<PathBuf, (Instant, WorkspaceSnapshot)>>>;
@@ -61,98 +61,6 @@ impl ProjectRuntime {
         self.providers.push(Box::new(style));
         self.providers.sort_by_key(|p| p.priority());
         self
-    }
-
-    /// Builds a runtime from a JSON provider configuration
-    /// (read from the `project_providers` table in SQLite).
-    ///
-    /// Supported types: `"git"`, `"rules"`, `"tree"`, `"script"`.
-    /// The `"style"` type requires an `LlmRouter` - use `with_style_detection`.
-    pub fn from_providers_config(
-        providers_config: &[ProviderEntry],
-        llm_router: Option<Arc<LlmRouter>>,
-    ) -> Self {
-        let mut providers: Vec<Box<dyn WorkspaceProvider>> = Vec::new();
-
-        for entry in providers_config {
-            if !entry.enabled {
-                continue;
-            }
-            match entry.provider_type.as_str() {
-                "git" => {
-                    let config: GitProviderConfig = entry
-                        .config_json
-                        .as_deref()
-                        .and_then(|j| serde_json::from_str(j).ok())
-                        .unwrap_or_default();
-                    providers.push(Box::new(GitProvider::new(config)));
-                }
-                "rules" => {
-                    let config: RulesProviderConfig = entry
-                        .config_json
-                        .as_deref()
-                        .and_then(|j| serde_json::from_str(j).ok())
-                        .unwrap_or_default();
-                    providers.push(Box::new(RulesProvider::new(config)));
-                }
-                "tree" => {
-                    let max_lines: usize = entry
-                        .config_json
-                        .as_deref()
-                        .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok())
-                        .and_then(|v| v["max_lines"].as_u64())
-                        .map(|n| n as usize)
-                        .unwrap_or(100);
-                    providers.push(Box::new(TreeProvider::new(max_lines)));
-                }
-                "style" => {
-                    if let Some(ref router) = llm_router {
-                        let config: StyleProviderConfig = entry
-                            .config_json
-                            .as_deref()
-                            .and_then(|j| serde_json::from_str(j).ok())
-                            .unwrap_or_default();
-                        providers.push(Box::new(StyleProvider::new(config, router.clone())));
-                    }
-                }
-                "script" => {
-                    let path = match &entry.path {
-                        Some(p) => p.clone(),
-                        None => {
-                            tracing::warn!(
-                                name = %entry.name,
-                                reason = "the script provider declares no path",
-                                "workspace.provider.ignored"
-                            );
-                            continue;
-                        }
-                    };
-                    let timeout_ms = entry
-                        .config_json
-                        .as_deref()
-                        .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok())
-                        .and_then(|v| v["timeout_ms"].as_u64())
-                        .unwrap_or(500);
-                    providers.push(Box::new(ScriptProvider::new(
-                        entry.name.clone(),
-                        path,
-                        timeout_ms,
-                        entry.priority,
-                    )));
-                }
-                other => {
-                    tracing::warn!(
-                        name = %entry.name,
-                        provider_type = %other,
-                        reason = "unknown provider type",
-                        "workspace.provider.ignored"
-                    );
-                }
-            }
-        }
-
-        providers.sort_by_key(|p| p.priority());
-        Self::new(providers, RuntimeConfig::default())
     }
 
     /// Collects all applicable providers in parallel with a per-provider timeout.
@@ -228,17 +136,6 @@ impl ProjectRuntime {
 
         snapshot
     }
-}
-
-/// Provider entry read from the `project_providers` table in SQLite.
-#[derive(Debug)]
-pub struct ProviderEntry {
-    pub provider_type: String,
-    pub name: String,
-    pub config_json: Option<String>,
-    pub path: Option<String>,
-    pub enabled: bool,
-    pub priority: u8,
 }
 
 #[cfg(test)]

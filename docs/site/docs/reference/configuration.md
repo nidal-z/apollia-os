@@ -60,6 +60,21 @@ database.
 path, type, default, documentation, reload class, whether the organization
 policy can fix it, and whether it is withdrawn.
 
+## Changes while the runtime runs
+
+The runtime follows its file. A text saved through `PUT /api/v1/config`, or the
+file changed on disk by any other means, is read again once it has stayed
+unchanged for a moment. A valid text is applied: a key whose reload class is
+`Reloadable` takes effect without a restart, at the next use of the setting (the
+next conversation, the next exchange, the next run of an agent, the next scan of
+the paused tasks). A key of class `Restart` keeps its former value until the
+runtime starts again; `GET /api/v1/config` lists it under `pendingRestart`, with
+its line, and the list is empty after a start. A text that does not validate
+changes nothing: the last valid configuration stays in force, the read route
+returns the faults at their line, and a `ConfigInvalid` event is published. Each
+application publishes a `ConfigReloaded` event with the sections applied and the
+keys waiting for a restart.
+
 ## Sections
 
 The file is read strictly, by the same validation everywhere. A key that no
@@ -81,12 +96,11 @@ still accepted, with a `config.key.retired` warning.
 | `[mcp]` | MCP module configuration, including `[[mcp.servers]]` (see below). |
 | `[hooks]` | Lifecycle hook handlers (command or HTTP). |
 | `[chat]` | Chat subsystem session-level defaults (for example `plan_mode_default`). |
-| `[filesystem]` | The paths an agent works in without being asked (`trusted_paths`, see below). |
 | `[workflows]` | The budget a workflow run starts with, shared by every agent and workflow it runs. |
 | `[models]` | The signed index of model cards, the models folder (`dir`), and the rule applied to an imported file (`[models.import]`). |
 | `[observability]` | Trace capture and retention, documented below. |
 | `[desktop]` | Settings of the desktop application: `developer_mode`, `update_channel` (`stable` or `preview`), `background_service_allowed`, and `link_preview_enabled`, which fetches the preview of a link shown in a conversation. Off by default, since the fetch leaves the machine. |
-| `[server]` | The compatible server: `enabled`, `port`, `require_auth`, `serve_on_lan`, and loading on demand: `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`, and `separate_reasoning_content`. |
+| `[server]` | The compatible server: `enabled`, `port`, `require_auth`, `cors`, and loading on demand: `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`, and `separate_reasoning_content`. |
 | `[engines]` | Settings of the local inference engines (`log_level`). |
 | `[author]` | The publisher name of the agents exported from this machine (`name`). |
 
@@ -235,16 +249,7 @@ Chat session defaults.
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `chat.plan_mode_default` | boolean | `false` | Start every new conversation in plan mode. |
-| `chat.default_workspace` | path | not set | Working folder of a conversation outside a project. |
 | `chat.tool_turn_temperature` | float | not set | Model temperature of a turn that offers tools; none means 0.3. |
-
-### `[filesystem]`
-
-The paths an agent works in without being asked. `trusted_paths` sets friction rather than a wall, and the two surfaces read it differently; see *Trusted paths, and what happens outside them* below.
-
-| Key | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `filesystem.trusted_paths` | string array | `["~"]` | Folders an agent may work in without asking. |
 
 ### `[models]`
 
@@ -288,12 +293,13 @@ The compatible server, which answers the OpenAI and Anthropic formats on the loo
 | `server.enabled` | boolean | `false` | Start the compatible server (OpenAI and Anthropic formats) with the engine. The organization policy can fix it. |
 | `server.port` | integer | `7772` | TCP port of the compatible server. The organization policy can fix it. |
 | `server.require_auth` | boolean | `false` | Require a token of the compatible server on every request; read when the listener opens. The organization policy can fix it. |
-| `server.serve_on_lan` | boolean | `false` | Open the compatible server to the local network, on every interface; the native API stays on the loopback interface. Read when the listener opens. The organization policy can fix it. |
+| `server.cors` | boolean | `false` | Let a web page of another origin call the compatible server; read each time the server starts. The organization policy can fix it. |
 | `server.jit_loading` | boolean | `true` | Let a request to the compatible server load the model of this machine it names. The organization policy can fix it. |
 | `server.jit_auto_unload` | boolean | `true` | Unload the models the compatible server loaded after their own idle delay rather than the general one. The organization policy can fix it. |
 | `server.jit_idle_ttl_minutes` | integer | `60` | Minutes without a request after which a model the compatible server loaded is unloaded; 0 keeps it loaded. The organization policy can fix it. |
 | `server.jit_keep_last_only` | boolean | `true` | When the compatible server loads a model, unload the other models it loaded that nothing holds. The organization policy can fix it. |
 | `server.separate_reasoning_content` | boolean | `true` | Keep the reasoning of a model in reasoning_content, apart from content, in the chat completions of the compatible server; off, it goes back into content between think tags. The organization policy can fix it. |
+| `server.serve_on_lan` | boolean | `false` | Open the compatible server to the local network, on every interface; the native API stays on the loopback interface. Read when the listener opens. The organization policy can fix it. |
 
 ### `[engines]`
 
@@ -349,7 +355,8 @@ Accepted in a file written for an earlier version, with a `config.key.retired` w
 | `notifications` | Use the desktop app or the API to manage it. |
 | `stt` | Use the desktop app or the API to manage it. |
 | `tools.file_path_extraction_pattern` | Nothing reads it; remove the key. |
-| `filesystem.journal` | Nothing reads it; remove the section. |
+| `filesystem` | The file tools reach the folders granted to each agent; the paths listed here were added once as folder connections, grant them on the agent's sheet. |
+| `chat.default_workspace` | The folder was added once as a folder connection; grant it to an agent on its sheet. |
 | `ui` | Moved: write desktop.link_preview_enabled; ui.link_preview_enabled is still read while it is absent. |
 <!-- END GENERATED: config-fields -->
 
@@ -371,36 +378,22 @@ file, so it carries the same Bearer token the TCP listener carries, and the
 token is what gates access. The global `--socket` flag is accepted on Windows
 and ignored.
 
-### Trusted paths, and what happens outside them
+### The folders an agent reaches
 
-`[filesystem] trusted_paths` sets friction, not a boundary. A path under none of
-these roots, and outside the session's working directory, is not refused: the
-operation is suspended and the user is asked. Emptying the list therefore does
-not lock an agent out of the machine, it means every write outside the working
-directory raises an approval. Adding a path is a statement of trust, and the
-sensitive paths of the risk table (`~/.ssh`, `/etc`, stored credentials) keep
-their own classification whatever this list contains.
+No key of this file says which folders an agent reaches. A folder of the
+machine is a connection, added from the Connections screen with the system
+picker, and its file tools are granted to an agent on the agent's sheet. The
+file tools of an agent reach the union of the folders granted to it, the
+built-in chat agent included: the reading tools every granted folder, the
+writing tools only the folders granted for writing. The first folder granted,
+by the date it was added, is where a relative path lands. An agent granted no
+folder has file tools that refuse, saying how to grant one.
 
-The working directory itself, `[chat] default_workspace` or the project's, is
-where relative paths resolve. It is trusted like any entry in the list and is
-never a limit on its own.
-
-The two surfaces do not read the list the same way, and the difference is worth
-knowing before you empty it:
-
-| Surface | What the list does |
-| --- | --- |
-| Chat | Sets friction. Outside the roots, an operation is suspended and the user is asked. |
-| Agent mode | Sets a boundary. Outside the roots, a file tool refuses, naming this setting. |
-
-Agent mode has no approval prompt to fall back on: the filesystem approval event
-is emitted by the chat invoker alone, and an agent can run with nobody watching.
-Until that surface exists, a path an agent needs has to be named here.
-
-```toml
-[filesystem]
-trusted_paths = ["~", "/Volumes/work", "/opt/data"]
-```
+`[filesystem] trusted_paths` and `[chat] default_workspace` used to name these
+folders. Both are withdrawn. At the first start of a version that knows folder
+connections, each folder they named, the home folder excepted, was added once
+as a connection, granted to no agent; a file that still carries them loads with
+a `config.key.retired` warning.
 
 ### Sections that were withdrawn
 
@@ -410,10 +403,6 @@ consulted, so writing a value there had no effect and produced no error either.
 They are read by nothing now: a file that still carries one is accepted, with a
 `config.key.retired` warning, and the table of withdrawn keys above names what
 to do instead. Removing them changed no behaviour, because they had none.
-
-`[filesystem]` was in that list. It is a live section again: `trusted_paths` is
-read at startup and reaches the risk classifier, which is what decides whether an
-operation runs or asks.
 
 Some keys were withdrawn for the same reason, because nothing read them. A file
 that still carries one is accepted, with a `config.key.retired` warning naming

@@ -123,6 +123,7 @@ async fn relay_with(tokens: Option<ServerTokensHandle>) -> Relay {
             tokens,
             RelayState::new(models).unwrap(),
             ServerLogsHandle::spawn(&crate::eventbus::EventBus::new().0),
+            false,
         ),
         supervisor,
         received,

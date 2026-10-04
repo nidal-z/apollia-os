@@ -46,14 +46,18 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_chat_sessions",
     "pause_chat_session",
     "send_chat_message",
+    // The images of the chat: what the model of a conversation reads, and
+    // the stored images of its messages.
+    "get_chat_model_capabilities",
+    "read_chat_image",
     // The conversations as the list manages them: configure, rename, name,
-    // erase, link to a project, list by project.
+    // erase.
     "delete_chat_session",
     "generate_chat_session_name",
-    "link_chat_to_project",
-    "list_chats_by_project",
     "rename_chat_session",
     "update_chat_session",
+    // The agents and the models the selector of a conversation offers.
+    "list_chat_targets",
     // The chat: a turn played again, a decision on a tool call, the history
     // of those decisions, and the skills of the worker agents.
     "authorize_chat_tool",
@@ -66,11 +70,18 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "install_agent",
     "list_agents",
     "uninstall_agent",
+    // Agents: the update, restart included, over
+    // `PUT /api/v1/agents/installed/{name}`.
+    "update_agent",
     // Tasks: the list, the launch, the detail, the cancellation.
     "cancel_task",
     "get_task_timeline",
     "list_tasks",
     "submit_task",
+    // Tasks: the deletion of a stored record and the delegation tree, over
+    // `/api/v1/tasks/{id}/record` and `/api/v1/tasks/{id}/delegation-tree`.
+    "delete_task",
+    "get_delegation_tree",
     // Approvals: the pending and resolved ones, and the decision that resumes
     // the task.
     "list_pending_approvals",
@@ -102,6 +113,7 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "set_mcp_server_approval",
     "test_mcp_connection",
     "test_mcp_live_server",
+    "node_runtime_state",
     "update_mcp_server_config",
     // Agent packages installed from a folder, over
     // `/api/v1/agent-packages/`. The preview and the install name the folder
@@ -111,8 +123,16 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_agent_packages",
     "preview_agent_package",
     "uninstall_agent_package",
-    // Connections.
+    // Connections, the folders added as connections, and the mailbox
+    // connection: the providers known from the address, and the addition,
+    // which logs in before it stores.
+    "add_folder_connection",
+    "add_imap_mailbox",
     "list_connections",
+    "list_imap_providers",
+    "remove_folder_connection",
+    // The report of the migration of the former projects.
+    "get_project_migration_report",
     // Apollia as an MCP server, over `/api/v1/mcp/exposed`.
     "list_mcp_exposable",
     "set_mcp_exposed",
@@ -162,6 +182,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // The export of an agent from its sheet: the runtime builds and signs the
     // archive, this process writes the file the user chose.
     "export_agent",
+    // The preview of a `.apo` package before it is installed or updated, its
+    // installation, and the trust of its publisher, over `/api/v1/packages`.
+    "install_package_file",
+    "preview_package_file",
+    "trust_package_publisher",
     // The user profiles and their facts, over `/api/v1/profiles`.
     "create_profile",
     "delete_profile",
@@ -227,14 +252,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_transcriptions",
     "transcribe_file",
     // The onboarding, over `/api/v1/onboarding`: its state and phases, the
-    // profile chosen, the conversation with its agent and its completion.
+    // conversation with its agent and its completion.
     "advance_onboarding_phase",
     "check_onboarding_finalized",
     "dismiss_onboarding",
     "finalize_onboarding_chat",
     "get_onboarding_state",
     "resume_onboarding",
-    "set_onboarding_profile",
     "trigger_onboarding",
     // Resets and erasures, over `/api/v1/onboarding/*`, `/api/v1/memory/wipe`,
     // `/api/v1/logs/clear` and `/api/v1/factory-reset`. The flag, the memory,
@@ -245,13 +269,12 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "factory_reset",
     "mark_onboarded",
     "reset_onboarding",
-    // Permissions: the rules the onboarding agent proposed, a rule written
-    // from an approval card, and the answer to a request to touch a file.
+    // Permissions: the rules the onboarding agent proposed and a rule written
+    // from an approval card.
     "add_permission_prefix_rule",
     "apply_proposed_permission_rule",
     "dismiss_proposed_permission_rule",
     "list_proposed_permission_rules",
-    "respond_hitl_filesystem",
     // Tool governance: the tools, their configuration, the permission rules
     // and the audit, over `/api/v1/governance`.
     "governance_get_tool_config",
@@ -262,6 +285,7 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "governance_revoke_permission_rule",
     "governance_set_tool_config",
     "governance_set_tool_enabled",
+    "governance_state",
     // Accounts of the native connectors and their Drive folder, under
     // `/api/v1/connectors/`. The window keeps the loopback listener and the
     // browser of the consent; the daemon starts it, completes it and stores
@@ -339,6 +363,28 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "meta_generate_next_steps",
     "meta_parse_automation",
     "meta_rewrite_input",
+    // The system settings, in the daemon's `apollia.toml` and on the machine
+    // that runs its tools: the observability policy over
+    // `/api/v1/config/observability`, the Python interpreter over
+    // `/api/v1/config/python-interpreter`, the security posture over
+    // `/api/v1/security-posture`, and the engines of the machine with their
+    // versions over `/api/v1/engines`.
+    "get_observability_config",
+    "get_python_interpreter",
+    "get_security_posture",
+    "list_engines",
+    "set_observability_config",
+    "set_python_interpreter",
+    // The editor of `apollia.toml`, over `/api/v1/config`: the file with its
+    // faults and the keys the policy fixes, the verdict on a text, its save,
+    // and the default text.
+    "default_config_text",
+    "read_config_file",
+    "save_config_text",
+    "validate_config_text",
+    // The organisation policy the runtime applies, read only, over
+    // `/api/v1/governance/policy`.
+    "get_org_policy",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no
@@ -347,8 +393,16 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
 /// reasons and refuses an entry without one.
 pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
+        "get_system_info",
+        "describes this application, its version, and the machine that carries the window",
+    ),
+    (
         "app_restart",
         "relaunches this window, which attaches again at startup",
+    ),
+    (
+        "restart_apollia",
+        "stops the daemon through its own route, then relaunches this window, which starts the service again and attaches",
     ),
     (
         "quit_app",
@@ -405,10 +459,6 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "open_logs_dir",
         "opens the folder of this window's own log file in the file manager of this machine",
-    ),
-    (
-        "open_config_in_editor",
-        "opens the configuration file in the editor of this machine",
     ),
     (
         "export_conversation",

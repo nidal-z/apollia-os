@@ -17,7 +17,6 @@ fn session(id: &str) -> SessionInfo {
         status: SessionStatus::Active,
         created_at: "2026-10-01T00:00:00Z".to_owned(),
         title: Some("Une conversation".to_owned()),
-        project_id: None,
     }
 }
 
@@ -25,9 +24,9 @@ fn session(id: &str) -> SessionInfo {
 
 #[test]
 fn test_a_command_not_routed_is_refused_in_attached_mode_with_a_readable_error() {
-    // GIVEN the application attached to a daemon, and a command whose body
-    // reads state only the embedded runtime builds
-    let command = "get_delegation_tree";
+    // GIVEN the application attached to a daemon, and a command on neither
+    // list, named so that no family routed later can take it
+    let command = "read_state_only_the_embedded_runtime_builds";
 
     // WHEN the gate is asked before the body runs
     let refusal = gate(LinkMode::Attached, command);
@@ -38,14 +37,8 @@ fn test_a_command_not_routed_is_refused_in_attached_mode_with_a_readable_error()
     assert!(matches!(&error, AttachedError::NotRouted { command: c } if c == command));
     let fr = error.for_display(UiLocale::Fr);
     let en = error.for_display(UiLocale::En);
-    assert!(
-        fr.contains("get_delegation_tree") && fr.contains("en service"),
-        "{fr}"
-    );
-    assert!(
-        en.contains("get_delegation_tree") && en.contains("as a service"),
-        "{en}"
-    );
+    assert!(fr.contains(command) && fr.contains("en service"), "{fr}");
+    assert!(en.contains(command) && en.contains("as a service"), "{en}");
 }
 
 #[test]
@@ -86,7 +79,10 @@ fn test_every_routed_command_passes_the_gate_in_attached_mode() {
 fn test_the_embedded_mode_lets_every_command_through() {
     // GIVEN the runtime running in this process
     // WHEN a command not routed is gated
-    let verdict = gate(LinkMode::Embedded, "get_delegation_tree");
+    let verdict = gate(
+        LinkMode::Embedded,
+        "read_state_only_the_embedded_runtime_builds",
+    );
 
     // THEN it runs as it always did
     assert!(verdict.is_ok());
@@ -122,7 +118,9 @@ async fn test_a_message_is_sent_and_a_turn_paused_over_http() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/api/v1/sessions/s-1/messages"))
-        .and(body_json(serde_json::json!({ "content": "Bonjour" })))
+        .and(body_json(
+            serde_json::json!({ "content": "Bonjour", "images": [] }),
+        ))
         .respond_with(
             ResponseTemplate::new(202)
                 .set_body_json(serde_json::json!({ "message_id": "m-9", "status": "processing" })),
@@ -141,7 +139,7 @@ async fn test_a_message_is_sent_and_a_turn_paused_over_http() {
     let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
 
     // WHEN a message is sent, then the turn paused
-    let message_id = client.send_message("s-1", "Bonjour").await.unwrap();
+    let message_id = client.send_message("s-1", "Bonjour", &[]).await.unwrap();
     client.pause_session("s-1").await.unwrap();
 
     // THEN the daemon's message id is returned and both calls reached it
@@ -164,7 +162,7 @@ async fn test_a_session_is_created_over_http_from_the_interface_request() {
         agent_name: None,
         system_prompt: None,
         tools: Vec::new(),
-        project_id: None,
+        model: None,
     };
 
     // WHEN the attached arm creates a free conversation
@@ -172,6 +170,36 @@ async fn test_a_session_is_created_over_http_from_the_interface_request() {
 
     // THEN the daemon's session is returned
     assert_eq!(info.id, "s-new");
+}
+
+#[tokio::test]
+async fn test_a_session_created_with_a_model_hands_the_model_to_the_daemon() {
+    // GIVEN a daemon creating sessions only when the request names the model
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/sessions"))
+        .and(wiremock::matchers::body_partial_json(serde_json::json!({
+            "mode": "libre",
+            "model": "Qwen3-4B-Q4_K_M.gguf"
+        })))
+        .respond_with(ResponseTemplate::new(201).set_body_json(session("s-model")))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+    let request = crate::commands::chat::CreateSessionRequest {
+        mode: "libre".to_owned(),
+        agent_name: None,
+        system_prompt: None,
+        tools: Vec::new(),
+        model: Some("Qwen3-4B-Q4_K_M.gguf".to_owned()),
+    };
+
+    // WHEN the attached arm creates a conversation on that model
+    let info = client.create_session(&request).await.unwrap();
+
+    // THEN the daemon received the model and answered its session
+    assert_eq!(info.id, "s-model");
 }
 
 #[tokio::test]
@@ -515,14 +543,13 @@ fn test_a_window_command_runs_attached_and_carries_its_reason() {
 // ── Permissions ──────────────────────────────────────────────────────────
 
 #[test]
-fn test_the_proposed_rules_and_the_file_answers_pass_the_gate_attached() {
-    // GIVEN the commands of the proposed rules and of the file requests
+fn test_the_proposed_rules_pass_the_gate_attached() {
+    // GIVEN the commands of the proposed rules
     let commands = [
         "list_proposed_permission_rules",
         "apply_proposed_permission_rule",
         "dismiss_proposed_permission_rule",
         "add_permission_prefix_rule",
-        "respond_hitl_filesystem",
     ];
 
     // WHEN each is gated while attached
@@ -632,11 +659,6 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
             "/api/v1/sessions/s%201/title",
             serde_json::json!({ "title": "Plan" }),
         ),
-        (
-            "PUT",
-            "/api/v1/sessions/s%201/project",
-            serde_json::json!({ "project_id": "p-1" }),
-        ),
     ];
     for (verb, route, body) in routes {
         Mock::given(method(verb))
@@ -658,18 +680,12 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
         .expect(1)
         .mount(&server)
         .await;
-    Mock::given(method("GET"))
-        .and(path("/api/v1/projects/p%2F1/sessions"))
-        .and(header("authorization", auth.as_str()))
-        .respond_with(ResponseTemplate::new(200).set_body_json(vec![session("s-2")]))
-        .expect(1)
-        .mount(&server)
-        .await;
     let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
     let update = crate::commands::chat::UpdateSessionRequest {
         system_prompt: Some("Brief.".to_owned()),
         tools: None,
         llm_backend: None,
+        profile_id: None,
     };
 
     // WHEN the attached arm of each command runs, with identifiers that need
@@ -679,21 +695,13 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
         .unwrap();
     conversations::erase(&client, "s 1").await.unwrap();
     conversations::rename(&client, "s 1", "Plan").await.unwrap();
-    conversations::link_project(&client, "s 1", Some("p-1"))
-        .await
-        .unwrap();
     let title = conversations::name(&client, "s 1", "Help me")
         .await
         .unwrap();
-    let sessions = conversations::project_sessions(&client, "p/1")
-        .await
-        .unwrap();
 
-    // THEN each reached its own route once (the mocks verify it on drop), the
-    // generated title and the project's sessions come back as the daemon said
+    // THEN each reached its own route once (the mocks verify it on drop), and
+    // the generated title comes back as the daemon said
     assert_eq!(title, "CV help");
-    assert_eq!(sessions.len(), 1);
-    assert_eq!(sessions[0].id, "s-2");
 }
 
 #[tokio::test]
@@ -735,8 +743,6 @@ fn test_the_conversation_commands_pass_the_gate_attached() {
     let commands = [
         "delete_chat_session",
         "generate_chat_session_name",
-        "link_chat_to_project",
-        "list_chats_by_project",
         "rename_chat_session",
         "update_chat_session",
     ];

@@ -228,7 +228,7 @@ def test_closing_before_the_four_facts_finalizes_nothing() -> None:
     ctx = _FakeCtx({"name": "Lea", "role": "office manager"})
 
     # WHEN the model tries to close
-    state = _call(ctx, close=True, profile_type="operator")
+    state = _call(ctx, close=True)
 
     # THEN nothing is finalized and the next step asks the missing question
     assert state["completed"] is False
@@ -262,20 +262,19 @@ def test_closing_writes_the_meta_keys_with_completed_at_last() -> None:
     ctx = _FakeCtx({**_CALIBRATED, "tech.integrations": "github, slack"})
 
     # WHEN the person asks to stop
-    state = _call(ctx, facts={"user.goals": "less email"}, close=True, profile_type="operator")
+    state = _call(ctx, facts={"user.goals": "less email"}, close=True)
 
     # THEN the profile gains the goal, and the meta keys land in order, the
-    # completion signal last, with the rules the preferences call for
+    # completion signal last, with the rules the preferences call for and no
+    # usage profile among them
     assert state["completed"] is True
     assert ctx.profile.values["goals"] == "less email"
     assert ctx.memory.order == [
-        "onboarding.profile_type",
         "onboarding.version",
         "onboarding.suggested_agents",
         "onboarding.proposed_rules",
         "onboarding.completed_at",
     ]
-    assert ctx.memory.values["onboarding.profile_type"] == "operator"
     assert json.loads(ctx.memory.values["onboarding.suggested_agents"]) == ["email-triage"]
     rules = json.loads(ctx.memory.values["onboarding.proposed_rules"])
     assert {"tool_name": "file_read", "action": "allow", "scope": "global"} in rules
@@ -304,9 +303,9 @@ def test_every_optional_fact_recorded_closes_without_being_asked() -> None:
     # WHEN the last optional fact arrives
     state = _call(ctx, facts={onboarding.TIER2_KEYS[-1]: "manual"})
 
-    # THEN the onboarding is finalized, the profile type inferred from the role
+    # THEN the onboarding is finalized, with no usage profile written
     assert state["completed"] is True
-    assert ctx.memory.values["onboarding.profile_type"] == "operator"
+    assert not any("profile_type" in key for key in ctx.memory.values)
     assert "onboarding.completed_at" in ctx.memory.values
 
 
@@ -328,11 +327,11 @@ def test_a_technical_role_suggests_the_builder_agents() -> None:
     # GIVEN a calibrated developer in sustainability reporting
     ctx = _FakeCtx({**_CALIBRATED, "role": "data engineer, ESG reporting"})
 
-    # WHEN the onboarding closes without a profile type
+    # WHEN the onboarding closes
     _call(ctx, close=True)
 
-    # THEN the role decides the type and the suggestions
-    assert ctx.memory.values["onboarding.profile_type"] == "builder"
+    # THEN the role decides the suggestions, and no usage profile is written
+    assert "onboarding.profile_type" not in ctx.memory.values
     assert json.loads(ctx.memory.values["onboarding.suggested_agents"]) == [
         "veille-ia",
         "email-triage",

@@ -69,6 +69,7 @@ fn machine(settings: &str) -> Machine {
         None,
         RelayState::new(models).unwrap(),
         ServerLogsHandle::spawn(&crate::eventbus::EventBus::new().0),
+        false,
     );
     Machine {
         dir,

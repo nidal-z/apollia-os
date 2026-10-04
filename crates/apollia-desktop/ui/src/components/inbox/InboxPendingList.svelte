@@ -9,10 +9,8 @@
   import { t } from "svelte-i18n";
   import { SectionTitle, ListPanel, InboxRow, HITLCard } from "$lib/components/operator";
   import { listNavigation } from "$lib/components/operator/listNavigation";
-  import type { AlwaysScope } from "$lib/components/operator/HITLCard.svelte";
   import { listFlip, rowOut } from "$lib/design/listMotion";
   import { ContextMenu } from "$lib/components/ui/context-menu";
-  import { chatSessions } from "$lib/stores/sse";
   import AskUserForm from "./AskUserForm.svelte";
   import type { AskUserAnswer } from "$lib/types";
   import type { InboxItem } from "./types";
@@ -36,7 +34,7 @@
     onToggleExpand: (item: InboxItem) => void;
     onApprove: (item: InboxItem) => void;
     onReject: (item: InboxItem) => void;
-    onAlwaysAccept: (item: InboxItem, scope: AlwaysScope) => void;
+    onAlwaysAccept: (item: InboxItem) => void;
     onRespondAskUser: (item: InboxItem, answers: AskUserAnswer[]) => void;
     onRejectAskUser: (item: InboxItem, reason: string) => void;
     onOpenChat: (sessionId: string) => void;
@@ -60,11 +58,6 @@
 
   const flat = $derived(GROUP_ORDER.flatMap((g) => grouped[g]));
 
-  /** Sessions that belong to a project, so "Always for this project" is
-   *  offered only where the runtime has a project to attach the rule to. */
-  const projectSessionIds = $derived(
-    new Set($chatSessions.filter((s) => s.project_id !== null).map((s) => s.id)),
-  );
   const menuHandlers = $derived({
     tr: $t as Translate,
     onApprove,
@@ -192,8 +185,7 @@
                         params={item.kind === "task" ? (item.risk?.consequences ?? []) : []}
                         onApprove={() => onApprove(item)}
                         onReject={() => onReject(item)}
-                        onAlwaysAccept={isChatToolItem(item) ? (s) => onAlwaysAccept(item, s) : undefined}
-                        hasProject={item.sessionId !== undefined && projectSessionIds.has(item.sessionId)}
+                        onAlwaysAccept={isChatToolItem(item) ? () => onAlwaysAccept(item) : undefined}
                       />
                     </div>
                   {/if}

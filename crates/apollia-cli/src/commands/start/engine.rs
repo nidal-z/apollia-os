@@ -117,11 +117,9 @@ pub(super) struct AIPProductionBackend {
     pub(super) user_memory_write: bool,
     /// High-level A2A orchestrator, `None` when registry or router are not initialized.
     pub(super) a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
-    /// Operator-supplied tools configuration loaded from `apollia.toml`.
-    pub(super) tools_config: apollia_core::ToolsConfig,
-    /// Filesystem roots an agent may reach (`[filesystem] trusted_paths`, `~`
-    /// already resolved). The first is the anchor for relative paths.
-    pub(super) trusted_paths: Vec<std::path::PathBuf>,
+    /// Operator-supplied tools configuration loaded from `apollia.toml`, read
+    /// at each run so a saved change applies to the next one.
+    pub(super) tools_config: apollia_runtime::config_reload::Live<apollia_core::ToolsConfig>,
     /// Datasources declared in the manifest (`manifest.datasources`). Empty
     /// when the agent declares none.
     pub(super) datasources_declared: Vec<String>,
@@ -141,6 +139,9 @@ pub(super) struct AIPProductionBackend {
     /// MCP client manager handle, `None` when no MCP server is configured. Lets
     /// the `BridgeRunner` route `mcp:<server>/<tool>` calls to the MCP manager.
     pub(super) mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
+    /// The governance actor: the tools it disabled, and whether it fails
+    /// closed. `None` reads `governance.db` when a run starts.
+    pub(super) governance: Option<apollia_runtime::governance::GovernanceHandle>,
 }
 
 impl Clone for AIPProductionBackend {
@@ -162,7 +163,6 @@ impl Clone for AIPProductionBackend {
             task_repository: self.task_repository.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
             tools_config: self.tools_config.clone(),
-            trusted_paths: self.trusted_paths.clone(),
             user_memory_write: self.user_memory_write,
             datasources_declared: self.datasources_declared.clone(),
             templates_declared: self.templates_declared.clone(),
@@ -170,6 +170,7 @@ impl Clone for AIPProductionBackend {
             secrets_declared: self.secrets_declared.clone(),
             secrets_data_dir: self.secrets_data_dir.clone(),
             mcp_handle: self.mcp_handle.clone(),
+            governance: self.governance.clone(),
         }
     }
 }

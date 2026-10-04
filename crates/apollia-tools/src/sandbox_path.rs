@@ -12,8 +12,8 @@ use thiserror::Error;
 pub enum SandboxPathError {
     /// Path attempts to escape the sandbox root.
     #[error(
-        "path '{path}' is outside every trusted root; add it to [filesystem] \
-         trusted_paths in apollia.toml to reach it"
+        "path '{path}' is outside every folder granted to this agent; add its \
+         folder as a connection and grant it to the agent to reach it"
     )]
     SandboxViolation { path: String },
 
@@ -271,10 +271,6 @@ impl SandboxRoot {
 /// The normalized path may still contain `..` components at the start if there are more
 /// parent directory references than can be resolved against normal components.
 ///
-/// Crate-visible because [`crate::RiskClassifier::classify_filesystem`] needs the
-/// same lexical resolution when the target does not exist yet: comparing a path
-/// that still holds a `..` against a root by components reads the hop as if it
-/// were inside.
 pub(crate) fn normalize_path(path: &Path) -> PathBuf {
     let mut components: Vec<Component> = Vec::new();
 
@@ -422,8 +418,8 @@ mod tests {
 
     #[test]
     fn resolve_accepts_an_absolute_path_under_a_second_root() {
-        // GIVEN two roots, the second being the kind of path an operator names
-        // in `[filesystem] trusted_paths` (a mounted volume, /opt, a work disk)
+        // GIVEN two roots, the second being a second folder granted to the
+        // agent (a mounted volume, /opt, a work disk)
         let (anchor, second, _) = two_roots_and_a_ghost();
         std::fs::write(second.join("report.csv"), b"x").expect("write");
         let sandbox =

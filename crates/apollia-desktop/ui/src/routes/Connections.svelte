@@ -23,15 +23,14 @@
   import CatalogueSheet from "../components/connections/catalogue/CatalogueSheet.svelte";
   import NativeOauthDialog from "../components/connections/oauth/NativeOauthDialog.svelte";
   import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
-  import McpDisclaimerDialog, {
-    isDisclaimerAccepted,
-  } from "../components/integrations/McpDisclaimerDialog.svelte";
+  import MailboxDialog from "../components/integrations/MailboxDialog.svelte";
+  import FolderConnectionDialog from "../components/connections/catalogue/FolderConnectionDialog.svelte";
+  import { chooseAndAddFolder, type FolderOutcome } from "$lib/connections/folderConnection";
+  import { openSettingsWindow } from "$lib/stores/settingsWindow";
   import {
     listMcpServers,
     listMcpEnrichments,
     listAgents,
-    fetchMcpCurated,
-    fetchMcpRegistry,
     getMcpServerDetail,
     oauthGetStatus,
     oauthDisconnect,
@@ -40,7 +39,8 @@
   } from "$lib/ipc/connections";
   import { messageOf, formatTauriError } from "$lib/connections/errors";
   import { needsOauthSetup } from "$lib/connections/status";
-  import { loadConnections } from "$lib/connections/connectionList";
+  import { loadConnections, forbiddenConnections } from "$lib/connections/connectionList";
+  import { createCatalogueSource, type CatalogueTier } from "$lib/connections/catalogueSource";
   import {
     NATIVE_PROVIDER_KEYS,
     connectionRows,
@@ -48,6 +48,11 @@
   } from "$lib/connections/connectionRows";
   import { oauthListClientIds, type OauthClientIdStatus } from "$lib/ipc/oauthClients";
   import { navigateTo } from "$lib/stores/navigation";
+  import {
+    findSelectionEntry,
+    pendingConnectionAdd,
+    takePendingConnectionAdd,
+  } from "$lib/stores/connectionAdd";
   import { pendingChatSessionId } from "$lib/stores/chat";
   import { createChatSession } from "$lib/ipc/agents";
   import { sendChatMessage } from "$lib/ipc/chat";
@@ -140,10 +145,17 @@
   // ── Catalogue + wizard ───────────────────────────────────────────────────────
   let catalogueOpen = $state(false);
   let registryLoading = $state(false);
-  let catalogueTier = $state<"none" | "curated" | "full">("none");
+  let catalogueTier = $state<CatalogueTier>("none");
+  // Opening reads the selection only; the public catalogue is asked by
+  // "Explore all" and nothing else.
+  const catalogueSource = createCatalogueSource();
   let selectedRegistryServer = $state<RegistryServerView | null>(null);
   let wizardOpen = $state(false);
-  let disclaimerOpen = $state(false);
+  let mailboxOpen = $state(false);
+
+  // ── Folder connections ───────────────────────────────────────────────────────
+  let folderOutcome = $state<Exclude<FolderOutcome, { kind: "cancelled" }> | null>(null);
+  let folderDialogOpen = $state(false);
 
   // ── Derived ──────────────────────────────────────────────────────────────────
   function resolveEnrichment(server: McpServerStatusView): ConnectorEnrichmentView | null {
@@ -151,9 +163,11 @@
     return enrichmentMap.get(server.package) ?? null;
   }
 
+  /** The connections the organisation policy forbade at the last start, listed apart. */
+  const forbidden = $derived(forbiddenConnections(connections));
   /** The rows of the list: the loader's connections, a server named by its catalogue label. */
   const rows = $derived(
-    connectionRows(connections, (c) => {
+    connectionRows(connections.filter((c) => c.state !== "forbidden_by_policy"), (c) => {
       if (c.kind !== "mcp") return c.label;
       const server = servers.find((s) => `mcp:${s.name}` === c.id);
       return (server && resolveEnrichment(server)?.operator_label) ?? c.label;
@@ -214,23 +228,24 @@
     }
   }
 
-  async function loadCuratedCatalogue(): Promise<void> {
-    if (catalogueTier !== "none") return;
+  async function showSelection(): Promise<void> {
     registryLoading = true;
     try {
-      registry = await fetchMcpCurated().catch(() => [] as RegistryServerView[]);
-      catalogueTier = "curated";
+      const view = await catalogueSource.selection();
+      catalogueTier = view.tier;
+      registry = view.entries;
     } finally {
       registryLoading = false;
     }
   }
 
-  async function loadFullRegistry(): Promise<void> {
-    if (catalogueTier === "full" || registryLoading) return;
+  async function handleExploreAll(): Promise<void> {
+    if (registryLoading) return;
     registryLoading = true;
     try {
-      registry = await fetchMcpRegistry().catch(() => [] as RegistryServerView[]);
-      catalogueTier = "full";
+      const view = await catalogueSource.exploreAll();
+      catalogueTier = view.tier;
+      registry = view.entries;
     } finally {
       registryLoading = false;
     }
@@ -262,20 +277,46 @@
   // ── Handlers ─────────────────────────────────────────────────────────────────
   function handleOpenCatalogue(): void {
     catalogueOpen = true;
-    void (async () => {
-      await loadCuratedCatalogue();
-      if (catalogueTier === "curated") void loadFullRegistry();
-    })();
+    void showSelection();
   }
 
+  /** Choosing an entry opens the add dialog on its warning. */
   function handleConnect(server: RegistryServerView): void {
     catalogueOpen = false;
     selectedRegistryServer = server;
-    if (!isDisclaimerAccepted()) {
-      disclaimerOpen = true;
-      return;
-    }
     wizardOpen = true;
+  }
+
+  /**
+   * Open the add dialog on the selection entry another screen asked for; an
+   * entry the selection does not hold opens the catalogue instead.
+   */
+  async function openPendingEntry(entryId: string): Promise<void> {
+    await showSelection();
+    const entry = findSelectionEntry(registry, entryId);
+    if (entry) handleConnect(entry);
+    else catalogueOpen = true;
+  }
+
+  /**
+   * "Folder" in the selection, or "Choose another folder" after one: the
+   * system picker, then the folder added. A cancelled picker changes nothing.
+   */
+  async function addFolder(): Promise<void> {
+    catalogueOpen = false;
+    const outcome = await chooseAndAddFolder($t("connections.folder.picker_title"));
+    if (outcome.kind === "cancelled") return;
+    folderOutcome = outcome;
+    folderDialogOpen = true;
+    if (outcome.kind === "added") {
+      await loadAll();
+      selection = { kind: "connection", id: outcome.connection.id };
+    }
+  }
+
+  function closeFolderDialog(): void {
+    folderDialogOpen = false;
+    folderOutcome = null;
   }
 
   function handleManage(name: string): void {
@@ -312,6 +353,12 @@
   }
 
   // ── Effects ──────────────────────────────────────────────────────────────────
+  $effect(() => {
+    if ($pendingConnectionAdd === null) return;
+    const entryId = takePendingConnectionAdd();
+    if (entryId !== null) void openPendingEntry(entryId);
+  });
+
   $effect(() => {
     void loadAll();
     void refreshNativeStatus();
@@ -395,6 +442,7 @@
     {#snippet sidebar()}
       <ConnectorSidebar
         {rows}
+        {forbidden}
         {selection}
         {loading}
         {loadError}
@@ -441,6 +489,10 @@
       <ConnectionSummaryDetail
         connection={selectedConnection}
         label={selectedRow?.label ?? selectedConnection.label}
+        onremoved={() => {
+          selection = null;
+          void loadAll();
+        }}
       />
     {:else}
       <div
@@ -471,15 +523,23 @@
   />
 {/if}
 
-<McpDisclaimerDialog
-  open={disclaimerOpen}
-  onaccept={() => {
-    disclaimerOpen = false;
-    if (selectedRegistryServer) wizardOpen = true;
+<MailboxDialog
+  open={mailboxOpen}
+  onclose={() => (mailboxOpen = false)}
+  onadded={(connectionId) => {
+    selection = { kind: "connection", id: connectionId };
+    void loadAll();
   }}
-  onclose={() => {
-    disclaimerOpen = false;
-    selectedRegistryServer = null;
+/>
+
+<FolderConnectionDialog
+  open={folderDialogOpen}
+  outcome={folderOutcome}
+  onclose={closeFolderDialog}
+  onchooseanother={() => void addFolder()}
+  onopenrule={() => {
+    closeFolderDialog();
+    openSettingsWindow("permissions");
   }}
 />
 
@@ -500,11 +560,18 @@
   {registryLoading}
   {catalogueTier}
   onclose={() => (catalogueOpen = false)}
+  onexploreall={handleExploreAll}
+  onbacktoselection={showSelection}
   onconnect={handleConnect}
   onmanage={handleManage}
+  onaddfolder={() => void addFolder()}
   onaddnative={(provider) => {
     catalogueOpen = false;
     selection = { kind: "native", provider };
+  }}
+  onaddmailbox={() => {
+    catalogueOpen = false;
+    mailboxOpen = true;
   }}
   oninstalled={() => {
     catalogueOpen = false;

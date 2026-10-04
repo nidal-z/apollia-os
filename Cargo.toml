@@ -167,6 +167,18 @@ rust_xlsxwriter = { version = "=0.92.0", default-features = false }
 # the `documents-and-sources` decision.
 calamine = { version = "=0.36.1", default-features = false }
 csv = "1.4.0"
+# Extracts the text of a PDF page by page (apollia-sources). Pure Rust, no
+# network, no system library. Default features off: the colour-profile engine
+# is of no use to text extraction; `legacy-crypto` stays so that a PDF locked
+# with an owner password only still opens. Its dependency `office_oxide` is held
+# at 0.1.11 in Cargo.lock: 0.1.12 no longer compiles under pdf_oxide 0.3.78. See
+# the `documents-and-sources` decision.
+pdf_oxide = { version = "=0.3.78", default-features = false, features = ["legacy-crypto"] }
+# Reads the XML parts of Word and PowerPoint files (apollia-sources), whose zip
+# archive is opened with `zip` above. Already in the tree through calamine and
+# the desktop bundle; default features off, nothing enters the lock file. See
+# the `documents-and-sources` decision.
+quick-xml = { version = "0.41", default-features = false }
 
 # --- Random ---
 # rand 0.9 = the latest widely adopted stable major (0.10 has only just

@@ -9,34 +9,30 @@ impl Supervisor {
         Self { config }
     }
 
-    /// Phase 3b: open `mcp.db`, run the one-shot `mcp.toml` migration when
-    /// empty, and start the MCP client manager (always, even with no servers).
-    pub(in crate::supervisor) async fn start_mcp(
+    /// Phase 3b, first half: open `mcp.db`, run the one-shot `mcp.toml`
+    /// migration when empty, and read the declared servers. `None` when the
+    /// store cannot be opened: the runtime continues without MCP.
+    pub(in crate::supervisor) fn open_mcp_store(
         &self,
-        tool_registry_handle: &ToolRegistryHandle,
-        event_sender: &EventBusSender,
-    ) -> (
-        Option<McpClientManagerHandle>,
-        Option<Arc<std::sync::Mutex<McpServerRepository>>>,
-    ) {
+    ) -> Option<(
+        McpServerRepository,
+        Vec<apollia_mcp::config::McpServerConfig>,
+    )> {
         let mcp_db_path = self
             .config
             .data_dir
             .join(apollia_core::paths::DataFile::Mcp.file_name());
-        let mcp_config_path = self.config.data_dir.join("mcp.toml");
-
         let repo = match McpServerRepository::open(&mcp_db_path) {
             Ok(repo) => repo,
             Err(e) => {
                 warn!(error = %e, detail = "continuing without MCP", "mcp.store.open.failed");
-                return (None, None);
+                return None;
             }
         };
 
         // One-shot migration from mcp.toml when the database is empty.
-        migrate_mcp_from_toml(&repo, &mcp_config_path);
+        migrate_mcp_from_toml(&repo, &self.config.data_dir.join("mcp.toml"));
 
-        // Load server list and start the manager.
         let server_configs = match repo.list() {
             Ok(v) => v,
             Err(e) => {
@@ -44,12 +40,63 @@ impl Supervisor {
                 Vec::new()
             }
         };
+        Some((repo, server_configs))
+    }
+
+    /// Phase 3a: submit every existing connection (the servers of `mcp_store`,
+    /// `native_accounts`, the mailboxes of the data directory) to `admission`,
+    /// and keep the ones it refuses.
+    pub(in crate::supervisor) fn forbidden_connections(
+        &self,
+        admission: &dyn crate::governance::ConnectionAdmission,
+        mcp_store: Option<&(
+            McpServerRepository,
+            Vec<apollia_mcp::config::McpServerConfig>,
+        )>,
+        native_accounts: &[crate::connections::NativeAccounts],
+    ) -> crate::governance::ForbiddenConnections {
+        let mailboxes =
+            apollia_connectors::imap::ImapAccountStore::accounts_in(&self.config.data_dir)
+                .unwrap_or_else(|e| {
+                    warn!(error = %e, "connections.imap.unreadable");
+                    Vec::new()
+                });
+        crate::governance::ForbiddenConnections::compute(
+            admission,
+            mcp_store.map_or(&[][..], |(_, configs)| configs),
+            native_accounts,
+            &mailboxes,
+        )
+    }
+
+    /// Phase 3b, second half: start the MCP client manager (always, even with
+    /// no servers) on every declared server the policy did not forbid.
+    pub(in crate::supervisor) async fn start_mcp(
+        &self,
+        tool_registry_handle: &ToolRegistryHandle,
+        event_sender: &EventBusSender,
+        store: Option<(
+            McpServerRepository,
+            Vec<apollia_mcp::config::McpServerConfig>,
+        )>,
+        forbidden: &crate::governance::ForbiddenConnections,
+    ) -> (
+        Option<McpClientManagerHandle>,
+        Option<Arc<std::sync::Mutex<McpServerRepository>>>,
+    ) {
+        let Some((repo, server_configs)) = store else {
+            return (None, None);
+        };
+        let server_configs = server_configs
+            .into_iter()
+            .filter(|config| !forbidden.contains_mcp_server(&config.name))
+            .collect();
 
         let handle = start_mcp_manager(
             server_configs,
             tool_registry_handle,
             event_sender,
-            &mcp_config_path,
+            &self.config.data_dir.join("mcp.toml"),
             self.config.mcp_loading,
         )
         .await;
@@ -112,7 +159,11 @@ impl Supervisor {
 
     /// Phase 4c: open `runtime_events.db` and spawn the runtime-events
     /// subscriber. Best-effort: failures are logged, never fatal.
-    pub(in crate::supervisor) async fn spawn_event_persistor(&self, event_sender: &EventBusSender) {
+    pub(in crate::supervisor) async fn spawn_event_persistor(
+        &self,
+        event_sender: &EventBusSender,
+        observability: &crate::config_reload::Live<apollia_core::ObservabilityConfig>,
+    ) {
         let db_path = self
             .config
             .data_dir
@@ -132,7 +183,7 @@ impl Supervisor {
                 crate::observability::spawn_runtime_events_subscriber(
                     handle,
                     event_sender,
-                    self.config.obs_config.clone(),
+                    observability.clone(),
                 );
                 info!(
                     path = %db_path.display(),

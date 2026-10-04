@@ -51,9 +51,11 @@ use crate::composition::Composer;
 use crate::eventbus::EventBusSender;
 use crate::hooks::executor::{HookDecision, HookExecutor};
 
+mod approval_request;
 mod builder;
 mod catalog;
 mod context_window;
+mod governed;
 mod helpers;
 mod hitl;
 mod invoker;
@@ -73,13 +75,17 @@ pub(in crate::chat::builtin_agent) use helpers::{
     stamp_inject_provenance, step_status_token, truncate_preview, truncate_tool_output,
     unknown_tool_reason,
 };
-pub use invoker::{HitlInvokerParams, NativeChatToolInvoker};
+pub use invoker::NativeChatToolInvoker;
 pub use response::{ChatAgentResponse, ConsolidatedVerificationReport};
 pub(in crate::chat::builtin_agent) use response::{NoopCheckInvoker, PlanPhaseTracker, RetryCarry};
 
 /// An "always accept" on a code executor covers the current call only.
 #[cfg(test)]
 mod code_executor_grant_tests;
+#[cfg(test)]
+mod consent_journal_tests;
+#[cfg(test)]
+mod governed_test_support;
 #[cfg(test)]
 mod parity_tests;
 /// Cooperative pause/resume of the chat ReAct loop.
@@ -91,6 +97,9 @@ mod tests;
 mod todo_compaction_tests;
 #[cfg(test)]
 mod verification_wire_tests;
+/// A write is consented to on the card of its family, with no prompt of its own.
+#[cfg(test)]
+mod write_consent_tests;
 
 /// Delay after which a tool approval of a conversation is refused (5 minutes).
 pub(crate) const CHAT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(300);
@@ -180,19 +189,6 @@ const VERIFICATION_MAX_RETRIES: u32 = 2;
 /// scope for this iteration.
 const ESCALATION_FAILURE_THRESHOLD: u32 = 3;
 
-/// Per-invocation permission checker consulted when a tool call misses the
-/// name-only authorization set, before a human approval is raised.
-///
-/// Arguments: the tool name and the call's first string argument (extracted
-/// with [`apollia_permissions::extract_first_arg`]). Returns the matched rule
-/// id and action, or `None` when no persisted rule decides, in which case the
-/// HITL flow proceeds as before. The decision is per invocation: an allow
-/// never widens the name-only set, the next call re-evaluates with its own
-/// argument.
-pub type PrefixChecker = dyn Fn(&str, Option<&str>) -> Option<(i64, apollia_permissions::prefix_rule_engine::RuleAction)>
-    + Send
-    + Sync;
-
 /// Dependencies required to construct a [`BuiltInChatAgent`].
 pub struct BuiltInChatAgentDeps {
     pub llm_router: Arc<LlmRouter>,
@@ -277,6 +273,9 @@ pub struct BuiltInChatAgent {
     /// the operator text as reason. `None` for every ordinary turn, so behavior is
     /// unchanged when no injection is pending.
     pending_injection: Option<InjectedInstruction>,
+    /// Images of the turn: those of the message answered and of the earlier
+    /// user messages in the window. Empty for a turn without images.
+    turn_images: crate::chat::images::TurnImages,
     /// Temperature applied to a turn that advertises tools to the model.
     ///
     /// Lowering it whenever tools are exposed makes structured tool-call output
@@ -285,9 +284,10 @@ pub struct BuiltInChatAgent {
     /// `[chat] tool_turn_temperature`, defaulting to
     /// [`DEFAULT_TOOL_TURN_TEMPERATURE`].
     tool_turn_temperature: f32,
-    /// Optional per-invocation prefix-rule checker. `None` keeps the previous
-    /// behavior: a miss on the name-only set goes straight to HITL.
-    prefix_checker: Option<Arc<PrefixChecker>>,
+    /// The governance every tool call is decided by, before it runs.
+    governance: crate::governance::GovernanceHandle,
+    /// Nobody watches the run: a call that would ask waits instead.
+    unattended: bool,
     /// Backend the owning session prefers. Each call of the turn routes to it
     /// when the router can reach it, and to the default otherwise (said with
     /// `LlmAgentModelFallback`). `None` routes to the default.
@@ -306,7 +306,7 @@ pub struct BuiltInChatAgent {
 /// Mutable accumulators threaded through one ReAct turn's tool-call handling.
 struct ReactAccumulators {
     all_tool_calls: Vec<ToolCallRecord>,
-    newly_authorized: Vec<String>,
+    /// The accesses the caller of the run granted for the run alone.
     authorized: HashSet<String>,
     /// The measure of every model call of the turn, in order.
     llm_calls: Vec<apollia_llm::CallMeasure>,
@@ -342,9 +342,11 @@ struct ToolCallContext<'a> {
     /// The arguments of this call were replaced by a `PreToolUse` hook, so the
     /// session-level authorization of the tool name no longer covers what is
     /// about to run: the operator approved one argument set and a handler
-    /// answered with another. Set, the call goes through the approval flow
-    /// whatever `acc.authorized` says.
+    /// answered with another. Set, a call a consent would let run is asked
+    /// about again.
     rewritten_by_hook: bool,
+    /// Action family of the tool, as its descriptor declares it.
+    family: apollia_tools::ActionFamily,
 }
 
 /// Borrowed identifiers shared by every tool call in a single ReAct turn
@@ -387,6 +389,8 @@ struct ToolExecTarget<'a> {
     message_id: &'a str,
     call: &'a ToolCall,
     run_id: &'a RunId,
+    /// What governance asked about the call, carried to the answer.
+    asked: governed::AskedConsent,
 }
 
 /// Result of processing one tool call.

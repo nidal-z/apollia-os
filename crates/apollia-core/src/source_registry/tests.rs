@@ -50,43 +50,44 @@ fn test_a_source_added_is_read_back_then_removed() {
 }
 
 #[test]
-fn test_a_folder_a_file_or_a_mailbox_without_a_reference_is_refused() {
+fn test_a_folder_a_file_a_mailbox_or_a_code_folder_without_a_reference_is_refused() {
     // GIVEN an empty registry
     let (_dir, store) = store();
 
     // WHEN each kind is added without a reference, or with a blank one
-    let refused: Vec<_> = [SourceKind::Folder, SourceKind::File, SourceKind::Mail]
-        .into_iter()
-        .flat_map(|kind| {
-            [None, Some("   ")].map(|reference| {
-                store.create(&NewSource {
-                    kind,
-                    label: "x".to_owned(),
-                    group: None,
-                    reference: reference.map(str::to_owned),
-                })
-            })
-        })
-        .collect();
-    let accepted: Vec<_> = [
-        SourceKind::Profile,
-        SourceKind::Memory,
+    let refused: Vec<_> = [
+        SourceKind::Folder,
+        SourceKind::File,
+        SourceKind::Mail,
         SourceKind::CodeFolder,
     ]
     .into_iter()
-    .map(|kind| {
-        store.create(&NewSource {
-            kind,
-            label: kind.as_str().to_owned(),
-            group: None,
-            reference: None,
+    .flat_map(|kind| {
+        [None, Some("   ")].map(|reference| {
+            store.create(&NewSource {
+                kind,
+                label: "x".to_owned(),
+                group: None,
+                reference: reference.map(str::to_owned),
+            })
         })
     })
     .collect();
+    let accepted: Vec<_> = [SourceKind::Profile, SourceKind::Memory]
+        .into_iter()
+        .map(|kind| {
+            store.create(&NewSource {
+                kind,
+                label: kind.as_str().to_owned(),
+                group: None,
+                reference: None,
+            })
+        })
+        .collect();
 
-    // THEN the three kinds that point at something are refused by a typed
+    // THEN the four kinds that point at something are refused by a typed
     // error, nothing is stored for them, and the others are accepted
-    assert_eq!(refused.len(), 6);
+    assert_eq!(refused.len(), 8);
     for result in &refused {
         assert!(
             matches!(result, Err(SourceRegistryError::MissingReference(kind)) if kind.requires_reference()),
@@ -94,7 +95,7 @@ fn test_a_folder_a_file_or_a_mailbox_without_a_reference_is_refused() {
         );
     }
     assert!(accepted.iter().all(Result::is_ok), "{accepted:?}");
-    assert_eq!(store.list().unwrap().len(), 3);
+    assert_eq!(store.list().unwrap().len(), 2);
 }
 
 #[test]
@@ -210,4 +211,60 @@ fn test_the_table_itself_refuses_a_folder_without_reference() {
 
     // THEN the CHECK constraint refuses it
     assert!(written.is_err());
+}
+
+#[test]
+fn test_the_code_folder_is_offered_on_a_folder_only_in_developer_mode() {
+    // GIVEN the developer mode off, then on
+    let modes = [false, true];
+
+    // WHEN the kinds offered on a folder connection are listed in each mode
+    let [off, on] = modes.map(SourceKind::offered_on_folder);
+
+    // THEN the code folder is offered only when the mode is on, the indexed
+    // folder in both
+    assert_eq!(off, vec![SourceKind::Folder]);
+    assert_eq!(on, vec![SourceKind::Folder, SourceKind::CodeFolder]);
+}
+
+#[test]
+fn test_a_code_folder_is_accepted_whatever_the_mode_once_it_names_a_connection() {
+    // GIVEN an empty registry; the registry knows nothing of the developer mode
+    let (_dir, store) = store();
+
+    // WHEN a code folder is added on a folder connection
+    let added = store
+        .create(&NewSource {
+            kind: SourceKind::CodeFolder,
+            label: "apollia".to_owned(),
+            group: None,
+            reference: Some("fc-1".to_owned()),
+        })
+        .unwrap();
+
+    // THEN it is stored with the connection it points at
+    assert_eq!(added.kind, SourceKind::CodeFolder);
+    assert_eq!(added.reference.as_deref(), Some("fc-1"));
+}
+
+#[test]
+fn test_the_index_state_of_a_source_is_recorded_and_an_absent_source_refused() {
+    // GIVEN a registry holding one folder source, its index absent
+    let (_dir, store) = store();
+    let added = store.create(&folder("Contracts", Some("fc-1"))).unwrap();
+
+    // WHEN its index state is set to indexing, then ready, and the state of
+    // a source that is not there is set
+    store
+        .set_index_state(&added.id, IndexState::Indexing)
+        .unwrap();
+    let during = store.get(&added.id).unwrap().unwrap().index_state;
+    store.set_index_state(&added.id, IndexState::Ready).unwrap();
+    let after = store.get(&added.id).unwrap().unwrap().index_state;
+    let absent = store.set_index_state("src-absent", IndexState::Ready);
+
+    // THEN each state is read back, and the absent source is refused
+    assert_eq!(during, IndexState::Indexing);
+    assert_eq!(after, IndexState::Ready);
+    assert!(matches!(absent, Err(SourceRegistryError::NotFound(_))));
 }

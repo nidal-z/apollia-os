@@ -3,18 +3,13 @@
 //! Defines sessions, messages, roles, tool approval mechanics,
 //! and the `ChatError` hierarchy used throughout the chat subsystem.
 
-use std::sync::{Arc, Mutex};
-
 use serde::{Deserialize, Serialize};
 
 use apollia_core::RunId;
 
 mod approvals;
 
-pub use approvals::{
-    AlwaysAcceptScope, ApprovalTimeoutParams, FsHitlDecision, PendingChatApprovals,
-    PendingFilesystemApprovals,
-};
+pub use approvals::{ApprovalTimeoutParams, ChatApprovalAsked, PendingChatApprovals};
 
 /// Alias for a chat session identifier (UUID v4 string).
 pub type SessionId = String;
@@ -55,23 +50,6 @@ pub struct ChatSession {
     /// Fork depth (0 = root session, 1 = first-level fork, etc.).
     #[serde(default)]
     pub fork_depth: i64,
-    /// Project this session belongs to (None = standalone).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub project_id: Option<String>,
-    /// Force project context injection on the next user message.
-    ///
-    /// Set when a project link is changed after the session has started; the
-    /// initial-injection path (gated on `is_first_message`) would otherwise
-    /// skip context for already-active sessions. Transient, not persisted.
-    #[serde(skip)]
-    pub force_project_context_inject: bool,
-    /// In-memory filesystem allow rules for this session (not persisted).
-    ///
-    /// Set by the user via "Always allow (this session)" in `HitlFilesystemModal`.
-    /// Format: `"op:level"` e.g., `"write:medium"`.
-    /// Cleared when the session ends (intentional, session-scoped only).
-    #[serde(skip)]
-    pub fs_allow_rules: Arc<Mutex<std::collections::HashSet<String>>>,
     /// Whether this session runs in first-class plan mode.
     ///
     /// When `true`, the `plan_*` tool surface is advertised and the plan-mode
@@ -84,6 +62,10 @@ pub struct ChatSession {
     /// Persisted across restarts.
     #[serde(default)]
     pub plan_phase: PlanPhase,
+    /// Profile the conversation designates; `None` follows the current
+    /// default profile. Persisted across restarts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile_id: Option<String>,
 }
 
 /// Lifecycle phase of a session running in plan mode.
@@ -416,51 +398,38 @@ impl ToolCallStatus {
 
 /// User decision on a tool approval request.
 ///
-/// The enum mirrors the three buttons surfaced by `ApprovalCardV2`
-/// (approve / reject / always-accept). `Refuse` optionally carries a free-form
-/// reason forwarded to the agent so it can adapt its plan, and `AlwaysAccept`
-/// carries the sticky scope picked by the operator.
+/// Three answers, and only three: once, always for this agent, refuse.
+/// `Refuse` optionally carries a free-form reason forwarded to the agent so it
+/// can adapt its next step. `AlwaysAccept` carries no scope: what it grants is
+/// fixed, a standing consent of the asking agent for the action family of the
+/// tool, which governance records.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ToolDecision {
     /// Approve this single invocation.
     Accept,
     /// Refuse this single invocation. `reason` is `None` when the operator
-    /// declines without providing a justification (or when the manifest does
-    /// not flag `reject_reason_required`).
+    /// declines without giving one.
     Refuse {
         /// Free-form reason shared with the agent.
         #[serde(default)]
         reason: Option<String>,
     },
-    /// Approve this invocation **and** install an "always accept" rule whose
-    /// stickiness is controlled by `scope` (cf. [`AlwaysAcceptScope`]).
-    AlwaysAccept {
-        /// Scope picked by the operator. Defaults to
-        /// [`AlwaysAcceptScope::ThisSession`] for safety.
-        #[serde(default = "AlwaysAcceptScope::safe_default")]
-        scope: AlwaysAcceptScope,
-    },
+    /// Approve this invocation and every later call of the same agent in the
+    /// same action family, until the consent is withdrawn.
+    AlwaysAccept,
 }
 
 impl ToolDecision {
-    /// Convenience: "plain refuse" without a reason (legacy call-sites).
+    /// Convenience: "plain refuse" without a reason.
     #[must_use]
     pub fn refuse() -> Self {
         Self::Refuse { reason: None }
     }
 
-    /// Convenience: "always accept" with the safe default scope.
-    #[must_use]
-    pub fn always_accept_default() -> Self {
-        Self::AlwaysAccept {
-            scope: AlwaysAcceptScope::safe_default(),
-        }
-    }
-
-    /// Returns `true` if this decision is an `AlwaysAccept` of any scope.
+    /// Returns `true` if this decision is `AlwaysAccept`.
     #[must_use]
     pub fn is_always_accept(&self) -> bool {
-        matches!(self, Self::AlwaysAccept { .. })
+        matches!(self, Self::AlwaysAccept)
     }
 
     /// Serde-friendly identifier used for log rows / event payloads.
@@ -469,7 +438,7 @@ impl ToolDecision {
         match self {
             Self::Accept => "accept",
             Self::Refuse { .. } => "refuse",
-            Self::AlwaysAccept { .. } => "always_accept",
+            Self::AlwaysAccept => "always_accept",
         }
     }
 }
@@ -605,9 +574,6 @@ pub enum ChatError {
     /// An internal error occurred (SQLite, serialization, etc.).
     #[error("internal error: {0}")]
     InternalError(String),
-    /// The project referenced by the chat session was not found in the repository.
-    #[error("project '{0}' referenced by chat session not found")]
-    ProjectNotFound(String),
     /// An approve or reject was requested on a session that is not awaiting
     /// approval. The soft plan gate only resolves from the awaiting-approval
     /// phase, so this fails fast instead of starting execution out of order.
@@ -618,6 +584,17 @@ pub enum ChatError {
         /// The phase the session was actually in, as a stable lowercase string.
         current_phase: String,
     },
+    /// A message carries images and the model of the conversation does not
+    /// read them, or its capabilities are not known (a remote server).
+    #[error("the model of this conversation does not read images")]
+    ImagesNotSupported {
+        /// The model the message would have run on, when one is configured.
+        model: Option<String>,
+    },
+    /// An image of a message is refused: too many, too large, empty, not
+    /// decodable, or in a format the engine of the model does not read.
+    #[error("image refused: {0}")]
+    ImageRejected(String),
     /// The hybrid routing cost ceiling was reached and `ceiling_action` is `HardStop`.
     ///
     /// The run stopped cleanly with no data loss. It can be resumed in a new run
@@ -697,8 +674,21 @@ pub struct SessionInfo {
     pub created_at: String,
     /// User-defined display title (falls back to agent_name or mode).
     pub title: Option<String>,
-    /// Project this session belongs to (None = standalone).
-    pub project_id: Option<String>,
+}
+
+/// A change to a session's configuration. An absent field keeps its value;
+/// for `llm_backend` and `profile_id`, `Some(None)` returns the session to
+/// the runtime default.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SessionConfigUpdate {
+    /// New system prompt.
+    pub system_prompt: Option<String>,
+    /// New list of tools available in the session.
+    pub available_tools: Option<Vec<String>>,
+    /// Preferred LLM backend.
+    pub llm_backend: Option<Option<String>>,
+    /// Profile the conversation designates.
+    pub profile_id: Option<Option<String>>,
 }
 
 /// Detailed session view for single-session responses.
@@ -708,20 +698,6 @@ pub struct SessionDetail {
     pub session: ChatSession,
     /// Total number of messages in the session.
     pub message_count: u32,
-}
-
-/// Trait for injecting project context into chat system prompts.
-///
-/// Implemented outside `apollia-runtime` (e.g. in `apollia-desktop`) because
-/// the actual project data lives in `apollia-tools` which is a sibling crate.
-/// This avoids coupling the runtime to the project persistence layer.
-#[async_trait::async_trait]
-pub trait ProjectContextProvider: Send + Sync {
-    /// Build a context block for a given project ID.
-    ///
-    /// Returns `None` if the project doesn't exist or has no useful context.
-    /// The returned string is injected into the system prompt on the first message.
-    async fn build_context(&self, project_id: &str) -> Option<String>;
 }
 
 #[cfg(test)]
@@ -843,13 +819,9 @@ mod tests {
             title: None,
             parent_session_id: None,
             fork_depth: 0,
-            project_id: None,
-            force_project_context_inject: false,
-            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
-                std::collections::HashSet::new(),
-            )),
             plan_mode: false,
             plan_phase: PlanPhase::Done,
+            profile_id: None,
         };
 
         // WHEN we serialize and deserialize

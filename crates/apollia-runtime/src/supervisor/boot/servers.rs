@@ -85,10 +85,12 @@ impl Supervisor {
             audit_trail: governance.audit_trail.clone(),
             audit_journal: governance.audit_journal.clone(),
             connection_governance: governance.connection.clone(),
+            governance: Some(governance.handle.clone()),
             inference_governance: crate::governance::InferenceGovernance::new(Arc::clone(
                 &core.org_policy,
             )),
             obs_config: self.config.obs_config.clone(),
+            config_reload: None,
             llm_call_repository: inference.llm_call_repository.clone(),
             trigger_def_repo: Some(core.trigger_def_repo.clone()),
             notification_repo: Some(stores.notification_repo.clone()),
@@ -113,7 +115,7 @@ impl Supervisor {
             batches: owned.batches,
             workflows: executors.workflows.clone(),
             compat_server: Some(owned.compat_server),
-            source_registry: crate::agents::sources::open_registry(&inference.system_db_path),
+            source_registry: inference.source_registry.clone(),
         }
     }
 }
@@ -147,21 +149,18 @@ pub(super) async fn serve_api<B: ExecutionBackend + Clone>(
 /// configured.
 pub(super) fn spawn_timeout_watcher(
     hitl_config: &HitlConfig,
+    live: &crate::config_reload::Live<HitlConfig>,
     task_repository: Option<&Arc<TaskRepository>>,
     event_sender: &EventBusSender,
 ) {
     if let Some(repo) = task_repository {
         info!("supervisor.timeout_watcher.starting");
         let watcher = TimeoutWatcher::new(
-            TimeoutWatcherConfig {
-                input_required_timeout: hitl_config
-                    .timeout_hours
-                    .map(|h| Duration::from_secs(h * 3600)),
-                scan_interval: Duration::from_secs(hitl_config.scan_interval_secs),
-            },
+            TimeoutWatcherConfig::from(hitl_config),
             Arc::clone(repo),
             event_sender.clone(),
-        );
+        )
+        .following(live.clone());
         tokio::spawn(watcher.run());
         info!("supervisor.timeout_watcher.started");
     }

@@ -23,12 +23,11 @@ import {
   Brain,
   Repeat,
   Database,
-  Bell,
   Activity,
   Settings,
   Mic,
-  FolderKanban,
   Paintbrush,
+  Landmark,
 } from "lucide-svelte";
 import type { Route } from "$lib/stores/navigation";
 
@@ -43,7 +42,6 @@ export interface RouteMeta {
 export const routeMeta: Record<Route, RouteMeta> = {
   dashboard: { labelKey: "nav.dashboard", parent: null, icon: LayoutDashboard, homeFor: ["operator", "builder"] },
   agents: { labelKey: "nav.agents", parent: null, icon: Bot },
-  projects: { labelKey: "nav.projects", parent: null, icon: FolderKanban },
   tasks: { labelKey: "nav.tasks", parent: null, icon: ListChecks },
   chat: { labelKey: "nav.chat", parent: null, icon: MessageSquare },
   inbox: { labelKey: "nav.inbox", parent: null, icon: ShieldCheck },
@@ -52,8 +50,8 @@ export const routeMeta: Record<Route, RouteMeta> = {
   automations: { labelKey: "nav.automations", parent: null, icon: Repeat },
   memory: { labelKey: "nav.memory", parent: null, icon: Database },
   transcriptions: { labelKey: "nav.transcriptions", parent: null, icon: Mic },
-  notifications: { labelKey: "nav.notifications", parent: null, icon: Bell },
   observability: { labelKey: "nav.observability", parent: null, icon: Activity },
+  policy: { labelKey: "nav.policy", parent: null, icon: Landmark },
   settings: { labelKey: "nav.settings", parent: null, icon: Settings },
   design: { labelKey: "topbar.route.design", parent: null, icon: Paintbrush },
   "design-motion": { labelKey: "topbar.route.design_motion", parent: "design", icon: Paintbrush },
