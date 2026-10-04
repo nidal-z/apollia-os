@@ -34,6 +34,9 @@ pub struct ChatToolsConfig {
     /// indexes of the sources an agent checked. `None` leaves every source
     /// but the memory unsearchable.
     pub source_registry: Option<apollia_sources::SourceRegistryHandle>,
+    /// The governance actor the disabled tools are read from. `None` reads
+    /// `governance.db` under `data_dir` directly.
+    pub governance: Option<crate::governance::GovernanceHandle>,
 }
 
 /// Snapshot of a tool-level `scope=session` authorization for an active session.

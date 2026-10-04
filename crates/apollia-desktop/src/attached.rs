@@ -276,6 +276,7 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "governance_revoke_permission_rule",
     "governance_set_tool_config",
     "governance_set_tool_enabled",
+    "governance_state",
     // Accounts of the native connectors and their Drive folder, under
     // `/api/v1/connectors/`. The window keeps the loopback listener and the
     // browser of the consent; the daemon starts it, completes it and stores

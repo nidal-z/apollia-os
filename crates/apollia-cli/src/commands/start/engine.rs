@@ -138,6 +138,9 @@ pub(super) struct AIPProductionBackend {
     /// MCP client manager handle, `None` when no MCP server is configured. Lets
     /// the `BridgeRunner` route `mcp:<server>/<tool>` calls to the MCP manager.
     pub(super) mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
+    /// The governance actor: the tools it disabled, and whether it fails
+    /// closed. `None` reads `governance.db` when a run starts.
+    pub(super) governance: Option<apollia_runtime::governance::GovernanceHandle>,
 }
 
 impl Clone for AIPProductionBackend {
@@ -166,6 +169,7 @@ impl Clone for AIPProductionBackend {
             secrets_declared: self.secrets_declared.clone(),
             secrets_data_dir: self.secrets_data_dir.clone(),
             mcp_handle: self.mcp_handle.clone(),
+            governance: self.governance.clone(),
         }
     }
 }

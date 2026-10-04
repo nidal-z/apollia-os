@@ -30,6 +30,7 @@ use apollia_tools::ActionFamily;
 use crate::governance::contract::{
     AccessCall, AccessDecision, ConsentAnswer, DecisionReason, ALL_ANSWERS, NO_ALWAYS_ANSWERS,
 };
+use crate::governance::fail_closed::FailClosed;
 
 /// What the organisation policy refuses at the moment of a call.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -56,9 +57,11 @@ pub struct GovernanceState {
     pub consents: HashSet<(String, ConsentFamily)>,
     /// The developer mode in force (`[desktop] developer_mode`).
     pub developer_mode: bool,
-    /// Governance could not read what it decides from: every sensitive call
-    /// is refused.
-    pub fail_closed: bool,
+    /// The tools disabled in `governance.db`, left out of every dispatcher.
+    pub disabled_tools: Vec<String>,
+    /// Set while governance cannot read what it decides from: every sensitive
+    /// call is refused.
+    pub fail_closed: Option<FailClosed>,
 }
 
 /// Decides `call` from `state` at Unix time `now`.
@@ -90,7 +93,7 @@ pub fn decide(state: &GovernanceState, call: &AccessCall<'_>, now: i64) -> Acces
             reason: DecisionReason::NoConsentNeeded,
         };
     }
-    if state.fail_closed {
+    if state.fail_closed.is_some() {
         return AccessDecision::Denied {
             reason: DecisionReason::FailClosed,
         };

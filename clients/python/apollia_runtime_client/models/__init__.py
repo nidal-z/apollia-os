@@ -164,6 +164,10 @@ from .events_response import EventsResponse
 from .export_agent_request import ExportAgentRequest
 from .export_format import ExportFormat
 from .export_memory_namespace_response_200 import ExportMemoryNamespaceResponse200
+from .fail_closed_type_0 import FailClosedType0
+from .fail_closed_type_0_cause import FailClosedType0Cause
+from .fail_closed_type_1 import FailClosedType1
+from .fail_closed_type_1_cause import FailClosedType1Cause
 from .fire_response import FireResponse
 from .fit_dto import FitDto
 from .folder_error_body import FolderErrorBody
@@ -183,6 +187,7 @@ from .get_model_card_response_200 import GetModelCardResponse200
 from .gguf_model_info import GgufModelInfo
 from .global_timeline_event import GlobalTimelineEvent
 from .global_timeline_event_detail import GlobalTimelineEventDetail
+from .governance_state_body import GovernanceStateBody
 from .guardrail_check_dto import GuardrailCheckDto
 from .guardrail_level import GuardrailLevel
 from .guardrail_refused_body import GuardrailRefusedBody
@@ -697,6 +702,10 @@ __all__ = (
     "ExportAgentRequest",
     "ExportFormat",
     "ExportMemoryNamespaceResponse200",
+    "FailClosedType0",
+    "FailClosedType0Cause",
+    "FailClosedType1",
+    "FailClosedType1Cause",
     "FireResponse",
     "FitDto",
     "FolderErrorBody",
@@ -716,6 +725,7 @@ __all__ = (
     "GgufModelInfo",
     "GlobalTimelineEvent",
     "GlobalTimelineEventDetail",
+    "GovernanceStateBody",
     "GuardrailCheckDto",
     "GuardrailLevel",
     "GuardrailRefusedBody",

@@ -65,7 +65,8 @@ State :
   exchanged. The desktop surfaces the refusal as `refused_by_policy`.
 - Without a policy the user is free: every connection is admitted. A policy that
   is present but refused (rights, key, signature, schema) cannot be read, and
-  the admission fails closed.
+  the admission fails closed. So does a `governance.db` the runtime cannot
+  read.
 - The decision never comes from the renderer. A value a caller hands the
   runtime is not a gate, since any caller can choose it.
 - `inference.remote_endpoints = "deny"` is parsed but gates no inference call
@@ -216,8 +217,24 @@ applies deciding :
    nobody classified lands here, without "always".
 
 The decision carries its reason (policy, rule, fail closed, consent) and the
-answers offered. A run nobody watches (an item of a batch) waits where an
-attended one would ask. An "always" answered at the prompt is written as a
+answers offered.
+
+Governance that cannot read what it decides from fails closed, never open: a
+`governance.db` that exists and cannot be read, or a policy present and
+refused, refuses every sensitive call (line 5 and 6 above become a refusal)
+and every new connection, while reading continues. A database that stops
+being readable keeps its last state in force, its deny rules and its disabled
+tools included; one unreadable at startup keeps only the `[tools] disabled`
+list of `apollia.toml`. The runs that build their own dispatcher (the agent
+runners of the desktop and the daemon) read the same state through
+`governance::tool_gate`. The state is served by `GET /api/v1/governance/state`,
+which reads the sources again before it answers (a database whose permissions
+were repaired keeps its modification time), and each change is announced as
+`RuntimeEvent::GovernanceFailClosed`. The desktop shows it as a banner under
+the top bar, with a retry for an unreadable database.
+
+A run nobody watches (an item of a batch) waits where an attended one would
+ask. An "always" answered at the prompt is written as a
 standing consent for the agent and the family, never as a rule on a tool name.
 Those six lines are the whole of it. Nothing else in `apollia-permissions` sits
 in front of a tool call, and the `[permissions]` section of `apollia.toml` is

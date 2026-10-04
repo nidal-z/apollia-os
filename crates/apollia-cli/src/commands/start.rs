@@ -307,6 +307,8 @@ pub async fn run(
         Arc::new(std::sync::OnceLock::new());
     let pending_user_inputs_lock: Arc<std::sync::OnceLock<PendingUserInputs>> =
         Arc::new(std::sync::OnceLock::new());
+    let governance_lock: Arc<std::sync::OnceLock<apollia_runtime::governance::GovernanceHandle>> =
+        Arc::new(std::sync::OnceLock::new());
     let mcp_handle_lock: Arc<
         std::sync::OnceLock<Option<apollia_mcp::manager::McpClientManagerHandle>>,
     > = Arc::new(std::sync::OnceLock::new());
@@ -325,6 +327,7 @@ pub async fn run(
         tools_config: tools_config.clone(),
         data_dir: data_dir_for_chat.clone(),
         mcp_handle: mcp_handle_lock.clone(),
+        governance: governance_lock.clone(),
     });
     // Keep a handle for the post-supervisor rewire pass.
     let factory_for_rewire = factory.clone();
@@ -342,6 +345,7 @@ pub async fn run(
             data_dir: data_dir_for_chat,
             tools_config,
             mcp_handle: mcp_handle_lock.clone(),
+            governance: governance_lock.clone(),
         }));
 
     let handles = supervisor
@@ -366,6 +370,7 @@ pub async fn run(
     set_lock_if_some(&task_repository_lock, handles.task_repository.clone());
     // Cloned (not moved) so the ShutdownController still receives handles.mcp_handle.
     let _ = mcp_handle_lock.set(handles.mcp_handle.clone());
+    let _ = governance_lock.set(handles.governance.clone());
     set_lock_if_some(
         &pending_user_inputs_lock,
         handles
@@ -489,6 +494,9 @@ pub async fn run(
 
     Ok(interrupted)
 }
+#[cfg(test)]
+mod fail_closed_tests;
+
 #[cfg(test)]
 mod tests {
     use super::engine::{direct_path_budget, wire_engine_with_llm, AIPProductionBackend};
@@ -782,6 +790,7 @@ agent = A()
             secrets_declared: vec![],
             secrets_data_dir: None,
             mcp_handle: None,
+            governance: None,
         };
 
         let task = AIPTask {

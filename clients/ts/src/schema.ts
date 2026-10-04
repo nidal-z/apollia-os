@@ -1539,6 +1539,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/governance/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/governance/state`: whether governance fails closed, and why. */
+        get: operations["get_governance_state"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/governance/tools": {
         parameters: {
             query?: never;
@@ -7269,6 +7286,20 @@ export interface components {
          * @enum {string}
          */
         ExportFormat: "xlsx" | "csv" | "json";
+        /** @description Why governance fails closed. */
+        FailClosed: {
+            /** @enum {string} */
+            cause: "store_unreadable";
+            /** @description What the read failed on. */
+            detail: string;
+        } | {
+            /** @enum {string} */
+            cause: "policy_invalid";
+            /** @description What exactly was refused. */
+            detail: string;
+            /** @description The reason class: `schema`, `signature`, `key` or `owner`. */
+            reason: string;
+        };
         /** @description Response for `POST /api/v1/triggers/:id/fire`. */
         FireResponse: {
             /** @description Identifier of the submitted task. */
@@ -7364,6 +7395,10 @@ export interface components {
             summary: string;
             /** @description ISO 8601 timestamp. */
             timestamp: string;
+        };
+        /** @description Answer of `GET /api/v1/governance/state`. */
+        GovernanceStateBody: {
+            fail_closed?: null | components["schemas"]["FailClosed"];
         };
         /** @description The load guardrail's view of a load. */
         GuardrailCheckDto: {
@@ -14565,6 +14600,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_governance_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The state of governance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GovernanceStateBody"];
                 };
             };
         };

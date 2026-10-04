@@ -391,7 +391,7 @@ fn test_a_query_string_keeps_the_present_pairs_encoded() {
 }
 
 #[test]
-fn test_the_eight_governance_commands_pass_the_gate_attached() {
+fn test_the_nine_governance_commands_pass_the_gate_attached() {
     // GIVEN the commands of the tools and permissions pages
     let commands = [
         "governance_list_tools",
@@ -402,6 +402,7 @@ fn test_the_eight_governance_commands_pass_the_gate_attached() {
         "governance_list_permission_rules",
         "governance_revoke_permission_rule",
         "governance_revoke_all_rules",
+        "governance_state",
     ];
     // WHEN each is gated while attached
     let refused: Vec<&str> = commands

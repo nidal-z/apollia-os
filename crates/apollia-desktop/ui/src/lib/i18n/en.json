@@ -4385,5 +4385,22 @@
         "node_downloading": "Downloading a required component: Node.js"
       }
     }
+  },
+  "governance": {
+    "fail_closed": {
+      "title": "Sensitive actions blocked",
+      "store_unreadable": "The permissions database cannot be read: Apollia refuses anything that writes, sends or runs. Reading continues.",
+      "policy_invalid": "The organization policy is invalid ({reason}): sensitive actions and new connections are refused. Reading continues.",
+      "policy_reason": {
+        "schema": "content does not conform",
+        "signature": "signature not recognized",
+        "key": "organization key not recognized",
+        "owner": "files can be modified by someone other than the administrator",
+        "unknown": "unknown reason"
+      },
+      "retry": "Retry",
+      "view_policy": "View the policy",
+      "retry_failed": "The state of permissions could not be read again."
+    }
   }
 }

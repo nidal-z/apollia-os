@@ -387,6 +387,10 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
             "system"
         }
 
+        // ── Governance failing closed: every store refreshes, since what
+        // a sensitive tool or a new connection may do has changed. ────────
+        RuntimeEvent::GovernanceFailClosed { .. } => "system",
+
         // ── Chat ────────────────────────────────────────────────────────
         RuntimeEvent::ChatSessionCreated { .. }
         | RuntimeEvent::ChatSessionClosed { .. }

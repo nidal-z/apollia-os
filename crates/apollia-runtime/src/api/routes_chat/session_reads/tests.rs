@@ -21,6 +21,7 @@ fn state_with_chat(dir: &TempDir) -> AppState<MockBackend> {
         tools_config: apollia_core::ToolsConfig::default(),
         tool_turn_temperature: None,
         source_registry: None,
+        governance: None,
     });
     let manager = ChatSessionManagerHandle::spawn(
         &dir.path().join("chat.db"),

@@ -53,6 +53,9 @@ pub(super) struct ProductionBackendFactory {
     /// into each `AIPProductionBackend` so agent dispatchers can execute MCP tools.
     pub(super) mcp_handle:
         Arc<std::sync::OnceLock<Option<apollia_mcp::manager::McpClientManagerHandle>>>,
+    /// The governance actor, populated after `supervisor.start()`, read when a
+    /// run starts.
+    pub(super) governance: Arc<std::sync::OnceLock<apollia_runtime::governance::GovernanceHandle>>,
 }
 
 impl AgentBackendFactory for ProductionBackendFactory {
@@ -88,6 +91,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
         let plan_cache = self.plan_cache.get().cloned();
         let task_repository = self.task_repository.get().cloned();
         let mcp_handle = self.mcp_handle.get().cloned().flatten();
+        let governance = self.governance.get().cloned();
 
         // Build the A2A invoker if registry + router are available.
         let a2a_invoker = match (self.registry.get().cloned(), self.router.get().cloned()) {
@@ -157,6 +161,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 secrets_declared,
                 secrets_data_dir: Some(self.data_dir.clone()),
                 mcp_handle,
+                governance,
             })
         })();
 

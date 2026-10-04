@@ -17,7 +17,7 @@ use std::path::PathBuf;
 
 use apollia_permissions::PrefixRule;
 use apollia_runtime::api::routes_tool_governance::{
-    RevokeAllBody, RevokedRule, RevokedRules, ToolConfigBody, ToolEnabledBody,
+    GovernanceStateBody, RevokeAllBody, RevokedRule, RevokedRules, ToolConfigBody, ToolEnabledBody,
 };
 pub use apollia_runtime::tool_credentials::{
     CredentialEntryView as CredentialEntryDto, CredentialTestView as CredentialTestResultDto,
@@ -140,6 +140,31 @@ pub(crate) async fn set_tool_config_on(
             Ok(())
         }
     }
+}
+
+/// Whether governance fails closed, and why, after reading its sources again.
+pub(crate) async fn governance_state_on(link: &RuntimeLink) -> Result<GovernanceStateBody, String> {
+    match link {
+        RuntimeLink::Embedded(runtime) => {
+            runtime.governance.refresh().await;
+            Ok(GovernanceStateBody {
+                fail_closed: runtime.governance.state().fail_closed.clone(),
+            })
+        }
+        RuntimeLink::Attached(remote) => Ok(remote.get("/api/v1/governance/state").await?),
+    }
+}
+
+/// Reads the sources of governance again and says whether it fails closed:
+/// the banner of the window asks it at start, on each change announced, and
+/// when the user retries.
+///
+/// # Errors
+///
+/// Returns a serializable error if the daemon refuses.
+#[tauri::command]
+pub async fn governance_state(link: State<'_, RuntimeLink>) -> Result<GovernanceStateBody, String> {
+    governance_state_on(link.inner()).await
 }
 
 /// Returns the full state of each native tool (enabled flag, config,

@@ -124,8 +124,14 @@ impl Supervisor {
         let stores = self.open_stores(&core.event_sender).await?;
 
         // Phase 14: ChatSessionManager.
-        let (chat_manager, a2a_invoker) =
-            self.start_chat(&core, &inference, &stores, &agent_loader, &agent_runner);
+        let (chat_manager, a2a_invoker) = self.start_chat(
+            &core,
+            &inference,
+            &stores,
+            &governance,
+            &agent_loader,
+            &agent_runner,
+        );
 
         // Phase 15: SttEngine.
         let stt = self.start_stt(&inference, &core.event_sender).await;
