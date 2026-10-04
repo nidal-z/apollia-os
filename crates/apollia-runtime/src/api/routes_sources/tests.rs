@@ -217,3 +217,41 @@ async fn test_the_profile_checked_by_agent_set_is_among_the_checked_sources() {
     assert_eq!(after, Some(vec![CheckedSource::Profile]));
     assert!(crate::profile::profile_source_checked(dir.path(), "veille"));
 }
+
+#[tokio::test]
+async fn test_the_project_migration_report_is_read_over_http() {
+    // GIVEN a runtime whose data directory holds no report, then one
+    let dir = tempfile::tempdir().unwrap();
+    let state = state(&dir, false).await;
+    let (absent_status, _) = call(
+        state.clone(),
+        "GET",
+        "/api/v1/sources/project-migration",
+        None,
+    )
+    .await;
+    apollia_tools::ProjectRepository::open(
+        &apollia_core::paths::DataFile::Projects.path(dir.path()),
+    )
+    .unwrap()
+    .create_project("Dossier Durand", None, None, None)
+    .unwrap();
+    let written = crate::project_migration::run_if_needed(dir.path()).unwrap();
+
+    // WHEN the report is asked for
+    let (status, body) = call(
+        state.clone(),
+        "GET",
+        "/api/v1/sources/project-migration",
+        None,
+    )
+    .await;
+
+    // THEN it is absent first, then the report the run wrote
+    assert_eq!(absent_status, StatusCode::NOT_FOUND);
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["status"], "complete");
+    assert_eq!(body["formatVersion"], 1);
+    assert_eq!(body["projects"][0]["name"], "Dossier Durand");
+    assert_eq!(body["ranAt"], written.ran_at);
+}

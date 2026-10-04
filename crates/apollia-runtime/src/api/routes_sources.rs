@@ -5,6 +5,8 @@
 //! - `DELETE /api/v1/sources/{id}` , remove a source
 //! - `POST   /api/v1/sources/preview`, what a batch on a workbook or a CSV
 //!   file would read ([`preview`])
+//! - `GET    /api/v1/sources/project-migration`, the report of the migration
+//!   of the former projects into sources ([`project_migration`])
 //!
 //! The registry lives in `system.db` and is owned by its actor; these routes
 //! talk to it through its handle, and answer 503 when the runtime holds none.
@@ -35,9 +37,14 @@ pub fn sources_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         )
         .route("/api/v1/sources/:id", delete(delete_source::<B>))
         .route("/api/v1/sources/preview", post(preview::preview_source))
+        .route(
+            "/api/v1/sources/project-migration",
+            get(project_migration::project_migration_report::<B>),
+        )
 }
 
 pub mod preview;
+pub mod project_migration;
 
 /// What a source is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, utoipa::ToSchema)]
