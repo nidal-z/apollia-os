@@ -442,6 +442,31 @@ en 0.1.11 dans le fichier de verrouillage : sa version 0.1.12 ne compile plus
 sous `pdf_oxide` 0.3.78 ; mettre l'une ou l'autre à jour est donc une décision et
 non un rafraîchissement.
 
+Les documents Word et les présentations PowerPoint sont lus en Rust, par un
+code propre posé sur deux crates : `zip`, celle qui ouvre l'archive de paquet
+(voir [Archive de paquet](#package-archive)), ouvre le fichier, et `quick-xml`
+(MIT), un lecteur XML en flux, en lit les parties. Un document Word rend les
+paragraphes et les lignes de tableau de son corps, une ligne par segment, dans
+l'ordre du document et chacun avec son rang ; une présentation rend le texte et
+les notes de chaque diapositive, dans l'ordre numérique, chacune avec son
+numéro. Les en-têtes, pieds de page, commentaires et zones de texte flottantes
+ne sont pas lus. Un fichier aux anciens formats binaires, `.doc` ou `.ppt`, est
+une erreur typée qui nomme les formats lus. L'archive vient d'ailleurs, sa
+lecture est donc bornée : au-delà de 10 000 entrées, ou de 64 Mio décompressés
+sur l'ensemble des parties lues, le fichier est refusé, les octets étant comptés
+à mesure qu'ils sont décompressés et non tels que l'archive les déclare. Une
+crate dédiée n'a pas été retenue : `docx-rs`, celle pesée pour Word, est
+tournée vers l'écriture et ne lit pas PowerPoint, et `office_oxide`, qu'apporte
+le lecteur PDF, est tenue à une ancienne version (voir plus haut) et n'est pas
+appelée directement.
+
+Le coût est nommé : aucune crate n'entre dans le fichier de verrouillage.
+`quick-xml` 0.41 était déjà compilée pour le lecteur de classeurs et le paquet
+du bureau, et devient une dépendance directe, fonctionnalités par défaut
+coupées ; `zip` était déjà une dépendance directe. Ce que ces crates ne couvrent
+pas est à notre charge : la structure des deux formats, lue ici jusqu'à leur
+texte seulement.
+
 Une boîte mail se connecte en IMAP avec un mot de passe d'application : tout
 fournisseur est joignable, Gmail compris, sans client OAuth et sans relais. Le
 client est `async-imap` (MIT ou Apache-2.0), sur le runtime Tokio, au-dessus de
