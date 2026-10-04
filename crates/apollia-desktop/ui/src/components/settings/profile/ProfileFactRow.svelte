@@ -1,5 +1,37 @@
 <script lang="ts" module>
   import { isDestructiveKey } from "$lib/components/ui/dialog/destructiveGate";
+  import type { ProfileEntryView } from "$lib/ipc/profile";
+
+  /** What one fact row shows: its value always, its key in developer mode only. */
+  export interface FactRowView {
+    value: string;
+    key: string | null;
+  }
+
+  /**
+   * A fact reads as what the agents retained, in the user's words: the value.
+   * The key is the storage handle, shown only with developer mode on.
+   */
+  export function factRowView(
+    fact: Pick<ProfileEntryView, "key" | "value">,
+    developerMode: boolean,
+  ): FactRowView {
+    return { value: fact.value, key: developerMode ? fact.key : null };
+  }
+
+  /**
+   * Forget one fact: the store first, then the list. A refusal from the store
+   * leaves the row in place, so the list never shows a deletion that did not
+   * happen.
+   */
+  export async function forgetFact(
+    key: string,
+    remove: (key: string) => Promise<void>,
+    onDeleted: (key: string) => void,
+  ): Promise<void> {
+    await remove(key);
+    onDeleted(key);
+  }
 
   /** What the row's keyboard map can trigger. Neither entry destroys. */
   export interface FactRowKeyActions {
@@ -38,7 +70,8 @@
 
 <script lang="ts">
   /**
-   * ProfileFactRow - one memory fact: key + provenance + value, with inline
+   * ProfileFactRow - one memory fact: value + provenance (the key in developer
+   * mode only, `factRowView`), with inline
    * edit, hover actions, and a right-click context menu (edit / copy / delete).
    * Owns its own edit state; persistence hits the profile store immediately and
    * the parent list is updated through `onUpdated` / `onDeleted`.
@@ -59,7 +92,8 @@
     requestDestruction,
   } from "$lib/components/ui/dialog/destructiveGate";
   import { reportError } from "$lib/errors/reportError";
-  import { setProfileEntry, deleteProfileEntry, type ProfileEntryView } from "$lib/ipc/profile";
+  import { setProfileEntry, deleteProfileEntry } from "$lib/ipc/profile";
+  import { developerMode } from "$lib/stores/developerMode";
   import ProfileSourceBadge from "./ProfileSourceBadge.svelte";
 
   interface Props {
@@ -74,6 +108,7 @@
   let editValue = $state("");
   let busy = $state(false);
   let deleteGate = $state(createDestructiveGate());
+  const view = $derived(factRowView(fact, $developerMode));
 
   function startEdit(): void {
     editValue = fact.value;
@@ -109,8 +144,7 @@
   async function remove(): Promise<void> {
     busy = true;
     try {
-      await deleteProfileEntry(fact.key);
-      onDeleted(fact.key);
+      await forgetFact(fact.key, deleteProfileEntry, onDeleted);
     } catch (err) {
       reportError(err, { surface: "toast" });
     } finally {
@@ -171,7 +205,11 @@
       <div
         class="flex flex-wrap items-center gap-2 text-overline uppercase tracking-wide text-muted-foreground/80"
       >
-        <span class="font-mono normal-case tracking-normal">{fact.key}</span>
+        {#if view.key !== null}
+          <span class="font-mono normal-case tracking-normal" data-testid="profile-fact-key"
+            >{view.key}</span
+          >
+        {/if}
         <ProfileSourceBadge source={fact.written_by} />
       </div>
 
@@ -209,7 +247,9 @@
           </Button>
         </div>
       {:else}
-        <p class="mt-0.5 break-words text-body-sm text-foreground">{fact.value}</p>
+        <p class="mt-0.5 break-words text-body-sm text-foreground" data-testid="profile-fact-value">
+          {view.value}
+        </p>
       {/if}
     </div>
 
@@ -248,7 +288,7 @@
   onconfirm={() => void commitDestruction(deleteGate, remove)}
   title={$t("settings.profile.memory.delete_dialog.title")}
   message={$t("settings.profile.memory.delete_dialog.message", {
-    values: { key: fact.key },
+    values: { value: fact.value },
   })}
   confirmLabel={$t("settings.profile.memory.delete_dialog.confirm")}
   cancelLabel={$t("common.cancel")}

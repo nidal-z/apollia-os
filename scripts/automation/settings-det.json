@@ -42,7 +42,6 @@
     "settings-nav-general",
     "settings-nav-hardware",
     "settings-nav-hardware-shortcut",
-    "settings-nav-integrations",
     "settings-nav-llm",
     "settings-nav-model-defaults",
     "settings-nav-model-hub",
@@ -321,18 +320,6 @@
     {
       "kind": "screenshot",
       "label": "09-nav-permissions"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-integrations"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-nav-integrations"
     },
     {
       "kind": "click",
@@ -1523,18 +1510,6 @@
     {
       "kind": "screenshot",
       "label": "44-builder-nav-permissions"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-integrations"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "45-builder-nav-integrations"
     },
     {
       "kind": "click",

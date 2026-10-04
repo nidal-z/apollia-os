@@ -31,7 +31,6 @@ describe("settings router", () => {
       "model-hub",
       "tools",
       "permissions",
-      "integrations",
     ]);
   });
 
