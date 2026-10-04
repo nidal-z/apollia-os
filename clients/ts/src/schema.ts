@@ -1017,7 +1017,14 @@ export interface paths {
          *     faults, the keys the policy fixes and the keys waiting for a restart.
          */
         get: operations["read_config"];
-        /** `PUT /api/v1/config`: saves a whole text through the writer. */
+        /**
+         * `PUT /api/v1/config`: saves a whole text through the writer.
+         * @description The change is written to the signed journal under the origin the caller
+         *     declares. A caller that wrote the file itself, as the command line does,
+         *     presents the text it wrote with its own fingerprint: nothing is written
+         *     again, and the change it made is journaled under its origin instead of as
+         *     a file changed from outside.
+         */
         put: operations["save_config"];
         post?: never;
         delete?: never;
@@ -6973,6 +6980,11 @@ export interface components {
         };
         /** @description A text to save, with the fingerprint of the text it was made from. */
         ConfigSaveRequest: {
+            /**
+             * @description Where the change comes from, for the journal: `editor`, `settings`,
+             *     `cli` or `api`. A caller that names none is `api`.
+             */
+            origin?: components["schemas"]["DeclaredOrigin"];
             /** @description SHA-256 of the text the change was made from, as `GET` returned it. */
             sha256: string;
             /** @description The whole text of the new `apollia.toml`. */
@@ -7351,6 +7363,12 @@ export interface components {
              */
             resumed: number;
         };
+        /**
+         * @description The origin a caller of the save route may declare. The two origins the
+         *     runtime finds by itself are not among them.
+         * @enum {string}
+         */
+        DeclaredOrigin: "editor" | "settings" | "cli" | "api";
         /** @description The default model of the machine. */
         DefaultModelResponse: {
             /** @description Name of the backend that holds the default, the name the router routes by. */

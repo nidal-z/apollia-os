@@ -32,7 +32,7 @@ endpoints. Most of the project's day-to-day Rust changes land here.
 | `GovernanceActor` | what every tool call is decided from: the organisation policy read at boot, the fine rules and standing consents of `governance.db`, the developer mode; publishes it as one state on a `watch` channel that a decision reads without waiting, writes an "always" answered at a prompt as a standing consent, rereads the files when another process changed them | mpsc | 64 | `src/governance/actor.rs` |
 | `ServerTokensHandle` | the tokens of the compatible server in `system.db`: creates one (`apo_` value answered once, only its SHA-256 kept), lists and revokes them, counts those in use, checks a presented token in constant time and stamps its last use; spawned by `CompatServerHandle`, stops when its handles drop | mpsc | 256 | `src/compat_server/tokens.rs` |
 | `ServerLogsHandle` | the logs of the compatible server: a ring of the last 2000 lines (one per request it answered, one per line a local `llama-server` printed), oldest out first; streams them to each subscriber at its level, then the new ones, through a bounded channel of 256 that drops what a slow reader cannot hold; clears the ring and nothing else; writers never wait (`try_send`); spawned by `CompatServerHandle`, stops on `ShutdownRequested` | mpsc | 1024 | `src/compat_server/logs.rs` |
-| `ConfigReloadHandle` | the configuration in force: applies a saved or changed `apollia.toml`, sends its live sections on one `watch` channel each, lists the keys waiting for a restart, publishes `ConfigReloaded` and `ConfigInvalid`; stops on `ShutdownRequested` | mpsc | 16 | `src/config_reload/actor.rs` |
+| `ConfigReloadHandle` | the configuration in force: applies a saved or changed `apollia.toml`, sends its live sections on one `watch` channel each, lists the keys waiting for a restart, publishes `ConfigReloaded` and `ConfigInvalid`, journals each change with its origin; stops on `ShutdownRequested` | mpsc | 16 | `src/config_reload/actor.rs` |
 | `WorkflowActor` | the workflow runs in progress and their cancellation tokens: launches a run after checking its inputs, stops one and answers once it ended, fails at start the runs a stopped process left running, takes the workflows of an uninstalled package out of its catalogue; each run reports its steps itself, to `hitl.db` and the bus | mpsc | 64 | `src/workflows/actor.rs` |
 
 Hosted from other crates, started by this one :
@@ -264,6 +264,11 @@ whose keys are `Reloadable` in the key registry on a `tokio::sync::watch`
 channel of its own. A consumer holds that section as a `Live<T>`: it reads
 `get()` at each use, or applies `changed()` between two messages. The keys of
 class `Restart` wait for the next start and are listed by `GET /api/v1/config`.
+Each text applied is written to the signed journal as `ConfigurationChanged`
+(keys, origin, fingerprints, never a value), once the supervisor has handed
+the journal to the reloader with `attach_journal`; a code path that writes the
+file itself shows the written text to `ConfigReloadHandle::saved` with its
+origin, otherwise the watcher finds it and the journal says `external_file`.
 A new consumer of a live section takes a `Live<T>` (a plain value converts,
 for the tests), never a copy made at boot. The subsystems with a reload of
 their own keep it: `POST /api/v1/triggers/reload` (503 when the runtime was

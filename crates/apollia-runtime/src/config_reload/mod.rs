@@ -21,10 +21,16 @@
 //! invalid text changes nothing: the last valid configuration stays in force
 //! and `ConfigInvalid` says why. Each application ends with `ConfigReloaded`.
 //!
+//! Each application is also written to the signed journal, once the
+//! supervisor has handed it to the reloader: the keys that changed, the
+//! origin the caller declared, the fingerprints before and after, never a
+//! value (see [`journal`]).
+//!
 //! [`ApolliaConfigWatcher`]: apollia_triggers::handlers::apollia_config_watch::ApolliaConfigWatcher
 
 mod actor;
 mod diff;
+mod journal;
 mod live;
 
 #[cfg(test)]
@@ -37,6 +43,7 @@ use apollia_core::ObservabilityConfig;
 use tokio::sync::watch;
 
 pub use actor::{ConfigReloadHandle, PendingRestartKey, ReloadStatus};
+pub use journal::{ConfigChangeRecord, ConfigOrigin, DeclaredOrigin, CONFIG_RUN_ID};
 pub use live::Live;
 
 /// The sections the running engine applies without a restart, each on a
