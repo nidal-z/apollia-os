@@ -102,6 +102,7 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "set_mcp_server_approval",
     "test_mcp_connection",
     "test_mcp_live_server",
+    "node_runtime_state",
     "update_mcp_server_config",
     // Agent packages installed from a folder, over
     // `/api/v1/agent-packages/`. The preview and the install name the folder
