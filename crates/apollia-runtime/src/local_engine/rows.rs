@@ -87,6 +87,53 @@ pub fn local_row_for(
     Ok(Some(name))
 }
 
+/// The route a chat session names for a chosen model, and whether choosing it
+/// wrote a backend row the router in force does not know yet.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatRoute {
+    /// The name the router routes by: a backend row, or `<server>/<model>`.
+    pub name: String,
+    /// True when a row was created or repointed, so the router must be
+    /// rebuilt before the session can reach it.
+    pub written: bool,
+}
+
+/// The route of `model` for a chat session.
+///
+/// A language model of the index named by its identifier gets its row, as
+/// [`local_row_for`] writes it. Any other name, a backend row or a model of a
+/// declared server (`<server>/<model>`), is the route as it stands; one the
+/// router does not know is reported at the turn as a fallback.
+///
+/// # Errors
+/// [`LlmBackendError`] when the table cannot be read or written.
+pub fn chat_route(
+    repo: &LlmBackendRepository,
+    models_dir: &Path,
+    model: &str,
+) -> Result<ChatRoute, LlmBackendError> {
+    let model = model.trim();
+    let candidate = row_name(model);
+    let before_as_named = repo.find_by_name(model)?.map(|row| row.model);
+    let before_as_row = repo.find_by_name(&candidate)?.map(|row| row.model);
+    let Some(name) = local_row_for(repo, models_dir, model)? else {
+        return Ok(ChatRoute {
+            name: model.to_owned(),
+            written: false,
+        });
+    };
+    let before = if name == model {
+        before_as_named
+    } else {
+        before_as_row
+    };
+    let after = repo.find_by_name(&name)?.map(|row| row.model);
+    Ok(ChatRoute {
+        written: before != after,
+        name,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use apollia_llm::model_index::{IndexedModel, ModelFormat, ModelOrigin};
@@ -149,5 +196,53 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].provider, LlmProvider::LlamaCpp);
         assert_eq!(rows[0].model, folder.display().to_string());
+    }
+
+    #[test]
+    fn a_chat_route_says_when_choosing_a_model_wrote_its_row() {
+        // GIVEN an index holding a GGUF language model and an embeddings
+        // model, and an empty backend table
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let models = apollia_core::config::default_models_dir(tmp.path());
+        std::fs::create_dir_all(&models).expect("mkdir");
+        let file = models.join("Qwen3-4B-Q4_K_M.gguf");
+        let mut gguf = indexed("Qwen3-4B-Q4_K_M.gguf", &file, ModelCategory::Language);
+        gguf.format = ModelFormat::Gguf;
+        ModelIndex {
+            models: vec![
+                gguf,
+                indexed("embed", &models.join("embed"), ModelCategory::Embeddings),
+            ],
+            ..ModelIndex::default()
+        }
+        .save(&models.join(INDEX_FILE_NAME))
+        .expect("save");
+        let repo = LlmBackendRepository::open(&tmp.path().join("system.db")).expect("repo");
+
+        // WHEN the chat chooses the language model twice, the row it got, a
+        // model of a declared server and the embeddings model
+        let first = chat_route(&repo, &models, "Qwen3-4B-Q4_K_M.gguf").expect("first");
+        let again = chat_route(&repo, &models, "Qwen3-4B-Q4_K_M.gguf").expect("again");
+        let by_row = chat_route(&repo, &models, &first.name).expect("row");
+        let server = chat_route(&repo, &models, "lab/llama-3.3-70b").expect("server");
+        let embed = chat_route(&repo, &models, "embed").expect("embed");
+
+        // THEN only the first choice writes, every choice names a route, and
+        // a model the chat cannot use is passed through for the turn to report
+        assert_eq!(
+            first,
+            ChatRoute {
+                name: "qwen3-4b-q4_k_m-gguf".into(),
+                written: true
+            }
+        );
+        assert_eq!(again.name, first.name);
+        assert!(!again.written);
+        assert_eq!(by_row, again);
+        assert_eq!(server.name, "lab/llama-3.3-70b");
+        assert!(!server.written);
+        assert_eq!(embed.name, "embed");
+        assert!(!embed.written);
+        assert_eq!(repo.list().expect("list").len(), 1);
     }
 }

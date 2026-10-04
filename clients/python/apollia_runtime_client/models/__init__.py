@@ -144,6 +144,7 @@ from .deleted_profile import DeletedProfile
 from .deleted_profile_entry import DeletedProfileEntry
 from .dependent_source import DependentSource
 from .dictation_configured import DictationConfigured
+from .dictation_engine import DictationEngine
 from .dictation_models_response import DictationModelsResponse
 from .dictation_models_response_models_item import DictationModelsResponseModelsItem
 from .dictation_models_response_reason_type_0 import DictationModelsResponseReasonType0
@@ -177,14 +178,6 @@ from .fire_response import FireResponse
 from .fit_dto import FitDto
 from .folder_error_body import FolderErrorBody
 from .fork_session_request import ForkSessionRequest
-from .fs_hitl_decision_body_type_0 import FsHitlDecisionBodyType0
-from .fs_hitl_decision_body_type_0_decision import FsHitlDecisionBodyType0Decision
-from .fs_hitl_decision_body_type_1 import FsHitlDecisionBodyType1
-from .fs_hitl_decision_body_type_1_decision import FsHitlDecisionBodyType1Decision
-from .fs_hitl_decision_body_type_2 import FsHitlDecisionBodyType2
-from .fs_hitl_decision_body_type_2_decision import FsHitlDecisionBodyType2Decision
-from .fs_hitl_decision_body_type_3 import FsHitlDecisionBodyType3
-from .fs_hitl_decision_body_type_3_decision import FsHitlDecisionBodyType3Decision
 from .generate_next_steps_body import GenerateNextStepsBody
 from .generate_title_body import GenerateTitleBody
 from .generated_title import GeneratedTitle
@@ -200,6 +193,7 @@ from .guardrail_verdict_dto import GuardrailVerdictDto
 from .hardware_response import HardwareResponse
 from .hardware_response_accelerator import HardwareResponseAccelerator
 from .health_response import HealthResponse
+from .image_attachment import ImageAttachment
 from .imap_account_body import ImapAccountBody
 from .imap_account_response import ImapAccountResponse
 from .imap_error_body import ImapErrorBody
@@ -309,7 +303,6 @@ from .onboarding_dismissed import OnboardingDismissed
 from .onboarding_finalized import OnboardingFinalized
 from .onboarding_marked import OnboardingMarked
 from .onboarding_phase import OnboardingPhase
-from .onboarding_profile_body import OnboardingProfileBody
 from .onboarding_reset import OnboardingReset
 from .onboarding_state import OnboardingState
 from .onboarding_stats import OnboardingStats
@@ -373,6 +366,7 @@ from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
 from .python_interpreter_request import PythonInterpreterRequest
 from .python_interpreter_setting import PythonInterpreterSetting
+from .read_policy_response_200 import ReadPolicyResponse200
 from .readme_response import ReadmeResponse
 from .reasoning_profile_dto import ReasoningProfileDto
 from .reject_plan_request import RejectPlanRequest
@@ -394,7 +388,6 @@ from .resilience_status_response_circuit_breakers_item import (
 from .resolved_agent_response import ResolvedAgentResponse
 from .resolved_agent_response_definition import ResolvedAgentResponseDefinition
 from .resolved_approval_response import ResolvedApprovalResponse
-from .resolved_filesystem_approval import ResolvedFilesystemApproval
 from .resume_error_body import ResumeErrorBody
 from .resume_request import ResumeRequest
 from .resume_response import ResumeResponse
@@ -704,6 +697,7 @@ __all__ = (
     "DeleteServerResponse",
     "DependentSource",
     "DictationConfigured",
+    "DictationEngine",
     "DictationModelsResponse",
     "DictationModelsResponseModelsItem",
     "DictationModelsResponseReasonType0",
@@ -737,14 +731,6 @@ __all__ = (
     "FitDto",
     "FolderErrorBody",
     "ForkSessionRequest",
-    "FsHitlDecisionBodyType0",
-    "FsHitlDecisionBodyType0Decision",
-    "FsHitlDecisionBodyType1",
-    "FsHitlDecisionBodyType1Decision",
-    "FsHitlDecisionBodyType2",
-    "FsHitlDecisionBodyType2Decision",
-    "FsHitlDecisionBodyType3",
-    "FsHitlDecisionBodyType3Decision",
     "GeneratedTitle",
     "GenerateNextStepsBody",
     "GenerateTitleBody",
@@ -760,6 +746,7 @@ __all__ = (
     "HardwareResponse",
     "HardwareResponseAccelerator",
     "HealthResponse",
+    "ImageAttachment",
     "ImapAccountBody",
     "ImapAccountResponse",
     "ImapErrorBody",
@@ -869,7 +856,6 @@ __all__ = (
     "OnboardingFinalized",
     "OnboardingMarked",
     "OnboardingPhase",
-    "OnboardingProfileBody",
     "OnboardingReset",
     "OnboardingState",
     "OnboardingStats",
@@ -932,6 +918,7 @@ __all__ = (
     "PythonInterpreterRequest",
     "PythonInterpreterSetting",
     "ReadmeResponse",
+    "ReadPolicyResponse200",
     "ReasoningProfileDto",
     "RejectPlanRequest",
     "RejectUserInputRequest",
@@ -950,7 +937,6 @@ __all__ = (
     "ResolvedAgentResponse",
     "ResolvedAgentResponseDefinition",
     "ResolvedApprovalResponse",
-    "ResolvedFilesystemApproval",
     "ResumeErrorBody",
     "ResumeRequest",
     "ResumeResponse",

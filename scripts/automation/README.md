@@ -239,8 +239,8 @@ Five kinds act on the harness rather than on the DOM:
 - **`emitEvent { event, payload? }`** emits a Tauri event from the webview, as
   the backend would; Tauri's JS `emit` reaches every listener, this webview's
   `listen` included. It is how a recipe delivers an event-borne request the
-  product cannot produce on demand (the critical filesystem HITL card, whose
-  level the classifier never returns). The payload imitates a backend type and
+  product cannot produce on demand (a consent card on a seeded session, which
+  only a live tool call raises). The payload imitates a backend type and
   the script's `notes` name it, for the same drift reason as a `stubInvoke`.
 
 Two more substitutions concern file inputs, whose chooser is served by wry as
@@ -371,10 +371,13 @@ a run, and nothing reads them back.
   retire the armed state. Same shape wherever a confirm is rendered inline
   rather than as a dialog: check that the way back is reachable before writing
   the arming click.
-- **Two HITL surfaces**: file tools show the inline approval card, not the
-  `hitl-fs-modal` fast-path. Developer mode off (the seed default), it is
-  `OperatorApprovalCard` (`operator-approval-*`, `operator-approval-accept-*`,
-  ...); on, the raw `ApprovalCard` (`approval-card-*`, `approval-accept-*`). `bash_executor` is auto-refused with no card.
+- **One consent card**: file tools ask on the same card as every other tool,
+  with three answers and an optional reason. Developer mode off (the seed
+  default), it is `OperatorApprovalCard` (`operator-approval-*`, then
+  `operator-approval-accept-*`, `-always-*`, `-reason-*` and `-refuse-*`); on,
+  the raw `ApprovalCard` (`approval-card-*`, `approval-accept-*`,
+  `approval-always-*`, `approval-reason-*`, `approval-refuse-*`). There is no
+  separate file prompt. `bash_executor` is auto-refused with no card.
 - **The seed default backend** is `local-llama-server` (an OpenAI-compatible
   backend pointing at the llama-server on :8899). Deterministic runs never
   connect to it; the `-llama` runs route real inference through it.

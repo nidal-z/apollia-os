@@ -438,26 +438,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/approvals/filesystem/{request_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * `POST /api/v1/approvals/filesystem/{request_id}`: answers a request to
-         *     touch a file, which resumes the turn waiting on it.
-         */
-        post: operations["respond_filesystem_approval"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/approvals/pending": {
         parameters: {
             query?: never;
@@ -1478,6 +1458,23 @@ export interface paths {
         };
         /** `GET /api/v1/governance/audit`: the permission decisions, most recent first. */
         get: operations["list_governance_audit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/governance/policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/governance/policy`: the policy read at startup. */
+        get: operations["read_policy"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3584,23 +3581,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/onboarding/profile": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** `PUT /api/v1/onboarding/profile`: records the profile chosen. */
-        put: operations["set_onboarding_profile"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/onboarding/reset": {
         parameters: {
             query?: never;
@@ -4021,7 +4001,10 @@ export interface paths {
         get: operations["get_profile_by_id"];
         put?: never;
         post?: never;
-        /** `DELETE /api/v1/profiles/{id}`: deletes a profile and its facts. */
+        /**
+         * `DELETE /api/v1/profiles/{id}`: deletes a profile and its facts.
+         * @description The conversations that designated it return to the default profile.
+         */
         delete: operations["delete_profile"];
         options?: never;
         head?: never;
@@ -4591,6 +4574,26 @@ export interface paths {
          *     the default model of the machine.
          */
         get: operations["get_session_model_capabilities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/images/{file}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/{id}/images/{file}`, an image a user
+         *     message of the session carries, as its metadata names it.
+         */
+        get: operations["get_session_image"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5970,6 +5973,12 @@ export interface components {
              *     `pkg:<package>/<tool>`.
              */
             accessId: string;
+            /**
+             * @description Action family: `read`, `read_personal`, `write_or_delete`,
+             *     `send_external`, `execute_code`, or `unclassified` when nothing
+             *     classifies it (a tool of a connection not added yet, an agent).
+             */
+            family: string;
             /** @description What the access lets the agent do. */
             permits: string;
             /** @description Using it is sensitive. */
@@ -5999,6 +6008,11 @@ export interface components {
             accessId: string;
             /** @description Agent that gains it. */
             agentId: string;
+            /**
+             * @description Action family: `read`, `read_personal`, `write_or_delete`,
+             *     `send_external`, `execute_code`, or `unclassified`.
+             */
+            family: string;
             /** @description What it lets the agent do. */
             permits: string;
             /** @description Using it is sensitive. */
@@ -6014,7 +6028,7 @@ export interface components {
         };
         /** @description Request body for `POST /api/v1/onboarding/phase`. */
         AdvancePhaseBody: {
-            /** @description The phase to move to, in its snake_case name (`profile_choice`...). */
+            /** @description The phase to move to, in its snake_case name (`ai_setup`...). */
             phase: string;
         };
         /** @description Response body for agent list. */
@@ -6386,11 +6400,6 @@ export interface components {
              *     `decision == "refuse"`.
              */
             reason?: string | null;
-            /**
-             * @description Always-accept scope. Only honoured when `decision == "always_accept"`.
-             *     Defaults to [`crate::chat::AlwaysAcceptScope::ThisSession`].
-             */
-            scope?: string | null;
             /**
              * @description Unique id of the tool call being resolved. Correlates with the
              *     `approval_required` event so the same tool invoked twice in one turn
@@ -7057,6 +7066,12 @@ export interface components {
             agent_name?: string | null;
             /** @description Session mode: `"libre"` or `"agent"`. */
             mode: string;
+            /**
+             * @description The model of the session: the identifier of a language model of the
+             *     model index, `<server>/<model>` for a model of a declared server, or
+             *     the name of a backend. Absent keeps the model of the agent.
+             */
+            model?: string | null;
             /** @description Custom system prompt. */
             system_prompt?: string | null;
             /** @description List of tool names available in this session. */
@@ -7276,6 +7291,16 @@ export interface components {
             /** @description The Whisper model file dictation now reads. */
             model_path: string;
         };
+        /** @description The dictation engine, whisper.cpp inside the runner the daemon starts. */
+        DictationEngine: {
+            /** @description The runner binary. */
+            path: string;
+            /**
+             * @description The whisper.cpp version the runner states with `--version`; unknown
+             *     when it does not answer.
+             */
+            version?: string | null;
+        };
         /** @description The dictation category of the registry, and the entry for this machine. */
         DictationModelsResponse: {
             /** @description The machine the recommendation was made for. */
@@ -7371,6 +7396,12 @@ export interface components {
             /** @description Upstream tag; unknown for an embedded engine. */
             tag?: string | null;
             variant?: null | components["schemas"]["EngineVariant"];
+            /**
+             * @description The version the engine states at its source: the `--version` banner of
+             *     a binary, the package metadata of a Python environment. Unknown when it
+             *     does not answer.
+             */
+            version?: string | null;
         };
         /** @description Body of `POST /api/v1/engines/import`. */
         EngineImportRequest: {
@@ -7417,6 +7448,7 @@ export interface components {
             channel: components["schemas"]["EngineChannel"];
             /** @description True when an NVIDIA card is detected and no CUDA engine is installed. */
             cuda_proposable: boolean;
+            dictation?: null | components["schemas"]["DictationEngine"];
             /** @description Engines embedded in the bundle, then installed ones. */
             engines: components["schemas"]["EngineEntry"][];
             /**
@@ -7496,37 +7528,6 @@ export interface components {
         ForkSessionRequest: {
             /** @description Number of messages to copy from the parent (None = all). */
             up_to_index?: number | null;
-        };
-        /**
-         * @description The user's answer to a request to touch a file, as the approval card sends
-         *     it. The `decision` discriminant is snake_case; the breadth of an "always
-         *     allow" is a separate `scope`, so earlier builds that sent only `op` and
-         *     `level` keep working.
-         */
-        FsHitlDecisionBody: {
-            /** @enum {string} */
-            decision: "approve";
-        } | {
-            /** @enum {string} */
-            decision: "deny";
-            /** @description Free-text reason entered by the user. */
-            reason?: string | null;
-        } | {
-            /** @enum {string} */
-            decision: "always_allow";
-            /** @description Risk level (`medium`, `high`...). */
-            level: string;
-            /** @description Filesystem operation (`write`, `delete`...). */
-            op: string;
-            /** @description Breadth of the rule; absent means this session only. */
-            scope?: string | null;
-        } | {
-            /** @enum {string} */
-            decision: "always_allow_session";
-            /** @description Risk level. */
-            level: string;
-            /** @description Filesystem operation. */
-            op: string;
         };
         /** @description Request body for `POST /api/v1/sessions/{id}/title/generate`. */
         GenerateTitleBody: {
@@ -7648,6 +7649,13 @@ export interface components {
             status: string;
             /** @description The version of the runtime answering, as its crate declares it. */
             version: string;
+        };
+        /** @description One image as a client sends it. */
+        ImageAttachment: {
+            /** @description Bytes of the image, in standard base64. */
+            data: string;
+            /** @description Media type of the image, such as `image/png`. */
+            mime_type: string;
         };
         /**
          * @description Body of both mailbox routes. Deliberately without `Debug`: it carries the
@@ -8730,15 +8738,10 @@ export interface components {
             onboarded: boolean;
         };
         /**
-         * @description The seven ordered phases of the onboarding flow.
+         * @description The six ordered phases of the onboarding flow.
          * @enum {string}
          */
-        OnboardingPhase: "welcome" | "profile_choice" | "ai_setup" | "acquaintance" | "guided_tour" | "graduation" | "done";
-        /** @description Request body for `PUT /api/v1/onboarding/profile`. */
-        OnboardingProfileBody: {
-            /** @description `operator` or `builder`. */
-            profile: string;
-        };
+        OnboardingPhase: "welcome" | "ai_setup" | "acquaintance" | "guided_tour" | "graduation" | "done";
         /** @description Answer of `POST /api/v1/onboarding/reset`. */
         OnboardingReset: {
             /** @description How many profile entries were removed. */
@@ -8758,11 +8761,9 @@ export interface components {
             mandatory_complete: boolean;
             /** @description Current phase of the onboarding flow. */
             phase: components["schemas"]["OnboardingPhase"];
-            /** @description Chosen user profile (`"operator"` or `"builder"`); set during ProfileChoice. */
-            profile?: string | null;
             /** @description `true` if the user explicitly skipped the onboarding. */
             skipped: boolean;
-            /** @description ISO 8601 timestamp of the first phase transition (Welcome → ProfileChoice). */
+            /** @description ISO 8601 timestamp of the first phase transition (Welcome to AiSetup). */
             started_at?: string | null;
             /** @description Accumulated stats for the graduation screen. */
             stats: components["schemas"]["OnboardingStats"];
@@ -9541,11 +9542,6 @@ export interface components {
             /** Format: int64 */
             wait_duration_ms?: number | null;
         };
-        /** @description Answer of `POST /api/v1/approvals/filesystem/{request_id}`. */
-        ResolvedFilesystemApproval: {
-            /** @description The request answered. */
-            request_id: string;
-        };
         /**
          * @description Error body of `POST /api/v1/tasks/{id}/resume`.
          *
@@ -9653,6 +9649,11 @@ export interface components {
         SendMessageRequest: {
             /** @description Text content of the user message. */
             content: string;
+            /**
+             * @description Images sent after the text, for a model that reads images; at most
+             *     eight, each at most 10 MiB once decoded.
+             */
+            images?: components["schemas"]["ImageAttachment"][];
         };
         /** @description Response body for `POST /api/v1/sessions/:id/messages`. */
         SendMessageResponse: {
@@ -10009,6 +10010,11 @@ export interface components {
             declaredPublisher: string;
             /** @description SHA-256 fingerprint of the signing key, when the signature holds. */
             keyFingerprint?: string | null;
+            /**
+             * @description The signing public key, 64 hexadecimal characters, when the signature
+             *     holds: what trusting the publisher imports into the keyring.
+             */
+            publicKey?: string | null;
             /**
              * @description Name to show for the publisher: the label of the keyring when the key
              *     is trusted, otherwise the name the package declares.
@@ -10666,8 +10672,6 @@ export interface components {
         };
         /** @description Request body for `POST /api/v1/onboarding/sessions`. */
         TriggerOnboardingBody: {
-            /** @description The profile the agent adapts its questions to, when one was chosen. */
-            profile?: string | null;
             /** @description One topic to run again; absent for a full onboarding. */
             topic?: string | null;
         };
@@ -10932,8 +10936,17 @@ export interface components {
          *     value.
          */
         UpdateSessionBody: {
-            /** @description Inference server of the session. */
+            /**
+             * @description Model of the session: a backend, `<server>/<model>`, or the
+             *     identifier of a language model of the model index. `null` returns to
+             *     the model of the agent.
+             */
             llm_backend?: string | null;
+            /**
+             * @description Profile the conversation designates; `null` returns it to the current
+             *     default profile.
+             */
+            profile_id?: string | null;
             /** @description New system prompt. */
             system_prompt?: string | null;
             /** @description New list of tools available in the session. */
@@ -12266,51 +12279,6 @@ export interface operations {
                 };
             };
             /** @description Mailbox not available */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
-    respond_filesystem_approval: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Id of the pending request */
-                request_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FsHitlDecisionBody"];
-            };
-        };
-        responses: {
-            /** @description The request is answered */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResolvedFilesystemApproval"];
-                };
-            };
-            /** @description No pending request has this id */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description Chat subsystem unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -14820,6 +14788,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    read_policy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The organisation policy the runtime applies: `state` is `none`, `active` or `invalid` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
         };
@@ -19745,48 +19733,6 @@ export interface operations {
             };
         };
     };
-    set_onboarding_profile: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OnboardingProfileBody"];
-            };
-        };
-        responses: {
-            /** @description The state with its profile */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OnboardingState"];
-                };
-            };
-            /** @description Neither operator nor builder */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description The user memory did not open */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
     reset_onboarding: {
         parameters: {
             query?: never;
@@ -19876,7 +19822,7 @@ export interface operations {
                     "application/json": components["schemas"]["TriggerResult"];
                 };
             };
-            /** @description Unknown topic or profile */
+            /** @description Unknown topic */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -22116,6 +22062,15 @@ export interface operations {
                     "application/json": components["schemas"]["SendMessageResponse"];
                 };
             };
+            /** @description An image is refused: too many, too large, or not decodable */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
             /** @description Session not found */
             404: {
                 headers: {
@@ -22127,6 +22082,15 @@ export interface operations {
             };
             /** @description Session closed or busy */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The model of the session does not read images */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -22333,6 +22297,49 @@ export interface operations {
             };
             /** @description Chat subsystem or backend repository unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_session_image: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+                /** @description File name of the image, as the message metadata lists it */
+                file: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The image, its media type and its bytes in base64 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageAttachment"];
+                };
+            };
+            /** @description Not an image file name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No such image in the session */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

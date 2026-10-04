@@ -41,6 +41,7 @@ mod embedded;
 mod export;
 mod install;
 mod preview;
+mod preview_access;
 mod uninstall;
 
 #[cfg(test)]

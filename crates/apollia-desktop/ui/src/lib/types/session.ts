@@ -82,6 +82,8 @@ export interface ApollaConfigView {
 export interface SystemInfo {
   version: string;
   os: string;
+  /** Processor architecture this build runs on (`aarch64`, `x86_64`). */
+  arch: string;
   python_path: string | null;
   /** Resolved data directory (`<home>/.apollia`), null when the home is not found. */
   data_dir: string | null;

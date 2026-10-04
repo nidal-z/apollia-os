@@ -64,10 +64,7 @@ export async function finalizeOnboardingChat(): Promise<void> {
 
 /** Start a fresh onboarding chat session. */
 export async function triggerOnboarding(): Promise<TriggerResult> {
-  return invoke<TriggerResult>("trigger_onboarding", {
-    topic: null,
-    profile: null,
-  });
+  return invoke<TriggerResult>("trigger_onboarding", { topic: null });
 }
 
 /** Resume an onboarding chat, keeping the profile already collected. */

@@ -7,7 +7,7 @@ sidebar_position: 4
 # Configurer votre profil au premier lancement
 
 > Au premier démarrage d'Apollia (ou après une réinitialisation), un parcours de configuration s'ouvre automatiquement.
-> Il vous fait passer en quatre étapes - accueil, choix du profil, configuration de l'IA, calibrage conversationnel - pour qu'Apollia soit prêt à l'emploi.
+> Il vous fait passer en trois étapes - accueil, configuration de l'IA, calibrage conversationnel - pour qu'Apollia soit prêt à l'emploi. Il ne vous demande jamais de choisir un profil d'usage : l'interface est la même pour tous, et les écrans techniques supplémentaires relèvent du mode développeur dans les Paramètres, éteint par défaut.
 > Durée totale : 3 à 8 minutes selon le téléchargement des modèles.
 >
 > Cette page couvre **le parcours initial uniquement**. Pour éditer votre profil au quotidien depuis l'application installée, voir **[Mon profil](../memoire/manage-my-profile.md)**.
@@ -19,12 +19,11 @@ sidebar_position: 4
 
 ## Vue d'ensemble du parcours
 
-Le parcours est rythmé par un rail de progression visible en haut de la fenêtre : **Accueil · Profil · Modèles · Calibrage**. Vous pouvez revenir en arrière à toute étape, et **Configurer plus tard** est disponible en bas pour ajourner l'ensemble.
+Le parcours est rythmé par un rail de progression visible en haut de la fenêtre : **Accueil · Modèles · Calibrage**. Vous pouvez revenir en arrière à toute étape, et **Configurer plus tard** est disponible en bas pour ajourner l'ensemble.
 
 | Étape | Ce qui s'y passe |
 |---|---|
 | **Accueil** | Présentation d'Apollia et lancement du parcours. |
-| **Profil** | Choix entre **Opérateur** (interface simplifiée, validation explicite) et **Builder** (observabilité complète, SDK Python). |
 | **Modèles** | Configuration du LLM (local GGUF avec téléchargement embarqué, ou fournisseur cloud) et, en option, du modèle de dictée vocale Whisper. |
 | **Calibrage** | Conversation avec un agent qui collecte 4 informations rapides (nom, rôle, niveau de supervision, souveraineté des données) et propose des règles de permissions adaptées. |
 
@@ -38,18 +37,7 @@ Au lancement, Apollia détecte qu'aucun profil n'existe et ouvre la fenêtre de 
 
 Lisez le bandeau de bienvenue, puis cliquez sur **Commencer la configuration**.
 
-### Étape 2 - Choisir votre profil
-
-Deux cartes vous sont proposées côte à côte. Cliquez sur celle qui correspond le mieux à votre usage - vous pourrez le changer plus tard depuis **Paramètres → Profil**.
-
-![Étape Profil avec deux cartes Opérateur (icône étincelles) et Builder (icône code), chacune avec 3 puces et un exemple de rôle](/img/operator-help/installation-configurer-votre-profil-2.png)
-
-- **Opérateur** : pour qui veut des agents qui exécutent des tâches concrètes (emails, veille, synthèses) sans toucher à du code. Validation explicite des actions sensibles, agents prêts à l'emploi.
-- **Builder** : pour qui veut concevoir, debugger et observer ses agents. Observabilité complète (timeline, traces, coûts), SDK Python, permissions granulaires.
-
-Un lien discret en bas - **Je suis les deux → mode Builder** - permet de basculer en mode Builder si vous hésitez (le mode Builder expose toutes les fonctionnalités d'Opérateur en plus).
-
-### Étape 3 - Configurer le moteur d'IA
+### Étape 2 - Configurer le moteur d'IA
 
 Cette étape calibre Apollia à votre matériel et à vos préférences de souveraineté. Un bandeau d'informations système (RAM, OS, GPU) apparaît en haut pour vous aider à choisir.
 
@@ -84,11 +72,11 @@ Vous pouvez sauter cette section et l'activer plus tard depuis **Paramètres →
 
 #### Boutons disponibles en pied de page
 
-- **← Retour** - revient à l'étape Profil.
+- **← Retour** - revient à l'étape Accueil.
 - **Configurer plus tard** - saute directement au calibrage conversationnel (uniquement si un LLM est déjà disponible).
 - **Continuer** - désactivé tant qu'aucun LLM n'est utilisable, devient actif dès qu'un backend cloud ou local est configuré.
 
-### Étape 4 - Calibrage conversationnel
+### Étape 3 - Calibrage conversationnel
 
 L'agent d'onboarding s'ouvre dans la fenêtre. Il vous pose jusqu'à 4 questions, progressivement.
 
@@ -159,7 +147,7 @@ Si vous avez significativement modifié votre profil (changement de rôle, de po
 1. Ouvrez **Paramètres → Zone de danger**.
 2. Cliquez sur **Réinitialiser l'onboarding**. Cette action efface uniquement les marqueurs de progression et de profil - vos backends LLM, modèles téléchargés et autres données restent intacts.
 3. Une fenêtre de confirmation demande de taper `RESET`. Confirmez.
-4. Le parcours en quatre étapes redémarre depuis l'Accueil.
+4. Le parcours en trois étapes redémarre depuis l'Accueil.
 
 Pour de **petits ajustements** (corriger votre nom, ajouter un outil quotidien, basculer une intégration) sans repasser le parcours, ouvrez directement **Paramètres → Profil** - voir [Mon profil](../memoire/manage-my-profile.md).
 

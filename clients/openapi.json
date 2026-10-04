@@ -1452,68 +1452,6 @@
         }
       }
     },
-    "/api/v1/approvals/filesystem/{request_id}": {
-      "post": {
-        "tags": [
-          "governance"
-        ],
-        "summary": "`POST /api/v1/approvals/filesystem/{request_id}`: answers a request to\ntouch a file, which resumes the turn waiting on it.",
-        "operationId": "respond_filesystem_approval",
-        "parameters": [
-          {
-            "name": "request_id",
-            "in": "path",
-            "description": "Id of the pending request",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FsHitlDecisionBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "The request is answered",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResolvedFilesystemApproval"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No pending request has this id",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Chat subsystem unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/approvals/pending": {
       "get": {
         "tags": [
@@ -4567,6 +4505,27 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance/policy": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/governance/policy`: the policy read at startup.",
+        "operationId": "read_policy",
+        "responses": {
+          "200": {
+            "description": "The organisation policy the runtime applies: `state` is `none`, `active` or `invalid`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
                 }
               }
             }
@@ -10633,57 +10592,6 @@
         }
       }
     },
-    "/api/v1/onboarding/profile": {
-      "put": {
-        "tags": [
-          "onboarding"
-        ],
-        "summary": "`PUT /api/v1/onboarding/profile`: records the profile chosen.",
-        "operationId": "set_onboarding_profile",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OnboardingProfileBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "The state with its profile",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OnboardingState"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Neither operator nor builder",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "The user memory did not open",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/onboarding/reset": {
       "post": {
         "tags": [
@@ -10785,7 +10693,7 @@
             }
           },
           "400": {
-            "description": "Unknown topic or profile",
+            "description": "Unknown topic",
             "content": {
               "application/json": {
                 "schema": {
@@ -11892,6 +11800,7 @@
           "profile"
         ],
         "summary": "`DELETE /api/v1/profiles/{id}`: deletes a profile and its facts.",
+        "description": "The conversations that designated it return to the default profile.",
         "operationId": "delete_profile",
         "parameters": [
           {
@@ -13483,6 +13392,16 @@
               }
             }
           },
+          "400": {
+            "description": "An image is refused: too many, too large, or not decodable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Session not found",
             "content": {
@@ -13495,6 +13414,16 @@
           },
           "409": {
             "description": "Session closed or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The model of the session does not read images",
             "content": {
               "application/json": {
                 "schema": {
@@ -13768,6 +13697,67 @@
           },
           "503": {
             "description": "Chat subsystem or backend repository unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/images/{file}": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/images/{file}`, an image a user\nmessage of the session carries, as its metadata names it.",
+        "operationId": "get_session_image",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "file",
+            "in": "path",
+            "description": "File name of the image, as the message metadata lists it",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The image, its media type and its bytes in base64",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageAttachment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an image file name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such image in the session",
             "content": {
               "application/json": {
                 "schema": {
@@ -17722,12 +17712,17 @@
         "required": [
           "accessId",
           "permits",
-          "sensitive"
+          "sensitive",
+          "family"
         ],
         "properties": {
           "accessId": {
             "type": "string",
             "description": "Identifier of the access: a tool name, `mcp:<server>/<tool>`, or\n`pkg:<package>/<tool>`."
+          },
+          "family": {
+            "type": "string",
+            "description": "Action family: `read`, `read_personal`, `write_or_delete`,\n`send_external`, `execute_code`, or `unclassified` when nothing\nclassifies it (a tool of a connection not added yet, an agent)."
           },
           "permits": {
             "type": "string",
@@ -17796,7 +17791,8 @@
           "agentId",
           "accessId",
           "permits",
-          "sensitive"
+          "sensitive",
+          "family"
         ],
         "properties": {
           "accessId": {
@@ -17806,6 +17802,10 @@
           "agentId": {
             "type": "string",
             "description": "Agent that gains it."
+          },
+          "family": {
+            "type": "string",
+            "description": "Action family: `read`, `read_personal`, `write_or_delete`,\n`send_external`, `execute_code`, or `unclassified`."
           },
           "permits": {
             "type": "string",
@@ -17840,7 +17840,7 @@
         "properties": {
           "phase": {
             "type": "string",
-            "description": "The phase to move to, in its snake_case name (`profile_choice`...)."
+            "description": "The phase to move to, in its snake_case name (`ai_setup`...)."
           }
         }
       },
@@ -18819,13 +18819,6 @@
               "null"
             ],
             "description": "Free-form rejection reason shared with the agent. Only honoured when\n`decision == \"refuse\"`."
-          },
-          "scope": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Always-accept scope. Only honoured when `decision == \"always_accept\"`.\nDefaults to [`crate::chat::AlwaysAcceptScope::ThisSession`]."
           },
           "tool_call_id": {
             "type": [
@@ -20327,6 +20320,13 @@
             "type": "string",
             "description": "Session mode: `\"libre\"` or `\"agent\"`."
           },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model of the session: the identifier of a language model of the\nmodel index, `<server>/<model>` for a model of a declared server, or\nthe name of a backend. Absent keeps the model of the agent."
+          },
           "system_prompt": {
             "type": [
               "string",
@@ -20883,6 +20883,26 @@
           }
         }
       },
+      "DictationEngine": {
+        "type": "object",
+        "description": "The dictation engine, whisper.cpp inside the runner the daemon starts.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "The runner binary."
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The whisper.cpp version the runner states with `--version`; unknown\nwhen it does not answer."
+          }
+        }
+      },
       "DictationModelsResponse": {
         "type": "object",
         "description": "The dictation category of the registry, and the entry for this machine.",
@@ -21128,6 +21148,13 @@
                 "description": "Variant; unknown for an embedded engine whose build is not stated."
               }
             ]
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The version the engine states at its source: the `--version` banner of\na binary, the package metadata of a Python environment. Unknown when it\ndoes not answer."
           }
         }
       },
@@ -21241,6 +21268,17 @@
           "cuda_proposable": {
             "type": "boolean",
             "description": "True when an NVIDIA card is detected and no CUDA engine is installed."
+          },
+          "dictation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DictationEngine",
+                "description": "The dictation engine, when a runner is in reach."
+              }
+            ]
           },
           "engines": {
             "type": "array",
@@ -21419,105 +21457,6 @@
             "minimum": 0
           }
         }
-      },
-      "FsHitlDecisionBody": {
-        "oneOf": [
-          {
-            "type": "object",
-            "description": "The user approves this operation.",
-            "required": [
-              "decision"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "approve"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "description": "The user denies; the operation is cancelled and `reason`, when given,\nreaches the agent.",
-            "required": [
-              "decision"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "deny"
-                ]
-              },
-              "reason": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "description": "Free-text reason entered by the user."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "description": "The user approves and installs an \"always allow\" rule.",
-            "required": [
-              "op",
-              "level",
-              "decision"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "always_allow"
-                ]
-              },
-              "level": {
-                "type": "string",
-                "description": "Risk level (`medium`, `high`...)."
-              },
-              "op": {
-                "type": "string",
-                "description": "Filesystem operation (`write`, `delete`...)."
-              },
-              "scope": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "description": "Breadth of the rule; absent means this session only."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "description": "Legacy form of `always_allow` with the session scope.",
-            "required": [
-              "op",
-              "level",
-              "decision"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "always_allow_session"
-                ]
-              },
-              "level": {
-                "type": "string",
-                "description": "Risk level."
-              },
-              "op": {
-                "type": "string",
-                "description": "Filesystem operation."
-              }
-            }
-          }
-        ],
-        "description": "The user's answer to a request to touch a file, as the approval card sends\nit. The `decision` discriminant is snake_case; the breadth of an \"always\nallow\" is a separate `scope`, so earlier builds that sent only `op` and\n`level` keep working."
       },
       "GenerateTitleBody": {
         "type": "object",
@@ -21772,6 +21711,24 @@
           "version": {
             "type": "string",
             "description": "The version of the runtime answering, as its crate declares it."
+          }
+        }
+      },
+      "ImageAttachment": {
+        "type": "object",
+        "description": "One image as a client sends it.",
+        "required": [
+          "mime_type",
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "string",
+            "description": "Bytes of the image, in standard base64."
+          },
+          "mime_type": {
+            "type": "string",
+            "description": "Media type of the image, such as `image/png`."
           }
         }
       },
@@ -24062,29 +24019,15 @@
       },
       "OnboardingPhase": {
         "type": "string",
-        "description": "The seven ordered phases of the onboarding flow.",
+        "description": "The six ordered phases of the onboarding flow.",
         "enum": [
           "welcome",
-          "profile_choice",
           "ai_setup",
           "acquaintance",
           "guided_tour",
           "graduation",
           "done"
         ]
-      },
-      "OnboardingProfileBody": {
-        "type": "object",
-        "description": "Request body for `PUT /api/v1/onboarding/profile`.",
-        "required": [
-          "profile"
-        ],
-        "properties": {
-          "profile": {
-            "type": "string",
-            "description": "`operator` or `builder`."
-          }
-        }
       },
       "OnboardingReset": {
         "type": "object",
@@ -24145,13 +24088,6 @@
             "$ref": "#/components/schemas/OnboardingPhase",
             "description": "Current phase of the onboarding flow."
           },
-          "profile": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Chosen user profile (`\"operator\"` or `\"builder\"`); set during ProfileChoice."
-          },
           "skipped": {
             "type": "boolean",
             "description": "`true` if the user explicitly skipped the onboarding."
@@ -24161,7 +24097,7 @@
               "string",
               "null"
             ],
-            "description": "ISO 8601 timestamp of the first phase transition (Welcome → ProfileChoice)."
+            "description": "ISO 8601 timestamp of the first phase transition (Welcome to AiSetup)."
           },
           "stats": {
             "$ref": "#/components/schemas/OnboardingStats",
@@ -25957,19 +25893,6 @@
           }
         }
       },
-      "ResolvedFilesystemApproval": {
-        "type": "object",
-        "description": "Answer of `POST /api/v1/approvals/filesystem/{request_id}`.",
-        "required": [
-          "request_id"
-        ],
-        "properties": {
-          "request_id": {
-            "type": "string",
-            "description": "The request answered."
-          }
-        }
-      },
       "ResumeErrorBody": {
         "type": "object",
         "description": "Error body of `POST /api/v1/tasks/{id}/resume`.\n\nThe historical `{error}` shape, plus a machine `code` on the refusals a\ncaller branches on. `code` is absent on the older errors, so a client that\nread `error` alone keeps working.",
@@ -26171,6 +26094,13 @@
           "content": {
             "type": "string",
             "description": "Text content of the user message."
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImageAttachment"
+            },
+            "description": "Images sent after the text, for a model that reads images; at most\neight, each at most 10 MiB once decoded."
           }
         }
       },
@@ -26939,6 +26869,13 @@
               "null"
             ],
             "description": "SHA-256 fingerprint of the signing key, when the signature holds."
+          },
+          "publicKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The signing public key, 64 hexadecimal characters, when the signature\nholds: what trusting the publisher imports into the keyring."
           },
           "publisher": {
             "type": "string",
@@ -28420,13 +28357,6 @@
         "type": "object",
         "description": "Request body for `POST /api/v1/onboarding/sessions`.",
         "properties": {
-          "profile": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The profile the agent adapts its questions to, when one was chosen."
-          },
           "topic": {
             "type": [
               "string",
@@ -29026,7 +28956,14 @@
               "string",
               "null"
             ],
-            "description": "Inference server of the session."
+            "description": "Model of the session: a backend, `<server>/<model>`, or the\nidentifier of a language model of the model index. `null` returns to\nthe model of the agent."
+          },
+          "profile_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Profile the conversation designates; `null` returns it to the current\ndefault profile."
           },
           "system_prompt": {
             "type": [
@@ -29669,7 +29606,7 @@
     },
     {
       "name": "onboarding",
-      "description": "The onboarding: its phases, its profile and its conversation"
+      "description": "The onboarding: its phases and its conversation"
     },
     {
       "name": "artifacts",

@@ -115,19 +115,4 @@ impl ChatSessionManager {
             let _ = reply.send(None);
         }
     }
-
-    /// Resolve a pending filesystem HITL request.
-    pub(in crate::chat::manager) fn handle_resolve_fs_hitl(
-        &self,
-        request_id: &str,
-        decision: super::super::types::FsHitlDecision,
-    ) -> Result<(), ChatError> {
-        if self.pending_fs_approvals.resolve(request_id, decision) {
-            Ok(())
-        } else {
-            Err(ChatError::InternalError(format!(
-                "no pending fs HITL request for id '{request_id}'"
-            )))
-        }
-    }
 }
