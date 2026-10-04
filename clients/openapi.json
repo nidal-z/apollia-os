@@ -13797,6 +13797,67 @@
         }
       }
     },
+    "/api/v1/sources/preview": {
+      "post": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "`POST /api/v1/sources/preview`: the preview of a workbook or a CSV file.",
+        "operationId": "preview_source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewSourceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The proposed sheet and header row, the first rows and the write flags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourcePreviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The path is not absolute",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No file at that path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not a workbook or a CSV file, protected, damaged, or a sheet or row the file lacks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sources/{id}": {
       "delete": {
         "tags": [
@@ -22937,6 +22998,96 @@
           }
         }
       },
+      "PreviewColumn": {
+        "type": "object",
+        "description": "One column of the table under the header row.",
+        "required": [
+          "letter",
+          "name"
+        ],
+        "properties": {
+          "letter": {
+            "type": "string",
+            "description": "Column letter, as the spreadsheet shows it; a batch checks a column by it."
+          },
+          "name": {
+            "type": "string",
+            "description": "The name its header cell gives it, made unique."
+          }
+        }
+      },
+      "PreviewRowView": {
+        "type": "object",
+        "description": "One row of the preview.",
+        "required": [
+          "row",
+          "cells"
+        ],
+        "properties": {
+          "cells": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The text of each cell, column A first."
+          },
+          "row": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Row number, from 1.",
+            "minimum": 0
+          }
+        }
+      },
+      "PreviewSheet": {
+        "type": "object",
+        "description": "One sheet of the file.",
+        "required": [
+          "name",
+          "nonEmptyRows"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the sheet."
+          },
+          "nonEmptyRows": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many of its rows hold at least one non-blank cell.",
+            "minimum": 0
+          }
+        }
+      },
+      "PreviewSourceBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/sources/preview`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "headerRow": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The header row, from 1, on the shown sheet; the proposed row when absent.",
+            "minimum": 0
+          },
+          "path": {
+            "type": "string",
+            "description": "Absolute path of a `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.ods` or `.csv` file."
+          },
+          "sheet": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The sheet to show; the proposed sheet when absent."
+          }
+        }
+      },
       "ProfileDetailView": {
         "type": "object",
         "description": "One profile in full: its summary, its fields in schema order, its facts.",
@@ -24654,6 +24805,97 @@
           "memory",
           "code_folder"
         ]
+      },
+      "SourcePreviewResponse": {
+        "type": "object",
+        "description": "What a batch on the file would read.",
+        "required": [
+          "format",
+          "sourceType",
+          "sheets",
+          "columns",
+          "rows",
+          "estimatedItems",
+          "canModifyOriginal",
+          "formattingNotKept"
+        ],
+        "properties": {
+          "canModifyOriginal": {
+            "type": "boolean",
+            "description": "True for `.xlsx` and `.xlsm`: results may be written into the original."
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewColumn"
+            },
+            "description": "The columns under the header row."
+          },
+          "estimatedItems": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many items a batch would read: the non-empty rows below the header.",
+            "minimum": 0
+          },
+          "format": {
+            "type": "string",
+            "description": "`xlsx`, `xlsm`, `xlsb`, `xls`, `ods` or `csv`."
+          },
+          "formattingNotKept": {
+            "type": "boolean",
+            "description": "True for `.xls`, `.xlsb` and `.ods`: the copy of results is a new\nworkbook without the original formatting."
+          },
+          "headerRow": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The header row used: the one asked for, or the proposed one.",
+            "minimum": 0
+          },
+          "proposedHeaderRow": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The header row proposed on the shown sheet.",
+            "minimum": 0
+          },
+          "proposedSheet": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The sheet proposed: the only one, or the one with the most non-empty rows."
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewRowView"
+            },
+            "description": "The first twenty rows of the shown sheet, from its top."
+          },
+          "sheet": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The sheet shown: the one asked for, or the proposed one."
+          },
+          "sheets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewSheet"
+            },
+            "description": "Every sheet, in the file's order; a CSV file has one, named after it."
+          },
+          "sourceType": {
+            "type": "string",
+            "description": "The batch source type that reads the file: `spreadsheet` or `csv`."
+          }
+        }
       },
       "SourceResponse": {
         "type": "object",
