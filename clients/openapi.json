@@ -11830,41 +11830,6 @@
         }
       }
     },
-    "/api/v1/projects/{id}/sessions": {
-      "get": {
-        "tags": [
-          "chat"
-        ],
-        "summary": "Handler for `GET /api/v1/projects/{id}/sessions`, the sessions of a\nproject.",
-        "operationId": "list_project_sessions",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Session list"
-          },
-          "503": {
-            "description": "Chat subsystem unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/resilience/reset/{tool}": {
       "post": {
         "tags": [
@@ -13709,61 +13674,6 @@
           },
           "409": {
             "description": "The session is not awaiting approval",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Chat subsystem unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/sessions/{id}/project": {
-      "put": {
-        "tags": [
-          "chat"
-        ],
-        "summary": "Handler for `PUT /api/v1/sessions/{id}/project`, link the session to a\nproject or, with `null`, unlink it.",
-        "operationId": "link_session_project",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Session id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LinkProjectBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Link stored"
-          },
-          "404": {
-            "description": "Session or project not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -19827,13 +19737,6 @@
             "type": "string",
             "description": "Session mode: `\"libre\"` or `\"agent\"`."
           },
-          "project_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Project to link this session to."
-          },
           "system_prompt": {
             "type": [
               "string",
@@ -21973,19 +21876,6 @@
           "modelId": {
             "type": "string",
             "description": "The model, by the identifier the model index gives it."
-          }
-        }
-      },
-      "LinkProjectBody": {
-        "type": "object",
-        "description": "Request body for `PUT /api/v1/sessions/{id}/project`.",
-        "properties": {
-          "project_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The project to link, `null` to unlink."
           }
         }
       },

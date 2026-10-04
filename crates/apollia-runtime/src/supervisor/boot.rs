@@ -237,7 +237,6 @@ impl Supervisor {
             stt_engine: stt.engine,
             stt_repository: stt.repository,
             mcp_handle: core.mcp_handle,
-            project_repository: stores.project_repository,
             runner_supervisor: inference.runner_supervisor,
             llama_server_supervisor: inference.llama_server_supervisor,
             mlx_engine: inference.mlx_engine,

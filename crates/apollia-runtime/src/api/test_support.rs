@@ -196,7 +196,7 @@ pub(crate) fn seeded_chat(data_dir: &Path) -> AppState<MockBackend> {
     let db_path = apollia_core::paths::DataFile::Chat.path(data_dir);
     let now = chrono::Utc::now().to_rfc3339();
     let repo = ChatSessionRepository::open(&db_path).expect("open chat db");
-    repo.create_session("s-1", &ChatMode::Libre, None, "", &[], &now, None, None)
+    repo.create_session("s-1", &ChatMode::Libre, None, "", &[], &now, None)
         .expect("seed session");
     for (id, role, content) in [
         ("u-1", ChatRole::User, "Bonjour"),
@@ -238,8 +238,6 @@ pub(crate) fn seeded_chat(data_dir: &Path) -> AppState<MockBackend> {
         apollia_core::StepBudgetConfig::default(),
         None,
         state.registry_handle.clone(),
-        None,
-        None,
         None,
         None,
         None,

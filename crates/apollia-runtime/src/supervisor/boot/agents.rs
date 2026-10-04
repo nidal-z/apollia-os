@@ -72,13 +72,6 @@ impl Supervisor {
                 stores.user_memory.clone(),
                 core.registry_handle.clone(),
                 Some(a2a_invoker.clone()),
-                stores.project_repository.as_ref().map(|repo| {
-                    std::sync::Arc::new(crate::chat::DefaultProjectContextProvider::new(
-                        repo.clone(),
-                    ))
-                        as std::sync::Arc<dyn crate::chat::ProjectContextProvider>
-                }),
-                stores.project_repository.clone(),
                 core.mcp_handle.clone(),
                 // Feed the chat dispatcher the same global config the Agent-mode
                 // dispatcher uses. Native tools that need app-level config

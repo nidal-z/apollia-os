@@ -24,7 +24,6 @@ const STORAGE_KEYS = {
   pinned: "chat.sidebar.pinned",
   archived: "chat.sidebar.archived",
   lastRead: "chat.sidebar.lastRead",
-  projectFilter: "chat.sidebar.projectFilter",
 } as const;
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -95,12 +94,6 @@ export const sidebarDensity = writable<SidebarDensity>(
   loadString<SidebarDensity>(STORAGE_KEYS.density, "md", ["sm", "md", "lg"]),
 );
 sidebarDensity.subscribe((v) => saveString(STORAGE_KEYS.density, v));
-
-/** Project filter applied to the sidebar (null = all projects). */
-export const sessionProjectFilter = writable<string | null>(
-  loadJson<string | null>(STORAGE_KEYS.projectFilter, null),
-);
-sessionProjectFilter.subscribe((v) => saveJson(STORAGE_KEYS.projectFilter, v));
 
 export const pinnedSessionIds = writable<Set<string>>(
   new Set(loadJson<string[]>(STORAGE_KEYS.pinned, [])),
@@ -209,19 +202,17 @@ function compareSessions(a: DecoratedSession, b: DecoratedSession, order: Sessio
   }
 }
 
-/** Sessions passing the current filter + search + project scope, sorted. */
+/** Sessions passing the current filter + search, sorted. */
 export const visibleSessions: Readable<DecoratedSession[]> = derived(
   [
     decoratedSessions,
     sessionFilter,
     sessionSort,
     sessionSearchQuery,
-    sessionProjectFilter,
   ],
-  ([$decorated, $filter, $sort, $query, $project]) => {
+  ([$decorated, $filter, $sort, $query]) => {
     return $decorated
       .filter((s) => {
-        if ($project !== null && s.project_id !== $project) return false;
         switch ($filter) {
           case "active":
             return !s.archived && s.status !== "closed";

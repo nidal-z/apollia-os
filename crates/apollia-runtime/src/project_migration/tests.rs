@@ -43,15 +43,24 @@ impl Fixture {
             .sources
     }
 
-    fn session_projects(&self) -> Vec<(String, Option<String>, Option<String>)> {
+    /// Each conversation with its agent, and whether the chat database still
+    /// has a project column.
+    fn session_projects(&self) -> (Vec<(String, Option<String>)>, bool) {
         let conn = rusqlite::Connection::open(DataFile::Chat.path(self.data_dir())).unwrap();
         let mut stmt = conn
-            .prepare("SELECT id, agent_name, project_id FROM chat_sessions ORDER BY id")
+            .prepare("SELECT id, agent_name FROM chat_sessions ORDER BY id")
             .unwrap();
-        stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        let sessions = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
             .unwrap()
             .collect::<Result<_, _>>()
+            .unwrap();
+        let has_column = conn
+            .prepare("SELECT 1 FROM pragma_table_info('chat_sessions') WHERE name = 'project_id'")
             .unwrap()
+            .exists([])
+            .unwrap();
+        (sessions, has_column)
     }
 
     fn memory_semantic(&self, namespace: &str) -> usize {
@@ -86,7 +95,8 @@ fn memory_export(namespace: &str, ids: &[&str]) -> MemoryExport {
 
 /// The project has two readable documents, one gone, instructions, the
 /// installed agent `veille` and the uninstalled `ancien`, its working folder,
-/// one memory space, and two conversations: a free one and one with `veille`.
+/// one memory space, and two conversations: a free one and one with `veille`,
+/// in a chat database written before the project column was dropped.
 fn fixture() -> Fixture {
     let data = tempfile::tempdir().unwrap();
     let files = tempfile::tempdir().unwrap();
@@ -151,6 +161,12 @@ fn fixture() -> Fixture {
 
     drop(ChatSessionRepository::open(&DataFile::Chat.path(fx.data_dir())).unwrap());
     let conn = rusqlite::Connection::open(DataFile::Chat.path(fx.data_dir())).unwrap();
+    conn.execute_batch(
+        "ALTER TABLE chat_sessions ADD COLUMN project_id TEXT;
+         CREATE INDEX idx_chat_sessions_project ON chat_sessions(project_id);
+         PRAGMA user_version = 14;",
+    )
+    .unwrap();
     conn.execute(
         "INSERT INTO chat_sessions (id, mode, agent_name, created_at, project_id) VALUES
          ('s-libre', 'libre', NULL, '2026-10-04T00:00:00Z', ?1),
@@ -258,14 +274,17 @@ fn test_conversations_lose_their_project_and_keep_their_agent() {
     // WHEN the migration runs
     let report = migrate(fx.data_dir());
 
-    // THEN neither has a project; the free one stays Apollia's, the other
-    // stays with `veille`
+    // THEN neither has a project, the column is gone; the free one stays
+    // Apollia's, the other stays with `veille`
     assert_eq!(
         fx.session_projects(),
-        vec![
-            ("s-agent".to_owned(), Some("veille".to_owned()), None),
-            ("s-libre".to_owned(), None, None),
-        ]
+        (
+            vec![
+                ("s-agent".to_owned(), Some("veille".to_owned())),
+                ("s-libre".to_owned(), None),
+            ],
+            false
+        )
     );
     assert_eq!(report.conversations_detached, 2);
 }
@@ -393,7 +412,7 @@ fn test_an_unreadable_document_is_listed() {
 }
 
 #[test]
-fn test_a_partial_run_keeps_projects_db_and_a_second_run_completes_it() {
+fn test_a_partial_run_keeps_projects_db_and_a_complete_one_removes_it() {
     // GIVEN a chat database that cannot be opened
     let fx = fixture();
     let chat = DataFile::Chat.path(fx.data_dir());
@@ -409,7 +428,7 @@ fn test_a_partial_run_keeps_projects_db_and_a_second_run_completes_it() {
     let second = run_if_needed(fx.data_dir()).unwrap();
 
     // THEN the first is partial, written, and leaves projects.db; the second
-    // completes without adding a source twice
+    // completes without adding a source twice, and removes projects.db
     assert_eq!(first.status, MigrationStatus::Partial);
     assert!(first
         .issues
@@ -419,7 +438,42 @@ fn test_a_partial_run_keeps_projects_db_and_a_second_run_completes_it() {
     assert_eq!(read_back, first);
     assert_eq!(second.status, MigrationStatus::Complete);
     assert_eq!(fx.sources().len(), sources_after_first);
-    assert!(DataFile::Projects.path(fx.data_dir()).exists());
+    assert!(!DataFile::Projects.path(fx.data_dir()).exists());
+}
+
+#[test]
+fn test_a_complete_run_with_a_missing_document_removes_projects_db() {
+    // GIVEN a project one document of which no longer exists
+    let fx = fixture();
+
+    // WHEN the migration runs at boot
+    let report = run_if_needed(fx.data_dir()).unwrap();
+
+    // THEN the run is complete, lists the document, keeps the report on disk
+    // and removes projects.db
+    assert_eq!(report.status, MigrationStatus::Complete);
+    assert!(report
+        .issues
+        .iter()
+        .any(|i| i.item == IssueItem::Document && i.reason == IssueReason::Missing));
+    assert_eq!(read_report(fx.data_dir()).unwrap(), Some(report));
+    assert!(!DataFile::Projects.path(fx.data_dir()).exists());
+}
+
+#[test]
+fn test_a_complete_report_left_with_projects_db_removes_it_at_the_next_boot() {
+    // GIVEN a complete report written while projects.db could not be removed
+    let fx = fixture();
+    let report = migrate(fx.data_dir());
+    assert_eq!(report.status, MigrationStatus::Complete);
+    write_report(fx.data_dir(), &report).unwrap();
+
+    // WHEN the runtime boots again
+    let again = run_if_needed(fx.data_dir());
+
+    // THEN the report is not replayed and projects.db is gone
+    assert_eq!(again, Some(report));
+    assert!(!DataFile::Projects.path(fx.data_dir()).exists());
 }
 
 #[test]
@@ -472,10 +526,12 @@ fn test_a_complete_migration_is_not_replayed() {
         .unwrap();
 
     // WHEN the runtime boots again
-    let again = run_if_needed(fx.data_dir()).unwrap();
+    let again = run_if_needed(fx.data_dir());
 
-    // THEN the report is the first one and the source stays removed
-    assert_eq!(again, first);
+    // THEN nothing runs, the report on disk is the first one and the source
+    // stays removed
+    assert!(again.is_none());
+    assert_eq!(read_report(fx.data_dir()).unwrap(), Some(first));
     assert!(fx.sources().iter().all(|s| s.id != removed));
 }
 

@@ -14,7 +14,7 @@ use std::time::Duration;
 use apollia_core::{HitlConfig, ObservabilityConfig, PendingApprovals, RuntimeConfig};
 use apollia_llm::LlmRouter;
 use apollia_notifications::NotificationEngineHandle;
-use apollia_tools::{AgentRepository, AuditTrailHandle, ProjectRepository, TaskRepository};
+use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository};
 
 use crate::api::routes_agents::{AgentBackendFactory, AgentLoader, StubAgentLoader};
 use crate::api::{APIServerConfig, APIServerHandle};
@@ -113,10 +113,6 @@ pub struct RuntimeHandle {
     ///
     /// Separate connection for read operations. Holds `None` when STT is disabled.
     pub stt_repository: crate::api::server::SharedSttRepository,
-    /// Project repository, manages per-project workspace contexts.
-    ///
-    /// `Some` when `projects.db` opened successfully on startup.
-    pub project_repository: Option<Arc<ProjectRepository>>,
     /// Handle to the MCP client manager.
     ///
     /// `Some` when the supervisor started the manager (always in v0.1.1+
@@ -592,7 +588,6 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         user_memory: handles.user_memory,
         stt_engine: handles.stt_engine,
         stt_repository: handles.stt_repository,
-        project_repository: handles.project_repository,
         mcp_handle: handles.mcp_handle,
         tools_config,
         api_port: tcp_port.unwrap_or(0),

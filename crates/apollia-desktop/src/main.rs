@@ -41,7 +41,6 @@ mod handlers;
 pub mod i18n;
 pub mod mcp;
 mod process_job;
-mod project_context;
 mod startup;
 pub mod stt;
 mod token_coalescer;

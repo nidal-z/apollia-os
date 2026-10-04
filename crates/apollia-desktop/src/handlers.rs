@@ -173,8 +173,6 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::chat::respond_user_input_rejected,
         commands::chat::list_pending_user_inputs,
         commands::chat::list_chat_approval_history,
-        commands::chat::link_chat_to_project,
-        commands::chat::list_chats_by_project,
         commands::chat::list_a2a_skills,
         commands::chat::export::export_conversation,
         commands::chat::export::reveal_session_path,
@@ -266,22 +264,8 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         // Observability
         commands::observability::audit::get_audit_stats,
         // Updates
-        // Projects
-        commands::projects::suggest_workspace_path,
-        commands::projects::list_projects,
-        commands::projects::get_project,
-        commands::projects::create_project,
-        commands::projects::update_project,
-        commands::projects::delete_project,
-        commands::projects::upload_project_document,
-        commands::projects::delete_project_document,
-        commands::projects::get_project_snapshot,
-        commands::projects::add_project_agent,
-        commands::projects::remove_project_agent,
-        commands::projects::list_project_agents,
-        commands::projects::set_project_provider,
-        commands::projects::remove_project_provider,
-        commands::projects::toggle_project_provider,
+        // The notice of the migration of the former projects
+        commands::project_migration::get_project_migration_report,
         commands::link_preview::link_preview,
         // CLI install
         commands::cli::get_cli_status,

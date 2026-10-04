@@ -9,6 +9,7 @@
  */
 import { locale, waitLocale } from "svelte-i18n";
 import { LOCALE_STORAGE_KEY } from "$lib/i18n";
+import { NOTICE_SEEN_KEY } from "$lib/projectMigration/notice";
 
 /**
  * Pins the interface language for the run.
@@ -54,5 +55,14 @@ export function resetDeterministicUiState(): void {
     } catch {
       // Private mode / quota - ignore.
     }
+  }
+  // The seeded home still holds the former projects, so every boot migrates
+  // them and the notice of that migration would cover the first page a book
+  // opens. It is marked as shown for both outcomes: the notice itself is a
+  // gesture played by hand.
+  try {
+    localStorage.setItem(NOTICE_SEEN_KEY, JSON.stringify(["partial", "complete"]));
+  } catch {
+    // Private mode / quota - ignore.
   }
 }

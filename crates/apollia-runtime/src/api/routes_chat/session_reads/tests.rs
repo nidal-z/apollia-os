@@ -34,8 +34,6 @@ fn state_with_chat(dir: &TempDir) -> AppState<MockBackend> {
         state.registry_handle.clone(),
         None,
         None,
-        None,
-        None,
         Some(tools_config),
         apollia_mcp::session::LoadingMode::Eager,
         20,

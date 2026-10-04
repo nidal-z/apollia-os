@@ -5,9 +5,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use apollia_aip::bridge::AIPBridge;
-use apollia_aip::context::{
-    effective_memory_namespace, DispatcherExecutor, RuntimeContext, ToolProxy, ToolProxyConfig,
-};
+use apollia_aip::context::{DispatcherExecutor, RuntimeContext, ToolProxy, ToolProxyConfig};
 use apollia_aip::memory::MemoryInterface;
 use apollia_core::{AIPResult, AIPTask, AgentManifest, TaskStatus};
 use apollia_llm::{LlmRouter, ObservabilityConfig, StepBudgetView, ToolCallHelper};
@@ -232,7 +230,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
         };
         let memory_interface: Option<MemoryInterface> =
             manifest.memory_namespace.as_deref().and_then(|ns| {
-                let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
+                let eff_ns = ns.to_owned();
                 let mut manager =
                     MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
                 // `manifest.memory_config.auto_purge` promises a purge pass when

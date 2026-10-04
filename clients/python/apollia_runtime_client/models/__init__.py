@@ -229,7 +229,6 @@ from .journal_break import JournalBreak
 from .journal_break_reason import JournalBreakReason
 from .last_loaded_model_response import LastLoadedModelResponse
 from .last_loaded_model_response_load import LastLoadedModelResponseLoad
-from .link_project_body import LinkProjectBody
 from .list_plan_mutations_response_200_item import ListPlanMutationsResponse200Item
 from .llm_backend_response import LlmBackendResponse
 from .llm_backend_response_config_json import LlmBackendResponseConfigJson
@@ -759,7 +758,6 @@ __all__ = (
     "JournalBreakReason",
     "LastLoadedModelResponse",
     "LastLoadedModelResponseLoad",
-    "LinkProjectBody",
     "ListPlanMutationsResponse200Item",
     "LlmBackendResponse",
     "LlmBackendResponseConfigJson",

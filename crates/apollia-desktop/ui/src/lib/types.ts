@@ -20,5 +20,5 @@ export type * from "./types/onboarding";
 export type * from "./types/stt";
 export type * from "./types/permissions";
 export type * from "./types/mcp";
-export type * from "./types/projects";
+export type * from "./types/cli";
 export type * from "./types/reasoning";

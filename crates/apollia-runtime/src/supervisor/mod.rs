@@ -292,11 +292,6 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `Some` when `~/.apollia/mcp.toml` exists and at least one server connected.
     /// `None` when the config file is absent, empty, or all servers failed to start.
     pub mcp_handle: Option<McpClientManagerHandle>,
-    /// Projects repository (SQLite).
-    ///
-    /// `Some` when `projects.db` opened successfully.
-    /// `None` when the open failed (warning logged).
-    pub project_repository: Option<std::sync::Arc<apollia_tools::ProjectRepository>>,
     /// Supervisor of the local sidecar runner.
     ///
     /// `Some` when a runner started successfully (GPU detected, binary present,

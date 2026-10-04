@@ -19,17 +19,20 @@
 //! - every memory space `<project id>:<space>` is merged into `<space>` by the
 //!   memory import in merge mode;
 //! - every conversation loses its project and stays with its agent: a free
-//!   conversation is the Apollia agent's.
+//!   conversation is the Apollia agent's; the chat database no longer has
+//!   a project column.
 //!
 //! What cannot be carried over is listed in the report, never dropped in
 //! silence. The report is written beside the sources
 //! ([`report_path`]); `GET /api/v1/sources/project-migration` and
-//! `apollia-os source report` read it. `projects.db` is never touched here.
+//! `apollia-os source report` read it.
 //!
 //! Every step is idempotent: a second run over the same state finds every
 //! source, check, connection and memory entry already in place and adds
 //! nothing. The migration runs at each boot that finds `projects.db` until a
-//! run completes; a complete run is not replayed.
+//! run completes; a complete run is not replayed, and `projects.db` is
+//! removed after it, never before: a partial run leaves it for the next
+//! boot.
 
 use std::path::{Path, PathBuf};
 
@@ -266,26 +269,60 @@ pub fn write_report(
 /// has completed yet, writes its report and returns it. `None` when there is
 /// nothing to migrate.
 ///
-/// A report that cannot be read is treated as absent: the migration runs
-/// again, which changes nothing that is already in place.
+/// A complete run removes `projects.db` once its report is written; a
+/// partial run leaves it, and the next boot runs again. A report that cannot
+/// be read is treated as absent: the migration runs again, which changes
+/// nothing that is already in place.
 pub fn run_if_needed(data_dir: &Path) -> Option<MigrationReport> {
     if !DataFile::Projects.path(data_dir).exists() {
         return None;
     }
     if let Ok(Some(report)) = read_report(data_dir) {
         if report.status == MigrationStatus::Complete {
+            remove_projects_db(data_dir);
             return Some(report);
         }
     }
     let report = migrate(data_dir);
-    if let Err(e) = write_report(data_dir, &report) {
-        tracing::event!(
+    match write_report(data_dir, &report) {
+        Ok(()) if report.status == MigrationStatus::Complete => remove_projects_db(data_dir),
+        Ok(()) => {}
+        Err(e) => tracing::event!(
             tracing::Level::WARN,
             error = %e,
             "project_migration.report.failed"
-        );
+        ),
     }
     Some(report)
+}
+
+/// Removes `projects.db` and its journal files. A file that cannot be removed
+/// is left for the next boot, which finds the complete report and tries again.
+fn remove_projects_db(data_dir: &Path) {
+    let db = DataFile::Projects.path(data_dir);
+    let journal = |suffix: &str| {
+        let mut name = db.clone().into_os_string();
+        name.push(suffix);
+        PathBuf::from(name)
+    };
+    for path in [journal("-wal"), journal("-shm"), db.clone()] {
+        match std::fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => {
+                tracing::event!(
+                    tracing::Level::WARN,
+                    error = %e,
+                    "project_migration.projects_db.remove_failed"
+                );
+                return;
+            }
+        }
+    }
+    tracing::event!(
+        tracing::Level::INFO,
+        "project_migration.projects_db.removed"
+    );
 }
 
 /// The boot step: [`run_if_needed`] off the async runtime, its outcome
@@ -321,7 +358,8 @@ pub async fn run_at_boot(data_dir: &Path) {
 }
 
 /// One run of the migration over the stores under `data_dir`, whatever an
-/// earlier report says. Writes nothing to `projects.db`.
+/// earlier report says. Writes nothing to `projects.db` and leaves it in
+/// place: removing it is [`run_if_needed`]'s, after a complete run.
 pub fn migrate(data_dir: &Path) -> MigrationReport {
     let mut run = steps::Run::new(data_dir);
     run.all();

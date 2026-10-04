@@ -6,8 +6,8 @@ use super::*;
 /// The file tools reach the folders granted to the agent and nothing else
 /// (`params.folders`): reading tools the union of them, writing tools those
 /// granted for writing. The first folder granted, by the date it was added,
-/// anchors a relative path. Neither a project's folder, the data directory,
-/// the home folder nor the volume is a root. An agent granted no folder has
+/// anchors a relative path. Neither the data directory, the home folder nor
+/// the volume is a root. An agent granted no folder has
 /// file tools that refuse with a message saying how to grant one.
 ///
 /// When `hitl` is provided, HITL filesystem support is enabled on the returned invoker.
@@ -418,7 +418,6 @@ pub(in crate::chat::manager) fn session_to_info(session: &ChatSession) -> Sessio
         status: session.status.clone(),
         created_at: session.created_at.clone(),
         title: session.title.clone(),
-        project_id: session.project_id.clone(),
     }
 }
 
