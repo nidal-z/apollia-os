@@ -7449,6 +7449,11 @@ export interface components {
              */
             rememberedPresetId?: number | null;
         };
+        /**
+         * @description Who loaded a resident model.
+         * @enum {string}
+         */
+        LoadOrigin: "app" | "server";
         /** @description One resident model. */
         LoadedModelDto: {
             /** @description Requests being answered right now. An unload is refused above zero. */
@@ -7488,6 +7493,11 @@ export interface components {
              *     default applies.
              */
             nParallel?: number | null;
+            /**
+             * @description Who loaded the model: `app`, or `server` when the compatible server
+             *     loaded it for a request of another program. Fixed at load.
+             */
+            origin: components["schemas"]["LoadOrigin"];
             /**
              * Format: int32
              * @description Loopback port of the process serving it.

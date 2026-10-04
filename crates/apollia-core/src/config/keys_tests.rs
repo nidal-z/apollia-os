@@ -129,6 +129,11 @@ fn every_section_carries_the_reload_class_of_the_measured_table() {
         ("ui", ReloadClass::Reloadable),
         ("desktop", ReloadClass::Reloadable),
         ("server", ReloadClass::Restart),
+        // Read at every request or every sweep, unlike the listener's keys.
+        ("server.jit_loading", ReloadClass::Reloadable),
+        ("server.jit_auto_unload", ReloadClass::Reloadable),
+        ("server.jit_idle_ttl_minutes", ReloadClass::Reloadable),
+        ("server.jit_keep_last_only", ReloadClass::Reloadable),
         ("engines", ReloadClass::Reloadable),
         ("author", ReloadClass::Reloadable),
         // Read again at every model launch, unlike the rest of `[llm]`.
@@ -145,7 +150,7 @@ fn every_section_carries_the_reload_class_of_the_measured_table() {
         .filter(|k| {
             expected
                 .iter()
-                .filter(|(s, _)| k.path.starts_with(&format!("{s}.")))
+                .filter(|(s, _)| k.path == *s || k.path.starts_with(&format!("{s}.")))
                 .max_by_key(|(s, _)| s.len())
                 .is_some_and(|(_, class)| *class != k.reload)
         })
@@ -237,6 +242,10 @@ fn the_named_settings_are_lockable() {
             "server.enabled",
             "server.port",
             "server.require_auth",
+            "server.jit_loading",
+            "server.jit_auto_unload",
+            "server.jit_idle_ttl_minutes",
+            "server.jit_keep_last_only",
             "engines.log_level",
             "author.name",
         ]

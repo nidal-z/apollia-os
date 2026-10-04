@@ -31,6 +31,9 @@ port = 7772            # son port TCP, sur 127.0.0.1 ; jamais le 7771 de l'API n
 require_auth = false   # chaque requête doit-elle présenter un jeton
 ```
 
+Quatre autres disent comment il charge et décharge les modèles à la demande ;
+voir [Chargement à la demande](#chargement-à-la-demande).
+
 Il écoute sur l'interface de boucle locale, `127.0.0.1`, si bien que seules les
 applications de cette machine l'atteignent.
 
@@ -116,14 +119,14 @@ suivent celle d'Anthropic : `{"type": "error", "error": {"type", "message"}}`.
 |---|---|---|---|
 | `400` | `invalid_request` | `invalid_request_error` | Le corps n'est pas un objet JSON, ou ne nomme aucun `model` |
 | `401` | `invalid_api_key` | `authentication_error` | `require_auth` est allumé et aucun jeton en service n'a été présenté |
-| `404` | `model_not_loaded` | `not_found_error` | Le modèle nommé dans `model` n'est pas chargé |
+| `404` | `model_not_loaded` | `not_found_error` | Le modèle nommé dans `model` n'est pas chargé, et n'est pas chargé à la demande |
 | `404` | `endpoint_not_served` | `not_found_error` | Le moteur qui fait tourner le modèle ne sert pas ce point d'accès |
 | `404` | `unknown_url` | | Aucun point d'accès ne vit à ce chemin |
-| `502` | `engine_unavailable` | `api_error` | Le moteur qui fait tourner le modèle n'a pas répondu |
+| `502` | `engine_unavailable` | `api_error` | Le moteur qui fait tourner le modèle n'a pas répondu, ou le modèle n'a pas pu être chargé à la demande |
 
 ## Les modèles servis
 
-Le serveur compatible sert les modèles locaux chargés dans Apollia, et eux
+Le serveur compatible sert les modèles locaux de cette machine, et eux
 seuls. Une requête en nomme un dans son champ `model`, par l'identifiant que
 liste `GET /v1/models`, qui est son identifiant dans le registre des modèles
 d'Apollia. Le serveur transmet la requête au moteur qui fait tourner le
@@ -132,8 +135,9 @@ modèle, `llama-server` pour un modèle GGUF, `vllm-mlx` pour un modèle MLX, av
 telle quelle : un corps JSON, ou un flux d'événements relayé morceau par
 morceau quand la requête demandait `"stream": true`.
 
-- Un modèle qui n'est pas chargé répond `404 model_not_loaded`. Chargez-le
-  d'abord dans Apollia.
+- Un modèle de langage du registre qui n'est pas chargé est chargé pour la
+  requête, sauf si le chargement à la demande est éteint ; il répond alors
+  `404 model_not_loaded`, et doit d'abord être chargé dans Apollia.
 - Un modèle d'un fournisseur distant n'est jamais relayé : le serveur
   compatible n'est pas une passerelle vers un nuage.
 - Rien n'est traduit d'un format dans un autre. Un point d'accès que le moteur
@@ -144,6 +148,40 @@ morceau quand la requête demandait `"stream": true`.
 
 Un modèle reste chargé tant qu'une requête qui lui est adressée tourne, flux
 compris : le décharger attend la fin de la réponse.
+
+## Chargement à la demande
+
+Le serveur charge le modèle qu'une requête nomme quand il n'est pas encore
+chargé, et rend de lui-même la mémoire des modèles qu'il a chargés.
+
+```toml
+[server]
+jit_loading = true            # une requête charge le modèle de cette machine qu'elle nomme
+jit_auto_unload = true        # les modèles chargés par le serveur ont leur propre délai
+jit_idle_ttl_minutes = 60     # ce délai ; 0 les garde chargés
+jit_keep_last_only = true     # en charger un décharge les autres que le serveur a chargés
+```
+
+| Clé | Défaut | Effet |
+|---|---|---|
+| `jit_loading` | `true` | Une requête qui nomme un modèle de langage du registre non chargé le charge d'abord. Éteinte, elle répond `404 model_not_loaded`. Allumée, `GET /v1/models` liste les modèles de langage de cette machine en plus des modèles chargés |
+| `jit_auto_unload` | `true` | Un modèle chargé par le serveur est déchargé après `jit_idle_ttl_minutes` sans requête, au lieu du délai général de `[llm.residency]`. Éteinte, il suit le délai général |
+| `jit_idle_ttl_minutes` | `60` | Ce délai, en minutes ; `0` garde ces modèles chargés |
+| `jit_keep_last_only` | `true` | Quand le serveur charge un modèle, il décharge les autres modèles qu'il a chargés |
+
+La liste des modèles chargés de l'API native, `GET /api/v1/llm/loaded-models`,
+les distingue : un modèle chargé par le serveur porte `"origin": "server"`, les
+autres `"origin": "app"`. L'origine est fixée au chargement : un modèle que
+l'application a chargé reste celui de l'application quand une requête s'en
+sert.
+
+Aucune de ces règles ne décharge un modèle épinglé par l'utilisateur, un modèle
+qu'une conversation ouverte utilise, ni un modèle qui sert une réponse, et ne
+garder que le dernier ne touche jamais un modèle chargé par l'application.
+Chaque déchargement est publié sous `LlmModelUnloaded`, avec la raison
+`idle`, ou `server_replaced` quand le serveur a chargé un autre modèle. Les
+clés sont relues à chaque requête et à chaque vérification : un changement
+s'applique sans redémarrage.
 
 ## Points d'accès
 
