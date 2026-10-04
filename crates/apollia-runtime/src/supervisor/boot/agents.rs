@@ -253,7 +253,9 @@ fn batch_runner<B: crate::coordinator::ExecutionBackend>(
 /// The batch source kinds this runtime reads.
 fn batch_sources() -> apollia_core::batch_source::SourceRegistry {
     let mut registry = apollia_core::batch_source::SourceRegistry::new();
-    if let Err(error) = apollia_sources::register_table_sources(&mut registry) {
+    let registered = apollia_sources::register_table_sources(&mut registry)
+        .and_then(|()| crate::connectors_bridge::register_mail_source(&mut registry));
+    if let Err(error) = registered {
         tracing::event!(
             tracing::Level::ERROR,
             error = %error,
