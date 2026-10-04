@@ -40,6 +40,7 @@ mod access;
 mod actor;
 mod control;
 mod export;
+mod request_source;
 mod runner;
 
 #[cfg(test)]
@@ -62,6 +63,7 @@ use crate::eventbus::EventBusSender;
 
 pub use access::BatchAccess;
 pub use export::{export, BatchExport, ExportError, ExportFormat, XLSX_CELL_MAX};
+pub use request_source::{register_request_source, RequestSource, REQUEST_SOURCE_KIND};
 pub use runner::AgentItemRunner;
 
 /// Items of one batch run at once when the launch names no concurrency.

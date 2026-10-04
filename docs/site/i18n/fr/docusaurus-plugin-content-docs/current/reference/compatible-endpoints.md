@@ -1,7 +1,7 @@
 ---
 sidebar_position: 10
 title: Points d'accès compatibles
-description: "Le serveur compatible : un second écouteur du runtime, sur son propre port, que les autres applications appellent aux formats d'OpenAI et d'Anthropic. Éteint par défaut."
+description: "Le serveur compatible : un second écouteur du runtime, sur son propre port, que les autres applications appellent aux formats d'OpenAI et d'Anthropic, pour les modèles chargés et les agents et workflows rendus disponibles. Éteint par défaut."
 ---
 
 # Points d'accès compatibles
@@ -150,6 +150,18 @@ suivent celle d'Anthropic : `{"type": "error", "error": {"type", "message"}}`.
 | `404` | `unknown_url` | | Aucun point d'accès ne vit à ce chemin |
 | `502` | `engine_unavailable` | `api_error` | Le moteur qui fait tourner le modèle n'a pas répondu |
 
+Un agent ou un workflow appelé comme un modèle ajoute ses propres erreurs, sur
+`/v1/chat/completions` :
+
+| Statut | `code` OpenAI | Quand |
+|---|---|---|
+| `400` | `invalid_request` | La requête apporte des `tools`, ne contient aucun message de l'utilisateur, ou, pour un workflow, son dernier message de l'utilisateur n'est pas un objet JSON conforme au schéma d'entrées ; l'erreur porte alors ce schéma dans `schema` |
+| `401` | `invalid_api_key` | L'appel vient du réseau local sans jeton en service |
+| `404` | `model_not_found` | Aucun agent ni workflow disponible pour d'autres applications ne porte cet identifiant `apollia/...` |
+| `409` | `approval_pending` | L'agent attend une décision sur un accès que personne n'a accordé (voir plus bas) |
+| `500` | `run_failed` | L'exécution a échoué ou a été arrêtée avant sa fin |
+| `503` | `run_unavailable` | Ce runtime ne peut pas exécuter d'agents ni de workflows |
+
 ## Les modèles servis
 
 Le serveur compatible sert les modèles locaux chargés dans Apollia, et eux
@@ -174,6 +186,82 @@ morceau quand la requête demandait `"stream": true`.
 Un modèle reste chargé tant qu'une requête qui lui est adressée tourne, flux
 compris : le décharger attend la fin de la réponse.
 
+## Les agents et workflows comme modèles
+
+Un agent ou un workflow que l'utilisateur a rendu disponible pour d'autres
+applications, le même interrupteur que lit le pont MCP, est servi lui aussi
+comme un modèle. `GET /v1/models` le liste après les modèles chargés, sous
+`apollia/<id>` avec le `type` `agent` ou `workflow` : un agent par son
+identifiant (`apollia/demand-clerk`), un workflow par son paquet et son nom
+(`apollia/office/close-month`). Un identifiant d'agent ne porte jamais de `/`,
+si bien qu'un agent et un workflow ne répondent jamais au même nom.
+
+Un client l'appelle par `POST /v1/chat/completions`, comme il appellerait un
+modèle :
+
+```bash
+curl http://127.0.0.1:7772/v1/chat/completions \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "apollia/demand-clerk",
+    "messages": [{"role": "user", "content": "Qualifie la demande de Durand."}]
+  }'
+```
+
+- **L'appel ne garde aucun état.** Pour un agent, le dernier message de
+  l'utilisateur est la demande ; les messages qui le précèdent sont la
+  conversation d'où elle vient. Pour un workflow, le dernier message de
+  l'utilisateur est un objet JSON conforme au schéma d'entrées du workflow
+  (`{"month": "2026-09"}`) ; tout autre contenu répond `400` avec le schéma.
+- **L'agent travaille comme dans Apollia.** Il s'exécute sans surveillance,
+  avec son propre budget, ses accès et ses connexions, par la même exécution
+  qu'un élément de lot. Des outils envoyés par le client sont refusés par un
+  `400` : l'agent a ses accès.
+- **La réponse est la réponse finale de l'agent**, dans
+  `choices[0].message.content`. `usage` additionne les jetons de chaque tour du
+  modèle pendant l'exécution.
+- **Les étapes sont du raisonnement.** Chaque outil que l'agent appelle, et le
+  résumé de ce qu'il a rendu, est une ligne de `reasoning_content`, le champ
+  qu'emploient les serveurs d'inférence locaux pour le raisonnement d'un
+  modèle : dans le message d'une réponse entière, et, avec `"stream": true`,
+  dans des morceaux qui précèdent le morceau `content` de la réponse. Un client
+  qui ne lit pas ce champ l'ignore.
+- **Un client qui s'en va arrête l'exécution.** Fermer la connexion avant la
+  réponse, ou quitter un flux, arrête l'agent ou le workflow.
+- **Le réseau local exige un jeton.** Un appel à un agent ou à un workflow
+  depuis un autre appareil présente un jeton en service, quoi que dise
+  `require_auth`, et `GET /v1/models` ne les liste pas à un appareil qui n'en a
+  pas.
+
+### Une décision que l'agent attend
+
+Un agent qui recourt à un accès que personne n'a accordé, comme écrire un
+fichier sans « toujours » répondu pour cela, ne l'exécute pas et n'échoue pas.
+Son exécution s'arrête et attend une décision, comme un élément de lot : elle
+paraît dans les décisions en attente d'Apollia, avec sa notification, et
+l'appel répond `409` avec le code `approval_pending` :
+
+```json
+{
+  "error": {
+    "message": "The agent waits for your approval to use an access nobody granted. ...",
+    "type": "approval_pending",
+    "code": "approval_pending",
+    "pending_id": "batch:3f1c...:0",
+    "batch_id": "3f1c...",
+    "task_id": "9a7e...",
+    "access": "file_write"
+  }
+}
+```
+
+Dans un flux, le même objet d'erreur est le dernier événement. Terminer la
+réponse ne retire pas la décision : elle reste en attente jusqu'à ce que
+quelqu'un y réponde, dans Apollia ou par l'API native avec
+`POST /api/v1/pending-decisions/decide` et le `pending_id`. Une fois autorisée,
+l'exécution reprend ; son résultat se lit sur la tâche
+(`GET /api/v1/tasks/{task_id}`) ou sur le lot (`GET /api/v1/batches/{batch_id}`).
+
 ## Points d'accès
 
 La table liste chaque chemin que sert le serveur compatible.
@@ -182,8 +270,8 @@ La table liste chaque chemin que sert le serveur compatible.
 
 | Méthode | Chemin | Format |
 |---|---|---|
-| `GET` | `/v1/models` | OpenAI. Les modèles chargés, en liste : `id` (identifiant du registre), `object`, `created`, `owned_by`, et `type`, `llm` ou `embeddings` |
-| `POST` | `/v1/chat/completions` | OpenAI. Relayé au moteur du modèle |
+| `GET` | `/v1/models` | OpenAI. Les modèles chargés, en liste : `id` (identifiant du registre), `object`, `created`, `owned_by`, et `type`, `llm` ou `embeddings` ; puis les agents et workflows disponibles pour d'autres applications, `apollia/<id>`, de `type` `agent` ou `workflow` |
+| `POST` | `/v1/chat/completions` | OpenAI. Relayé au moteur du modèle ; sur un modèle `apollia/...`, exécuté par Apollia (agents et workflows ci-dessus) |
 | `POST` | `/v1/responses` | OpenAI. Relayé au moteur du modèle |
 | `POST` | `/v1/embeddings` | OpenAI. Relayé au modèle de recherche par le sens |
 | `POST` | `/v1/messages` | Anthropic. Relayé au moteur du modèle |

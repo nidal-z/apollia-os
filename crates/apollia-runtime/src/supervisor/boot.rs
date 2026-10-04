@@ -185,8 +185,17 @@ impl Supervisor {
                 triggers.definitions,
             )
             .await;
-        let compat_server = self.spawn_compat_server(&inference, &core.event_sender);
         let batches = executors.batches.take();
+        // The compatible server runs an exposed agent as a batch of one item,
+        // and an exposed workflow through the workflow engine.
+        let exposed_agents = crate::compat_server::ExposedAgents::new(
+            self.config.data_dir.clone(),
+            core.event_sender.clone(),
+        )
+        .with_batches(batches.clone(), stores.task_repository.clone())
+        .with_workflows(executors.workflows.clone());
+        let compat_server =
+            self.spawn_compat_server(&inference, &core.event_sender, exposed_agents);
         let mut state = self.app_state(
             &core,
             &inference,

@@ -10,6 +10,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::Serialize;
+use serde_json::{Map, Value};
 
 /// The API family whose format an endpoint follows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,6 +81,15 @@ pub(crate) enum ErrorKind {
     UnknownEndpoint,
     /// The engine serving the model did not answer.
     EngineUnavailable,
+    /// The `apollia/...` model names no agent or workflow marked exposed.
+    NotExposed,
+    /// The run of an agent stopped on an access nobody granted, and waits
+    /// for a decision.
+    ApprovalPending,
+    /// The run of an agent or a workflow failed or was stopped.
+    RunFailed,
+    /// This runtime cannot run agents or workflows.
+    RunUnavailable,
 }
 
 impl ErrorKind {
@@ -91,6 +101,10 @@ impl ErrorKind {
                 StatusCode::NOT_FOUND
             }
             Self::EngineUnavailable => StatusCode::BAD_GATEWAY,
+            Self::NotExposed => StatusCode::NOT_FOUND,
+            Self::ApprovalPending => StatusCode::CONFLICT,
+            Self::RunFailed => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::RunUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
 
@@ -103,6 +117,10 @@ impl ErrorKind {
             Self::EndpointNotServed => ("invalid_request_error", "endpoint_not_served"),
             Self::UnknownEndpoint => ("invalid_request_error", "unknown_url"),
             Self::EngineUnavailable => ("server_error", "engine_unavailable"),
+            Self::NotExposed => ("invalid_request_error", "model_not_found"),
+            Self::ApprovalPending => ("approval_pending", "approval_pending"),
+            Self::RunFailed => ("server_error", "run_failed"),
+            Self::RunUnavailable => ("server_error", "run_unavailable"),
         }
     }
 
@@ -111,12 +129,43 @@ impl ErrorKind {
         match self {
             Self::InvalidRequest => "invalid_request_error",
             Self::Unauthorized => "authentication_error",
-            Self::ModelNotLoaded | Self::EndpointNotServed | Self::UnknownEndpoint => {
-                "not_found_error"
-            }
-            Self::EngineUnavailable => "api_error",
+            Self::ModelNotLoaded
+            | Self::EndpointNotServed
+            | Self::UnknownEndpoint
+            | Self::NotExposed => "not_found_error",
+            Self::ApprovalPending => "approval_pending",
+            Self::EngineUnavailable | Self::RunFailed | Self::RunUnavailable => "api_error",
         }
     }
+}
+
+/// The body of an OpenAI error of `kind`, with `extra` fields beside its
+/// `message`, `type` and `code`: what a client needs to act on it, such as the
+/// schema an input must follow or the decision a run waits for.
+pub(crate) fn openai_error_body(
+    kind: ErrorKind,
+    message: String,
+    extra: Map<String, Value>,
+) -> Value {
+    let (openai_kind, code) = kind.openai();
+    let mut error = Map::new();
+    error.insert("message".to_owned(), Value::String(message));
+    error.insert("type".to_owned(), Value::String(openai_kind.to_owned()));
+    error.insert("code".to_owned(), Value::String(code.to_owned()));
+    error.extend(extra);
+    let mut body = Map::new();
+    body.insert("error".to_owned(), Value::Object(error));
+    Value::Object(body)
+}
+
+/// The answer to an OpenAI error of `kind` carrying `extra` fields (see
+/// [`openai_error_body`]).
+pub(crate) fn openai_error_with(
+    kind: ErrorKind,
+    message: String,
+    extra: Map<String, Value>,
+) -> Response {
+    (kind.status(), Json(openai_error_body(kind, message, extra))).into_response()
 }
 
 /// The answer to an error of `kind`, in the format of `family`.
