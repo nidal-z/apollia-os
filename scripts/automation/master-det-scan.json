@@ -13144,6 +13144,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "stubInvoke",
+      "command": "get_resource_usage",
+      "reject": "automation stub: measurement withheld"
+    },
+    {
       "kind": "press",
       "key": "R",
       "mod": true,
@@ -13170,6 +13175,29 @@
     {
       "kind": "waitFor",
       "testid": "advanced-section",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-measuring",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01a-resource-monitor-measuring"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resource_usage"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-ram",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "resource-monitor-measuring",
       "timeoutMs": 3000
     },
     {
@@ -13957,6 +13985,108 @@
       "kind": "waitFor",
       "testid": "hardware-processor",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-ram",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "resource-monitor-ram-value"
+    },
+    {
+      "kind": "expect",
+      "testid": "resource-monitor-vram"
+    },
+    {
+      "kind": "expect",
+      "testid": "resource-monitor-cpu"
+    },
+    {
+      "kind": "expect",
+      "testid": "resource-monitor-cpu-value"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resource_usage",
+      "resolve": {
+        "ram_used_gb": 12.5,
+        "ram_total_gb": 32.0,
+        "cpu_percent": 37.0,
+        "vram": {
+          "kind": "dedicated",
+          "used_gb": 3.5,
+          "total_gb": 8.0
+        }
+      }
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-vram-value",
+      "contains": "3.5",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-cpu-value",
+      "contains": "37",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "24a-resource-monitor-dedicated-vram"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resource_usage"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resource_usage",
+      "resolve": {
+        "ram_used_gb": 12.5,
+        "ram_total_gb": 32.0,
+        "cpu_percent": 37.0,
+        "vram": {
+          "kind": "unified"
+        }
+      }
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-vram-unified",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resource_usage"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resource_usage",
+      "resolve": {
+        "ram_used_gb": 12.5,
+        "ram_total_gb": 32.0,
+        "cpu_percent": 37.0,
+        "vram": {
+          "kind": "unmeasured"
+        }
+      }
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-vram-unmeasured",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resource_usage"
     },
     {
       "kind": "screenshot",
@@ -15053,6 +15183,10 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "expect",
+      "testid": "engines-check-updates"
+    },
+    {
       "kind": "click",
       "testid": "about-copy-diagnostics",
       "timeoutMs": 3000
@@ -15064,6 +15198,350 @@
     {
       "kind": "screenshot",
       "label": "56-about-diagnostic-copied"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "resolve": {
+        "engines": [
+          {
+            "engine": "llama-server",
+            "variant": "metal",
+            "source": "embedded",
+            "tag": null,
+            "version": "7001 (0ff1ce0)",
+            "in_service": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "source": "downloaded",
+            "tag": "b7001",
+            "version": "7001 (0ff1ce0)",
+            "in_service": false
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "source": "imported",
+            "tag": "b6900",
+            "version": "6800 (deadbee)",
+            "in_service": false
+          }
+        ],
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ],
+        "cuda_proposable": false,
+        "dictation": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-in-service",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-update-available",
+      "contains": "b7100",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-update-latest"
+    },
+    {
+      "kind": "screenshot",
+      "label": "56a-engines-update-available"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "reject": "automation stub: channel unreachable",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-check-error",
+      "contains": "channel unreachable",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56b-engines-check-refused"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-engines",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-channel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "engines-channel-select"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-source",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-tag"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-tag-mismatch"
+    },
+    {
+      "kind": "screenshot",
+      "label": "56c-engines-developer-channel-sources"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_engines"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "resolve": {
+        "engines": [
+          {
+            "engine": "llama-server",
+            "variant": "metal",
+            "source": "embedded",
+            "tag": null,
+            "version": "7001 (0ff1ce0)",
+            "in_service": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "source": "downloaded",
+            "tag": "b7001",
+            "version": "7001 (0ff1ce0)",
+            "in_service": false
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "source": "imported",
+            "tag": "b6900",
+            "version": "6800 (deadbee)",
+            "in_service": false
+          }
+        ],
+        "channel": "preview",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7200",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ],
+        "cuda_proposable": false,
+        "dictation": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_engine_channel",
+      "resolve": {
+        "channel": "preview",
+        "base_url": ""
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "preview",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7200",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engines-channel-select",
+      "value": "preview",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-update-available",
+      "contains": "b7200",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56d-engines-channel-preview"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_engines"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "set_engine_channel"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-row-tag-mismatch",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "check_engine_updates"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
     },
     {
       "kind": "click",

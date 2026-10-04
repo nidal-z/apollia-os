@@ -1990,6 +1990,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/hardware/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/hardware/usage`, measure the machine once. */
+        get: operations["get_resource_usage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/installed-models": {
         parameters: {
             query?: never;
@@ -7537,6 +7554,11 @@ export interface components {
         EngineEntry: {
             /** @description Engine. */
             engine: components["schemas"]["EngineName"];
+            /**
+             * @description True for the build this runtime starts for the model format it serves:
+             *     the `llama-server` binary it resolves, the MLX environment it imports.
+             */
+            in_service: boolean;
             /** @description Where it lives. */
             path: string;
             /** @description Embedded, downloaded or imported. */
@@ -9735,6 +9757,30 @@ export interface components {
             task_id: string;
             /** Format: int64 */
             wait_duration_ms?: number | null;
+        };
+        /** @description The memory and the processor in use at the time of the request. */
+        ResourceUsageResponse: {
+            /**
+             * Format: float
+             * @description Processor load over every core, from 0 to 100.
+             */
+            cpu_percent: number;
+            /**
+             * Format: double
+             * @description System memory installed, in GB.
+             */
+            ram_total_gb: number;
+            /**
+             * Format: double
+             * @description System memory in use, in GB.
+             */
+            ram_used_gb: number;
+            /**
+             * @description Video memory in use: `{"kind":"dedicated","used_gb":..,"total_gb":..}`
+             *     on an NVIDIA card, `{"kind":"unified"}` where the graphics processor
+             *     shares the system memory, `{"kind":"unmeasured"}` anywhere else.
+             */
+            vram: Record<string, never>;
         };
         /**
          * @description Error body of `POST /api/v1/tasks/{id}/resume`.
@@ -16440,6 +16486,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HardwareResponse"];
+                };
+            };
+        };
+    };
+    get_resource_usage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Memory, processor and video memory in use */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceUsageResponse"];
+                };
+            };
+            /** @description The measurement did not complete */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };

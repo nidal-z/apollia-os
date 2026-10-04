@@ -6275,6 +6275,37 @@
         }
       }
     },
+    "/api/v1/llm/hardware/usage": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/hardware/usage`, measure the machine once.",
+        "operationId": "get_resource_usage",
+        "responses": {
+          "200": {
+            "description": "Memory, processor and video memory in use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceUsageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The measurement did not complete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/installed-models": {
       "get": {
         "tags": [
@@ -21495,12 +21526,17 @@
         "required": [
           "engine",
           "path",
-          "source"
+          "source",
+          "in_service"
         ],
         "properties": {
           "engine": {
             "$ref": "#/components/schemas/EngineName",
             "description": "Engine."
+          },
+          "in_service": {
+            "type": "boolean",
+            "description": "True for the build this runtime starts for the model format it serves:\nthe `llama-server` binary it resolves, the MLX environment it imports."
           },
           "path": {
             "type": "string",
@@ -26368,6 +26404,37 @@
               "null"
             ],
             "format": "int64"
+          }
+        }
+      },
+      "ResourceUsageResponse": {
+        "type": "object",
+        "description": "The memory and the processor in use at the time of the request.",
+        "required": [
+          "ram_used_gb",
+          "ram_total_gb",
+          "cpu_percent",
+          "vram"
+        ],
+        "properties": {
+          "cpu_percent": {
+            "type": "number",
+            "format": "float",
+            "description": "Processor load over every core, from 0 to 100."
+          },
+          "ram_total_gb": {
+            "type": "number",
+            "format": "double",
+            "description": "System memory installed, in GB."
+          },
+          "ram_used_gb": {
+            "type": "number",
+            "format": "double",
+            "description": "System memory in use, in GB."
+          },
+          "vram": {
+            "type": "object",
+            "description": "Video memory in use: `{\"kind\":\"dedicated\",\"used_gb\":..,\"total_gb\":..}`\non an NVIDIA card, `{\"kind\":\"unified\"}` where the graphics processor\nshares the system memory, `{\"kind\":\"unmeasured\"}` anywhere else."
           }
         }
       },

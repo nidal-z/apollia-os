@@ -368,12 +368,18 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // that runs its tools: the observability policy over
     // `/api/v1/config/observability`, the Python interpreter over
     // `/api/v1/config/python-interpreter`, the security posture over
-    // `/api/v1/security-posture`, and the engines of the machine with their
-    // versions over `/api/v1/engines`.
+    // `/api/v1/security-posture`, the engines of the machine with their
+    // versions over `/api/v1/engines`, the channel they follow over
+    // `/api/v1/engines/settings`, their update check over
+    // `/api/v1/engines/check`, and the resources the machine is using over
+    // `/api/v1/llm/hardware/usage`.
+    "check_engine_updates",
     "get_observability_config",
     "get_python_interpreter",
+    "get_resource_usage",
     "get_security_posture",
     "list_engines",
+    "set_engine_channel",
     "set_observability_config",
     "set_python_interpreter",
     // The editor of `apollia.toml`, over `/api/v1/config`: the file with its

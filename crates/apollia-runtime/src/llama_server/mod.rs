@@ -25,7 +25,7 @@ mod explicit;
 mod guard;
 mod load_settings;
 mod loaded;
-mod locate;
+pub(crate) mod locate;
 mod log_level;
 mod ngl;
 mod parallel;
