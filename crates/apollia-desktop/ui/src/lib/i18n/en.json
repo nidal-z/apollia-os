@@ -554,7 +554,25 @@
       "ask_administrator": "To change this rule, contact your organisation's administrator.",
       "open_policy": "See the policy",
       "open_permissions": "See the permissions"
-    }
+    },
+    "folder": {
+      "name": "Folder",
+      "description": "A folder of your computer, opened to agents",
+      "picker_title": "Choose the folder to open to agents",
+      "added_title": "Folder added: {name}",
+      "added_subtitle": "On this computer · nothing to download",
+      "abilities_title": "What agents will be able to do in it",
+      "ability_read": "Read: open and search the files of the folder",
+      "ability_write": "Write or delete: only with your agreement",
+      "bounds": "Nothing outside this folder. You choose which agents have access from their page.",
+      "not_added_title": "Folder not added",
+      "add_failed": "This folder could not be added.",
+      "choose_another": "Choose another folder",
+      "done": "Done",
+      "remove": "Remove",
+      "remove_confirm": "Remove the folder {name} from the connections? Its files stay on your computer."
+    },
+    "badge_builtin": "Built in"
   },
   "integrations": {
     "disclaimer": {
@@ -4429,7 +4447,7 @@
       "catalogue_tab_discover": "MCP catalogue",
       "catalogue_tab_custom": "Custom MCP",
       "catalogue_loading": "Loading the MCP catalogue…",
-      "custom_intro": "To wire up an internal, community, or in-development MCP server. For a curated service (Notion, GitHub, Local Files…), use a catalogue card instead.",
+      "custom_intro": "To wire up an internal, community, or in-development MCP server. For a curated service (Notion, Linear, Brave Search…), use a catalogue card instead.",
       "custom_transport_label": "Transport",
       "custom_transport_stdio": "stdio (local subprocess)",
       "custom_transport_http": "Streamable HTTP (MCP 2025-11-25)",

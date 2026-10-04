@@ -2965,6 +2965,129 @@
         }
       }
     },
+    "/api/v1/connections/folders": {
+      "post": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "`POST /api/v1/connections/folders`: add a folder of this machine.",
+        "operationId": "add_folder_connection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddFolderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Folder added as a connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The path is not a folder of this machine",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the connection admission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The folder is already a connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "system.db could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connections/folders/{id}": {
+      "delete": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "`DELETE /api/v1/connections/folders/{id}`: remove a folder connection.",
+        "operationId": "remove_folder_connection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Identifier of the stored folder, the part of the connection identifier after `folder:`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Folder connection removed; the connection it was",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No folder connection has this identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "system.db could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connectors/accounts": {
       "get": {
         "tags": [
@@ -16545,6 +16668,26 @@
           }
         }
       },
+      "AddFolderBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/connections/folders`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name shown to the user; the folder's own name when absent."
+          },
+          "path": {
+            "type": "string",
+            "description": "Absolute path of the folder, as the system picker answered it."
+          }
+        }
+      },
       "AddPermissionRuleBody": {
         "type": "object",
         "description": "Request body for `POST /api/v1/permissions/rules`.",
@@ -18495,7 +18638,7 @@
           },
           "id": {
             "type": "string",
-            "description": "Stable identifier: `mcp:<server>`, `native:<provider>:<account>`,\n`imap:<address>`."
+            "description": "Stable identifier: `mcp:<server>`, `native:<provider>:<account>`,\n`imap:<address>`, `folder:<id>`."
           },
           "kind": {
             "$ref": "#/components/schemas/ConnectionKind",
@@ -18508,6 +18651,13 @@
           "official": {
             "type": "boolean",
             "description": "Published by the service's own publisher."
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Folder of this machine the connection opens, for a folder."
           },
           "provenance": {
             "type": "string",
@@ -19809,6 +19959,24 @@
           "might_fit",
           "too_large"
         ]
+      },
+      "FolderErrorBody": {
+        "type": "object",
+        "description": "A refused folder: the message and its stable code.",
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable code: `not_a_folder`, `already_added`, `admission_refused`,\n`not_found`, `store`."
+          },
+          "error": {
+            "type": "string",
+            "description": "What went wrong, for a person. For `admission_refused`, the reason\nthe admission gave, as is."
+          }
+        }
       },
       "ForkSessionRequest": {
         "type": "object",

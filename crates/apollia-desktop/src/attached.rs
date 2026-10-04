@@ -112,8 +112,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_agent_packages",
     "preview_agent_package",
     "uninstall_agent_package",
-    // Connections.
+    // Connections, and the folders added as connections.
+    "add_folder_connection",
     "list_connections",
+    "remove_folder_connection",
     // Apollia as an MCP server, over `/api/v1/mcp/exposed`.
     "list_mcp_exposable",
     "set_mcp_exposed",

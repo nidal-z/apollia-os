@@ -133,7 +133,7 @@ function screens(): Record<string, Rendered> {
     otherConnection: { component: ConnectionSummaryDetail, props: { connection: CONNECTIONS[3], label: "Invoices" } },
     addSheet: {
       component: CatalogueSheet,
-      props: { open: true, registry: [], agents: [], installedNames: new Set(), installedByPackage: new Map(), registryLoading: true, catalogueTier: "none", onclose: noop, onconnect: noop, onmanage: noop, oninstalled: noop, onaddnative: noop },
+      props: { open: true, registry: [], agents: [], installedNames: new Set(), installedByPackage: new Map(), registryLoading: true, catalogueTier: "none", onclose: noop, onconnect: noop, onmanage: noop, oninstalled: noop, onaddnative: noop, onaddfolder: noop },
     },
     customConnection: { component: CustomMcpForm, props: { oninstalled: noop } },
   };

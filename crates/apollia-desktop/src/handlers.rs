@@ -223,6 +223,8 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::stt::stop_tour_recording,
         commands::mcp::catalog::list_mcp_enrichments,
         commands::connections::list_connections,
+        commands::connections::add_folder_connection,
+        commands::connections::remove_folder_connection,
         commands::mcp_bridge::list_mcp_exposable,
         commands::mcp_bridge::set_mcp_exposed,
         commands::mcp::list_mcp_servers,

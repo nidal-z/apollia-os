@@ -4,20 +4,23 @@
    * connection.
    *
    * The catalogue and the custom form share one Sheet (same audience). The
-   * catalogue opens on the native accounts Apollia ships (Google, Microsoft),
+   * catalogue opens on the connections built into Apollia: a folder of this
+   * machine, chosen with the system picker, then the native accounts
+   * (Google, Microsoft),
    * whose page is where their client is entered and their accounts connected,
    * then the ranked suggestions and the rest of the registry with trust-level
    * filter chips and IntersectionObserver auto-pagination. The technical names
    * of the catalogue and of the custom form are shown in developer mode only.
    */
   import { t } from "svelte-i18n";
-  import { Sparkles, UserRound } from "lucide-svelte";
+  import { Folder, Sparkles, UserRound } from "lucide-svelte";
   import { ListRow } from "$lib/components/operator";
   import { developerMode } from "$lib/stores/developerMode";
   import { NATIVE_PROVIDERS, NATIVE_PROVIDER_KEYS } from "$lib/connections/connectionRows";
   import type { ProviderId } from "$lib/connections/capabilities";
   import ConnectorTile from "../shared/ConnectorTile.svelte";
   import { EmptyState, FilterChipBar } from "$lib/components/operator";
+  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Spinner } from "$lib/components/ui/progress";
   import { Skeleton } from "$lib/components/ui/skeleton";
@@ -47,6 +50,8 @@
     oninstalled: () => void;
     /** Open the page of a native provider, to set its client or connect an account. */
     onaddnative: (provider: ProviderId) => void;
+    /** Choose a folder of this machine with the system picker and add it. */
+    onaddfolder: () => void;
   }
 
   let {
@@ -62,6 +67,7 @@
     onmanage,
     oninstalled,
     onaddnative,
+    onaddfolder,
   }: Props = $props();
 
   const CATALOG_PAGE = 48;
@@ -177,6 +183,33 @@
 
       <div class="flex-1 overflow-auto px-6 pb-6">
         <ul class="mb-3 space-y-1.5" data-testid="catalogue-native-list">
+          <li>
+            <ListRow
+              variant="row"
+              border={false}
+              pad="snug"
+              class="rounded-lg border border-border/60 bg-card elev-interactive hover:border-primary/40"
+              onclick={onaddfolder}
+              data-testid="catalogue-folder"
+            >
+              <ConnectorTile size="md" accent="hsl(var(--primary))">
+                {#snippet icon()}<Folder size={14} />{/snippet}
+              </ConnectorTile>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5">
+                  <span class="truncate text-body-sm font-medium text-foreground">
+                    {$t("connections.folder.name")}
+                  </span>
+                  <Badge size="sm" variant="primary" outline data-testid="catalogue-folder-badge">
+                    {$t("connections.badge_builtin")}
+                  </Badge>
+                </div>
+                <div class="truncate text-caption text-muted-foreground">
+                  {$t("connections.folder.description")}
+                </div>
+              </div>
+            </ListRow>
+          </li>
           {#each NATIVE_PROVIDERS as provider (provider)}
             <li>
               <ListRow

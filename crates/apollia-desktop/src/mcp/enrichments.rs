@@ -134,7 +134,9 @@ pub struct ConnectorEnrichment {
     pub awaiting_registration: bool,
     /// The entry cannot be installed the way Apollia installs a selection
     /// server: no package is published under its name, or it only works once
-    /// an install script has run, and none ever runs. Like an entry awaiting
+    /// an install script has run, and none ever runs; or a native connection
+    /// replaces it, as the folder connection replaces the files server. A
+    /// server already installed from it stays installed. Like an entry awaiting
     /// registration, it stays in the data, still shadows the same server
     /// coming from the public registry, and is never listed.
     #[serde(default)]
@@ -671,11 +673,13 @@ mod tests {
             .map(|e| e.package_identifier.as_str())
             .collect();
         withdrawn.sort_unstable();
-        // THEN they are the two names npm does not publish and the browser
-        //      server that needs an install script, and none is listed
+        // THEN they are the files server the folder connection replaces, the
+        //      two names npm does not publish and the browser server that
+        //      needs an install script, and none is listed
         assert_eq!(
             withdrawn,
             [
+                "@modelcontextprotocol/server-filesystem",
                 "@modelcontextprotocol/server-git",
                 "@modelcontextprotocol/server-puppeteer",
                 "@modelcontextprotocol/server-sqlite",
@@ -685,6 +689,24 @@ mod tests {
             .iter()
             .filter(|e| e.withdrawn)
             .all(|e| !e.is_listed()));
+    }
+
+    #[test]
+    fn test_the_files_server_leaves_the_selection_and_an_installed_one_keeps_its_entry() {
+        // GIVEN the shipped catalogue
+        let enrichments = load_builtin_enrichments();
+        // WHEN the files server is looked up
+        let files = find_enrichment(&enrichments, "@modelcontextprotocol/server-filesystem")
+            .expect("files server entry");
+        // THEN it is not listed, so neither the selection nor the public
+        //      registry offers it; its entry and its lock stay, so a server
+        //      already installed from it keeps its name and its pinned install
+        assert!(!files.is_listed());
+        assert_eq!(
+            files.operator_label.get("en").map(String::as_str),
+            Some("Local Files")
+        );
+        assert!(crate::mcp::npm_server::embedded_lock(&files.package_identifier).is_some());
     }
 
     #[test]
