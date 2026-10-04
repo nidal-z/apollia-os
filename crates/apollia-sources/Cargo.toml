@@ -3,7 +3,7 @@ name = "apollia-sources"
 version = "0.2.0-preview"
 edition.workspace = true
 rust-version.workspace = true
-description = "Apollia OS - the sources an agent may consult: the registry, the actor that owns it, the readers of workbooks and CSV files, and the index of each source"
+description = "Apollia OS - the sources an agent may consult: the registry, the actor that owns it, the readers of workbooks and CSV files, the table a batch reads from them, and the index of each source"
 license.workspace = true
 
 [dependencies]
@@ -19,7 +19,8 @@ tokio        = { workspace = true }
 tracing      = { workspace = true }
 
 [dev-dependencies]
-tempfile = { workspace = true }
+rust_xlsxwriter = { workspace = true }
+tempfile        = { workspace = true }
 
 [lints]
 workspace = true

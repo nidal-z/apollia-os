@@ -5,6 +5,11 @@
 //! `DELETE /api/v1/sources/{id}`), whose actor owns the registry in
 //! `system.db`. Daemon off, each refuses with exit 2. An agent checks a source
 //! with `agent set <agent> sources <id>...`.
+//!
+//! `inspect` previews a workbook or a CSV file before a batch is launched on
+//! it (`POST /api/v1/sources/preview`): the sheet and header row proposed, the
+//! first rows, and whether results may be written into the original. A file
+//! that is not there is refused with exit 1 before the runtime is reached.
 
 use std::path::PathBuf;
 
@@ -16,6 +21,8 @@ use crate::exit_codes;
 
 /// Route of the registry.
 const SOURCES_ROUTE: &str = "/api/v1/sources";
+/// Route of the preview of a workbook or a CSV file.
+const PREVIEW_ROUTE: &str = "/api/v1/sources/preview";
 
 /// `apollia-os source <verb>`.
 #[derive(Debug, Subcommand)]
@@ -46,6 +53,18 @@ pub enum SourceCommand {
         #[arg(long)]
         confirm: bool,
     },
+    /// Preview a workbook or a CSV file as a batch would read it: the sheet
+    /// and header row proposed, the first twenty rows, the columns.
+    Inspect {
+        /// The .xlsx, .xlsm, .xlsb, .xls, .ods or .csv file.
+        file: PathBuf,
+        /// Show this sheet instead of the proposed one.
+        #[arg(long)]
+        sheet: Option<String>,
+        /// Read the header on this row (from 1) instead of the proposed one.
+        #[arg(long)]
+        header_row: Option<u32>,
+    },
 }
 
 /// Run one leaf; returns the process exit code.
@@ -74,6 +93,28 @@ pub async fn run(cmd: &SourceCommand, socket: Option<PathBuf>, json: bool) -> i3
                 return code;
             }
             client.delete(&format!("{SOURCES_ROUTE}/{id}")).await
+        }
+        SourceCommand::Inspect {
+            file,
+            sheet,
+            header_row,
+        } => {
+            let path = match file.canonicalize() {
+                Ok(path) => path,
+                Err(e) => {
+                    return crate::output::emit_error(
+                        json,
+                        exit_codes::GENERAL_ERROR,
+                        &format!("cannot read {}: {e}", file.display()),
+                    );
+                }
+            };
+            let body = serde_json::json!({
+                "path": path.display().to_string(),
+                "sheet": sheet,
+                "headerRow": header_row,
+            });
+            client.post(PREVIEW_ROUTE, Some(&body)).await
         }
     };
     match response {
@@ -134,7 +175,97 @@ fn render(cmd: &SourceCommand, resp: &RawResponse) {
                 field(&value, "id")
             );
         }
+        SourceCommand::Inspect { .. } => {
+            for line in preview_lines(&value) {
+                println!("{line}");
+            }
+        }
     }
+}
+
+/// The human rendering of a `POST /api/v1/sources/preview` answer.
+fn preview_lines(value: &Value) -> Vec<String> {
+    let number = |key: &str| {
+        value
+            .get(key)
+            .and_then(Value::as_u64)
+            .map_or_else(|| "-".to_owned(), |n| n.to_string())
+    };
+    let sheets: Vec<String> = value
+        .get("sheets")
+        .and_then(Value::as_array)
+        .map(|sheets| {
+            sheets
+                .iter()
+                .map(|s| {
+                    format!(
+                        "{} ({} rows)",
+                        field(s, "name"),
+                        s.get("nonEmptyRows").and_then(Value::as_u64).unwrap_or(0)
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let columns: Vec<String> = value
+        .get("columns")
+        .and_then(Value::as_array)
+        .map(|columns| {
+            columns
+                .iter()
+                .map(|c| format!("{}={}", field(c, "letter"), field(c, "name")))
+                .collect()
+        })
+        .unwrap_or_default();
+    let flag = |key: &str| value.get(key).and_then(Value::as_bool).unwrap_or(false);
+    let mut lines = vec![
+        format!(
+            "Format:          {} (source type {})",
+            field(value, "format"),
+            field(value, "sourceType")
+        ),
+        format!("Sheets:          {}", sheets.join(", ")),
+        format!(
+            "Sheet:           {} (proposed: {})",
+            field(value, "sheet"),
+            field(value, "proposedSheet")
+        ),
+        format!(
+            "Header row:      {} (proposed: {})",
+            number("headerRow"),
+            number("proposedHeaderRow")
+        ),
+        format!("Columns:         {}", columns.join(", ")),
+        format!("Items:           {}", number("estimatedItems")),
+        format!(
+            "Modify original: {}",
+            if flag("canModifyOriginal") {
+                "possible"
+            } else {
+                "no, results go to a copy"
+            }
+        ),
+    ];
+    if flag("formattingNotKept") {
+        lines.push("Formatting:      not kept in the copy of results".to_owned());
+    }
+    lines.push(String::new());
+    if let Some(rows) = value.get("rows").and_then(Value::as_array) {
+        for row in rows {
+            let cells: Vec<&str> = row
+                .get("cells")
+                .and_then(Value::as_array)
+                .map(|cells| cells.iter().filter_map(Value::as_str).collect())
+                .unwrap_or_default();
+            let number = row.get("row").and_then(Value::as_u64).unwrap_or(0);
+            lines.push(
+                format!("{number:>4} | {}", cells.join(" | "))
+                    .trim_end()
+                    .to_owned(),
+            );
+        }
+    }
+    lines
 }
 
 /// A string field of `value`, empty when absent.
@@ -233,6 +364,78 @@ mod tests {
         assert!(
             matches!(&leaf, SourceCommand::Delete { id, confirm: true } if id == "src-1"),
             "{leaf:?}"
+        );
+    }
+
+    #[test]
+    fn test_cli_parses_source_inspect() {
+        // GIVEN "apollia-os source inspect clients.xlsx --sheet Clients --header-row 3"
+        // WHEN the top-level parser reads it
+        let leaf = parse(&[
+            "apollia-os",
+            "source",
+            "inspect",
+            "clients.xlsx",
+            "--sheet",
+            "Clients",
+            "--header-row",
+            "3",
+        ]);
+        // THEN the file, the sheet and the header row are captured
+        assert!(
+            matches!(
+                &leaf,
+                SourceCommand::Inspect { file, sheet, header_row: Some(3) }
+                    if file == &PathBuf::from("clients.xlsx") && sheet.as_deref() == Some("Clients")
+            ),
+            "{leaf:?}"
+        );
+    }
+
+    #[test]
+    fn test_the_preview_lines_show_the_proposal_the_flags_and_the_rows() {
+        // GIVEN a preview answer for an .ods file
+        let value = serde_json::json!({
+            "format": "ods", "sourceType": "spreadsheet",
+            "sheets": [{ "name": "Garde", "nonEmptyRows": 0 }, { "name": "Clients", "nonEmptyRows": 3 }],
+            "proposedSheet": "Clients", "sheet": "Clients",
+            "proposedHeaderRow": 2, "headerRow": 2,
+            "columns": [{ "letter": "A", "name": "Nom" }, { "letter": "B", "name": "Ville" }],
+            "rows": [
+                { "row": 1, "cells": ["Clients", ""] },
+                { "row": 2, "cells": ["Nom", "Ville"] }
+            ],
+            "estimatedItems": 1, "canModifyOriginal": false, "formattingNotKept": true
+        });
+
+        // WHEN it is rendered
+        let lines = preview_lines(&value);
+
+        // THEN the proposal, both flags and each row with its number are shown
+        assert!(
+            lines.contains(&"Sheet:           Clients (proposed: Clients)".to_owned()),
+            "{lines:?}"
+        );
+        assert!(
+            lines.contains(&"Header row:      2 (proposed: 2)".to_owned()),
+            "{lines:?}"
+        );
+        assert!(
+            lines.contains(&"Columns:         A=Nom, B=Ville".to_owned()),
+            "{lines:?}"
+        );
+        assert!(
+            lines.contains(&"Modify original: no, results go to a copy".to_owned()),
+            "{lines:?}"
+        );
+        assert!(
+            lines.contains(&"Formatting:      not kept in the copy of results".to_owned()),
+            "{lines:?}"
+        );
+        assert!(lines.contains(&"   1 | Clients |".to_owned()), "{lines:?}");
+        assert!(
+            lines.contains(&"   2 | Nom | Ville".to_owned()),
+            "{lines:?}"
         );
     }
 

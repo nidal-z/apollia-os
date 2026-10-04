@@ -2632,10 +2632,11 @@ def check_ui_vocabulary_fires() -> None:
   export const DEVELOPER_NAV: readonly DeveloperNavEntry[] = [
     { route: "transcriptions" as Route, Icon: Mic, labelKey: "a" },
     { route: "observability"  as Route, Icon: Activity, labelKey: "b" },
+    { route: "memory"         as Route, Icon: Database, labelKey: "c" },
   ];
 """
     case(
-        "positive control: both exempt blocks in the developer group pass",
+        "positive control: every exempt block in the developer group passes",
         uivocab.block_findings(uivocab.developer_routes(sidebar)) == [],
         "the sidebar of the tree's shape was refused",
     )
@@ -2646,10 +2647,28 @@ def check_ui_vocabulary_fires() -> None:
         len(found) == 1 and "observability" in found[0],
         f"the guard answered {found!r} once observability left the group",
     )
+    without_memory = sidebar.replace('{ route: "memory"         as Route, Icon: Database, labelKey: "c" },', "")
+    found = uivocab.block_findings(uivocab.developer_routes(without_memory))
+    case(
+        "the Memory screen out of the developer group fails its exempt block",
+        len(found) == 1 and "memory" in found[0],
+        f"the guard answered {found!r} once memory left the group",
+    )
+    for name, key in [("a key of the Memory screen", "memory.namespaces.title")]:
+        found = uivocab.catalogue_findings("en", {key: "MCP runtime"}, VOCAB_TERMS, [])
+        case(f"stays silent on {name}", found == [], f"{key} was refused: {found!r}")
+    found = uivocab.catalogue_findings(
+        "en", {"agent_sheet.memory_title": "MCP runtime"}, VOCAB_TERMS, []
+    )
+    case(
+        "a memory text of the agent sheet stays controlled",
+        len(found) == 1 and "agent_sheet.memory_title" in found[0],
+        f"the agent sheet escaped the guard: {found!r}",
+    )
 
     real = uivocab.SIDEBAR.read_text(encoding="utf-8")
     case(
-        "the real sidebar carries both exempt routes",
+        "the real sidebar carries every exempt route",
         uivocab.block_findings(uivocab.developer_routes(real)) == [],
         "the parser no longer reads DEVELOPER_NAV in Sidebar.svelte, so the "
         "exempt blocks lean on a group it cannot see",

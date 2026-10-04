@@ -1,14 +1,14 @@
 //! `tools config` and `tools reload`: read and write `apollia.toml`.
 
 use apollia_core::{ToolsConfig, WebSearchBackend};
-use toml_edit::{DocumentMut, Item, Value};
+use toml_edit::{DocumentMut, Value};
 
 use crate::exit_codes;
 use crate::note;
 
 use super::support::{
-    emit_error, emit_unknown_tool, is_known_tool, load_tools_config, read_or_empty,
-    resolve_data_dir, resolve_writable_config_path, write_config_file,
+    emit_error, emit_unknown_tool, is_known_tool, load_tools_config, resolve_data_dir,
+    resolve_writable_config_path,
 };
 use super::ToolsConfigCmd;
 
@@ -124,22 +124,16 @@ pub(super) fn run_config_set(key_path: &str, value: &str, json: bool) -> i32 {
         Ok(p) => p,
         Err(code) => return code,
     };
-
-    let original = match read_or_empty(&path) {
-        Ok(s) => s,
-        Err(e) => return emit_error(format!("read {} failed: {e}", path.display()), json),
-    };
-    let mut doc: DocumentMut = match original.parse() {
-        Ok(d) => d,
-        Err(e) => return emit_error(format!("invalid TOML in {}: {e}", path.display()), json),
-    };
-
-    set_nested_value(&mut doc, &["tools", tool], key_segments, parsed);
-
-    let written = doc.to_string();
-
-    if let Err(e) = write_config_file(&path, &written) {
-        return emit_error(format!("write {} failed: {e}", path.display()), json);
+    let location = apollia_permissions::policy_location();
+    let policy = apollia_permissions::load_policy(&location.dir, location.owner);
+    if let Err(message) = write_tool_setting(
+        &path,
+        tool,
+        key_segments,
+        &parsed,
+        &policy.imposed_settings(),
+    ) {
+        return emit_error(message, json);
     }
 
     if json {
@@ -166,7 +160,10 @@ pub(super) fn parse_value_for(
     let key = key_segments.join(".");
     match (tool, key.as_str()) {
         ("web_search", "backend") => match raw {
-            "auto" | "duckduckgo" | "brave" => Ok(Value::from(raw)),
+            "auto" | "brave" => Ok(Value::from(raw)),
+            // The command spells it as the user does; the file holds the name
+            // the `[tools.web_search]` section reads, which the writer checks.
+            "duckduckgo" => Ok(Value::from("duck_duck_go")),
             _ => Err(format!(
                 "invalid value '{raw}' for web_search.backend - expected: auto | duckduckgo | brave"
             )),
@@ -218,50 +215,34 @@ pub(super) fn parse_int_in(raw: &str, min: i64, max: i64) -> Result<Value, Strin
     Ok(Value::from(n))
 }
 
-pub(super) fn set_nested_value(
-    doc: &mut DocumentMut,
-    table_path: &[&str],
-    leaf_segments: &[&str],
-    value: Value,
-) {
-    let table = ensure_table(doc.as_table_mut(), table_path);
-    let (last, parents) = match leaf_segments.split_last() {
-        Some(s) => s,
-        None => return,
+/// Writes `tools.<tool>.<key>` to the file at `path` through the one writer
+/// of `apollia.toml`, or returns the sentence of the refusal.
+pub(super) fn write_tool_setting(
+    path: &std::path::Path,
+    tool: &str,
+    key_segments: &[&str],
+    value: &Value,
+    policy: &apollia_core::config::PolicySettings,
+) -> Result<(), String> {
+    use apollia_core::config::writer::{update_config, ConfigEdit, KeyChange};
+
+    let json = if let Some(b) = value.as_bool() {
+        serde_json::Value::Bool(b)
+    } else if let Some(n) = value.as_integer() {
+        serde_json::json!(n)
+    } else if let Some(s) = value.as_str() {
+        serde_json::Value::String(s.to_owned())
+    } else {
+        return Err(format!("unsupported value {value}"));
     };
-    let target = ensure_subtable(table, parents);
-    target[last] = Item::Value(value);
-}
-
-pub(super) fn ensure_table<'a>(
-    root: &'a mut toml_edit::Table,
-    path: &[&str],
-) -> &'a mut toml_edit::Table {
-    let mut current = root;
-    for segment in path {
-        if !current.contains_key(segment) {
-            let mut t = toml_edit::Table::new();
-            t.set_implicit(false);
-            current[segment] = Item::Table(t);
-        }
-        let item = &mut current[segment];
-        if !matches!(item, Item::Table(_)) {
-            *item = Item::Table(toml_edit::Table::new());
-        }
-        current = item
-            .as_table_mut()
-            // SAFETY: the two branches above both leave `item` an
-            // `Item::Table`, and nothing between them and here replaces it.
-            .expect("the item was just matched or set as a table");
-    }
-    current
-}
-
-pub(super) fn ensure_subtable<'a>(
-    root: &'a mut toml_edit::Table,
-    path: &[&str],
-) -> &'a mut toml_edit::Table {
-    ensure_table(root, path)
+    let key = format!("tools.{tool}.{}", key_segments.join("."));
+    update_config(
+        path,
+        ConfigEdit::Keys(vec![KeyChange::set(key, json)]),
+        policy,
+    )
+    .map(|_| ())
+    .map_err(|e| e.to_string())
 }
 
 // ─── Reload ───────────────────────────────────────────────────────────

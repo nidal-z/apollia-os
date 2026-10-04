@@ -11,6 +11,15 @@ export interface MemoryEntry {
   score: number | null;
 }
 
+/**
+ * The embeddings model the memory searches with, read from the runtime; both
+ * fields are null when the memory is searched by its words alone.
+ */
+export interface MemoryEmbeddings {
+  model: string | null;
+  dimensions: number | null;
+}
+
 /** FTS5 memory search result. */
 export interface MemorySearchResult {
   id: string;
