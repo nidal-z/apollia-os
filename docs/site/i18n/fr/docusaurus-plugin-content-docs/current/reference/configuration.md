@@ -89,7 +89,7 @@ avertissement `config.key.retired`.
 | `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), et la règle appliquée à un fichier importé (`[models.import]`). |
 | `[observability]` | Capture et rétention des traces, documentées plus bas. |
 | `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
-| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`. |
+| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`, `serve_on_lan`, et le chargement à la demande : `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`. |
 | `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`). |
 | `[author]` | Le nom d'éditeur des agents exportés depuis cette machine (`name`). |
 
@@ -154,6 +154,7 @@ Backends LLM, routage, et le runner de transcription. Le fichier par défaut lai
 | `llm.routing` | table | non définie | Backends qui répondent aux requêtes précises et rapides, et le plafond du routage hybride. |
 | `llm.guardrails.level` | l'une de disabled, lenient, balanced, strict, ceiling | `"balanced"` | Sévérité avec laquelle le lancement d'un modèle local est tenu à la mémoire de la machine ; un niveau inconnu vaut balanced. La politique de l'organisation peut l'imposer. |
 | `llm.guardrails.ceiling_gb` | décimal | non définie | Plus grande estimation, en gigaoctets, que le niveau ceiling lance. La politique de l'organisation peut l'imposer. |
+| `llm.residency.idle_unload_minutes` | entier | `60` | Minutes sans requête après lesquelles un modèle local que rien ne retient est déchargé ; 0 ne décharge jamais. La politique de l'organisation peut l'imposer. |
 
 ### `[api]`
 
@@ -293,6 +294,10 @@ Le serveur compatible, qui répond aux formats OpenAI et Anthropic sur l'interfa
 | `server.port` | entier | `7772` | Port TCP du serveur compatible. La politique de l'organisation peut l'imposer. |
 | `server.require_auth` | booléen | `false` | Exiger un jeton du serveur compatible à chaque requête ; lu à l'ouverture de l'écoute. La politique de l'organisation peut l'imposer. |
 | `server.serve_on_lan` | booléen | `false` | Ouvrir le serveur compatible au réseau local, sur toutes les interfaces ; l'API native reste sur l'interface de boucle locale. Lu à l'ouverture de l'écoute. La politique de l'organisation peut l'imposer. |
+| `server.jit_loading` | booléen | `true` | Laisser une requête au serveur compatible charger le modèle de cette machine qu'elle nomme. La politique de l'organisation peut l'imposer. |
+| `server.jit_auto_unload` | booléen | `true` | Décharger les modèles chargés par le serveur compatible après leur propre délai d'inactivité plutôt que le délai général. La politique de l'organisation peut l'imposer. |
+| `server.jit_idle_ttl_minutes` | entier | `60` | Minutes sans requête après lesquelles un modèle chargé par le serveur compatible est déchargé ; 0 le garde chargé. La politique de l'organisation peut l'imposer. |
+| `server.jit_keep_last_only` | booléen | `true` | Quand le serveur compatible charge un modèle, décharger les autres modèles qu'il a chargés et que rien ne retient. La politique de l'organisation peut l'imposer. |
 
 ### `[engines]`
 
@@ -579,7 +584,10 @@ quelles conversations sont ouvertes avec `POST /api/v1/llm/leases` et
 `GET /api/v1/events?client=<id>` se termine, les conversations de ce client
 comptent comme fermées. Chaque déchargement est publié sur le bus d'événements
 sous `LlmModelUnloaded`, avec sa raison : `idle`, `last_conversation`,
-`requested` ou `make_room`.
+`requested`, `make_room`, ou `server_replaced` quand le serveur compatible a
+chargé un autre modèle. Les modèles que le serveur compatible a chargés suivent
+leur propre délai, réglé sous `[server]` (voir la référence des points d'accès
+compatibles).
 
 ## Dictée (`system.db`, pas `apollia.toml`)
 

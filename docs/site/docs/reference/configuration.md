@@ -86,7 +86,7 @@ still accepted, with a `config.key.retired` warning.
 | `[models]` | The signed index of model cards, the models folder (`dir`), and the rule applied to an imported file (`[models.import]`). |
 | `[observability]` | Trace capture and retention, documented below. |
 | `[desktop]` | Settings of the desktop application: `developer_mode`, `update_channel` (`stable` or `preview`), `background_service_allowed`, and `link_preview_enabled`, which fetches the preview of a link shown in a conversation. Off by default, since the fetch leaves the machine. |
-| `[server]` | The compatible server: `enabled`, `port`, `require_auth`. |
+| `[server]` | The compatible server: `enabled`, `port`, `require_auth`, `serve_on_lan`, and loading on demand: `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`. |
 | `[engines]` | Settings of the local inference engines (`log_level`). |
 | `[author]` | The publisher name of the agents exported from this machine (`name`). |
 
@@ -149,6 +149,7 @@ LLM backends, routing, and the speech-to-text runner. The default file leaves th
 | `llm.routing` | table | not set | Backends answering precise and fast requests, and the hybrid routing ceiling. |
 | `llm.guardrails.level` | one of disabled, lenient, balanced, strict, ceiling | `"balanced"` | How strictly a local model launch is held to the machine's memory; an unknown level holds to balanced. The organization policy can fix it. |
 | `llm.guardrails.ceiling_gb` | float | not set | Largest estimate, in gigabytes, the ceiling level launches. The organization policy can fix it. |
+| `llm.residency.idle_unload_minutes` | integer | `60` | Minutes without a request after which a local model nothing holds is unloaded; 0 never unloads. The organization policy can fix it. |
 
 ### `[api]`
 
@@ -288,6 +289,10 @@ The compatible server, which answers the OpenAI and Anthropic formats on the loo
 | `server.port` | integer | `7772` | TCP port of the compatible server. The organization policy can fix it. |
 | `server.require_auth` | boolean | `false` | Require a token of the compatible server on every request; read when the listener opens. The organization policy can fix it. |
 | `server.serve_on_lan` | boolean | `false` | Open the compatible server to the local network, on every interface; the native API stays on the loopback interface. Read when the listener opens. The organization policy can fix it. |
+| `server.jit_loading` | boolean | `true` | Let a request to the compatible server load the model of this machine it names. The organization policy can fix it. |
+| `server.jit_auto_unload` | boolean | `true` | Unload the models the compatible server loaded after their own idle delay rather than the general one. The organization policy can fix it. |
+| `server.jit_idle_ttl_minutes` | integer | `60` | Minutes without a request after which a model the compatible server loaded is unloaded; 0 keeps it loaded. The organization policy can fix it. |
+| `server.jit_keep_last_only` | boolean | `true` | When the compatible server loads a model, unload the other models it loaded that nothing holds. The organization policy can fix it. |
 
 ### `[engines]`
 
@@ -560,7 +565,10 @@ An interface says which conversations are open with
 model with `PUT /api/v1/llm/pins`. When the event stream it opened with
 `GET /api/v1/events?client=<id>` ends, the conversations of that client count
 as closed. Each unload is published on the event bus as `LlmModelUnloaded`,
-with its reason: `idle`, `last_conversation`, `requested` or `make_room`.
+with its reason: `idle`, `last_conversation`, `requested`, `make_room`, or
+`server_replaced` when the compatible server loaded another model. The models
+the compatible server loaded follow their own delay, set under `[server]`
+(see the compatible endpoints reference).
 
 ## Dictation (`system.db`, not `apollia.toml`)
 

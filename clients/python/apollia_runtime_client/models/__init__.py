@@ -226,6 +226,7 @@ from .load_estimate_response import LoadEstimateResponse
 from .load_model_request import LoadModelRequest
 from .load_model_request_advanced import LoadModelRequestAdvanced
 from .load_model_response import LoadModelResponse
+from .load_origin import LoadOrigin
 from .loaded_model_dto import LoadedModelDto
 from .loaded_models_response import LoadedModelsResponse
 from .logs_response import LogsResponse
@@ -728,6 +729,7 @@ __all__ = (
     "LoadModelRequest",
     "LoadModelRequestAdvanced",
     "LoadModelResponse",
+    "LoadOrigin",
     "LogsResponse",
     "LogsResponseEntriesItem",
     "MailboxMessageRow",

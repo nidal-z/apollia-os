@@ -30,17 +30,20 @@ impl Supervisor {
         inference: &Inference,
         event_sender: &EventBusSender,
     ) -> crate::compat_server::CompatServerHandle {
+        let settings = self
+            .config
+            .config_path
+            .clone()
+            .unwrap_or_else(|| self.config.data_dir.join("apollia.toml"));
         crate::compat_server::CompatServerHandle::spawn(
-            self.config
-                .config_path
-                .clone()
-                .unwrap_or_else(|| self.config.data_dir.join("apollia.toml")),
+            settings.clone(),
             inference.system_db_path.clone(),
             crate::compat_server::LocalModels::new(
                 inference.llama_server_supervisor.clone(),
                 inference.mlx_engine.clone(),
                 Some(crate::installed_models::models_dir(&self.config.data_dir)),
-            ),
+            )
+            .with_files(settings, inference.system_db_path.clone()),
             event_sender,
         )
     }

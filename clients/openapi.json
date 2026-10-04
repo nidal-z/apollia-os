@@ -20911,6 +20911,14 @@
           }
         }
       },
+      "LoadOrigin": {
+        "type": "string",
+        "description": "Who loaded a resident model.",
+        "enum": [
+          "app",
+          "server"
+        ]
+      },
       "LoadedModelDto": {
         "type": "object",
         "description": "One resident model.",
@@ -20924,7 +20932,8 @@
           "nGpuLayers",
           "loadedAt",
           "lastUsedAt",
-          "activeRequests"
+          "activeRequests",
+          "origin"
         ],
         "properties": {
           "activeRequests": {
@@ -20975,6 +20984,10 @@
             "format": "int32",
             "description": "Requests the process may serve in parallel; absent when the engine\ndefault applies.",
             "minimum": 0
+          },
+          "origin": {
+            "$ref": "#/components/schemas/LoadOrigin",
+            "description": "Who loaded the model: `app`, or `server` when the compatible server\nloaded it for a request of another program. Fixed at load."
           },
           "port": {
             "type": "integer",

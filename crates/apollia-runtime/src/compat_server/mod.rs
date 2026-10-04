@@ -28,10 +28,13 @@
 //! and kept by [`ServerTokensHandle`] as a SHA-256 in `system.db`; the
 //! internal token of the desktop never opens this server.
 //!
-//! The models it serves are the local models the user loaded, relayed to the
+//! The models it serves are the local models of this machine, relayed to the
 //! engine that runs them (`llama-server` or `vllm-mlx`) with their `model`
-//! field set to what that engine expects; see [`LocalModels`]. A model of a
-//! remote backend is never relayed.
+//! field set to what that engine expects; see [`LocalModels`]. With `[server]
+//! jit_loading` on, the default, a request loads the model it names when it is
+//! not loaded yet; the models loaded that way have their own idle delay and,
+//! by default, only the last one stays (see [`crate::residency::origin`]). A
+//! model of a remote backend is never relayed.
 //!
 //! Every request it answers, and every line the local `llama-server` prints,
 //! enters a bounded ring of recent lines that the native API streams (see
@@ -53,6 +56,8 @@ mod tokens;
 
 #[cfg(test)]
 mod auth_tests;
+#[cfg(test)]
+mod jit_tests;
 #[cfg(test)]
 mod lan_tests;
 #[cfg(test)]
