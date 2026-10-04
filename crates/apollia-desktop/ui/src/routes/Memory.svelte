@@ -25,6 +25,7 @@
   import { listFlip, rowIn, rowOut } from "$lib/design/listMotion";
   import { contentIn, contentOut } from "$lib/design/routeTransition";
   import { reportError } from "$lib/errors/reportError";
+  import { navigateToSettings } from "$lib/router";
   import type { HumanizedError } from "$lib/errors/humanize";
 
   // The per-user profile is edited from `Settings -> Profile`.
@@ -292,9 +293,14 @@
             <UserCircle2 size={14} class="text-primary mt-0.5" />
             <p class="text-caption text-muted-foreground leading-snug">
               {$t("memory.profile_banner_prefix")}
-              <a href="/settings/profile" class="text-primary underline-offset-2 hover:underline font-medium">
+              <button
+                type="button"
+                class="text-primary underline-offset-2 hover:underline font-medium"
+                onclick={() => navigateToSettings("profile")}
+                data-testid="memory-profile-link"
+              >
                 {$t("memory.profile_banner_link")}
-              </a>.
+              </button>.
               {$t("memory.profile_banner_suffix")}
             </p>
           </div>
