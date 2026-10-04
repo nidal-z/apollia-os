@@ -1,5 +1,32 @@
+<script lang="ts" module>
+  /** The field groups the editor shows for a transport. */
+  export interface SettingsGroups {
+    /** Command, launcher prefix and transport of a local server: developer mode only. */
+    launch: boolean;
+    /** The arguments of a local server, such as the folders it may read. */
+    args: boolean;
+    /** The address of a remote server. */
+    url: boolean;
+    /** The transport of a remote server: developer mode only. */
+    transport: boolean;
+  }
+
+  /** Which field groups are shown, from the transport and the developer mode. */
+  export function settingsGroups(transport: string | undefined, developerMode: boolean): SettingsGroups {
+    const local = transport === "stdio";
+    const remote = transport === "streamable-http" || transport === "sse";
+    return {
+      launch: local && developerMode,
+      args: local,
+      url: remote,
+      transport: remote && developerMode,
+    };
+  }
+</script>
+
 <script lang="ts">
   import { t } from "svelte-i18n";
+  import { developerMode } from "$lib/stores/developerMode";
   import { Check, ShieldCheck } from "lucide-svelte";
   import { Spinner } from "$lib/components/ui/progress";
   import {
@@ -17,9 +44,10 @@
   // Generic editor for the launch-time configuration of an installed MCP server.
   // Renders different field groups depending on `transport`:
   //   - `stdio`        → command (read-only), launcher prefix + package id
-  //                      (read-only, auto-detected), user args (editable),
+  //                      (read-only, auto-detected) in developer mode only;
+  //                      user args (editable),
   //                      env values / secrets, timeouts.
-  //   - `streamable-http` / `sse` → URL (read-only), auth env keys with
+  //   - `streamable-http` / `sse` → URL, the transport in developer mode, auth env keys with
   //                                 secret-rotation affordance, timeouts.
   //
   // The component performs the full round-trip via the existing IPC commands
@@ -153,10 +181,7 @@
   const launcherHead = $derived(
     raw ? splitLauncherHead(raw.args ?? []).head : [],
   );
-  const stdio = $derived(raw?.transport === "stdio");
-  const remote = $derived(
-    raw?.transport === "streamable-http" || raw?.transport === "sse",
-  );
+  const groups = $derived(settingsGroups(raw?.transport, $developerMode));
   const plainEnvKeys = $derived(Object.keys(envValuesDraft).sort());
   const secretEnvKeys = $derived(Object.keys(secretRotateValues).sort());
 
@@ -166,7 +191,7 @@
    *  idempotent at the orchestrator level: a fresh token simply overwrites the
    *  one persisted under `mcp_oauth:{server_name}`. */
   async function reconnectOAuth(): Promise<void> {
-    if (!raw || !remote) return;
+    if (!raw || !groups.url) return;
     oauthReconnecting = true;
     oauthReconnectError = null;
     oauthReconnectSuccess = false;
@@ -194,7 +219,7 @@
       .split(/\r?\n|\s+/)
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
-    const nextArgs = stdio ? [...launcherHead, ...tail] : raw.args;
+    const nextArgs = groups.args ? [...launcherHead, ...tail] : raw.args;
 
     // Rebuild env: keep secret placeholders verbatim (the underlying secret is
     // updated via `store_mcp_secret` separately) + apply edited plain values.
@@ -213,7 +238,7 @@
       ...raw,
       args: nextArgs,
       env: nextEnv,
-      url: remote ? (urlDraft.trim() || null) : raw.url,
+      url: groups.url ? (urlDraft.trim() || null) : raw.url,
       init_timeout_secs: initTimeoutDraft,
       call_timeout_secs: callTimeoutDraft,
     };
@@ -265,7 +290,7 @@
       callTimeoutDraft > 600,
   );
   const urlInvalid = $derived(
-    remote &&
+    groups.url &&
       urlDraft.trim().length > 0 &&
       !urlDraft.trim().startsWith("http://") &&
       !urlDraft.trim().startsWith("https://"),
@@ -282,7 +307,7 @@
   // Surfaces a short caption above the args textarea so a fresh operator
   // doesn't need to read the registry README to know what to type.
   const argsHint = $derived.by(() => {
-    if (!stdio || !raw) return null;
+    if (!groups.args || !raw) return null;
     const id = launcherHead.findLast?.(looksLikePackageIdentifier);
     if (!id) return null;
     if (id.includes("server-filesystem")) {
@@ -313,8 +338,8 @@
 {:else if raw}
   <div class="space-y-4">
 
-    {#if stdio}
-      <!-- Launcher (read-only) -->
+    {#if groups.launch}
+      <!-- Launcher (read-only), developer mode only: command and transport -->
       <Card class="p-[14px_16px] space-y-2">
         <div class="text-micro font-medium uppercase tracking-wider text-muted-foreground/60">
           {$t("connections.mcp_settings.launch")}
@@ -341,7 +366,9 @@
           {$t("connections.mcp_settings.launch_readonly_note")}
         </p>
       </Card>
+    {/if}
 
+    {#if groups.args}
       <!-- User-editable args -->
       <Card class="p-[14px_16px] space-y-2">
         <label for="mcp-settings-args" class="text-micro font-medium uppercase tracking-wider text-muted-foreground/60">
@@ -369,7 +396,7 @@
       </Card>
     {/if}
 
-    {#if remote}
+    {#if groups.url}
       <!-- Remote endpoint -->
       <Card class="p-[14px_16px] space-y-2">
         <label for="mcp-settings-url" class="text-micro font-medium uppercase tracking-wider text-muted-foreground/60">
@@ -381,17 +408,19 @@
           type="url"
           bind:value={urlDraft}
           class="w-full rounded-md border border-border bg-background px-3 py-1.5 text-code-sm font-mono text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          placeholder="https://mcp.example.com/mcp"
+          placeholder="https://example.com/connection"
           disabled={saving}
           data-testid="mcp-settings-url-input"
         />
         {#if urlInvalid}
           <p class="text-caption text-destructive">{$t("connections.mcp_settings.url_invalid_prefix")} <code>http://</code> {$t("connections.mcp_settings.url_invalid_or")} <code>https://</code>{$t("connections.mcp_settings.url_invalid_suffix")}</p>
         {/if}
-        <div class="flex items-baseline gap-2 text-caption-lg text-muted-foreground">
-          <span class="text-micro-lg uppercase tracking-wide">{$t("connections.mcp_settings.transport")}</span>
-          <span class="font-mono">{raw.transport}</span>
-        </div>
+        {#if groups.transport}
+          <div class="flex items-baseline gap-2 text-caption-lg text-muted-foreground" data-testid="mcp-settings-transport">
+            <span class="text-micro-lg uppercase tracking-wide">{$t("connections.mcp_settings.transport")}</span>
+            <span class="font-mono">{raw.transport}</span>
+          </div>
+        {/if}
       </Card>
     {/if}
 
