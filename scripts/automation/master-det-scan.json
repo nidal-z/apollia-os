@@ -38,6 +38,8 @@
     "catalogue-filter-community",
     "catalogue-filter-installed",
     "catalogue-filter-official",
+    "catalogue-native-google",
+    "catalogue-native-microsoft",
     "catalogue-tab-custom",
     "catalogue-tab-discover",
     "channel-card-det-auto-channel",
@@ -179,8 +181,6 @@
     "settings-nav-tools",
     "sidebar-mcp-automation-stub-mcp",
     "sidebar-mcp-seed-stub",
-    "sidebar-native-google",
-    "sidebar-native-microsoft",
     "task-detail-tab-output",
     "task-detail-tab-overview",
     "task-detail-tab-technical",
@@ -10201,7 +10201,17 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-google",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-google",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-google",
       "timeoutMs": 3000
     },
     {
@@ -10257,7 +10267,17 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-microsoft",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-microsoft",
       "timeoutMs": 3000
     },
     {
@@ -10276,7 +10296,17 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-google",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-google",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-google",
       "timeoutMs": 3000
     },
     {
@@ -10410,8 +10440,13 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "mcp-settings-command",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-args-input",
       "timeoutMs": 3000
     },
     {
@@ -10465,6 +10500,11 @@
     {
       "kind": "waitFor",
       "testid": "mcp-settings-url-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "mcp-settings-transport",
       "timeoutMs": 3000
     },
     {
@@ -10588,8 +10628,13 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "mcp-settings-command",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-args-input",
       "timeoutMs": 3000
     },
     {
@@ -10668,7 +10713,17 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-microsoft",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-microsoft",
       "timeoutMs": 3000
     },
     {
@@ -10756,6 +10811,93 @@
     {
       "kind": "screenshot",
       "label": "13-catalogue-discover-live-boundary"
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-custom",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-name-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "custom-mcp-transport-select",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "custom-mcp-url-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b-custom-connection-operator-no-transport"
+    },
+    {
+      "kind": "press",
+      "testid": "custom-mcp-name-input",
+      "key": "Escape",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "custom-mcp-name-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tabbar",
+      "timeoutMs": 3000
     },
     {
       "kind": "click",
@@ -11034,7 +11176,17 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-google",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-google",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-google",
       "timeoutMs": 3000
     },
     {
@@ -11238,7 +11390,17 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-microsoft",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-microsoft",
       "timeoutMs": 3000
     },
     {
@@ -11473,7 +11635,17 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-microsoft",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-microsoft",
       "timeoutMs": 3000
     },
     {
@@ -11780,7 +11952,17 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-microsoft",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-microsoft",
       "timeoutMs": 3000
     },
     {
@@ -11946,8 +12128,13 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
+      "kind": "waitGone",
       "testid": "mcp-settings-command",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-args-input",
       "timeoutMs": 3000
     },
     {
@@ -11981,7 +12168,17 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-microsoft",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-microsoft",
       "timeoutMs": 3000
     },
     {
@@ -12229,7 +12426,17 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-microsoft",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-microsoft",
       "timeoutMs": 3000
     },
     {
@@ -12309,7 +12516,17 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-microsoft",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-microsoft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-microsoft",
       "timeoutMs": 3000
     },
     {
@@ -12508,7 +12725,17 @@
     },
     {
       "kind": "click",
-      "testid": "sidebar-native-google",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-native-google",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-native-google",
       "timeoutMs": 3000
     },
     {

@@ -3,17 +3,15 @@
  * its sidebar / detail / catalogue sub-components.
  */
 import type { ProviderId } from "$lib/connections/capabilities";
+import type { RowSelection } from "$lib/connections/connectionRows";
 
 /**
- * Which connector the detail pane shows. A discriminated union so the right
+ * Which connection the detail pane shows. A discriminated union so the right
  * pane knows which tabs to render and which actions to wire.
  */
-export type Selection =
-  | { kind: "native"; provider: ProviderId }
-  | { kind: "mcp"; name: string }
-  | null;
+export type Selection = RowSelection | null;
 
-/** A native Apollia connector card (Google Workspace, Microsoft 365). */
+/** The page of a native provider (Google Workspace, Microsoft 365). */
 export interface NativeConnectorCard {
   id: ProviderId;
   name: string;
