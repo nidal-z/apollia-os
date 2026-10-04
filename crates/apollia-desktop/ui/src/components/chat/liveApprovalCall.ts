@@ -9,6 +9,7 @@
  */
 import type { ToolCallView } from "$lib/types";
 
+// i18n-ignore: marker of the runtime prompt text, matched on the wire, never shown
 const PROMPT_MARKER = "asks to run with: ";
 
 function asArguments(text: string): Record<string, unknown> | null {
