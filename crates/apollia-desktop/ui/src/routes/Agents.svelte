@@ -16,6 +16,7 @@
   import { declareGuideSubscreen } from "$lib/stores/guideContext";
   import { pendingChatSessionId } from "$lib/stores/chat";
   import { PACKAGE_INSTALLED_EVENT, openPackagePreview } from "$lib/stores/packagePreview";
+  import { pendingSheet, takePendingSheet } from "$lib/stores/agentOpen";
   import {
     agentPackages,
     getPackageDetail,
@@ -197,6 +198,21 @@
       reportError(err, { surface: "toast" });
     }
   }
+
+  // Another screen asked for the sheet of one agent (the content of a package
+  // in the Library, for one): once the agent is listed, the request is taken
+  // and its sheet opens. A request for a workflow is taken too, and opens the
+  // screen alone: this screen shows no workflow sheet.
+  $effect(() => {
+    const request = $pendingSheet;
+    if (request === null) return;
+    if (request.kind === "agent") {
+      if (!$agents.some((a) => a.name === request.id)) return;
+      query = "";
+      selectAgent(request.id);
+    }
+    takePendingSheet();
+  });
 
   // ── Actions ──────────────────────────────────────────────────────────
   async function pickAndInstallAgent(): Promise<void> {

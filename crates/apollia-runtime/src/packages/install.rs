@@ -54,6 +54,8 @@ pub struct StagedInstall {
     staging: PathBuf,
     root: PathBuf,
     previous: Option<InstalledPackage>,
+    /// Where the package comes from, as the caller of [`prepare`] said.
+    origin: PackageOrigin,
 }
 
 impl StagedInstall {
@@ -168,6 +170,7 @@ pub fn prepare(
         manifest,
         staging,
         previous,
+        origin: options.origin,
     })
 }
 
@@ -362,6 +365,9 @@ fn write_records<M: McpServerAdder>(
             signed: signature.status == SignatureStatus::Signed,
         },
     )?;
+    targets
+        .packages
+        .set_embedded(&package.name, staged.origin == PackageOrigin::Embedded)?;
     targets.packages.clear_items(&package.name)?;
 
     for agent in &manifest.agents {

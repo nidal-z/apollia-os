@@ -28,6 +28,7 @@ import {
   Mic,
   Paintbrush,
   Landmark,
+  Library,
 } from "lucide-svelte";
 import type { Route } from "$lib/stores/navigation";
 
@@ -47,6 +48,7 @@ export const routeMeta: Record<Route, RouteMeta> = {
   inbox: { labelKey: "nav.inbox", parent: null, icon: ShieldCheck },
   integrations: { labelKey: "nav.connections", parent: null, icon: Plug },
   llm: { labelKey: "nav.llm", parent: null, icon: Brain },
+  library: { labelKey: "nav.library", parent: null, icon: Library },
   automations: { labelKey: "nav.automations", parent: null, icon: Repeat },
   memory: { labelKey: "nav.memory", parent: null, icon: Database },
   transcriptions: { labelKey: "nav.transcriptions", parent: null, icon: Mic },

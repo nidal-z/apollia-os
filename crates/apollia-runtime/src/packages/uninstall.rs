@@ -9,8 +9,9 @@
 //! (tasks, batches, workflow runs) are erased or kept. Each uninstallation is
 //! recorded in the audit journal.
 //!
-//! Apollia is part of the product and is never uninstalled; an agent that
-//! belongs to an installed package goes with its package.
+//! Apollia is part of the product and is never uninstalled, and neither is a
+//! package Apollia ships inside its binary; an agent that belongs to an
+//! installed package goes with its package.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
@@ -97,7 +98,8 @@ pub enum UninstallError {
     /// No package, or no agent, of this name is installed.
     #[error("`{0}` is not installed")]
     NotFound(String),
-    /// Apollia is part of the product.
+    /// Apollia, or a package it ships inside its binary, is part of the
+    /// product.
     #[error("`{0}` is part of Apollia and cannot be uninstalled")]
     BuiltIn(String),
     /// The agent goes with the package that installed it.
@@ -143,8 +145,8 @@ struct Scope {
 /// # Errors
 ///
 /// [`UninstallError::NotFound`] when no such package is installed,
-/// [`UninstallError::BuiltIn`] when it carries Apollia,
-/// [`UninstallError::Store`] or [`UninstallError::Journal`].
+/// [`UninstallError::BuiltIn`] when it carries Apollia or is shipped inside
+/// the binary, [`UninstallError::Store`] or [`UninstallError::Journal`].
 pub async fn uninstall_package<M: McpServerAdder>(
     name: &str,
     options: UninstallOptions,
@@ -155,6 +157,9 @@ pub async fn uninstall_package<M: McpServerAdder>(
         .packages
         .get(name)?
         .ok_or_else(|| UninstallError::NotFound(name.to_owned()))?;
+    if targets.packages.is_embedded(name)? {
+        return Err(UninstallError::BuiltIn(name.to_owned()));
+    }
     let mut report = UninstallReport {
         name: name.to_owned(),
         version: package.version.clone(),
@@ -296,6 +301,29 @@ async fn remove<M: McpServerAdder>(
     Ok(())
 }
 
+/// Whether the trigger that starts `agent` or `workflow` goes with a package
+/// named `package` whose agents are `agents` and whose workflows are
+/// `workflows`: a workflow target is named `<package>/<workflow>`. The
+/// uninstallation removes these triggers, and the detail of an installed
+/// package lists them beforehand, so both read this one rule.
+pub(crate) fn starts_item_of(
+    agent: Option<&str>,
+    workflow: Option<&str>,
+    package: Option<&str>,
+    agents: &[String],
+    workflows: &[String],
+) -> bool {
+    let by_agent = agent.is_some_and(|agent| agents.iter().any(|a| a == agent));
+    let by_workflow = match (workflow, package) {
+        (Some(target), Some(package)) => target
+            .strip_prefix(package)
+            .and_then(|rest| rest.strip_prefix('/'))
+            .is_some_and(|name| workflows.iter().any(|w| w == name)),
+        _ => false,
+    };
+    by_agent || by_workflow
+}
+
 /// Removes the triggers that start one of the agents of `report`, or one of
 /// the workflows of `package`, named `<package>/<workflow>`.
 fn remove_triggers(
@@ -303,15 +331,6 @@ fn remove_triggers(
     package: Option<&str>,
     triggers: &Mutex<TriggerDefinitionRepository>,
 ) {
-    let workflows: Vec<String> = package
-        .map(|package| {
-            report
-                .workflows
-                .iter()
-                .map(|w| format!("{package}/{w}"))
-                .collect()
-        })
-        .unwrap_or_default();
     let triggers = triggers.lock().unwrap_or_else(PoisonError::into_inner);
     let rows = match triggers.list() {
         Ok(rows) => rows,
@@ -321,14 +340,13 @@ fn remove_triggers(
         }
     };
     for row in rows {
-        let targeted = row
-            .agent
-            .as_deref()
-            .is_some_and(|agent| report.agents.iter().any(|a| a == agent))
-            || row
-                .workflow
-                .as_deref()
-                .is_some_and(|workflow| workflows.iter().any(|w| w == workflow));
+        let targeted = starts_item_of(
+            row.agent.as_deref(),
+            row.workflow.as_deref(),
+            package,
+            &report.agents,
+            &report.workflows,
+        );
         if !targeted {
             continue;
         }

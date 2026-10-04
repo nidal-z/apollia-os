@@ -64,6 +64,9 @@ pub use export::{export_agent, export_plan, publisher_of, AgentExport, ExportErr
 pub use install::{
     commit, prepare, CommitTargets, InstallOptions, InstallReport, McpServerAdder, StagedInstall,
 };
+pub(crate) use preview_access::family_name;
+pub(crate) use uninstall::starts_item_of;
+
 pub use preview::{
     connection_matches, preview, AccessPreview, AddedAccess, AgentPreview, BroughtServerPreview,
     InstallRefusal, ItemPreview, PackageNotice, PackageOrigin, PackagePreview, PreviewSources,

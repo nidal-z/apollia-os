@@ -128,6 +128,44 @@ pub trait WorkflowHost: Send + Sync {
     fn run(&self, call: WorkflowCall) -> BoxFuture<'static, Result<Value, String>>;
 }
 
+/// A host minus the workflows of one package, uninstalled since the host
+/// read the installed packages.
+pub(crate) struct WithoutPackage {
+    inner: Arc<dyn WorkflowHost>,
+    /// `<package>/`, the prefix of the identifiers of its workflows.
+    prefix: String,
+}
+
+impl WithoutPackage {
+    pub(crate) fn new(inner: Arc<dyn WorkflowHost>, package: &str) -> Self {
+        Self {
+            inner,
+            prefix: format!("{package}/"),
+        }
+    }
+}
+
+impl WorkflowHost for WithoutPackage {
+    fn describe(&self, workflow_id: &str) -> Option<WorkflowDescriptor> {
+        if workflow_id.starts_with(&self.prefix) {
+            return None;
+        }
+        self.inner.describe(workflow_id)
+    }
+
+    fn list(&self) -> Vec<WorkflowDescriptor> {
+        self.inner
+            .list()
+            .into_iter()
+            .filter(|workflow| !workflow.id.starts_with(&self.prefix))
+            .collect()
+    }
+
+    fn run(&self, call: WorkflowCall) -> BoxFuture<'static, Result<Value, String>> {
+        self.inner.run(call)
+    }
+}
+
 /// Runs the agent of a step.
 pub trait AgentRunner: Send + Sync {
     /// Run `agent` on `message`, stopped with and spending from `nesting`,
@@ -235,6 +273,8 @@ pub(crate) struct Launched {
 
 pub(crate) enum WorkflowCommand {
     SetHost(Arc<dyn WorkflowHost>),
+    /// The package was uninstalled: its workflows leave the catalogue.
+    RetirePackage(String),
     Launch {
         workflow: String,
         inputs: Value,
@@ -301,6 +341,20 @@ impl WorkflowHandle {
     pub async fn set_host(&self, host: Arc<dyn WorkflowHost>) -> Result<(), WorkflowError> {
         self.tx
             .send(WorkflowCommand::SetHost(host))
+            .await
+            .map_err(|_| WorkflowError::Stopped)
+    }
+
+    /// Takes the workflows of `package`, just uninstalled, out of the
+    /// catalogue: they are no longer described, listed nor launched. A run in
+    /// progress goes on to its end.
+    ///
+    /// # Errors
+    ///
+    /// [`WorkflowError::Stopped`].
+    pub async fn retire_package(&self, package: &str) -> Result<(), WorkflowError> {
+        self.tx
+            .send(WorkflowCommand::RetirePackage(package.to_owned()))
             .await
             .map_err(|_| WorkflowError::Stopped)
     }

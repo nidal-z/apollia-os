@@ -20,14 +20,15 @@ use rusqlite::Connection;
 use apollia_core::schema::Migration;
 
 /// Current schema version of `agents.db`.
-pub(crate) const AGENTS_DB_SCHEMA_VERSION: u32 = 5;
+pub(crate) const AGENTS_DB_SCHEMA_VERSION: u32 = 6;
 
 /// Numbered migration steps of `agents.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`AGENTS_DB_SCHEMA_VERSION`].
-pub(crate) const AGENTS_DB_MIGRATIONS: &[Migration] =
-    &[migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5];
+pub(crate) const AGENTS_DB_MIGRATIONS: &[Migration] = &[
+    migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5, migrate_v6,
+];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -118,6 +119,22 @@ fn migrate_v4(conn: &Connection) -> Result<(), rusqlite::Error> {
 /// says so.
 fn migrate_v5(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(include_str!("../migrations/013_exposed_items.sql"))
+}
+
+/// v6: `installed_packages` records whether Apollia ships the package inside
+/// its binary. Such a package is shown as provided with Apollia and is never
+/// uninstalled. Nothing in a package file can set it: only the installation
+/// of an embedded package does.
+///
+/// The column is added only when the probe does not find it, so the step can
+/// run over a file a previous attempt left half-way.
+fn migrate_v6(conn: &Connection) -> Result<(), rusqlite::Error> {
+    if !has_column(conn, "installed_packages", "embedded")? {
+        conn.execute_batch(
+            "ALTER TABLE installed_packages ADD COLUMN embedded BOOLEAN NOT NULL DEFAULT 0",
+        )?;
+    }
+    Ok(())
 }
 
 /// `true` when `table` has a column named `column`.
@@ -501,6 +518,47 @@ mod tests {
             )
             .unwrap();
         assert_eq!(columns, 3);
+    }
+
+    // GIVEN a file at v5 holding an installed package
+    // WHEN it is opened through the versioned layer, and the v6 step runs again
+    // THEN the package is kept, not marked as shipped inside the binary, and
+    //   the column is added once
+    #[test]
+    fn test_agents_db_v6_adds_the_embedded_column_once() {
+        let at_v5 = Connection::open_in_memory().unwrap();
+        for step in &AGENTS_DB_MIGRATIONS[..5] {
+            step(&at_v5).unwrap();
+        }
+        at_v5.pragma_update(None, "user_version", 5).unwrap();
+        at_v5
+            .execute(
+                "INSERT INTO installed_packages (name, version, root_path, manifest_json) \
+                 VALUES ('crm', '1.0.0', '/p', '{}')",
+                [],
+            )
+            .unwrap();
+
+        open_agents_schema(&at_v5).unwrap();
+        migrate_v6(&at_v5).unwrap();
+
+        let embedded: bool = at_v5
+            .query_row(
+                "SELECT embedded FROM installed_packages WHERE name = 'crm'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(!embedded);
+        let columns: i64 = at_v5
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('installed_packages') \
+                 WHERE name = 'embedded'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(columns, 1);
     }
 
     // GIVEN a database stamped by a newer binary

@@ -157,14 +157,18 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
   mutating controls driven to the boundary). `master-det.json` runs all 20 in one
   boot and is the release gate (3989 steps); `just desktop-automation-verdict` reads its report.
 - **Standalone deterministic**: `onboarding-full`, `mailbox-det`, `destructive`,
-  and three books written against the coverage report below, none of them in
+  and four books written against the coverage report below, none of them in
   `regen_master.py`'s `ORDER` yet because none has been through a runtime round:
   `danger-guard-det` (the cancel half of the four destructive guards: step-1
   cancel, mismatch, match, lock hint, step-2 cancel, and no `-confirm` ever
   clicked), `profile-facts-det` (the off-schema memory facts of the profile
   page, added, edited, deleted by the script itself), `llm-advanced-det` (the
   advanced panel of the backend dialog, sampling parameters through extra JSON,
-  cancelled without saving). Fold one into `master-det` by adding it to `ORDER`
+  cancelled without saving), `library-det` (the Library: the packages the
+  application ships read from the real store, then a stubbed package of every
+  kind opened, its update through a cancelled file chooser, its uninstall
+  dialog cancelled, refused and accepted, the empty state and the unreadable
+  list). Fold one into `master-det` by adding it to `ORDER`
   and re-running `regen_master.py --write`, after its first green solo run.
 - **LLM** (need `-seeded-llama`): `chat-llm` (the flagship: tools, HITL, memory,
   config, plan mode, ask_user, step budget), `hitl-critical`, `coach-llm`,

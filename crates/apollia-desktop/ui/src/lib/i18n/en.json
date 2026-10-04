@@ -200,9 +200,11 @@
       "llm": "LLM models",
       "transcriptions": "Transcriptions",
       "integrations": "Connections",
-      "settings": "Settings"
+      "settings": "Settings",
+      "library": "Library"
     },
-    "policy": "Organization policy"
+    "policy": "Organization policy",
+    "library": "Library"
   },
   "sidebar": {},
   "topbar": {
@@ -4696,6 +4698,87 @@
         "copy_detail": "Copy the detail",
         "copied": "Detail copied."
       }
+    }
+  },
+  "library": {
+    "kicker": "Installed packages",
+    "title": "Library",
+    "subtitle": "What you have installed: agents, workflows, tools and connections, with their publisher and their signature.",
+    "install": "Install a package",
+    "filter_placeholder": "Filter packages…",
+    "tally": "{total, plural, one {# package installed} other {# packages installed}} · {signed, plural, =0 {none signed} other {# signed}}, {unsigned, plural, =0 {none unsigned} other {# unsigned}}",
+    "no_match": "No package matches \"{query}\".",
+    "load_error": "The list of installed packages cannot be read.",
+    "footnote": "The agents and workflows of a package stay visible in Agents.",
+    "publisher_unknown": "Unknown publisher",
+    "signed": "Signed",
+    "unsigned": "Unsigned",
+    "content_summary": "{agents, plural, =0 {no agent} one {# agent} other {# agents}}, {workflows, plural, =0 {no workflow} one {# workflow} other {# workflows}}, {tools, plural, =0 {no tool} one {# tool} other {# tools}}, {connections, plural, =0 {no connection} one {# connection} other {# connections}}",
+    "kind": {
+      "agent": "agent",
+      "workflow": "workflow",
+      "tool": "tool",
+      "connection": "connection"
+    },
+    "provided": {
+      "name": "Agents provided with Apollia",
+      "origin": "Provided with Apollia",
+      "badge": "Provided with Apollia",
+      "signature_title": "Provided with Apollia",
+      "signature_body": "These agents are part of the application: the application is what is signed, and they cannot be uninstalled.",
+      "update_note": "These agents are updated with the application."
+    },
+    "empty": {
+      "title": "No package installed",
+      "description": "A package brings agents, workflows, tools and connections ready to use, in a single .apo file.",
+      "examples": "See the examples in Agents"
+    },
+    "detail": {
+      "back": "Back to the Library",
+      "load_error": "This package cannot be read.",
+      "installed_on": "installed on {date}",
+      "update": "Update…",
+      "uninstall": "Uninstall…",
+      "signed_title": "Signed by {publisher}",
+      "signed_trusted": "Trusted publisher. The signature was verified at installation.",
+      "signed_untrusted": "The signature was verified at installation. This publisher is not among your trusted publishers.",
+      "unsigned_title": "Unsigned package",
+      "unsigned_body": "Nothing confirms who published this package. The warning was accepted at installation.",
+      "content_title": "Content",
+      "agents": "Agents",
+      "workflows": "Workflows",
+      "tools": "Tools",
+      "connections": "Connections",
+      "open_sheet": "Open the sheet",
+      "connection_brought": "Brought by the package: it goes with it.",
+      "connection_required": "Required, yours",
+      "none": "No {kinds} in this package.",
+      "none_joiner": "or",
+      "update_note": "To update this package, open a more recent .apo file: a preview shows what changes before anything is installed, and your adjustments are kept."
+    },
+    "uninstall": {
+      "title": "Uninstall \"{name}\"?",
+      "leaving_title": "What goes",
+      "leaving": {
+        "agents": "{count, plural, one {# agent} other {# agents}}",
+        "workflows": "{count, plural, one {# workflow} other {# workflows}}",
+        "tools": "{count, plural, one {# tool} other {# tools}}",
+        "automations": "{count, plural, one {# automation that starts these agents} other {# automations that start these agents}}",
+        "connections": "{count, plural, one {# connection brought by the package} other {# connections brought by the package}}"
+      },
+      "staying_title": "Stays in place",
+      "staying_connections": "{count, plural, one {# required connection, which is yours} other {# required connections, which are yours}}",
+      "data_title": "Memory and history of the agents",
+      "keep_title": "Keep",
+      "keep_body": "If you install this package again, its agents find their memory and their history.",
+      "erase_title": "Erase",
+      "erase_body": "The memory and the history of these agents are erased. This cannot be undone.",
+      "confirm": "Uninstall",
+      "confirm_erase": "Uninstall and erase",
+      "error": "The uninstallation did not complete.",
+      "done": "\"{name}\" is uninstalled.",
+      "done_leftovers": "\"{name}\" is uninstalled, but {count, plural, one {# item could not be removed} other {# items could not be removed}}.",
+      "names": ": {names}"
     }
   }
 }
