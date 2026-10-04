@@ -72,8 +72,10 @@ If you add a new noun, document it here and in `docs/site/docs/reference/cli/`.
 `retry`, `export`) runs a stored agent without code on every item of a source, in the
 runtime. `run` returns once the items are recorded; each item is a task of its
 own, so `task list` shows them. The source is named by `--source-type` and
-`--source`; a type no reader serves is refused with exit 1, and no reader is
-registered yet. `accesses` lists the sensitive accesses of an agent, which
+`--source`; a type no reader serves is refused with exit 1. Two are read:
+`spreadsheet` (a workbook) and `csv`, whose `--option sheet=`,
+`--option header_row=` and `--option columns=A,C` pick the sheet, the header
+row and the checked columns, the proposed ones when absent. `accesses` lists the sensitive accesses of an agent, which
 `run --grant` grants for the duration of the batch; an item that reaches for
 one not granted waits, and `retry` runs it again, with `--grant` if given,
 along with the failed items. A batch in the wrong state for a verb (resume a
@@ -100,13 +102,17 @@ keyring, the connections and the governance, adds the MCP servers a package
 brings and journals the installation. The archive is sent by its absolute
 path; a missing file is refused before the runtime is reached.
 
-**`source`** (`list`, `create`, `delete`) reads and writes the registry of
+**`source`** (`list`, `create`, `delete`, `inspect`) reads and writes the registry of
 sources an agent may consult once checked: a folder, a file or a mailbox,
 which name what they point at with `--reference`, the profile, the memory, a
 code folder. Every leaf goes through the runtime, whose actor owns the
 registry in `system.db`; daemon off, each refuses with exit 2. An agent checks
 a source by naming its identifier in `agent set <agent> sources ...`, and the
-runtime refuses an identifier the registry does not hold.
+runtime refuses an identifier the registry does not hold. `inspect <file>` previews
+a workbook or a CSV file as a batch would read it, through the runtime too:
+the sheet and header row proposed, the first twenty rows, the columns by
+letter and name, and whether results may be written into the original. A
+file that is not there is refused with exit 1 before the runtime is reached.
 
 **`agent uninstall`** and **`agent package uninstall`** go through the
 runtime, the same route the desktop calls: it removes the definitions,

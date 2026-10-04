@@ -336,6 +336,7 @@ use security::BearerToken;
         crate::api::routes_sources::list_sources,
         crate::api::routes_sources::create_source,
         crate::api::routes_sources::delete_source,
+        crate::api::routes_sources::preview::preview_source,
         crate::api::routes_server::logs::stream_server_logs,
         crate::api::routes_server::logs::clear_server_logs,
         crate::api::routes_config::read_config,
