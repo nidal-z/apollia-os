@@ -71,6 +71,11 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
       "lib/components/operator/badges/RiskBadge.svelte, components/chat/HitlFilesystemModal.svelte",
   },
   {
+    pattern: new RegExp(`^connections\\.oauth_client\\.(title|intro|origin)\\.${SEG}$`),
+    builtBy:
+      "components/connections/detail/NativeClientSection.svelte, lib/connections/oauthClient.ts",
+  },
+  {
     pattern: new RegExp(`^approvals\\.scope\\.${SEG}$`),
     builtBy: "components/chat/ApprovalScopeSelect.svelte",
   },

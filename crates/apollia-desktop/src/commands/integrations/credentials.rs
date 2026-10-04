@@ -11,6 +11,7 @@
 use apollia_auth::ConnectorProvider;
 use apollia_runtime::api::routes_oauth_clients::{ImportOauthClientBody, OauthClientValueBody};
 use apollia_runtime::drive_folders::{self, DriveFolderError};
+use apollia_runtime::inference_servers::default_store_opener;
 pub use apollia_runtime::oauth_clients::OauthClientIdStatus;
 use apollia_runtime::oauth_clients::{
     self, OauthClientField, OauthClientTestResult, OauthClientsError,
@@ -97,7 +98,10 @@ const fn field_segment(field: OauthClientField) -> &'static str {
 
 async fn list_on(link: &RuntimeLink) -> Result<Vec<OauthClientIdStatus>, IntegrationsError> {
     match link {
-        RuntimeLink::Embedded(_) => Ok(oauth_clients::list_client_ids(&embedded_file()?)),
+        RuntimeLink::Embedded(_) => Ok(oauth_clients::list_client_ids(
+            &embedded_file()?,
+            &default_store_opener(),
+        )),
         RuntimeLink::Attached(remote) => Ok(remote.get(CLIENTS).await?),
     }
 }
@@ -114,6 +118,7 @@ async fn set_on(
             provider,
             field,
             &value,
+            &default_store_opener(),
         )?),
         RuntimeLink::Attached(remote) => {
             let path = format!("{CLIENTS}/{}/{}", segment(provider), field_segment(field));
@@ -129,7 +134,10 @@ async fn test_on(
 ) -> Result<OauthClientTestResult, IntegrationsError> {
     match link {
         RuntimeLink::Embedded(_) => {
-            Ok(oauth_clients::test_client(&embedded_file()?, provider).await?)
+            Ok(
+                oauth_clients::test_client(&embedded_file()?, provider, &default_store_opener())
+                    .await?,
+            )
         }
         RuntimeLink::Attached(remote) => {
             let path = format!("{CLIENTS}/{}/test", segment(provider));
@@ -148,6 +156,7 @@ async fn import_on(
             &embedded_file()?,
             provider,
             &client_json,
+            &default_store_opener(),
         )?),
         RuntimeLink::Attached(remote) => {
             let path = format!("{CLIENTS}/{}/import", segment(provider));

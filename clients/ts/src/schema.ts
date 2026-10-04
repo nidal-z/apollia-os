@@ -7809,9 +7809,9 @@ export interface components {
          *     a key, only their presence.
          */
         OauthClientIdStatus: {
-            /** @description Source for the resolved API key. Same semantics as `source`. */
+            /** @description Source for the resolved API key. Same semantics as `client_secret_source`. */
             api_key_source: string;
-            /** @description Same source semantics as `source` but for the secret. */
+            /** @description Source of the secret: `"env"`, `"store"` (the secret store), `"builtin"`, or `"none"`. */
             client_secret_source: string;
             /** @description Effective client id used at runtime. Empty string when no source is configured. */
             effective_client_id: string;

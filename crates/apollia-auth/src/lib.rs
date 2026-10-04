@@ -28,6 +28,7 @@ pub mod mcp_oauth;
 pub mod mcp_oauth_orchestrator;
 pub mod mcp_token_store;
 pub mod multi_account;
+pub mod oauth_client_secrets;
 pub mod oauth_clients_file;
 pub mod pkce;
 pub mod providers;

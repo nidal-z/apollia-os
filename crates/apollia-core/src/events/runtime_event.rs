@@ -123,6 +123,19 @@ pub enum RuntimeEvent {
         count: usize,
     },
 
+    /// The `apollia.toml` read at startup was refused: the embedded runtime
+    /// runs on the default values instead, and says so here rather than in
+    /// silence.
+    ///
+    /// Emitted once by the desktop's embedded runtime when it is up; the daemon
+    /// refuses to start on the same file instead.
+    ConfigInvalid {
+        /// Path of the refused file.
+        path: String,
+        /// Every fault found, each at its line.
+        diagnostics: Vec<crate::config::ConfigDiagnostic>,
+    },
+
     /// An MCP server was hot-reloaded successfully.
     ///
     /// Emitted by `McpClientManagerHandle::reload_server` after the new session

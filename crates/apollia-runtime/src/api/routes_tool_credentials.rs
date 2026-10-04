@@ -100,10 +100,14 @@ pub(crate) async fn list_tool_credentials<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Query(query): Query<CredentialListQuery>,
 ) -> Result<Json<Vec<CredentialEntryView>>, ApiError> {
-    list_credentials(state.data_dir.clone(), query.tool_name)
-        .await
-        .map(Json)
-        .map_err(refusal)
+    list_credentials(
+        state.data_dir.clone(),
+        state.secret_store.clone(),
+        query.tool_name,
+    )
+    .await
+    .map(Json)
+    .map_err(refusal)
 }
 
 /// `PUT /api/v1/tool-credentials/{tool_name}/{key_name}`: stores or replaces
@@ -130,6 +134,7 @@ pub(crate) async fn set_tool_credential<B: ExecutionBackend + Clone>(
 ) -> Result<Json<StoredCredential>, ApiError> {
     set_credential(
         state.data_dir.clone(),
+        state.secret_store.clone(),
         tool_name.clone(),
         key_name.clone(),
         body.value,
@@ -161,9 +166,14 @@ pub(crate) async fn delete_tool_credential<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path((tool_name, key_name)): Path<(String, String)>,
 ) -> Result<Json<DeletedCredential>, ApiError> {
-    let removed = delete_credential(state.data_dir.clone(), tool_name, key_name)
-        .await
-        .map_err(refusal)?;
+    let removed = delete_credential(
+        state.data_dir.clone(),
+        state.secret_store.clone(),
+        tool_name,
+        key_name,
+    )
+    .await
+    .map_err(refusal)?;
     Ok(Json(DeletedCredential { removed }))
 }
 
@@ -185,10 +195,14 @@ pub(crate) async fn test_tool_credential<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(tool_name): Path<String>,
 ) -> Result<Json<CredentialTestView>, ApiError> {
-    test_credential(state.data_dir.clone(), tool_name)
-        .await
-        .map(Json)
-        .map_err(refusal)
+    test_credential(
+        state.data_dir.clone(),
+        state.secret_store.clone(),
+        tool_name,
+    )
+    .await
+    .map(Json)
+    .map_err(refusal)
 }
 
 #[cfg(test)]
