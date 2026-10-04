@@ -1,7 +1,7 @@
 ---
 sidebar_position: 10
 title: Compatible endpoints
-description: "The compatible server: a second listener of the runtime, on its own port, that other applications call in the OpenAI and Anthropic formats. Off by default."
+description: "The compatible server: a second listener of the runtime, on its own port, that other applications call in the OpenAI and Anthropic formats, for the loaded models and the agents and workflows made available. Off by default."
 ---
 
 # Compatible endpoints
@@ -171,6 +171,18 @@ Anthropic's: `{"type": "error", "error": {"type", "message"}}`.
 | `404` | `unknown_url` | | No endpoint lives at this path |
 | `502` | `engine_unavailable` | `api_error` | The engine running the model did not answer, or the model could not be loaded on demand |
 
+An agent or a workflow called as a model adds its own errors, on
+`/v1/chat/completions`:
+
+| Status | OpenAI `code` | When |
+|---|---|---|
+| `400` | `invalid_request` | The request brings `tools`, holds no user message, or, for a workflow, its last user message is not a JSON object that fits the input schema; the error then carries that schema in `schema` |
+| `401` | `invalid_api_key` | The call comes from the local network without a token in use |
+| `404` | `model_not_found` | No agent or workflow available to other applications carries this `apollia/...` identifier |
+| `409` | `approval_pending` | The agent waits for a decision on an access nobody granted (see below) |
+| `500` | `run_failed` | The run failed or was stopped before its end |
+| `503` | `run_unavailable` | This runtime cannot run agents or workflows |
+
 ## The models it serves
 
 The compatible server serves the local models of this machine, and only them.
@@ -248,6 +260,77 @@ answer, or on the delta that finishes the choice. Only `/v1/chat/completions`
 is concerned: the responses and messages formats carry reasoning blocks of
 their own, relayed as the engine wrote them. The key is read at every request.
 
+## Agents and workflows as models
+
+An agent or a workflow the user made available to other applications, the
+same switch the MCP bridge reads, is served as a model too. `GET /v1/models`
+lists it after the local models, as `apollia/<id>` with the `type` `agent` or
+`workflow`: an agent by its identifier (`apollia/demand-clerk`), a workflow by
+its package and its name (`apollia/office/close-month`). An agent identifier
+never carries `/`, so an agent and a workflow never answer to the same name.
+
+A client calls it with `POST /v1/chat/completions`, as it would call a model:
+
+```bash
+curl http://127.0.0.1:7772/v1/chat/completions \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "apollia/demand-clerk",
+    "messages": [{"role": "user", "content": "Qualify the demand of Durand."}]
+  }'
+```
+
+- **The call holds no state.** For an agent, the last user message is the
+  request; the messages before it are the conversation it comes from. For a
+  workflow, the last user message is a JSON object that fits the workflow's
+  input schema (`{"month": "2026-09"}`); anything else answers `400` with the
+  schema.
+- **The agent works as in Apollia.** It runs with nobody watching, with its
+  own budget, accesses and connections, through the same execution as a batch
+  item. Tools sent by the client are refused with a `400`: the agent has its
+  accesses.
+- **The answer is the agent's final answer**, in `choices[0].message.content`.
+  `usage` adds up the tokens of every model turn of the run.
+- **The steps are reasoning.** Each tool the agent calls, and the summary of
+  what it returned, is a line of `reasoning_content`, the field local inference
+  servers use for a model's reasoning: in the message of a whole answer, and,
+  with `"stream": true`, in chunks that come before the answer's `content`
+  chunk. A client that does not read the field ignores it.
+- **A client that goes away stops the run.** Closing the connection before the
+  answer, or leaving a stream, stops the agent or the workflow.
+- **The local network needs a token.** A call to an agent or a workflow from
+  another device presents a token in use, whatever `require_auth` says, and
+  `GET /v1/models` does not list them to a device without one.
+
+### A decision the agent waits for
+
+An agent that reaches for an access nobody granted, such as writing a file
+without "always" answered for it, does not run it and does not fail. Its run
+stops and waits for a decision, as an item of a batch does: it appears in the
+pending decisions of Apollia, with its notification, and the call answers
+`409` with the code `approval_pending`:
+
+```json
+{
+  "error": {
+    "message": "The agent waits for your approval to use an access nobody granted. ...",
+    "type": "approval_pending",
+    "code": "approval_pending",
+    "pending_id": "batch:3f1c...:0",
+    "batch_id": "3f1c...",
+    "task_id": "9a7e...",
+    "access": "file_write"
+  }
+}
+```
+
+In a stream, the same error object is the last event. Ending the answer does
+not withdraw the decision: it stays pending until someone answers it, in
+Apollia or through the native API with
+`POST /api/v1/pending-decisions/decide` and the `pending_id`. Once allowed, the
+run goes on; its result is read from the task (`GET /api/v1/tasks/{task_id}`)
+or the batch (`GET /api/v1/batches/{batch_id}`).
+
 ## Endpoints
 
 The table lists every path the compatible server serves.
@@ -256,8 +339,8 @@ The table lists every path the compatible server serves.
 
 | Method | Path | Format |
 |---|---|---|
-| `GET` | `/v1/models` | OpenAI. The loaded models, as a list: `id` (registry identifier), `object`, `created`, `owned_by`, and `type`, `llm` or `embeddings` |
-| `POST` | `/v1/chat/completions` | OpenAI. Relayed to the model's engine |
+| `GET` | `/v1/models` | OpenAI. The loaded models, as a list: `id` (registry identifier), `object`, `created`, `owned_by`, and `type`, `llm` or `embeddings`; then the agents and workflows available to other applications, `apollia/<id>`, of `type` `agent` or `workflow` |
+| `POST` | `/v1/chat/completions` | OpenAI. Relayed to the model's engine; on an `apollia/...` model, run by Apollia (agents and workflows above) |
 | `POST` | `/v1/responses` | OpenAI. Relayed to the model's engine |
 | `POST` | `/v1/embeddings` | OpenAI. Relayed to the search-by-meaning model |
 | `POST` | `/v1/messages` | Anthropic. Relayed to the model's engine |

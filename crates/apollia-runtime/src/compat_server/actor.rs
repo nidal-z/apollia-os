@@ -14,6 +14,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
+use super::agents::ExposedAgents;
 use super::logs::ServerLogsHandle;
 use super::models::LocalModels;
 use super::origin::reachable_address;
@@ -75,7 +76,8 @@ impl CompatServerHandle {
     ///
     /// `settings_path` is the `apollia.toml` holding the `[server]` section,
     /// `system_db` the `system.db` holding the server's tokens, `models` the
-    /// local models the server relays to.
+    /// local models the server relays to, `agents` the agents and workflows
+    /// it serves as models.
     /// When it turns the server on, the actor opens the listener before it
     /// answers its first command; a failure to open it is logged and kept as
     /// the last error, and the runtime goes on without the server. The actor
@@ -89,6 +91,7 @@ impl CompatServerHandle {
         settings_path: PathBuf,
         system_db: PathBuf,
         models: LocalModels,
+        agents: ExposedAgents,
         bus: &EventBusSender,
     ) -> Self {
         let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
@@ -99,6 +102,7 @@ impl CompatServerHandle {
         let actor = CompatServerActor {
             settings_path,
             models,
+            agents,
             tokens: tokens.clone(),
             logs: logs.clone(),
             running: None,
@@ -207,6 +211,7 @@ struct Running {
 struct CompatServerActor {
     settings_path: PathBuf,
     models: LocalModels,
+    agents: ExposedAgents,
     tokens: ServerTokensHandle,
     logs: ServerLogsHandle,
     running: Option<Running>,
@@ -341,7 +346,12 @@ impl CompatServerActor {
         let serve_on_lan = self.configured_flag(SERVE_ON_LAN_KEY)?;
         let cors = self.configured_flag(CORS_KEY)?;
         let tokens = require_auth.then(|| self.tokens.clone());
-        let relay = RelayState::new(self.models.clone()).map_err(CompatServerError::Client)?;
+        let relay = RelayState::with_agents(
+            self.models.clone(),
+            self.agents.clone(),
+            Some(self.tokens.clone()),
+        )
+        .map_err(CompatServerError::Client)?;
         let interface = if serve_on_lan {
             Ipv4Addr::UNSPECIFIED
         } else {

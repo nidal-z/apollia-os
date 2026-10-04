@@ -261,3 +261,29 @@ fn test_adopt_into_package_drops_the_code_and_keeps_the_user_state() {
     assert_eq!(resolved.mission, "Mine.");
     assert!(!repo.adopt_into_package("unknown", "guide-pkg").unwrap());
 }
+
+// GIVEN a declarative agent named like a workflow, `<package>/<workflow>`
+// WHEN it is stored
+// THEN it is refused and nothing is written, so no agent ever answers to the
+// identifier of a workflow
+#[test]
+fn test_an_agent_named_like_a_workflow_is_refused() {
+    let repo = AgentRepository::open(Path::new(":memory:")).unwrap();
+
+    let saved = repo.save_definition(&StoredAgent {
+        name: "office/triage".into(),
+        origin: AgentOrigin::Package,
+        package: Some("office".into()),
+        version: "1.0.0".into(),
+        definition: json!({"id": "office/triage", "name": "Triage", "mission": ""}),
+        enabled: true,
+        installed_at: "2026-10-04T00:00:00Z".into(),
+        updated_at: "2026-10-04T00:00:00Z".into(),
+    });
+
+    assert!(matches!(
+        saved,
+        Err(AgentRepositoryError::NameOfAWorkflow(name)) if name == "office/triage"
+    ));
+    assert!(repo.stored("office/triage").unwrap().is_none());
+}

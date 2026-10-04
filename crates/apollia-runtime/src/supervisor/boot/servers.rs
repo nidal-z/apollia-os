@@ -25,10 +25,13 @@ impl Supervisor {
     /// The compatible server, which reads and writes its switch in the file
     /// the runtime was started with, or in the data directory's apollia.toml,
     /// the file the desktop reads, when it was started without one.
+    ///
+    /// It serves `agents`, the exposed agents and workflows, as models.
     pub(super) fn spawn_compat_server(
         &self,
         inference: &Inference,
         event_sender: &EventBusSender,
+        agents: crate::compat_server::ExposedAgents,
     ) -> crate::compat_server::CompatServerHandle {
         let settings = self
             .config
@@ -44,6 +47,7 @@ impl Supervisor {
                 Some(crate::installed_models::models_dir(&self.config.data_dir)),
             )
             .with_files(settings, inference.system_db_path.clone()),
+            agents,
             event_sender,
         )
     }
