@@ -64,6 +64,8 @@
   import SessionNotFound from "./SessionNotFound.svelte";
   import AgentUnavailableBanner from "./AgentUnavailableBanner.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
+  import type { ChatTarget, ConversationTarget } from "$lib/chat/chatTargets";
+  import { applyTargetChoice } from "$lib/chat/applyTargetChoice";
 
   interface Props {
     sessionId: string;
@@ -105,6 +107,8 @@
      * (session not found) - lets the parent open the QuickPicker.
      */
     onnewChat?: () => void;
+    /** Called with the conversation a choice in the selector opened. */
+    onopensession?: (sessionId: string) => void;
   }
 
   let {
@@ -118,6 +122,7 @@
     collapseActions = true,
     ondelete,
     onnewChat,
+    onopensession,
     inputHidden = false,
   }: Props = $props();
 
@@ -153,6 +158,23 @@
     injectedSheetOpen = true;
   }
   let sessionDetail = $state<ChatSessionDetail | null>(null);
+
+  const target = $derived<ConversationTarget>({
+    mode: sessionMode,
+    agentName: sessionAgentName,
+    model: sessionDetail?.llm_backend ?? null,
+  });
+
+  async function handleTargetPick(choice: ChatTarget): Promise<void> {
+    try {
+      const outcome = await applyTargetChoice(choice, sessionId, target, messages.length);
+      if (outcome.openedSessionId) onopensession?.(outcome.openedSessionId);
+      else await refreshSession();
+    } catch (err) {
+      pendingError = $t("chat.target_selector.choose_failed", { values: { error: String(err) } });
+    }
+  }
+
   /** Plan-mode state of the active session (drives the header chip + review). */
   let planMode = $state(false);
 
@@ -648,6 +670,8 @@
       {hideConfig}
       {collapseActions}
       renameTrigger={actions.renameTrigger}
+      {target}
+      ontargetpick={onopensession ? (choice) => void handleTargetPick(choice) : undefined}
       onclose={onclose}
       onconfigtoggle={onconfigtoggle ? onconfigtoggle : () => (configOpen = true)}
       {onsessionsopen}

@@ -11,6 +11,7 @@ impl ChatSessionManager {
                     agent_name,
                     system_prompt,
                     tools,
+                    model,
                     reply,
                 } => {
                     let result = self
@@ -19,6 +20,7 @@ impl ChatSessionManager {
                             agent_name,
                             system_prompt,
                             tools,
+                            model,
                         })
                         .await;
                     let _ = reply.send(result);

@@ -241,6 +241,7 @@ impl ChatSessionManagerHandle {
             agent_name,
             system_prompt,
             tools,
+            model,
         } = params;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -249,6 +250,7 @@ impl ChatSessionManagerHandle {
                 agent_name,
                 system_prompt,
                 tools,
+                model,
                 reply: reply_tx,
             })
             .await

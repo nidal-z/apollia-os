@@ -6983,6 +6983,12 @@ export interface components {
             agent_name?: string | null;
             /** @description Session mode: `"libre"` or `"agent"`. */
             mode: string;
+            /**
+             * @description The model of the session: the identifier of a language model of the
+             *     model index, `<server>/<model>` for a model of a declared server, or
+             *     the name of a backend. Absent keeps the model of the agent.
+             */
+            model?: string | null;
             /** @description Custom system prompt. */
             system_prompt?: string | null;
             /** @description List of tool names available in this session. */
@@ -10685,7 +10691,11 @@ export interface components {
          *     value.
          */
         UpdateSessionBody: {
-            /** @description Inference server of the session. */
+            /**
+             * @description Model of the session: a backend, `<server>/<model>`, or the
+             *     identifier of a language model of the model index. `null` returns to
+             *     the model of the agent.
+             */
             llm_backend?: string | null;
             /** @description New system prompt. */
             system_prompt?: string | null;

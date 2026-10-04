@@ -12,6 +12,8 @@ pub enum ChatCommand {
         system_prompt: Option<String>,
         /// Tool names available in this session.
         tools: Vec<String>,
+        /// The model chosen for the session, `None` for the agent's.
+        model: Option<String>,
         /// Response channel.
         reply: oneshot::Sender<Result<SessionInfo, ChatError>>,
     },

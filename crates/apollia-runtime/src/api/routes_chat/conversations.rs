@@ -31,7 +31,9 @@ pub struct UpdateSessionBody {
     pub system_prompt: Option<String>,
     /// New list of tools available in the session.
     pub tools: Option<Vec<String>>,
-    /// Inference server of the session.
+    /// Model of the session: a backend, `<server>/<model>`, or the
+    /// identifier of a language model of the model index. `null` returns to
+    /// the model of the agent.
     #[schema(value_type = Option<String>)]
     pub llm_backend: Option<Option<String>>,
 }
@@ -130,8 +132,15 @@ pub async fn update_session<B: ExecutionBackend + Clone>(
     Path(id): Path<String>,
     Json(body): Json<UpdateSessionBody>,
 ) -> Result<axum::response::Response, Refusal> {
-    manager(&state)?
-        .update_session(id, body.system_prompt, body.tools, body.llm_backend)
+    let manager = manager(&state)?;
+    let llm_backend = match body.llm_backend {
+        Some(Some(model)) if !model.trim().is_empty() => Some(Some(
+            super::session_route::session_route(&state, model).await,
+        )),
+        other => other,
+    };
+    manager
+        .update_session(id, body.system_prompt, body.tools, llm_backend)
         .await
         .map_err(chat_refusal)?;
     Ok(done("updated"))
