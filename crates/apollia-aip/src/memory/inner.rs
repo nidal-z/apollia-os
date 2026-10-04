@@ -190,12 +190,14 @@ pub(super) fn recall_inner(
         other => other.to_string(),
     }))
 }
-/// Full-text search across the agent's namespace.
+/// Search across the agent's namespace: by words, fused with a ranking by
+/// meaning when `meaning` carries the query's vector.
 pub(super) fn search_inner(
     manager: &Arc<Mutex<MemoryManager>>,
     namespace: &str,
     query: &str,
     limit: usize,
+    meaning: Option<&apollia_memory::vectors::QueryVector>,
 ) -> Result<Vec<serde_json::Value>, MemoryInterfaceError> {
     let mut mgr = lock(manager)?;
 
@@ -211,6 +213,7 @@ pub(super) fn search_inner(
             limit: limit as u32,
             sources: None,
             min_importance: None,
+            meaning,
         })
         .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
 

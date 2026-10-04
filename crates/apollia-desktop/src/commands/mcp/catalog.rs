@@ -6,6 +6,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::mcp::enrichments::{load_builtin_enrichments, TrustLevel};
+use crate::mcp::official::is_official_registry_entry;
 use crate::mcp::registry_client::{
     RegistryIcon, RegistryPackage, RegistryRemote, RegistryRepository, RegistryServer,
 };
@@ -237,7 +238,8 @@ pub struct RegistryServerView {
     pub icons: Option<Vec<RegistryIcon>>,
     /// Source code repository reference.
     pub repository: Option<RegistryRepository>,
-    /// Trust level resolved from builtin enrichments.
+    /// `verified_official` for a selection entry so marked or a registry entry
+    /// published by its service's editor, `community` otherwise.
     pub trust_level: String,
     /// Category for grouping in the catalogue (e.g. `"productivity"`, `"data"`).
     pub category: Option<String>,
@@ -253,6 +255,11 @@ pub struct RegistryServerView {
 
 impl From<RegistryServer> for RegistryServerView {
     fn from(s: RegistryServer) -> Self {
+        let trust_level = if is_official_registry_entry(&s.server) {
+            TrustLevel::VerifiedOfficial
+        } else {
+            TrustLevel::Community
+        };
         Self {
             name: s.server.name,
             title: s.server.title,
@@ -262,7 +269,7 @@ impl From<RegistryServer> for RegistryServerView {
             packages: s.server.packages,
             icons: s.server.icons,
             repository: s.server.repository,
-            trust_level: "community".to_string(),
+            trust_level: trust_level_str(&trust_level),
             category: None,
             enrichment: None,
             is_installed: false,
@@ -403,5 +410,36 @@ mod tests {
         assert_eq!(view.version, "0.3.0");
         assert!(view.website_url.is_none());
         assert!(view.icons.is_none());
+    }
+
+    #[test]
+    fn test_registry_view_badges_only_the_editor_of_the_service_official() {
+        // GIVEN a registry entry published under notion.com and served from
+        // it, and one published under a GitHub account
+        let editor: RegistryServer = serde_json::from_value(serde_json::json!({
+            "server": {
+                "name": "com.notion/mcp",
+                "version": "1.0.0",
+                "remotes": [{ "type": "streamable-http", "url": "https://mcp.notion.com/mcp" }]
+            }
+        }))
+        .unwrap();
+        let account: RegistryServer = serde_json::from_value(serde_json::json!({
+            "server": {
+                "name": "io.github.someone/notion-mcp",
+                "version": "1.0.0",
+                "websiteUrl": "https://github.com/someone/notion-mcp",
+                "remotes": [{ "type": "streamable-http", "url": "https://mcp.notion.com/mcp" }]
+            }
+        }))
+        .unwrap();
+
+        // WHEN both are converted to views
+        let editor = RegistryServerView::from(editor);
+        let account = RegistryServerView::from(account);
+
+        // THEN the editor's entry is official and the other community
+        assert_eq!(editor.trust_level, "verified_official");
+        assert_eq!(account.trust_level, "community");
     }
 }

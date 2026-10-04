@@ -32,6 +32,7 @@ import McpToolsTab from "./detail/McpToolsTab.svelte";
 import McpOverviewTab from "./detail/McpOverviewTab.svelte";
 import McpSettingsTab from "./detail/McpSettingsTab.svelte";
 import ConnectionSummaryDetail from "./detail/ConnectionSummaryDetail.svelte";
+import BuiltinToolsDetail from "./detail/BuiltinToolsDetail.svelte";
 import CatalogueSheet from "./catalogue/CatalogueSheet.svelte";
 import CustomMcpForm from "./catalogue/CustomMcpForm.svelte";
 import { settingsGroups } from "../integrations/McpServerSettingsEditor.svelte";
@@ -98,7 +99,7 @@ function screens(): Record<string, Rendered> {
     route: { component: Connections },
     list: {
       component: ConnectorSidebar,
-      props: { rows, selection: rows[1].selection, loading: false, loadError: null, onselect: noop, onopencatalogue: noop, oncontext: noop },
+      props: { rows, selection: rows[1].selection, loading: false, loadError: null, onselect: noop, onopencatalogue: noop, oncontext: noop, builtinTools: { active: 2, total: 3 } },
     },
     native: {
       component: NativeConnectorDetail,
@@ -130,10 +131,11 @@ function screens(): Record<string, Rendered> {
       component: McpSettingsTab,
       props: { serverName: "linear", approvalLevel: "ask", approvalPending: false, approvalError: null, confirmDisconnect: false, disconnecting: false, disconnectError: null, onapprovalchange: noop, onsaved: noop, onrequestdisconnect: noop, oncanceldisconnect: noop, onconfirmdisconnect: noop },
     },
+    builtinTools: { component: BuiltinToolsDetail },
     otherConnection: { component: ConnectionSummaryDetail, props: { connection: CONNECTIONS[3], label: "Invoices" } },
     addSheet: {
       component: CatalogueSheet,
-      props: { open: true, registry: [], agents: [], installedNames: new Set(), installedByPackage: new Map(), registryLoading: true, catalogueTier: "none", onclose: noop, onconnect: noop, onmanage: noop, oninstalled: noop, onaddnative: noop },
+      props: { open: true, registry: [], agents: [], installedNames: new Set(), installedByPackage: new Map(), registryLoading: true, catalogueTier: "none", onclose: noop, onconnect: noop, onmanage: noop, oninstalled: noop, onaddnative: noop, onaddfolder: noop },
     },
     customConnection: { component: CustomMcpForm, props: { oninstalled: noop } },
   };

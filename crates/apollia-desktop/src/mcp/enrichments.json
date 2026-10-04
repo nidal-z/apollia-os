@@ -109,6 +109,7 @@
   },
   {
     "package_identifier": "@modelcontextprotocol/server-filesystem",
+    "withdrawn": true,
     "registry_names": [],
     "operator_label": { "en": "Local Files", "fr": "Fichiers locaux" },
     "description": {

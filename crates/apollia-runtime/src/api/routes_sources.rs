@@ -3,15 +3,21 @@
 //! - `GET    /api/v1/sources`      , every source, oldest first
 //! - `POST   /api/v1/sources`      , add a source
 //! - `DELETE /api/v1/sources/{id}` , remove a source
+//! - `POST   /api/v1/sources/preview`, what a batch on a workbook or a CSV
+//!   file would read ([`preview`])
+//! - `GET    /api/v1/sources/project-migration`, the report of the migration
+//!   of the former projects into sources ([`project_migration`])
+//! - `GET    /api/v1/sources/folder-kinds`, the kinds a source made on a
+//!   folder connection may take, the code folder in developer mode only
 //!
 //! The registry lives in `system.db` and is owned by its actor; these routes
 //! talk to it through its handle, and answer 503 when the runtime holds none.
 //! An agent's `sources` list names the identifiers these routes return, or
 //! `profile` and `memory`.
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::routing::{delete, get};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
@@ -32,7 +38,16 @@ pub fn sources_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             get(list_sources::<B>).post(create_source::<B>),
         )
         .route("/api/v1/sources/:id", delete(delete_source::<B>))
+        .route("/api/v1/sources/preview", post(preview::preview_source))
+        .route(
+            "/api/v1/sources/project-migration",
+            get(project_migration::project_migration_report::<B>),
+        )
+        .route("/api/v1/sources/folder-kinds", get(folder_kinds))
 }
+
+pub mod preview;
+pub mod project_migration;
 
 /// What a source is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, utoipa::ToSchema)]
@@ -139,7 +154,8 @@ pub struct CreateSourceBody {
     /// A group the source belongs to.
     #[serde(default)]
     pub group: Option<String>,
-    /// What the source points at; required for `folder`, `file` and `mail`.
+    /// What the source points at; required for `folder`, `file`, `mail` and
+    /// `code_folder`, whose reference is a folder connection.
     #[serde(default)]
     pub reference: Option<String>,
 }
@@ -196,7 +212,7 @@ pub async fn list_sources<B: ExecutionBackend + Clone>(
     request_body = CreateSourceBody,
     responses(
         (status = 201, description = "Source added", body = SourceResponse),
-        (status = 422, description = "Unknown kind, blank label, or a folder, file or mailbox without a reference", body = crate::api::openapi::ApiErrorBody),
+        (status = 422, description = "Unknown kind, blank label, or a folder, file, mailbox or code folder without a reference", body = crate::api::openapi::ApiErrorBody),
         (status = 503, description = "Source registry not available", body = crate::api::openapi::ApiErrorBody),
     )
 )]
@@ -217,6 +233,41 @@ pub async fn create_source<B: ExecutionBackend + Clone>(
         .await
         .map_err(sources_error)?;
     Ok((StatusCode::CREATED, Json(created.into())))
+}
+
+/// Query of `GET /api/v1/sources/folder-kinds`.
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderKindsQuery {
+    /// Whether the developer mode is on, as `[desktop] developer_mode`
+    /// says; off when absent.
+    #[serde(default)]
+    pub developer_mode: bool,
+}
+
+/// `GET /api/v1/sources/folder-kinds`: the kinds offered for a source made
+/// on a folder connection.
+///
+/// The code folder is offered only when the developer mode is on. This is
+/// what the user is offered, not a check: `POST /api/v1/sources` accepts a
+/// code folder whatever the mode.
+#[utoipa::path(
+    get,
+    path = "/api/v1/sources/folder-kinds",
+    tag = "sources",
+    params(FolderKindsQuery),
+    responses(
+        (status = 200, description = "The kinds offered on a folder connection", body = Vec<SourceKindDto>),
+    )
+)]
+pub async fn folder_kinds(Query(query): Query<FolderKindsQuery>) -> Json<Vec<SourceKindDto>> {
+    Json(
+        SourceKind::offered_on_folder(query.developer_mode)
+            .into_iter()
+            .map(Into::into)
+            .collect(),
+    )
 }
 
 /// `DELETE /api/v1/sources/{id}`: remove a source.

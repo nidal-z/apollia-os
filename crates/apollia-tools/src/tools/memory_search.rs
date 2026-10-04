@@ -1,4 +1,5 @@
-//! Memory search tool wrapping FTS5/BM25 from `apollia-memory`.
+//! Memory search tool wrapping the search of `apollia-memory`: FTS5/BM25, fused
+//! with a ranking by meaning when an embeddings model is present.
 
 use std::path::PathBuf;
 
@@ -144,6 +145,10 @@ impl MemorySearchTool {
         let min_relevance = input.min_relevance;
         let query = input.query.clone();
         let base_dir = self.base_dir.clone();
+        // The vector of the query when this process has an embeddings model:
+        // the search then ranks by meaning as well as by words.
+        let embedder = apollia_memory::vectors::installed_embedder();
+        let meaning = apollia_memory::vectors::query_vector(embedder.as_deref(), &query).await;
 
         // SQLite work is offloaded to a blocking thread to avoid stalling the async executor.
         let raw_results = tokio::task::spawn_blocking(move || {
@@ -158,6 +163,7 @@ impl MemorySearchTool {
                     limit,
                     sources: source_filter.as_deref(),
                     min_importance: min_relevance,
+                    meaning: meaning.as_ref(),
                 })
                 .map_err(|e| MemorySearchToolError::SearchFailed(e.to_string()))
         })
@@ -188,8 +194,9 @@ impl MemorySearchTool {
             name: "memory_search".to_string(),
             version: "1.0.0".to_string(),
             description: "Search the agent's local memory using FTS5 full-text search with \
-                BM25 ranking. Only the agent's own namespace and declared shared namespaces \
-                are accessible. FTS5 operators in the query are escaped automatically. \
+                BM25 ranking, and by meaning as well when an embeddings model is installed. \
+                Only the agent's own namespace and declared shared namespaces are accessible. \
+                FTS5 operators in the query are escaped automatically. \
                 Memory retrieval is always agent-initiated."
                 .to_string(),
             kind: ToolKind::Native,

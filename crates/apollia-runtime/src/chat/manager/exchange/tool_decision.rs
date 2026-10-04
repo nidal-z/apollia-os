@@ -66,7 +66,6 @@ impl ChatSessionManager {
                 // borrow, so governance.db persistence can use a disjoint &self.
                 let session_mode = session.mode.clone();
                 let session_agent_name = session.agent_name.clone();
-                let session_project_id = session.project_id.clone();
 
                 // chat.db.authorized_tools: written to preserve the authorization if
                 // the runtime crashes mid-session. Kept for the ThisTool/ThisSession
@@ -82,7 +81,6 @@ impl ChatSessionManager {
                     scope,
                     session_mode,
                     session_agent_name,
-                    session_project_id: session_project_id.as_deref(),
                     session_id,
                     tool_name,
                 });
@@ -128,13 +126,12 @@ impl ChatSessionManager {
     ///
     /// `ThisTool` / `ThisSession` are in-session only (no governance write).
     /// `ThisAgent` derives the agent id from the session mode; `ThisProject`
-    /// resolves the workspace path from the project repository.
+    /// holds for the session only.
     fn persist_always_accept_scope(&self, ctx: AlwaysAcceptScopeCtx<'_>) {
         let AlwaysAcceptScopeCtx {
             scope,
             session_mode,
             session_agent_name,
-            session_project_id,
             session_id,
             tool_name,
         } = ctx;
@@ -166,7 +163,6 @@ impl ChatSessionManager {
                 warn!(
                     session_id,
                     tool_name,
-                    project_id = ?session_project_id,
                     detail = "project scope retired, session-only authorization",
                     "chat.approval.scope.downgraded"
                 );

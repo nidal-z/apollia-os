@@ -12,6 +12,8 @@ apollia-core        = { workspace = true }
 apollia-llm         = { workspace = true, features = ["cloud"] }
 apollia-permissions = { workspace = true }
 apollia-signing     = { workspace = true }
+apollia-sources     = { workspace = true }
+apollia-workspace   = { workspace = true }
 tokio        = { workspace = true }
 serde        = { workspace = true }
 serde_json   = { workspace = true }

@@ -179,7 +179,8 @@ impl MemoryInterface {
         })
     }
 
-    /// Full-text search across agent memory.
+    /// Search across agent memory, by words, and by meaning when an
+    /// embeddings model is present.
     ///
     /// Returns a list of dicts {content, score, source, timestamp}.
     /// limit: max number of results (default 10)
@@ -195,8 +196,12 @@ impl MemoryInterface {
         let limit = limit.unwrap_or(10);
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            // The vector of the query, when this process has an embeddings
+            // model: the search then ranks by meaning as well as by words.
+            let embedder = apollia_memory::vectors::installed_embedder();
+            let meaning = apollia_memory::vectors::query_vector(embedder.as_deref(), &query).await;
             let result = tokio::task::spawn_blocking(move || {
-                search_inner(&manager, &namespace, &query, limit)
+                search_inner(&manager, &namespace, &query, limit, meaning.as_ref())
             })
             .await
             .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
@@ -767,7 +772,7 @@ mod tests {
         .expect("remember");
 
         // WHEN we search for "Dupont"
-        let results = search_inner(&iface.manager, &iface.namespace, "Dupont", 5);
+        let results = search_inner(&iface.manager, &iface.namespace, "Dupont", 5, None);
 
         // THEN we get results with scores
         let items = results.expect("search");
@@ -778,6 +783,61 @@ mod tests {
             assert!(!item["source"].as_str().expect("source").is_empty());
             assert!(!item["timestamp"].as_str().expect("timestamp").is_empty());
         }
+    }
+
+    // The bridge ranks by meaning when given the query vector, same shape out
+    #[test]
+    fn test_search_ranks_by_meaning_with_a_query_vector() {
+        // GIVEN an episode with a stored vector, and a query sharing no word
+        use apollia_memory::vectors::{
+            pending_entries, save_vectors, EmbeddingsModel, QueryVector,
+        };
+        let (iface, dir) = setup_interface("agent-meaning");
+        record_inner(
+            &iface.manager,
+            &iface.namespace,
+            "agent-meaning",
+            "Customer Dupont paid the invoice",
+            0.5,
+            None,
+            None,
+            None,
+        )
+        .expect("record");
+        let store = apollia_memory::store::MemoryStore::open(&dir.path().join("agent-meaning.db"))
+            .expect("open");
+        let model = EmbeddingsModel {
+            id: "m".to_owned(),
+            dimensions: 2,
+        };
+        let pending = pending_entries(&store, &model, 10).expect("pending");
+        let entries: Vec<_> = pending.into_iter().map(|p| (p, vec![1.0, 0.0])).collect();
+        save_vectors(&store, &model, &entries).expect("save");
+        let meaning = QueryVector {
+            model: "m".to_owned(),
+            vector: vec![1.0, 0.0],
+        };
+
+        // WHEN the bridge searches without, then with, the query vector
+        let by_words = search_inner(&iface.manager, &iface.namespace, "settlement", 5, None)
+            .expect("search by words");
+        let hybrid = search_inner(
+            &iface.manager,
+            &iface.namespace,
+            "settlement",
+            5,
+            Some(&meaning),
+        )
+        .expect("hybrid search");
+
+        // THEN only the hybrid search finds it, with the keys agents read
+        assert!(by_words.is_empty());
+        assert_eq!(hybrid.len(), 1);
+        let item = &hybrid[0];
+        assert_eq!(item["content"], "Customer Dupont paid the invoice");
+        assert_eq!(item["source"], "episodic");
+        assert!(item["score"].as_f64().expect("score") > 0.0);
+        assert!(item["timestamp"].is_string());
     }
 
     // Forget removes key
@@ -872,7 +932,7 @@ mod tests {
         assert!(recall_result.is_ok());
 
         // WHEN we try to search: should work (empty results is ok)
-        let search_result = search_inner(&iface.manager, &iface.namespace, "test", 5);
+        let search_result = search_inner(&iface.manager, &iface.namespace, "test", 5, None);
         assert!(search_result.is_ok());
     }
 

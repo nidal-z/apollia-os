@@ -218,6 +218,13 @@ fn unreached_ops() -> Vec<UnreachedOp> {
             live_probed: true,
         },
         UnreachedOp {
+            id: "list_imap_providers",
+            method: Method::GET,
+            path: "/api/v1/connectors/imap/providers",
+            absent_method: Method::POST,
+            live_probed: true,
+        },
+        UnreachedOp {
             id: "test_imap_mailbox",
             method: Method::POST,
             path: "/api/v1/connectors/imap/test",
@@ -428,8 +435,8 @@ async fn test_every_operation_unreached_by_the_cli_is_mounted_on_the_router() {
     let ops = unreached_ops();
     assert_eq!(
         ops.len(),
-        28,
-        "the census must carry the twenty-eight operations the coverage table lists"
+        29,
+        "the census must carry the twenty-nine operations the coverage table lists"
     );
 
     // WHEN each is probed with a method its route does not declare
@@ -478,13 +485,13 @@ async fn test_every_operation_unreached_by_the_cli_is_mounted_on_the_router() {
         bound += 1;
     }
     assert_eq!(
-        bound, 25,
-        "the method binding of twenty-five operations must be probed"
+        bound, 26,
+        "the method binding of twenty-six operations must be probed"
     );
 }
 
 #[tokio::test]
-async fn test_twenty_five_of_the_twenty_eight_operations_carry_a_live_probe() {
+async fn test_twenty_six_of_the_twenty_nine_operations_carry_a_live_probe() {
     // GIVEN the census table, which records which operations a live probe
     // invokes the handler of
     let ops = unreached_ops();
@@ -501,7 +508,7 @@ async fn test_twenty_five_of_the_twenty_eight_operations_carry_a_live_probe() {
     // is the one whose handler reads the process home rather than the state's
     // data directory
     assert_eq!(
-        live, 25,
+        live, 26,
         "live probe count changed without the table saying so"
     );
     // Three exclusions, and they are not the same kind. `get_task_timeline`
@@ -1033,8 +1040,15 @@ async fn test_imap_routes_refuse_an_unusable_mailbox_before_reaching_a_server() 
     let dir = tempfile::tempdir().expect("temp dir");
     let router = APIServer::build_router_for_test(base_state(dir.path()));
 
-    // WHEN a mailbox on an unknown domain without a server is tested, and a
-    // mailbox without a password is added
+    // WHEN the known providers are read, a mailbox on an unknown domain
+    // without a server is tested, and a mailbox without a password is added
+    let (providers_status, providers_body) = call(
+        router.clone(),
+        Method::GET,
+        "/api/v1/connectors/imap/providers",
+        Body::empty(),
+    )
+    .await;
     let (test_status, test_body) = call(
         router.clone(),
         Method::POST,
@@ -1051,7 +1065,13 @@ async fn test_imap_routes_refuse_an_unusable_mailbox_before_reaching_a_server() 
     .await;
 
     // THEN each handler answers its typed refusal, and none opened a
-    // connection, the secret store or the mailbox list
+    // connection, the secret store or the mailbox list; the providers are read
+    // from the table compiled into the runtime
+    assert_eq!(providers_status, StatusCode::OK);
+    assert_eq!(json_of(&providers_body)["defaultPort"], 993);
+    assert!(json_of(&providers_body)["providers"]
+        .as_array()
+        .is_some_and(|providers| !providers.is_empty()));
     assert_eq!(test_status, StatusCode::BAD_REQUEST);
     assert_eq!(json_of(&test_body)["code"], "unknown_provider");
     assert_eq!(add_status, StatusCode::BAD_REQUEST);

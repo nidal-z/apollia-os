@@ -50,6 +50,7 @@ MANIFEST = [
     ("connectors-index.json", "crates/apollia-auth/src/multi_account.rs", ["AccountIndex"], False),
     ("agents/<name>/manifest.toml", "crates/apollia-core/src/manifest.rs", ["AgentManifest"], False),
     ("memory export (apollia memory export)", "crates/apollia-aip/src/memory.rs", None, False),
+    ("sources/project-migration.json", "crates/apollia-runtime/src/project_migration.rs", None, False),
     ("mcp-registry.json", "crates/apollia-mcp/src/registry.rs", ["RegistryListResponse", "RegistryServer"], True),
     ("link_previews.json", "crates/apollia-desktop/src/commands/link_preview.rs", ["CachedPreview", "LinkPreview"], True),
 ]

@@ -21,7 +21,6 @@
   import SettingsWindow from "../../../components/settings/SettingsWindow.svelte";
   import Transcriptions from "../../../routes/Transcriptions.svelte";
   import Connections from "../../../routes/Connections.svelte";
-  import Projects from "../../../routes/Projects.svelte";
   import Design from "../../../routes/Design.svelte";
   import DesignMotion from "../../../routes/DesignMotion.svelte";
   import DesignEmptyStates from "../../../routes/DesignEmptyStates.svelte";
@@ -88,8 +87,6 @@
           <Llm />
         {:else if shownRoute === "automations"}
           <Automations />
-        {:else if shownRoute === "projects"}
-          <Projects />
         {:else if shownRoute === "memory"}
           <Memory />
         {:else if shownRoute === "transcriptions"}

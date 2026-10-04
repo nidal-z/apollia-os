@@ -10,6 +10,7 @@ from .a2a_skill_dto import A2ASkillDto
 from .a2a_skill_dto_input_schema_type_0 import A2ASkillDtoInputSchemaType0
 from .a2a_skills_response import A2ASkillsResponse
 from .access_preview import AccessPreview
+from .add_folder_body import AddFolderBody
 from .add_permission_rule_body import AddPermissionRuleBody
 from .added_access import AddedAccess
 from .added_permission_rule import AddedPermissionRule
@@ -164,6 +165,7 @@ from .export_format import ExportFormat
 from .export_memory_namespace_response_200 import ExportMemoryNamespaceResponse200
 from .fire_response import FireResponse
 from .fit_dto import FitDto
+from .folder_error_body import FolderErrorBody
 from .fork_session_request import ForkSessionRequest
 from .fs_hitl_decision_body_type_0 import FsHitlDecisionBodyType0
 from .fs_hitl_decision_body_type_0_decision import FsHitlDecisionBodyType0Decision
@@ -190,6 +192,8 @@ from .health_response import HealthResponse
 from .imap_account_body import ImapAccountBody
 from .imap_account_response import ImapAccountResponse
 from .imap_error_body import ImapErrorBody
+from .imap_provider_response import ImapProviderResponse
+from .imap_providers_response import ImapProvidersResponse
 from .import_memory_body import ImportMemoryBody
 from .import_memory_body_content import ImportMemoryBodyContent
 from .import_oauth_client_body import ImportOauthClientBody
@@ -217,13 +221,14 @@ from .install_report import InstallReport
 from .installed_agent_view import InstalledAgentView
 from .invoke_request import InvokeRequest
 from .invoke_request_input import InvokeRequestInput
+from .issue_item import IssueItem
+from .issue_reason import IssueReason
 from .item_preview import ItemPreview
 from .journal_anchor import JournalAnchor
 from .journal_break import JournalBreak
 from .journal_break_reason import JournalBreakReason
 from .last_loaded_model_response import LastLoadedModelResponse
 from .last_loaded_model_response_load import LastLoadedModelResponseLoad
-from .link_project_body import LinkProjectBody
 from .list_plan_mutations_response_200_item import ListPlanMutationsResponse200Item
 from .llm_backend_response import LlmBackendResponse
 from .llm_backend_response_config_json import LlmBackendResponseConfigJson
@@ -256,10 +261,14 @@ from .memory_entry_deleted import MemoryEntryDeleted
 from .memory_entry_view import MemoryEntryView
 from .memory_estimate_dto import MemoryEstimateDto
 from .memory_imported import MemoryImported
+from .memory_merge import MemoryMerge
 from .memory_removed import MemoryRemoved
 from .memory_search_result_view import MemorySearchResultView
 from .memory_wiped import MemoryWiped
 from .message_dto import MessageDto
+from .migration_issue import MigrationIssue
+from .migration_report import MigrationReport
+from .migration_status import MigrationStatus
 from .model_cards_response import ModelCardsResponse
 from .model_cards_response_cards_item import ModelCardsResponseCardsItem
 from .model_cards_response_publishers import ModelCardsResponsePublishers
@@ -281,6 +290,7 @@ from .oauth_client_id_status import OauthClientIdStatus
 from .oauth_client_test_result import OauthClientTestResult
 from .oauth_client_value_body import OauthClientValueBody
 from .oauth_client_written import OauthClientWritten
+from .observability_settings import ObservabilitySettings
 from .ok_response import OkResponse
 from .onboarding_dismissed import OnboardingDismissed
 from .onboarding_finalized import OnboardingFinalized
@@ -323,6 +333,10 @@ from .preset_response import PresetResponse
 from .preset_response_load import PresetResponseLoad
 from .preset_response_request import PresetResponseRequest
 from .presets_list_response import PresetsListResponse
+from .preview_column import PreviewColumn
+from .preview_row_view import PreviewRowView
+from .preview_sheet import PreviewSheet
+from .preview_source_body import PreviewSourceBody
 from .profile_detail_view import ProfileDetailView
 from .profile_entry_view import ProfileEntryView
 from .profile_field_view import ProfileFieldView
@@ -330,9 +344,12 @@ from .profile_reset import ProfileReset
 from .profile_summary_view import ProfileSummaryView
 from .profile_update import ProfileUpdate
 from .profile_update_fields import ProfileUpdateFields
+from .project_outcome import ProjectOutcome
 from .proposed_rule_view import ProposedRuleView
 from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
+from .python_interpreter_request import PythonInterpreterRequest
+from .python_interpreter_setting import PythonInterpreterSetting
 from .readme_response import ReadmeResponse
 from .reasoning_profile_dto import ReasoningProfileDto
 from .reject_plan_request import RejectPlanRequest
@@ -363,6 +380,7 @@ from .rewrite_fallback_reason import RewriteFallbackReason
 from .rewrite_prompt_body import RewritePromptBody
 from .rewrite_reply import RewriteReply
 from .save_artifact_request import SaveArtifactRequest
+from .security_posture_response_200 import SecurityPostureResponse200
 from .send_message_request import SendMessageRequest
 from .send_message_response import SendMessageResponse
 from .server_log_level import ServerLogLevel
@@ -402,6 +420,7 @@ from .skill_listing_input_schema_type_0 import SkillListingInputSchemaType0
 from .source_descriptor import SourceDescriptor
 from .source_descriptor_options import SourceDescriptorOptions
 from .source_kind_dto import SourceKindDto
+from .source_preview_response import SourcePreviewResponse
 from .source_response import SourceResponse
 from .sse_mailbox_event import SseMailboxEvent
 from .sse_task_event import SseTaskEvent
@@ -522,6 +541,7 @@ __all__ = (
     "AccessPreview",
     "AddedAccess",
     "AddedPermissionRule",
+    "AddFolderBody",
     "AddPermissionRuleBody",
     "AdvancePhaseBody",
     "AgentListResponse",
@@ -674,6 +694,7 @@ __all__ = (
     "ExportMemoryNamespaceResponse200",
     "FireResponse",
     "FitDto",
+    "FolderErrorBody",
     "ForkSessionRequest",
     "FsHitlDecisionBodyType0",
     "FsHitlDecisionBodyType0Decision",
@@ -700,6 +721,8 @@ __all__ = (
     "ImapAccountBody",
     "ImapAccountResponse",
     "ImapErrorBody",
+    "ImapProviderResponse",
+    "ImapProvidersResponse",
     "ImportMemoryBody",
     "ImportMemoryBodyContent",
     "ImportOauthClientBody",
@@ -727,13 +750,14 @@ __all__ = (
     "InstallReport",
     "InvokeRequest",
     "InvokeRequestInput",
+    "IssueItem",
+    "IssueReason",
     "ItemPreview",
     "JournalAnchor",
     "JournalBreak",
     "JournalBreakReason",
     "LastLoadedModelResponse",
     "LastLoadedModelResponseLoad",
-    "LinkProjectBody",
     "ListPlanMutationsResponse200Item",
     "LlmBackendResponse",
     "LlmBackendResponseConfigJson",
@@ -766,10 +790,14 @@ __all__ = (
     "MemoryEntryView",
     "MemoryEstimateDto",
     "MemoryImported",
+    "MemoryMerge",
     "MemoryRemoved",
     "MemorySearchResultView",
     "MemoryWiped",
     "MessageDto",
+    "MigrationIssue",
+    "MigrationReport",
+    "MigrationStatus",
     "ModelCardsResponse",
     "ModelCardsResponseCardsItem",
     "ModelCardsResponsePublishers",
@@ -791,6 +819,7 @@ __all__ = (
     "OauthClientTestResult",
     "OauthClientValueBody",
     "OauthClientWritten",
+    "ObservabilitySettings",
     "OkResponse",
     "OnboardingDismissed",
     "OnboardingFinalized",
@@ -831,6 +860,10 @@ __all__ = (
     "PresetResponseLoad",
     "PresetResponseRequest",
     "PresetsListResponse",
+    "PreviewColumn",
+    "PreviewRowView",
+    "PreviewSheet",
+    "PreviewSourceBody",
     "ProfileDetailView",
     "ProfileEntryView",
     "ProfileFieldView",
@@ -838,9 +871,12 @@ __all__ = (
     "ProfileSummaryView",
     "ProfileUpdate",
     "ProfileUpdateFields",
+    "ProjectOutcome",
     "ProposedRuleView",
     "PurgeMemoryBody",
     "PutMcpSecretBody",
+    "PythonInterpreterRequest",
+    "PythonInterpreterSetting",
     "ReadmeResponse",
     "ReasoningProfileDto",
     "RejectPlanRequest",
@@ -869,6 +905,7 @@ __all__ = (
     "RewritePromptBody",
     "RewriteReply",
     "SaveArtifactRequest",
+    "SecurityPostureResponse200",
     "SendMessageRequest",
     "SendMessageResponse",
     "ServerLogLevel",
@@ -908,6 +945,7 @@ __all__ = (
     "SourceDescriptor",
     "SourceDescriptorOptions",
     "SourceKindDto",
+    "SourcePreviewResponse",
     "SourceResponse",
     "SseMailboxEvent",
     "SseTaskEvent",

@@ -14,7 +14,6 @@
     | "this_tool"
     | "this_session"
     | "this_agent"
-    | "this_project"
     | "global";
 
   interface Props {
@@ -44,11 +43,6 @@
       key: "this_agent",
       labelKey: "approvals.scope.this_agent",
       descKey: "approvals.scope.this_agent_desc",
-    },
-    {
-      key: "this_project",
-      labelKey: "approvals.scope.this_project",
-      descKey: "approvals.scope.this_project_desc",
     },
     {
       key: "global",

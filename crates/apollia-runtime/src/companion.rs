@@ -126,7 +126,6 @@ pub async fn create_session(
             agent_name: Some(GUIDE_AGENT.to_string()),
             system_prompt: None,
             tools: Vec::new(),
-            project_id: None,
         })
         .await
         .map_err(|e| match e {

@@ -49,13 +49,13 @@ pub struct HitlFilesystemContext {
     pub fs_allow_rules: Arc<Mutex<std::collections::HashSet<String>>>,
     /// Chat session id used to scope events + persistence.
     pub session_id: String,
-    /// Project workspace path. It anchors relative paths and is trusted like
-    /// any entry of `trusted_paths`; it is never a boundary on its own.
+    /// The first folder granted to the agent. It anchors relative paths and
+    /// is trusted like the folders granted for writing.
     pub workspace_path: Option<PathBuf>,
-    /// Paths the operator trusts (`[filesystem] trusted_paths`). A path under
-    /// none of them, nor under the workspace, is escalated by the classifier
-    /// and therefore asked about, not refused.
-    pub trusted_paths: Vec<PathBuf>,
+    /// The folders granted to the agent for writing. A path under none of
+    /// them is escalated by the classifier and therefore asked about; the
+    /// tool itself refuses a path outside every granted folder.
+    pub granted_write_roots: Vec<PathBuf>,
     /// Sandbox root joined with the input's relative path to obtain the
     /// resolved absolute path before classification.
     pub sandbox_root: PathBuf,
@@ -158,7 +158,7 @@ impl HitlFilesystemGuard {
             resolved,
             &RiskClassifier::trusted_roots(
                 self.ctx.workspace_path.as_deref(),
-                &self.ctx.trusted_paths,
+                &self.ctx.granted_write_roots,
             ),
             &self.ctx.risk_config,
         );

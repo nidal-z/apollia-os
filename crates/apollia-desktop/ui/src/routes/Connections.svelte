@@ -3,7 +3,8 @@
    * Connections - every connection of this machine, in one list.
    *
    * Thin orchestrator: owns the top-level data (the connection list served by
-   * the loader, installed servers, enrichments, registry, native accounts) and
+   * the loader, installed servers, enrichments, registry, native accounts, the
+   * count of built-in tools) and
    * selection, wires IPC via
    * `$lib/ipc/connections`, and composes the decomposed sub-components under
    * `components/connections/*`. Business logic lives in `$lib/connections/*`
@@ -17,18 +18,19 @@
   import NativeConnectorDetail from "../components/connections/detail/NativeConnectorDetail.svelte";
   import McpServerDetail from "../components/connections/detail/McpServerDetail.svelte";
   import ConnectionSummaryDetail from "../components/connections/detail/ConnectionSummaryDetail.svelte";
+  import BuiltinToolsDetail from "../components/connections/detail/BuiltinToolsDetail.svelte";
+  import { tools as builtinTools, loadTools as loadBuiltinTools } from "$lib/stores/toolGovernance";
   import CatalogueSheet from "../components/connections/catalogue/CatalogueSheet.svelte";
   import NativeOauthDialog from "../components/connections/oauth/NativeOauthDialog.svelte";
   import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
-  import McpDisclaimerDialog, {
-    isDisclaimerAccepted,
-  } from "../components/integrations/McpDisclaimerDialog.svelte";
+  import MailboxDialog from "../components/integrations/MailboxDialog.svelte";
+  import FolderConnectionDialog from "../components/connections/catalogue/FolderConnectionDialog.svelte";
+  import { chooseAndAddFolder, type FolderOutcome } from "$lib/connections/folderConnection";
+  import { openSettingsWindow } from "$lib/stores/settingsWindow";
   import {
     listMcpServers,
     listMcpEnrichments,
     listAgents,
-    fetchMcpCurated,
-    fetchMcpRegistry,
     getMcpServerDetail,
     oauthGetStatus,
     oauthDisconnect,
@@ -38,6 +40,7 @@
   import { messageOf, formatTauriError } from "$lib/connections/errors";
   import { needsOauthSetup } from "$lib/connections/status";
   import { loadConnections } from "$lib/connections/connectionList";
+  import { createCatalogueSource, type CatalogueTier } from "$lib/connections/catalogueSource";
   import {
     NATIVE_PROVIDER_KEYS,
     connectionRows,
@@ -45,6 +48,11 @@
   } from "$lib/connections/connectionRows";
   import { oauthListClientIds, type OauthClientIdStatus } from "$lib/ipc/oauthClients";
   import { navigateTo } from "$lib/stores/navigation";
+  import {
+    findSelectionEntry,
+    pendingConnectionAdd,
+    takePendingConnectionAdd,
+  } from "$lib/stores/connectionAdd";
   import { pendingChatSessionId } from "$lib/stores/chat";
   import { createChatSession } from "$lib/ipc/agents";
   import { sendChatMessage } from "$lib/ipc/chat";
@@ -137,10 +145,17 @@
   // ── Catalogue + wizard ───────────────────────────────────────────────────────
   let catalogueOpen = $state(false);
   let registryLoading = $state(false);
-  let catalogueTier = $state<"none" | "curated" | "full">("none");
+  let catalogueTier = $state<CatalogueTier>("none");
+  // Opening reads the selection only; the public catalogue is asked by
+  // "Explore all" and nothing else.
+  const catalogueSource = createCatalogueSource();
   let selectedRegistryServer = $state<RegistryServerView | null>(null);
   let wizardOpen = $state(false);
-  let disclaimerOpen = $state(false);
+  let mailboxOpen = $state(false);
+
+  // ── Folder connections ───────────────────────────────────────────────────────
+  let folderOutcome = $state<Exclude<FolderOutcome, { kind: "cancelled" }> | null>(null);
+  let folderDialogOpen = $state(false);
 
   // ── Derived ──────────────────────────────────────────────────────────────────
   function resolveEnrichment(server: McpServerStatusView): ConnectorEnrichmentView | null {
@@ -163,6 +178,11 @@
     const sel = selection;
     if (sel?.kind !== "connection") return null;
     return connections.find((c) => c.id === sel.id) ?? null;
+  });
+
+  const builtinCount = $derived({
+    active: $builtinTools.filter((tool) => tool.enabled).length,
+    total: $builtinTools.length,
   });
 
   const installedNames = $derived(new Set(servers.map((s) => s.name)));
@@ -206,23 +226,24 @@
     }
   }
 
-  async function loadCuratedCatalogue(): Promise<void> {
-    if (catalogueTier !== "none") return;
+  async function showSelection(): Promise<void> {
     registryLoading = true;
     try {
-      registry = await fetchMcpCurated().catch(() => [] as RegistryServerView[]);
-      catalogueTier = "curated";
+      const view = await catalogueSource.selection();
+      catalogueTier = view.tier;
+      registry = view.entries;
     } finally {
       registryLoading = false;
     }
   }
 
-  async function loadFullRegistry(): Promise<void> {
-    if (catalogueTier === "full" || registryLoading) return;
+  async function handleExploreAll(): Promise<void> {
+    if (registryLoading) return;
     registryLoading = true;
     try {
-      registry = await fetchMcpRegistry().catch(() => [] as RegistryServerView[]);
-      catalogueTier = "full";
+      const view = await catalogueSource.exploreAll();
+      catalogueTier = view.tier;
+      registry = view.entries;
     } finally {
       registryLoading = false;
     }
@@ -254,20 +275,46 @@
   // ── Handlers ─────────────────────────────────────────────────────────────────
   function handleOpenCatalogue(): void {
     catalogueOpen = true;
-    void (async () => {
-      await loadCuratedCatalogue();
-      if (catalogueTier === "curated") void loadFullRegistry();
-    })();
+    void showSelection();
   }
 
+  /** Choosing an entry opens the add dialog on its warning. */
   function handleConnect(server: RegistryServerView): void {
     catalogueOpen = false;
     selectedRegistryServer = server;
-    if (!isDisclaimerAccepted()) {
-      disclaimerOpen = true;
-      return;
-    }
     wizardOpen = true;
+  }
+
+  /**
+   * Open the add dialog on the selection entry another screen asked for; an
+   * entry the selection does not hold opens the catalogue instead.
+   */
+  async function openPendingEntry(entryId: string): Promise<void> {
+    await showSelection();
+    const entry = findSelectionEntry(registry, entryId);
+    if (entry) handleConnect(entry);
+    else catalogueOpen = true;
+  }
+
+  /**
+   * "Folder" in the selection, or "Choose another folder" after one: the
+   * system picker, then the folder added. A cancelled picker changes nothing.
+   */
+  async function addFolder(): Promise<void> {
+    catalogueOpen = false;
+    const outcome = await chooseAndAddFolder($t("connections.folder.picker_title"));
+    if (outcome.kind === "cancelled") return;
+    folderOutcome = outcome;
+    folderDialogOpen = true;
+    if (outcome.kind === "added") {
+      await loadAll();
+      selection = { kind: "connection", id: outcome.connection.id };
+    }
+  }
+
+  function closeFolderDialog(): void {
+    folderDialogOpen = false;
+    folderOutcome = null;
   }
 
   function handleManage(name: string): void {
@@ -305,8 +352,15 @@
 
   // ── Effects ──────────────────────────────────────────────────────────────────
   $effect(() => {
+    if ($pendingConnectionAdd === null) return;
+    const entryId = takePendingConnectionAdd();
+    if (entryId !== null) void openPendingEntry(entryId);
+  });
+
+  $effect(() => {
     void loadAll();
     void refreshNativeStatus();
+    void loadBuiltinTools();
   });
 
   // Auto-select the first connection; recover when the target disappears. A
@@ -315,11 +369,11 @@
   $effect(() => {
     if (loading) return;
     const cur = selection;
-    if (cur !== null && cur.kind !== "native" && selectedRow === null) {
+    if (cur !== null && cur.kind !== "native" && cur.kind !== "builtin" && selectedRow === null) {
       selection = null;
     }
     if (selection !== null) return;
-    selection = rows[0]?.selection ?? null;
+    selection = rows[0]?.selection ?? { kind: "builtin" };
   });
 
   // Reset tabs on selection kind change.
@@ -392,6 +446,7 @@
         onselect={(sel) => (selection = sel)}
         onopencatalogue={handleOpenCatalogue}
         oncontext={handleContext}
+        builtinTools={builtinCount}
       />
     {/snippet}
 
@@ -425,10 +480,16 @@
           void loadAll();
         }}
       />
+    {:else if selection?.kind === "builtin"}
+      <BuiltinToolsDetail />
     {:else if selection?.kind === "connection" && selectedConnection}
       <ConnectionSummaryDetail
         connection={selectedConnection}
         label={selectedRow?.label ?? selectedConnection.label}
+        onremoved={() => {
+          selection = null;
+          void loadAll();
+        }}
       />
     {:else}
       <div
@@ -459,15 +520,23 @@
   />
 {/if}
 
-<McpDisclaimerDialog
-  open={disclaimerOpen}
-  onaccept={() => {
-    disclaimerOpen = false;
-    if (selectedRegistryServer) wizardOpen = true;
+<MailboxDialog
+  open={mailboxOpen}
+  onclose={() => (mailboxOpen = false)}
+  onadded={(connectionId) => {
+    selection = { kind: "connection", id: connectionId };
+    void loadAll();
   }}
-  onclose={() => {
-    disclaimerOpen = false;
-    selectedRegistryServer = null;
+/>
+
+<FolderConnectionDialog
+  open={folderDialogOpen}
+  outcome={folderOutcome}
+  onclose={closeFolderDialog}
+  onchooseanother={() => void addFolder()}
+  onopenrule={() => {
+    closeFolderDialog();
+    openSettingsWindow("permissions");
   }}
 />
 
@@ -488,11 +557,18 @@
   {registryLoading}
   {catalogueTier}
   onclose={() => (catalogueOpen = false)}
+  onexploreall={handleExploreAll}
+  onbacktoselection={showSelection}
   onconnect={handleConnect}
   onmanage={handleManage}
+  onaddfolder={() => void addFolder()}
   onaddnative={(provider) => {
     catalogueOpen = false;
     selection = { kind: "native", provider };
+  }}
+  onaddmailbox={() => {
+    catalogueOpen = false;
+    mailboxOpen = true;
   }}
   oninstalled={() => {
     catalogueOpen = false;

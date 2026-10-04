@@ -1,6 +1,6 @@
 //! Stub LLM types the tool-call helper needs, and the per-agent sandbox rules.
 
-use std::path::PathBuf;
+use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -96,28 +96,16 @@ impl apollia_oria::actor::ToolProxyTrait for OriaToolProxy {
 // `FileIo` and friends confine every path to these roots.
 // ─────────────────────────────────────────────────────────────
 
-/// Return the filesystem roots used by file-oriented native tools.
+/// The access an agent's executor checks, and the folders its file tools
+/// reach: the folders granted to it, read from the `system.db` of `data_dir`.
+/// An agent granted no folder reaches none, and its file tools say so.
 ///
-/// `trusted` is `[filesystem] trusted_paths`, `~` already resolved. It defaults
-/// to the user's home directory, which is what the root used to be, hardcoded:
-/// an agent whose work lives on a mounted volume or under `/opt` had no way to
-/// reach it and no setting to change that.
-///
-/// The home directory is the fallback when the list is empty, rather than
-/// nothing at all: a file tool needs an anchor for relative paths, and an agent
-/// with no reachable root is an agent that fails on its first call.
-///
-/// Centralised so every runner in this crate points at the same roots.
-pub(super) fn sandbox_roots_for_agent(trusted: &[PathBuf]) -> Vec<PathBuf> {
-    let roots: Vec<PathBuf> = trusted
-        .iter()
-        .filter(|p| !p.as_os_str().is_empty())
-        .cloned()
-        .collect();
-    if roots.is_empty() {
-        return vec![apollia_core::paths::home_dir_or_temp()];
-    }
-    roots
+/// Centralised so every runner in this crate derives the same roots.
+pub(super) fn file_tool_access(
+    allowed_tools: Vec<String>,
+    data_dir: &Path,
+) -> (Vec<String>, apollia_tools::FolderRoots) {
+    apollia_tools::granted_folders(allowed_tools, data_dir)
 }
 
 /// Union of statically-disabled tools (from `apollia.toml`) with the runtime
@@ -137,43 +125,44 @@ pub(super) fn merge_disabled(
 
 #[cfg(test)]
 mod tests {
-    use super::sandbox_roots_for_agent;
-    use std::path::PathBuf;
+    use super::file_tool_access;
+    use apollia_core::paths::DataFile;
+    use apollia_core::FolderConnectionStore;
 
     #[test]
-    fn an_empty_trusted_list_still_yields_a_root() {
-        // GIVEN an operator who emptied `[filesystem] trusted_paths`
-        let trusted: Vec<PathBuf> = Vec::new();
+    fn a_cli_run_reaches_the_folders_granted_to_its_agent_for_writing() {
+        // GIVEN one stored folder granted to read and to write
+        let data = tempfile::tempdir().expect("tempdir");
+        let folder = tempfile::tempdir().expect("tempdir");
+        let store = FolderConnectionStore::open(&DataFile::System.path(data.path()))
+            .expect("open system.db");
+        let folder = store
+            .add(&folder.path().to_string_lossy(), None)
+            .expect("add");
+        let access = vec![
+            format!("conn:folder:{}/file_read", folder.id),
+            format!("conn:folder:{}/file_edit", folder.id),
+        ];
 
-        // WHEN the agent roots are derived
-        let roots = sandbox_roots_for_agent(&trusted);
+        // WHEN the CLI path derives the roots of its file tools
+        let (tools, roots) = file_tool_access(access, data.path());
 
-        // THEN one root remains. An empty list reaches `SandboxRoot::new` as a
-        // construction failure, and the dispatcher logs and skips a tool it
-        // cannot build: emptying a setting would silently remove every file
-        // tool from the agent rather than narrow it.
-        assert_eq!(roots.len(), 1);
-        assert!(!roots[0].as_os_str().is_empty());
+        // THEN the folder is both a read and a write root
+        let path = std::path::PathBuf::from(&folder.path);
+        assert_eq!(tools, vec!["file_read".to_owned(), "file_edit".to_owned()]);
+        assert_eq!(roots.read, vec![path.clone()]);
+        assert_eq!(roots.write, vec![path]);
     }
 
     #[test]
-    fn configured_roots_are_kept_in_order_and_empties_dropped() {
-        // GIVEN a configured list carrying an entry that resolved to nothing
-        let trusted = vec![
-            PathBuf::from("/mnt/work"),
-            PathBuf::new(),
-            PathBuf::from("/opt/data"),
-        ];
+    fn a_cli_run_without_a_granted_folder_reaches_no_home_folder() {
+        // GIVEN an agent granted the file tools but no folder
+        let data = tempfile::tempdir().expect("tempdir");
 
-        // WHEN the agent roots are derived
-        let roots = sandbox_roots_for_agent(&trusted);
+        // WHEN the CLI path derives the roots of its file tools
+        let (_, roots) = file_tool_access(vec!["file_write".to_owned()], data.path());
 
-        // THEN order is preserved, since the first entry is the anchor relative
-        // paths land under, and the empty entry is gone: every path starts with
-        // it, so keeping one would trust the whole disk.
-        assert_eq!(
-            roots,
-            vec![PathBuf::from("/mnt/work"), PathBuf::from("/opt/data")]
-        );
+        // THEN no root is given, the home folder no longer being a default
+        assert!(roots.read.is_empty() && roots.write.is_empty());
     }
 }
