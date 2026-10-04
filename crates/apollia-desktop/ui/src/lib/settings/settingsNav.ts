@@ -2,7 +2,8 @@
  * The settings navigation column: two groups, ranked by use rather than by
  * architecture. "Settings" holds what a user adjusts, "System" what the
  * machine runs on. Developer comes last of its group: it is the switch a
- * business user never has to touch. The sections that leave the settings for
+ * business user never has to touch. Configuration, the editor of
+ * `apollia.toml`, follows it and is listed only with the developer mode on. The sections that leave the settings for
  * their own screens (LLM backends, Model Hub, Tools, Permissions) follow it
  * until they move; the OAuth integrations already live on the Connections
  * screen, on the page of each connection.
@@ -30,6 +31,8 @@ export type SettingsNavEntry = {
   icon: typeof Palette;
   /** Id of the catalogue shortcut that opens this section, shown in the column. */
   shortcutId?: string;
+  /** Listed only with the developer mode on. */
+  developerOnly?: boolean;
 };
 
 export type SettingsNavCluster = {
@@ -48,6 +51,12 @@ export const SETTINGS_NAV: SettingsNavCluster[] = [
       { key: "stt", labelKey: "settings.nav.stt", icon: Mic },
       { key: "model-defaults", labelKey: "settings.nav.model_defaults", icon: SlidersHorizontal },
       { key: "developer", labelKey: "settings.nav.developer", icon: Code },
+      {
+        key: "configuration",
+        labelKey: "settings.nav.configuration",
+        icon: Code,
+        developerOnly: true,
+      },
       { key: "llm", labelKey: "settings.nav.llm", icon: Cpu },
       { key: "model-hub", labelKey: "settings.nav.model_hub", icon: Download },
       { key: "tools", labelKey: "settings.nav.tools", icon: Wrench },
@@ -72,3 +81,11 @@ export const SETTINGS_NAV: SettingsNavCluster[] = [
     ],
   },
 ];
+
+/** The column as shown with the developer mode in this position. */
+export function visibleSettingsNav(developerMode: boolean): SettingsNavCluster[] {
+  return SETTINGS_NAV.map((cluster) => ({
+    ...cluster,
+    entries: cluster.entries.filter((entry) => developerMode || !entry.developerOnly),
+  }));
+}

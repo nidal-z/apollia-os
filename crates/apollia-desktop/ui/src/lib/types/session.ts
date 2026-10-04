@@ -57,27 +57,6 @@ export interface LlmDailyCostsResponse {
   days: number;
 }
 
-/** Key/value entry of a configuration section. */
-export interface ConfigEntry {
-  key: string;
-  value: string;
-}
-
-/** Configuration section grouped by theme. */
-export interface ConfigSection {
-  name: string;
-  description: string;
-  entries: ConfigEntry[];
-  redirect_route: string | null;
-}
-
-/** Flat view of the Apollia OS configuration. */
-export interface ApollaConfigView {
-  config_path: string;
-  config_exists: boolean;
-  sections: ConfigSection[];
-}
-
 /** System information for the Advanced section of Settings. */
 export interface SystemInfo {
   version: string;

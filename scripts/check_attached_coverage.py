@@ -101,8 +101,9 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # the runtime, then at 8 once the commands of the former projects, served by
 # the embedded runtime alone, left with their screen, then at 5 once the update
 # of an agent, the deletion of a stored task and its delegation tree had their
-# routes.
-EMBEDDED_ONLY_CEILING = 5
+# routes, then at 4 once the read-only view of the configuration gave way to
+# its editor, which goes through the configuration routes.
+EMBEDDED_ONLY_CEILING = 4
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

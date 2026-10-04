@@ -53,9 +53,7 @@
     "channel-toggle-seed-channel-desktop",
     "command-item-agents.create",
     "command-item-companion.toggle",
-    "config-file-card-copy-oria",
-    "config-file-card-copy-runtime",
-    "config-file-card-oria",
+    "config-editor-gutter-1",
     "connections-sidebar-filter-active",
     "connections-sidebar-filter-all",
     "connections-sidebar-filter-attention",
@@ -151,6 +149,7 @@
     "quickpicker-agent-seed-classifier",
     "settings-nav-appearance",
     "settings-nav-chat",
+    "settings-nav-configuration",
     "settings-nav-developer",
     "settings-nav-engines",
     "settings-nav-engines-shortcut",
@@ -13347,27 +13346,32 @@
       "ms": 800
     },
     {
+      "kind": "click",
+      "testid": "settings-nav-configuration",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "waitFor",
       "testid": "configuration-subpage",
       "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "settings-operational-redirect-banner",
+      "testid": "config-editor",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "config-editor-gutter-1",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "22-configuration"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "config-file-card-copy-runtime",
-      "timeoutMs": 4000
+      "label": "22-configuration-editor"
     },
     {
       "kind": "click",
-      "testid": "config-file-card-copy-runtime",
+      "testid": "config-editor-copy-path",
       "timeoutMs": 4000
     },
     {
@@ -13376,25 +13380,16 @@
     },
     {
       "kind": "screenshot",
-      "label": "23-config-file-card-copied"
+      "label": "23-config-editor-path-copied"
     },
     {
       "kind": "click",
-      "testid": "config-file-card-oria",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
+      "testid": "settings-nav-developer"
     },
     {
       "kind": "waitFor",
-      "testid": "config-file-card-copy-oria",
+      "testid": "developer-mode-toggle",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "23b-config-file-card-expanded"
     },
     {
       "kind": "click",
@@ -14562,12 +14557,6 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "stubInvoke",
-      "command": "open_config_in_editor",
-      "resolve": null,
-      "once": true
-    },
-    {
       "kind": "click",
       "testid": "observability-open-editor",
       "timeoutMs": 4000
@@ -14577,12 +14566,13 @@
       "ms": 800
     },
     {
-      "kind": "screenshot",
-      "label": "58-observability-open-editor (the host handler is answered by a stub: an automaton opens no other application)"
+      "kind": "waitFor",
+      "testid": "config-editor",
+      "timeoutMs": 8000
     },
     {
-      "kind": "clearStubs",
-      "command": "open_config_in_editor"
+      "kind": "screenshot",
+      "label": "58-observability-open-editor (the editor of the file opens in the settings window)"
     },
     {
       "kind": "goto",
