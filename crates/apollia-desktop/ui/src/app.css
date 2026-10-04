@@ -196,6 +196,11 @@
     --z-toast: 40;
     --z-overlay: 50;
     --z-tooltip: 70;
+    /* The onboarding veil sits above the whole stack; the top bar and the
+       detail sidebar rise one rung above it while it is shown, so the help
+       stays reachable during the onboarding. */
+    --z-onboarding: 80;
+    --z-onboarding-above: 81;
 
     /* ── Type scale ──
        One declaration per tier, and the single source of the sizes: the

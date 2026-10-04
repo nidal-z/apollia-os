@@ -98,16 +98,13 @@
       "ago": "il y a {time}"
     }
   },
+  "detailSidebar": {
+    "aria_label": "Panneau de détail",
+    "tab_guide": "Guide",
+    "collapse": "Replier le panneau de détail"
+  },
   "companion": {
-    "aria_label": "Companion Apollia",
-    "title": "Companion",
-    "minimize": "Réduire le Companion",
-    "close": "Fermer le Companion",
     "no_session": "Aucune session active.",
-    "drag": {
-      "handle_aria": "Déplacer le Companion",
-      "resize_aria": "Redimensionner le Companion"
-    },
     "session": {
       "connecting": "Connexion à l'agent…",
       "creating": "Création de la session…",
@@ -151,8 +148,7 @@
         "cause_2": "La configuration est invalide",
         "cause_3": "Une erreur interne est survenue"
       }
-    },
-    "header_toolbar": "Barre d'outils du Companion"
+    }
   },
   "a11y": {
     "skip_to_content": "Aller au contenu principal",
@@ -226,6 +222,8 @@
       "runtime_down": "Runtime hors ligne - reconnexion en cours"
     },
     "search_aria": "Recherche et palette de commandes",
+    "help_aria": "Aide sur cet écran",
+    "detail_sidebar_aria": "Afficher ou masquer le panneau de détail",
     "agents_at_work": "{count} agents au travail",
     "downloads": {
       "button_aria": "Téléchargements",
@@ -256,7 +254,6 @@
     "settings": "Paramètres",
     "shortcuts": "Raccourcis clavier",
     "reset_onboarding": "Réinitialiser l'onboarding",
-    "help": "Aide",
     "about": "À propos",
     "quit": "Quitter"
   },
@@ -2264,8 +2261,7 @@
         "chat_stop": "Annuler la génération en cours",
         "settings_save": "Enregistrer l'onglet Réglages courant",
         "settings_close": "Fermer la fenêtre ou le panneau",
-        "companion_toggle": "Ouvrir / fermer l'Aide Apollia",
-        "companion_move": "Déplacer le Companion à l'écran",
+        "companion_toggle": "Ouvrir le guide sur l'écran courant",
         "companion_focus": "Focaliser la saisie du Companion",
         "approvals_accept": "Accepter l'approbation courante",
         "approvals_refuse": "Refuser l'approbation courante",
@@ -3303,7 +3299,6 @@
       "palette": "Ouvrir la palette de commandes",
       "search_sidebar": "Focus recherche barre latérale",
       "toggle_sidebar": "Afficher/masquer la barre des sessions",
-      "help": "Raccourcis clavier",
       "next_message": "Message suivant",
       "prev_message": "Message précédent",
       "stop_or_close": "Arrêter le streaming / fermer la modale"
@@ -4132,7 +4127,7 @@
       "createAgent": "Créer un agent",
       "createTrigger": "Créer un trigger",
       "toggleDeveloperMode": "Activer / désactiver le mode développeur",
-      "toggleCompanion": "Basculer le Companion"
+      "toggleCompanion": "Ouvrir ou fermer le guide"
     },
     "help": {
       "shortcuts": "Afficher les raccourcis clavier",

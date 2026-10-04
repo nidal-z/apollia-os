@@ -191,7 +191,7 @@ export function buildPaletteActions(): PaletteAction[] {
     {
       id: "companion.toggle",
       label: tr("commandPalette.actions.toggleCompanion"),
-      keywords: ["companion", "panel", "toggle"],
+      keywords: ["companion", "guide", "help", "aide", "panel", "toggle"],
       icon: PanelRightOpen,
       kind: "actions",
       execute: () => companionStore.toggleCompanion(),
