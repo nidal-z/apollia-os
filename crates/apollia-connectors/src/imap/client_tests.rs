@@ -271,3 +271,65 @@ async fn test_read_of_a_missing_message_or_folder_is_typed() {
     assert_eq!(missing.code(), "message_not_found");
     assert_eq!(folder.code(), "folder_refused");
 }
+
+#[tokio::test]
+async fn test_a_folder_is_counted_listed_and_read_whole_without_being_opened_for_writing() {
+    // GIVEN a fake inbox of two messages, one of them unread
+    let server = FakeImap::start().await;
+    let client = test_client();
+    let account = server.account();
+
+    // WHEN the folder is counted, its messages listed, then read
+    let count = client
+        .folder_count(&account, GOOD_PASSWORD, "INBOX")
+        .await
+        .unwrap();
+    let listed = client
+        .matching_uids(&account, GOOD_PASSWORD, &MailQuery::default())
+        .await
+        .unwrap();
+    let messages = client
+        .read_many(&account, GOOD_PASSWORD, "INBOX", &listed)
+        .await
+        .unwrap();
+
+    // THEN the count is the server's, the identifiers come newest first
+    //      under the folder's UIDVALIDITY, and the messages in that order
+    assert_eq!(
+        count,
+        FolderCount {
+            messages: 2,
+            unread: 1
+        }
+    );
+    assert_eq!(listed.uid_validity, super::fake_server::UID_VALIDITY);
+    assert_eq!(listed.uids, [7, 3]);
+    assert_eq!(messages.iter().map(|m| m.uid).collect::<Vec<_>>(), [7, 3]);
+    // AND only reading commands were sent, the count without opening the folder
+    let verbs = verbs(&server.commands());
+    assert_eq!(&verbs[..3], ["LOGIN", "STATUS", "LOGOUT"]);
+    for writing in WRITING_COMMANDS {
+        assert!(!verbs.iter().any(|v| v.contains(writing)), "{writing}");
+    }
+}
+
+#[tokio::test]
+async fn test_identifiers_listed_under_another_validity_are_not_read() {
+    // GIVEN a fake inbox, and identifiers listed under a validity it no
+    //       longer has
+    let server = FakeImap::start().await;
+    let stale = FolderUids {
+        uid_validity: super::fake_server::UID_VALIDITY + 1,
+        uids: vec![7],
+    };
+
+    // WHEN they are read
+    let err = test_client()
+        .read_many(&server.account(), GOOD_PASSWORD, "INBOX", &stale)
+        .await
+        .unwrap_err();
+
+    // THEN the read is refused before any message is fetched
+    assert_eq!(err.code(), "protocol");
+    assert!(!verbs(&server.commands()).contains(&"UID FETCH".to_owned()));
+}

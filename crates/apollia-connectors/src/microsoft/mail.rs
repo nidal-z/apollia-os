@@ -8,7 +8,13 @@
 //! - `reply` (`/messages/{id}/reply`)
 //! - `list_folders`
 //! - `move` (`/messages/{id}/move`)
+//!
+//! [`OutlookMailClient::folder_page`] reads a folder page by page, each
+//! message whole, with the count of the messages its filter matches. It is
+//! what a batch reads a mailbox through; it is not one of the operations
+//! above and no agent calls it.
 
+use chrono::NaiveDate;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
@@ -85,6 +91,139 @@ pub struct MailFolder {
     /// Unread item count.
     #[serde(default)]
     pub unread_item_count: Option<u32>,
+}
+
+/// Folder read when a folder filter names none: the inbox, by the name
+/// Graph knows it under.
+pub const DEFAULT_FOLDER: &str = "inbox";
+
+/// Messages asked per page of a folder.
+pub const FOLDER_PAGE_SIZE: u32 = 50;
+
+/// Which messages of a folder are read.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FolderFilter {
+    /// Folder id, or one of the names Graph knows (`inbox`, `archive`,
+    /// `sentitems`); the inbox when absent.
+    pub folder: Option<String>,
+    /// Received on or after this day.
+    pub since: Option<NaiveDate>,
+    /// Received before this day.
+    pub before: Option<NaiveDate>,
+    /// Only messages not yet read.
+    pub unread_only: bool,
+}
+
+impl FolderFilter {
+    /// The folder the filter reads.
+    #[must_use]
+    pub fn folder(&self) -> &str {
+        self.folder
+            .as_deref()
+            .map(str::trim)
+            .filter(|f| !f.is_empty())
+            .unwrap_or(DEFAULT_FOLDER)
+    }
+
+    /// The `$filter` of the request. The received date always comes first:
+    /// Graph orders by it only when the filter names it before anything else.
+    fn expression(&self) -> String {
+        let day = |d: NaiveDate| d.format("%Y-%m-%dT00:00:00Z").to_string();
+        let since = self
+            .since
+            .map_or_else(|| "1900-01-01T00:00:00Z".to_owned(), day);
+        let mut parts = vec![format!("receivedDateTime ge {since}")];
+        if let Some(before) = self.before {
+            parts.push(format!("receivedDateTime lt {}", day(before)));
+        }
+        if self.unread_only {
+            parts.push("isRead eq false".to_owned());
+        }
+        parts.join(" and ")
+    }
+}
+
+/// A message of a folder, whole: its envelope, its body and the names of its
+/// attachments.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderMessage {
+    /// Graph-assigned message id.
+    pub id: String,
+    /// Subject line.
+    #[serde(default)]
+    pub subject: Option<String>,
+    /// Sender details.
+    #[serde(default)]
+    pub from: Option<Recipient>,
+    /// Primary recipients.
+    #[serde(default)]
+    pub to_recipients: Vec<Recipient>,
+    /// Carbon copy recipients.
+    #[serde(default)]
+    pub cc_recipients: Vec<Recipient>,
+    /// RFC 3339 received time.
+    #[serde(default)]
+    pub received_date_time: Option<String>,
+    /// Body, as HTML or as text.
+    #[serde(default)]
+    pub body: Option<ReceivedBody>,
+    /// The attached files, by name. Their content is never asked for.
+    #[serde(default)]
+    pub attachments: Vec<AttachmentName>,
+}
+
+/// Body of a received message.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReceivedBody {
+    /// `html` or `text`.
+    #[serde(default)]
+    pub content_type: String,
+    /// Body content.
+    #[serde(default)]
+    pub content: String,
+}
+
+/// Name of an attached file.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AttachmentName {
+    /// File name, when the attachment has one.
+    #[serde(default)]
+    pub name: Option<String>,
+}
+
+/// Which page of a folder is asked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FolderPageRequest<'a> {
+    /// The first page, of `top` messages at most.
+    First {
+        /// Most messages the page holds.
+        top: u32,
+    },
+    /// The page at the link the previous one answered.
+    Next(&'a str),
+}
+
+/// One page of a folder.
+#[derive(Debug, Clone)]
+pub struct FolderPage {
+    /// The messages of the page, newest first.
+    pub messages: Vec<FolderMessage>,
+    /// How many messages the filter matches in the whole folder, when Graph
+    /// counted them.
+    pub total: Option<u64>,
+    /// Where the next page is read, `None` on the last one.
+    pub next_link: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FolderPageBody {
+    value: Vec<FolderMessage>,
+    #[serde(default, rename = "@odata.count")]
+    count: Option<u64>,
+    #[serde(default, rename = "@odata.nextLink")]
+    next_link: Option<String>,
 }
 
 /// Compose-and-send payload.
@@ -320,6 +459,54 @@ impl OutlookMailClient {
         Ok(resp.value)
     }
 
+    /// One page of the messages of a folder that `filter` keeps, newest
+    /// first, each with its body and the names of its attachments, and the
+    /// count of the messages the filter matches.
+    ///
+    /// Each page after the first is read at the link the previous one
+    /// answered. A link that leaves the server this client reads is refused:
+    /// the token is never sent anywhere else.
+    ///
+    /// # Errors
+    /// [`ConnectorError::InvalidArgument`] for a link to another server, and
+    /// the failures of any Graph read.
+    pub async fn folder_page<F, Fut>(
+        &self,
+        filter: &FolderFilter,
+        page: FolderPageRequest<'_>,
+        bearer: &str,
+        refresh: F,
+    ) -> Result<FolderPage, ConnectorError>
+    where
+        F: FnOnce() -> Fut + Send,
+        Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
+    {
+        let url = match page {
+            FolderPageRequest::Next(link) if same_origin(&self.base, link) => link.to_owned(),
+            FolderPageRequest::Next(_) => {
+                return Err(ConnectorError::InvalidArgument(
+                    "the next page of the folder is on another server".to_owned(),
+                ))
+            }
+            FolderPageRequest::First { top } => format!(
+                "{}/mailFolders/{}/messages?$filter={}&$orderby={}&$top={top}&$count=true\
+                 &$select=id,subject,from,toRecipients,ccRecipients,receivedDateTime,body\
+                 &$expand={}",
+                self.base,
+                urlencode(filter.folder()),
+                urlencode(&filter.expression()),
+                urlencode("receivedDateTime desc"),
+                urlencode("attachments($select=name)"),
+            ),
+        };
+        let page: FolderPageBody = self.http.get_json(&url, bearer, refresh).await?;
+        Ok(FolderPage {
+            messages: page.value,
+            total: page.count,
+            next_link: page.next_link,
+        })
+    }
+
     /// Move a message to a different folder. Returns the new message id.
     pub async fn move_to<F, Fut>(
         &self,
@@ -364,6 +551,16 @@ fn urlencode(s: &str) -> String {
         }
     }
     out
+}
+
+/// Whether `link` is on the scheme, host and port `base` is on.
+fn same_origin(base: &str, link: &str) -> bool {
+    let origin = |url: &str| {
+        let (scheme, rest) = url.split_once("://")?;
+        let authority = rest.split(['/', '?', '#']).next()?;
+        Some((scheme.to_ascii_lowercase(), authority.to_ascii_lowercase()))
+    };
+    matches!((origin(base), origin(link)), (Some(a), Some(b)) if a == b)
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -424,5 +621,48 @@ mod tests {
         // THEN both characters are percent encoded
         assert!(urlencode("from:alice subject:hello").contains("%20"));
         assert!(urlencode("\"quoted\"").contains("%22"));
+    }
+    #[test]
+    fn test_folder_filter_names_the_received_date_first() {
+        // GIVEN a filter on nothing, and one on a period and the unread state
+        let open = FolderFilter::default();
+        let narrow = FolderFilter {
+            folder: Some("archive".into()),
+            since: NaiveDate::from_ymd_opt(2026, 9, 1),
+            before: NaiveDate::from_ymd_opt(2026, 10, 2),
+            unread_only: true,
+        };
+        // WHEN their folder and expression are read
+        // THEN the inbox is the default, and the received date leads each
+        //      expression, which is what lets Graph order by it
+        assert_eq!(open.folder(), "inbox");
+        assert_eq!(
+            open.expression(),
+            "receivedDateTime ge 1900-01-01T00:00:00Z"
+        );
+        assert_eq!(narrow.folder(), "archive");
+        assert_eq!(
+            narrow.expression(),
+            "receivedDateTime ge 2026-09-01T00:00:00Z and receivedDateTime lt \
+             2026-10-02T00:00:00Z and isRead eq false"
+        );
+    }
+
+    #[test]
+    fn test_a_link_to_another_server_is_not_the_same_origin() {
+        // GIVEN the base of the client
+        let base = "https://graph.microsoft.com/v1.0/me";
+        // WHEN links on the same server, another host and another scheme are compared
+        // THEN only the first is on the same origin
+        assert!(same_origin(
+            base,
+            "https://graph.microsoft.com/v1.0/me/mailFolders('inbox')/messages?$skip=50"
+        ));
+        assert!(!same_origin(
+            base,
+            "https://graph.microsoft.com.evil.example/x"
+        ));
+        assert!(!same_origin(base, "http://graph.microsoft.com/v1.0/me"));
+        assert!(!same_origin(base, "not a link"));
     }
 }

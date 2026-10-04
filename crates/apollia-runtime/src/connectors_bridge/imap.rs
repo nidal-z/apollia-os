@@ -163,7 +163,7 @@ impl DispatchableExecutor for ImapToolExecutor {
 }
 
 /// Admission over the organisation policy deposited on the machine.
-fn deposited_policy() -> PolicyAdmission {
+pub(super) fn deposited_policy() -> PolicyAdmission {
     let location = apollia_permissions::policy_location();
     PolicyAdmission::new(Arc::new(apollia_permissions::load_policy(
         &location.dir,

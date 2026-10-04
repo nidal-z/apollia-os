@@ -32,6 +32,7 @@ pub mod connection_tools;
 mod descriptors;
 mod google;
 mod imap;
+mod mail_source;
 mod microsoft;
 
 pub use connection_tools::{
@@ -41,6 +42,7 @@ pub use connection_tools::{
 pub use descriptors::{google_tool_descriptors, microsoft_tool_descriptors};
 pub use google::{build_google_executors, GoogleChatToolInvoker};
 pub use imap::{build_imap_executors, imap_tool_descriptors};
+pub use mail_source::{register_mail_source, IMAP_LOCATION, OUTLOOK_LOCATION};
 
 /// Log filter directive a binary adds so the IMAP library's trace of the
 /// commands it sends, a login's password included, never reaches a log.
