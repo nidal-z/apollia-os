@@ -22,6 +22,7 @@
     ChatSessionDetail,
     ChatMessageView,
     ConversationStatsView,
+    PendingChatApproval,
   } from "$lib/types";
   import { groupMessages } from "$lib/chat/groupMessages";
   import ChatMessageScroller from "./ChatMessageScroller.svelte";
@@ -202,13 +203,7 @@
   let planDefaultApplied = $state(false);
 
   /** Pending tool approval - shown inline when the LLM requests a tool call. */
-  let pendingApproval = $state<{
-    sessionId: string;
-    messageId: string;
-    toolCallId: string;
-    toolName: string;
-    inputPreview: string;
-  } | null>(null);
+  let pendingApproval = $state<Omit<PendingChatApproval, "receivedAt"> | null>(null);
   /** Pending ask_user request - shown inline when the agent needs user input. */
   let pendingUserInput = $state<{
     requestId: string;

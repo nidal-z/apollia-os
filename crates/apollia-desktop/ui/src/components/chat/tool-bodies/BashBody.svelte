@@ -1,101 +1,52 @@
 <script lang="ts">
   /**
-   * Per-tool expanded body for `bash_executor`.
-   *
-   * Operator layer: a plain-language outcome line (the meta-LLM narration when
-   * present, else a generic localized sentence) plus a status/line-count meta
-   * row. The command itself is never shown and no shell jargon leaks.
-   * Builder layer: a real terminal block with the `$ command`, stdout/stderr,
-   * and a localized exit/status + duration footer.
+   * Body of a command: the command and what it printed, then how it ended
+   * (finished or failed, its exit code, how long it took).
    */
 
   import type { ReasoningItem } from "$lib/chat/reasoning";
-  import {
-    parseBashOutput,
-    countOutputLines,
-    describeBashCommand,
-  } from "$lib/chat/toolBodies";
+  import { parseBashOutput } from "$lib/chat/toolBodies";
+  import { formatStepDuration } from "$lib/chat/toolBodyFormat";
+  import BodyCode from "./BodyCode.svelte";
   import { t, locale } from "svelte-i18n";
-  import { fly, fade } from "svelte/transition";
 
   type ToolCallItem = Extract<ReasoningItem, { kind: "tool_call" }>;
 
-  interface Props {
-    item: ToolCallItem;
-    skin: "builder" | "operator";
+  let { item }: { item: ToolCallItem } = $props();
+
+  /** Lines of output shown at most. */
+  const SHOWN = 20;
+
+  const command = $derived(typeof item.args.command === "string" ? item.args.command : "");
+  const parsed = $derived(parseBashOutput(item.output, item.exit_code));
+  const failed = $derived(
+    (parsed.exitCode !== null && parsed.exitCode !== 0) ||
+      item.status === "error" ||
+      item.status === "rejected",
+  );
+
+  function clip(text: string): string {
+    return text.replace(/\n+$/, "").split("\n").slice(0, SHOWN).join("\n");
   }
 
-  let { item, skin }: Props = $props();
-
-  const command = $derived(
-    typeof item.args.command === "string" ? item.args.command : "",
-  );
-  const parsed = $derived(parseBashOutput(item.output, item.exit_code));
-  const succeeded = $derived(
-    (parsed.exitCode === null || parsed.exitCode === 0) &&
-      item.status !== "error" &&
-      item.status !== "rejected",
-  );
-  const lineCount = $derived(countOutputLines(item.output));
-
-  // Plain-language description derived deterministically from the command, so
-  // an operator sees "List files" instead of `ls -la`. The model's own
-  // narration (rationale summary) is richer when present, so it wins; otherwise
-  // the derived description carries the meaning.
-  const describedAction = $derived($t(describeBashCommand(command)));
-  const outcome = $derived(
-    item.rationale?.summary?.trim()
-      ? item.rationale.summary.trim()
-      : describedAction,
-  );
-
-  const durationLabel = $derived.by<string>(() => {
-    const ms = item.duration_ms;
-    if (ms == null || ms <= 0) return "";
-    if (ms < 1000) return `${Math.round(ms)} ms`;
-    const loc = $locale ?? "en";
-    try {
-      return `${new Intl.NumberFormat(loc, {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1,
-      }).format(ms / 1000)} s`;
-    } catch {
-      return `${(ms / 1000).toFixed(1)} s`;
+  const ending = $derived.by<string>(() => {
+    const parts = [failed ? $t("tools.body.command_failed") : $t("tools.body.command_finished")];
+    if (parsed.exitCode != null) {
+      parts.push($t("tools.body.exit_code_label", { values: { code: parsed.exitCode } }));
     }
+    const duration = formatStepDuration(item.duration_ms, $locale ?? "en");
+    if (duration) parts.push($t("tools.body.in_duration", { values: { duration } }));
+    return parts.join(", ");
   });
-
-  const statusLabel = $derived(
-    succeeded
-      ? $t("tools.body.bash_ok")
-      : parsed.exitCode != null
-        ? $t("tools.body.bash_failed_code", {
-            values: { code: parsed.exitCode },
-          })
-        : $t("tools.body.bash_failed"),
-  );
 </script>
 
-<div class="text-body-xs" in:fly={{ y: 8, duration: 200 }}>
-  {#key skin}
-    <div in:fade={{ duration: 150 }}>
-      {#if skin === "operator"}
-        <div class="flex flex-col gap-1">
-          <p class="text-foreground">{outcome}</p>
-          <p class="tb-metric">
-            {statusLabel}{#if lineCount > 0}
-              · {$t("tools.body.output_lines", { values: { n: lineCount } })}{/if}
-          </p>
-        </div>
-      {:else}
-        <pre class="tb-term font-mono"><span class="tb-prompt">$</span> {command}{#if parsed.body}
-<span class="tb-out">{parsed.body.replace(/\n+$/, "")}</span>{/if}{#if parsed.stderr}
-<span class="tb-err">{parsed.stderr.replace(/\n+$/, "")}</span>{/if}
-<span
-            class={succeeded ? "tb-exit" : "tb-exit-nonzero"}
-          >{parsed.exitCode != null
-              ? $t("tools.body.exit_code", { values: { code: parsed.exitCode } })
-              : statusLabel}</span>{#if durationLabel}<span class="tb-meta"> · {durationLabel}</span>{/if}</pre>
-      {/if}
-    </div>
-  {/key}
+<div class="flex flex-col gap-2" data-testid="tool-body-bash_executor">
+  <BodyCode
+    >$ {command}{#if parsed.body}{"\n"}<span class="text-muted-foreground">{clip(parsed.body)}</span
+      >{/if}{#if parsed.stderr}{"\n"}<span class="text-destructive">{clip(parsed.stderr)}</span
+      >{/if}</BodyCode
+  >
+  {#if item.output !== null}
+    <p class="text-caption text-muted-foreground">{ending}</p>
+  {/if}
 </div>

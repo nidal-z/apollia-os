@@ -265,6 +265,10 @@ impl AgentChatExecutor {
             tool_call_id: "agent_action".into(),
             tool_name: "agent_action".into(),
             prompt: prompt.clone(),
+            answers: ["once", "always", "refuse"].map(String::from).to_vec(),
+            detail: prompt.clone(),
+            code: None,
+            working_dir: None,
         });
 
         let key = format!("{}::{}::agent_action", session.id, message_id);

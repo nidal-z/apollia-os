@@ -10,8 +10,33 @@ use serde::{Deserialize, Serialize};
 /// shares.
 pub const DEFAULT_COMPAT_SERVER_PORT: u16 = 7772;
 
+/// Dotted key of the switch that lets a request load the model it names.
+pub const JIT_LOADING_KEY: &str = "server.jit_loading";
+
+/// Dotted key of the switch that gives the models the server loaded their own
+/// idle delay.
+pub const JIT_AUTO_UNLOAD_KEY: &str = "server.jit_auto_unload";
+
+/// Dotted key of the idle delay of the models the server loaded.
+pub const JIT_IDLE_TTL_KEY: &str = "server.jit_idle_ttl_minutes";
+
+/// Dotted key of the switch that keeps only the last model the server loaded.
+pub const JIT_KEEP_LAST_ONLY_KEY: &str = "server.jit_keep_last_only";
+
+/// Minutes a model the server loaded stays loaded unused, when the file names
+/// no delay.
+pub const DEFAULT_JIT_IDLE_TTL_MINUTES: u64 = 60;
+
 fn default_port() -> u16 {
     DEFAULT_COMPAT_SERVER_PORT
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_jit_idle_ttl_minutes() -> u64 {
+    DEFAULT_JIT_IDLE_TTL_MINUTES
 }
 
 /// The compatible server (`[server]` section in `apollia.toml`).
@@ -39,6 +64,29 @@ pub struct ServerConfig {
     /// applies a change.
     #[serde(default)]
     pub require_auth: bool,
+    /// Whether a web page of another origin may call the server: when on,
+    /// the server answers browser preflights and marks every answer with the
+    /// allowed origin. Off by default, and read each time the server starts.
+    #[serde(default)]
+    pub cors: bool,
+    /// Whether a request naming a model of this machine that is not loaded
+    /// loads it. On by default. Read at every request.
+    #[serde(default = "default_true")]
+    pub jit_loading: bool,
+    /// Whether the models the server loaded are unloaded after their own idle
+    /// delay, `jit_idle_ttl_minutes`, rather than the general one of
+    /// `[llm.residency]`. On by default. Read at every sweep.
+    #[serde(default = "default_true")]
+    pub jit_auto_unload: bool,
+    /// Minutes without a request after which a model the server loaded, and
+    /// nothing holds, is unloaded; `0` keeps it loaded.
+    #[serde(default = "default_jit_idle_ttl_minutes")]
+    pub jit_idle_ttl_minutes: u64,
+    /// Whether loading a model for a request unloads the other models the
+    /// server loaded, when nothing holds them and none is answering. On by
+    /// default. A model loaded from the application is never unloaded by it.
+    #[serde(default = "default_true")]
+    pub jit_keep_last_only: bool,
     /// Whether the compatible server listens on every interface, so the other
     /// devices of the local network reach it, rather than on the loopback
     /// interface alone. Off by default, and independent of `require_auth`:
@@ -55,6 +103,11 @@ impl Default for ServerConfig {
             enabled: false,
             port: DEFAULT_COMPAT_SERVER_PORT,
             require_auth: false,
+            cors: false,
+            jit_loading: true,
+            jit_auto_unload: true,
+            jit_idle_ttl_minutes: DEFAULT_JIT_IDLE_TTL_MINUTES,
+            jit_keep_last_only: true,
             serve_on_lan: false,
         }
     }
@@ -92,7 +145,22 @@ mod tests {
         // WHEN the server section is read
         let server = ServerConfig::from_toml_str(content).unwrap();
 
-        // THEN the server is off, on port 7772
+        // THEN the server is off, on port 7772, without cross-origin answers
+        assert!(!server.enabled);
+        assert_eq!(server.port, 7772);
+        assert!(!server.cors);
+    }
+
+    #[test]
+    fn test_server_config_reads_cors() {
+        // GIVEN a [server] section turning cross-origin answers on
+        let content = "[server]\ncors = true\n";
+
+        // WHEN it is read
+        let server = ServerConfig::from_toml_str(content).unwrap();
+
+        // THEN cors is on and the other keys keep their defaults
+        assert!(server.cors);
         assert!(!server.enabled);
         assert_eq!(server.port, 7772);
         assert!(!server.require_auth);
@@ -122,6 +190,38 @@ mod tests {
 
         // THEN a token is required
         assert!(server.require_auth);
+    }
+
+    #[test]
+    fn test_server_config_loads_models_on_demand_by_default() {
+        // GIVEN a [server] section that names none of the on-demand keys
+        let content = "[server]\nenabled = true\n";
+
+        // WHEN it is read
+        let server = ServerConfig::from_toml_str(content).unwrap();
+
+        // THEN a request loads its model, the server's models go after an
+        // hour unused, and only the last one it loaded stays
+        assert!(server.jit_loading);
+        assert!(server.jit_auto_unload);
+        assert_eq!(server.jit_idle_ttl_minutes, 60);
+        assert!(server.jit_keep_last_only);
+    }
+
+    #[test]
+    fn test_server_config_reads_the_on_demand_keys() {
+        // GIVEN a [server] section turning every on-demand rule off
+        let content = "[server]\njit_loading = false\njit_auto_unload = false\n\
+                       jit_idle_ttl_minutes = 5\njit_keep_last_only = false\n";
+
+        // WHEN it is read
+        let server = ServerConfig::from_toml_str(content).unwrap();
+
+        // THEN each value is the file's
+        assert!(!server.jit_loading);
+        assert!(!server.jit_auto_unload);
+        assert_eq!(server.jit_idle_ttl_minutes, 5);
+        assert!(!server.jit_keep_last_only);
     }
 
     #[test]

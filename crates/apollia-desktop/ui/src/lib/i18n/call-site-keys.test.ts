@@ -111,8 +111,8 @@ const CATALOGUES: [string, JsonObject][] = [
 ];
 
 /**
- * The sixteen keys this repair moved out of hardcoded call-site fallbacks and
- * into the two catalogues. They are listed by hand because the point of the
+ * The keys this repair moved out of hardcoded call-site fallbacks and into
+ * the two catalogues, less the four whose step layout was later redrawn. They are listed by hand because the point of the
  * list is the second assertion: a French entry that repeats its English
  * counterpart is the defect coming back under a key that now exists.
  *
@@ -126,11 +126,7 @@ const REPAIRED = [
   "chat.assistant",
   "chat.rate_limit.too_fast_countdown",
   "chat.rate_limit.too_many_countdown",
-  "chat.reasoning.command_label",
-  "chat.reasoning.error_label",
   "chat.reasoning.result_label",
-  "chat.reasoning.running_hint",
-  "chat.reasoning.target_label",
   "chat.reasoning.toggle_thought",
   "chat.retry.badge_title",
   "chat.retry.timeline_label",
@@ -152,7 +148,7 @@ describe("i18n call sites - the scanner reaches the tree", () => {
   });
 
   test("every key this repair introduced is still called by the tree", () => {
-    // GIVEN the sixteen keys the repair added to both catalogues
+    // GIVEN the keys the repair added to both catalogues
     // WHEN each is looked up in the scanned call sites
     const unused = REPAIRED.filter((name) => !CALL_SITES.has(name));
     // THEN each one still has a caller, so none became catalogue weight
@@ -177,7 +173,7 @@ describe.each(CATALOGUES)(
     });
 
     test("every key this repair introduced resolves to a non-empty string", () => {
-      // GIVEN the sixteen keys the repair added
+      // GIVEN the keys the repair added
       // WHEN each is resolved against the catalogue
       const empty = REPAIRED.filter(
         (name) => (leafAt(catalogue, name) ?? "").trim() === "",
@@ -190,7 +186,7 @@ describe.each(CATALOGUES)(
 
 describe("i18n call sites - the repaired French entries are French", () => {
   test("no repaired key carries the English string on the French side", () => {
-    // GIVEN the sixteen repaired keys, minus the one identical in both languages
+    // GIVEN the repaired keys, minus the one identical in both languages
     // WHEN the French entry is compared to the English one
     const untranslated = REPAIRED.filter(
       (name) =>

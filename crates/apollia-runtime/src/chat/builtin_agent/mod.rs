@@ -51,6 +51,7 @@ use crate::composition::Composer;
 use crate::eventbus::EventBusSender;
 use crate::hooks::executor::{HookDecision, HookExecutor};
 
+mod approval_request;
 mod builder;
 mod catalog;
 mod context_window;
@@ -81,6 +82,8 @@ pub(in crate::chat::builtin_agent) use response::{NoopCheckInvoker, PlanPhaseTra
 /// An "always accept" on a code executor covers the current call only.
 #[cfg(test)]
 mod code_executor_grant_tests;
+#[cfg(test)]
+mod consent_journal_tests;
 #[cfg(test)]
 mod governed_test_support;
 #[cfg(test)]

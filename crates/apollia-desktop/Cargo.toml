@@ -45,7 +45,6 @@ tokio            = { workspace = true }
 hyper            = { workspace = true }
 hyper-util       = { workspace = true }
 http-body-util   = { workspace = true }
-toml             = { workspace = true }
 open             = { workspace = true }
 thiserror        = { workspace = true }
 tracing          = { workspace = true }

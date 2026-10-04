@@ -33,6 +33,7 @@ fn runtime_on(content: &str, settings: &str) -> (TempDir, PathBuf, AppState<Mock
                 signed_at: policy.signed_at,
                 policy,
                 key_fingerprint: "00".into(),
+                policy_digest: "00".into(),
                 publisher: "it".into(),
             }),
         )));

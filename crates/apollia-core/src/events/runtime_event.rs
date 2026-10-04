@@ -721,8 +721,24 @@ pub enum RuntimeEvent {
         tool_call_id: String,
         /// Name of the tool requiring approval.
         tool_name: String,
-        /// Prompt shown to the user.
+        /// Prompt shown to the user: a short preview of the call, or the
+        /// whole command or source for a tool that runs code.
         prompt: String,
+        /// The answers offered, among `"once"`, `"always"` and `"refuse"`.
+        /// Empty in a request that predates them.
+        #[serde(default)]
+        answers: Vec<String>,
+        /// The full arguments of the call, as JSON, for the detail a short
+        /// preview leaves out.
+        #[serde(default)]
+        detail: String,
+        /// For a tool that runs code, the whole command or source, never
+        /// truncated.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        code: Option<String>,
+        /// For a tool that runs code, the folder it runs in.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        working_dir: Option<String>,
     },
     /// A tool-call approval was resolved by the user.
     ChatApprovalResolved {

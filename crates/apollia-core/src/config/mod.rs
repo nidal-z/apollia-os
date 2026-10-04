@@ -21,8 +21,8 @@
 //!   [`resolve_setting`] and written by [`write_setting`], which refuses a key
 //!   the organization policy locks.
 //! - [`ServerConfig`]: `[server]`, the compatible server, a second listener
-//!   of the runtime on its own port, switched off by default; its two keys
-//!   are named settings too.
+//!   of the runtime on its own port, switched off by default, and how it
+//!   loads and unloads models on demand; its keys are named settings too.
 //! - [`EnginesConfig`]: `[engines]`, the settings of the local inference
 //!   engines, the engine log level first; named settings, read when a model
 //!   loads.
@@ -127,7 +127,10 @@ pub use registry::RegistryConfig;
 pub(crate) use retired::warn_retired_keys;
 pub use root::ApolliaConfig;
 pub use runtime::RuntimeConfig;
-pub use server::{ServerConfig, DEFAULT_COMPAT_SERVER_PORT};
+pub use server::{
+    ServerConfig, DEFAULT_COMPAT_SERVER_PORT, DEFAULT_JIT_IDLE_TTL_MINUTES, JIT_AUTO_UNLOAD_KEY,
+    JIT_IDLE_TTL_KEY, JIT_KEEP_LAST_ONLY_KEY, JIT_LOADING_KEY,
+};
 pub use settings::{
     check_imposed_setting, resolve_setting, resolve_setting_in, write_setting, PolicySettings,
     ResolvedSetting, SettingError, SettingSource, GUARDRAIL_LEVELS,
