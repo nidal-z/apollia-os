@@ -320,7 +320,7 @@ async fn invoke_agent<B: ExecutionBackend + Clone>(
         chat,
         repository: state.task_repository.clone(),
         event_bus: state.event_sender.clone(),
-        observability: state.obs_config.clone(),
+        observability: state.observability(),
         plan_cache: state.plan_cache.clone(),
     };
     let started = Instant::now();

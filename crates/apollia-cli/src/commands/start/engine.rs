@@ -117,8 +117,9 @@ pub(super) struct AIPProductionBackend {
     pub(super) user_memory_write: bool,
     /// High-level A2A orchestrator, `None` when registry or router are not initialized.
     pub(super) a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
-    /// Operator-supplied tools configuration loaded from `apollia.toml`.
-    pub(super) tools_config: apollia_core::ToolsConfig,
+    /// Operator-supplied tools configuration loaded from `apollia.toml`, read
+    /// at each run so a saved change applies to the next one.
+    pub(super) tools_config: apollia_runtime::config_reload::Live<apollia_core::ToolsConfig>,
     /// Datasources declared in the manifest (`manifest.datasources`). Empty
     /// when the agent declares none.
     pub(super) datasources_declared: Vec<String>,

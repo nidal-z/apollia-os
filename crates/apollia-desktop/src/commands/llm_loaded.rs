@@ -51,8 +51,10 @@ pub struct LoadedModelView {
 pub struct LoadedModelsView {
     /// Whether a local engine exists on this host.
     pub engine_available: bool,
-    /// How many models may stay resident at once; `0` without an engine.
-    pub max_loaded: usize,
+    /// The explicit ceiling on resident models; absent when the load
+    /// guardrail alone decides how many stay loaded, and without an engine.
+    #[serde(default)]
+    pub max_loaded: Option<usize>,
     /// The resident models, most recently used first.
     pub models: Vec<LoadedModelView>,
 }
@@ -147,7 +149,7 @@ mod tests {
         // THEN both models are there, in order, with the absent parallelism left empty
         let view = view.unwrap();
         assert!(view.engine_available);
-        assert_eq!(view.max_loaded, 2);
+        assert_eq!(view.max_loaded, Some(2));
         assert_eq!(view.models.len(), 2);
         assert_eq!(view.models[0].model_path, "/models/b.gguf");
         assert_eq!(view.models[0].n_parallel, Some(2));
@@ -165,7 +167,7 @@ mod tests {
         // GIVEN a parsed view of one model
         let view = LoadedModelsView {
             engine_available: true,
-            max_loaded: 1,
+            max_loaded: None,
             models: vec![LoadedModelView {
                 engine: "vllm-mlx".into(),
                 kind: "chat".into(),
@@ -186,6 +188,7 @@ mod tests {
 
         // THEN the keys are the ones the TypeScript type reads
         assert_eq!(json["engineAvailable"], true);
+        assert_eq!(json["maxLoaded"], serde_json::Value::Null);
         assert_eq!(json["models"][0]["modelPath"], "/models/a.gguf");
         assert_eq!(json["models"][0]["activeRequests"], 0);
         assert_eq!(json["models"][0]["engine"], "vllm-mlx");

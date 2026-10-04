@@ -238,6 +238,10 @@ async fn test_a_package_is_uninstalled_and_a_name_that_is_a_path_refused() {
     )
     .await
     .unwrap();
+    state.governance = Some(crate::governance::GovernanceHandle::detached(
+        crate::governance::GovernanceState::default(),
+        Some(journal.clone()),
+    ));
     state.audit_journal = Some(journal);
     let (created, _) = call(
         state.clone(),

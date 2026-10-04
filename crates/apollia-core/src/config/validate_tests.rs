@@ -381,6 +381,25 @@ fn the_guardrails_section_is_read_and_its_level_left_to_the_runtime() {
 }
 
 #[test]
+fn the_residency_section_is_read_and_a_typo_in_it_is_refused() {
+    // GIVEN [llm.residency] with a delay, and one with a misspelt key
+    let delay = format!("{BACKEND}\n[llm.residency]\nidle_unload_minutes = 15\n");
+    let typo = format!("{BACKEND}\n[llm.residency]\nidle_unload_minute = 15\n");
+    // WHEN both are validated
+    let read = validate(&delay).expect("a residency section is accepted");
+    let fault = unknown(&typo);
+    // THEN the first is carried by the root, and the second is refused at its
+    // line
+    let residency = read.llm.expect("[llm] present").residency;
+    assert_eq!(residency.idle_unload_minutes, 15);
+    assert_eq!(
+        (fault.path.as_str(), fault.line),
+        ("llm.residency.idle_unload_minute", 12),
+        "{fault}"
+    );
+}
+
+#[test]
 fn an_unknown_key_in_server_is_refused() {
     // GIVEN a typo in [server]
     let text = "[server]\nenabled = true\nrequire_auht = true\n";

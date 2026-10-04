@@ -141,7 +141,7 @@ impl Supervisor {
                 batch_runner(
                     launcher.clone(),
                     self.config.data_dir.clone(),
-                    governance.audit_journal.clone(),
+                    governance.handle.clone(),
                 ),
                 core.event_sender.clone(),
             )),
@@ -167,6 +167,9 @@ impl Supervisor {
                 agents,
             )
         });
+        if let Some(chat) = chat_manager {
+            chat.set_governance(governance.handle.clone()).await;
+        }
         // An agent calls the agents and workflows it was granted through the
         // same executor and the same engine a workflow step uses.
         if let (Some(chat), Some(agents), Some(engine)) = (chat_manager, step_agents, &workflows) {
@@ -239,21 +242,14 @@ pub(super) async fn load_agents_after_ready<
     Supervisor::auto_load_installed_agents(ctx).await;
 }
 
-/// The item runner of the batch engine, asking the default governance which
-/// accesses are sensitive when the audit journal is open; without it, an
-/// access is sensitive when its tool declares it so, the same rule.
+/// The item runner of the batch engine, asking governance which accesses
+/// are sensitive.
 fn batch_runner<B: crate::coordinator::ExecutionBackend>(
     launcher: crate::agents::task::AgentTaskLauncher<B>,
     data_dir: std::path::PathBuf,
-    journal: Option<crate::audit_journal::AuditJournalHandle>,
+    governance: crate::governance::GovernanceHandle,
 ) -> crate::batch::AgentItemRunner<B> {
-    let runner = crate::batch::AgentItemRunner::new(launcher, data_dir);
-    match journal {
-        Some(journal) => runner.with_governance(Arc::new(
-            crate::governance::NoPolicyGovernance::new(journal),
-        )),
-        None => runner,
-    }
+    crate::batch::AgentItemRunner::new(launcher, data_dir).with_governance(Arc::new(governance))
 }
 
 /// The batch source kinds this runtime reads.

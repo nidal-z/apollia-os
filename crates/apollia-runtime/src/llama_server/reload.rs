@@ -97,10 +97,12 @@ impl LlamaServerSupervisor {
             return Ok(lease);
         }
         let config = self.launch_config(model_path.clone(), n_ctx, &load).await;
-        self.admit(&config, consent).await?;
+        let footprint_gb = self.admit(&config, consent).await?;
         let stale = self.stop_stale_instances(&model_path, &load).await;
         self.evict_until_below_ceiling().await;
-        let lease = self.spawn_configured(config, load, false).await?;
+        let lease = self
+            .spawn_configured(config, load, false, footprint_gb)
+            .await?;
         if stale {
             tracing::event!(
                 tracing::Level::INFO,

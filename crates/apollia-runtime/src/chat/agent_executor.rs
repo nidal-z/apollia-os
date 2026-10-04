@@ -32,9 +32,7 @@ use apollia_oria::verification::{CriticPass, VerificationLoop};
 use apollia_tools::{PlanningMode, ResolvedAgent, ToolRegistryHandle};
 use tokio_util::sync::CancellationToken;
 
-use crate::chat::builtin_agent::{
-    BuiltInChatAgent, BuiltInChatAgentDeps, ChatAgentResponse, PrefixChecker,
-};
+use crate::chat::builtin_agent::{BuiltInChatAgent, BuiltInChatAgentDeps, ChatAgentResponse};
 use crate::chat::manager::APOLLIA_CHAT_AGENT_ID;
 use crate::chat::plan_actor::PlanHandle;
 use crate::chat::todo_handle::TodoHandle;
@@ -124,8 +122,9 @@ pub struct AgentExecutorDeps {
 
 /// Settings of the conversation the run belongs to. The default is a run
 /// outside any conversation: no workspace, no deferred tool index, plan mode
-/// off, no hook, no injected instruction, no prefix rule, and an approval that
-/// waits for the human however long it takes.
+/// off, no hook, no injected instruction, decisions read from an empty
+/// governance state, a run someone watches, and an approval that waits for
+/// the human however long it takes.
 #[derive(Default)]
 pub struct SessionWiring {
     /// Working directory named in the prompt and used by the tools.
@@ -144,8 +143,13 @@ pub struct SessionWiring {
     pub pending_injection: Option<InjectedInstruction>,
     /// Temperature of a turn that offers tools; the tuned default when absent.
     pub tool_turn_temperature: Option<f32>,
-    /// Per-invocation permission rules consulted before a human approval.
-    pub prefix_checker: Option<Arc<PrefixChecker>>,
+    /// The governance every tool call of the run is decided by; `None`
+    /// decides from an empty state, where reading runs and everything
+    /// sensitive asks.
+    pub governance: Option<crate::governance::GovernanceHandle>,
+    /// Nobody watches the run (an item of a batch): a call that would ask
+    /// waits instead.
+    pub unattended: bool,
     /// Delay after which a pending tool approval is refused; `None` never
     /// refuses on its own.
     pub approval_timeout: Option<Duration>,
@@ -300,7 +304,8 @@ impl AgentExecutor {
         .with_hook_executor(wiring.hook_executor)
         .with_pending_injection(wiring.pending_injection)
         .with_tool_turn_temperature(wiring.tool_turn_temperature)
-        .with_prefix_checker(wiring.prefix_checker)
+        .with_governance(wiring.governance)
+        .with_unattended(wiring.unattended)
         .with_approval_timeout(wiring.approval_timeout)
         .with_tool_output_dir(wiring.tool_output_dir)
         .with_preferred_backend(spec.model.clone())
@@ -414,5 +419,7 @@ impl AgentExecutor {
 
 pub mod plan_first;
 
+#[cfg(test)]
+mod governance_tests;
 #[cfg(test)]
 mod tests;

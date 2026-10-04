@@ -247,6 +247,7 @@ fn test_supervisor_config(
         plan_mode_default: false,
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
+        config_channels: None,
     }
 }
 

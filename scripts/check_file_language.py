@@ -350,6 +350,7 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-desktop/ui/src/lib/i18n/i18n-locale-switch.test.ts": 1,
     "crates/apollia-desktop/ui/src/lib/utils/slugify.test.ts": 3,
     "crates/apollia-llm/tests/interval_junction.rs": 3,
+    "crates/apollia-sources/tests/pdf_reader.rs": 3,
     "crates/apollia-mcp/src/sanitize.rs": 1,
     "crates/apollia-notifications/src/channels/webhook.rs": 2,
     "crates/apollia-runtime/src/api/routes_timeline.rs": 1,

@@ -29,7 +29,7 @@ use crate::api::routes_llm::presets::AgentModelResponse;
 use crate::api::routes_llm::servers::{api_err, ApiError};
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
-use crate::governance::{NoPolicyGovernance, OverrideChange};
+use crate::governance::{GovernanceHandle, OverrideChange};
 
 /// Who the journal names for a change made through the API.
 const API_ACTOR: &str = "api";
@@ -170,11 +170,11 @@ fn parse_field(raw: &str) -> Result<OverrideField, ApiError> {
 
 fn governance<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
-) -> Result<NoPolicyGovernance, ApiError> {
+) -> Result<GovernanceHandle, ApiError> {
     state
-        .audit_journal
+        .governance
         .clone()
-        .map(NoPolicyGovernance::new)
+        .filter(GovernanceHandle::journaled)
         .ok_or_else(|| {
             api_err(
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -184,7 +184,7 @@ fn governance<B: ExecutionBackend + Clone>(
 }
 
 /// The override writer of an API call.
-fn writer<'a>(repo: &'a AgentRepository, governance: &'a NoPolicyGovernance) -> OverrideWriter<'a> {
+fn writer<'a>(repo: &'a AgentRepository, governance: &'a GovernanceHandle) -> OverrideWriter<'a> {
     OverrideWriter {
         repo,
         governance,
@@ -424,7 +424,7 @@ pub async fn reset_agent_overrides<B: ExecutionBackend + Clone>(
 /// none was assigned or no model store is open.
 fn clear_model<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
-    governance: &NoPolicyGovernance,
+    governance: &GovernanceHandle,
     name: &str,
 ) -> Result<bool, ApiError> {
     let Some(llm) = state.llm_backend_repo.as_ref() else {

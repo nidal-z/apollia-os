@@ -173,7 +173,8 @@ async fn running_tool_completes_before_loop_stops() {
         user_memory: None,
         todo: None,
         plan: None,
-    });
+    })
+    .with_governance(Some(super::governed_test_support::code_runs()));
     let budget = StepBudget::with_max(10);
     let approvals = PendingChatApprovals::new();
     let mut authorized = HashSet::new();
@@ -237,7 +238,8 @@ async fn pre_authorized_tool_not_granted_is_not_run() {
         user_memory: None,
         todo: None,
         plan: None,
-    });
+    })
+    .with_governance(Some(super::governed_test_support::code_runs()));
     let budget = StepBudget::with_max(10);
     let approvals = PendingChatApprovals::new();
     let mut authorized = HashSet::new();
@@ -297,7 +299,8 @@ async fn live_token_lets_turn_converge() {
         user_memory: None,
         todo: None,
         plan: None,
-    });
+    })
+    .with_governance(Some(super::governed_test_support::code_runs()));
     let budget = StepBudget::with_max(10);
     let approvals = PendingChatApprovals::new();
     let mut authorized = HashSet::new();

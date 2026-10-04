@@ -47,7 +47,7 @@ pub struct ProductionBackendFactory {
     /// Inter-agent mailbox handle, exposed as `ctx.mailbox`.
     pub mailbox_handle: Arc<std::sync::OnceLock<AgentMailboxHandle>>,
     /// Operator tools configuration (`[tools]` of apollia.toml).
-    pub tools_config: Arc<std::sync::OnceLock<ToolsConfig>>,
+    pub tools_config: Arc<std::sync::OnceLock<apollia_runtime::config_reload::Live<ToolsConfig>>>,
     /// Shared plan-gate registry, forwarded to each per-agent engine so the
     /// desktop UI can resolve a pending plan gate.
     pub plan_gates: Arc<std::sync::OnceLock<Arc<PendingPlanGates>>>,
@@ -84,7 +84,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
             .tools_config
             .get()
             .cloned()
-            .unwrap_or_else(ToolsConfig::default);
+            .unwrap_or_else(|| ToolsConfig::default().into());
         let plan_gates = self.plan_gates.get().cloned();
         let plan_cache = self.plan_cache.get().cloned();
         let backend_manifest = manifest.clone();
