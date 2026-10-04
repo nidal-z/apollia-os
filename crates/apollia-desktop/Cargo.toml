@@ -59,6 +59,9 @@ tauri-plugin-notification = { workspace = true }
 tauri-plugin-global-shortcut = { workspace = true }
 tauri-plugin-opener = { workspace = true }
 tauri-plugin-updater = { workspace = true }
+# Picks the newer of the preview and stable manifests; already in the tree
+# through tauri-plugin-updater and declared by the workspace.
+semver           = { workspace = true }
 arboard          = { workspace = true }
 enigo            = { workspace = true }
 hound            = { workspace = true }

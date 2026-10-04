@@ -40,9 +40,10 @@ pub use dto::{
     TriggerSourceInput, UpdateTriggerRequest,
 };
 
+pub(crate) use support::reload_engine_from_repo;
 use support::{
-    map_repo_error, parse_on_busy, reload_engine_from_repo, require_repo, row_to_response,
-    source_detail_kind, source_kind_and_detail,
+    map_repo_error, parse_on_busy, require_repo, row_to_response, source_detail_kind,
+    source_kind_and_detail,
 };
 
 // ─── CRUD Handlers ───────────────────────────────────────────────────────
@@ -75,6 +76,8 @@ pub async fn create_trigger<B: ExecutionBackend + Clone>(
     let row = TriggerDefinitionRow {
         id: body.id.clone(),
         agent: body.agent,
+        workflow: body.workflow,
+        workflow_inputs: body.workflow_inputs,
         enabled: body.enabled.unwrap_or(true),
         on_busy,
         source_type: body.source.r#type,
@@ -144,6 +147,8 @@ pub async fn update_trigger<B: ExecutionBackend + Clone>(
     let row = TriggerDefinitionRow {
         id: id.clone(),
         agent: body.agent,
+        workflow: body.workflow,
+        workflow_inputs: body.workflow_inputs,
         enabled: body.enabled.unwrap_or(true),
         on_busy,
         source_type: body.source.r#type,
@@ -329,7 +334,8 @@ pub async fn get_trigger<B: ExecutionBackend + Clone>(
         .find(|s| s.id == id)
         .unwrap_or_else(|| apollia_triggers::TriggerStatus {
             id: def.id.clone(),
-            agent: def.agent.clone(),
+            agent: def.target.name().to_string(),
+            target_kind: def.target.kind().to_string(),
             source_kind: source_detail_kind(&def.source),
             source_config: source_kind_and_detail(&def.source).1,
             enabled: def.enabled,
@@ -717,6 +723,7 @@ mod tests {
             audit_journal: None,
             connection_governance: Default::default(),
             governance: None,
+            inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: Some(Arc::new(std::sync::Mutex::new(repo))),
@@ -815,6 +822,54 @@ mod tests {
         assert_eq!(json["agent"], "rapport-agent");
         assert_eq!(json["source_type"], "cron");
         assert!(json["created_at"].as_str().is_some_and(|s| !s.is_empty()));
+    }
+
+    #[tokio::test]
+    async fn test_create_workflow_trigger_201_and_two_targets_422() {
+        // GIVEN an empty repository
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
+        let router = make_crud_router(state);
+        let post = |body: serde_json::Value| {
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/triggers")
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .expect("build request")
+        };
+
+        // WHEN a trigger on a workflow is posted, then one naming two targets
+        let resp = router
+            .clone()
+            .oneshot(post(serde_json::json!({
+                "id": "weekly",
+                "workflow": "reports/weekly",
+                "workflow_inputs": { "when": "{{fired_at}}" },
+                "source": { "type": "interval", "every": "1h" }
+            })))
+            .await
+            .expect("oneshot");
+        let created = resp.status();
+        let json = read_body(resp).await;
+        let both = router
+            .oneshot(post(serde_json::json!({
+                "id": "both",
+                "agent": "a",
+                "workflow": "reports/weekly",
+                "source": { "type": "interval", "every": "1h" }
+            })))
+            .await
+            .expect("oneshot")
+            .status();
+
+        // THEN the first is stored typed, the second refused
+        assert_eq!(created, StatusCode::CREATED, "{json}");
+        assert_eq!(json["target_kind"], "workflow");
+        assert_eq!(json["workflow"], "reports/weekly");
+        assert_eq!(json["workflow_inputs"]["when"], "{{fired_at}}");
+        assert!(json["agent"].is_null());
+        assert_eq!(both, StatusCode::UNPROCESSABLE_ENTITY);
     }
 
     // ── POST with a 5-field scheduler preset → persisted normalized ─────
@@ -1185,6 +1240,7 @@ mod tests {
             audit_journal: None,
             connection_governance: Default::default(),
             governance: None,
+            inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,

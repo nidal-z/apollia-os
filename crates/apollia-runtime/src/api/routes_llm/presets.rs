@@ -22,10 +22,15 @@ use apollia_core::model_preset::{
     AgentModel, DefaultModel, ModelPreset, ModelSource, PresetDraft, RequestSettings,
 };
 
+use crate::agents::overrides::record_model_change;
 use crate::api::routes_llm::backends::{map_backend_error, sync_toml_after_mutation};
 use crate::api::routes_llm::servers::{api_err, with_repo, ApiError};
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
+use crate::governance::{GovernanceHandle, OverrideChange};
+
+/// Who the journal names for a change of an agent's model made through the API.
+const API_ACTOR: &str = "api";
 
 /// Where a model runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
@@ -417,6 +422,7 @@ pub async fn set_agent_model<B: ExecutionBackend + Clone>(
     with_repo(&state, |repo| {
         repo.set_agent_model(&assignment).map_err(map_backend_error)
     })?;
+    record_model(&state, &assignment.agent, OverrideChange::Set)?;
     tracing::event!(
         tracing::Level::INFO,
         agent = %assignment.agent,
@@ -445,7 +451,25 @@ pub async fn clear_agent_model<B: ExecutionBackend + Clone>(
     let cleared = with_repo(&state, |repo| {
         repo.clear_agent_model(&agent).map_err(map_backend_error)
     })?;
+    if cleared {
+        record_model(&state, &agent, OverrideChange::Removed)?;
+    }
     Ok(Json(ClearAgentModelResponse { agent, cleared }))
+}
+
+/// Records in the history of `agent` that its model was set or removed, when
+/// the runtime holds a journal; a runtime without one, as in tests of the
+/// model store alone, stores the assignment unrecorded.
+fn record_model<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    agent: &str,
+    change: OverrideChange,
+) -> Result<(), ApiError> {
+    let Some(governance) = state.governance.clone().filter(GovernanceHandle::journaled) else {
+        return Ok(());
+    };
+    record_model_change(&governance, agent, change, API_ACTOR)
+        .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))
 }
 
 /// The last time an agent's model was not available, so a call ran on the

@@ -363,3 +363,60 @@ fn test_an_estimate_of_an_mlx_folder_is_graded_on_the_budget() {
     assert_eq!(large.badge, CompatibilityBadge::TooLarge);
     assert_eq!(small.capacity_gb, 12.0);
 }
+
+#[test]
+fn test_the_levels_are_the_ones_the_settings_contract_accepts() {
+    // GIVEN every level of the guardrail
+    let levels = [
+        GuardrailLevel::Disabled,
+        GuardrailLevel::Lenient,
+        GuardrailLevel::Balanced,
+        GuardrailLevel::Strict,
+        GuardrailLevel::Ceiling,
+    ];
+
+    // WHEN their wire names are listed
+    let names: Vec<&str> = levels.iter().map(|level| level.as_str()).collect();
+
+    // THEN they are exactly the values a policy may fix the level at
+    assert_eq!(names, apollia_core::config::GUARDRAIL_LEVELS);
+}
+
+#[test]
+fn test_a_level_the_policy_fixes_wins_over_the_file_and_refuses_a_write() {
+    // GIVEN an apollia.toml turning the guardrail off, and a policy fixing the
+    // level at `ceiling` with a ceiling of 0.5 GB
+    let dir = tempfile::tempdir().expect("tempdir");
+    let config = dir.path().join("apollia.toml");
+    std::fs::write(&config, "[llm.guardrails]\nlevel = \"disabled\"\n").expect("write");
+    let imposed = apollia_core::config::PolicySettings::none()
+        .impose(LEVEL_SETTING, serde_json::json!("ceiling"))
+        .impose(CEILING_SETTING, serde_json::json!(0.5));
+
+    // WHEN the guardrail is read for a launch, then the user writes the level
+    let read = GuardrailPolicy::read_under(Some(&config), &imposed);
+    let written = apollia_core::config::write_setting(
+        &config,
+        LEVEL_SETTING,
+        serde_json::json!("disabled"),
+        &imposed,
+    );
+
+    // THEN the policy's level and ceiling apply, the write is refused, and the
+    // file is left as it was
+    assert_eq!(
+        read,
+        GuardrailPolicy {
+            level: GuardrailLevel::Ceiling,
+            ceiling_gb: Some(0.5),
+        }
+    );
+    assert!(matches!(
+        written,
+        Err(apollia_core::config::SettingError::LockedByPolicy { .. })
+    ));
+    assert_eq!(
+        std::fs::read_to_string(&config).expect("read"),
+        "[llm.guardrails]\nlevel = \"disabled\"\n"
+    );
+}

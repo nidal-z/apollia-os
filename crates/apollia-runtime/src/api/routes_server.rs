@@ -1,14 +1,16 @@
 //! Driving the compatible server from the native API: `GET /api/v1/server`,
-//! `POST /api/v1/server/start` and `POST /api/v1/server/stop`.
+//! `POST /api/v1/server/start` and `POST /api/v1/server/stop`, its tokens
+//! under `/api/v1/server/tokens` (see [`tokens`]), and its logs under
+//! `/api/v1/server/logs` (see [`logs`]).
 //!
 //! The compatible server is a second listener with its own port (see
-//! [`crate::compat_server`]); these three routes are the only part of it the
-//! native API knows. Starting and stopping it writes `[server] enabled`, so
-//! the state survives a restart of the runtime.
+//! [`crate::compat_server`]); these routes are the only part of it the native
+//! API knows. Starting and stopping it writes `[server] enabled`, so the state
+//! survives a restart of the runtime.
 
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
 use crate::api::openapi::ApiErrorBody;
@@ -18,12 +20,24 @@ use crate::coordinator::ExecutionBackend;
 
 type ApiError = (StatusCode, Json<ApiErrorBody>);
 
-/// Builds the router of the three routes.
+/// Builds the router of the server routes and of its tokens.
 pub fn server_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
         .route("/api/v1/server", get(server_status::<B>))
         .route("/api/v1/server/start", post(start_server::<B>))
         .route("/api/v1/server/stop", post(stop_server::<B>))
+        .route(
+            "/api/v1/server/tokens",
+            get(tokens::list_server_tokens::<B>).post(tokens::create_server_token::<B>),
+        )
+        .route(
+            "/api/v1/server/tokens/:token",
+            delete(tokens::revoke_server_token::<B>),
+        )
+        .route(
+            "/api/v1/server/logs",
+            get(logs::stream_server_logs::<B>).delete(logs::clear_server_logs::<B>),
+        )
 }
 
 fn handle<B: ExecutionBackend + Clone>(
@@ -53,8 +67,8 @@ fn refusal(error: CompatServerError) -> ApiError {
     )
 }
 
-/// `GET /api/v1/server`: whether the compatible server listens, its port, and
-/// why its last start failed.
+/// `GET /api/v1/server`: whether the compatible server listens, its port, why
+/// its last start failed, and how many of its tokens are in use.
 #[utoipa::path(
     get,
     path = "/api/v1/server",
@@ -110,5 +124,10 @@ pub(crate) async fn stop_server<B: ExecutionBackend + Clone>(
     Ok(Json(status))
 }
 
+pub(crate) mod logs;
+pub(crate) mod tokens;
+
+#[cfg(test)]
+mod logs_tests;
 #[cfg(test)]
 mod tests;

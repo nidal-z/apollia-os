@@ -149,6 +149,8 @@ pub struct MlxEngineSupervisor {
     /// `apollia.toml`, whose `[llm.guardrails]` is read at every launch.
     /// `None` holds every launch to the default level.
     config_file: Option<PathBuf>,
+    /// The guardrail settings the organisation policy fixes, over the file.
+    imposed: apollia_core::config::PolicySettings,
 }
 
 impl MlxEngineSupervisor {
@@ -156,19 +158,28 @@ impl MlxEngineSupervisor {
     /// and holds them to the load guardrail of `config_file`, `apollia.toml`.
     /// Call [`spawn_supervision`](Self::spawn_supervision) for the respawns.
     #[must_use]
-    pub fn new(launch: MlxLaunch, config_file: Option<PathBuf>) -> Arc<Self> {
+    pub fn new(
+        launch: MlxLaunch,
+        config_file: Option<PathBuf>,
+        imposed: apollia_core::config::PolicySettings,
+    ) -> Arc<Self> {
         let mut engine = Self::with_timing(launch, Timing::default());
         engine.config_file = config_file;
+        engine.imposed = imposed;
         Arc::new(engine)
     }
 
     /// The engine of this installation, on a Mac with Apple Silicon only,
-    /// holding its launches to the guardrail of `config_file`.
+    /// holding its launches to the guardrail of `config_file` and to the
+    /// guardrail settings the organisation policy fixes in `imposed`.
     ///
     /// `None` elsewhere, and when the build carries no engine: an MLX model is
     /// then refused with its reason by the router factory.
     #[must_use]
-    pub fn for_this_machine(config_file: Option<PathBuf>) -> Option<Arc<Self>> {
+    pub fn for_this_machine(
+        config_file: Option<PathBuf>,
+        imposed: apollia_core::config::PolicySettings,
+    ) -> Option<Arc<Self>> {
         if !crate::local_engine::is_apple_silicon() {
             return None;
         }
@@ -180,7 +191,7 @@ impl MlxEngineSupervisor {
         let launch = locate(exe_dir.as_deref(), store_root.as_deref(), |var| {
             std::env::var(var).ok()
         })?;
-        Some(Self::new(launch, config_file))
+        Some(Self::new(launch, config_file, imposed))
     }
 
     fn with_timing(launch: MlxLaunch, timing: Timing) -> Self {
@@ -192,6 +203,7 @@ impl MlxEngineSupervisor {
             respawn_lock: Mutex::new(()),
             shutting_down: AtomicBool::new(false),
             config_file: None,
+            imposed: apollia_core::config::PolicySettings::none(),
         }
     }
 
@@ -201,7 +213,7 @@ impl MlxEngineSupervisor {
 
     /// The window a model is served with: the request's, else the default,
     /// capped at what the folder declares it was trained for.
-    fn window(model_path: &str, requested: Option<u32>) -> u32 {
+    pub(crate) fn window(model_path: &str, requested: Option<u32>) -> u32 {
         let wanted = requested.filter(|n| *n > 0).unwrap_or(DEFAULT_N_CTX);
         match trained_context(Path::new(model_path)) {
             Some(trained) => u32::try_from(trained).map_or(wanted, |t| wanted.min(t.max(1))),
@@ -289,9 +301,10 @@ impl MlxEngineSupervisor {
         consent: LoadConsent,
     ) -> Result<(), LocalEngineError> {
         let config_file = self.config_file.clone();
+        let imposed = self.imposed.clone();
         let model_path = model_path.to_owned();
         let judged = tokio::task::spawn_blocking(move || {
-            let policy = GuardrailPolicy::read(config_file.as_deref());
+            let policy = GuardrailPolicy::read_under(config_file.as_deref(), &imposed);
             if policy.level == guardrails::GuardrailLevel::Disabled {
                 return Ok(());
             }
@@ -500,6 +513,12 @@ impl MlxEngineSupervisor {
                 owed = still_owed;
             }
         });
+    }
+
+    /// A lease on the live process already serving `model_path`, marked as
+    /// just used; `None` when none does. Never launches anything.
+    pub async fn lease_resident(&self, model_path: &str) -> Option<ModelLease> {
+        self.touch_live_instance(model_path).await
     }
 
     /// Every model with a live process, most recently used first.

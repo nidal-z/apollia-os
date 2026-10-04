@@ -42,7 +42,7 @@ impl OneshotTrigger {
             let fired_at = Utc::now();
             let event = TriggerEvent {
                 trigger_id: def.id.clone(),
-                agent: def.agent.clone(),
+                target: def.target.name().to_string(),
                 payload: TriggerPayload::Timer {
                     scheduled_at: fire_at,
                     fired_at,
@@ -60,7 +60,7 @@ impl OneshotTrigger {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{InputTemplate, OnBusyPolicy, TriggerSourceConfig};
+    use crate::types::{OnBusyPolicy, TriggerSourceConfig};
     use std::time::Duration;
 
     #[tokio::test]
@@ -70,11 +70,10 @@ mod tests {
         let fire_at = Utc::now() + chrono::Duration::milliseconds(100);
         let def = TriggerDefinition {
             id: "oneshot".into(),
-            agent: "agent".into(),
+            target: crate::types::TriggerTarget::agent("agent", "once"),
             enabled: true,
             on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::Oneshot { fire_at },
-            input_template: InputTemplate("once".into()),
         };
         let handle = OneshotTrigger::spawn(def, tx);
 
@@ -97,11 +96,10 @@ mod tests {
         let fire_at = Utc::now() - chrono::Duration::seconds(10);
         let def = TriggerDefinition {
             id: "past-oneshot".into(),
-            agent: "agent".into(),
+            target: crate::types::TriggerTarget::agent("agent", "past"),
             enabled: true,
             on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::Oneshot { fire_at },
-            input_template: InputTemplate("past".into()),
         };
         let handle = OneshotTrigger::spawn(def, tx);
 

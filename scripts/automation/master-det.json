@@ -2,12 +2,6 @@
   "name": "master-det (per-page deterministic suite, one boot, no model)",
   "stopOnError": false,
   "dynamicTestids": [
-    "agent-detail-tab-activity",
-    "agent-detail-tab-memory",
-    "agent-detail-tab-overview",
-    "agent-detail-tab-settings",
-    "agent-detail-tab-tools",
-    "agent-detail-title",
     "arg-input-0",
     "automation-delete-automation-probe-trigger",
     "automation-delete-seed-trigger-daily-digest",
@@ -172,8 +166,10 @@
     "settings-nav-chat",
     "settings-nav-developer",
     "settings-nav-engines",
+    "settings-nav-engines-shortcut",
     "settings-nav-general",
     "settings-nav-hardware",
+    "settings-nav-hardware-shortcut",
     "settings-nav-integrations",
     "settings-nav-llm",
     "settings-nav-model-defaults",
@@ -190,7 +186,6 @@
     "task-detail-tab-overview",
     "task-detail-tab-technical",
     "task-detail-tab-trace",
-    "task-detail-title",
     "tasks-filter-all",
     "tasks-filter-approval",
     "tasks-filter-done",
@@ -4028,50 +4023,67 @@
       "testid": "apollia-chat-pinned"
     },
     {
+      "kind": "click",
+      "testid": "agent-adjust-open",
+      "timeoutMs": 2500
+    },
+    {
       "kind": "waitFor",
-      "testid": "apollia-chat-config-panel",
+      "testid": "agent-adjust-mission",
       "timeoutMs": 6000
     },
     {
       "kind": "screenshot",
-      "label": "03-apollia-chat-config"
+      "label": "03-apollia-adjust"
     },
     {
       "kind": "expect",
-      "testid": "apollia-chat-config-save"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "apollia-chat-system-prompt",
-      "timeoutMs": 4000
+      "testid": "agent-adjust-save"
     },
     {
       "kind": "expect",
-      "testid": "apollia-chat-llm-backend"
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "apollia-chat-tool-row",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "apollia-chat-tools-list",
-      "timeoutMs": 4000
+      "testid": "agent-adjust-model"
     },
     {
       "kind": "fill",
-      "testid": "apollia-chat-system-prompt",
+      "testid": "agent-adjust-mission",
       "text": "Automation system prompt"
     },
     {
       "kind": "click",
-      "testid": "apollia-chat-tool-row",
+      "testid": "agent-adjust-example-add",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "selectOption",
+      "testid": "agent-adjust-model",
+      "index": 0,
       "timeoutMs": 2500
     },
     {
       "kind": "click",
-      "testid": "apollia-chat-config-save",
+      "testidPrefix": "agent-adjust-source-check",
+      "timeoutMs": 2500,
+      "nth": 0
+    },
+    {
+      "kind": "click",
+      "testid": "agent-adjust-grant",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-adjust-grant-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-adjust-grant-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "agent-adjust-save",
       "timeoutMs": 4000
     },
     {
@@ -4080,37 +4092,30 @@
     },
     {
       "kind": "screenshot",
-      "label": "03b-apollia-chat-config-saved"
+      "label": "03b-apollia-adjust-saved"
     },
     {
       "kind": "click",
-      "testid": "apollia-chat-tools-filter",
-      "timeoutMs": 2500
+      "testid": "agent-adjust-open",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "apollia-chat-tools-all",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "apollia-chat-tools-none",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "selectOption",
-      "testid": "apollia-chat-llm-backend",
-      "index": 0,
+      "testid": "agent-adjust-reset",
       "timeoutMs": 2500
     },
     {
       "kind": "click",
-      "testid": "apollia-chat-config-reload",
+      "testid": "agent-adjust-reset-dialog-confirm",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
     },
     {
       "kind": "screenshot",
-      "label": "04-apollia-chat-config-after"
+      "label": "04-apollia-adjust-after-reset"
     },
     {
       "kind": "click",
@@ -4125,12 +4130,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-tabbar",
+      "testid": "agent-sheet",
       "timeoutMs": 2500
     },
     {
       "kind": "expect",
-      "testid": "agent-detail-tab-content"
+      "testid": "agent-detail-content"
     },
     {
       "kind": "screenshot",
@@ -4332,13 +4337,13 @@
       "label": "05i-agent-update-error-cleared (changing agent retires the banner)"
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-tools",
+      "kind": "waitFor",
+      "testid": "agent-sheet-access",
       "timeoutMs": 2500
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-tab-content",
+      "testid": "agent-detail-content",
       "timeoutMs": 2500
     },
     {
@@ -4346,8 +4351,8 @@
       "label": "06-agent-tools"
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-activity",
+      "kind": "waitFor",
+      "testid": "agent-sheet-activity",
       "timeoutMs": 2500
     },
     {
@@ -4367,8 +4372,8 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-activity",
+      "kind": "waitFor",
+      "testid": "agent-sheet-activity",
       "timeoutMs": 2500
     },
     {
@@ -4386,13 +4391,8 @@
       "label": "07-agent-activity"
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-settings",
-      "timeoutMs": 2500
-    },
-    {
       "kind": "waitFor",
-      "testid": "agent-detail-settings",
+      "testid": "agent-sheet-activity",
       "timeoutMs": 2500
     },
     {
@@ -4400,8 +4400,8 @@
       "label": "08-agent-settings"
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-overview",
+      "kind": "waitFor",
+      "testid": "agent-sheet-mission",
       "timeoutMs": 2500
     },
     {
@@ -4416,18 +4416,13 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-settings",
+      "kind": "waitFor",
+      "testid": "agent-sheet-activity",
       "timeoutMs": 2500
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-settings",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "agent-detail-tab-overview",
+      "testid": "agent-sheet-mission",
       "timeoutMs": 2500
     },
     {
@@ -4442,8 +4437,8 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-memory",
+      "kind": "waitFor",
+      "testid": "agent-sheet-memory",
       "timeoutMs": 2500
     },
     {
@@ -4960,20 +4955,15 @@
     },
     {
       "kind": "expect",
-      "testid": "agent-detail-tab-content"
+      "testid": "agent-detail-content"
     },
     {
       "kind": "screenshot",
       "label": "14-agent-detail-builder-overview"
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-settings",
-      "timeoutMs": 2500
-    },
-    {
       "kind": "waitFor",
-      "testid": "agent-detail-settings",
+      "testid": "agent-sheet-activity",
       "timeoutMs": 2500
     },
     {
@@ -4981,8 +4971,8 @@
       "label": "15-agent-settings-builder"
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-activity",
+      "kind": "waitFor",
+      "testid": "agent-sheet-activity",
       "timeoutMs": 2500
     },
     {
@@ -5006,8 +4996,8 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-memory",
+      "kind": "waitFor",
+      "testid": "agent-sheet-memory",
       "timeoutMs": 2500
     },
     {
@@ -13850,6 +13840,73 @@
       "label": "01-settings-shell"
     },
     {
+      "kind": "expect",
+      "testid": "settings-window"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-window-close"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "settings-window",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-window",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "press",
+      "testid": "settings-nav-general",
+      "key": "Escape"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "settings-window",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "press",
+      "key": "R",
+      "mod": true,
+      "shift": true
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-section",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "settings-nav-engines-shortcut"
+    },
+    {
+      "kind": "press",
+      "testid": "settings-nav-engines",
+      "key": "H",
+      "mod": true,
+      "shift": true
+    },
+    {
+      "kind": "waitFor",
+      "testid": "advanced-section",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "settings-nav-hardware-shortcut"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01b-settings-window-system"
+    },
+    {
       "kind": "click",
       "testid": "settings-nav-general"
     },
@@ -17124,38 +17181,43 @@
     },
     {
       "kind": "waitFor",
-      "testid": "hf-token-input",
+      "testid": "general-hf-token-input",
       "timeoutMs": 6000
     },
     {
-      "kind": "fill",
-      "testid": "hf-token-input",
-      "text": "hf_automationDummyTokenNotReal"
+      "kind": "expect",
+      "testid": "general-models-dir-path"
     },
     {
       "kind": "expect",
-      "testid": "hf-token-save"
+      "testid": "general-models-dir-change"
     },
     {
-      "kind": "click",
-      "testid": "hf-token-save",
+      "kind": "fill",
+      "testid": "general-hf-token-input",
+      "text": "hf_automationDummyTokenNotReal"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "general-hf-token-unsaved",
       "timeoutMs": 3000
     },
     {
-      "kind": "sleep",
-      "ms": 400
+      "kind": "expect",
+      "testid": "general-hf-token-save"
     },
     {
       "kind": "screenshot",
-      "label": "04-hf-token-form"
+      "label": "04-hf-token-general"
     },
     {
       "kind": "click",
-      "testid": "hf-token-toggle"
+      "testid": "settings-nav-model-hub"
     },
     {
-      "kind": "sleep",
-      "ms": 300
+      "kind": "waitFor",
+      "testid": "model-hub-search-input",
+      "timeoutMs": 6000
     },
     {
       "kind": "fill",

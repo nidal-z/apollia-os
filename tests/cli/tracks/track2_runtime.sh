@@ -299,6 +299,9 @@ check_content "agent set mission"                  "Answer in one line." "${Q[@]
 check_content "agent show carries the override"    "Answer in one line." "${Q[@]}" agent show apollia-chat
 check_exit    "agent reset without --confirm → 1"  1 "${Q[@]}" agent reset apollia-chat
 check         "agent reset --field mission"        "${Q[@]}" agent reset apollia-chat --field mission --confirm
+check_content "agent set sources profile"          "profile" "${Q[@]}" agent set apollia-chat sources profile
+check_content "agent show lists the profile source" "profile" "${Q[@]}" agent show apollia-chat
+check         "agent reset --field sources"        "${Q[@]}" agent reset apollia-chat --field sources --confirm
 check         "agent reset --confirm"              "${Q[@]}" agent reset apollia-chat --confirm
 check_exit    "agent set unknown agent → 1"        1 "${Q[@]}" agent set e2e-ghost-agent mission "x"
 # The settings of the chat are the overrides and the model of the Apollia
@@ -382,5 +385,10 @@ check            "package trust remove --confirm"   "${Q[@]}" package trust remo
 check_exit       "package trust remove (unknown) → 1" 1 "${Q[@]}" package trust remove "$RFP" --confirm
 check_exit       "package trust import (not a key) → 1" 1 "${Q[@]}" package trust import "not-a-key" --label "X"
 check            "audit verify (installation journaled)" "${Q[@]}" audit verify
+# The uninstall goes through the runtime too: the package and its history go,
+# the journal records it, and a second uninstall finds nothing.
+check_json_field "agent package uninstall: history erased" "d['name']+'/'+str(d['historyCleared'])" "e2e-runtime-pkg/True" "${Q[@]}" agent package uninstall e2e-runtime-pkg --clear-history --confirm --json
+check_exit       "agent package uninstall (already gone) → 1" 1 "${Q[@]}" agent package uninstall e2e-runtime-pkg --confirm
+check            "audit verify (uninstallation journaled)" "${Q[@]}" audit verify
 e2e_sqlite "$HOME/.apollia/agents.db" "DELETE FROM package_items WHERE package_name = 'e2e-runtime-pkg'; DELETE FROM installed_packages WHERE name = 'e2e-runtime-pkg';" >/dev/null 2>&1 || true
 /bin/rm -rf "$HOME/.apollia/agents/packages/e2e-runtime-pkg"

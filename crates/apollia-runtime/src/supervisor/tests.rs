@@ -576,6 +576,7 @@ async fn test_app_state_clone_with_llm_router_none() {
         audit_journal: None,
         connection_governance: Default::default(),
         governance: None,
+        inference_governance: Default::default(),
         obs_config: apollia_core::ObservabilityConfig::default(),
         llm_call_repository: None,
         trigger_def_repo: None,
@@ -776,6 +777,8 @@ async fn test_trigger_engine_loads_from_sqlite() {
     repo.insert(&TriggerDefinitionRow {
         id: "test-trigger".into(),
         agent: Some("test-agent".into()),
+        workflow: None,
+        workflow_inputs: None,
         enabled: true,
         on_busy: apollia_triggers::OnBusy::Queue,
         source_type: "cron".into(),

@@ -1346,6 +1346,24 @@ pub enum RuntimeEvent {
         extra_fields_json: Option<String>,
     },
 
+    /// An agent read the user profile through `ctx.profile`.
+    ///
+    /// Emitted by `apollia-aip::profile` on each read (`get`, `has`, `all`),
+    /// only reachable when the profile source is checked for the agent.
+    /// Persisted to `runtime_events.db` when the read belongs to a task, so it
+    /// shows in that execution's trace.
+    ProfileRead {
+        /// Task the read belongs to; `None` outside a task.
+        #[serde(default)]
+        task_id: Option<TaskId>,
+        /// Agent that read the profile.
+        agent_id: AgentId,
+        /// Identifier of the profile served.
+        profile_id: String,
+        /// When the read happened, RFC 3339 UTC.
+        read_at: String,
+    },
+
     // ── Observability - ReAct loop & enriched tools ───────────
     /// The LLM emitted a ReAct `thought` (reasoning chain).
     ///

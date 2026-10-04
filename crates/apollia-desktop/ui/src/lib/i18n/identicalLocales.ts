@@ -89,8 +89,11 @@ export const IDENTICAL_BY_NATURE: string[] = [
  */
 export const IDENTICAL_BY_DECISION: string[] = [
   "a11y.actions_menu", // Actions
+  "agent_adjust.grant_group_agents", // Agents
+  "agent_adjust.grant_group_workflows", // Workflows
+  "agent_adjust.mission_label", // Mission
+  "agent_adjust.preset_label", // Preset
   "agent_detail.execution_mode_direct", // Direct
-  "agent_detail.llm_backend", // Backend
   "agent_detail.messages_title", // Messages
   "agent_detail.tags_title", // Tags
   "agents.agents_word", // agents
@@ -105,7 +108,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "agents.tab_agents", // Agents
   "agents.tab_triggers", // Triggers
   "agents.triggers_word", // triggers
-  "automations.col_assistant", // Assistant
   "automations.status.active", // Active
   "automations.target_prefix", // Assistant
   "automations.wizard.step_agent", // Assistant
@@ -207,6 +209,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.developer.mcp.kind_agent", // Agent
   "settings.developer.mcp.kind_workflow", // Workflow
   "settings.general.application_title", // Application
+  "settings.general.channel_stable", // Stable
   "settings.general.interface_title", // Interface
   "settings.llm_backend.provider_local", // local
   "settings.llm_dialog.field_endpoint", // Endpoint
@@ -250,6 +253,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "triggers.field_secret", // Secret
   "triggers.field_target_agent", // Agent
   "triggers.interval_unit_minutes", // minutes
+  "triggers.workflow_label", // Workflow
 ];
 
 /** The two lists together, as the guard reads them. */

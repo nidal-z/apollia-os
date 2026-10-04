@@ -431,6 +431,7 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         // ── Observability: event-sourced runtime trace ────
         // Routed onto the front-side `trace-event` bus.
         RuntimeEvent::AgentLog { .. }
+        | RuntimeEvent::ProfileRead { .. }
         | RuntimeEvent::Thought { .. }
         | RuntimeEvent::LlmCallStarted { .. }
         | RuntimeEvent::ToolCallStarted { .. }

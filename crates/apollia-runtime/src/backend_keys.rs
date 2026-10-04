@@ -156,7 +156,9 @@ where
 /// the default one, ready for the router.
 ///
 /// A row that names a declared server (the default set to a server model)
-/// takes, in memory, that server's current address and key.
+/// takes, in memory, that server's current address and key. A row naming a
+/// server the organisation policy refuses (`governance`) is turned off in
+/// memory, so the router never reaches that server through it.
 ///
 /// # Errors
 ///
@@ -164,6 +166,7 @@ where
 pub fn routable_configs<F>(
     repo: &LlmBackendRepository,
     store: F,
+    governance: &crate::governance::InferenceGovernance,
 ) -> Result<(Vec<LlmBackendConfig>, Option<String>), apollia_core::LlmBackendError>
 where
     F: Fn() -> Result<Box<dyn SecretStore>, String>,
@@ -171,14 +174,19 @@ where
     let mut configs = repo.list()?;
     let default = repo.find_default()?.map(|cfg| cfg.name);
     unseal_backend_keys(&mut configs, &store);
-    attach_server_rows(repo, &mut configs, &store);
+    attach_server_rows(repo, &mut configs, &store, governance);
     Ok((configs, default))
 }
 
 /// Give each row naming a declared server that server's address and key.
-/// A server that is gone or disabled leaves the row as stored.
-fn attach_server_rows<F>(repo: &LlmBackendRepository, configs: &mut [LlmBackendConfig], store: F)
-where
+/// A server that is gone or disabled leaves the row as stored; a server the
+/// policy refuses turns the row off.
+fn attach_server_rows<F>(
+    repo: &LlmBackendRepository,
+    configs: &mut [LlmBackendConfig],
+    store: F,
+    governance: &crate::governance::InferenceGovernance,
+) where
     F: Fn() -> Result<Box<dyn SecretStore>, String>,
 {
     let refers = |cfg: &LlmBackendConfig| {
@@ -190,7 +198,7 @@ where
     if !configs.iter().any(|cfg| refers(cfg).is_some()) {
         return;
     }
-    let endpoints = crate::inference_servers::server_endpoints(repo, store);
+    let endpoints = crate::inference_servers::server_endpoints(repo, store, governance);
     for cfg in configs.iter_mut() {
         let Some(server) = refers(cfg) else {
             continue;
@@ -204,6 +212,17 @@ where
             );
             continue;
         };
+        if let Some(reason) = &endpoint.refusal {
+            tracing::event!(
+                tracing::Level::WARN,
+                backend = %cfg.name,
+                server = %server,
+                reason = %reason,
+                "llm.backend.server.refused_by_policy"
+            );
+            cfg.enabled = false;
+            continue;
+        }
         if let Some(config) = cfg.config_json.as_object_mut() {
             config.insert(
                 "base_url".into(),
@@ -342,7 +361,12 @@ mod tests {
                 .as_deref(),
             Some("sk-from-the-cli")
         );
-        let (configs, default) = routable_configs(&repo, || Ok(file_store(&dir))).unwrap();
+        let (configs, default) = routable_configs(
+            &repo,
+            || Ok(file_store(&dir)),
+            &crate::governance::InferenceGovernance::default(),
+        )
+        .unwrap();
         assert_eq!(default.as_deref(), Some("gateway"));
         assert_eq!(configs[0].config_json["api_key"], "sk-from-the-cli");
         drop(repo);
@@ -520,7 +544,12 @@ mod tests {
         repo.save_server(&server).unwrap();
 
         // WHEN
-        let (configs, default_name) = routable_configs(&repo, || Ok(file_store(&dir))).unwrap();
+        let (configs, default_name) = routable_configs(
+            &repo,
+            || Ok(file_store(&dir)),
+            &crate::governance::InferenceGovernance::default(),
+        )
+        .unwrap();
 
         // THEN
         assert_eq!(default_name.as_deref(), Some(default.backend.as_str()));
@@ -529,5 +558,48 @@ mod tests {
         assert_eq!(row.config_json["api_key"], "vllm-key");
         let stored = repo.find_by_name(&default.backend).unwrap().unwrap();
         assert!(stored.config_json.get("api_key").is_none());
+    }
+
+    // GIVEN a declared server whose model was made the default, then a policy
+    //       refusing servers off this machine
+    // WHEN the routable configurations are read under that policy
+    // THEN the default row is turned off in memory and carries no key, and
+    //      the stored row is unchanged
+    #[test]
+    fn test_a_row_naming_a_server_the_policy_refuses_is_turned_off() {
+        // GIVEN
+        let dir = tempfile::TempDir::new().unwrap();
+        let repo =
+            LlmBackendRepository::open(&dir.path().join(DataFile::System.file_name())).unwrap();
+        repo.save_server(&apollia_core::InferenceServer {
+            name: "cloud".into(),
+            base_url: "https://api.example.com/v1".into(),
+            has_key: false,
+            api_key_env: None,
+            enabled: true,
+        })
+        .unwrap();
+        let default = repo
+            .set_default_model(apollia_core::model_preset::ModelSource::Server, "cloud/gpt")
+            .unwrap();
+        let governance = crate::governance::InferenceGovernance::new(
+            crate::governance::inference_policy::valid_verdict_with_inference(
+                "remote_endpoints = \"deny\"",
+            ),
+        );
+
+        // WHEN
+        let (configs, _) = routable_configs(&repo, no_store, &governance).unwrap();
+
+        // THEN
+        let row = configs.iter().find(|c| c.name == default.backend).unwrap();
+        assert!(!row.enabled);
+        assert!(row.config_json.get("api_key").is_none());
+        assert!(
+            repo.find_by_name(&default.backend)
+                .unwrap()
+                .unwrap()
+                .enabled
+        );
     }
 }
