@@ -224,6 +224,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         observability: ObservabilityConfig::default(),
         routing: None,
         guardrails: Default::default(),
+        residency: Default::default(),
     };
 
     // WHEN LlmRouter::from_config() fails (the backend is absent)

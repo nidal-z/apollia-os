@@ -153,6 +153,7 @@ Backends LLM, routage, et le runner de transcription. Le fichier par défaut lai
 | `llm.routing` | table | non définie | Backends qui répondent aux requêtes précises et rapides, et le plafond du routage hybride. |
 | `llm.guardrails.level` | l'une de disabled, lenient, balanced, strict, ceiling | `"balanced"` | Sévérité avec laquelle le lancement d'un modèle local est tenu à la mémoire de la machine ; un niveau inconnu vaut balanced. La politique de l'organisation peut l'imposer. |
 | `llm.guardrails.ceiling_gb` | décimal | non définie | Plus grande estimation, en gigaoctets, que le niveau ceiling lance. La politique de l'organisation peut l'imposer. |
+| `llm.residency.idle_unload_minutes` | entier | `60` | Minutes sans requête au bout desquelles un modèle local que rien ne retient est déchargé ; 0 ne décharge jamais. La politique de l'organisation peut l'imposer. |
 
 ### `[api]`
 
