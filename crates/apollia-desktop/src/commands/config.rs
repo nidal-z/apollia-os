@@ -343,30 +343,11 @@ pub async fn get_observability_config() -> Result<ObservabilityView, String> {
 #[tauri::command]
 pub async fn set_observability_config(config: ObservabilityView) -> Result<(), String> {
     let path = default_config_path();
-
-    if let Some(parent) = path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|e| format!("failed to create config directory: {e}"))?;
-    }
-
-    let mut doc = if path.exists() {
-        let content = tokio::fs::read_to_string(&path)
-            .await
-            .map_err(|e| format!("failed to read {}: {e}", path.display()))?;
-        content
-            .parse::<toml_edit::DocumentMut>()
-            .map_err(|e| format!("failed to parse {}: {e}", path.display()))?
-    } else {
-        toml_edit::DocumentMut::new()
-    };
-
-    apply_observability_to_doc(&mut doc, &config.capture);
-    apply_debug_log_prompt_to_doc(&mut doc, config.debug_log_prompt);
-
-    tokio::fs::write(&path, doc.to_string())
+    let policy = settings::policy_in_force();
+    let view = config.clone();
+    tokio::task::spawn_blocking(move || write_observability_at(&path, &view, &policy))
         .await
-        .map_err(|e| format!("failed to write {}: {e}", path.display()))?;
+        .map_err(|e| e.to_string())??;
 
     tracing::info!(
         max_input_bytes = config.capture.max_input_bytes,
@@ -378,51 +359,56 @@ pub async fn set_observability_config(config: ObservabilityView) -> Result<(), S
     Ok(())
 }
 
-/// Writes every [`ObservabilityConfig`] field into the `[observability]` table
-/// of `doc`, creating the table if absent and leaving other content untouched.
-fn apply_observability_to_doc(doc: &mut toml_edit::DocumentMut, config: &ObservabilityConfig) {
-    let obs = doc
-        .entry("observability")
-        .or_insert_with(|| toml_edit::Item::Table(toml_edit::Table::new()));
-    let table = match obs.as_table_mut() {
-        Some(t) => t,
-        None => {
-            // The key exists but is not a table (malformed config); replace it.
-            *obs = toml_edit::Item::Table(toml_edit::Table::new());
-            match obs.as_table_mut() {
-                Some(t) => t,
-                None => return,
-            }
-        }
-    };
+/// Writes the observability policy to the `apollia.toml` at `path` through the
+/// one writer of the file, which keeps its comments and layout.
+pub(crate) fn write_observability_at(
+    path: &std::path::Path,
+    view: &ObservabilityView,
+    policy: &apollia_core::config::PolicySettings,
+) -> Result<(), String> {
+    use apollia_core::config::writer::{update_config, ConfigEdit};
 
-    table["max_input_bytes"] = toml_edit::value(config.max_input_bytes as i64);
-    table["max_output_bytes"] = toml_edit::value(config.max_output_bytes as i64);
-    table["max_tool_output_bytes"] = toml_edit::value(config.max_tool_output_bytes as i64);
-    table["capture_thoughts"] = toml_edit::value(config.capture_thoughts);
-    table["capture_tool_args"] = toml_edit::value(config.capture_tool_args);
-    table["capture_tool_outputs"] = toml_edit::value(config.capture_tool_outputs);
-    table["capture_agent_logs"] = toml_edit::value(config.capture_agent_logs);
-    table["retention_days"] = toml_edit::value(i64::from(config.retention_days));
+    update_config(path, ConfigEdit::Keys(observability_changes(view)), policy)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
-/// Writes `debug_log_prompt` into `[llm.observability]`, creating both tables if
-/// needed. Deliberately not merged into [`apply_observability_to_doc`]: the two
-/// settings look alike in the interface and land in different sections, and
-/// writing this one under `[observability]` would silently do nothing.
-fn apply_debug_log_prompt_to_doc(doc: &mut toml_edit::DocumentMut, enabled: bool) {
-    let llm = doc
-        .entry("llm")
-        .or_insert_with(|| toml_edit::Item::Table(toml_edit::Table::new()));
-    let Some(llm_table) = llm.as_table_mut() else {
-        return;
-    };
-    let obs = llm_table
-        .entry("observability")
-        .or_insert_with(|| toml_edit::Item::Table(toml_edit::Table::new()));
-    if let Some(table) = obs.as_table_mut() {
-        table["debug_log_prompt"] = toml_edit::value(enabled);
-    }
+/// Every [`ObservabilityConfig`] field as a key of `[observability]`, and
+/// `debug_log_prompt` as the key of `[llm.observability]`. Deliberately kept
+/// apart: the two settings look alike in the interface and land in different
+/// sections, and writing `debug_log_prompt` under `[observability]` would
+/// silently do nothing.
+fn observability_changes(view: &ObservabilityView) -> Vec<apollia_core::config::writer::KeyChange> {
+    use apollia_core::config::writer::KeyChange;
+    use serde_json::json;
+
+    let c = &view.capture;
+    vec![
+        KeyChange::set("observability.max_input_bytes", json!(c.max_input_bytes)),
+        KeyChange::set("observability.max_output_bytes", json!(c.max_output_bytes)),
+        KeyChange::set(
+            "observability.max_tool_output_bytes",
+            json!(c.max_tool_output_bytes),
+        ),
+        KeyChange::set("observability.capture_thoughts", json!(c.capture_thoughts)),
+        KeyChange::set(
+            "observability.capture_tool_args",
+            json!(c.capture_tool_args),
+        ),
+        KeyChange::set(
+            "observability.capture_tool_outputs",
+            json!(c.capture_tool_outputs),
+        ),
+        KeyChange::set(
+            "observability.capture_agent_logs",
+            json!(c.capture_agent_logs),
+        ),
+        KeyChange::set("observability.retention_days", json!(c.retention_days)),
+        KeyChange::set(
+            "llm.observability.debug_log_prompt",
+            json!(view.debug_log_prompt),
+        ),
+    ]
 }
 
 #[cfg(test)]
@@ -580,24 +566,26 @@ mod tests {
     #[test]
     fn test_apply_observability_preserves_comments_and_sections() {
         // GIVEN a config file with comments and an unrelated section
-        let original = "# top comment\n[runtime]\napi_port = 7771 # inline\n";
-        let mut doc = original
-            .parse::<toml_edit::DocumentMut>()
-            .expect("parse doc");
-        let config = ObservabilityConfig {
-            max_input_bytes: 1024,
-            retention_days: 7,
-            ..ObservabilityConfig::default()
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("apollia.toml");
+        std::fs::write(&path, "# top comment\n[api]\nport = 7771 # inline\n").unwrap();
+        let view = ObservabilityView {
+            capture: ObservabilityConfig {
+                max_input_bytes: 1024,
+                retention_days: 7,
+                ..ObservabilityConfig::default()
+            },
+            debug_log_prompt: true,
         };
 
-        // WHEN writing both observability sections
-        apply_observability_to_doc(&mut doc, &config);
-        apply_debug_log_prompt_to_doc(&mut doc, true);
-        let rendered = doc.to_string();
+        // WHEN writing both observability sections through the writer
+        write_observability_at(&path, &view, &apollia_core::config::PolicySettings::none())
+            .expect("written");
+        let rendered = std::fs::read_to_string(&path).unwrap();
 
-        // THEN comments and the runtime section survive
+        // THEN comments and the api section survive
         assert!(rendered.contains("# top comment"));
-        assert!(rendered.contains("api_port = 7771 # inline"));
+        assert!(rendered.contains("port = 7771 # inline"));
         // AND the observability values are written
         assert!(rendered.contains("max_input_bytes = 1024"));
         assert!(rendered.contains("debug_log_prompt = true"));
@@ -613,7 +601,6 @@ mod tests {
             .expect("deserialize");
         assert_eq!(obs.max_input_bytes, 1024);
         assert_eq!(obs.retention_days, 7);
-        // Untouched fields keep their defaults.
         assert!(obs.capture_thoughts);
         assert_eq!(obs.max_output_bytes, 32_768);
 
@@ -639,14 +626,21 @@ mod tests {
 
     #[test]
     fn test_apply_observability_creates_section_when_absent() {
-        // GIVEN an empty document
-        let mut doc = toml_edit::DocumentMut::new();
+        // GIVEN an empty file
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("apollia.toml");
+        std::fs::write(&path, "").unwrap();
 
         // WHEN writing the default policy
-        apply_observability_to_doc(&mut doc, &ObservabilityConfig::default());
-        let rendered = doc.to_string();
+        let view = ObservabilityView {
+            capture: ObservabilityConfig::default(),
+            debug_log_prompt: false,
+        };
+        write_observability_at(&path, &view, &apollia_core::config::PolicySettings::none())
+            .expect("written");
+        let rendered = std::fs::read_to_string(&path).unwrap();
 
-        // THEN the section is created with all ten fields
+        // THEN the section is created with its fields
         assert!(rendered.contains("[observability]"));
         assert!(rendered.contains("capture_agent_logs = true"));
         assert!(rendered.contains("max_tool_output_bytes = 10240"));
