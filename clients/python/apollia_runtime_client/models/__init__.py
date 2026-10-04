@@ -230,6 +230,7 @@ from .journal_break import JournalBreak
 from .journal_break_reason import JournalBreakReason
 from .last_loaded_model_response import LastLoadedModelResponse
 from .last_loaded_model_response_load import LastLoadedModelResponseLoad
+from .lease_response import LeaseResponse
 from .list_plan_mutations_response_200_item import ListPlanMutationsResponse200Item
 from .llm_backend_response import LlmBackendResponse
 from .llm_backend_response_config_json import LlmBackendResponseConfigJson
@@ -275,6 +276,7 @@ from .model_cards_response_cards_item import ModelCardsResponseCardsItem
 from .model_cards_response_publishers import ModelCardsResponsePublishers
 from .model_info import ModelInfo
 from .model_kind import ModelKind
+from .model_pin import ModelPin
 from .model_source_dto import ModelSourceDto
 from .models_list_response import ModelsListResponse
 from .next_steps_reply import NextStepsReply
@@ -301,6 +303,7 @@ from .onboarding_profile_body import OnboardingProfileBody
 from .onboarding_reset import OnboardingReset
 from .onboarding_state import OnboardingState
 from .onboarding_stats import OnboardingStats
+from .open_lease_request import OpenLeaseRequest
 from .package_error_body import PackageErrorBody
 from .package_install_request import PackageInstallRequest
 from .package_notice_type_0 import PackageNoticeType0
@@ -322,6 +325,7 @@ from .pending_user_input_view import PendingUserInputView
 from .permission_rule_dto import PermissionRuleDto
 from .ping_request import PingRequest
 from .ping_response import PingResponse
+from .pins_response import PinsResponse
 from .plan_action_response import PlanActionResponse
 from .plan_cache_stats_response import PlanCacheStatsResponse
 from .plan_decision_request import PlanDecisionRequest
@@ -355,6 +359,8 @@ from .readme_response import ReadmeResponse
 from .reasoning_profile_dto import ReasoningProfileDto
 from .reject_plan_request import RejectPlanRequest
 from .reject_user_input_request import RejectUserInputRequest
+from .release_lease_request import ReleaseLeaseRequest
+from .release_lease_response import ReleaseLeaseResponse
 from .reload_last_request import ReloadLastRequest
 from .reload_response import ReloadResponse
 from .reload_router_response import ReloadRouterResponse
@@ -763,6 +769,7 @@ __all__ = (
     "JournalBreakReason",
     "LastLoadedModelResponse",
     "LastLoadedModelResponseLoad",
+    "LeaseResponse",
     "ListPlanMutationsResponse200Item",
     "LlmBackendResponse",
     "LlmBackendResponseConfigJson",
@@ -808,6 +815,7 @@ __all__ = (
     "ModelCardsResponsePublishers",
     "ModelInfo",
     "ModelKind",
+    "ModelPin",
     "ModelsListResponse",
     "ModelSourceDto",
     "NextStepsReply",
@@ -834,6 +842,7 @@ __all__ = (
     "OnboardingReset",
     "OnboardingState",
     "OnboardingStats",
+    "OpenLeaseRequest",
     "PackageErrorBody",
     "PackageInstallRequest",
     "PackageNoticeType0",
@@ -855,6 +864,7 @@ __all__ = (
     "PermissionRuleDto",
     "PingRequest",
     "PingResponse",
+    "PinsResponse",
     "PlanActionResponse",
     "PlanCacheStatsResponse",
     "PlanDecisionRequest",
@@ -886,6 +896,8 @@ __all__ = (
     "ReasoningProfileDto",
     "RejectPlanRequest",
     "RejectUserInputRequest",
+    "ReleaseLeaseRequest",
+    "ReleaseLeaseResponse",
     "ReloadLastRequest",
     "ReloadResponse",
     "ReloadRouterResponse",
