@@ -47,13 +47,17 @@
     sendChatMessage,
   } from "$lib/ipc/chat";
   import { DEFAULT_PROFILE, getProfileById } from "$lib/ipc/profile";
-  import { type PendingAttachment, composeUserPayload } from "$lib/chat/attachments";
+  import {
+    type PendingAttachment,
+    composeUserPayload,
+    imagePayloads,
+    sentImagesMetadata,
+  } from "$lib/chat/attachments";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
   import ContextIndicator from "./ContextIndicator.svelte";
   import { refreshSessionMetrics } from "$lib/stores/chatMetrics";
   import InjectedMemorySheet from "../memory/InjectedMemorySheet.svelte";
   import { latestTurnId } from "$lib/stores/thinking";
-  import HitlFilesystemModal from "./HitlFilesystemModal.svelte";
   import ChatConversationHeader from "./ChatConversationHeader.svelte";
   import NextStepsPanel from "../common/NextStepsPanel.svelte";
   import { sessionScope } from "$lib/stores/nextSteps";
@@ -65,6 +69,9 @@
   import SessionNotFound from "./SessionNotFound.svelte";
   import AgentUnavailableBanner from "./AgentUnavailableBanner.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
+  import type { ChatTarget, ConversationTarget } from "$lib/chat/chatTargets";
+  import { applyTargetChoice } from "$lib/chat/applyTargetChoice";
+  import { createImageSupport } from "./useImageSupport.svelte";
 
   interface Props {
     sessionId: string;
@@ -106,6 +113,8 @@
      * (session not found) - lets the parent open the QuickPicker.
      */
     onnewChat?: () => void;
+    /** Called with the conversation a choice in the selector opened. */
+    onopensession?: (sessionId: string) => void;
   }
 
   let {
@@ -119,6 +128,7 @@
     collapseActions = true,
     ondelete,
     onnewChat,
+    onopensession,
     inputHidden = false,
   }: Props = $props();
 
@@ -154,6 +164,24 @@
     injectedSheetOpen = true;
   }
   let sessionDetail = $state<ChatSessionDetail | null>(null);
+  const images = createImageSupport(() => sessionId, () => sessionDetail?.llm_backend);
+
+  const target = $derived<ConversationTarget>({
+    mode: sessionMode,
+    agentName: sessionAgentName,
+    model: sessionDetail?.llm_backend ?? null,
+  });
+
+  async function handleTargetPick(choice: ChatTarget): Promise<void> {
+    try {
+      const outcome = await applyTargetChoice(choice, sessionId, target, messages.length);
+      if (outcome.openedSessionId) onopensession?.(outcome.openedSessionId);
+      else await refreshSession();
+    } catch (err) {
+      pendingError = $t("chat.target_selector.choose_failed", { values: { error: String(err) } });
+    }
+  }
+
   /** Plan-mode state of the active session (drives the header chip + review). */
   let planMode = $state(false);
 
@@ -512,7 +540,7 @@
 
     // Attachments v1: inline small payloads as fenced blocks, reference larger
     // files by absolute path. The backend sees a single user message - the
-    // authoritative tool-side ingestion happens via the filesystem HITL flow.
+    // authoritative tool-side ingestion happens through the file tools.
     // The composer refuses anything that fits neither form, so the rendering
     // below is total and never emits a tag without content nor path.
     const payload = composeUserPayload(content, attachments);
@@ -521,6 +549,7 @@
       id: `temp-${Date.now()}`, role: "user", content: payload,
       tool_calls: null, tool_name: null,
       seq: (messages ?? []).length, created_at: new Date().toISOString(),
+      metadata: sentImagesMetadata(attachments),
     };
     pendingError = null;
     messages = [...(messages ?? []).filter((m) => m.id !== "exchange-error"), tempMsg];
@@ -528,7 +557,7 @@
     await tick(); scroll.toBottom(true);
 
     try {
-      await sendChatMessage(sessionId, payload);
+      await sendChatMessage(sessionId, payload, imagePayloads(attachments));
     } catch (err: unknown) {
       isProcessing = false;
       const errMsg: ChatMessageView = {
@@ -650,6 +679,8 @@
       {hideConfig}
       {collapseActions}
       renameTrigger={actions.renameTrigger}
+      {target}
+      ontargetpick={onopensession ? (choice) => void handleTargetPick(choice) : undefined}
       onclose={onclose}
       onconfigtoggle={onconfigtoggle ? onconfigtoggle : () => (configOpen = true)}
       {onsessionsopen}
@@ -753,6 +784,7 @@
       {planMode}
       onplantoggle={togglePlanMode}
       planDisabled={sessionStatus === "closed"}
+      imageSupport={images.value}
     />
   {/if}
 </div>
@@ -765,5 +797,3 @@
   onupdated={() => void refreshSession()}
 />
 {/if}
-
-<HitlFilesystemModal {sessionId} />

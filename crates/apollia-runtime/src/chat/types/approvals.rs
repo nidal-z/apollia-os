@@ -1,13 +1,11 @@
 //! Pending-approval stores for the chat subsystem.
 //!
-//! Holds the two waiting rooms a chat turn can park in: tool approvals keyed
-//! by call, and filesystem HITL requests keyed by operation.
+//! Holds the waiting room a chat turn parks in: tool approvals keyed by call.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 
 use crate::chat::types::ToolDecision;
@@ -252,154 +250,6 @@ impl Default for PendingChatApprovals {
         Self::new()
     }
 }
-
-// ─────────────────────────────────────────────
-// FsHitlDecision + PendingFilesystemApprovals
-// ─────────────────────────────────────────────
-
-/// Decision returned by the user for a filesystem HITL request.
-#[derive(Debug, Clone)]
-pub enum FsHitlDecision {
-    /// Approve this specific operation.
-    Approve,
-    /// Deny this specific operation.
-    ///
-    /// `reason` is required when the caller tool flagged `reject_reason_required`
-    /// and is forwarded to the agent so it can adapt its plan. Callers that do
-    /// not require a reason pass `None`.
-    Deny { reason: Option<String> },
-    /// Approve this operation and also install an "always accept" rule.
-    ///
-    /// The rule scope is encoded by [`AlwaysAcceptScope`], from the most
-    /// restrictive (this tool only) to the most permissive (global).
-    ///
-    /// `op` and `level` identify the filesystem rule bucket (e.g., `"write"` +
-    /// `"medium"`). They are kept alongside the scope so `PrefixRuleEngine` can
-    /// persist the correct row.
-    AlwaysAllow {
-        /// Scope picked by the operator in the approval card.
-        scope: AlwaysAcceptScope,
-        /// Filesystem operation bucket (`write` / `delete` / `chmod` / `read`).
-        op: String,
-        /// Risk level bucket (`medium` / `high` / `critical`).
-        level: String,
-    },
-}
-
-impl FsHitlDecision {
-    /// Convenience constructor: Deny without a reason (legacy code path).
-    #[must_use]
-    pub fn deny() -> Self {
-        Self::Deny { reason: None }
-    }
-}
-
-/// Scope of a user-issued "always accept" approval.
-///
-/// Ordered from least to most permissive. The persistence layer is free to
-/// interpret each scope differently:
-///
-/// - `ThisTool` and `ThisAgent` are persisted as `PrefixRuleEngine` rows keyed
-///   by `tool_name`; later sessions re-read those rows to seed the name-only
-///   authorization set (no argument-prefix matching happens on the chat path).
-/// - `ThisSession` stays in-memory for the current `ChatManager` session.
-/// - `ThisProject` and `Global` are persisted in the user-wide
-///   `governance.db`, with the project's canonical path attached for
-///   `ThisProject`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum AlwaysAcceptScope {
-    /// Auto-approve only this exact tool name for the rest of the session.
-    ThisTool,
-    /// Auto-approve matching ops for the rest of the current chat session.
-    /// This is the **default** scope, least sticky, safest.
-    ThisSession,
-    /// Auto-approve matching ops whenever the requesting agent runs.
-    ThisAgent,
-    /// Auto-approve matching ops inside the current project workspace.
-    ThisProject,
-    /// Auto-approve matching ops machine-wide.
-    Global,
-}
-
-impl AlwaysAcceptScope {
-    /// Safe default picked by the UI when the operator clicks "Always accept"
-    /// without opening the scope disclosure.
-    #[must_use]
-    pub fn safe_default() -> Self {
-        Self::ThisSession
-    }
-}
-
-/// Thread-safe store for pending filesystem HITL requests.
-///
-/// Keyed by `request_id` (UUID v4). Shared between `NativeChatToolInvoker`
-/// (which registers and awaits decisions) and `ChatSessionManager` (which resolves
-/// them when a `respond_hitl_filesystem` Tauri command arrives).
-///
-/// This uses `Arc<Mutex<>>`, acceptable because it is an internal data structure
-/// coordinating two concurrent async tasks, not a cross-actor shared state.
-pub struct PendingFilesystemApprovals {
-    inner: Arc<Mutex<HashMap<String, oneshot::Sender<FsHitlDecision>>>>,
-}
-
-impl PendingFilesystemApprovals {
-    /// The map guard, recovered when a panic poisoned the mutex.
-    ///
-    /// Poisoning records that a previous holder panicked; the map it protects
-    /// is a `HashMap` of oneshot senders, which no panic can leave half
-    /// written. Recovering the guard keeps one panic from turning every later
-    /// approval into a second panic, which would strand every ReAct loop
-    /// waiting on a decision.
-    fn locked(
-        inner: &Mutex<HashMap<String, oneshot::Sender<FsHitlDecision>>>,
-    ) -> MutexGuard<'_, HashMap<String, oneshot::Sender<FsHitlDecision>>> {
-        inner.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
-    /// Create a new empty store.
-    pub fn new() -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-
-    /// Register a pending HITL request and return a receiver to await the decision.
-    pub fn register(&self, request_id: String) -> oneshot::Receiver<FsHitlDecision> {
-        let (tx, rx) = oneshot::channel();
-        let mut map = Self::locked(&self.inner);
-        map.insert(request_id, tx);
-        rx
-    }
-
-    /// Resolve a pending request by sending the decision.
-    ///
-    /// Returns `true` if the request was found and resolved, `false` otherwise.
-    pub fn resolve(&self, request_id: &str, decision: FsHitlDecision) -> bool {
-        let mut map = Self::locked(&self.inner);
-        if let Some(tx) = map.remove(request_id) {
-            let _ = tx.send(decision);
-            true
-        } else {
-            false
-        }
-    }
-}
-
-impl Clone for PendingFilesystemApprovals {
-    fn clone(&self) -> Self {
-        Self {
-            inner: Arc::clone(&self.inner),
-        }
-    }
-}
-
-impl Default for PendingFilesystemApprovals {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -469,13 +319,12 @@ mod tests {
 
         // WHEN register then resolve(AlwaysAccept)
         let rx = approvals.register("sess-1::msg-1::bash".to_string());
-        let resolved =
-            approvals.resolve("sess-1::msg-1::bash", ToolDecision::always_accept_default());
+        let resolved = approvals.resolve("sess-1::msg-1::bash", ToolDecision::AlwaysAccept);
 
         // THEN receiver gets AlwaysAccept
         assert!(resolved);
         let decision = rx.await.expect("decision");
-        assert_eq!(decision, ToolDecision::always_accept_default());
+        assert_eq!(decision, ToolDecision::AlwaysAccept);
     }
 
     #[tokio::test]

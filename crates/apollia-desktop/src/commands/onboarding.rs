@@ -1,6 +1,6 @@
 //! Tauri IPC commands for onboarding lifecycle management.
 //!
-//! The state machine (7 phases, persisted in the `onboarding_*` keys of the
+//! The state machine (6 phases, persisted in the `onboarding_*` keys of the
 //! user memory) and the chat-based onboarding live in
 //! `apollia_runtime::onboarding`, which serves both modes: embedded, these
 //! commands call it in this process; attached to a daemon, [`remote`] reaches
@@ -8,7 +8,6 @@
 //!
 //! - [`get_onboarding_state`] - full machine state (new)
 //! - [`advance_onboarding_phase`] - validated phase transition (new)
-//! - [`set_onboarding_profile`] - profile selection (new)
 //! - [`trigger_onboarding`] - creates an agent-backed chat session
 //! - [`dismiss_onboarding`] - marks onboarding as skipped
 //!
@@ -136,25 +135,6 @@ pub async fn advance_onboarding_phase(
     .map_err(shown("onboarding.phase.advance.failed"))
 }
 
-/// Sets the user's onboarding profile to `"operator"` or `"builder"`.
-///
-/// Returns `Err` if the profile string is not one of the two accepted values.
-/// The state is persisted to UserMemory on success.
-#[tauri::command]
-pub async fn set_onboarding_profile(
-    profile: String,
-    link: State<'_, RuntimeLink>,
-) -> Result<OnboardingState, String> {
-    match link.inner() {
-        RuntimeLink::Embedded(state) => embedded(state)
-            .set_profile(profile)
-            .await
-            .map_err(|e| e.to_string()),
-        RuntimeLink::Attached(remote) => remote::set_profile(remote, &profile).await,
-    }
-    .map_err(shown("onboarding.profile.set.failed"))
-}
-
 // ---------------------------------------------------------------------------
 // Tauri commands - legacy
 // ---------------------------------------------------------------------------
@@ -163,22 +143,17 @@ pub async fn set_onboarding_profile(
 ///
 /// Pass `topic = None` for a full onboarding (all 5 topics).
 /// Pass `topic = Some("preferences")` for a single-topic re-run.
-///
-/// Pass `profile = Some("operator")` or `profile = Some("builder")` to inject
-/// the selected profile into the onboarding agent's memory before the session
-/// starts.  Passing `None` preserves backward-compatible generic behaviour.
 #[tauri::command]
 pub async fn trigger_onboarding(
     topic: Option<String>,
-    profile: Option<String>,
     link: State<'_, RuntimeLink>,
 ) -> Result<TriggerResult, String> {
     match link.inner() {
         RuntimeLink::Embedded(state) => embedded(state)
-            .trigger(topic, profile, false)
+            .trigger(topic, false)
             .await
             .map_err(|e| e.to_string()),
-        RuntimeLink::Attached(remote) => remote::trigger(remote, topic, profile).await,
+        RuntimeLink::Attached(remote) => remote::trigger(remote, topic).await,
     }
     .map_err(shown("onboarding.trigger.failed"))
 }
@@ -193,7 +168,7 @@ pub async fn trigger_onboarding(
 pub async fn resume_onboarding(link: State<'_, RuntimeLink>) -> Result<TriggerResult, String> {
     match link.inner() {
         RuntimeLink::Embedded(state) => embedded(state)
-            .trigger(None, None, true)
+            .trigger(None, true)
             .await
             .map_err(|e| e.to_string()),
         RuntimeLink::Attached(remote) => remote::resume(remote).await,

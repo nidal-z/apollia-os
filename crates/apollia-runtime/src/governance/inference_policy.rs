@@ -90,6 +90,12 @@ impl InferenceGovernance {
     pub fn imposed_settings(&self) -> PolicySettings {
         self.verdict.imposed_settings()
     }
+
+    /// The verdict the runtime read at boot, the whole policy behind it.
+    #[must_use]
+    pub fn verdict(&self) -> &PolicyVerdict {
+        &self.verdict
+    }
 }
 
 /// An address as the policy compares it: the OpenAI base (`.../v1`) with its

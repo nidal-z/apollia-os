@@ -1029,7 +1029,7 @@ async fn test_tool_call_hitl_always_accept() {
         let approvals = approvals.clone();
         async move {
             poll_until(std::time::Duration::from_secs(5), || {
-                approvals.resolve(&key, ToolDecision::always_accept_default())
+                approvals.resolve(&key, ToolDecision::AlwaysAccept)
             })
             .await;
         }
@@ -1169,6 +1169,7 @@ fn test_build_llm_messages() {
         "Final question",
         None,
         DEFAULT_CONTEXT_WINDOW_SIZE,
+        &crate::chat::images::TurnImages::default(),
     );
 
     // THEN 5 messages in order: system, h1 (user), h2 (assistant), h3 (user), current user
@@ -1374,7 +1375,14 @@ fn test_truncate_preview_long() {
 fn test_default_system_prompt_used_when_empty() {
     // GIVEN empty system_prompt
     // WHEN the LLM messages are built
-    let messages = build_llm_messages("", &[], "Hello", None, DEFAULT_CONTEXT_WINDOW_SIZE);
+    let messages = build_llm_messages(
+        "",
+        &[],
+        "Hello",
+        None,
+        DEFAULT_CONTEXT_WINDOW_SIZE,
+        &crate::chat::images::TurnImages::default(),
+    );
 
     // THEN first message is the empty string we passed (caller decides default)
     assert_eq!(messages.len(), 2);
@@ -2030,12 +2038,52 @@ fn text_of(msg: &apollia_llm::types::ChatMessage) -> &str {
 }
 
 #[test]
+fn test_history_user_messages_are_rebuilt_with_their_images() {
+    // GIVEN a history whose first user message carried two images, and a
+    // follow-up that carries none
+    let history = make_history(4);
+    let images = vec![
+        apollia_llm::message_image::MessageImage::new("image/png", vec![1u8]),
+        apollia_llm::message_image::MessageImage::new("image/png", vec![2u8]),
+    ];
+    let mut turn = crate::chat::images::TurnImages::default();
+    turn.history.insert(history[0].id.clone(), images.clone());
+
+    // WHEN the messages of the follow-up turn are built
+    let messages = build_llm_messages("system", &history, "and the second?", None, 20, &turn);
+
+    // THEN the first user message carries its images after its text, and the
+    // follow-up stays text alone
+    match &messages[1].content {
+        apollia_llm::types::MessageContent::TextWithImages {
+            text,
+            images: found,
+        } => {
+            assert_eq!(text, &history[0].content);
+            assert_eq!(found, &images);
+        }
+        other => panic!("expected the images, got {other:?}"),
+    }
+    assert_eq!(
+        text_of(messages.last().expect("follow-up")),
+        "and the second?"
+    );
+}
+
+#[test]
 fn test_context_window_short_conversation_includes_all() {
     // GIVEN a conversation shorter than window_size (10 messages, window=20)
     let history = make_history(10);
 
     // WHEN building context without summary
-    let messages = build_llm_messages("system", &history, "new msg", None, 20);
+    let messages = build_llm_messages(
+        "system",
+        &history,
+        "new msg",
+        None,
+        20,
+        &crate::chat::images::TurnImages::default(),
+    );
 
     // THEN all 10 history messages are included (+ system + user = 12)
     assert_eq!(messages.len(), 12);
@@ -2050,7 +2098,14 @@ fn test_context_window_long_conversation_with_summary() {
     let summary = "The user discussed project setup and deployment.";
 
     // WHEN building context with summary
-    let messages = build_llm_messages("system", &history, "new msg", Some(summary), 20);
+    let messages = build_llm_messages(
+        "system",
+        &history,
+        "new msg",
+        Some(summary),
+        20,
+        &crate::chat::images::TurnImages::default(),
+    );
 
     // THEN: system + summary + 20 windowed messages + user = 23
     assert_eq!(messages.len(), 23);
@@ -2074,7 +2129,14 @@ fn test_context_window_long_conversation_without_summary() {
     let history = make_history(40);
 
     // WHEN building context without summary
-    let messages = build_llm_messages("system", &history, "new msg", None, 20);
+    let messages = build_llm_messages(
+        "system",
+        &history,
+        "new msg",
+        None,
+        20,
+        &crate::chat::images::TurnImages::default(),
+    );
 
     // THEN: system + 20 windowed messages + user = 22 (no summary message)
     assert_eq!(messages.len(), 22);

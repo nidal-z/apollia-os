@@ -8,6 +8,7 @@
   import KeyboardHintOverlay from "./components/common/KeyboardHintOverlay.svelte";
   import OnboardingModal from "./components/onboarding/OnboardingModal.svelte";
   import ProjectMigrationNotice from "./components/projectMigration/ProjectMigrationNotice.svelte";
+  import PackagePreviewDialog from "./components/packages/PackagePreviewDialog.svelte";
   import { ToastContainer } from "$lib/components/ui/toast";
   import PlanModeHost from "$lib/components/operator/PlanModeHost.svelte";
   import CompanionContextProvider from "./components/companion/CompanionContextProvider.svelte";
@@ -230,6 +231,8 @@
       </div>
     </CompanionContextProvider>
     <PlanModeHost />
+    <!-- The preview of a `.apo` package, opened from any screen by its path. -->
+    <PackagePreviewDialog />
     <ToastContainer />
     {#if $onboardingModalOpen}
       <OnboardingModal onclose={handleOnboardingClose} />

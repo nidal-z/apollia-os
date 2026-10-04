@@ -3,7 +3,9 @@
 //! `GET /api/v1/sessions/{id}/workspace`, the folder a relative path named in
 //! the conversation is revealed against, and
 //! `GET /api/v1/sessions/{id}/model-capabilities`, what the model of the
-//! conversation lets the composer offer (a reasoning setting, images).
+//! conversation lets the composer offer (a reasoning setting, images), and
+//! `GET /api/v1/sessions/{id}/images/{file}`, an image a message of the
+//! conversation carries, for its thumbnail.
 //!
 //! The first two had no route: only the desktop running the runtime in its own
 //! process could read them. They answer what the embedded desktop answers,
@@ -196,6 +198,34 @@ pub async fn get_session_model_capabilities<B: ExecutionBackend + Clone>(
         "chat.session.model_capabilities.read"
     );
     Ok(Json(found.into()))
+}
+
+/// Handler for `GET /api/v1/sessions/{id}/images/{file}`, an image a user
+/// message of the session carries, as its metadata names it.
+#[utoipa::path(
+    get,
+    path = "/api/v1/sessions/{id}/images/{file}",
+    tag = "chat",
+    params(
+        ("id" = String, Path, description = "Session id"),
+        ("file" = String, Path, description = "File name of the image, as the message metadata lists it"),
+    ),
+    responses(
+        (status = 200, description = "The image, its media type and its bytes in base64", body = crate::chat::images::ImageAttachment),
+        (status = 400, description = "Not an image file name", body = ApiErrorBody),
+        (status = 404, description = "No such image in the session", body = ApiErrorBody),
+    )
+)]
+pub async fn get_session_image<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path((id, file)): Path<(String, String)>,
+) -> Result<Json<crate::chat::images::ImageAttachment>, ApiError> {
+    crate::chat::images::read_session_image(&state.data_dir, &id, &file)
+        .map(Json)
+        .map_err(|e| match e {
+            ChatError::ImageRejected(_) => failure(StatusCode::BAD_REQUEST, e.to_string()),
+            other => failure(StatusCode::NOT_FOUND, other.to_string()),
+        })
 }
 
 fn failure(status: StatusCode, error: String) -> ApiError {

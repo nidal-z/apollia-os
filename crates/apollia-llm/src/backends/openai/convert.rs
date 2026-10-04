@@ -5,11 +5,15 @@
 
 use async_openai::types::{
     ChatCompletionMessageToolCall, ChatCompletionRequestAssistantMessageArgs,
-    ChatCompletionRequestMessage, ChatCompletionRequestSystemMessageArgs,
-    ChatCompletionRequestToolMessageArgs, ChatCompletionRequestUserMessageArgs, ChatCompletionTool,
-    ChatCompletionToolType, FunctionCall, FunctionObject,
+    ChatCompletionRequestMessage, ChatCompletionRequestMessageContentPartImage,
+    ChatCompletionRequestMessageContentPartText, ChatCompletionRequestSystemMessageArgs,
+    ChatCompletionRequestToolMessageArgs, ChatCompletionRequestUserMessageArgs,
+    ChatCompletionRequestUserMessageContent, ChatCompletionRequestUserMessageContentPart,
+    ChatCompletionTool, ChatCompletionToolType, FunctionCall, FunctionObject, ImageUrl,
 };
+use base64::Engine as _;
 
+use crate::message_image::{describe_images, MessageImage};
 use crate::types::{FinishReason, LlmError, MessageContent, Role};
 
 /// gpt-4o-mini input price per token (OpenAI 2024 rates).
@@ -45,6 +49,25 @@ pub(super) fn build_messages(
                         .build()
                         .map(Into::into)
                         .map_err(|e| LlmError::InferenceError(format!("user message: {e}")))
+                }
+                (Role::User, MessageContent::TextWithImages { text, images }) => {
+                    ChatCompletionRequestUserMessageArgs::default()
+                        .content(user_parts(text, images))
+                        .build()
+                        .map(Into::into)
+                        .map_err(|e| LlmError::InferenceError(format!("user message: {e}")))
+                }
+                (role, MessageContent::TextWithImages { text, images }) => {
+                    let (types, bytes) = describe_images(images);
+                    tracing::event!(
+                        tracing::Level::WARN,
+                        role = ?role,
+                        count = images.len(),
+                        types = %types,
+                        bytes = bytes,
+                        "llm.images.dropped"
+                    );
+                    text_only(role, text)
                 }
                 (Role::Assistant, MessageContent::Text(text)) => {
                     ChatCompletionRequestAssistantMessageArgs::default()
@@ -96,6 +119,50 @@ pub(super) fn build_messages(
         })
         .collect()
 }
+/// The content parts of a user message with images: the text first, then one
+/// `image_url` part per image, as a `data:<mime>;base64,` URL, in order.
+fn user_parts(text: &str, images: &[MessageImage]) -> ChatCompletionRequestUserMessageContent {
+    let mut parts = Vec::with_capacity(images.len() + 1);
+    parts.push(ChatCompletionRequestUserMessageContentPart::Text(
+        ChatCompletionRequestMessageContentPartText {
+            text: text.to_owned(),
+        },
+    ));
+    for image in images {
+        let encoded = base64::engine::general_purpose::STANDARD.encode(image.bytes());
+        parts.push(ChatCompletionRequestUserMessageContentPart::ImageUrl(
+            ChatCompletionRequestMessageContentPartImage {
+                image_url: ImageUrl {
+                    url: format!("data:{};base64,{encoded}", image.mime()),
+                    detail: None,
+                },
+            },
+        ));
+    }
+    ChatCompletionRequestUserMessageContent::Array(parts)
+}
+
+/// A message whose images cannot travel in its role, sent as its text alone.
+fn text_only(role: &Role, text: &str) -> Result<ChatCompletionRequestMessage, LlmError> {
+    match role {
+        Role::System => ChatCompletionRequestSystemMessageArgs::default()
+            .content(text)
+            .build()
+            .map(Into::into)
+            .map_err(|e| LlmError::InferenceError(format!("system message: {e}"))),
+        Role::Assistant => ChatCompletionRequestAssistantMessageArgs::default()
+            .content(text)
+            .build()
+            .map(Into::into)
+            .map_err(|e| LlmError::InferenceError(format!("assistant message: {e}"))),
+        Role::User | Role::Tool => ChatCompletionRequestUserMessageArgs::default()
+            .content(text)
+            .build()
+            .map(Into::into)
+            .map_err(|e| LlmError::InferenceError(format!("user message: {e}"))),
+    }
+}
+
 /// Convert Apollia tool specs into `async-openai` tools.
 ///
 /// Tool `parameters` are normalized by [`crate::schema_sanitize::grammar_safe_schema`]
@@ -519,5 +586,67 @@ mod tests {
             both["chat_template_kwargs"],
             json!({"enable_thinking": true, "reasoning_effort": "high"})
         );
+    }
+
+    #[test]
+    fn a_user_message_with_two_images_carries_two_image_parts_after_the_text() {
+        // GIVEN a user message with text and two images, PNG then JPEG
+        let message = ChatMessage::user_with_images(
+            "compare them",
+            vec![
+                crate::message_image::MessageImage::new("image/png", vec![1u8, 2, 3]),
+                crate::message_image::MessageImage::new("image/jpeg", vec![4u8, 5]),
+            ],
+        );
+
+        // WHEN the request body is built and serialized
+        let messages = build_messages(&[message]).expect("valid message");
+        let body = CreateChatCompletionRequestArgs::default()
+            .model("test-model")
+            .messages(messages)
+            .build()
+            .expect("a buildable request");
+        let json = serde_json::to_value(&body).expect("serializable");
+
+        // THEN the user content is an array: the text, then one image_url part
+        // per image, in order, each a base64 data URL with its media type
+        let parts = json["messages"][0]["content"]
+            .as_array()
+            .expect("an array of parts");
+        assert_eq!(parts.len(), 3);
+        assert_eq!(parts[0], json!({"type": "text", "text": "compare them"}));
+        assert_eq!(parts[1]["type"], json!("image_url"));
+        assert_eq!(
+            parts[1]["image_url"]["url"],
+            json!("data:image/png;base64,AQID")
+        );
+        assert_eq!(parts[2]["type"], json!("image_url"));
+        assert_eq!(
+            parts[2]["image_url"]["url"],
+            json!("data:image/jpeg;base64,BAU=")
+        );
+    }
+
+    #[test]
+    fn images_in_a_role_that_cannot_carry_them_are_dropped_not_fatal() {
+        // GIVEN an assistant message that somehow carries an image
+        let message = ChatMessage {
+            role: Role::Assistant,
+            content: MessageContent::TextWithImages {
+                text: "seen".into(),
+                images: vec![crate::message_image::MessageImage::new(
+                    "image/png",
+                    vec![0u8; 4],
+                )],
+            },
+            cache_control: None,
+        };
+
+        // WHEN the messages are built
+        let messages = build_messages(&[message]).expect("no error");
+
+        // THEN the message travels as its text alone
+        let json = serde_json::to_value(&messages[0]).expect("serializable");
+        assert_eq!(json["content"], json!("seen"));
     }
 }

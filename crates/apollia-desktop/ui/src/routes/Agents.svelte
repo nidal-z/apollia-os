@@ -15,6 +15,7 @@
   import { navigateTo } from "$lib/stores/navigation";
   import { declareGuideSubscreen } from "$lib/stores/guideContext";
   import { pendingChatSessionId } from "$lib/stores/chat";
+  import { PACKAGE_INSTALLED_EVENT, openPackagePreview } from "$lib/stores/packagePreview";
   import {
     agentPackages,
     getPackageDetail,
@@ -81,6 +82,16 @@
     window.addEventListener("apollia:agents:create", openInstall);
     return () => {
       window.removeEventListener("apollia:agents:create", openInstall);
+    };
+  });
+
+  $effect(() => {
+    const refresh = () => {
+      refreshPackages();
+    };
+    window.addEventListener(PACKAGE_INSTALLED_EVENT, refresh);
+    return () => {
+      window.removeEventListener(PACKAGE_INSTALLED_EVENT, refresh);
     };
   });
 
@@ -205,6 +216,20 @@
     }
   }
 
+  // A `.apo` file opens its preview, mounted above every screen; the package
+  // is installed from there, and the list refreshes on its installed event.
+  async function pickPackageFile(): Promise<void> {
+    try {
+      const path = await openDialog({
+        filters: [{ name: "Apollia", extensions: ["apo"] }],
+        multiple: false,
+      });
+      if (typeof path === "string") openPackagePreview(path);
+    } catch (err) {
+      reportError(err, { surface: "toast" });
+    }
+  }
+
   async function handleUninstallPkg(name: string): Promise<void> {
     try {
       await uninstallPackage(name);
@@ -307,6 +332,7 @@
         onSelectApolliaChat={selectApolliaChat}
         onInstallAgent={pickAndInstallAgent}
         onInstallPackage={() => (installPackageOpen = true)}
+        onInstallPackageFile={pickPackageFile}
         onOpenLogs={openLogs}
         onOpenSettings={openSettings}
         onRequestUninstallAgent={requestUninstallAgent}

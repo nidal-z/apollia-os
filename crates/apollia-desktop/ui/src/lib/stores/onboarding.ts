@@ -13,7 +13,6 @@ import type { OnboardingState, OnboardingPhase } from "$lib/types";
 
 const DEFAULT_STATE: OnboardingState = {
   phase: "welcome",
-  profile: null,
   llm_configured: false,
   stt_configured: false,
   topics_covered: [],
@@ -50,15 +49,6 @@ function createOnboardingStore() {
      */
     async advancePhase(targetPhase: OnboardingPhase): Promise<void> {
       const newState = await invoke<OnboardingState>("advance_onboarding_phase", { targetPhase });
-      set(newState);
-    },
-
-    /**
-     * Persist the chosen profile (`"operator"` or `"builder"`) via IPC,
-     * then update the store with the returned state.
-     */
-    async setProfile(profile: string): Promise<void> {
-      const newState = await invoke<OnboardingState>("set_onboarding_profile", { profile });
       set(newState);
     },
 
