@@ -78,6 +78,12 @@ pub(super) fn locate_llama_server_binary() -> Result<PathBuf, LlamaServerError> 
     )))
 }
 
+/// The `llama-server` binary this runtime starts, or `None` when none is in
+/// reach: what the engine list marks as in service.
+pub(crate) fn in_service_binary() -> Option<PathBuf> {
+    locate_llama_server_binary().ok()
+}
+
 /// The two sources that come before the embedded engine.
 ///
 /// An explicit override wins: `APOLLIA_LLAMA_SERVER_BIN=/path/to/llama-server`.

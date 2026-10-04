@@ -25,6 +25,7 @@
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
   import SettingsToggle from "../../components/settings/SettingsToggle.svelte";
   import HardwareCard from "../../components/settings/system/HardwareCard.svelte";
+  import ResourceMonitor from "../../components/settings/system/ResourceMonitor.svelte";
   import {
     systemInfoStore,
     securityPostureStore,
@@ -35,6 +36,7 @@
     settingsLoaders,
   } from "$lib/stores/settings";
   import { developerMode } from "$lib/stores/developerMode";
+  import { resourceUsage } from "$lib/settings/resourceMonitor";
   import { agentInstallPrefs, setAutoInstallPythonDeps } from "$lib/stores/agentInstallPrefs";
   import {
     installCli,
@@ -44,8 +46,10 @@
   } from "$lib/ipc/system";
   import type { CliStatus } from "$lib/types";
 
-  // System > Hardware. Always: the hardware the inference probed, the version,
-  // the operating system and the security posture. Developer mode only: the
+  // System > Hardware. Always: the hardware the inference probed, the resource
+  // monitor, the version, the operating system and the security posture. The
+  // monitor measures while this page is mounted: `$resourceUsage` subscribes
+  // with the page and unsubscribes with it, which stops the reads. Developer mode only: the
   // paths, the agent dependency install, the command line, the interpreter.
   const pythonSetting = $derived($pythonInterpreterStore.data);
   let pythonDraft = $state("");
@@ -236,6 +240,8 @@
       error={$hardwareStore.error}
       arch={$systemInfoStore.data?.arch ?? null}
     />
+
+    <ResourceMonitor usage={$resourceUsage} />
 
     {#if $systemInfoStore.data}
       {@const systemInfo = $systemInfoStore.data}

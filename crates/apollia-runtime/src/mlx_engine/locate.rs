@@ -49,6 +49,15 @@ impl MlxLaunch {
         }
     }
 
+    /// The package directory the engine imports from.
+    #[must_use]
+    pub fn site_packages(&self) -> Option<&Path> {
+        self.env
+            .iter()
+            .find(|(name, _)| name == "PYTHONPATH")
+            .map(|(_, value)| Path::new(value.as_str()))
+    }
+
     /// The full argument vector for serving `model_path` on loopback `port`.
     ///
     /// The engine listens on `127.0.0.1` only. Tool calls are parsed by the

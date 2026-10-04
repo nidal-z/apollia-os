@@ -779,6 +779,11 @@
       "timeoutMs": 20000
     },
     {
+      "kind": "waitFor",
+      "testid": "resource-monitor",
+      "timeoutMs": 6000
+    },
+    {
       "kind": "screenshot",
       "label": "24-system"
     },
@@ -1827,6 +1832,10 @@
       "kind": "waitFor",
       "testid": "engines-list",
       "timeoutMs": 20000
+    },
+    {
+      "kind": "expect",
+      "testid": "engines-check-updates"
     },
     {
       "kind": "click",

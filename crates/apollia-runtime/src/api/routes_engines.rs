@@ -2,7 +2,8 @@
 //! the verified download or import of an engine.
 //!
 //! - `GET  /api/v1/engines`          , engines embedded and installed with the
-//!   version each states, the dictation engine, channel, updates
+//!   version each states and the ones in service, the dictation engine,
+//!   channel, updates
 //! - `GET  /api/v1/engines/settings` , the followed channel and the mirror address
 //! - `PUT  /api/v1/engines/settings` , change them
 //! - `POST /api/v1/engines/check`    , fetch and verify the channel manifest
@@ -44,6 +45,9 @@ pub struct EngineEntry {
     /// a binary, the package metadata of a Python environment. Unknown when it
     /// does not answer.
     pub version: Option<String>,
+    /// True for the build this runtime starts for the model format it serves:
+    /// the `llama-server` binary it resolves, the MLX environment it imports.
+    pub in_service: bool,
 }
 
 /// The dictation engine, whisper.cpp inside the runner the daemon starts.
@@ -148,6 +152,7 @@ fn entry(p: engine_store::InstalledPackage) -> EngineEntry {
         path: p.path.display().to_string(),
         source: p.source,
         version: None,
+        in_service: false,
     }
 }
 
@@ -175,6 +180,48 @@ async fn with_versions(mut entries: Vec<EngineEntry>) -> Vec<EngineEntry> {
         entry.version = stated_version(entry).await;
     }
     entries
+}
+
+/// What this runtime starts: the `llama-server` binary and the package
+/// directory of the MLX environment, each `None` when none is in reach.
+fn engines_in_service() -> (Option<PathBuf>, Option<PathBuf>) {
+    let llama = crate::llama_server::locate::in_service_binary();
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(Path::to_path_buf));
+    let store_root = apollia_core::paths::data_dir().map(|d| engine_store::store_root(&d));
+    let mlx = crate::mlx_engine::locate(exe_dir.as_deref(), store_root.as_deref(), |var| {
+        std::env::var(var).ok()
+    })
+    .and_then(|launch| launch.site_packages().map(Path::to_path_buf));
+    (llama, mlx)
+}
+
+/// Mark, among `entries`, the builds the runtime starts: the `llama-server`
+/// entry that holds `llama_binary`, the MLX entry whose packages are
+/// `mlx_site_packages`. Node.js serves no model and is never marked.
+fn mark_in_service(
+    entries: &mut [EngineEntry],
+    llama_binary: Option<&Path>,
+    mlx_site_packages: Option<&Path>,
+) {
+    let llama_name = format!("llama-server{}", std::env::consts::EXE_SUFFIX);
+    for entry in entries {
+        let path = Path::new(&entry.path);
+        entry.in_service = match entry.engine {
+            Engine::LlamaServer => llama_binary.is_some_and(|wanted| {
+                if path.is_file() {
+                    path == wanted
+                } else {
+                    engine_store::find_binary(path, &llama_name).as_deref() == Some(wanted)
+                }
+            }),
+            Engine::VllmMlx => {
+                mlx_site_packages.is_some_and(|wanted| path.join("site-packages") == wanted)
+            }
+            Engine::NodeJs => false,
+        };
+    }
 }
 
 /// The dictation engine of this machine and the version its runner states.
@@ -217,6 +264,7 @@ fn embedded_engines() -> Vec<EngineEntry> {
             path: found.display().to_string(),
             source: Source::Embedded,
             version: None,
+            in_service: false,
         });
     }
     let mlx = apollia_core::paths::bundled_resource_dirs(&exe_dir, "python")
@@ -231,6 +279,7 @@ fn embedded_engines() -> Vec<EngineEntry> {
             path: found.display().to_string(),
             source: Source::Embedded,
             version: None,
+            in_service: false,
         });
     }
     out
@@ -291,6 +340,10 @@ pub async fn list_engines<B: ExecutionBackend + Clone>(
     let embedded = embedded_engines();
     let mut view = engines_view(&data_dir, embedded, nvidia).map_err(store_err)?;
     view.engines = with_versions(view.engines).await;
+    let (llama, mlx) = tokio::task::spawn_blocking(engines_in_service)
+        .await
+        .unwrap_or((None, None));
+    mark_in_service(&mut view.engines, llama.as_deref(), mlx.as_deref());
     view.dictation = dictation_engine().await;
     Ok(Json(view))
 }

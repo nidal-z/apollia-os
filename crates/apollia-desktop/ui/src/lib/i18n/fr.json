@@ -3243,7 +3243,30 @@
       "role_gguf": "Fait tourner les modèles du poste, accélérés par la puce graphique quand il y en a une.",
       "role_mlx": "Inférence des modèles MLX sur les Mac à puce Apple.",
       "role_node": "Fait tourner les serveurs d'outils écrits pour Node.js.",
-      "role_dictation": "Dictée : la voix transcrite en texte, sur le poste."
+      "role_dictation": "Dictée : la voix transcrite en texte, sur le poste.",
+      "channel_title": "Canal des moteurs",
+      "channel_label": "Canal suivi par les moteurs",
+      "channel_hint": "Stable reçoit les moteurs publiés ; Préversion reçoit aussi les moteurs à l'essai. Ce canal est distinct de celui de l'application.",
+      "channel_stable": "Stable",
+      "channel_preview": "Préversion",
+      "check_updates": "Vérifier les mises à jour",
+      "in_service": "En service",
+      "update_available": "{tag} disponible",
+      "update_latest": "Dernière version",
+      "source_embedded": "Embarqué",
+      "source_downloaded": "Téléchargé",
+      "source_imported": "Importé",
+      "channel_tag": "Publié par le canal sous {tag}",
+      "tag_mismatch": "Écart : le canal a publié ce moteur sous {tag}, il annonce {version}."
+    },
+    "resource_monitor": {
+      "title": "Moniteur de ressources",
+      "desc": "Ce que le poste consomme en ce moment, mesuré tant que cette page est ouverte.",
+      "measuring": "Mesure en cours…",
+      "used_of": "{used} sur {total}",
+      "percent": "{n} %",
+      "vram_unified": "Mémoire unifiée, partagée avec la mémoire vive",
+      "vram_unmeasured": "Non mesurée sur ce poste"
     },
     "window": {
       "label": "Réglages",

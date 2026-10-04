@@ -65,6 +65,7 @@ const ENGINES: EnginesResponse = {
       path: "/app/Contents/Resources/runners/llama-server",
       source: "embedded",
       version: "7001 (0ff1ce0)",
+      in_service: true,
     },
     {
       engine: "vllm-mlx",
@@ -73,6 +74,7 @@ const ENGINES: EnginesResponse = {
       path: "/app/Contents/Resources/python/engines/mlx",
       source: "embedded",
       version: null,
+      in_service: false,
     },
   ],
   channel: "stable",

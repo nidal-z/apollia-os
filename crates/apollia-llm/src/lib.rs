@@ -37,6 +37,7 @@ pub mod reasoning_markers;
 pub mod recommend;
 pub mod repository;
 pub mod request_defaults;
+pub mod resource_usage;
 pub mod retry;
 pub mod router;
 pub mod routing_level;
