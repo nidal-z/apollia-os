@@ -618,7 +618,7 @@
         "tags": [
           "packages"
         ],
-        "summary": "`GET /api/v1/agent-packages/installed`: the installed packages.",
+        "summary": "`GET /api/v1/agent-packages/installed`: the installed packages, each with\nits publisher, the state of its signature and how much it holds.",
         "operationId": "list_agent_packages",
         "responses": {
           "200": {
@@ -722,7 +722,7 @@
         "tags": [
           "packages"
         ],
-        "summary": "`GET /api/v1/agent-packages/installed/{name}`: one installed package, its\nmanifest as recorded.",
+        "summary": "`GET /api/v1/agent-packages/installed/{name}`: one installed package, its\nmanifest as recorded, its publisher, what it installed by kind, and the\nautomations that would go with it.",
         "operationId": "get_agent_package",
         "parameters": [
           {
@@ -817,7 +817,7 @@
             }
           },
           "403": {
-            "description": "The package carries Apollia",
+            "description": "The package is part of Apollia",
             "content": {
               "application/json": {
                 "schema": {
@@ -11067,7 +11067,7 @@
             }
           },
           "403": {
-            "description": "The package carries Apollia",
+            "description": "The package is part of Apollia",
             "content": {
               "application/json": {
                 "schema": {
@@ -13393,7 +13393,7 @@
             }
           },
           "400": {
-            "description": "An image is refused: too many, too large, or not decodable",
+            "description": "An image or a document is refused: too many, too large, not decodable, or a document its reader cannot read",
             "content": {
               "application/json": {
                 "schema": {
@@ -17994,6 +17994,104 @@
           }
         }
       },
+      "AgentPackageAutomation": {
+        "type": "object",
+        "description": "An automation that starts an agent or a workflow of a package: it goes\nwith the package.",
+        "required": [
+          "id",
+          "target"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Trigger identifier."
+          },
+          "target": {
+            "type": "string",
+            "description": "The agent, or the workflow as `<package>/<workflow>`, it starts."
+          }
+        }
+      },
+      "AgentPackageContent": {
+        "type": "object",
+        "description": "What a package installed, by kind.",
+        "required": [
+          "agents",
+          "workflows",
+          "tools",
+          "connections_brought",
+          "connections_required"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageItem"
+            },
+            "description": "Its agents."
+          },
+          "connections_brought": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The connections it brought: they go with it."
+          },
+          "connections_required": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageRequirement"
+            },
+            "description": "The connections it requires: they stay."
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageTool"
+            },
+            "description": "Its Python tools."
+          },
+          "workflows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageItem"
+            },
+            "description": "Its workflows."
+          }
+        }
+      },
+      "AgentPackageCounts": {
+        "type": "object",
+        "description": "How many items of each kind a package installed.",
+        "required": [
+          "agents",
+          "workflows",
+          "tools",
+          "connections"
+        ],
+        "properties": {
+          "agents": {
+            "type": "integer",
+            "description": "Agents.",
+            "minimum": 0
+          },
+          "connections": {
+            "type": "integer",
+            "description": "Connections, brought and required together.",
+            "minimum": 0
+          },
+          "tools": {
+            "type": "integer",
+            "description": "Python tools.",
+            "minimum": 0
+          },
+          "workflows": {
+            "type": "integer",
+            "description": "Workflows.",
+            "minimum": 0
+          }
+        }
+      },
       "AgentPackageDetail": {
         "type": "object",
         "description": "An installed package, in full.",
@@ -18007,7 +18105,10 @@
           "updated_at",
           "root_path",
           "root_missing",
-          "manifest"
+          "manifest",
+          "signature",
+          "embedded",
+          "content"
         ],
         "properties": {
           "agents": {
@@ -18021,9 +18122,24 @@
             "type": "string",
             "description": "Author from its manifest."
           },
+          "automations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageAutomation"
+            },
+            "description": "The automations that start one of its agents or workflows: they go\nwith it. Filled by the route, which holds the trigger store."
+          },
+          "content": {
+            "$ref": "#/components/schemas/AgentPackageContent",
+            "description": "What it installed, by kind."
+          },
           "description": {
             "type": "string",
             "description": "Description from its manifest."
+          },
+          "embedded": {
+            "type": "boolean",
+            "description": "Apollia ships it inside its binary: it is never uninstalled."
           },
           "installed_at": {
             "type": "string",
@@ -18044,6 +18160,10 @@
           "root_path": {
             "type": "string",
             "description": "Its folder."
+          },
+          "signature": {
+            "$ref": "#/components/schemas/AgentPackageSignature",
+            "description": "Its publisher and the state of its signature."
           },
           "updated_at": {
             "type": "string",
@@ -18117,6 +18237,29 @@
           }
         }
       },
+      "AgentPackageItem": {
+        "type": "object",
+        "description": "An agent or a workflow of a package.",
+        "required": [
+          "id",
+          "name",
+          "description"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "What it is for, in one line; empty when the manifest does not say."
+          },
+          "id": {
+            "type": "string",
+            "description": "Identifier: the agent id, or the workflow name inside its package."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          }
+        }
+      },
       "AgentPackageListItem": {
         "type": "object",
         "description": "An installed package in the listing.",
@@ -18128,7 +18271,10 @@
           "agents",
           "installed_at",
           "root_path",
-          "root_missing"
+          "root_missing",
+          "signature",
+          "embedded",
+          "counts"
         ],
         "properties": {
           "agent_count": {
@@ -18143,9 +18289,17 @@
             },
             "description": "Its agents."
           },
+          "counts": {
+            "$ref": "#/components/schemas/AgentPackageCounts",
+            "description": "How many agents, workflows, tools and connections it holds."
+          },
           "description": {
             "type": "string",
             "description": "Description from its manifest."
+          },
+          "embedded": {
+            "type": "boolean",
+            "description": "Apollia ships it inside its binary: it is never uninstalled."
           },
           "installed_at": {
             "type": "string",
@@ -18162,6 +18316,10 @@
           "root_path": {
             "type": "string",
             "description": "Its folder."
+          },
+          "signature": {
+            "$ref": "#/components/schemas/AgentPackageSignature",
+            "description": "Its publisher and the state of its signature."
           },
           "version": {
             "type": "string",
@@ -18249,6 +18407,77 @@
           "path": {
             "type": "string",
             "description": "The package folder on this machine, the one holding `agent.toml`."
+          }
+        }
+      },
+      "AgentPackageRequirement": {
+        "type": "object",
+        "description": "A connection a package requires. It belongs to the user and stays when\nthe package is uninstalled.",
+        "required": [
+          "type",
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Why the package needs it."
+          },
+          "type": {
+            "type": "string",
+            "description": "Connection type, as the package names it."
+          }
+        }
+      },
+      "AgentPackageSignature": {
+        "type": "object",
+        "description": "Who published an installed package, as recorded at its installation.",
+        "required": [
+          "publisher",
+          "signed",
+          "trusted"
+        ],
+        "properties": {
+          "key_fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SHA-256 fingerprint of the signing key, when the package is signed."
+          },
+          "publisher": {
+            "type": "string",
+            "description": "Name to show for the publisher: the label of the keyring when the key\nthat signed the package is trusted, otherwise the name the package\ndeclares, which nothing verifies."
+          },
+          "signed": {
+            "type": "boolean",
+            "description": "The package carried a signature that held."
+          },
+          "trusted": {
+            "type": "boolean",
+            "description": "The key that signed it is in the keyring of trusted publishers."
+          }
+        }
+      },
+      "AgentPackageTool": {
+        "type": "object",
+        "description": "A Python tool of a package.",
+        "required": [
+          "name",
+          "description",
+          "family"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "What it does; empty when the manifest does not say."
+          },
+          "family": {
+            "type": "string",
+            "description": "Action family: `read`, `read_personal`, `write_or_delete`,\n`send_external` or `execute_code`; empty when the manifest does not\ndescribe the tool."
+          },
+          "name": {
+            "type": "string",
+            "description": "Tool name inside its package."
           }
         }
       },
@@ -18986,7 +19215,7 @@
             "items": {
               "type": "string"
             },
-            "description": "The sensitive accesses granted for the duration of the batch, by\ntheir id as `GET /api/v1/batches/accesses` lists them."
+            "description": "The sensitive accesses granted for the duration of the batch, by\ntheir id as `GET /api/v1/batches/accesses` lists them, and\n`source:write` when the results go into the original file."
           },
           "maxFailures": {
             "type": [
@@ -20973,6 +21202,24 @@
             "type": "integer",
             "description": "The cursor of the proposal removed.",
             "minimum": 0
+          }
+        }
+      },
+      "DocumentAttachment": {
+        "type": "object",
+        "description": "One document as a client sends it.",
+        "required": [
+          "name",
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "string",
+            "description": "Bytes of the document, in standard base64."
+          },
+          "name": {
+            "type": "string",
+            "description": "File name of the document, with its extension, such as `invoice.pdf`."
           }
         }
       },
@@ -26108,6 +26355,13 @@
             "type": "string",
             "description": "Text content of the user message."
           },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentAttachment"
+            },
+            "description": "Documents sent with the message (PDF, Word, PowerPoint, workbook, CSV):\nthe runtime extracts their text on reception. At most four, each at\nmost 20 MiB once decoded."
+          },
           "images": {
             "type": "array",
             "items": {
@@ -27035,6 +27289,17 @@
             "propertyNames": {
               "type": "string"
             }
+          },
+          "write": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SourceWrite",
+                "description": "Writes the answer of every completed item back into the source, in\ncolumns added to it; nothing is written when absent."
+              }
+            ]
           }
         }
       },
@@ -27225,6 +27490,26 @@
               "null"
             ],
             "description": "What the source points at: a folder connection, a file path, a mail\nconnection, a memory space."
+          }
+        }
+      },
+      "SourceWrite": {
+        "type": "object",
+        "description": "What a launch writes back into its source.",
+        "required": [
+          "columns"
+        ],
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The columns added, one per field of the answer, in order. An answer\nthat is not an object of these fields is written whole in the first."
+          },
+          "destination": {
+            "$ref": "#/components/schemas/WriteDestination",
+            "description": "`copy` when absent."
           }
         }
       },
@@ -29501,6 +29786,14 @@
             "description": "`<package>/<workflow>`."
           }
         }
+      },
+      "WriteDestination": {
+        "type": "string",
+        "description": "Where the results of a batch are written.",
+        "enum": [
+          "copy",
+          "original"
+        ]
       }
     },
     "securitySchemes": {

@@ -77,6 +77,12 @@ export interface ChatImageData {
   data: string;
 }
 
+/** One document sent with a message: its file name and base64 bytes. */
+export interface ChatDocumentData {
+  name: string;
+  data: string;
+}
+
 /** Single message inside a chat session. */
 export interface ChatMessageView {
   id: string;
@@ -176,6 +182,14 @@ export interface PendingChatApproval {
   toolCallId: string;
   toolName: string;
   inputPreview: string;
+  /** The answers the request offers, when it names them. */
+  answers?: string[];
+  /** The full arguments of the call, behind "see more". */
+  detail?: string;
+  /** The whole code of a tool that runs code. */
+  code?: string | null;
+  /** The folder the code runs in. */
+  workingDir?: string | null;
   receivedAt: string;
 }
 

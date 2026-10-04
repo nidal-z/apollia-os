@@ -697,3 +697,37 @@ fn an_undeclared_input_is_refused() {
     // THEN the field is named
     assert_eq!(err.field, "colour");
 }
+
+#[tokio::test]
+async fn test_the_workflows_of_an_uninstalled_package_leave_the_catalogue() {
+    // GIVEN a host holding the workflows of two packages whose names start alike
+    let host = ScriptedHost::default()
+        .with("crm/digest", &["read"], None, steps_then(&["read"], noop()))
+        .with(
+            "crm-extra/digest",
+            &["read"],
+            None,
+            steps_then(&["read"], noop()),
+        );
+    let f = fixture(host, StepBudgetConfig::default()).await;
+
+    // WHEN the first package is retired
+    f.engine.retire_package("crm").await.unwrap();
+
+    // THEN its workflow is neither listed, described nor launched, and the
+    // other package keeps its own
+    let listed: Vec<String> = f
+        .engine
+        .catalogue()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|w| w.id)
+        .collect();
+    assert_eq!(listed, ["crm-extra/digest"]);
+    assert!(f.engine.describe("crm/digest").await.is_none());
+    let launched = f.engine.launch("crm/digest", json!({})).await;
+    assert!(matches!(launched, Err(WorkflowError::NotFound(_))));
+    let kept = f.engine.run_to_end("crm-extra/digest", json!({})).await;
+    assert_eq!(kept.unwrap().status, "completed");
+}

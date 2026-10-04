@@ -259,6 +259,15 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         available_tools,
         chat_tools_config_for_session.as_deref(),
     );
+    // The documents attached to this conversation are read by its file tools,
+    // and by those of no other conversation.
+    let folders = super::documents::with_session_documents(
+        folders,
+        chat_tools_config_for_session
+            .as_deref()
+            .map(|cfg| cfg.data_dir.as_path()),
+        &session_id_str,
+    );
     let mcp_index = super::disabled::only_granted(mcp_index, &available_tools);
     let (available_tools, mcp_index) =
         super::disabled::without_disabled(available_tools, mcp_index, &disabled);

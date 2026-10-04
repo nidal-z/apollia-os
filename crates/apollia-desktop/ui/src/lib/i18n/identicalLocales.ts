@@ -143,6 +143,12 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "inbox.row.type_question", // question
   "inbox.row.type_trigger", // trigger
   "integrations.wizard.local_loopback_badge", // Local
+  "library.detail.agents", // Agents
+  "library.detail.workflows", // Workflows
+  "library.kind.agent", // agent
+  "library.kind.workflow", // workflow
+  "library.uninstall.leaving.agents", // {count, plural, one {# agent} other {# agents}}
+  "library.uninstall.leaving.workflows", // {count, plural, one {# workflow} other {# workflows}}
   "llm.ping_ok", // Ping OK ({latency}ms)
   "llm.table.backend", // Backend
   "llm.table.tokens", // Tokens

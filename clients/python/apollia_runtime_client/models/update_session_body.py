@@ -17,7 +17,9 @@ class UpdateSessionBody:
     value.
 
         Attributes:
-            llm_backend (None | str | Unset): Inference server of the session.
+            llm_backend (None | str | Unset): Model of the session: a backend, `<server>/<model>`, or the
+                identifier of a language model of the model index. `null` returns to
+                the model of the agent.
             profile_id (None | str | Unset): Profile the conversation designates; `null` returns it to the current
                 default profile.
             system_prompt (None | str | Unset): New system prompt.

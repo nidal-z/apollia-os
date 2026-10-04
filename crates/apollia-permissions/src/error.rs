@@ -35,4 +35,8 @@ pub enum PermissionError {
     /// Invalid standing consent (empty agent, unknown family or scope).
     #[error("invalid consent: {0}")]
     InvalidConsent(String),
+
+    /// A governance event could not be written to the journal outbox.
+    #[error("failed to serialize a journal event: {0}")]
+    Event(#[source] serde_json::Error),
 }

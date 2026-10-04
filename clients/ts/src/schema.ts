@@ -199,7 +199,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** `GET /api/v1/agent-packages/installed`: the installed packages. */
+        /**
+         * `GET /api/v1/agent-packages/installed`: the installed packages, each with
+         *     its publisher, the state of its signature and how much it holds.
+         */
         get: operations["list_agent_packages"];
         put?: never;
         /**
@@ -224,7 +227,8 @@ export interface paths {
         };
         /**
          * `GET /api/v1/agent-packages/installed/{name}`: one installed package, its
-         *     manifest as recorded.
+         *     manifest as recorded, its publisher, what it installed by kind, and the
+         *     automations that would go with it.
          */
         get: operations["get_agent_package"];
         put?: never;
@@ -6097,14 +6101,57 @@ export interface components {
             /** @description `director`, `worker` or `assistant`. */
             role: string;
         };
+        /**
+         * @description An automation that starts an agent or a workflow of a package: it goes
+         *     with the package.
+         */
+        AgentPackageAutomation: {
+            /** @description Trigger identifier. */
+            id: string;
+            /** @description The agent, or the workflow as `<package>/<workflow>`, it starts. */
+            target: string;
+        };
+        /** @description What a package installed, by kind. */
+        AgentPackageContent: {
+            /** @description Its agents. */
+            agents: components["schemas"]["AgentPackageItem"][];
+            /** @description The connections it brought: they go with it. */
+            connections_brought: string[];
+            /** @description The connections it requires: they stay. */
+            connections_required: components["schemas"]["AgentPackageRequirement"][];
+            /** @description Its Python tools. */
+            tools: components["schemas"]["AgentPackageTool"][];
+            /** @description Its workflows. */
+            workflows: components["schemas"]["AgentPackageItem"][];
+        };
+        /** @description How many items of each kind a package installed. */
+        AgentPackageCounts: {
+            /** @description Agents. */
+            agents: number;
+            /** @description Connections, brought and required together. */
+            connections: number;
+            /** @description Python tools. */
+            tools: number;
+            /** @description Workflows. */
+            workflows: number;
+        };
         /** @description An installed package, in full. */
         AgentPackageDetail: {
             /** @description Its agents. */
             agents: components["schemas"]["AgentPackageAgent"][];
             /** @description Author from its manifest. */
             author: string;
+            /**
+             * @description The automations that start one of its agents or workflows: they go
+             *     with it. Filled by the route, which holds the trigger store.
+             */
+            automations?: components["schemas"]["AgentPackageAutomation"][];
+            /** @description What it installed, by kind. */
+            content: components["schemas"]["AgentPackageContent"];
             /** @description Description from its manifest. */
             description: string;
+            /** @description Apollia ships it inside its binary: it is never uninstalled. */
+            embedded: boolean;
             /** @description When it was installed. */
             installed_at: string;
             /** @description The manifest as recorded. */
@@ -6115,6 +6162,8 @@ export interface components {
             root_missing: boolean;
             /** @description Its folder. */
             root_path: string;
+            /** @description Its publisher and the state of its signature. */
+            signature: components["schemas"]["AgentPackageSignature"];
             /** @description When it was last written. */
             updated_at: string;
             /** @description Installed version. */
@@ -6142,14 +6191,27 @@ export interface components {
             /** @description Installed version. */
             version: string;
         };
+        /** @description An agent or a workflow of a package. */
+        AgentPackageItem: {
+            /** @description What it is for, in one line; empty when the manifest does not say. */
+            description: string;
+            /** @description Identifier: the agent id, or the workflow name inside its package. */
+            id: string;
+            /** @description Display name. */
+            name: string;
+        };
         /** @description An installed package in the listing. */
         AgentPackageListItem: {
             /** @description Number of agents. */
             agent_count: number;
             /** @description Its agents. */
             agents: components["schemas"]["AgentPackageAgent"][];
+            /** @description How many agents, workflows, tools and connections it holds. */
+            counts: components["schemas"]["AgentPackageCounts"];
             /** @description Description from its manifest. */
             description: string;
+            /** @description Apollia ships it inside its binary: it is never uninstalled. */
+            embedded: boolean;
             /** @description When it was installed. */
             installed_at: string;
             /** @description Package name. */
@@ -6158,6 +6220,8 @@ export interface components {
             root_missing: boolean;
             /** @description Its folder. */
             root_path: string;
+            /** @description Its publisher and the state of its signature. */
+            signature: components["schemas"]["AgentPackageSignature"];
             /** @description Installed version. */
             version: string;
         };
@@ -6188,6 +6252,44 @@ export interface components {
         AgentPackagePreviewBody: {
             /** @description The package folder on this machine, the one holding `agent.toml`. */
             path: string;
+        };
+        /**
+         * @description A connection a package requires. It belongs to the user and stays when
+         *     the package is uninstalled.
+         */
+        AgentPackageRequirement: {
+            /** @description Why the package needs it. */
+            reason: string;
+            /** @description Connection type, as the package names it. */
+            type: string;
+        };
+        /** @description Who published an installed package, as recorded at its installation. */
+        AgentPackageSignature: {
+            /** @description SHA-256 fingerprint of the signing key, when the package is signed. */
+            key_fingerprint?: string | null;
+            /**
+             * @description Name to show for the publisher: the label of the keyring when the key
+             *     that signed the package is trusted, otherwise the name the package
+             *     declares, which nothing verifies.
+             */
+            publisher: string;
+            /** @description The package carried a signature that held. */
+            signed: boolean;
+            /** @description The key that signed it is in the keyring of trusted publishers. */
+            trusted: boolean;
+        };
+        /** @description A Python tool of a package. */
+        AgentPackageTool: {
+            /** @description What it does; empty when the manifest does not say. */
+            description: string;
+            /**
+             * @description Action family: `read`, `read_personal`, `write_or_delete`,
+             *     `send_external` or `execute_code`; empty when the manifest does not
+             *     describe the tool.
+             */
+            family: string;
+            /** @description Tool name inside its package. */
+            name: string;
         };
         /** @description A trigger a package declares, as the preview shows it. */
         AgentPackageTrigger: {
@@ -6473,7 +6575,8 @@ export interface components {
             concurrency?: number | null;
             /**
              * @description The sensitive accesses granted for the duration of the batch, by
-             *     their id as `GET /api/v1/batches/accesses` lists them.
+             *     their id as `GET /api/v1/batches/accesses` lists them, and
+             *     `source:write` when the results go into the original file.
              */
             grants?: string[];
             /**
@@ -7325,6 +7428,13 @@ export interface components {
         DismissedProposal: {
             /** @description The cursor of the proposal removed. */
             dismissed: number;
+        };
+        /** @description One document as a client sends it. */
+        DocumentAttachment: {
+            /** @description Bytes of the document, in standard base64. */
+            data: string;
+            /** @description File name of the document, with its extension, such as `invoice.pdf`. */
+            name: string;
         };
         /** @description The Drive folder of one connected Google account. */
         DriveFolderStatus: {
@@ -9660,6 +9770,12 @@ export interface components {
             /** @description Text content of the user message. */
             content: string;
             /**
+             * @description Documents sent with the message (PDF, Word, PowerPoint, workbook, CSV):
+             *     the runtime extracts their text on reception. At most four, each at
+             *     most 20 MiB once decoded.
+             */
+            documents?: components["schemas"]["DocumentAttachment"][];
+            /**
              * @description Images sent after the text, for a model that reads images; at most
              *     eight, each at most 10 MiB once decoded.
              */
@@ -10099,6 +10215,7 @@ export interface components {
             options?: {
                 [key: string]: string;
             };
+            write?: null | components["schemas"]["SourceWrite"];
         };
         /** @description Where the index of a source stands. */
         SourceIndexResponse: {
@@ -10182,6 +10299,16 @@ export interface components {
              *     connection, a memory space.
              */
             reference?: string | null;
+        };
+        /** @description What a launch writes back into its source. */
+        SourceWrite: {
+            /**
+             * @description The columns added, one per field of the answer, in order. An answer
+             *     that is not an object of these fields is written whole in the first.
+             */
+            columns: string[];
+            /** @description `copy` when absent. */
+            destination?: components["schemas"]["WriteDestination"];
         };
         /** @description SSE frame emitted by the mailbox observation stream. */
         SseMailboxEvent: Record<string, never> & {
@@ -11153,6 +11280,11 @@ export interface components {
             /** @description `<package>/<workflow>`. */
             workflowId: string;
         };
+        /**
+         * @description Where the results of a batch are written.
+         * @enum {string}
+         */
+        WriteDestination: "copy" | "original";
     };
     responses: never;
     parameters: never;
@@ -11804,7 +11936,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
-            /** @description The package carries Apollia */
+            /** @description The package is part of Apollia */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -20143,7 +20275,7 @@ export interface operations {
                     "application/json": components["schemas"]["UninstallReport"];
                 };
             };
-            /** @description The package carries Apollia */
+            /** @description The package is part of Apollia */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -22072,7 +22204,7 @@ export interface operations {
                     "application/json": components["schemas"]["SendMessageResponse"];
                 };
             };
-            /** @description An image is refused: too many, too large, or not decodable */
+            /** @description An image or a document is refused: too many, too large, not decodable, or a document its reader cannot read */
             400: {
                 headers: {
                     [name: string]: unknown;

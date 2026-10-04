@@ -200,9 +200,11 @@
       "llm": "LLM models",
       "transcriptions": "Transcriptions",
       "integrations": "Connections",
-      "settings": "Settings"
+      "settings": "Settings",
+      "library": "Library"
     },
-    "policy": "Organization policy"
+    "policy": "Organization policy",
+    "library": "Library"
   },
   "sidebar": {},
   "topbar": {
@@ -3538,8 +3540,21 @@
         "image_unreadable": "{name} is not a readable image, so it was not attached.",
         "image_format": "{name}: the model of this conversation does not read this image format.",
         "too_large_without_path": "{name} is over 512 kB, and a file picked this way carries no path. Drag it into the conversation to attach it.",
-        "binary_not_text": "{name} is not a text file: its bytes carry no readable text, so nothing useful could be sent. Drag it into the conversation to send its path instead."
+        "document_limit": "{name} refused: at most {max} documents per message. Drag it into the conversation to send its path instead.",
+        "document_too_large": "{name} refused: a document weighs at most {mb} MB. Drag it into the conversation to send its path instead.",
+        "binary_not_text": "{name} refused: this format is not read. PDF, Word, PowerPoint, Excel, CSV and text files are. Drag it into the conversation to send its path instead."
       }
+    },
+    "documents": {
+      "read_pages": "{count, plural, one {# page} other {# pages}}, text read",
+      "read_slides": "{count, plural, one {# slide} other {# slides}}, text read",
+      "read_sheets": "{count, plural, one {# sheet} other {# sheets}}, text read",
+      "read_whole": "text read",
+      "on_demand_pages": "{count, plural, one {# page} other {# pages}}, read on demand",
+      "on_demand_slides": "{count, plural, one {# slide} other {# slides}}, read on demand",
+      "on_demand_sheets": "{count, plural, one {# sheet} other {# sheets}}, read on demand",
+      "on_demand_whole": "read on demand",
+      "no_text": "no text found"
     },
     "images": {
       "open": "Open image {position}",
@@ -3600,8 +3615,6 @@
     "toggle_context_drawer": "Toggle context drawer",
     "a2a_delegating": "Delegating to {agent} ({skill})…",
     "reasoning": {
-      "toggle_tool": "Toggle tool call details",
-      "thinking_label": "Thinking",
       "rationale_label": "Rationale",
       "retry_label": "Retry ({n} attempts)",
       "see_all": "See all",
@@ -3609,13 +3622,11 @@
       "group_collapse": "Hide steps",
       "input_label": "Input",
       "output_label": "Output",
-      "target_label": "Target",
-      "command_label": "Command",
       "result_label": "Result",
-      "error_label": "Error",
-      "running_hint": "Running…",
       "toggle_thought": "Toggle reasoning details",
-      "exit_code": "exit {code}"
+      "thought_for": "Thought for {duration}",
+      "thought": "Thought",
+      "thinking_live": "Thinking…"
     },
     "retry": {
       "badge_title": "{n} retries",
@@ -3626,12 +3637,6 @@
       "fallback": "fallback"
     },
     "activity": {
-      "toggle": "Show agent activity",
-      "lead_reflected": "Thought",
-      "lead_used": "Used",
-      "live_lead": "Working",
-      "reasoning_count": "{n, plural, one {# thought} other {# thoughts}}",
-      "tool_count": "{n, plural, one {# tool} other {# tools}}",
       "sources": "Sources"
     },
     "tool_empty_results": "No results.",
@@ -3763,6 +3768,14 @@
       "role_system": "System"
     },
     "plan_abandoned_reason": "plan abandoned",
+    "step": {
+      "toggle": "Show or hide the step detail",
+      "failed": "Failed: {reason}",
+      "failed_plain": "The step failed.",
+      "refused": "Step refused.",
+      "running": "Running",
+      "raw_label": "Raw data"
+    },
     "target_selector": {
       "placeholder": "Choose an agent or a model",
       "aria": "Agent or model of the conversation",
@@ -4149,7 +4162,40 @@
       "status_failed": "Failed",
       "todo_count": "{n, plural, one {# task} other {# tasks}}",
       "progress_fraction": "{done} / {total}",
-      "reveal_aria": "Reveal in file manager"
+      "reveal_aria": "Reveal in file manager",
+      "text_read": "Text read: {count}",
+      "quoted": "“{text}”",
+      "lines_range": "lines {from} to {to}",
+      "edit_summary": "{added, plural, one {# line added} other {# lines added}}, {removed, plural, one {# line removed} other {# lines removed}}",
+      "files_found": "{n, plural, one {# file found} other {# files found}}",
+      "searched_words_label": "Words searched",
+      "grep_found": "{m, plural, one {# passage} other {# passages}} in {f, plural, one {# file} other {# files}}",
+      "file_line": "{file}, line {n}",
+      "command_finished": "Finished",
+      "command_failed": "Failed",
+      "exit_code_label": "exit code {code}",
+      "in_duration": "in {duration}",
+      "response_status": "Response {status}",
+      "remembered_on": "remembered on {date}",
+      "todos_done": "{done} of {total} done",
+      "done_of_total": "{done} of {total}",
+      "code_lines": "{n, plural, one {# line} other {# lines}}",
+      "params_label": "Parameters"
+    },
+    "actions": {
+      "web_search": "Web search",
+      "web_read": "Read a page",
+      "file_list": "List a folder",
+      "file_read": "Read a file",
+      "file_write": "Write a file",
+      "file_edit": "Edit a file",
+      "file_glob": "Find files",
+      "file_grep": "Search in files",
+      "bash_executor": "Run a command",
+      "python_executor": "Run Python",
+      "http_fetch": "Call a web address",
+      "memory_search": "Search memory",
+      "todo_write": "Keep the task list"
     }
   },
   "project_migration": {
@@ -4302,7 +4348,17 @@
     "cost_estimate": "Estimated cost: {cost}",
     "expires_in": "expires in {expires}",
     "always_hint": "\"Always for this agent\" lets it repeat this kind of action without asking you again.",
-    "refuse_reason_placeholder": "Reason for refusing (optional), passed to the agent"
+    "refuse_reason_placeholder": "Reason for refusing (optional), passed to the agent",
+    "see_more": "See more",
+    "see_less": "See less",
+    "code": {
+      "family": "Run code",
+      "working_dir": "Working folder: {dir}",
+      "always": "Always allow this command",
+      "always_hint": "\"Always allow this command\" lets this agent run exactly this command again without asking. You can withdraw it in Permissions.",
+      "compound_hint": "This command chains several: \"Always\" is not offered, every run asks for your consent.",
+      "each_time_hint": "Every run asks for your consent. Read the command before you answer."
+    }
   },
   "stt_failure": {
     "no_microphone": "No microphone was detected. Plug one in, then try again.",
@@ -4655,6 +4711,87 @@
         "copy_detail": "Copy the detail",
         "copied": "Detail copied."
       }
+    }
+  },
+  "library": {
+    "kicker": "Installed packages",
+    "title": "Library",
+    "subtitle": "What you have installed: agents, workflows, tools and connections, with their publisher and their signature.",
+    "install": "Install a package",
+    "filter_placeholder": "Filter packages…",
+    "tally": "{total, plural, one {# package installed} other {# packages installed}} · {signed, plural, =0 {none signed} other {# signed}}, {unsigned, plural, =0 {none unsigned} other {# unsigned}}",
+    "no_match": "No package matches \"{query}\".",
+    "load_error": "The list of installed packages cannot be read.",
+    "footnote": "The agents and workflows of a package stay visible in Agents.",
+    "publisher_unknown": "Unknown publisher",
+    "signed": "Signed",
+    "unsigned": "Unsigned",
+    "content_summary": "{agents, plural, =0 {no agent} one {# agent} other {# agents}}, {workflows, plural, =0 {no workflow} one {# workflow} other {# workflows}}, {tools, plural, =0 {no tool} one {# tool} other {# tools}}, {connections, plural, =0 {no connection} one {# connection} other {# connections}}",
+    "kind": {
+      "agent": "agent",
+      "workflow": "workflow",
+      "tool": "tool",
+      "connection": "connection"
+    },
+    "provided": {
+      "name": "Agents provided with Apollia",
+      "origin": "Provided with Apollia",
+      "badge": "Provided with Apollia",
+      "signature_title": "Provided with Apollia",
+      "signature_body": "These agents are part of the application: the application is what is signed, and they cannot be uninstalled.",
+      "update_note": "These agents are updated with the application."
+    },
+    "empty": {
+      "title": "No package installed",
+      "description": "A package brings agents, workflows, tools and connections ready to use, in a single .apo file.",
+      "examples": "See the examples in Agents"
+    },
+    "detail": {
+      "back": "Back to the Library",
+      "load_error": "This package cannot be read.",
+      "installed_on": "installed on {date}",
+      "update": "Update…",
+      "uninstall": "Uninstall…",
+      "signed_title": "Signed by {publisher}",
+      "signed_trusted": "Trusted publisher. The signature was verified at installation.",
+      "signed_untrusted": "The signature was verified at installation. This publisher is not among your trusted publishers.",
+      "unsigned_title": "Unsigned package",
+      "unsigned_body": "Nothing confirms who published this package. The warning was accepted at installation.",
+      "content_title": "Content",
+      "agents": "Agents",
+      "workflows": "Workflows",
+      "tools": "Tools",
+      "connections": "Connections",
+      "open_sheet": "Open the sheet",
+      "connection_brought": "Brought by the package: it goes with it.",
+      "connection_required": "Required, yours",
+      "none": "No {kinds} in this package.",
+      "none_joiner": "or",
+      "update_note": "To update this package, open a more recent .apo file: a preview shows what changes before anything is installed, and your adjustments are kept."
+    },
+    "uninstall": {
+      "title": "Uninstall \"{name}\"?",
+      "leaving_title": "What goes",
+      "leaving": {
+        "agents": "{count, plural, one {# agent} other {# agents}}",
+        "workflows": "{count, plural, one {# workflow} other {# workflows}}",
+        "tools": "{count, plural, one {# tool} other {# tools}}",
+        "automations": "{count, plural, one {# automation that starts these agents} other {# automations that start these agents}}",
+        "connections": "{count, plural, one {# connection brought by the package} other {# connections brought by the package}}"
+      },
+      "staying_title": "Stays in place",
+      "staying_connections": "{count, plural, one {# required connection, which is yours} other {# required connections, which are yours}}",
+      "data_title": "Memory and history of the agents",
+      "keep_title": "Keep",
+      "keep_body": "If you install this package again, its agents find their memory and their history.",
+      "erase_title": "Erase",
+      "erase_body": "The memory and the history of these agents are erased. This cannot be undone.",
+      "confirm": "Uninstall",
+      "confirm_erase": "Uninstall and erase",
+      "error": "The uninstallation did not complete.",
+      "done": "\"{name}\" is uninstalled.",
+      "done_leftovers": "\"{name}\" is uninstalled, but {count, plural, one {# item could not be removed} other {# items could not be removed}}.",
+      "names": ": {names}"
     }
   }
 }

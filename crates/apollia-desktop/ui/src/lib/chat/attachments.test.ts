@@ -5,10 +5,15 @@ import {
   type AttachmentCandidate,
   type AttachmentRefusal,
   type PendingAttachment,
+  classifyKind,
   composeUserPayload,
+  documentPayloads,
   imagePayloads,
   intakeAttachment,
   refusalMessageKey,
+  sentAttachmentsMetadata,
+  MAX_DOCUMENTS_PER_MESSAGE,
+  MAX_DOCUMENT_BYTES,
   MAX_IMAGES_PER_MESSAGE,
   MAX_IMAGE_BYTES,
 } from "./attachments";
@@ -150,11 +155,11 @@ describe("intakeAttachment, every shape a picked file can take", () => {
     expect(intake.reason).toBe("too_large_without_path");
   });
 
-  it("refuses a small PDF picked through the paperclip, whose bytes are not text", () => {
-    // GIVEN a 300 kB PDF, small enough that the composer read it inline
+  it("refuses a small archive picked through the paperclip, a format that is not read", () => {
+    // GIVEN a 300 kB archive, small enough that the composer read it inline
     const input = candidate({
-      name: "rapport.pdf",
-      mime: "application/pdf",
+      name: "rapport.zip",
+      mime: "application/zip",
       kind: "other",
       size: 307_200,
       base64: pdfHeaderBase64(),
@@ -170,14 +175,14 @@ describe("intakeAttachment, every shape a picked file can take", () => {
   });
 
   it("falls back to the path for a dropped file whose bytes are not text", () => {
-    // GIVEN the same PDF dropped from the desktop, so it also carries a path
+    // GIVEN the same archive dropped from the desktop, so it also carries a path
     const input = candidate({
-      name: "rapport.pdf",
-      mime: "application/pdf",
+      name: "rapport.zip",
+      mime: "application/zip",
       kind: "other",
       size: 307_200,
       base64: pdfHeaderBase64(),
-      absolutePath: "/Users/x/rapport.pdf",
+      absolutePath: "/Users/x/rapport.zip",
     });
 
     // WHEN it goes through intake
@@ -290,6 +295,8 @@ describe("refusalMessageKey, every refusal has a sentence in both catalogues", (
     "image_unreadable",
     "image_format",
     "too_large_without_path",
+    "document_limit",
+    "document_too_large",
     "binary_not_text",
   ];
 
@@ -376,5 +383,136 @@ describe("intakeAttachment, images and the model of the conversation", () => {
       { mime_type: "image/png", data: "AQID" },
       { mime_type: "image/jpeg", data: "BAU=" },
     ]);
+  });
+});
+
+describe("documents the runtime reads", () => {
+  function document(over: Partial<AttachmentCandidate> = {}): AttachmentCandidate {
+    return candidate({
+      name: "invoices.pdf",
+      mime: "application/pdf",
+      kind: "document",
+      size: 307_200,
+      base64: pdfHeaderBase64(),
+      ...over,
+    });
+  }
+
+  it("classifies every format that is read as a document, whatever its case", () => {
+    // GIVEN one file name per format the runtime reads, and names it does not
+    const read = ["a.pdf", "b.DOCX", "c.pptx", "d.xlsx", "e.xlsm", "f.xls", "g.ods"];
+    const notRead = ["h.zip", "i.doc", "j.exe"];
+
+    // WHEN each is classified
+    // THEN the first are documents, the others are not, and a CSV stays text
+    for (const name of read) expect(classifyKind("", name), name).toBe("document");
+    for (const name of notRead) expect(classifyKind("", name), name).toBe("other");
+    expect(classifyKind("", "k.csv")).toBe("text");
+  });
+
+  it("accepts a PDF picked through the paperclip, where it used to be refused", () => {
+    // GIVEN a PDF picked through the paperclip: bytes, no path
+    const input = document();
+
+    // WHEN it goes through intake
+    const intake = intakeAttachment(input);
+
+    // THEN it is queued as a document, not refused as bytes that are not text
+    expect(intake.accepted).toBe(true);
+    if (!intake.accepted) return;
+    expect(intake.attachment.form).toBe("document");
+  });
+
+  it("accepts a Word, a PowerPoint and an Excel file the same way", () => {
+    for (const name of ["memo.docx", "deck.pptx", "sales.xlsx", "macro.xlsm", "old.xls", "sheet.ods"]) {
+      // GIVEN a file of a format that is read, picked through the paperclip
+      const input = document({ name });
+
+      // WHEN it goes through intake
+      const intake = intakeAttachment(input);
+
+      // THEN it is queued as a document
+      expect(intake.accepted, name).toBe(true);
+      if (!intake.accepted) return;
+      expect(intake.attachment.form, name).toBe("document");
+    }
+  });
+
+  it("accepts a CSV file that is not UTF-8 as a document, and a UTF-8 one as text", () => {
+    // GIVEN a CSV file saved in Windows-1252, and one in UTF-8
+    const latin = candidate({
+      name: "customers.csv",
+      mime: "text/csv",
+      base64: Buffer.from([0x6e, 0x6f, 0x6d, 0x3b, 0x42, 0x65, 0x73, 0x61, 0x6e, 0xe7, 0x6f, 0x6e]).toString("base64"),
+    });
+    const utf8 = candidate({ name: "customers.csv", mime: "text/csv", base64: base64("name;city") });
+
+    // WHEN each goes through intake
+    const first = intakeAttachment(latin);
+    const second = intakeAttachment(utf8);
+
+    // THEN the first is read by the runtime, the second travels as text
+    expect(first.accepted && first.attachment.form).toBe("document");
+    expect(second.accepted && second.attachment.form).toBe("inline_text");
+  });
+
+  it("refuses a fifth document, and one past the ceiling, naming the cause", () => {
+    // GIVEN a fifth document for a message, and a document a byte too heavy
+    const fifth = intakeAttachment(document(), { queuedDocuments: MAX_DOCUMENTS_PER_MESSAGE });
+    const heavy = intakeAttachment(document({ size: MAX_DOCUMENT_BYTES + 1, base64: undefined }));
+
+    // WHEN each goes through intake
+    // THEN each is refused for its own reason
+    expect(fifth.accepted === false && fifth.reason).toBe("document_limit");
+    expect(heavy.accepted === false && heavy.reason).toBe("document_too_large");
+  });
+
+  it("sends a dropped document past a ceiling as its path, which the file tools read", () => {
+    // GIVEN a dropped document a byte too heavy, so it carries a path and no bytes
+    const input = document({
+      size: MAX_DOCUMENT_BYTES + 1,
+      base64: undefined,
+      absolutePath: "/Users/x/invoices.pdf",
+    });
+
+    // WHEN it goes through intake
+    const intake = intakeAttachment(input);
+
+    // THEN it travels as a path rather than being refused
+    expect(intake.accepted && intake.attachment.form).toBe("path_reference");
+  });
+
+  it("names the cause when it refuses a format that is not read, in both languages", () => {
+    // GIVEN the refusal of a binary of a format nothing reads
+    const key = refusalMessageKey("binary_not_text");
+
+    // WHEN its sentence is read in each catalogue
+    const en = lookup(enCatalogue, key);
+    const fr = lookup(frCatalogue, key);
+
+    // THEN each names the cause and the formats that are read, in its own words
+    expect(en).toContain("this format is not read");
+    expect(fr).toContain("PDF, Word, PowerPoint, Excel, CSV");
+    expect(fr).not.toBe(en);
+  });
+
+  it("adds nothing to the text and travels beside it as its name and bytes", () => {
+    // GIVEN a queued document beside a typed question
+    const intake = intakeAttachment(document());
+    if (!intake.accepted) throw new Error("the document was refused");
+    const queued: PendingAttachment[] = [intake.attachment];
+
+    // WHEN the message is composed
+    const payload = composeUserPayload("What is the amount?", queued);
+
+    // THEN the text is the question alone, and the document travels beside it
+    expect(payload).toBe("What is the amount?");
+    expect(documentPayloads(queued)).toEqual([
+      { name: "invoices.pdf", data: pdfHeaderBase64() },
+    ]);
+    expect(imagePayloads(queued)).toEqual([]);
+    expect(sentAttachmentsMetadata(queued)).toEqual({
+      documents: [{ file: "", name: "invoices.pdf", size: 307_200 }],
+    });
   });
 });

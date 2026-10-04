@@ -11,6 +11,7 @@ impl ChatSessionManager {
         session_id: &str,
         content: &str,
         images: Vec<apollia_llm::message_image::MessageImage>,
+        documents: Option<crate::chat::documents::MessageDocuments>,
     ) -> Result<MessageId, ChatError> {
         {
             let session = self
@@ -33,7 +34,10 @@ impl ChatSessionManager {
         let message_id = uuid::Uuid::new_v4().to_string();
         let now = now_rfc3339();
 
-        let metadata = self.store_message_images(session_id, &message_id, &images)?;
+        let mut metadata = self.store_message_images(session_id, &message_id, &images)?;
+        if let Some(documents) = &documents {
+            documents.write_into(&mut metadata);
+        }
         let metadata_json = metadata.as_ref().map(serde_json::Value::to_string);
 
         // Persist message to SQLite
@@ -223,7 +227,7 @@ impl ChatSessionManager {
             session.history.retain(|m| m.seq < seq);
         }
 
-        self.handle_send_message(session_id, content, Vec::new())
+        self.handle_send_message(session_id, content, Vec::new(), None)
     }
 
     /// Re-run a turn on the existing history without appending a new user

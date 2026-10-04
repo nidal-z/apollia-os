@@ -29,9 +29,10 @@ impl ChatSessionManager {
                     session_id,
                     content,
                     images,
+                    documents,
                     reply,
                 } => {
-                    let result = self.handle_send_message(&session_id, &content, images);
+                    let result = self.handle_send_message(&session_id, &content, images, documents);
                     let _ = reply.send(result);
                 }
                 ChatCommand::ResolveTool {
@@ -286,6 +287,13 @@ impl ChatSessionManager {
                 ChatCommand::SetPackageTools { host } => {
                     info!("chat.package_tools.set");
                     self.package_tools = Some(host);
+                }
+                ChatCommand::RetirePackageTools { package } => {
+                    info!(package = %package, "chat.package_tools.retired");
+                    self.package_tools = self.package_tools.take().map(|host| {
+                        Arc::new(crate::package_tools::WithoutPackage::new(host, &package))
+                            as Arc<dyn crate::package_tools::PackageToolHost>
+                    });
                 }
                 ChatCommand::FollowConfig { feed } => {
                     info!("chat.config.followed");

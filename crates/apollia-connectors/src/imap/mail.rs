@@ -116,6 +116,25 @@ impl MailQuery {
     }
 }
 
+/// How many messages a folder holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FolderCount {
+    /// Every message of the folder.
+    pub messages: u32,
+    /// Those not yet read.
+    pub unread: u32,
+}
+
+/// The messages of a folder a query matches, by their identifiers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FolderUids {
+    /// Validity of the identifiers: a message is named for good by this
+    /// value, its folder and its uid together.
+    pub uid_validity: u32,
+    /// Identifiers of the messages, newest first.
+    pub uids: Vec<u32>,
+}
+
 /// A message as a search answers it: enough to choose which one to read.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MailSummary {

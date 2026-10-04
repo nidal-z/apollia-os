@@ -23,13 +23,20 @@ from .agent_model_fallback_response import AgentModelFallbackResponse
 from .agent_model_response import AgentModelResponse
 from .agent_origin_dto import AgentOriginDto
 from .agent_package_agent import AgentPackageAgent
+from .agent_package_automation import AgentPackageAutomation
+from .agent_package_content import AgentPackageContent
+from .agent_package_counts import AgentPackageCounts
 from .agent_package_detail import AgentPackageDetail
 from .agent_package_detail_manifest import AgentPackageDetailManifest
 from .agent_package_install_body import AgentPackageInstallBody
 from .agent_package_install_report import AgentPackageInstallReport
+from .agent_package_item import AgentPackageItem
 from .agent_package_list_item import AgentPackageListItem
 from .agent_package_preview import AgentPackagePreview
 from .agent_package_preview_body import AgentPackagePreviewBody
+from .agent_package_requirement import AgentPackageRequirement
+from .agent_package_signature import AgentPackageSignature
+from .agent_package_tool import AgentPackageTool
 from .agent_package_trigger import AgentPackageTrigger
 from .agent_package_trigger_config import AgentPackageTriggerConfig
 from .agent_package_uninstalled import AgentPackageUninstalled
@@ -150,6 +157,7 @@ from .dictation_models_response_models_item import DictationModelsResponseModels
 from .dictation_models_response_reason_type_0 import DictationModelsResponseReasonType0
 from .directory_removed import DirectoryRemoved
 from .dismissed_proposal import DismissedProposal
+from .document_attachment import DocumentAttachment
 from .drive_folder_status import DriveFolderStatus
 from .embedding_default_response import EmbeddingDefaultResponse
 from .embedding_models_response import EmbeddingModelsResponse
@@ -444,6 +452,7 @@ from .source_index_response import SourceIndexResponse
 from .source_kind_dto import SourceKindDto
 from .source_preview_response import SourcePreviewResponse
 from .source_response import SourceResponse
+from .source_write import SourceWrite
 from .sse_mailbox_event import SseMailboxEvent
 from .sse_task_event import SseTaskEvent
 from .start_agent_request import StartAgentRequest
@@ -552,6 +561,7 @@ from .workflow_run_view_inputs import WorkflowRunViewInputs
 from .workflow_run_view_output_type_0 import WorkflowRunViewOutputType0
 from .workflow_step_view import WorkflowStepView
 from .workflow_view import WorkflowView
+from .write_destination import WriteDestination
 
 __all__ = (
     "A2AAgentDto",
@@ -577,13 +587,20 @@ __all__ = (
     "AgentModelResponse",
     "AgentOriginDto",
     "AgentPackageAgent",
+    "AgentPackageAutomation",
+    "AgentPackageContent",
+    "AgentPackageCounts",
     "AgentPackageDetail",
     "AgentPackageDetailManifest",
     "AgentPackageInstallBody",
     "AgentPackageInstallReport",
+    "AgentPackageItem",
     "AgentPackageListItem",
     "AgentPackagePreview",
     "AgentPackagePreviewBody",
+    "AgentPackageRequirement",
+    "AgentPackageSignature",
+    "AgentPackageTool",
     "AgentPackageTrigger",
     "AgentPackageTriggerConfig",
     "AgentPackageUninstalled",
@@ -704,6 +721,7 @@ __all__ = (
     "DictationModelsResponseReasonType0",
     "DirectoryRemoved",
     "DismissedProposal",
+    "DocumentAttachment",
     "DriveFolderStatus",
     "EmbeddingDefaultResponse",
     "EmbeddingModelsResponse",
@@ -994,6 +1012,7 @@ __all__ = (
     "SourceKindDto",
     "SourcePreviewResponse",
     "SourceResponse",
+    "SourceWrite",
     "SseMailboxEvent",
     "SseTaskEvent",
     "StartAgentRequest",
@@ -1098,4 +1117,5 @@ __all__ = (
     "WorkflowRunViewOutputType0",
     "WorkflowStepView",
     "WorkflowView",
+    "WriteDestination",
 )

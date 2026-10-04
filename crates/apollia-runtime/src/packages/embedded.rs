@@ -62,6 +62,8 @@ pub async fn install_embedded(
     let packages = PackageRepository::open(&db)?;
     if let Some(installed) = packages.get(&incoming.name)? {
         if installed.version == incoming.version {
+            // An installation made before the mark existed is marked here.
+            packages.set_embedded(&incoming.name, true)?;
             return Ok(EmbeddedOutcome::Current {
                 version: installed.version,
             });

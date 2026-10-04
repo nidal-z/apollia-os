@@ -228,6 +228,7 @@ mod control;
 mod declarative;
 mod disabled;
 mod dispatcher;
+mod documents;
 mod exchange;
 mod handle;
 mod handle_ext;
@@ -240,6 +241,8 @@ mod sources;
 mod types;
 mod user_input;
 
+#[cfg(test)]
+mod documents_tests;
 #[cfg(test)]
 mod images_tests;
 #[cfg(test)]

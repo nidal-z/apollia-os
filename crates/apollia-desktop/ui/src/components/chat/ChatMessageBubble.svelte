@@ -4,16 +4,16 @@
   import { Copy, Check, RefreshCw, Pencil } from "lucide-svelte";
   import type { ChatMessageView } from "$lib/types";
   import { developerMode } from "$lib/stores/developerMode";
-  import { reasoningExpandedByDefault } from "$lib/stores/chatAppearance";
   import MessageRenderer from "./MessageRenderer.svelte";
   import type { Citation } from "$lib/chat/confidenceParser";
   import ReasoningSequence from "./ReasoningSequence.svelte";
-  import ActivityStrip from "./ActivityStrip.svelte";
   import SourceCards from "./SourceCards.svelte";
   import LinkPreviewList from "./LinkPreviewList.svelte";
   import MessageImages from "./MessageImages.svelte";
+  import MessageDocuments from "./MessageDocuments.svelte";
+  import { documentsText, typedText } from "$lib/chat/messageDocuments";
   import { parseStream } from "$lib/chat/streamParser";
-  import { extractSources, sumToolDurationMs, reasoningFragmentCount } from "$lib/chat/reasoning";
+  import { extractSources } from "$lib/chat/reasoning";
   import {
     parseApolliaActions,
     sanitizeActionButtons,
@@ -49,6 +49,9 @@
   }: Props = $props();
 
   const isUser = $derived(message.role === "user");
+  // What the user typed: the text of an attached document, which the runtime
+  // writes after it, is shown as a chip instead.
+  const userText = $derived(typedText(message.content ?? "", message.metadata));
   const isOperator = $derived(!$developerMode);
 
   const formattedTime = $derived.by(() => {
@@ -84,26 +87,12 @@
       parsedContentBlocks.some((b) => b.type === "thinking" && b.closed),
   );
 
-  // Reasoning strip input (zone 1). The strip exists only when the turn
-  // produced reasoning; finalized tool calls now render as their own visible
-  // rows in the flow (zone 2), not inside the strip.
+  // The turn's reasoning and steps (zone 1) show when it thought or acted.
   const hasThinking = $derived(
     !!message.metadata?.thinking_trace || hasInlineThinking,
   );
-  const activityDurationMs = $derived(sumToolDurationMs(nonPendingCalls));
 
-  // Counts surfaced in the collapsed strip summary so the reader knows how much
-  // reasoning and how many tool calls the turn folded away.
-  const reasoningCount = $derived(
-    reasoningFragmentCount(
-      { id: message.id, tool_calls: nonPendingCalls, metadata: message.metadata },
-      message.content ?? undefined,
-    ),
-  );
-  const toolCount = $derived(nonPendingCalls.length);
-
-  // Source cards (zone 3): deduplicated web pages the agent consulted. Their
-  // count also feeds the strip summary so both zones agree.
+  // Source cards (zone 3): deduplicated web pages the agent consulted.
   const sources = $derived(extractSources(nonPendingCalls));
 
   // The apollia-guide agent may append an ```apollia-actions``` block. Split it
@@ -141,7 +130,7 @@
   async function handleCopy(): Promise<void> {
     if (!message.content) return;
     try {
-      await navigator.clipboard.writeText(message.content);
+      await navigator.clipboard.writeText(isUser ? userText : message.content);
       copied = true;
       setTimeout(() => { copied = false; }, 1500);
     } catch {
@@ -159,7 +148,7 @@
   const canEdit = $derived(isUser && !!onedit && !!message.content);
 
   function startEdit(): void {
-    editValue = message.content ?? "";
+    editValue = isUser ? userText : (message.content ?? "");
     editing = true;
   }
 
@@ -171,7 +160,9 @@
     const next = editValue.trim();
     if (!next) return;
     editing = false;
-    onedit?.(message.id, next);
+    // The text of an attached document stays behind the edited text, so the
+    // agent still reads it.
+    onedit?.(message.id, next + documentsText(message.content ?? "", message.metadata));
   }
 </script>
 
@@ -182,26 +173,18 @@
   data-testid="chat-message-{message.id}"
   in:fly={{ y: 4, duration: 200 }}
 >
-  <!-- Zone 1: one activity block, collapsed by default. Its summary says how
-       much the turn thought and how many actions it took; opening it reveals
-       the timeline in the order it happened, each row expandable to its own
-       detail. A turn with eighteen tool calls is one line until asked. -->
+  <!-- Zone 1: the turn in the order it happened, each reasoning fragment a
+       foldable block titled by its duration, each action a foldable step.
+       Past ten items the list folds behind a "show more" line. -->
   {#if hasThinking || nonPendingCalls.length > 0}
     <div class="{widthClass}">
-      <ActivityStrip
-        open={$reasoningExpandedByDefault}
-        durationMs={activityDurationMs}
-        {reasoningCount}
-        {toolCount}
-      >
-        <ReasoningSequence
-          {message}
-          {sessionId}
-          {isOperator}
-          content={message.content ?? undefined}
-          section="timeline"
-        />
-      </ActivityStrip>
+      <ReasoningSequence
+        {message}
+        {sessionId}
+        {isOperator}
+        content={message.content ?? undefined}
+        section="timeline"
+      />
     </div>
   {/if}
 
@@ -210,6 +193,11 @@
     <div class="{widthClass}">
       <ReasoningSequence {message} {sessionId} {isOperator} section="approvals" />
     </div>
+  {/if}
+
+  <!-- The documents attached to a user turn sit above its bubble. -->
+  {#if isUser}
+    <MessageDocuments messageId={message.id} metadata={message.metadata} />
   {/if}
 
   <div
@@ -255,8 +243,8 @@
         </div>
       {:else}
         <MessageImages {sessionId} messageId={message.id} metadata={message.metadata} />
-        {#if message.content}
-          <p class="whitespace-pre-wrap break-words">{message.content}</p>
+        {#if userText}
+          <p class="whitespace-pre-wrap break-words">{userText}</p>
         {/if}
       {/if}
     {:else if isEmptyAgentResponse}

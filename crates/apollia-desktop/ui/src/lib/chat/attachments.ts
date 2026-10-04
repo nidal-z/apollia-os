@@ -1,7 +1,7 @@
 /**
  * Pending chat attachments.
  *
- * A queued attachment travels to the model in exactly one of three forms, and
+ * A queued attachment travels to the model in exactly one of four forms, and
  * the form is decided at intake rather than at send time:
  *
  *   `inline_text`     the file was small enough to read and its decoded text
@@ -10,19 +10,23 @@
  *                     rides instead and the file tools read it.
  *   `image`           the model of the conversation reads images: the bytes
  *                     travel beside the text, in a format its engine decodes.
+ *   `document`        the file is of a format the runtime reads (PDF, Word,
+ *                     PowerPoint, a workbook, a CSV file that is not UTF-8):
+ *                     its bytes travel beside the text and the runtime
+ *                     extracts the text on reception.
  *
  * Anything that fits none of them is refused at intake, with a reason the
  * composer shows. An image to a model that does not read images is refused
  * (or sent as a path when dropped), a file picked through the paperclip past
  * `INLINE_MAX_BYTES` carries neither payload nor path, because only a Tauri
- * drop event exposes `path` on a `File`, and a small binary such as a PDF has
- * no decoded text at all, so `inline_text` would carry replacement characters
- * where the form promises readable content.
+ * drop event exposes `path` on a `File`, and a binary of a format nothing
+ * reads has no decoded text at all, so `inline_text` would carry replacement
+ * characters where the form promises readable content.
  */
-export type AttachmentKind = "image" | "text" | "other";
+export type AttachmentKind = "image" | "text" | "document" | "other";
 
 /** The single shape an accepted attachment takes inside the user message. */
-export type AttachmentForm = "inline_text" | "path_reference" | "image";
+export type AttachmentForm = "inline_text" | "path_reference" | "image" | "document";
 
 /** Why the composer refuses a file instead of queueing it. */
 export type AttachmentRefusal =
@@ -33,6 +37,8 @@ export type AttachmentRefusal =
   | "image_unreadable"
   | "image_format"
   | "too_large_without_path"
+  | "document_limit"
+  | "document_too_large"
   | "binary_not_text";
 
 /** Most images one message carries; the runtime holds the same ceiling. */
@@ -40,6 +46,39 @@ export const MAX_IMAGES_PER_MESSAGE = 8;
 
 /** Largest image sent, in bytes (10 MiB); the runtime holds the same ceiling. */
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+/** Most documents one message carries; the runtime holds the same ceiling. */
+export const MAX_DOCUMENTS_PER_MESSAGE = 4;
+
+/** Largest document sent, in bytes (20 MiB); the runtime holds the same ceiling. */
+export const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
+
+/** Extensions of the formats the runtime reads as documents, lower case. */
+export const DOCUMENT_EXTENSIONS: readonly string[] = [
+  "pdf",
+  "docx",
+  "docm",
+  "pptx",
+  "pptm",
+  "xlsx",
+  "xlsm",
+  "xlsb",
+  "xls",
+  "ods",
+];
+
+/** The extension of a file name, lower case; empty without one. */
+function extensionOf(name: string): string {
+  const dot = name.lastIndexOf(".");
+  return dot < 0 ? "" : name.slice(dot + 1).toLowerCase();
+}
+
+/** One document as it travels to the runtime. */
+export interface DocumentPayload {
+  name: string;
+  /** Bytes in standard base64. */
+  data: string;
+}
 
 /** What the model of the conversation reads, as far as images go. */
 export interface ImageSupport {
@@ -67,7 +106,8 @@ export interface PendingAttachment {
   form: AttachmentForm;
   /** Object URL for image previews - caller revokes on removal. */
   previewUrl?: string;
-  /** Base64 payload. Always present when `form` is `inline_text` or `image`. */
+  /** Base64 payload. Always present when `form` is `inline_text`, `image` or
+   *  `document`. */
   base64?: string;
   /** Absolute path. Always present when `form` is `path_reference`. */
   absolutePath?: string;
@@ -77,6 +117,7 @@ export const INLINE_MAX_BYTES = 512 * 1024;
 
 export function classifyKind(mime: string, name: string): AttachmentKind {
   if (mime.startsWith("image/")) return "image";
+  if (DOCUMENT_EXTENSIONS.includes(extensionOf(name))) return "document";
   if (mime.startsWith("text/") || /\.(md|txt|json|ya?ml|rs|ts|tsx|js|jsx|py|toml|csv)$/i.test(name))
     return "text";
   return "other";
@@ -154,6 +195,8 @@ export interface IntakeContext {
   vision?: boolean;
   /** Images already queued for this message. */
   queuedImages?: number;
+  /** Documents already queued for this message. */
+  queuedDocuments?: number;
 }
 
 /**
@@ -161,8 +204,12 @@ export interface IntakeContext {
  *
  * To a model that reads images, an image travels as its bytes, up to
  * `MAX_IMAGES_PER_MESSAGE` per message and `MAX_IMAGE_BYTES` each. To any
- * other, an image only travels as a path. Everything else prefers its inline
- * payload, provided that payload is really text, and falls back to a path.
+ * other, an image only travels as a path. A document of a format the runtime
+ * reads travels as its bytes, up to `MAX_DOCUMENTS_PER_MESSAGE` per message
+ * and `MAX_DOCUMENT_BYTES` each; past a ceiling it falls back to its path,
+ * which the file tools read. Everything else prefers its inline payload,
+ * provided that payload is really text, and falls back to a path. A binary of
+ * a format nothing reads is refused.
  */
 export function intakeAttachment(
   candidate: AttachmentCandidate,
@@ -199,8 +246,28 @@ export function intakeAttachment(
       ? accept("path_reference")
       : { accepted: false, reason: "image_not_supported", name: candidate.name };
   }
+  const refuseDocument = (reason: AttachmentRefusal): AttachmentIntake =>
+    candidate.absolutePath
+      ? accept("path_reference")
+      : { accepted: false, reason, name: candidate.name };
+  const acceptDocument = (): AttachmentIntake => {
+    if ((context.queuedDocuments ?? 0) >= MAX_DOCUMENTS_PER_MESSAGE) {
+      return refuseDocument("document_limit");
+    }
+    return accept("document");
+  };
+  if (candidate.kind === "document") {
+    if (candidate.size > MAX_DOCUMENT_BYTES) return refuseDocument("document_too_large");
+    if (candidate.base64 !== undefined) return acceptDocument();
+    if (candidate.absolutePath) return accept("path_reference");
+    return { accepted: false, reason: "read_failed", name: candidate.name };
+  }
   if (candidate.base64 !== undefined && decodesAsText(candidate.base64)) {
     return accept("inline_text");
+  }
+  // A CSV file saved in another encoding is still a table the runtime reads.
+  if (candidate.base64 !== undefined && extensionOf(candidate.name) === "csv") {
+    return acceptDocument();
   }
   if (candidate.absolutePath) return accept("path_reference");
   if (candidate.base64 !== undefined) {
@@ -229,6 +296,10 @@ export function refusalMessageKey(reason: AttachmentRefusal): string {
       return "chat.attachments.refused.image_format";
     case "too_large_without_path":
       return "chat.attachments.refused.too_large_without_path";
+    case "document_limit":
+      return "chat.attachments.refused.document_limit";
+    case "document_too_large":
+      return "chat.attachments.refused.document_too_large";
     case "binary_not_text":
       return "chat.attachments.refused.binary_not_text";
   }
@@ -249,11 +320,13 @@ function decodeBase64Utf8(b64: string): string {
  *
  * Total over `AttachmentForm`: there is no branch that emits a tag carrying
  * neither content nor path, which is the shape the model could not act on. An
- * image adds nothing to the text: its bytes travel beside it.
+ * image and a document add nothing to the text: their bytes travel beside it,
+ * and the runtime writes the text of a document into the message.
  */
 function composeAttachmentPart(att: PendingAttachment): string {
   switch (att.form) {
     case "image":
+    case "document":
       return "";
     case "inline_text":
       return `\n<attachment name="${att.name}" mime="${att.mime}" size="${att.size}">\n${decodeBase64Utf8(att.base64 ?? "")}\n</attachment>`;
@@ -293,4 +366,27 @@ export function sentImagesMetadata(
     .filter((att) => att.form === "image")
     .map((att) => ({ file: "", mime_type: att.mime, size: att.size, preview: att.previewUrl }));
   return images.length > 0 ? { images } : null;
+}
+
+/** The documents of a message, in order, as the runtime receives them. */
+export function documentPayloads(attachments: readonly PendingAttachment[]): DocumentPayload[] {
+  return attachments
+    .filter((att) => att.form === "document" && att.base64 !== undefined)
+    .map((att) => ({ name: att.name, data: att.base64 ?? "" }));
+}
+
+/**
+ * The metadata a message just sent carries until the history is reloaded:
+ * its images and its documents by name; `null` without either. What the
+ * runtime read of a document (pages, text) is only known once reloaded.
+ */
+export function sentAttachmentsMetadata(
+  attachments: readonly PendingAttachment[],
+): Record<string, unknown> | null {
+  const documents = attachments
+    .filter((att) => att.form === "document")
+    .map((att) => ({ file: "", name: att.name, size: att.size }));
+  const images = sentImagesMetadata(attachments);
+  if (documents.length === 0) return images;
+  return { ...(images ?? {}), documents };
 }

@@ -363,6 +363,12 @@ function handleChatApprovalRequired(event: TauriRuntimeEvent): void {
     toolCallId: asString(p.tool_call_id),
     toolName: asString(p.tool_name),
     inputPreview: asString(p.prompt),
+    answers: Array.isArray(p.answers)
+      ? p.answers.filter((a): a is string => typeof a === "string")
+      : undefined,
+    detail: asString(p.detail),
+    code: asOptionalString(p.code) ?? null,
+    workingDir: asOptionalString(p.working_dir) ?? null,
     receivedAt: new Date().toISOString(),
   });
   void sendChatApprovalNotification(sessionId, asString(p.tool_name, "tool"));

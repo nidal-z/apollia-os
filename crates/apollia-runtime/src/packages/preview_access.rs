@@ -67,7 +67,7 @@ pub(super) fn declared_access(
     }
 }
 
-pub(super) fn family_name(family: PackageFamily) -> &'static str {
+pub(crate) fn family_name(family: PackageFamily) -> &'static str {
     match family {
         PackageFamily::Read => "read",
         PackageFamily::ReadPersonal => "read_personal",

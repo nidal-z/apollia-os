@@ -160,7 +160,7 @@ accordé a des outils de fichiers qui refusent, en disant comment en accorder un
 
 | Outil | Objectif | Paramètres clés |
 |---|---|---|
-| `file_read` | Lit un fichier, avec un offset et une limite optionnels pour les fichiers volumineux. Renvoie du texte UTF-8 avec numéros de ligne. | `path`, `offset`, `limit` |
+| `file_read` | Lit un fichier, avec un offset et une limite optionnels pour les fichiers volumineux. Renvoie du texte UTF-8 avec numéros de ligne. Un document PDF, Word (`.docx`), PowerPoint (`.pptx`) ou Excel (`.xlsx`, `.xlsm`, `.xls`, `.ods`) est lu comme le texte qu'il contient, en entier ou une page, une diapositive ou une feuille à la fois. | `path`, `offset`, `limit`, `page`, `sheet` |
 | `file_write` | Écrit du contenu dans un fichier, en créant les répertoires intermédiaires et en écrasant le fichier s'il existe déjà. | `path`, `content` |
 | `file_list` | Liste les fichiers et répertoires avec leur type et leur taille, de façon récursive en option. | `dir`, `recursive` |
 | `file_edit` | Remplace un texte exact dans un fichier. Échoue si `old_text` est introuvable ou n'est pas unique (sauf avec `replace_all`). | `path`, `old_text`, `new_text`, `replace_all` |

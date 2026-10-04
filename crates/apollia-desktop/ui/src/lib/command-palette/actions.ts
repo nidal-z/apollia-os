@@ -35,6 +35,7 @@ import {
   Keyboard,
   Info,
   Landmark,
+  Library,
 } from "lucide-svelte";
 // NOSONAR typescript:S1874 - Svelte 4 ComponentType retained for lucide-svelte compat
 import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
@@ -127,6 +128,7 @@ export function buildPaletteActions(): PaletteAction[] {
     nav("nav.inbox", "inbox", "nav.inbox", ShieldCheck, ["inbox", "approvals", "hitl"]),
     nav("nav.integrations", "integrations", "nav.connections", Plug, ["integrations", "mcp"]),
     nav("nav.llm", "llm", "nav.llm", Brain, ["llm", "models"]),
+    nav("nav.library", "library", "nav.library", Library, ["library", "packages", "installed"]),
     nav("nav.automations", "automations", "nav.automations", Timer, ["automations", "triggers", "cron"]),
     nav("nav.memory", "memory", "nav.memory", Database, ["memory", "recall"], true),
     nav("nav.transcriptions", "transcriptions", "nav.transcriptions", Mic, ["stt", "speech"], true),

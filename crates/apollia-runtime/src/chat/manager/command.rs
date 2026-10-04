@@ -26,6 +26,9 @@ pub enum ChatCommand {
         /// Images attached after the text, already decoded and checked for
         /// count and size.
         images: Vec<apollia_llm::message_image::MessageImage>,
+        /// Documents attached to the message, already copied and read: their
+        /// text is part of `content`, this is what the metadata lists.
+        documents: Option<crate::chat::documents::MessageDocuments>,
         /// Response channel.
         reply: oneshot::Sender<Result<MessageId, ChatError>>,
     },
@@ -277,6 +280,12 @@ pub enum ChatCommand {
     SetPackageTools {
         /// Used by every run that starts afterwards.
         host: Arc<dyn crate::package_tools::PackageToolHost>,
+    },
+    /// Take the tools of an uninstalled package out of what the source of
+    /// the package tool executors hands out.
+    RetirePackageTools {
+        /// The package uninstalled.
+        package: String,
     },
     /// Hand the live sections of the configuration to the actor.
     FollowConfig {

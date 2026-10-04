@@ -300,6 +300,10 @@ Le serveur compatible, qui répond aux formats OpenAI et Anthropic sur l'interfa
 | `server.port` | entier | `7772` | Port TCP du serveur compatible. La politique de l'organisation peut l'imposer. |
 | `server.require_auth` | booléen | `false` | Exiger un jeton du serveur compatible à chaque requête ; lu à l'ouverture de l'écoute. La politique de l'organisation peut l'imposer. |
 | `server.cors` | booléen | `false` | Laisser une page web d'une autre origine appeler le serveur compatible ; lu à chaque démarrage du serveur. La politique de l'organisation peut l'imposer. |
+| `server.jit_loading` | booléen | `true` | Laisser une requête au serveur compatible charger le modèle de cette machine qu'elle nomme. La politique de l'organisation peut l'imposer. |
+| `server.jit_auto_unload` | booléen | `true` | Décharger les modèles que le serveur compatible a chargés après leur propre délai d'inactivité plutôt que le délai général. La politique de l'organisation peut l'imposer. |
+| `server.jit_idle_ttl_minutes` | entier | `60` | Minutes sans requête après lesquelles un modèle chargé par le serveur compatible est déchargé ; 0 le garde chargé. La politique de l'organisation peut l'imposer. |
+| `server.jit_keep_last_only` | booléen | `true` | Quand le serveur compatible charge un modèle, décharger les autres modèles qu'il a chargés et que rien ne retient. La politique de l'organisation peut l'imposer. |
 | `server.serve_on_lan` | booléen | `false` | Ouvrir le serveur compatible au réseau local, sur toutes les interfaces ; l'API native reste sur l'interface de boucle locale. Lu à l'ouverture de l'écoute. La politique de l'organisation peut l'imposer. |
 
 ### `[engines]`
