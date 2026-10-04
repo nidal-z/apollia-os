@@ -19614,9 +19614,9 @@
           "pendingRestart": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/PendingRestartKey"
             },
-            "description": "Keys changed in the file that wait for a restart of the runtime."
+            "description": "Keys changed since the runtime started that wait for its restart, each\nwith its line; empty in a runtime that does not follow its file."
           },
           "sha256": {
             "type": "string",
@@ -24189,6 +24189,27 @@
           },
           "task_id": {
             "type": "string"
+          }
+        }
+      },
+      "PendingRestartKey": {
+        "type": "object",
+        "description": "A key changed since the start that waits for a restart, with its line in\nthe file.",
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Dotted key."
+          },
+          "line": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "1-based line of the key, or of its table, in the file; `None` when the\nfile no longer writes it (removed, back to its default).",
+            "minimum": 0
           }
         }
       },

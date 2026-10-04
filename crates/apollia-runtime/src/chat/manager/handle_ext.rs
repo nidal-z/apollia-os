@@ -201,6 +201,13 @@ impl ChatSessionManagerHandle {
         let _ = self.tx.send(ChatCommand::SetPackageTools { host }).await;
     }
 
+    /// Hand over the live sections of the configuration: from then on a
+    /// change of `[tools]`, `[chat]`, `[filesystem]`, `[mcp]` or `[hooks]`
+    /// applies to the next conversation and the next exchange.
+    pub async fn follow_config(&self, feed: crate::config_reload::ConfigFeed) {
+        let _ = self.tx.send(ChatCommand::FollowConfig { feed }).await;
+    }
+
     /// Hand over the composer of the granted agent and workflow calls.
     ///
     /// Every run that starts afterwards, in the chat or outside it, is offered

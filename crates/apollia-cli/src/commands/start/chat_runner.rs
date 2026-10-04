@@ -60,8 +60,9 @@ pub(super) struct AIPChatAgentRunner {
     /// Base data directory (e.g. `~/.apollia/`).
     pub(super) data_dir: PathBuf,
     /// Operator-supplied tools configuration loaded from `apollia.toml`.
-    /// Drives `disabled` tools and `web_search` / `web_read` parameters.
-    pub(super) tools_config: apollia_core::ToolsConfig,
+    /// Drives `disabled` tools and `web_search` / `web_read` parameters; read
+    /// at each run so a saved change applies to the next one.
+    pub(super) tools_config: apollia_runtime::config_reload::Live<apollia_core::ToolsConfig>,
     /// MCP client manager handle, populated after `supervisor.start()` so the
     /// chat-agent dispatcher can route `mcp:<server>/<tool>` invocations.
     pub(super) mcp_handle:
@@ -120,7 +121,8 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             );
             Default::default()
         });
-        let disabled_tools = merge_disabled(&self.tools_config.disabled, snapshot.disabled_tools);
+        let tools_config = self.tools_config.get();
+        let disabled_tools = merge_disabled(&tools_config.disabled, snapshot.disabled_tools);
         // Inject one MCP executor per registered tool so `ctx.tools.call("mcp:...")`
         // routes through the MCP client manager instead of returning UnknownTool,
         // gated like the task path, plus the SaaS connector executors.
@@ -153,10 +155,10 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 session_id: None,
                 disabled_tools,
                 brave_api_key: snapshot.brave_api_key,
-                web_search_config: self.tools_config.web_search.clone(),
-                web_read_config: self.tools_config.web_read.clone(),
-                python_interpreter: self.tools_config.python_interpreter.clone(),
-                max_output_chars: self.tools_config.max_output_chars,
+                web_search_config: tools_config.web_search.clone(),
+                web_read_config: tools_config.web_read.clone(),
+                python_interpreter: tools_config.python_interpreter.clone(),
+                max_output_chars: tools_config.max_output_chars,
                 // `memory_search` only when the agent's memory is checked.
                 sources: apollia_tools::SourceAccess::memory_only(
                     apollia_tools::memory_is_checked(&self.data_dir, agent_name),

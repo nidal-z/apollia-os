@@ -312,12 +312,13 @@ impl EventPersistorHandle {
 pub fn spawn_runtime_events_subscriber(
     handle: EventPersistorHandle,
     event_bus: &EventBusSender,
-    obs_config: ObservabilityConfig,
+    obs_config: impl Into<crate::config_reload::Live<ObservabilityConfig>>,
 ) -> tokio::task::JoinHandle<()> {
+    let obs_config = obs_config.into();
     let mut rx = subscribe_resilient(event_bus, "observability.runtime_events");
     tokio::spawn(async move {
         while let Some(event) = rx.recv().await {
-            if let Some(record) = event_to_record(event, &obs_config) {
+            if let Some(record) = event_to_record(event, &obs_config.get()) {
                 handle.append(record);
             }
         }

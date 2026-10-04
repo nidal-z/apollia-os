@@ -44,8 +44,9 @@ pub(super) struct ProductionBackendFactory {
     pub(super) registry: Arc<std::sync::OnceLock<AgentRegistryHandle>>,
     /// Task router handle, populated after supervisor.start().
     pub(super) router: Arc<std::sync::OnceLock<TaskRouterHandle<DynBackend>>>,
-    /// Operator-supplied tools configuration loaded from `apollia.toml`.
-    pub(super) tools_config: apollia_core::ToolsConfig,
+    /// Operator-supplied tools configuration loaded from `apollia.toml`, read
+    /// at each run so a saved change applies to the next one.
+    pub(super) tools_config: apollia_runtime::config_reload::Live<apollia_core::ToolsConfig>,
     /// Base data directory (`~/.apollia/`), used to open the shared
     /// [`ToolCredentialStore`] on each agent execution (`ctx.secrets`).
     pub(super) data_dir: PathBuf,
