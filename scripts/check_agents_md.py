@@ -75,7 +75,6 @@ SIZE_THRESHOLD = 500
 # which is what keeps this from being a list that only ever grows.
 COVERED_BY_GLOBAL_RULEBOOK: dict[str, str] = {
     "apollia-memory": "docs/agents/RUST-PATTERNS.md",
-    "apollia-sources": "docs/agents/RUST-PATTERNS.md",
     "apollia-triggers": "docs/agents/RUST-PATTERNS.md",
     "apollia-auth": "docs/agents/SECURITY.md",
     "apollia-notifications": "docs/agents/RUST-PATTERNS.md",
@@ -87,6 +86,7 @@ COVERED_BY_GLOBAL_RULEBOOK: dict[str, str] = {
     "apollia-eval": "docs/agents/TESTING.md",
     "apollia-prompts": "docs/agents/RUST-PATTERNS.md",
     "apollia-signing": "docs/agents/SECURITY.md",
+    "apollia-sources": "docs/agents/RUST-PATTERNS.md",
 }
 
 BACKTICKED = re.compile(r"`([^`\n]+)`")
