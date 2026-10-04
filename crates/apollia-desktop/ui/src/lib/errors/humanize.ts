@@ -104,7 +104,7 @@ const MATCHERS: ErrorMatcher[] = [
       friendly_message:
         "Your Apollia policy refuses this action for this agent or tool.",
       suggested_action:
-        "Review the matching rule in Settings > Permissions, or create an exception.",
+        "Review the matching rule on the Permissions screen, or create an exception.",
     },
   },
   {

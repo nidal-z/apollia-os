@@ -16,7 +16,7 @@
   import { ErrorBanner } from "$lib/components/operator";
   import { addToast } from "$lib/components/ui/toast/store";
   import { requestConnectionAdd } from "$lib/stores/connectionAdd";
-  import { openSettingsWindow } from "$lib/stores/settingsWindow";
+  import { navigateTo } from "$lib/stores/navigation";
   import {
     PACKAGE_INSTALLED_EVENT,
     closePackagePreview,
@@ -151,7 +151,7 @@
 
   function seePolicy(): void {
     closePackagePreview();
-    openSettingsWindow("permissions");
+    navigateTo("authorizations");
   }
 </script>
 

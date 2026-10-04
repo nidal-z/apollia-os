@@ -157,10 +157,8 @@
     "settings-nav-model-defaults",
     "settings-nav-model-hub",
     "settings-nav-notifications",
-    "settings-nav-permissions",
     "settings-nav-profile",
     "settings-nav-stt",
-    "settings-nav-tools",
     "sidebar-mcp-automation-stub-mcp",
     "sidebar-mcp-seed-stub",
     "task-detail-tab-output",
@@ -13238,30 +13236,6 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-tools"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-nav-tools"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-permissions"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "09-nav-permissions"
-    },
-    {
-      "kind": "click",
       "testid": "settings-nav-engines"
     },
     {
@@ -14552,30 +14526,6 @@
     {
       "kind": "screenshot",
       "label": "41-builder-nav-model-hub"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-tools"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "43-builder-nav-tools"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-permissions"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "44-builder-nav-permissions"
     },
     {
       "kind": "click",
@@ -19051,34 +19001,7 @@
     },
     {
       "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-permissions"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-permissions",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-permissions-moved",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "screenshot",
-      "label": "01-settings-permissions-pointer"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-permissions-open"
+      "route": "authorizations"
     },
     {
       "kind": "waitFor",

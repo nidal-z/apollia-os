@@ -2114,8 +2114,6 @@
       "llm": "LLM backends",
       "model_hub": "Model Hub",
       "configuration": "Configuration",
-      "tools": "Tools",
-      "permissions": "Permissions",
       "system": "System info",
       "shortcuts": "Shortcuts",
       "observability": "Observability",
@@ -2796,14 +2794,8 @@
       "title": "Always plan",
       "description": "New conversations start in plan mode."
     },
-    "permissions": {
-      "subtitle": "The permissions are read and withdrawn on the Permissions screen.",
-      "moved": "The fine rules, the \"always\" consents given and their withdrawal are gathered on the Permissions screen, agent by agent.",
-      "open_authorizations": "Open Permissions"
-    },
     "tools_page": {
       "heading": "Native tools",
-      "subtitle": "Enable, disable and configure each tool made available to agents.",
       "reload": "Reload",
       "empty": "No native tool detected.",
       "reloaded_toast": "Tools reloaded",

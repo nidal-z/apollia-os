@@ -5,10 +5,11 @@
  * closes the use-ranked part of its group: it is the switch a business user
  * never has to touch. Configuration, the editor of `apollia.toml`, follows it
  * and is listed only with the developer mode on. The sections that leave the
- * settings for their own screens (LLM backends, Model Hub, Tools, Permissions)
- * follow it
- * until they move; the OAuth integrations already live on the Connections
- * screen, on the page of each connection.
+ * settings for their own screens (LLM backends, Model Hub) follow it until
+ * they move. Three already left: the OAuth integrations live on the
+ * Connections screen, on the page of each connection; the built-in tools are
+ * a source of tools on that same screen; the permission rules live on the
+ * Authorizations screen.
  */
 import {
   Settings2,
@@ -23,8 +24,6 @@ import {
   HardDrive,
   Cpu,
   Download,
-  Wrench,
-  ShieldCheck,
 } from "lucide-svelte";
 import type { SettingsSubRoute } from "$lib/stores/settings";
 
@@ -63,8 +62,6 @@ export const SETTINGS_NAV: SettingsNavCluster[] = [
       },
       { key: "llm", labelKey: "settings.nav.llm", icon: Cpu },
       { key: "model-hub", labelKey: "settings.nav.model_hub", icon: Download },
-      { key: "tools", labelKey: "settings.nav.tools", icon: Wrench },
-      { key: "permissions", labelKey: "settings.nav.permissions", icon: ShieldCheck },
     ],
   },
   {

@@ -1,8 +1,8 @@
 {
-  "name": "permissions-det (the Authorizations screen against the seeded governance.db: the settings pointer, the rules for every agent and of one agent, a withdrawal and its undo, revoke all never confirmed, the load error, the agent sheet, then developer mode: add, duplicate, edit)",
+  "name": "permissions-det (the Authorizations screen against the seeded governance.db: the rules for every agent and of one agent, a withdrawal and its undo, revoke all never confirmed, the load error, the agent sheet, then developer mode: add, duplicate, edit)",
   "stopOnError": false,
   "notes": [
-    "The settings page no longer holds the rules: it leads to the Authorizations screen, a route of its own (authorizations).",
+    "The settings hold no permissions section: the rules live on the Authorizations screen, a route of its own (authorizations), which the recipe opens directly.",
     "A withdrawal takes effect at once and asks no confirmation; the line stays in place with authorizations-rule-undo, which writes the rule again. The recipe withdraws and undoes the seeded web_search rule of apollia:chat, so the seeded counts are the same after the run, with a new rule id.",
     "authorizations-revoke-all-confirm is waited for and never clicked; destructive.json confirms it.",
     "The load error is produced by a once-stub that rejects governance_list_permission_rules; the screen loads on mount, so the recipe leaves for the policy screen and comes back to mount it again, twice: once into the error, once out of it.",
@@ -10,8 +10,7 @@
     "The standing consents (authorizations-always) need a row in family_consents, which the seed does not hold: the recipe asserts the empty state on the screen and on the agent sheet. Their withdrawal is covered by the Vitest suite and the Rust tests of the desktop commands."
   ],
   "dynamicTestids": [
-    "settings-nav-developer",
-    "settings-nav-permissions"
+    "settings-nav-developer"
   ],
   "steps": [
     {
@@ -57,34 +56,7 @@
     },
     {
       "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-permissions"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-permissions",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-permissions-moved",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "screenshot",
-      "label": "01-settings-permissions-pointer"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-permissions-open"
+      "route": "authorizations"
     },
     {
       "kind": "waitFor",
