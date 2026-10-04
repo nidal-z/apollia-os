@@ -202,6 +202,7 @@ async fn launch_agent(
                 kind: REQUEST_SOURCE_KIND.to_owned(),
                 location: REQUEST_LOCATION.to_owned(),
                 options: fields,
+                write: None,
             },
             grants: Vec::new(),
             concurrency: None,
