@@ -150,7 +150,7 @@ fn recall_persona_brief_reflects_the_profile_fields() {
     .unwrap();
 
     // WHEN the persona brief is recalled
-    let brief = repo.recall_persona_brief(20).unwrap();
+    let brief = repo.recall_persona_brief(None, 20).unwrap();
     // THEN each value is rendered into it
     assert!(brief.contains("Nidal (CTO) - fintech"), "{brief}");
     assert!(brief.contains("Preferences: short answers"), "{brief}");
@@ -160,6 +160,41 @@ fn recall_persona_brief_reflects_the_profile_fields() {
         "{brief}"
     );
     assert!(brief.contains("- timezone: Europe/Paris"), "{brief}");
+}
+
+#[test]
+fn the_persona_brief_of_a_designated_profile_reads_that_profile() {
+    // GIVEN a default profile with one role and a "Formateur" profile with another
+    let (repo, _) = setup();
+    repo.set("role", "CTO", WrittenBy::User).unwrap();
+    let formateur = repo.create_profile("Formateur").unwrap();
+    repo.set_profile_field(&formateur.id, "role", Some("formateur"))
+        .unwrap();
+
+    // WHEN the brief is recalled for "Formateur", for nothing, and for a deleted profile
+    let designated = repo.recall_persona_brief(Some(&formateur.id), 20).unwrap();
+    let default = repo.recall_persona_brief(None, 20).unwrap();
+    let orphan = repo.recall_persona_brief(Some("gone"), 20).unwrap();
+
+    // THEN each reads its own profile, and an orphan designation reads the default
+    assert!(designated.contains("Role: formateur"), "{designated}");
+    assert!(!designated.contains("CTO"), "{designated}");
+    assert!(default.contains("Role: CTO"), "{default}");
+    assert_eq!(orphan, default);
+}
+
+#[test]
+fn the_persona_brief_of_a_blank_profile_is_empty() {
+    // GIVEN a filled default profile and a "Blank" profile with no field
+    let (repo, _) = setup();
+    repo.set("role", "CTO", WrittenBy::User).unwrap();
+    let blank = repo.create_profile("Blank").unwrap();
+
+    // WHEN the brief of the blank profile is recalled
+    let brief = repo.recall_persona_brief(Some(&blank.id), 20).unwrap();
+
+    // THEN it is empty: nothing of the default leaks into it
+    assert_eq!(brief, "");
 }
 
 #[test]

@@ -696,6 +696,7 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
         tools: None,
         llm_backend: None,
         profile_id: None,
+        use_profile: None,
     };
 
     // WHEN the attached arm of each command runs, with identifiers that need

@@ -347,27 +347,28 @@ where the change gets noticed.
 [[claim]]
 id = "memory-injection-confined-to-builtin-assistant"
 scope = "public"
-symbol = "inject_memory"
+symbol = "profile_injection::switched_store"
 status = "wired"
-proof = "crates/apollia-core/src/config/autonomy.rs"
+proof = "crates/apollia-runtime/src/chat/profile_injection.rs"
 evidence = ""
 note = """
 Principle 6 said memory is never injected automatically. Three paths do inject,
-and only two of them sit in the built-in assistant. `long_autonomous` sets
-`inject_memory: true`, read in the react loop and applied by the prompt builder,
-which appends a persona brief. Separately, and not gated by any tier, the chat
-manager appends past session summaries on the first message of a free session,
-see `cross-session-recall-injects-summaries`. The third sits outside the
-assistant: the desktop prompt-rewrite command carries the Work section of the
-user profile into its own one-shot system prompt, see
+and only two of them sit in the built-in assistant. The chat manager hands the
+profile store to the executor of a free chat while the profile switch of the
+conversation is on (`switched_store`), the executor keeps it for the Apollia
+agent alone, and the prompt builder appends a brief of the profile the
+conversation designates, at every tier. Separately, the chat manager appends
+past session summaries on the first message of a free session, see
+`cross-session-recall-injects-summaries`. The third sits outside the assistant:
+the desktop prompt-rewrite command carries the role, the function and the tools
+of that profile into its own one-shot system prompt, see
 `rewrite-injects-work-context`.
 
 The invariant survives, because no agent execution path reaches any of the
-three. What was wrong is the wording, which claimed more than the code delivers,
-and which named only the first. This claim guards the boundary: if
-`inject_memory` is ever read outside the built-in assistant, or if a lower tier
-turns it on, one of the eight principles becomes false and the sentence has to
-change with it.
+three. This claim guards the gate: if the chat dispatch stops calling
+`switched_store`, either the profile is injected whatever the switch says or it
+is never injected, and in both cases the page that describes a switch the user
+controls becomes false.
 """
 
 [[claim]]
@@ -1473,7 +1474,8 @@ proof = "crates/apollia-llm/src/meta/rewrite_input.rs"
 evidence = "pub struct WorkContext"
 note = """
 Third exception to Principle 6 (memory injection): the prompt rewrite carries
-the Work section of the user profile when the operator triggers it. Four anchors,
+the role, the function and the tools of the profile of the conversation when the
+operator triggers it. Four anchors,
 one per page that states the exception: docs/explanation/the-8-principles.md and
 docs/architecture/07-crosscutting-concepts.md, each with its French mirror under
 i18n/fr. The exception lives in the desktop rewrite command, not in the

@@ -116,9 +116,9 @@ agent hostile.
 
 ### Paliers d'autonomie
 
-Un palier d'autonomie fait varier cinq choses, et aucune autre : le budget de
-pas suggéré, l'injection mémoire, la passe de vérification après exécution, le
-profil de prompt système, et la porte du plan. Il ne fait varier aucune règle de
+Un palier d'autonomie fait varier quatre choses, et aucune autre : le budget de
+pas suggéré, la passe de vérification après exécution, le profil de prompt
+système, et la porte du plan. Il ne fait varier aucune règle de
 permission ni aucun point de contrôle humain sur un appel d'outil : un palier
 plus élevé n'élargit donc pas ce qu'un agent a le droit de toucher. Il élargit
 la distance qu'une exécution parcourt avant de s'arrêter pour demander.

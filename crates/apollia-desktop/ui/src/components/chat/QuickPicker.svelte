@@ -206,7 +206,8 @@
     isRewriting = true;
     createError = null;
     try {
-      // THEN: fetch Work context from profile
+      // THEN: fetch the work context from the default profile, the one a new
+      // conversation follows
       const workContext = await fetchWorkContext();
 
       // THEN: call rewriter

@@ -8,8 +8,9 @@
 //!   has not already authorised.
 //! - **Explicitly triggered**: the user must click the "Improve prompt"
 //!   button. This is the third exception to Principle 6 (memory injection):
-//!   the rewrite request includes the Work section of the user profile when
-//!   filled, but only when the operator explicitly triggers it.
+//!   the rewrite request includes the role, the function and the tools of
+//!   the profile of the conversation when filled, but only when the operator
+//!   explicitly triggers it.
 //! - **Graceful fallback, and it says which one**: any LLM error or timeout
 //!   returns the original text unchanged, tagged with the [`RewriteFallback`]
 //!   that produced it. A reasoning model that spends its whole budget inside a
@@ -45,26 +46,20 @@ const CALL_TIMEOUT: Duration = Duration::from_secs(60);
 /// empty string and the caller reports as "no rewrite happened".
 const MAX_OUTPUT_TOKENS: u32 = 1024;
 
-/// Work context extracted from the user profile's Work section.
-/// Fields mirror `profile_schema.rs` keys under `ProfileSection::Work`.
+/// Work context read from the profile of the conversation: the three fields
+/// of a profile that say what the person does and with what.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkContext {
-    /// Industry sector (e.g. fintech, healthcare, e-commerce).
+    /// Role of the person (e.g. trainer, lawyer, CTO).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sector: Option<String>,
-    /// Team size (e.g. solo, small team, large organization).
+    pub role: Option<String>,
+    /// Function: the field or the kind of work the person does.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub team_size: Option<String>,
-    /// Tech stack (main languages, frameworks, tools).
+    pub function: Option<String>,
+    /// Tools the person uses (e.g. Notion, a spreadsheet, Git).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tech_stack: Option<String>,
-    /// Daily tools (e.g. Git, Notion, Slack).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub daily_tools: Option<String>,
-    /// Connected integrations (e.g. GitHub, Gmail).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub integrations: Option<String>,
+    pub tools: Option<String>,
 }
 
 /// Request passed to [`rewrite_input`].
@@ -74,7 +69,7 @@ pub struct RewriteInputRequest {
     /// The original user input to rewrite (always the first input, never a
     /// prior rewrite).
     pub original_text: String,
-    /// Work context from the user profile, if filled.
+    /// Work context from the profile of the conversation, if filled.
     #[serde(default)]
     pub work_context: Option<WorkContext>,
 }
@@ -140,37 +135,22 @@ markdown. One or two sentences maximum.
 ";
 
 fn build_work_context_block(ctx: &WorkContext) -> Option<String> {
-    let mut lines: Vec<String> = Vec::new();
-    if let Some(ref sector) = ctx.sector {
-        if !sector.trim().is_empty() {
-            lines.push(format!("- Sector: {}", sector.trim()));
-        }
-    }
-    if let Some(ref team_size) = ctx.team_size {
-        if !team_size.trim().is_empty() {
-            lines.push(format!("- Team size: {}", team_size.trim()));
-        }
-    }
-    if let Some(ref stack) = ctx.tech_stack {
-        if !stack.trim().is_empty() {
-            lines.push(format!("- Tech stack: {}", stack.trim()));
-        }
-    }
-    if let Some(ref tools) = ctx.daily_tools {
-        if !tools.trim().is_empty() {
-            lines.push(format!("- Daily tools: {}", tools.trim()));
-        }
-    }
-    if let Some(ref integrations) = ctx.integrations {
-        if !integrations.trim().is_empty() {
-            lines.push(format!("- Integrations: {}", integrations.trim()));
-        }
-    }
+    let lines: Vec<String> = [
+        ("Role", &ctx.role),
+        ("Function", &ctx.function),
+        ("Tools", &ctx.tools),
+    ]
+    .into_iter()
+    .filter_map(|(label, value)| {
+        let value = value.as_deref()?.trim();
+        (!value.is_empty()).then(|| format!("- {label}: {value}"))
+    })
+    .collect();
     if lines.is_empty() {
         None
     } else {
         Some(format!(
-            "\n\n## User's work context\n{}\n\nUse this context to avoid inventing tools they don't use. If the rewrite mentions a tool, ensure it's from their daily tools or integrations above.",
+            "\n\n## User's work context\n{}\n\nUse this context to avoid inventing tools they don't use. If the rewrite mentions a tool, ensure it's from their tools above.",
             lines.join("\n")
         ))
     }
@@ -613,60 +593,75 @@ mod tests {
 
     #[test]
     fn test_build_work_context_block_empty() {
-        // GIVEN: empty work context
-        let ctx = WorkContext::default();
+        // GIVEN: a work context with no field, and one with blank fields
+        let empty = WorkContext::default();
+        let blank = WorkContext {
+            role: Some("  ".to_string()),
+            function: Some(String::new()),
+            tools: None,
+        };
 
-        // WHEN: building work context block
-        let result = build_work_context_block(&ctx);
-
-        // THEN: returns None
-        assert!(result.is_none());
+        // WHEN: building the work context block of each
+        // THEN: neither produces a block
+        assert!(build_work_context_block(&empty).is_none());
+        assert!(build_work_context_block(&blank).is_none());
     }
 
     #[test]
-    fn test_build_work_context_block_filled() {
-        // GIVEN: filled work context
+    fn test_build_work_context_block_carries_role_function_and_tools() {
+        // GIVEN: the role, the function and the tools of a profile
         let ctx = WorkContext {
-            sector: Some("fintech".to_string()),
-            team_size: Some("small team".to_string()),
-            tech_stack: Some("Rust, Svelte, SQLite".to_string()),
-            daily_tools: Some("Git, Notion".to_string()),
-            integrations: Some("GitHub, Gmail".to_string()),
+            role: Some("formateur".to_string()),
+            function: Some("formation professionnelle".to_string()),
+            tools: Some("Notion, tableur".to_string()),
         };
 
         // WHEN: building work context block
-        let result = build_work_context_block(&ctx);
+        let block = build_work_context_block(&ctx).expect("block");
 
-        // THEN: returns formatted block
-        assert!(result.is_some());
-        let block = result.unwrap();
-        assert!(block.contains("Sector: fintech"));
-        assert!(block.contains("Tech stack: Rust, Svelte, SQLite"));
-        assert!(block.contains("Daily tools: Git, Notion"));
-        assert!(block.contains("Integrations: GitHub, Gmail"));
+        // THEN: the three fields are rendered, each under its label
+        assert!(block.contains("- Role: formateur"), "{block}");
+        assert!(
+            block.contains("- Function: formation professionnelle"),
+            "{block}"
+        );
+        assert!(block.contains("- Tools: Notion, tableur"), "{block}");
     }
 
     #[test]
     fn test_build_work_context_block_partial() {
-        // GIVEN: partial work context (only sector and tools)
+        // GIVEN: a profile with a role and tools, no function
         let ctx = WorkContext {
-            sector: Some("healthcare".to_string()),
-            team_size: None,
-            tech_stack: None,
-            daily_tools: Some("Slack, Jira".to_string()),
-            integrations: None,
+            role: Some("juriste".to_string()),
+            function: None,
+            tools: Some("Slack, Jira".to_string()),
         };
 
         // WHEN: building work context block
-        let result = build_work_context_block(&ctx);
+        let block = build_work_context_block(&ctx).expect("block");
 
-        // THEN: returns block with only filled fields
-        assert!(result.is_some());
-        let block = result.unwrap();
-        assert!(block.contains("Sector: healthcare"));
-        assert!(block.contains("Daily tools: Slack, Jira"));
-        assert!(!block.contains("Tech stack"));
-        assert!(!block.contains("Integrations"));
+        // THEN: only the filled fields are rendered
+        assert!(block.contains("- Role: juriste"), "{block}");
+        assert!(block.contains("- Tools: Slack, Jira"), "{block}");
+        assert!(!block.contains("Function"), "{block}");
+    }
+
+    #[test]
+    fn test_work_context_reads_the_fields_the_composer_sends() {
+        // GIVEN: the request as the composer serialises it
+        let json = serde_json::json!({
+            "originalText": "prepare the session",
+            "workContext": { "role": "formateur", "function": "formation", "tools": "Notion" }
+        });
+
+        // WHEN: the request is read and its system prompt built
+        let request: RewriteInputRequest = serde_json::from_value(json).expect("request reads");
+        let prompt = build_system_prompt(&request);
+
+        // THEN: the prompt carries the role, the function and the tools
+        assert!(prompt.contains("- Role: formateur"), "{prompt}");
+        assert!(prompt.contains("- Function: formation"), "{prompt}");
+        assert!(prompt.contains("- Tools: Notion"), "{prompt}");
     }
 
     #[test]
@@ -691,8 +686,8 @@ mod tests {
         let req = RewriteInputRequest {
             original_text: "fix bug".to_string(),
             work_context: Some(WorkContext {
-                sector: Some("fintech".to_string()),
-                tech_stack: Some("Python, Django".to_string()),
+                role: Some("developer".to_string()),
+                tools: Some("Python, Django".to_string()),
                 ..Default::default()
             }),
         };
@@ -703,7 +698,7 @@ mod tests {
         // THEN: contains header and work context
         assert!(prompt.contains("prompt improvement assistant"));
         assert!(prompt.contains("User's work context"));
-        assert!(prompt.contains("Sector: fintech"));
-        assert!(prompt.contains("Tech stack: Python, Django"));
+        assert!(prompt.contains("Role: developer"));
+        assert!(prompt.contains("Tools: Python, Django"));
     }
 }

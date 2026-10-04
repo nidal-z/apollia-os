@@ -781,6 +781,7 @@
       onplantoggle={togglePlanMode}
       planDisabled={sessionStatus === "closed"}
       imageSupport={images.value}
+      {sessionId}
     />
   {/if}
 </div>

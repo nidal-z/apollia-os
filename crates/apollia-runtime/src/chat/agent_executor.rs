@@ -89,9 +89,11 @@ impl AgentRunSpec {
 /// [`AgentExecutor::new`], they are kept only when the agent is Apollia.
 #[derive(Default)]
 pub struct ApolliaContext {
-    /// Memory the user persona brief is read from, at the tiers that inject
-    /// memory.
+    /// Profile store the profile block is read from. The caller hands it only
+    /// when the profile switch of the conversation is on.
     pub user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
+    /// Profile the conversation designates; `None` reads the default profile.
+    pub profile_id: Option<String>,
     /// Block summarising earlier, unrelated sessions.
     pub past_sessions: Option<String>,
 }
@@ -298,6 +300,7 @@ impl AgentExecutor {
             plan: deps.plan,
         })
         .with_agent_id(spec.agent_id.clone())
+        .with_conversation_profile(apollia.profile_id)
         .with_composer(composer)
         .with_workspace_path(wiring.workspace_path)
         .with_mcp_index(wiring.mcp_index, wiring.tool_search_limit)

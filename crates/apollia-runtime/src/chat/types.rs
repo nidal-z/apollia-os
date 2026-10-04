@@ -66,6 +66,16 @@ pub struct ChatSession {
     /// default profile. Persisted across restarts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub profile_id: Option<String>,
+    /// Whether the built-in assistant receives the profile of the
+    /// conversation in its prompt: the switch of the conversation, on until
+    /// the user turns it off. Persisted across restarts.
+    #[serde(default = "profile_switch_on")]
+    pub use_profile: bool,
+}
+
+/// A conversation is born with its profile switch on.
+fn profile_switch_on() -> bool {
+    true
 }
 
 /// Lifecycle phase of a session running in plan mode.
@@ -694,6 +704,9 @@ pub struct SessionConfigUpdate {
     pub llm_backend: Option<Option<String>>,
     /// Profile the conversation designates.
     pub profile_id: Option<Option<String>>,
+    /// Profile switch of the conversation: whether the built-in assistant
+    /// receives the profile in its prompt.
+    pub use_profile: Option<bool>,
 }
 
 /// Detailed session view for single-session responses.
@@ -827,6 +840,7 @@ mod tests {
             plan_mode: false,
             plan_phase: PlanPhase::Done,
             profile_id: None,
+            use_profile: true,
         };
 
         // WHEN we serialize and deserialize

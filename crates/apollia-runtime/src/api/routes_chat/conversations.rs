@@ -1,7 +1,7 @@
 //! The conversations of the chat as the list manages them: change a session's
 //! configuration, rename it, name it from its first message, and erase it.
 //!
-//! - `PATCH  /api/v1/sessions/{id}`                , instructions, tools, server, profile
+//! - `PATCH  /api/v1/sessions/{id}`                , instructions, tools, server, profile, profile switch
 //! - `PUT    /api/v1/sessions/{id}/title`          , the title the user typed
 //! - `POST   /api/v1/sessions/{id}/title/generate` , a title drawn by the model
 //! - `POST   /api/v1/sessions/{id}/erase`          , the session and its messages
@@ -46,6 +46,10 @@ pub struct UpdateSessionBody {
     )]
     #[schema(value_type = Option<String>)]
     pub profile_id: Option<Option<String>>,
+    /// Profile switch of the conversation: whether the built-in assistant
+    /// receives the profile in its prompt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub use_profile: Option<bool>,
 }
 
 /// Reads a present field, `null` included, as `Some`: an absent `profile_id`
@@ -171,6 +175,7 @@ pub async fn update_session<B: ExecutionBackend + Clone>(
                 available_tools: body.tools,
                 llm_backend,
                 profile_id: body.profile_id,
+                use_profile: body.use_profile,
             },
         )
         .await

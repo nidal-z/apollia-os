@@ -61,13 +61,12 @@ interruption for momentum.
 ## What the tier actually changes
 
 <!-- claim:plan-gate-yields-to-the-per-run-override -->
-Five things move with the tier, and no others. The plan gate: in the two lower
+Four things move with the tier, and no others. The plan gate: in the two lower
 tiers a consequential plan pauses for human approval, in the two higher tiers it
 does not, and in both cases a run that carries its own decision overrides the
 tier. Self-checking: the runtime's verification and critic pass is dark in
 Assisted and comes into play from Supervised upward, so a completed run can be
-checked before its result is accepted. Memory injection: the highest tier alone
-appends a user-persona brief, and only inside the built-in assistant. The
+checked before its result is accepted. The
 system-prompt profile: Assisted takes one built-in prompt, the three other tiers
 take a more persistent one. And the suggested step budget, which is the one worth
 reading twice.

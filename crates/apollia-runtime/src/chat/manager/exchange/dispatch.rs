@@ -69,16 +69,21 @@ impl ChatSessionManager {
             // A declarative agent is isolated as the companion is: no
             // principle 6 injection, no prefix rule of Apollia.
             let is_companion = session.mode == ChatMode::Companion || declarative.is_some();
-            // The principle 6 injections gathered here (user memory, and the
-            // past sessions block on the first message) are made by the
-            // executor for the Apollia agent only. Companion sessions are
-            // isolated from both: the companion helps with the platform, not
-            // with the user's personal context.
+            // The principle 6 injections gathered here (the profile of the
+            // conversation while its switch is on, and the past sessions block
+            // on the first message) are made by the executor for the Apollia
+            // agent only. Companion sessions are isolated from both: the
+            // companion helps with the platform, not with the user's personal
+            // context.
             let apollia_context = if is_companion {
                 ApolliaContext::default()
             } else {
                 ApolliaContext {
-                    user_memory: self.user_memory.clone(),
+                    user_memory: crate::chat::profile_injection::switched_store(
+                        session,
+                        self.user_memory.as_ref(),
+                    ),
+                    profile_id: session.profile_id.clone(),
                     past_sessions: if is_first_message {
                         self.build_cross_session_context(content)
                     } else {

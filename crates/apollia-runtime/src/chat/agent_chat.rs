@@ -651,6 +651,7 @@ mod tests {
             plan_mode: false,
             plan_phase: super::super::types::PlanPhase::Done,
             profile_id: None,
+            use_profile: true,
         }
     }
 
@@ -724,6 +725,7 @@ mod tests {
             plan_mode: false,
             plan_phase: super::super::types::PlanPhase::Done,
             profile_id: None,
+            use_profile: true,
         }
     }
 

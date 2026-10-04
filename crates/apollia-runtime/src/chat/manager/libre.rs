@@ -522,6 +522,7 @@ mod context_gauge_tests {
             plan_mode: false,
             plan_phase: PlanPhase::Done,
             profile_id: None,
+            use_profile: true,
         }
     }
 

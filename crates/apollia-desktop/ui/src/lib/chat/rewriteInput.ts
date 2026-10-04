@@ -9,28 +9,31 @@
  *
  * Usage:
  *   const rewriter = new InputRewriter();
- *   const workContext = await fetchWorkContext();
+ *   const workContext = await fetchConversationWorkContext(sessionId);
  *   const outcome = await rewriter.rewrite(currentText, workContext);
  *   const original = rewriter.restoreOriginal();
  *   rewriter.reset(); // when field cleared
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import { DEFAULT_PROFILE, getProfileById } from '$lib/ipc/profile';
+import { getChatSession } from '$lib/ipc/chat';
+import { DEFAULT_PROFILE, getProfileById, type ProfileDetailView } from '$lib/ipc/profile';
 
 export type RewriteState = 'idle' | 'rewriting' | 'error';
 
 /**
- * Work context extracted from user profile's Work section.
+ * Work context read from the profile of the conversation: its role, its
+ * function and its tools.
  * Mirrors Rust `WorkContext` struct in `apollia-llm/src/meta/rewrite_input.rs`.
  */
 export interface WorkContext {
-	sector?: string | null;
-	teamSize?: string | null;
-	techStack?: string | null;
-	dailyTools?: string | null;
-	integrations?: string | null;
+	role?: string | null;
+	function?: string | null;
+	tools?: string | null;
 }
+
+/** The profile fields the rewrite takes, by the key the schema gives them. */
+const WORK_CONTEXT_KEYS = ['role', 'function', 'tools'] as const;
 
 interface RewriteInputRequest {
 	originalText: string;
@@ -152,33 +155,48 @@ export class InputRewriter {
 }
 
 /**
- * Fetch Work context from the default profile.
+ * Fetch the work context of a conversation from its profile.
  *
- * Reads the default profile and maps its fields onto the work context the
- * rewrite takes: the function as the sector, the tools used as the daily tools.
+ * Reads the profile the conversation designates, or the default profile when
+ * it designates none or when the designated profile no longer exists, and
+ * keeps its role, its function and its tools.
  *
- * @returns WorkContext with filled fields from profile, or null if profile fetch fails
+ * @param profileId profile the conversation designates, if any
+ * @returns WorkContext with the filled fields, or null when none is filled or
+ *          no profile can be read
  */
-export async function fetchWorkContext(): Promise<WorkContext | null> {
+export async function fetchWorkContext(profileId?: string | null): Promise<WorkContext | null> {
+	let profile: ProfileDetailView;
 	try {
-		const profile = await getProfileById(DEFAULT_PROFILE);
-		const workContext: WorkContext = {};
-
-		for (const field of profile.fields) {
-			if (field.key === 'function' && field.value.trim()) {
-				workContext.sector = field.value;
-			} else if (field.key === 'tools' && field.value.trim()) {
-				workContext.dailyTools = field.value;
-			}
-		}
-
-		if (!workContext.sector && !workContext.dailyTools) {
+		profile = await getProfileById(profileId || DEFAULT_PROFILE);
+	} catch {
+		if (!profileId) return null;
+		try {
+			profile = await getProfileById(DEFAULT_PROFILE);
+		} catch {
 			return null;
 		}
-
-		return workContext;
-	} catch {
-		// Profile fetch failed, return null
-		return null;
 	}
+
+	const workContext: WorkContext = {};
+	for (const key of WORK_CONTEXT_KEYS) {
+		const value = profile.fields.find((field) => field.key === key)?.value.trim();
+		if (value) workContext[key] = value;
+	}
+	return Object.keys(workContext).length > 0 ? workContext : null;
+}
+
+/**
+ * Fetch the work context of the conversation `sessionId`, read from the
+ * profile that conversation designates at the moment of the rewrite. A
+ * conversation that cannot be read falls back to the default profile.
+ */
+export async function fetchConversationWorkContext(sessionId: string): Promise<WorkContext | null> {
+	let profileId: string | null = null;
+	try {
+		profileId = (await getChatSession(sessionId)).profile_id ?? null;
+	} catch {
+		profileId = null;
+	}
+	return fetchWorkContext(profileId);
 }

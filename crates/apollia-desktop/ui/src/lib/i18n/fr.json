@@ -3674,6 +3674,8 @@
     "context_window": "Fenêtre de contexte",
     "context_messages": "Messages : {pct} %",
     "context_memory": "Mémoire utilisateur : {pct} %",
+    "context_profile_on": "Profil inclus dans le prompt",
+    "context_profile_off": "Profil absent du prompt",
     "context_free": "Libre : {pct} %",
     "legend_messages": "Messages",
     "legend_memory": "Mémoire",

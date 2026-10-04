@@ -23,15 +23,11 @@ impl BuiltInChatAgent {
     ///
     /// Then prepends the authoritative temporal/environment block at the **top**
     /// of the prompt so the LLM treats current date + time + timezone as ground
-    /// truth, not as one fact among its priors. The user persona block is
-    /// appended only when `inject_memory` is true and a memory repository is
-    /// configured (memory stays at the agent's initiative, gated by the tier).
-    pub fn build_system_prompt(
-        &self,
-        custom_prompt: Option<&str>,
-        level: AutonomyLevel,
-        inject_memory: bool,
-    ) -> String {
+    /// truth, not as one fact among its priors. The profile block of the
+    /// conversation is appended whenever the executor handed a profile store:
+    /// at every tier, for the Apollia agent alone, while the profile switch of
+    /// the conversation is on.
+    pub fn build_system_prompt(&self, custom_prompt: Option<&str>, level: AutonomyLevel) -> String {
         // Base: a non-empty custom prompt (already enriched upstream with the
         // project / cross-session context) wins; otherwise the tier picks a
         // built-in profile.
@@ -61,29 +57,12 @@ impl BuiltInChatAgent {
             workspace_display.as_deref(),
         ));
 
-        // User-persona brief, memory at the agent's initiative, gated by tier.
-        let persona = if inject_memory {
-            self.user_memory
-                .as_ref()
-                .and_then(|repo_mutex| match repo_mutex.lock() {
-                    Ok(repo) => match repo.recall_persona_brief(30) {
-                        Ok(brief) if !brief.is_empty() => {
-                            Some(apollia_prompts::blocks::persona_block(&brief))
-                        }
-                        Ok(_) => None,
-                        Err(e) => {
-                            warn!(error = %e, "memory.user.read.failed");
-                            None
-                        }
-                    },
-                    Err(e) => {
-                        warn!(error = %e, "memory.user.lock.poisoned");
-                        None
-                    }
-                })
-        } else {
-            None
-        };
+        // The profile of the conversation. The store is present only for the
+        // Apollia agent of a conversation whose profile switch is on.
+        let persona = crate::chat::profile_injection::profile_block(
+            self.user_memory.as_deref(),
+            self.conversation_profile.as_deref(),
+        );
 
         // Plan block is phase-aware: plan-first while preparing, execution-first
         // once approved, so the two never contradict each other.

@@ -223,8 +223,11 @@ pub struct BuiltInChatAgent {
     tool_invoker: Arc<dyn ToolInvoker>,
     /// Event bus for emitting chat lifecycle events.
     event_bus: EventBusSender,
-    /// Optional user memory repository for injecting user context into the system prompt.
+    /// Profile store the profile block of the system prompt is read from.
+    /// `None` leaves the prompt without a profile block.
     user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
+    /// Profile the conversation designates; `None` reads the default profile.
+    conversation_profile: Option<String>,
     /// Reads the agents and workflows granted to the agent, offered as
     /// tools. `None` offers none of them.
     composer: Option<Arc<dyn Composer>>,

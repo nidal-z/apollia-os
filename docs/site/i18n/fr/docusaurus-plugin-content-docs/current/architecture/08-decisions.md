@@ -217,11 +217,22 @@ demande, ce qui garde le prompt sous le contrôle de l'auteur de l'agent.
 
 Trois exceptions existent, et aucune n'est atteignable depuis un chemin
 d'exécution d'agent. Deux vivent à l'intérieur de l'assistant conversationnel
-intégré : un brief de persona utilisateur au palier d'autonomie le plus long, et
-les résumés de sessions passées au premier message d'une conversation libre. La
-troisième vit en dehors de l'assistant, dans la commande de réécriture du bureau,
-qui porte la section Travail du profil utilisateur dans son propre prompt ponctuel
-et rend du texte au composeur plutôt qu'à une exécution.
+intégré : un résumé du profil de la conversation, et les résumés de sessions
+passées au premier message d'une conversation libre. La troisième vit en dehors
+de l'assistant, dans la commande de réécriture du bureau, qui porte le rôle, la
+fonction et les outils de ce profil dans son propre prompt ponctuel et rend du
+texte au composeur plutôt qu'à une exécution.
+
+Le résumé du profil est ajouté à chaque tour de l'assistant, à tous les paliers
+d'autonomie, tant que l'interrupteur de profil de la conversation est allumé.
+L'interrupteur est allumé par défaut, enregistré avec la conversation, et la
+jauge de la conversation dit si le prompt porte le profil. Ce résumé était
+auparavant conditionné par le palier d'autonomie le plus long, que le chat libre
+n'atteint jamais : un profil rempli par l'utilisateur n'arrivait donc jamais à
+l'assistant. Un réglage sans effet est pire qu'une injection que l'utilisateur
+voit et peut couper : la condition est passée du palier à la conversation. La
+règle des agents est inchangée : un agent installé ne lit le profil que
+lorsqu'il le demande.
 
 ## Inférence locale {#local-inference}
 
