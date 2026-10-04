@@ -100,7 +100,7 @@ still accepted, with a `config.key.retired` warning.
 | `[models]` | The signed index of model cards, the models folder (`dir`), and the rule applied to an imported file (`[models.import]`). |
 | `[observability]` | Trace capture and retention, documented below. |
 | `[desktop]` | Settings of the desktop application: `developer_mode`, `update_channel` (`stable` or `preview`), `background_service_allowed`, and `link_preview_enabled`, which fetches the preview of a link shown in a conversation. Off by default, since the fetch leaves the machine. |
-| `[server]` | The compatible server: `enabled`, `port`, `require_auth`, `cors`, `serve_on_lan`. |
+| `[server]` | The compatible server: `enabled`, `port`, `require_auth`, `cors`, and loading on demand: `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`. |
 | `[engines]` | Settings of the local inference engines (`log_level`). |
 | `[author]` | The publisher name of the agents exported from this machine (`name`). |
 
@@ -550,7 +550,10 @@ An interface says which conversations are open with
 model with `PUT /api/v1/llm/pins`. When the event stream it opened with
 `GET /api/v1/events?client=<id>` ends, the conversations of that client count
 as closed. Each unload is published on the event bus as `LlmModelUnloaded`,
-with its reason: `idle`, `last_conversation`, `requested` or `make_room`.
+with its reason: `idle`, `last_conversation`, `requested`, `make_room`, or
+`server_replaced` when the compatible server loaded another model. The models
+the compatible server loaded follow their own delay, set under `[server]`
+(see the compatible endpoints reference).
 
 ## Dictation (`system.db`, not `apollia.toml`)
 

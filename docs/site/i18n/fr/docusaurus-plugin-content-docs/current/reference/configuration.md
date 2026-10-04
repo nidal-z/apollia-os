@@ -104,7 +104,7 @@ avertissement `config.key.retired`.
 | `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), et la règle appliquée à un fichier importé (`[models.import]`). |
 | `[observability]` | Capture et rétention des traces, documentées plus bas. |
 | `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
-| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`, `cors`, `serve_on_lan`. |
+| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`, `cors`, et le chargement à la demande : `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`. |
 | `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`). |
 | `[author]` | Le nom d'éditeur des agents exportés depuis cette machine (`name`). |
 
@@ -570,7 +570,10 @@ quelles conversations sont ouvertes avec `POST /api/v1/llm/leases` et
 `GET /api/v1/events?client=<id>` se termine, les conversations de ce client
 comptent comme fermées. Chaque déchargement est publié sur le bus d'événements
 sous `LlmModelUnloaded`, avec sa raison : `idle`, `last_conversation`,
-`requested` ou `make_room`.
+`requested`, `make_room`, ou `server_replaced` quand le serveur compatible a
+chargé un autre modèle. Les modèles que le serveur compatible a chargés suivent
+leur propre délai, réglé sous `[server]` (voir la référence des points d'accès
+compatibles).
 
 ## Dictée (`system.db`, pas `apollia.toml`)
 
