@@ -388,7 +388,8 @@ pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
     )
     .with_agent_name(manifest_for_factory.name.clone());
     if let Some(ref repo) = state.task_repository {
-        coordinator = coordinator.with_task_repository(Arc::clone(repo), state.obs_config.clone());
+        coordinator =
+            coordinator.with_task_repository(Arc::clone(repo), state.observability_live());
     }
     // Fire-and-forget: if registration fails the task submission will return NoCoordinator.
     let _ = state
@@ -774,6 +775,7 @@ mod tests {
             governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            config_reload: None,
             llm_call_repository: None,
             trigger_def_repo: None,
             notification_repo: None,
@@ -1337,6 +1339,7 @@ mod tests {
             governance: None,
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            config_reload: None,
             llm_call_repository: None,
             trigger_def_repo: None,
             notification_repo: None,

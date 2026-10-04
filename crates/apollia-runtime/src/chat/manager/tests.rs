@@ -394,6 +394,9 @@ async fn test_resolve_tool_approval() {
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
+        config_feed: None,
+        plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
+        hook_executor_tx: tokio::sync::watch::Sender::new(None),
     };
 
     // Insert a dummy session so the lookup succeeds
@@ -479,6 +482,9 @@ async fn test_always_accept_grants_no_tool_by_name() {
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
+        config_feed: None,
+        plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
+        hook_executor_tx: tokio::sync::watch::Sender::new(None),
     };
 
     let session = ChatSession {
@@ -644,6 +650,9 @@ async fn test_cross_session_context_substantive_message() {
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
+        config_feed: None,
+        plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
+        hook_executor_tx: tokio::sync::watch::Sender::new(None),
     };
 
     // WHEN building cross-session context with a substantive first message
@@ -719,6 +728,9 @@ async fn test_cross_session_context_trivial_message() {
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
+        config_feed: None,
+        plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
+        hook_executor_tx: tokio::sync::watch::Sender::new(None),
     };
 
     // WHEN building cross-session context with a trivial message
@@ -773,6 +785,9 @@ async fn test_cross_session_context_no_relevant_sessions() {
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
+        config_feed: None,
+        plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
+        hook_executor_tx: tokio::sync::watch::Sender::new(None),
     };
 
     // WHEN building cross-session context with a substantive message but no past sessions
@@ -969,6 +984,9 @@ pub(super) fn manager_with_session_in_phase(
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
+        config_feed: None,
+        plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
+        hook_executor_tx: tokio::sync::watch::Sender::new(None),
     };
     let session = ChatSession {
         id: "sess-1".into(),

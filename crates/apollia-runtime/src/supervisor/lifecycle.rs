@@ -159,7 +159,11 @@ impl Supervisor {
 
     /// Phase 4c: open `runtime_events.db` and spawn the runtime-events
     /// subscriber. Best-effort: failures are logged, never fatal.
-    pub(in crate::supervisor) async fn spawn_event_persistor(&self, event_sender: &EventBusSender) {
+    pub(in crate::supervisor) async fn spawn_event_persistor(
+        &self,
+        event_sender: &EventBusSender,
+        observability: &crate::config_reload::Live<apollia_core::ObservabilityConfig>,
+    ) {
         let db_path = self
             .config
             .data_dir
@@ -179,7 +183,7 @@ impl Supervisor {
                 crate::observability::spawn_runtime_events_subscriber(
                     handle,
                     event_sender,
-                    self.config.obs_config.clone(),
+                    observability.clone(),
                 );
                 info!(
                     path = %db_path.display(),

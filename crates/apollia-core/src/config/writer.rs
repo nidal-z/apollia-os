@@ -237,6 +237,13 @@ pub fn read_snapshot(path: &Path) -> Result<ConfigSnapshot, ConfigWriteError> {
     })
 }
 
+/// The 1-based line of `text` that declares the dotted `key`, or the line of
+/// the nearest enclosing table the text declares; `None` when neither is
+/// written.
+pub fn key_line(text: &str, key: &str) -> Option<usize> {
+    offset_of(text, key).map(|o| line_col(text, o).0)
+}
+
 /// The keys the policy imposes, with their values, in key order.
 pub fn locked_keys(policy: &PolicySettings) -> Vec<LockedKey> {
     policy

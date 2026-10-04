@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use serde_json::json;
 
 use super::writer::{
-    check_text, default_text_under, fingerprint, read_snapshot, update_config, write_config,
-    ConfigEdit, ConfigWriteError, KeyChange,
+    check_text, default_text_under, fingerprint, key_line, read_snapshot, update_config,
+    write_config, ConfigEdit, ConfigWriteError, KeyChange,
 };
 use super::{validate, PolicySettings};
 
@@ -360,4 +360,22 @@ fn check_text_reports_a_locked_line_as_a_diagnostic() {
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].line, 2);
     assert_eq!(diagnostics[0].path, "desktop.developer_mode");
+}
+
+#[test]
+fn a_key_is_found_at_its_line_or_at_its_table() {
+    // GIVEN a text that writes one key of [hitl] and the [api] table alone
+    let text = "# mine\n[hitl]\ntimeout_hours = 2\n\n[api]\n";
+
+    // WHEN the line of a written key, of an unwritten key and of an unwritten
+    // table is asked for
+    let written = key_line(text, "hitl.timeout_hours");
+    let in_table = key_line(text, "api.port");
+    let absent = key_line(text, "runtime.eventbus_capacity");
+
+    // THEN the key is at its own line, the unwritten key at its table's, and
+    // nothing answers for a table the text does not declare
+    assert_eq!(written, Some(3));
+    assert_eq!(in_table, Some(5));
+    assert_eq!(absent, None);
 }

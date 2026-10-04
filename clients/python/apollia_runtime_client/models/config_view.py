@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -9,6 +9,7 @@ from attrs import field as _attrs_field
 if TYPE_CHECKING:
     from ..models.config_diagnostic_body import ConfigDiagnosticBody
     from ..models.locked_key_body import LockedKeyBody
+    from ..models.pending_restart_key import PendingRestartKey
 
 
 T = TypeVar("T", bound="ConfigView")
@@ -23,7 +24,9 @@ class ConfigView:
         exists (bool): Whether the file exists; an absent file reads as an empty text.
         locked (list[LockedKeyBody]): The keys the organisation policy fixes, with their value.
         path (str): Where the file lives.
-        pending_restart (list[str]): Keys changed in the file that wait for a restart of the runtime.
+        pending_restart (list[PendingRestartKey]): Keys changed since the runtime started that wait for its restart,
+            each
+            with its line; empty in a runtime that does not follow its file.
         sha256 (str): SHA-256 of `text`, to present when saving.
         text (str): The text of the file.
     """
@@ -32,7 +35,7 @@ class ConfigView:
     exists: bool
     locked: list[LockedKeyBody]
     path: str
-    pending_restart: list[str]
+    pending_restart: list[PendingRestartKey]
     sha256: str
     text: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -52,7 +55,10 @@ class ConfigView:
 
         path = self.path
 
-        pending_restart = self.pending_restart
+        pending_restart = []
+        for pending_restart_item_data in self.pending_restart:
+            pending_restart_item = pending_restart_item_data.to_dict()
+            pending_restart.append(pending_restart_item)
 
         sha256 = self.sha256
 
@@ -78,6 +84,7 @@ class ConfigView:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.config_diagnostic_body import ConfigDiagnosticBody
         from ..models.locked_key_body import LockedKeyBody
+        from ..models.pending_restart_key import PendingRestartKey
 
         d = dict(src_dict)
         diagnostics = []
@@ -98,7 +105,12 @@ class ConfigView:
 
         path = d.pop("path")
 
-        pending_restart = cast(list[str], d.pop("pendingRestart"))
+        pending_restart = []
+        _pending_restart = d.pop("pendingRestart")
+        for pending_restart_item_data in _pending_restart:
+            pending_restart_item = PendingRestartKey.from_dict(pending_restart_item_data)
+
+            pending_restart.append(pending_restart_item)
 
         sha256 = d.pop("sha256")
 

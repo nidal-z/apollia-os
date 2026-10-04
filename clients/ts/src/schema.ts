@@ -1440,7 +1440,8 @@ export interface paths {
          * `GET /api/v1/events`, every runtime event as SSE.
          * @description Each `runtime` frame carries one event of the bus serialized as the bus
          *     carries it; a `lagged` frame reports how many events this subscriber
-         *     missed. The stream stays open until the client disconnects.
+         *     missed. The stream stays open until the client disconnects, which releases
+         *     the leases of the `client` it names.
          */
         get: operations["stream_events"];
         put?: never;
@@ -1967,6 +1968,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/leases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/llm/leases`.
+         * @description A conversation moved to another model releases its lease on the previous
+         *     one, which is unloaded when nothing else holds it.
+         */
+        post: operations["open_model_lease"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/leases/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/llm/leases/release`.
+         * @description Releasing the last lease on a model unloads it at once, unless it is
+         *     pinned or answering a request.
+         */
+        post: operations["release_model_lease"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/loaded-models": {
         parameters: {
             query?: never;
@@ -2085,6 +2128,28 @@ export interface paths {
          *     - The backend call fails (key missing, network error, etc.).
          */
         post: operations["ping_llm_backend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/pins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/llm/pins`. */
+        get: operations["list_model_pins"];
+        /**
+         * Handler for `PUT /api/v1/llm/pins`.
+         * @description A pinned model is never unloaded on its own. Unpinning a model that nothing
+         *     else holds leaves it to the idle delay; it is not unloaded at once.
+         */
+        put: operations["set_model_pin"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6694,8 +6759,11 @@ export interface components {
             locked: components["schemas"]["LockedKeyBody"][];
             /** @description Where the file lives. */
             path: string;
-            /** @description Keys changed in the file that wait for a restart of the runtime. */
-            pendingRestart: string[];
+            /**
+             * @description Keys changed since the runtime started that wait for its restart, each
+             *     with its line; empty in a runtime that does not follow its file.
+             */
+            pendingRestart: components["schemas"]["PendingRestartKey"][];
             /** @description SHA-256 of `text`, to present when saving. */
             sha256: string;
             /** @description The text of the file. */
@@ -7823,6 +7891,13 @@ export interface components {
             /** @description The model, by the identifier the model index gives it. */
             modelId: string;
         };
+        /** @description Response body for `POST /api/v1/llm/leases`. */
+        LeaseResponse: {
+            /** @description Open conversations designating it, this one included. */
+            leases: number;
+            /** @description The model the lease holds. */
+            modelPath: string;
+        };
         /** @description Response body for a single backend. */
         LlmBackendResponse: {
             /** @description Provider-specific configuration. */
@@ -7942,7 +8017,8 @@ export interface components {
             engine: components["schemas"]["EngineName"];
             /**
              * @description What the model serves: `chat`, or `embeddings` for the instance that
-             *     serves search by meaning, which does not count against `maxLoaded`.
+             *     serves search by meaning, which counts neither against `maxLoaded` nor
+             *     against the memory the guardrail weighs.
              */
             kind: components["schemas"]["ModelKind"];
             /** @description When a request last used the model, RFC 3339. */
@@ -7982,8 +8058,12 @@ export interface components {
              *     ever be loaded, not merely that nothing is.
              */
             engineAvailable: boolean;
-            /** @description How many models may stay resident at once; `0` without an engine. */
-            maxLoaded: number;
+            /**
+             * @description The explicit ceiling on resident models (`APOLLIA_LLAMA_MAX_LOADED`);
+             *     `null` when the load guardrail alone decides how many stay loaded, and
+             *     without an engine.
+             */
+            maxLoaded?: number | null;
             /** @description The resident models, most recently used first. */
             models: components["schemas"]["LoadedModelDto"][];
         };
@@ -8316,6 +8396,13 @@ export interface components {
          * @enum {string}
          */
         ModelKind: "chat" | "embeddings";
+        /** @description Request and response body for `PUT /api/v1/llm/pins`. */
+        ModelPin: {
+            /** @description Path of the model, as the resident list reports it. */
+            modelPath: string;
+            /** @description `true` keeps it loaded until it is unloaded by hand. */
+            pinned: boolean;
+        };
         /**
          * @description Where a model runs.
          * @enum {string}
@@ -8568,6 +8655,21 @@ export interface components {
              */
             total_time_sec: number;
         };
+        /** @description Request body for `POST /api/v1/llm/leases`. */
+        OpenLeaseRequest: {
+            /**
+             * @description The interface holding the conversation, the `client` it passes to
+             *     `GET /api/v1/events`.
+             */
+            clientId: string;
+            /** @description The conversation on screen. */
+            conversationId: string;
+            /**
+             * @description Path of the model the conversation designates, as the resident list
+             *     reports it.
+             */
+            modelPath: string;
+        };
         /**
          * @description Error body of the package routes: the message, and a stable code a client
          *     can act on.
@@ -8683,6 +8785,19 @@ export interface components {
             suspended_at: string;
             task_id: string;
         };
+        /**
+         * @description A key changed since the start that waits for a restart, with its line in
+         *     the file.
+         */
+        PendingRestartKey: {
+            /** @description Dotted key. */
+            key: string;
+            /**
+             * @description 1-based line of the key, or of its table, in the file; `None` when the
+             *     file no longer writes it (removed, back to its default).
+             */
+            line?: number | null;
+        };
         /** @description Snapshot of a pending `ask_user` request, safe to send across the IPC boundary. */
         PendingUserInputView: {
             /** @description Optional context string from the agent. */
@@ -8738,6 +8853,11 @@ export interface components {
              * @description Round-trip latency in milliseconds (only set when `available` is `true`).
              */
             latency_ms?: number | null;
+        };
+        /** @description Response body for `GET /api/v1/llm/pins`. */
+        PinsResponse: {
+            /** @description Paths of the pinned models, in path order. */
+            pins: string[];
         };
         /** @description Response body of the plan-mode writes. */
         PlanActionResponse: {
@@ -9072,6 +9192,26 @@ export interface components {
         RejectUserInputRequest: {
             /** @description Why the user declined to answer. */
             reason: string;
+        };
+        /** @description Request body for `POST /api/v1/llm/leases/release`. */
+        ReleaseLeaseRequest: {
+            /** @description The interface that opened the lease. */
+            clientId: string;
+            /** @description The conversation that left the screen. */
+            conversationId: string;
+        };
+        /** @description Response body for `POST /api/v1/llm/leases/release`. */
+        ReleaseLeaseResponse: {
+            /**
+             * @description The model no open conversation designates any more; absent when the
+             *     lease did not exist or another conversation still holds the model.
+             */
+            released?: string | null;
+            /**
+             * @description Whether that model was unloaded. It stays loaded when pinned or
+             *     answering a request.
+             */
+            unloaded: boolean;
         };
         /** @description Body of `POST /api/v1/llm/loaded-models/last/reload`. */
         ReloadLastRequest: {
@@ -14324,7 +14464,13 @@ export interface operations {
     };
     stream_events: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description The client holding the stream, as it names itself when it opens
+                 *     leases on local models. When the stream ends, its leases are released.
+                 */
+                client?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -15796,6 +15942,90 @@ export interface operations {
             };
         };
     };
+    open_model_lease: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenLeaseRequest"];
+            };
+        };
+        responses: {
+            /** @description Lease open */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaseResponse"];
+                };
+            };
+            /** @description A blank field */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No local engine on this host */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    release_model_lease: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseLeaseRequest"];
+            };
+        };
+        responses: {
+            /** @description Lease released, or none was open */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleaseLeaseResponse"];
+                };
+            };
+            /** @description A blank field */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No local engine on this host */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     list_loaded_models: {
         parameters: {
             query?: never;
@@ -16105,6 +16335,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PingResponse"];
+                };
+            };
+        };
+    };
+    list_model_pins: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pinned models */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PinsResponse"];
+                };
+            };
+            /** @description No local engine on this host */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_model_pin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelPin"];
+            };
+        };
+        responses: {
+            /** @description Pin saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelPin"];
+                };
+            };
+            /** @description Empty model path */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The pin could not be saved */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No local engine on this host */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };
