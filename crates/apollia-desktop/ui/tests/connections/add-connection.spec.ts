@@ -46,7 +46,7 @@ async function installTauriStub(page: Page, refuse: boolean): Promise<void> {
       fetch_mcp_curated: () => [notion],
       // Connections lists the built-in tools as the Apollia source; null would break the count.
       governance_list_tools: () => [],
-      // Opening the catalogue still chains the full registry, which keeps the selection.
+      // Asked by "Explore all" only; opening the catalogue never calls it.
       fetch_mcp_registry: () => [notion],
       test_mcp_connection: () => ({
         kind: "success", server_info: "notion", protocol_version: "2025-06-18",
@@ -113,6 +113,27 @@ async function openSelection(page: Page): Promise<void> {
 async function clicks(page: Page): Promise<number> {
   return page.evaluate(() => (globalThis as unknown as { __clicks: number }).__clicks);
 }
+
+async function invokeCalls(page: Page): Promise<string[]> {
+  return page.evaluate(() => (globalThis as unknown as { __invokeCalls: string[] }).__invokeCalls);
+}
+
+test.describe("the public catalogue is asked on request only", () => {
+  test("opening the selection asks nothing, Explore all asks once", async ({ page }) => {
+    // GIVEN the selection open
+    await installTauriStub(page, false);
+    await openSelection(page);
+
+    // WHEN nothing else is done, then Explore all is pressed
+    const beforeExplore = await invokeCalls(page);
+    await page.getByTestId("catalogue-explore-all").click();
+    await expect(page.getByTestId("catalogue-back-to-selection")).toBeVisible();
+
+    // THEN the registry was asked only after the button, and once
+    expect(beforeExplore).not.toContain("fetch_mcp_registry");
+    expect((await invokeCalls(page)).filter((c) => c === "fetch_mcp_registry")).toHaveLength(1);
+  });
+});
 
 test.describe("adding a connection", () => {
   test("two clicks from the selection add the connection and try it", async ({ page }) => {
