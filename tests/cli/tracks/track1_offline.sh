@@ -51,6 +51,25 @@ SCFG="$SCRATCH/apollia.toml"
 check        "config validate (absent file ok)"         "$BIN" config validate --file "$SCFG"
 check        "config set llm.default local"             "$BIN" config set llm.default local --file "$SCFG"
 check_grep   "config get llm.default = local" "local"   "$BIN" config get llm.default --file "$SCFG"
+# One schema, strict at every level: a typo inside a known section is refused
+# and nothing is written; an invalid file is named at its line, by
+# `config validate` and by a daemon that refuses to start on it.
+cp "$SCFG" "$SCRATCH/apollia.toml.before"
+check_exit   "config set api.typo refused → 1"  1      "$BIN" config set api.typo 1 --file "$SCFG"
+if cmp -s "$SCFG" "$SCRATCH/apollia.toml.before"; then
+    _pass "config set api.typo left the file unchanged"
+else
+    _fail "config set api.typo left the file unchanged" "the file changed"
+fi
+BADCFG="$SCRATCH/invalid.toml"
+printf '[api]\nbind = "127.0.0.1"\ntypo = 1\n' > "$BADCFG"
+check_exit   "config validate (unknown key) → 1"  1    "$BIN" config validate --file "$BADCFG"
+bad_out=$("$BIN" --socket "$SCRATCH/invalid.sock" start --port 47917 --config "$BADCFG" 2>&1 >/dev/null); bad_rc=$?
+if [[ $bad_rc -eq 1 ]] && /usr/bin/grep -qF "invalid.toml:3:1: api.typo" <<<"$bad_out"; then
+    _pass "start refuses an invalid config, fault at its line on stderr"
+else
+    _fail "start refuses an invalid config, fault at its line on stderr" "rc=$bad_rc | out: ${bad_out:0:300}"
+fi
 check_exit   "config edit refuses non-TTY"  1           "$BIN" config edit --file "$SCFG"
 check_exit   "config reset (no --confirm)"  1           "$BIN" config reset
 # reset dry-run/confirm on a disposable home dir (config reset wipes ~/.apollia).
@@ -147,6 +166,12 @@ check_exit   "chat capabilities (runtime absent) → 2" 2 "$BIN" --socket "$CHAT
 check_exit   "chat capabilities --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1 --json
 # Apollia is built in: uninstalling it is refused, exit 1.
 check_exit   "agent uninstall apollia:chat (built in) → 1" 1 "$BIN" agent uninstall apollia:chat --confirm
+# Every other uninstall goes through the runtime, which unregisters the agents
+# and journals the removal: with no runtime nothing is removed, exit 2. The
+# real removal is in Track 2.
+check_exit   "agent uninstall (no --confirm) → 1" 1 "$BIN" --socket "$CHAT_OFF" agent uninstall e2e-notes
+check_exit   "agent uninstall --clear-memory (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" agent uninstall e2e-notes --clear-memory --confirm
+check_exit   "agent package uninstall --clear-history --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" agent package uninstall e2e-pack --clear-memory --clear-history --confirm --json
 check        "chat config permissions list (empty)"  "$BIN" chat config permissions list --db "$GDB"
 check_json   "chat config permissions list --json"   "$BIN" chat config permissions list --db "$GDB" --json
 check_exit   "chat config permissions delete (no id) → 1" 1 "$BIN" chat config permissions delete 9999 --confirm --db "$GDB"
@@ -467,6 +492,12 @@ check_exit   "agent reset unknown field → 1"   1     "$BIN" --socket "$OFFSOCK
 # and in --json mode.
 check_exit   "agent set sources profile (off) → 2" 2 "$BIN" --socket "$OFFSOCK" agent set apollia-chat sources profile
 check_exit   "agent set sources profile --json (off) → 2" 2 "$BIN" --socket "$OFFSOCK" --json agent set apollia-chat sources profile
+# The export of an agent is built and signed by the runtime: daemon off, it
+# refuses with 2, in human and in --json mode; an output in a folder that does
+# not exist is refused with 1 before any call, and nothing is written.
+check_exit   "agent export (off) → 2"          2     "$BIN" --socket "$OFFSOCK" agent export seed-ledger
+check_exit   "agent export --sign --json (off) → 2" 2 "$BIN" --socket "$OFFSOCK" --json agent export seed-ledger --sign --publisher "Seed Author"
+check_exit   "agent export into a missing folder → 1" 1 "$BIN" --socket "$OFFSOCK" agent export seed-ledger -o "$SCRATCH/no-such-dir/seed-ledger.apo"
 # An agent without code runs in the runtime too, by the same `run` leaf: daemon
 # off, it refuses with 2 before any call, whatever the agent.
 check_exit   "run agent without code (off) → 2" 2    "$BIN" --socket "$OFFSOCK" run seed-ledger "Reconcile March."

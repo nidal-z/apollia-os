@@ -13,6 +13,7 @@
 //! | ChatResponseStarted / Completed (Some)     | Unknown { raw_kind }    |
 //! | PlanApprovalRequired/Approved/Rejected/... | Unknown { raw_kind }    |
 //! | any other run-scoped variant               | Unknown { raw_kind } + warn |
+//! | ConfigInvalid (no run; run `host:config`)  | Unknown { raw_kind }    |
 //! | events without a run_id                     | not appended (debug)   |
 //!
 //! Entries with no `run_id` are skipped (system events such as `RuntimeStarted`
@@ -28,6 +29,9 @@ use crate::audit_journal::entry::{
 };
 use crate::audit_journal::handle::AuditJournalHandle;
 use crate::replay::{LlmCompletionSnapshot, ToolOutputSnapshot};
+
+/// Run under which host-scoped configuration events are journaled.
+const CONFIG_RUN_ID: &str = "host:config";
 
 /// Per-run step-ordinal counters for captured replay inputs.
 ///
@@ -465,6 +469,14 @@ pub fn map_event(event: &RuntimeEvent) -> Option<JournalEntryDraft> {
                 serde_json::to_value(&snapshot).unwrap_or(serde_json::Value::Null),
             ))
         }
+        // A refused `apollia.toml` belongs to no run: it is chained under a
+        // fixed host-scoped run so the journal keeps the record of the engine
+        // having run on its defaults.
+        RuntimeEvent::ConfigInvalid { path, diagnostics } => Some(unknown(
+            CONFIG_RUN_ID,
+            "ConfigInvalid",
+            serde_json::json!({ "path": path, "diagnostics": diagnostics }),
+        )),
         RuntimeEvent::AgentMessageDropped {
             to,
             message_id,
@@ -504,6 +516,31 @@ fn unknown(run_id: &str, raw_kind: &str, payload: serde_json::Value) -> JournalE
 mod tests {
     use super::*;
     use apollia_core::events::RunId;
+
+    #[test]
+    fn test_a_refused_configuration_is_journaled_under_the_host_run() {
+        // GIVEN the event the embedded runtime publishes on a refused apollia.toml
+        let event = RuntimeEvent::ConfigInvalid {
+            path: "/home/u/.apollia/apollia.toml".into(),
+            diagnostics: vec![apollia_core::config::ConfigDiagnostic {
+                line: 12,
+                column: 1,
+                path: "runtime.eventbus_capacity".into(),
+                message: "invalid type".into(),
+            }],
+        };
+
+        // WHEN it is mapped
+        let draft = map_event(&event).expect("a refused configuration is journaled");
+
+        // THEN it is chained under the host run, with its diagnostics
+        assert_eq!(draft.run_id, CONFIG_RUN_ID);
+        assert!(matches!(
+            draft.kind,
+            JournalEntryKind::Unknown { ref raw_kind } if raw_kind == "ConfigInvalid"
+        ));
+        assert_eq!(draft.payload["diagnostics"][0]["line"], 12);
+    }
 
     // A tool call carrying a run_id maps to a typed entry
     #[test]

@@ -393,5 +393,10 @@ check            "package trust remove --confirm"   "${Q[@]}" package trust remo
 check_exit       "package trust remove (unknown) → 1" 1 "${Q[@]}" package trust remove "$RFP" --confirm
 check_exit       "package trust import (not a key) → 1" 1 "${Q[@]}" package trust import "not-a-key" --label "X"
 check            "audit verify (installation journaled)" "${Q[@]}" audit verify
+# The uninstall goes through the runtime too: the package and its history go,
+# the journal records it, and a second uninstall finds nothing.
+check_json_field "agent package uninstall: history erased" "d['name']+'/'+str(d['historyCleared'])" "e2e-runtime-pkg/True" "${Q[@]}" agent package uninstall e2e-runtime-pkg --clear-history --confirm --json
+check_exit       "agent package uninstall (already gone) → 1" 1 "${Q[@]}" agent package uninstall e2e-runtime-pkg --confirm
+check            "audit verify (uninstallation journaled)" "${Q[@]}" audit verify
 e2e_sqlite "$HOME/.apollia/agents.db" "DELETE FROM package_items WHERE package_name = 'e2e-runtime-pkg'; DELETE FROM installed_packages WHERE name = 'e2e-runtime-pkg';" >/dev/null 2>&1 || true
 /bin/rm -rf "$HOME/.apollia/agents/packages/e2e-runtime-pkg"

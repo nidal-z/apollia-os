@@ -392,4 +392,5 @@ export const FIELD_LABEL: Record<string, string> = {
   sources: "agent_sheet.field_sources",
   autonomy: "agent_sheet.field_autonomy",
   profile: "agent_sheet.field_profile",
+  model: "agent_sheet.field_model",
 };

@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 // ─────────────────────────────────────────────
 // ChatConfig
@@ -11,7 +11,8 @@ use serde::Deserialize;
 /// desktop seeds its own per-user preference from this value, and the runtime
 /// itself uses it so non-desktop callers (API, CLI) inherit the same behavior.
 /// Every field has a sane default via [`Default`] (plan mode off).
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ChatConfig {
     /// Default plan-mode state inherited by every new chat session.
     ///

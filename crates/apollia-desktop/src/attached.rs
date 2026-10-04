@@ -61,10 +61,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_a2a_skills",
     "list_chat_approval_history",
     "regenerate_chat_response",
-    // Agents: the registry and the install.
+    // Agents: the registry, the install and the uninstall of an agent.
     "agent_status_snapshot",
     "install_agent",
     "list_agents",
+    "uninstall_agent",
     // Tasks: the list, the launch, the detail, the cancellation.
     "cancel_task",
     "get_task_timeline",
@@ -150,9 +151,17 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_agent_definition",
     "get_agent_model_fallback",
     "list_agent_changes",
-    // The settings of the chat, which are those of the Apollia agent.
-    "get_chat_libre_config",
-    "update_chat_libre_config",
+    // The adjustment of an agent on its sheet: its overrides, the return to
+    // defaults, its model and the presets to choose from.
+    "clear_agent_model",
+    "list_model_presets",
+    "remove_agent_override",
+    "reset_agent_overrides",
+    "set_agent_model",
+    "set_agent_override",
+    // The export of an agent from its sheet: the runtime builds and signs the
+    // archive, this process writes the file the user chose.
+    "export_agent",
     // The user profile, over `/api/v1/profile`.
     "delete_profile_entry",
     "get_profile",
@@ -352,6 +361,14 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "get_cli_status",
         "reads the command-line link this application installs",
+    ),
+    (
+        "get_background_service",
+        "reads the service the OS manager holds for this user, which the window attaches to at startup",
+    ),
+    (
+        "set_background_service",
+        "installs or removes the service of this user's session, then relaunches this window",
     ),
     (
         "install_cli",

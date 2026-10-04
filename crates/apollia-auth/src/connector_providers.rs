@@ -247,7 +247,7 @@ impl ConnectorProvider {
     /// the other two sources.
     ///
     /// Suits a shell session, a CI job, or a headless host. The interactive
-    /// path is Settings → Integrations, which writes
+    /// path is the page of the connection in Connections, which writes
     /// `~/.apollia/oauth-clients.toml` and survives a restart; an exported
     /// variable is only visible to processes launched from that same shell,
     /// which is a common way to think the client is configured when it is not.
@@ -344,8 +344,8 @@ impl ConnectorProvider {
     /// Priority order:
     /// 1. Runtime env var override (`APOLLIA_GOOGLE_CLIENT_ID` /
     ///    `APOLLIA_MICROSOFT_CLIENT_ID`), for a shell session or CI.
-    /// 2. `~/.apollia/oauth-clients.toml`, written by the Settings →
-    ///    Integrations panel. **This is the path an operator takes**, and the
+    /// 2. `~/.apollia/oauth-clients.toml`, written from the page of the
+    ///    connection. **This is the path an operator takes**, and the
     ///    only one that survives a restart of the application.
     /// 3. Build-time constant, see
     ///    [`default_client_id`](Self::default_client_id). Microsoft resolves
@@ -372,8 +372,8 @@ impl ConnectorProvider {
         }
     }
 
-    /// Resolve the effective Google API key at runtime: same 3-source
-    /// priority chain as [`resolve_client_id`](Self::resolve_client_id).
+    /// Resolve the effective Google API key at runtime: the runtime env var,
+    /// then the secret store, then the build-time constant.
     /// `None` is the normal case for Microsoft and for any dev build that
     /// hasn't been provisioned with a key. The Picker UI surfaces a clear
     /// "API key missing" error to direct the operator to Settings.
@@ -383,7 +383,10 @@ impl ConnectorProvider {
                 return Some(v);
             }
         }
-        if let Some(v) = crate::oauth_clients_file::lookup_api_key(self.id()) {
+        if let Some(v) = crate::oauth_client_secrets::load_default(
+            self.id(),
+            crate::oauth_client_secrets::OauthClientSecret::ApiKey,
+        ) {
             return Some(v);
         }
         let compiled = self.default_api_key();
@@ -394,8 +397,9 @@ impl ConnectorProvider {
         }
     }
 
-    /// Resolve the effective OAuth client secret at runtime: same 3-source
-    /// priority chain as [`resolve_client_id`](Self::resolve_client_id).
+    /// Resolve the effective OAuth client secret at runtime: the runtime env
+    /// var, then the secret store (see [`crate::oauth_client_secrets`]), then
+    /// the build-time constant.
     /// Returns `None` when no source provides a secret (the normal case for
     /// Microsoft, spec-compliant public clients don't carry one).
     pub fn resolve_client_secret(self) -> Option<String> {
@@ -404,7 +408,10 @@ impl ConnectorProvider {
                 return Some(v);
             }
         }
-        if let Some(v) = crate::oauth_clients_file::lookup_client_secret(self.id()) {
+        if let Some(v) = crate::oauth_client_secrets::load_default(
+            self.id(),
+            crate::oauth_client_secrets::OauthClientSecret::ClientSecret,
+        ) {
             return Some(v);
         }
         let compiled = self.default_client_secret();

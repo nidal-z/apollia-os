@@ -100,7 +100,7 @@ fn dry_run_summaries() -> Result<Vec<HookHandlerSummary>, String> {
         return Ok(Vec::new());
     };
     let cfg = crate::config::parse_apollia_toml(&path).map_err(|e| e.to_string())?;
-    let hooks = cfg.hooks.unwrap_or_default();
+    let hooks = cfg.hooks;
     hooks.validate().map_err(|e| e.to_string())?;
     Ok(HookRegistry::from_config(&hooks).list_all())
 }

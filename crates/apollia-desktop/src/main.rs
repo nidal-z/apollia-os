@@ -127,8 +127,12 @@ fn main() {
 
     // Start, attach or refuse, before PyO3, any database or any listener of
     // the runtime. The claimed port is handed to the runtime below as is.
+    // When the runtime is installed as a service of the session, it is
+    // brought up first, so the decision finds it serving and attaches.
+    let runtime_addr = std::net::SocketAddr::from(([127, 0, 0, 1], startup::RUNTIME_PORT));
+    startup::service::bring_up(runtime_addr, &apollia_data_dir);
     let claimed_port = match startup::decide(
-        std::net::SocketAddr::from(([127, 0, 0, 1], startup::RUNTIME_PORT)),
+        runtime_addr,
         startup::read_token(&apollia_data_dir).as_deref(),
     ) {
         startup::StartupDecision::Launch(listener) => listener,

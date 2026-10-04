@@ -3,7 +3,8 @@
    * SheetAccess - the accesses granted to the agent, grouped by action
    * family whatever their provenance, each with what it lets the agent do.
    * Every family is listed, an empty one says so. The raw identifier and the
-   * provenance of an access appear in developer mode only.
+   * provenance of an access appear in developer mode only. An access that
+   * comes from a remote connection carries the "Remote" badge.
    */
   import { t } from "svelte-i18n";
   import { Badge } from "$lib/components/ui/badge";
@@ -19,15 +20,20 @@
   interface Props {
     groups: AccessGroup[];
     loading: boolean;
+    /** Whether the value shown is the user's rather than the package's. */
+    modified?: boolean;
+    /** The accesses that come from a remote connection. */
+    remote?: Set<string>;
   }
 
-  let { groups, loading }: Props = $props();
+  let { groups, loading, modified = false, remote = new Set<string>() }: Props = $props();
 </script>
 
 <SheetSection
   title={$t("agent_sheet.access_title")}
   legend={$t("agent_sheet.access_legend")}
   testid="agent-sheet-access"
+  {modified}
 >
   {#if loading}
     <p class="m-0 text-body-xs text-muted-foreground">{$t("common.loading")}</p>
@@ -69,6 +75,11 @@
                       </div>
                     </DeveloperOnly>
                   </div>
+                  {#if remote.has(access.id)}
+                    <Badge size="sm" variant="info" data-testid="agent-sheet-access-remote">
+                      {$t("agent_sheet.remote")}
+                    </Badge>
+                  {/if}
                   {#if access.sensitive}
                     <Badge size="sm" variant="warning">{$t("agent_sheet.access_sensitive")}</Badge>
                   {/if}

@@ -14,6 +14,11 @@ use crate::keys::SigningKeyPair;
 /// `SecretStore` service namespace for private signing keys.
 pub const SIGNING_SECRET_SERVICE: &str = "apollia-signing";
 
+/// Label of the author key: the key `package build --sign` and the export of
+/// an agent sign with, generated on first use. One author, one key, whichever
+/// path signs.
+pub const AUTHOR_KEY_LABEL: &str = "default";
+
 /// Stores the private half of `key` in `store` under `label`.
 ///
 /// An existing key under the same label is replaced.

@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use super::{is_representable, Manager, ServiceSpec, LAUNCHD_LABEL, SYSTEMD_UNIT, TASK_NAME};
-use crate::commands::service::manager::{
+use crate::service::manager::{
     parse_launchctl_print, parse_scheduled_task, parse_systemctl_show, Observed,
 };
 

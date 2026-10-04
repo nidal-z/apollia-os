@@ -7,8 +7,8 @@
 //!
 //! - a tool disabled through `ToolRegistry` is strictly absent from the
 //!   native dispatcher, and any invocation returns `UnknownTool`;
-//! - the AES-256-GCM encrypted credentials survive a full restart of the
-//!   store (master key read back from the `.keyfile`);
+//! - a credential survives a full restart of the store, its value read back
+//!   from the secret store;
 //! - `WebSearch::from_config` does not register Brave when the key is not
 //!   resolved, so DuckDuckGo stays the only backend;
 //! - `WebSearch::from_config` in non-blocking Brave mode falls back to
@@ -97,22 +97,27 @@ async fn test_credential_roundtrip_survives_db_reload() {
     let tmp = TempDir::new().expect("tempdir");
     let _ = GovernanceDb::open(tmp.path()).expect("init governance.db");
     let db = tmp.path().join(GOVERNANCE_DB_FILENAME);
-    let keyfile = tmp.path().join(".keyfile");
+    let secrets = || {
+        Box::new(
+            apollia_auth::AgeFileSecretStore::new(tmp.path().join("secrets"), "test".into())
+                .expect("secret store"),
+        )
+    };
 
     {
-        let mut store = ToolCredentialStore::new(&db, &keyfile).expect("open store");
+        let mut store = ToolCredentialStore::new(&db, secrets()).expect("open store");
         store
             .set("web_search", "brave.api_key", "BSA-roundtrip-secret")
             .expect("write credential");
     }
 
-    // WHEN the store is reopened on the same database and key file
-    let store = ToolCredentialStore::new(&db, &keyfile).expect("reopen store");
+    // WHEN the store is reopened on the same database and secret store
+    let store = ToolCredentialStore::new(&db, secrets()).expect("reopen store");
     let value = store
         .get("web_search", "brave.api_key")
         .expect("read credential");
 
-    // THEN the value comes back decrypted, so the key file is what unlocks it
+    // THEN the value comes back from the secret store
     assert_eq!(value.as_deref(), Some("BSA-roundtrip-secret"));
 }
 

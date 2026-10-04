@@ -15,7 +15,6 @@
   import OauthAuthStep from "./OauthAuthStep.svelte";
   import OauthDriveFolderStep from "./OauthDriveFolderStep.svelte";
   import OauthPolicyRefusal from "./OauthPolicyRefusal.svelte";
-  import { navigateToSettings } from "$lib/router";
   import {
     formatTauriError,
     isMissingClientError,
@@ -35,9 +34,11 @@
     onclose: () => void;
     /** Refresh the native account list once a connection completes. */
     oncompleted: () => void;
+    /** Bring the connection's OAuth client into view, on its page. */
+    onopenclient: (provider: ProviderId) => void;
   }
 
-  let { open, provider, onclose, oncompleted }: Props = $props();
+  let { open, provider, onclose, oncompleted, onopenclient }: Props = $props();
 
   let authUrl = $state<string | null>(null);
   let flowState = $state<string | null>(null);
@@ -194,9 +195,10 @@
     }
   }
 
-  function openSettingsIntegrations(): void {
+  function openClientSection(): void {
+    const target = provider;
     close();
-    navigateToSettings("integrations");
+    if (target) onopenclient(target);
   }
 
   function close(): void {
@@ -248,10 +250,10 @@
       <Button
         variant="primary-solid"
         size="sm"
-        onclick={openSettingsIntegrations}
+        onclick={openClientSection}
         data-testid="oauth-open-settings-btn"
       >
-        {$t("connections.open_settings_integrations")}
+        {$t("connections.open_connection_client")}
       </Button>
     </div>
   {:else if errorIsPolicyRefusal}
@@ -274,8 +276,8 @@
       <Button variant="outline" size="sm" onclick={close} data-testid="oauth-cancel-btn">
         {$t("common.cancel")}
       </Button>
-      <Button variant="primary-solid" size="sm" onclick={openSettingsIntegrations} data-testid="oauth-open-settings-btn">
-        {$t("connections.open_settings_integrations")}
+      <Button variant="primary-solid" size="sm" onclick={openClientSection} data-testid="oauth-open-settings-btn">
+        {$t("connections.open_connection_client")}
       </Button>
     </div>
   {:else if busy && !authUrl}

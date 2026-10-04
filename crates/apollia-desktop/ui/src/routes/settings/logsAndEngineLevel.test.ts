@@ -23,6 +23,18 @@ vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn(async () => () => {}),
   emit: vi.fn(async () => {}),
 }));
+// The background service section anchors its help on a tooltip, which needs
+// the provider the application root mounts. This page is rendered alone, and
+// the section has its own tests, so it stays out of the render here.
+vi.mock(
+  "../../components/settings/developer/backgroundService",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../components/settings/developer/backgroundService")
+    >()),
+    backgroundServiceVisible: () => false,
+  }),
+);
 
 import General from "./General.svelte";
 import Developer from "./Developer.svelte";
@@ -49,7 +61,9 @@ function levelOptions(html: string): string[] {
   const start = html.indexOf('data-testid="engine-log-level-select"');
   const end = html.indexOf("</select>", start);
   const list = html.slice(start, end);
-  return [...list.matchAll(/<option[^>]*>([^<]*)<\/option>/g)].map((m) => m[1].trim());
+  return [...list.matchAll(/<option[^>]*>([^<]*)<\/option>/g)].map((m) =>
+    m[1].trim(),
+  );
 }
 
 beforeAll(async () => {
@@ -87,7 +101,9 @@ describe("General - the logs folder follows the developer mode", () => {
     // THEN English reads "Open logs folder", and French carries its own text
     expect(en.settings.general.logs_button).toBe("Open logs folder");
     expect(fr.settings.general.logs_button.length).toBeGreaterThan(0);
-    expect(fr.settings.general.logs_button).not.toBe(en.settings.general.logs_button);
+    expect(fr.settings.general.logs_button).not.toBe(
+      en.settings.general.logs_button,
+    );
   });
 });
 
@@ -119,7 +135,9 @@ describe("Developer - the engine log level", () => {
     expect(en.settings.developer.engines.log_level_hint).toContain(
       "Applies the next time a model is loaded or reloaded",
     );
-    expect(engines.level_debug).not.toBe(en.settings.developer.engines.level_debug);
+    expect(engines.level_debug).not.toBe(
+      en.settings.developer.engines.level_debug,
+    );
     locale.set("en");
     await waitLocale("en");
   });
@@ -137,7 +155,9 @@ describe("Developer - the engine log level", () => {
 });
 
 describe("engineLogLevel store", () => {
-  function ipcAnswering(value: unknown): EngineLogLevelIpc & { written: unknown[] } {
+  function ipcAnswering(
+    value: unknown,
+  ): EngineLogLevelIpc & { written: unknown[] } {
     const written: unknown[] = [];
     return {
       written,
