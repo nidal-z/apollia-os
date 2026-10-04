@@ -10,6 +10,8 @@
 //! - `SemanticMemory`: key/value with confidence and TTL.
 //! - `ProceduralMemory`: trigger-to-steps patterns with success tracking.
 //! - FTS5 full-text search with `unicode61` tokenizer for French.
+//! - `vectors`: search by meaning, fused with FTS5 when an embeddings model
+//!   is present; vectors computed by a background pass.
 //! - `MemoryManager`: namespace isolation and cross-namespace access control.
 //!
 //! The `unicode61` tokenizer is mandatory so that accent-insensitive search
@@ -27,6 +29,7 @@ pub mod search;
 pub mod semantic;
 pub mod store;
 pub mod user_memory;
+pub mod vectors;
 
 pub use file_timestamp_cache::{FileTimestampCache, FileTimestampCacheError, FileTimestampEntry};
 pub use manager::PurgeReport;

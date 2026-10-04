@@ -1490,7 +1490,8 @@
     "entry_actions": "Entry actions",
     "error_details": "Technical details",
     "embeddings": {
-      "vector": "vector · nomic-embed-text 768-d · FTS5",
+      "vector": "vector · {model} {dimensions}-d · FTS5",
+      "keywords": "keywords",
       "none": "no vector · raw text"
     },
     "data": {
