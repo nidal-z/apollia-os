@@ -7,6 +7,7 @@
  * command name (`crates/apollia-desktop/ui/AGENTS.md` section 6).
  */
 import { invoke } from "@tauri-apps/api/core";
+import type { TurnLlmCall } from "$lib/chat/generationStats";
 import type {
   ChatImageData,
   ChatModelCapabilities,
@@ -100,4 +101,12 @@ export function getConversationStats(
   sessionId: string,
 ): Promise<ConversationStatsView> {
   return invoke<ConversationStatsView>("get_conversation_stats", { sessionId });
+}
+
+/**
+ * The model calls of one turn, in order. The turn is named by the identifier
+ * of its answer message.
+ */
+export function listTurnLlmCalls(sessionId: string, turnId: string): Promise<TurnLlmCall[]> {
+  return invoke<TurnLlmCall[]>("list_turn_llm_calls", { sessionId, turnId });
 }

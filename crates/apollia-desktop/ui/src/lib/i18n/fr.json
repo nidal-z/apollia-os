@@ -3504,6 +3504,55 @@
     "config_provider": "Modèle IA",
     "config_no_providers": "Aucun modèle chargé",
     "delete_session": "Supprimer",
+    "generation": {
+      "label": "Infos de génération",
+      "speed": "{value} jetons/s",
+      "speed_unmeasured": "Vitesse non mesurée",
+      "tokens": "{count, plural, one {# jeton} other {# jetons}}",
+      "ttft": "Premier jeton {value} s",
+      "ttft_unmeasured": "Premier jeton non mesuré",
+      "duration": "Durée {value} s",
+      "duration_unmeasured": "Durée non mesurée",
+      "unmeasured": "non mesuré",
+      "seconds": "{value} s",
+      "stop": {
+        "completed": "Fin normale",
+        "length": "Limite de longueur atteinte",
+        "user_stop": "Arrêtée par vous",
+        "error": "Interrompue par une erreur"
+      },
+      "help": {
+        "speed": "Vitesse moyenne : jetons générés par seconde de génération, sur tous les appels du tour.",
+        "tokens": "Jetons générés : ce que le modèle a écrit pendant ce tour, tous appels confondus.",
+        "ttft": "Temps avant le premier jeton : délai entre l'envoi et le premier mot reçu ; pour un tour à plusieurs appels, celui du premier.",
+        "duration": "Durée : de l'envoi de votre message à la fin du tour, étapes comprises.",
+        "stop": "Raison d'arrêt : pourquoi la réponse s'est terminée, d'après le dernier appel du tour."
+      },
+      "detail_toggle": "Détail par appel",
+      "detail_show": "Afficher le détail par appel",
+      "detail_hide": "Masquer le détail par appel",
+      "detail_loading": "Lecture du détail…",
+      "detail_error": "Le détail de ce tour n'a pas pu être lu : {message}",
+      "detail_empty": "Aucun appel du modèle n'est enregistré pour ce tour.",
+      "steps_count": "{count, plural, =0 {aucune étape} one {# étape} other {# étapes}}",
+      "calls_count": "{count, plural, one {# appel du modèle} other {# appels du modèle}}",
+      "call_title": "Appel du modèle {n}",
+      "call": {
+        "model": "Modèle",
+        "input_tokens": "Jetons en entrée",
+        "output_tokens": "Jetons en sortie",
+        "ttft": "Premier jeton",
+        "duration": "Durée",
+        "end": "Fin"
+      },
+      "call_end": {
+        "stop": "fin normale",
+        "tool_calls": "outil demandé",
+        "length": "limite de longueur",
+        "error": "erreur",
+        "cancelled": "arrêt demandé"
+      }
+    },
     "copy_message": "Copier",
     "stop": "Arrêter",
     "regenerate": "Régénérer",
