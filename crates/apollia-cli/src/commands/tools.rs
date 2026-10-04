@@ -147,7 +147,7 @@ pub async fn run(cmd: &ToolsCommand, socket: Option<PathBuf>, json: bool) -> i32
 }
 #[cfg(test)]
 mod tests {
-    use super::config::{parse_value_for, set_nested_value};
+    use super::config::{parse_value_for, write_tool_setting};
     use super::listing::backend_label;
     use super::support::{db_path, is_known_tool, is_valid_credential_target};
     use super::*;
@@ -157,7 +157,6 @@ mod tests {
         AGENT_CREDENTIALS_NAMESPACE, NATIVE_TOOL_NAMES,
     };
     use tempfile::TempDir;
-    use toml_edit::DocumentMut;
 
     /// The encrypted-file secret store under `dir`, never the OS keychain.
     fn file_secrets(dir: &TempDir) -> Box<dyn apollia_auth::SecretStore> {
@@ -178,8 +177,8 @@ mod tests {
         // GIVEN an accepted backend value.
         // WHEN parse_value_for is called.
         let v = parse_value_for("web_search", &["backend"], "duckduckgo").expect("parse");
-        // THEN the TOML value is the expected string.
-        assert_eq!(v.as_str(), Some("duckduckgo"));
+        // THEN the TOML value is the name the section reads.
+        assert_eq!(v.as_str(), Some("duck_duck_go"));
     }
 
     #[test]
@@ -206,16 +205,22 @@ mod tests {
         let dir = TempDir::new().expect("tempdir");
         let path = write_toml(&dir, "");
 
-        // WHEN we inject tools.web_search.backend = "duckduckgo".
-        let mut doc: DocumentMut = "".parse().expect("empty parse");
+        // WHEN we inject tools.web_search.backend = "duckduckgo" through the
+        // writer the command uses.
         let value = parse_value_for("web_search", &["backend"], "duckduckgo").expect("parse");
-        set_nested_value(&mut doc, &["tools", "web_search"], &["backend"], value);
-        std::fs::write(&path, doc.to_string()).expect("write");
+        write_tool_setting(
+            &path,
+            "web_search",
+            &["backend"],
+            &value,
+            &apollia_core::config::PolicySettings::none(),
+        )
+        .expect("written");
 
         // THEN the file contains the expected section.
         let read = std::fs::read_to_string(&path).expect("read");
         assert!(read.contains("[tools.web_search]"));
-        assert!(read.contains("backend = \"duckduckgo\""));
+        assert!(read.contains("backend = \"duck_duck_go\""));
     }
 
     #[test]

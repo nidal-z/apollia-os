@@ -182,9 +182,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "governance_set_credential",
     "governance_test_credential",
     // Memory, read side: the namespaces, their entries, the search, the
-    // entries recalled during a turn, the statistics of a conversation.
+    // entries recalled during a turn, the statistics of a conversation, the
+    // embeddings model it searches with.
     "get_conversation_stats",
     "get_injected_memory_entries",
+    "get_memory_embeddings_model",
     "list_memory_entries",
     "list_memory_namespaces",
     "search_memory",
@@ -341,6 +343,16 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "meta_generate_next_steps",
     "meta_parse_automation",
     "meta_rewrite_input",
+    // The system settings, in the daemon's `apollia.toml` and on the machine
+    // that runs its tools: the observability policy over
+    // `/api/v1/config/observability`, the Python interpreter over
+    // `/api/v1/config/python-interpreter`, the security posture over
+    // `/api/v1/security-posture`.
+    "get_observability_config",
+    "get_python_interpreter",
+    "get_security_posture",
+    "set_observability_config",
+    "set_python_interpreter",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no
@@ -348,6 +360,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
 /// reason it needs no route. `scripts/check_attached_coverage.py` reads the
 /// reasons and refuses an entry without one.
 pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
+    (
+        "get_system_info",
+        "describes this application, its version, and the machine that carries the window",
+    ),
     (
         "app_restart",
         "relaunches this window, which attaches again at startup",
