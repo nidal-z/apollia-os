@@ -185,6 +185,7 @@ fn lookup_tool() -> apollia_tools::ToolDescriptor {
         approval_risk_level: None,
         impact_description: None,
         reject_reason_required: false,
+        target_arg: None,
     }
 }
 

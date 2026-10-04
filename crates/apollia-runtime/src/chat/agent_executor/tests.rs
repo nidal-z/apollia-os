@@ -570,6 +570,8 @@ fn apollia_executor_of(
         granted_tools: vec![],
         model: None,
         autonomy: AutonomyLevel::Assisted,
+        planning: PlanningMode::Never,
+        version: String::new(),
     };
     AgentExecutor::new(
         spec,
