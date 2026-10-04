@@ -87,6 +87,13 @@ from .compat_server_status import CompatServerStatus
 from .complete_consent_body import CompleteConsentBody
 from .complete_request import CompleteRequest
 from .complete_request_schema_type_0 import CompleteRequestSchemaType0
+from .config_default_text import ConfigDefaultText
+from .config_diagnostic_body import ConfigDiagnosticBody
+from .config_error_body import ConfigErrorBody
+from .config_save_request import ConfigSaveRequest
+from .config_validate_request import ConfigValidateRequest
+from .config_validation import ConfigValidation
+from .config_view import ConfigView
 from .connected_account_response import ConnectedAccountResponse
 from .connection import Connection
 from .connection_kind import ConnectionKind
@@ -229,6 +236,8 @@ from .load_model_request_advanced import LoadModelRequestAdvanced
 from .load_model_response import LoadModelResponse
 from .loaded_model_dto import LoadedModelDto
 from .loaded_models_response import LoadedModelsResponse
+from .locked_key_body import LockedKeyBody
+from .locked_key_body_value import LockedKeyBodyValue
 from .logs_response import LogsResponse
 from .logs_response_entries_item import LogsResponseEntriesItem
 from .mailbox_message_row import MailboxMessageRow
@@ -272,6 +281,7 @@ from .oauth_client_id_status import OauthClientIdStatus
 from .oauth_client_test_result import OauthClientTestResult
 from .oauth_client_value_body import OauthClientValueBody
 from .oauth_client_written import OauthClientWritten
+from .observability_settings import ObservabilitySettings
 from .ok_response import OkResponse
 from .onboarding_dismissed import OnboardingDismissed
 from .onboarding_finalized import OnboardingFinalized
@@ -324,6 +334,8 @@ from .profile_update_fields import ProfileUpdateFields
 from .proposed_rule_view import ProposedRuleView
 from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
+from .python_interpreter_request import PythonInterpreterRequest
+from .python_interpreter_setting import PythonInterpreterSetting
 from .readme_response import ReadmeResponse
 from .reasoning_profile_dto import ReasoningProfileDto
 from .reject_plan_request import RejectPlanRequest
@@ -354,6 +366,7 @@ from .rewrite_fallback_reason import RewriteFallbackReason
 from .rewrite_prompt_body import RewritePromptBody
 from .rewrite_reply import RewriteReply
 from .save_artifact_request import SaveArtifactRequest
+from .security_posture_response_200 import SecurityPostureResponse200
 from .send_message_request import SendMessageRequest
 from .send_message_response import SendMessageResponse
 from .server_log_level import ServerLogLevel
@@ -588,6 +601,13 @@ __all__ = (
     "CompleteConsentBody",
     "CompleteRequest",
     "CompleteRequestSchemaType0",
+    "ConfigDefaultText",
+    "ConfigDiagnosticBody",
+    "ConfigErrorBody",
+    "ConfigSaveRequest",
+    "ConfigValidateRequest",
+    "ConfigValidation",
+    "ConfigView",
     "ConnectedAccountResponse",
     "Connection",
     "ConnectionKind",
@@ -730,6 +750,8 @@ __all__ = (
     "LoadModelRequest",
     "LoadModelRequestAdvanced",
     "LoadModelResponse",
+    "LockedKeyBody",
+    "LockedKeyBodyValue",
     "LogsResponse",
     "LogsResponseEntriesItem",
     "MailboxMessageRow",
@@ -773,6 +795,7 @@ __all__ = (
     "OauthClientTestResult",
     "OauthClientValueBody",
     "OauthClientWritten",
+    "ObservabilitySettings",
     "OkResponse",
     "OnboardingDismissed",
     "OnboardingFinalized",
@@ -823,6 +846,8 @@ __all__ = (
     "ProposedRuleView",
     "PurgeMemoryBody",
     "PutMcpSecretBody",
+    "PythonInterpreterRequest",
+    "PythonInterpreterSetting",
     "ReadmeResponse",
     "ReasoningProfileDto",
     "RejectPlanRequest",
@@ -851,6 +876,7 @@ __all__ = (
     "RewritePromptBody",
     "RewriteReply",
     "SaveArtifactRequest",
+    "SecurityPostureResponse200",
     "SendMessageRequest",
     "SendMessageResponse",
     "ServerLogLevel",

@@ -19,11 +19,15 @@ rusqlite   = { workspace = true }
 regex      = { workspace = true }
 async-trait = { workspace = true }
 chrono      = { workspace = true }
-# The named settings of `apollia.toml` (`config::settings`): `toml` reads the
-# file, `toml_edit` writes one key and keeps the user's comments and layout.
+# The named settings of `apollia.toml` (`config::settings`) and its one writer
+# (`config::writer`): `toml` reads the file, `toml_edit` edits it and keeps the
+# user's comments and layout.
 # Both were already in the workspace lockfile.
 toml        = { workspace = true }
 toml_edit   = { workspace = true }
+# The fingerprint the configuration writer (`config::writer`) compares before
+# it replaces `apollia.toml`. Already in the workspace lockfile.
+sha2        = { workspace = true }
 
 # The `net` feature only. `apollia-core` is the dependency foundation of the
 # workspace, so the crates that never open a socket keep their current closure:

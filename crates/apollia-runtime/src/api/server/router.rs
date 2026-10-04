@@ -384,6 +384,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(memory_maintenance_router::<B>())
         .merge(app_lifecycle_router::<B>())
         .merge(crate::api::routes_server::server_router::<B>())
+        .merge(crate::api::routes_config::config_router::<B>())
         .merge(conversations_router::<B>())
         .merge(memory_router::<B>())
         .merge(permissions_router::<B>())
