@@ -116,6 +116,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os source create`↴](#apollia-os-source-create)
 * [`apollia-os source delete`↴](#apollia-os-source-delete)
 * [`apollia-os source inspect`↴](#apollia-os-source-inspect)
+* [`apollia-os source report`↴](#apollia-os-source-report)
 * [`apollia-os trigger`↴](#apollia-os-trigger)
 * [`apollia-os trigger list`↴](#apollia-os-trigger-list)
 * [`apollia-os trigger status`↴](#apollia-os-trigger-status)
@@ -1941,6 +1942,7 @@ The sources an agent may consult once checked: folders, files, mailboxes, the pr
 * `create` - Add a source
 * `delete` - Remove a source. Agents that list it stop seeing it
 * `inspect` - Preview a workbook or a CSV file as a batch would read it: the sheet and header row proposed, the first twenty rows, the columns
+* `report` - Show the report of the migration of the former projects into sources: what each project became, and what could not be carried over
 
 
 
@@ -1997,6 +1999,14 @@ Preview a workbook or a CSV file as a batch would read it: the sheet and header 
 
 * `--sheet <SHEET>` - Show this sheet instead of the proposed one
 * `--header-row <HEADER_ROW>` - Read the header on this row (from 1) instead of the proposed one
+
+
+
+## `apollia-os source report`
+
+Show the report of the migration of the former projects into sources: what each project became, and what could not be carried over
+
+**Usage:** `apollia-os source report`
 
 
 

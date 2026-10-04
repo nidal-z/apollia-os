@@ -192,6 +192,11 @@ impl Supervisor {
         // Phase 13: UserMemoryRepository was promoted above (before notifications)
         // to support the seed bootstrap of the default desktop channel.
 
+        // Phase 13a: the former projects become sources, before the project
+        // repository opens (and creates) projects.db and before the chat
+        // manager loads the sessions it detaches.
+        crate::project_migration::run_at_boot(&self.config.data_dir).await;
+
         // Phase 13b: ProjectRepository, SQLite projects.db.
         let project_repository = open_project_repository(&self.config.data_dir);
 
