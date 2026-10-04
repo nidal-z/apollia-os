@@ -673,3 +673,28 @@ fn a_socket_the_file_names_must_have_its_folder() {
     assert_eq!(fault.path, "api.unix_socket", "{fault}");
     assert_eq!(fault.line, 2, "{fault}");
 }
+
+#[test]
+fn the_native_api_port_equal_to_the_compatible_server_port_is_refused_at_its_line() {
+    // GIVEN a file that gives `[api].port` the port of the compatible server
+    let text = "[server]\nport = 7790\n\n[api]\nbind = \"127.0.0.1\"\nport = 7790\n";
+    // WHEN the document is validated
+    let fault = single_fault(text);
+    // THEN it is refused, at the line of `[api].port`
+    assert_eq!(
+        (fault.path.as_str(), fault.line),
+        ("api.port", 6),
+        "{fault}"
+    );
+    assert!(fault.message.contains("7790"), "{fault}");
+}
+
+#[test]
+fn distinct_native_api_and_compatible_server_ports_are_accepted() {
+    // GIVEN a file that moves the native API and leaves the server on its own port
+    let text = "[api]\nport = 7781\n\n[server]\nport = 7782\n";
+    // WHEN the document is validated
+    let config = validate(text).expect("distinct ports are valid");
+    // THEN both ports are the file's
+    assert_eq!((config.api.port, config.server.port), (7781, 7782));
+}

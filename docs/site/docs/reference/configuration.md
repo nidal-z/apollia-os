@@ -111,13 +111,14 @@ carry.
 
 **`[api]` is split between two loaders, and neither reads all of it.** The
 daemon started by `apollia-os start` and the runtime embedded in the desktop
-application build their listener from different fields of the same section. No
-key is read by both, and one key is read by neither.
+application build their listener from different fields of the same section.
+Only `port` is read by both. Every key of the section takes effect at the next
+start.
 
 | Key | `apollia-os start` | The desktop application |
 | --- | --- | --- |
 | `bind` | read | ignored, the embedded listener is always `127.0.0.1` |
-| `port` | ignored, see below | ignored, the embedded listener is always 7771 |
+| `port` | read, after the `--port` flag | read, see below |
 | `require_token` | read | ignored, the embedded TCP listener always requires the token |
 | `unix_socket` | ignored, the daemon takes its socket from the `--socket` flag of `apollia-os start` and falls back to the same default | read |
 | `tls_cert` | read | ignored, the embedded listener never terminates TLS |
@@ -127,9 +128,12 @@ A key a loader ignores is still parsed and validated, then dropped: setting it
 is silent, not an error. So `require_token = false` does not disarm the desktop
 application, and `tls_cert` there is inert.
 
-`[api] port` is read by neither. The daemon takes its TCP port from the
-`--port` flag of `apollia-os start` and falls back to 7771; a file that sets `port = 8080`
-still gets 7771.
+`[api] port` sets the port of the native API, 7771 by default. The daemon takes
+the `--port` flag of `apollia-os start` first, then this key, then 7771. Once it
+serves, the daemon records its port in the data folder; the desktop application
+attaches to that port when a daemon serves, and otherwise listens on this key.
+The port must differ from `[server] port`, the port of the compatible server: a
+file that gives both the same port is refused, at the line of `[api] port`.
 
 `[llm] pricing_overrides` is not applied. A running daemon builds its backends
 from the backends stored in its database, and that path hands the client an
@@ -170,7 +174,7 @@ TCP listener, authentication, TLS, Unix socket.
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `api.bind` | string | `"127.0.0.1"` | Address the daemon's TCP listener binds to. |
-| `api.port` | integer | `7771` | TCP port of the native API. Not read today: the daemon takes the --port option of apollia-os start, and the application always listens on 7771. |
+| `api.port` | integer | `7771` | TCP port of the native API, read at the next start; the --port option of apollia-os start wins over it, and it must differ from server.port. |
 | `api.require_token` | boolean | `true` | Require a bearer token on every TCP request to the daemon. |
 | `api.unix_socket` | path | `"~/.apollia/runtime.sock"` | Local socket of the embedded runtime; its folder must exist. |
 | `api.tls_cert` | path | not set | PEM certificate chain for TLS on the daemon's TCP listener; set with api.tls_key. |
@@ -301,8 +305,9 @@ The compatible server, which answers the OpenAI and Anthropic formats on the loo
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `server.enabled` | boolean | `false` | Start the compatible server (OpenAI and Anthropic formats) with the engine. The organization policy can fix it. |
-| `server.port` | integer | `7772` | TCP port of the compatible server, on the loopback interface. The organization policy can fix it. |
+| `server.port` | integer | `7772` | TCP port of the compatible server. The organization policy can fix it. |
 | `server.require_auth` | boolean | `false` | Require a token of the compatible server on every request; read when the listener opens. The organization policy can fix it. |
+| `server.serve_on_lan` | boolean | `false` | Open the compatible server to the local network, on every interface; the native API stays on the loopback interface. Read when the listener opens. The organization policy can fix it. |
 
 ### `[engines]`
 

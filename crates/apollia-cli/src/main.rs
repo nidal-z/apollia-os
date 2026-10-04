@@ -96,7 +96,7 @@ struct Cli {
 enum Commands {
     /// Start the runtime in foreground.
     Start {
-        /// TCP port to listen on (default: 7771).
+        /// TCP port to listen on; overrides `[api].port` (default: 7771).
         #[arg(long, value_name = "PORT")]
         port: Option<u16>,
         /// Configuration file to load instead of `~/.apollia/apollia.toml`.

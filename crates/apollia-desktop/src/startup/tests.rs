@@ -162,6 +162,54 @@ fn test_reading_the_token_never_creates_it() {
     assert!(!dir.path().join("api-token").exists());
 }
 
+#[test]
+fn test_the_port_comes_from_the_file_then_the_default() {
+    // GIVEN a data folder no daemon recorded a port in
+    let dir = tempfile::tempdir().unwrap();
+
+    // WHEN the port is resolved with a file naming 8123, without a file, and
+    // with a refused file
+    let from_file = resolve_port(dir.path(), Some("[api]\nport = 8123\n"));
+    let without_file = resolve_port(dir.path(), None);
+    let refused_file = resolve_port(dir.path(), Some("[api]\nport = \"x\"\n"));
+
+    // THEN the file's port, then the default for both others
+    assert_eq!(from_file, 8123);
+    assert_eq!(without_file, 7771);
+    assert_eq!(refused_file, 7771);
+}
+
+#[test]
+fn test_a_port_recorded_by_a_listening_daemon_wins_over_the_file() {
+    // GIVEN a daemon serving a port it recorded, and a file naming another
+    let dir = tempfile::tempdir().unwrap();
+    let daemon = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let recorded = daemon.local_addr().unwrap().port();
+    apollia_runtime::api::write_port_file(dir.path(), recorded).unwrap();
+
+    // WHEN the port is resolved
+    let port = resolve_port(dir.path(), Some("[api]\nport = 8123\n"));
+
+    // THEN the daemon's port
+    assert_eq!(port, recorded);
+}
+
+#[test]
+fn test_a_port_recorded_by_a_daemon_that_is_gone_is_ignored() {
+    // GIVEN a record of a port nothing listens on any more
+    let dir = tempfile::tempdir().unwrap();
+    let gone = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let recorded = gone.local_addr().unwrap().port();
+    drop(gone);
+    apollia_runtime::api::write_port_file(dir.path(), recorded).unwrap();
+
+    // WHEN the port is resolved
+    let port = resolve_port(dir.path(), Some("[api]\nport = 8123\n"));
+
+    // THEN the file's port
+    assert_eq!(port, 8123);
+}
+
 // ── The runtime installed as a service ──────────────────────────────────
 
 #[test]

@@ -1,7 +1,7 @@
 //! The compatible server: a second listener of the runtime, separate from the
 //! native API.
 //!
-//! The native API (`/api/v1/...`, port 7771 and the Unix socket) is the
+//! The native API (`/api/v1/...`, `[api].port` and the Unix socket) is the
 //! runtime's own surface; the desktop and the CLI drive it. The compatible
 //! server is the surface other applications of the machine call as they would
 //! call OpenAI or Anthropic: its paths and bodies follow those formats

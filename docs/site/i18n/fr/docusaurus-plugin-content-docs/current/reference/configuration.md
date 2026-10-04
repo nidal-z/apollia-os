@@ -115,12 +115,13 @@ dérivation ne peut pas porter.
 **`[api]` est partagée entre deux chargeurs, et aucun ne la lit en entier.** Le
 démon lancé par `apollia-os start` et le runtime embarqué dans l'application de
 bureau construisent leur écouteur à partir de champs différents de la même
-section. Aucune clé n'est lue par les deux, et une clé n'est lue par aucun.
+section. Seule `port` est lue par les deux. Toute clé de la section prend effet
+au démarrage suivant.
 
 | Clé | `apollia-os start` | L'application de bureau |
 | --- | --- | --- |
 | `bind` | lue | ignorée, l'écouteur embarqué est toujours sur `127.0.0.1` |
-| `port` | ignorée, voir plus bas | ignorée, l'écouteur embarqué est toujours sur 7771 |
+| `port` | lue, après l'option `--port` | lue, voir plus bas |
 | `require_token` | lue | ignorée, l'écouteur TCP embarqué exige toujours le jeton |
 | `unix_socket` | ignorée, le démon prend sa socket de l'option `--socket` d'`apollia-os start` et retombe sur la même valeur par défaut | lue |
 | `tls_cert` | lue | ignorée, l'écouteur embarqué ne termine jamais TLS |
@@ -131,9 +132,13 @@ abandonnée : la poser est silencieux, ce n'est pas une erreur. Donc
 `require_token = false` ne désarme pas l'application de bureau, et `tls_cert` y
 est inerte.
 
-`[api] port` n'est lu par aucun des deux. Le démon prend son port TCP de
-l'option `--port` d'`apollia-os start` et retombe sur 7771 ; un fichier qui pose `port =
-8080` obtient quand même 7771.
+`[api] port` règle le port de l'API native, 7771 par défaut. Le démon prend
+d'abord l'option `--port` d'`apollia-os start`, puis cette clé, puis 7771. Une
+fois à l'écoute, le démon inscrit son port dans le dossier de données ;
+l'application de bureau se rattache à ce port quand un démon tourne, et écoute
+sinon sur cette clé. Le port doit différer de `[server] port`, celui du serveur
+compatible : un fichier qui leur donne le même port est refusé, à la ligne de
+`[api] port`.
 
 `[llm] pricing_overrides` n'est pas appliqué. Un démon en marche construit ses
 backends depuis ceux stockés dans sa base, et ce chemin passe au client une
@@ -175,7 +180,7 @@ Backends LLM, routage, et le runner de transcription. Le fichier par défaut lai
 | Clé | Type | Défaut | Rôle |
 | --- | --- | --- | --- |
 | `api.bind` | chaîne | `"127.0.0.1"` | Adresse sur laquelle se lie l'écouteur TCP du démon. |
-| `api.port` | entier | `7771` | Port TCP de l'API native. Pas lu aujourd'hui : le démon prend l'option --port d'apollia-os start, et l'application écoute toujours sur 7771. |
+| `api.port` | entier | `7771` | Port TCP de l'API native, lu au démarrage suivant ; l'option --port d'apollia-os start l'emporte sur lui, et il doit différer de server.port. |
 | `api.require_token` | booléen | `true` | Exiger un jeton bearer sur chaque requête TCP au démon. |
 | `api.unix_socket` | chemin | `"~/.apollia/runtime.sock"` | Socket locale du runtime embarqué ; son dossier doit exister. |
 | `api.tls_cert` | chemin | non définie | Chaîne de certificats PEM pour TLS sur l'écouteur TCP du démon ; à poser avec api.tls_key. |
@@ -306,8 +311,9 @@ Le serveur compatible, qui répond aux formats OpenAI et Anthropic sur l'interfa
 | Clé | Type | Défaut | Rôle |
 | --- | --- | --- | --- |
 | `server.enabled` | booléen | `false` | Démarrer le serveur compatible (formats OpenAI et Anthropic) avec le moteur. La politique de l'organisation peut l'imposer. |
-| `server.port` | entier | `7772` | Port TCP du serveur compatible, sur l'interface de boucle locale. La politique de l'organisation peut l'imposer. |
+| `server.port` | entier | `7772` | Port TCP du serveur compatible. La politique de l'organisation peut l'imposer. |
 | `server.require_auth` | booléen | `false` | Exiger un jeton du serveur compatible à chaque requête ; lu à l'ouverture de l'écoute. La politique de l'organisation peut l'imposer. |
+| `server.serve_on_lan` | booléen | `false` | Ouvrir le serveur compatible au réseau local, sur toutes les interfaces ; l'API native reste sur l'interface de boucle locale. Lu à l'ouverture de l'écoute. La politique de l'organisation peut l'imposer. |
 
 ### `[engines]`
 
