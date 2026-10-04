@@ -29,10 +29,12 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "connections.capabilities.group_onedrive", // OneDrive
   "connections.capabilities.group_outlook_mail", // Outlook Mail
   "connections.capabilities.group_youtube", // YouTube
-  "connections.custom_transport_http", // Streamable HTTP (MCP 2025-11-25)
-  "connections.custom_transport_sse", // SSE (legacy 2024-11-05)
+  "connections.native_google_name", // Google Workspace
   "connections.native_microsoft_description", // Outlook Mail, Outlook Calendar, OneDrive
+  "connections.native_microsoft_name", // Microsoft 365
   "dashboard.headline_greeting", // {greeting}.
+  "dev.connections.custom_transport_http", // Streamable HTTP (MCP 2025-11-25)
+  "dev.connections.custom_transport_sse", // SSE (legacy 2024-11-05)
   "hitl.fs.preview_mode_label", // {before} → {after}
   "inbox.activity.filter.llm", // LLM
   "llm.loaded.engine_mlx", // MLX
@@ -138,8 +140,8 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "companion.title", // Companion
   "connections.badge_status_attention", // attention
   "connections.custom_test_ok", // Test OK - {result}
-  "connections.custom_transport_label", // Transport
   "connections.mcp_settings.transport", // Transport
+  "dev.connections.custom_transport_label", // Transport
   "connections.settings_provider_title", // Provider
   "connections.status_chip_attention", // Attention
   "inbox.chips.questions", // Questions
