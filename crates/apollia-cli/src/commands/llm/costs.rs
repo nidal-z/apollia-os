@@ -103,38 +103,37 @@ pub(super) fn run_get_cost_threshold(override_path: Option<&std::path::Path>, js
     exit_codes::SUCCESS
 }
 
+/// Writes `llm.cost_alert_threshold_usd` through the one writer of
+/// `apollia.toml`; a value of zero or less removes the key. Returns the
+/// sentence of a refusal.
+pub(super) fn write_cost_threshold(
+    path: &std::path::Path,
+    value: f64,
+    policy: &apollia_core::config::PolicySettings,
+) -> Result<(), String> {
+    use apollia_core::config::writer::{update_config, ConfigEdit, KeyChange};
+
+    const KEY: &str = "llm.cost_alert_threshold_usd";
+    let change = if value <= 0.0 {
+        KeyChange::remove(KEY)
+    } else {
+        KeyChange::set(KEY, serde_json::json!(value))
+    };
+    update_config(path, ConfigEdit::Keys(vec![change]), policy)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 pub(super) fn run_set_cost_threshold(
     value: f64,
     override_path: Option<&std::path::Path>,
     json: bool,
 ) -> i32 {
     let path = resolve_apollia_toml(override_path);
-    if let Some(parent) = path.parent() {
-        if let Err(e) = std::fs::create_dir_all(parent) {
-            return emit_llm_error(format!("create {} failed: {e}", parent.display()), json);
-        }
-    }
-    let content = std::fs::read_to_string(&path).unwrap_or_default();
-    let mut doc: toml_edit::DocumentMut = match content.parse() {
-        Ok(d) => d,
-        Err(e) => return emit_llm_error(format!("parse {} failed: {e}", path.display()), json),
-    };
-    if value <= 0.0 {
-        // Clear semantics: drop the key but keep the table.
-        if let Some(table) = doc.get_mut("llm").and_then(|i| i.as_table_mut()) {
-            table.remove("cost_alert_threshold_usd");
-        }
-    } else {
-        let llm_table = doc
-            .entry("llm")
-            .or_insert(toml_edit::Item::Table(toml_edit::Table::new()))
-            .as_table_mut();
-        if let Some(table) = llm_table {
-            table.insert("cost_alert_threshold_usd", toml_edit::value(value));
-        }
-    }
-    if let Err(e) = std::fs::write(&path, doc.to_string()) {
-        return emit_llm_error(format!("write {} failed: {e}", path.display()), json);
+    let location = apollia_permissions::policy_location();
+    let policy = apollia_permissions::load_policy(&location.dir, location.owner);
+    if let Err(e) = write_cost_threshold(&path, value, &policy.imposed_settings()) {
+        return emit_llm_error(e, json);
     }
     if json {
         let body = serde_json::json!({
@@ -388,6 +387,27 @@ pub(super) fn format_llm_costs(resp: &serde_json::Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_cost_threshold_is_written_then_cleared_through_the_writer() {
+        // GIVEN a file with a comment
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("apollia.toml");
+        std::fs::write(&path, "# mine\n").unwrap();
+        let none = apollia_core::config::PolicySettings::none();
+
+        // WHEN a threshold is set, then cleared with zero
+        write_cost_threshold(&path, 2.5, &none).unwrap();
+        let set = std::fs::read_to_string(&path).unwrap();
+        write_cost_threshold(&path, 0.0, &none).unwrap();
+        let cleared = std::fs::read_to_string(&path).unwrap();
+
+        // THEN the key is written under [llm], then removed, the comment kept
+        assert!(set.contains("cost_alert_threshold_usd = 2.5"), "{set}");
+        assert!(set.contains("# mine"), "{set}");
+        assert!(!cleared.contains("cost_alert_threshold_usd"), "{cleared}");
+        assert!(cleared.contains("# mine"), "{cleared}");
+    }
 
     #[test]
     fn cost_threshold_file_is_the_one_the_runtime_reads() {

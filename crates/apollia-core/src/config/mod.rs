@@ -38,6 +38,11 @@
 //! first start, every key commented at its default under its documentation,
 //! and [`write_default_file_if_absent`] writes it without ever replacing a file.
 //!
+//! [`writer`] is the one writer of the file: every surface that changes it,
+//! by whole text or by key, goes through [`writer::write_config`], which
+//! validates, refuses a value the policy does not impose, refuses a file
+//! modified since it was read, and replaces the file atomically.
+//!
 //! The other types in this module are runtime parameters, not `apollia.toml`
 //! sections. No loader deserializes an `[a2a]` or an `[oria]` table, both are
 //! withdrawn keys of the registry: [`A2AConfig`] reaches the runtime from its
@@ -78,6 +83,7 @@ mod triggers;
 mod validate;
 mod web;
 mod workflows;
+pub mod writer;
 
 #[cfg(test)]
 mod autonomy_tests;
@@ -91,6 +97,8 @@ mod settings_tests;
 mod tests;
 #[cfg(test)]
 mod validate_tests;
+#[cfg(test)]
+mod writer_tests;
 
 pub use a2a::A2AConfig;
 pub use api::ApiConfig;

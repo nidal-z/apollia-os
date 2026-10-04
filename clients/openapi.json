@@ -2931,6 +2931,178 @@
         }
       }
     },
+    "/api/v1/config": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "`GET /api/v1/config`: the text of `apollia.toml`, its fingerprint, its\nfaults, the keys the policy fixes and the keys waiting for a restart.",
+        "operationId": "read_config",
+        "responses": {
+          "200": {
+            "description": "The configuration file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigView"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No configuration file in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "config"
+        ],
+        "summary": "`PUT /api/v1/config`: saves a whole text through the writer.",
+        "operationId": "save_config",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The file as saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A line gives a key the policy fixes another value (`locked`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The file changed since it was read (`modified`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The text does not validate (`invalid`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file cannot be read or written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No configuration file in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/config/default": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "`GET /api/v1/config/default`: the default text of the file, the keys the\npolicy fixes written at their value.",
+        "operationId": "default_config",
+        "responses": {
+          "200": {
+            "description": "The default text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigDefaultText"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/config/validate": {
+      "post": {
+        "tags": [
+          "config"
+        ],
+        "summary": "`POST /api/v1/config/validate`: what the writer would say of a text,\nwithout writing it.",
+        "operationId": "validate_config",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigValidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The verdict, with every fault at its line",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigValidation"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connections": {
       "get": {
         "tags": [
@@ -17763,6 +17935,179 @@
           }
         }
       },
+      "ConfigDefaultText": {
+        "type": "object",
+        "description": "The default text of the file.",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Every key commented at its default, the keys the policy fixes written\nat their value."
+          }
+        }
+      },
+      "ConfigDiagnosticBody": {
+        "type": "object",
+        "description": "One fault of a configuration text, at its line.",
+        "required": [
+          "line",
+          "column",
+          "path",
+          "message"
+        ],
+        "properties": {
+          "column": {
+            "type": "integer",
+            "description": "1-based column, in characters.",
+            "minimum": 0
+          },
+          "line": {
+            "type": "integer",
+            "description": "1-based line.",
+            "minimum": 0
+          },
+          "message": {
+            "type": "string",
+            "description": "What is wrong, in English."
+          },
+          "path": {
+            "type": "string",
+            "description": "Dotted path of the key at fault; empty at the root."
+          }
+        }
+      },
+      "ConfigErrorBody": {
+        "type": "object",
+        "description": "The error of a configuration route.",
+        "required": [
+          "error",
+          "code",
+          "diagnostics"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "`modified`, `invalid`, `locked`, `unavailable` or `internal`."
+          },
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfigDiagnosticBody"
+            },
+            "description": "The faults of the text, for `invalid` and `locked`."
+          },
+          "error": {
+            "type": "string",
+            "description": "What went wrong, for the user; the same sentence the command line\nprints for the same refusal."
+          }
+        }
+      },
+      "ConfigSaveRequest": {
+        "type": "object",
+        "description": "A text to save, with the fingerprint of the text it was made from.",
+        "required": [
+          "text",
+          "sha256"
+        ],
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "description": "SHA-256 of the text the change was made from, as `GET` returned it."
+          },
+          "text": {
+            "type": "string",
+            "description": "The whole text of the new `apollia.toml`."
+          }
+        }
+      },
+      "ConfigValidateRequest": {
+        "type": "object",
+        "description": "A text to check.",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The whole text of a candidate `apollia.toml`."
+          }
+        }
+      },
+      "ConfigValidation": {
+        "type": "object",
+        "description": "The verdict on a text.",
+        "required": [
+          "valid",
+          "diagnostics"
+        ],
+        "properties": {
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfigDiagnosticBody"
+            },
+            "description": "Every fault, each at its line."
+          },
+          "valid": {
+            "type": "boolean",
+            "description": "Whether the writer would accept the text."
+          }
+        }
+      },
+      "ConfigView": {
+        "type": "object",
+        "description": "`apollia.toml` as the runtime reads it.",
+        "required": [
+          "path",
+          "exists",
+          "text",
+          "sha256",
+          "diagnostics",
+          "locked",
+          "pendingRestart"
+        ],
+        "properties": {
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfigDiagnosticBody"
+            },
+            "description": "The faults of the text, each at its line; empty when it is valid."
+          },
+          "exists": {
+            "type": "boolean",
+            "description": "Whether the file exists; an absent file reads as an empty text."
+          },
+          "locked": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LockedKeyBody"
+            },
+            "description": "The keys the organisation policy fixes, with their value."
+          },
+          "path": {
+            "type": "string",
+            "description": "Where the file lives."
+          },
+          "pendingRestart": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Keys changed in the file that wait for a restart of the runtime."
+          },
+          "sha256": {
+            "type": "string",
+            "description": "SHA-256 of `text`, to present when saving."
+          },
+          "text": {
+            "type": "string",
+            "description": "The text of the file."
+          }
+        }
+      },
       "ConnectedAccountResponse": {
         "type": "object",
         "description": "Answer of `POST /api/v1/connectors/oauth/complete`.",
@@ -20580,6 +20925,24 @@
               "$ref": "#/components/schemas/LoadedModelDto"
             },
             "description": "The resident models, most recently used first."
+          }
+        }
+      },
+      "LockedKeyBody": {
+        "type": "object",
+        "description": "A key the organisation policy fixes, with its value.",
+        "required": [
+          "key",
+          "value"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Dotted key."
+          },
+          "value": {
+            "type": "object",
+            "description": "The value the policy imposes."
           }
         }
       },
@@ -26117,6 +26480,10 @@
     {
       "name": "server",
       "description": "Starting and stopping the compatible server, the second listener"
+    },
+    {
+      "name": "config",
+      "description": "The configuration file apollia.toml: read, validate, save, default text"
     },
     {
       "name": "connectors",

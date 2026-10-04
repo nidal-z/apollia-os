@@ -210,6 +210,31 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_the_interpreter_is_written_then_removed_through_the_writer() {
+        // GIVEN a file with a comment in its [tools] table
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("apollia.toml");
+        std::fs::write(&path, "[tools]\n# mine\n").unwrap();
+        let none = apollia_core::config::PolicySettings::none();
+
+        // WHEN an interpreter is chosen, then the bundled one is chosen again
+        write_python_interpreter_at(&path, Some("/usr/bin/python3"), &none).expect("set");
+        let chosen = std::fs::read_to_string(&path).unwrap();
+        write_python_interpreter_at(&path, None, &none).expect("removed");
+        let bundled = std::fs::read_to_string(&path).unwrap();
+
+        // THEN the key is written next to the comment, then removed, the
+        // comment kept both times
+        assert!(
+            chosen.contains("python_interpreter = \"/usr/bin/python3\""),
+            "{chosen}"
+        );
+        assert!(chosen.contains("# mine"), "{chosen}");
+        assert!(!bundled.contains("python_interpreter"), "{bundled}");
+        assert!(bundled.contains("# mine"), "{bundled}");
+    }
+
     #[tokio::test]
     async fn test_get_system_info_returns_valid_data() {
         // GIVEN the get_system_info command
@@ -281,48 +306,40 @@ pub async fn set_python_interpreter(path: Option<String>) -> Result<(), String> 
     }
 
     let config_path = default_config_path();
-    if let Some(parent) = config_path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|e| format!("failed to create config directory: {e}"))?;
-    }
-    let mut doc = if config_path.exists() {
-        tokio::fs::read_to_string(&config_path)
-            .await
-            .map_err(|e| format!("failed to read {}: {e}", config_path.display()))?
-            .parse::<toml_edit::DocumentMut>()
-            .map_err(|e| format!("failed to parse {}: {e}", config_path.display()))?
-    } else {
-        toml_edit::DocumentMut::new()
-    };
-
-    let tools = doc
-        .entry("tools")
-        .or_insert_with(|| toml_edit::Item::Table(toml_edit::Table::new()));
-    if tools.as_table_mut().is_none() {
-        *tools = toml_edit::Item::Table(toml_edit::Table::new());
-    }
-    if let Some(table) = tools.as_table_mut() {
-        match chosen.as_deref() {
-            Some(candidate) => table["python_interpreter"] = toml_edit::value(candidate),
-            // Removed rather than blanked: an absent key and the default are the
-            // same thing, and a blank string in the file reads as a setting
-            // somebody meant.
-            None => {
-                table.remove("python_interpreter");
-            }
-        }
-    }
-
-    tokio::fs::write(&config_path, doc.to_string())
-        .await
-        .map_err(|e| format!("failed to write {}: {e}", config_path.display()))?;
+    let policy = super::settings::policy_in_force();
+    let written = chosen.clone();
+    tokio::task::spawn_blocking(move || {
+        write_python_interpreter_at(&config_path, written.as_deref(), &policy)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     tracing::info!(
         chosen = chosen.as_deref().unwrap_or("<bundled>"),
         "python.interpreter.setting_saved"
     );
     Ok(())
+}
+
+/// Writes `[tools] python_interpreter` to the `apollia.toml` at `path` through
+/// the one writer of the file. `None` removes the key rather than blanking it:
+/// an absent key and the default are the same thing, and a blank string in the
+/// file reads as a setting somebody meant.
+pub(crate) fn write_python_interpreter_at(
+    path: &std::path::Path,
+    chosen: Option<&str>,
+    policy: &apollia_core::config::PolicySettings,
+) -> Result<(), String> {
+    use apollia_core::config::writer::{update_config, ConfigEdit, KeyChange};
+
+    const KEY: &str = "tools.python_interpreter";
+    let change = match chosen {
+        Some(candidate) => KeyChange::set(KEY, serde_json::json!(candidate)),
+        None => KeyChange::remove(KEY),
+    };
+    update_config(path, ConfigEdit::Keys(vec![change]), policy)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 /// Read `[tools] python_interpreter` out of `apollia.toml`.

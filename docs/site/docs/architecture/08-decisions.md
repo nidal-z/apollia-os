@@ -528,6 +528,23 @@ dependency beyond its own linker shim, and the same version was already in the
 tree through other crates, so the lockfile gained no package. The cost is a
 block of FFI code with its own `unsafe` allowance, confined to one module.
 
+## The configuration file {#configuration-file}
+
+`apollia.toml` has one writer, `apollia_core::config::writer`. The settings
+screens of the desktop application, the command line, the routes under
+`/api/v1/config` and the backends the runtime mirrors into the file all go
+through it, so the same four checks hold whoever writes: the text validates
+against the strict schema, no line gives a key the organisation policy fixes
+another value, the file on disk is still the one the caller read, compared by
+its SHA-256 fingerprint, and the text replaces the file through a sibling file
+renamed over it. A write by key keeps the comments and the order of the file.
+The command line calls the writer directly, so it works with the daemon
+stopped, and a refusal reads the same sentence on every surface.
+
+Holding the writer in the foundation crate puts `toml`, `toml_edit` and `sha2`
+among the direct dependencies of `apollia-core`. All three were already
+workspace dependencies and the lockfile gained no package.
+
 ## Command line {#cli}
 
 The CLI is noun-verb. Daily operations are bare verbs; everything else is a noun

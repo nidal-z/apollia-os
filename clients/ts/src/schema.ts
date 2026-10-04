@@ -970,6 +970,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/config`: the text of `apollia.toml`, its fingerprint, its
+         *     faults, the keys the policy fixes and the keys waiting for a restart.
+         */
+        get: operations["read_config"];
+        /** `PUT /api/v1/config`: saves a whole text through the writer. */
+        put: operations["save_config"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/config/default`: the default text of the file, the keys the
+         *     policy fixes written at their value.
+         */
+        get: operations["default_config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/config/validate`: what the writer would say of a text,
+         *     without writing it.
+         */
+        post: operations["validate_config"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connections": {
         parameters: {
             query?: never;
@@ -6222,6 +6283,73 @@ export interface components {
              */
             temperature?: number | null;
         };
+        /** @description The default text of the file. */
+        ConfigDefaultText: {
+            /**
+             * @description Every key commented at its default, the keys the policy fixes written
+             *     at their value.
+             */
+            text: string;
+        };
+        /** @description One fault of a configuration text, at its line. */
+        ConfigDiagnosticBody: {
+            /** @description 1-based column, in characters. */
+            column: number;
+            /** @description 1-based line. */
+            line: number;
+            /** @description What is wrong, in English. */
+            message: string;
+            /** @description Dotted path of the key at fault; empty at the root. */
+            path: string;
+        };
+        /** @description The error of a configuration route. */
+        ConfigErrorBody: {
+            /** @description `modified`, `invalid`, `locked`, `unavailable` or `internal`. */
+            code: string;
+            /** @description The faults of the text, for `invalid` and `locked`. */
+            diagnostics: components["schemas"]["ConfigDiagnosticBody"][];
+            /**
+             * @description What went wrong, for the user; the same sentence the command line
+             *     prints for the same refusal.
+             */
+            error: string;
+        };
+        /** @description A text to save, with the fingerprint of the text it was made from. */
+        ConfigSaveRequest: {
+            /** @description SHA-256 of the text the change was made from, as `GET` returned it. */
+            sha256: string;
+            /** @description The whole text of the new `apollia.toml`. */
+            text: string;
+        };
+        /** @description A text to check. */
+        ConfigValidateRequest: {
+            /** @description The whole text of a candidate `apollia.toml`. */
+            text: string;
+        };
+        /** @description The verdict on a text. */
+        ConfigValidation: {
+            /** @description Every fault, each at its line. */
+            diagnostics: components["schemas"]["ConfigDiagnosticBody"][];
+            /** @description Whether the writer would accept the text. */
+            valid: boolean;
+        };
+        /** @description `apollia.toml` as the runtime reads it. */
+        ConfigView: {
+            /** @description The faults of the text, each at its line; empty when it is valid. */
+            diagnostics: components["schemas"]["ConfigDiagnosticBody"][];
+            /** @description Whether the file exists; an absent file reads as an empty text. */
+            exists: boolean;
+            /** @description The keys the organisation policy fixes, with their value. */
+            locked: components["schemas"]["LockedKeyBody"][];
+            /** @description Where the file lives. */
+            path: string;
+            /** @description Keys changed in the file that wait for a restart of the runtime. */
+            pendingRestart: string[];
+            /** @description SHA-256 of `text`, to present when saving. */
+            sha256: string;
+            /** @description The text of the file. */
+            text: string;
+        };
         /** @description Answer of `POST /api/v1/connectors/oauth/complete`. */
         ConnectedAccountResponse: {
             /** @description Account identifier: the Google email, or the Microsoft principal name. */
@@ -7432,6 +7560,13 @@ export interface components {
             maxLoaded: number;
             /** @description The resident models, most recently used first. */
             models: components["schemas"]["LoadedModelDto"][];
+        };
+        /** @description A key the organisation policy fixes, with its value. */
+        LockedKeyBody: {
+            /** @description Dotted key. */
+            key: string;
+            /** @description The value the policy imposes. */
+            value: Record<string, never>;
         };
         /** @description Response for `GET /api/v1/triggers/:id/logs`. */
         LogsResponse: {
@@ -12078,6 +12213,157 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    read_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The configuration file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigView"];
+                };
+            };
+            /** @description The file cannot be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description No configuration file in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+        };
+    };
+    save_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfigSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description The file as saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigView"];
+                };
+            };
+            /** @description A line gives a key the policy fixes another value (`locked`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description The file changed since it was read (`modified`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description The text does not validate (`invalid`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description The file cannot be read or written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description No configuration file in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+        };
+    };
+    default_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The default text */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigDefaultText"];
+                };
+            };
+        };
+    };
+    validate_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfigValidateRequest"];
+            };
+        };
+        responses: {
+            /** @description The verdict, with every fault at its line */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigValidation"];
                 };
             };
         };

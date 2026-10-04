@@ -569,6 +569,25 @@ d'autre dépendance que sa propre cale d'édition de liens, et la même version
 gagné aucun paquet. Le coût est un bloc de code FFI avec sa propre permission
 `unsafe`, confiné à un module.
 
+## Le fichier de configuration {#configuration-file}
+
+`apollia.toml` a un seul écrivain, `apollia_core::config::writer`. Les écrans de
+réglages de l'application de bureau, la ligne de commande, les routes sous
+`/api/v1/config` et les moteurs que le runtime recopie dans le fichier passent
+tous par lui, si bien que les quatre mêmes vérifications tiennent quel que soit
+l'auteur : le texte se valide contre le schéma strict, aucune ligne ne donne à
+une clé que la politique de l'organisation impose une autre valeur, le fichier
+sur le disque est encore celui que l'appelant a lu, comparé par son empreinte
+SHA-256, et le texte remplace le fichier par un fichier voisin renommé
+par-dessus. Une écriture par clé garde les commentaires et l'ordre du fichier.
+La ligne de commande appelle l'écrivain directement : elle fonctionne démon
+arrêté, et un refus se lit dans la même phrase sur chaque surface.
+
+Tenir l'écrivain dans la crate de fondation place `toml`, `toml_edit` et `sha2`
+parmi les dépendances directes d'`apollia-core`. Les trois étaient déjà des
+dépendances de l'espace de travail, et le fichier de verrouillage n'a gagné
+aucun paquet.
+
 ## Ligne de commande {#cli}
 
 Le CLI est en nom-verbe. Les opérations quotidiennes sont des verbes nus ; tout
