@@ -75,11 +75,15 @@ tool denies every request before opening a socket
 (`crates/apollia-tools/src/tools/http_fetch.rs`). The task asserts that exact
 refusal. A successful fetch is not measured here.
 
-**`permission_rule_add` and `permission_rule_remove` declare themselves subject
-to human-in-the-loop approval.** Whether an approval suspends the task in this
-mode has not been measured. If it does, those two tasks reach the harness's
-300-second timeout; `verify_effects.py` reads a timeout as *not measured*, not
-as a defect, so the run cannot report a tool broken for a reason that is a gate.
+**`source_search` is not driven, and cannot be on this path.** The same runner
+builds its source access with `SourceAccess::memory_only` (`runner.rs`), which
+leaves the search over indexable sources empty
+(`crates/apollia-tools/src/source_access.rs`), and the dispatcher only
+registers `source_search` when that search is present
+(`crates/apollia-tools/src/native_dispatcher.rs`). Covering it needs the
+runtime's registry of sources and an agent with an indexable source checked,
+which the chat and agent-task paths of the daemon wire and this runner does
+not.
 
 ## What this instrument does not measure
 
