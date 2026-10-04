@@ -61,10 +61,12 @@ pub use family_consent::{
 };
 pub use governance_schema::{
     open_governance_schema, GOVERNANCE_MIGRATIONS, GOVERNANCE_SCHEMA_VERSION,
+    TOOL_CREDENTIALS_UPGRADE,
 };
 pub use org_policy::{
-    load_policy, parse_policy, policy_location, OrgPolicy, OwnerRequirement, PolicyInvalid,
-    PolicyInvalidReason, PolicyLocation, PolicySchemaError, PolicyVerdict, ValidPolicy,
+    load_policy, parse_policy, policy_location, OrgPolicy, OwnerRequirement, PackagesPolicy,
+    PolicyInvalid, PolicyInvalidReason, PolicyLocation, PolicySchemaError, PolicyVerdict,
+    ValidPolicy, REQUIRE_VERIFIED_SETTING,
 };
 pub use prefix_rule_engine::{
     extract_first_arg, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction, ScopeContext,

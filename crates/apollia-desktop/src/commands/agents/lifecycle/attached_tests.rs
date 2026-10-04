@@ -1,5 +1,4 @@
-//! The uninstall and the update of an agent, attached to a daemon: each
-//! reaches its route with the token of this installation, and a refusal of the
+//! The update of an agent, attached to a daemon: it reaches its route with the token of this installation, and a refusal of the
 //! daemon reaches the interface in the daemon's own words.
 
 use serde_json::{json, Value};
@@ -29,7 +28,7 @@ async fn daemon(verb: &str, route: &str, status: u16, body: Value) -> (MockServe
 
 #[test]
 fn test_the_uninstall_and_the_update_pass_the_gate_attached() {
-    // GIVEN the two agent commands of the family
+    // GIVEN the uninstall, served by the packages, and the update
     // WHEN each is gated while attached
     let refused: Vec<&str> = ["uninstall_agent", "update_agent"]
         .into_iter()
@@ -38,24 +37,6 @@ fn test_the_uninstall_and_the_update_pass_the_gate_attached() {
 
     // THEN none answers that the service makes it unavailable
     assert!(refused.is_empty(), "refused: {refused:?}");
-}
-
-#[tokio::test]
-async fn test_the_uninstall_deletes_the_installed_agent_on_the_daemon() {
-    // GIVEN a daemon holding the agent "mon agent"
-    let (_server, link) = daemon(
-        "DELETE",
-        "/api/v1/agents/installed/mon%20agent",
-        200,
-        json!({ "name": "mon agent" }),
-    )
-    .await;
-
-    // WHEN the attached arm uninstalls it
-    let outcome = uninstall_on(&link, "mon agent").await;
-
-    // THEN the route is reached, its segment encoded, with the token
-    assert_eq!(outcome, Ok(()));
 }
 
 #[tokio::test]
@@ -89,34 +70,21 @@ async fn test_the_update_puts_the_new_module_and_reads_the_restart_outcome() {
 
 #[tokio::test]
 async fn test_a_refusal_of_the_daemon_is_shown_as_it_is() {
-    // GIVEN a daemon refusing each command with the message its route answers
-    let refusals = [
-        (
-            "uninstall_agent",
-            "DELETE",
-            404,
-            "agent 'ghost' not found in installed agents",
-        ),
-        ("update_agent", "PUT", 400, "missing @agent decorator"),
-    ];
-    for (command, verb, status, message) in refusals {
-        let (_server, link) = daemon(
-            verb,
-            "/api/v1/agents/installed/ghost",
-            status,
-            json!({ "error": message }),
-        )
-        .await;
+    // GIVEN a daemon refusing the update with the message its route answers
+    let message = "missing @agent decorator";
+    let (_server, link) = daemon(
+        "PUT",
+        "/api/v1/agents/installed/ghost",
+        400,
+        json!({ "error": message }),
+    )
+    .await;
 
-        // WHEN the attached arm of the command calls it
-        let error = match command {
-            "uninstall_agent" => uninstall_on(&link, "ghost").await.unwrap_err(),
-            _ => update_on(&link, "ghost", "/src/ghost.py")
-                .await
-                .unwrap_err(),
-        };
+    // WHEN the attached arm of the command calls it
+    let error = update_on(&link, "ghost", "/src/ghost.py")
+        .await
+        .unwrap_err();
 
-        // THEN the interface shows the daemon's message, word for word
-        assert_eq!(error, message, "{command}");
-    }
+    // THEN the interface shows the daemon's message, word for word
+    assert_eq!(error, message);
 }

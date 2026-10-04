@@ -45,6 +45,7 @@ use crate::timeout_watcher::{TimeoutWatcher, TimeoutWatcherConfig};
 mod boot;
 mod bootstrap;
 mod bundled;
+mod legacy_secrets;
 mod lifecycle;
 mod persistence;
 
@@ -148,24 +149,6 @@ pub struct SupervisorConfig {
     /// of truth for the default rather than any individual client. Default:
     /// `false`.
     pub plan_mode_default: bool,
-
-    /// Default working directory for free-chat sessions (the
-    /// `[chat] default_workspace` key of `apollia.toml`).
-    ///
-    /// When set to an existing directory, free-chat file tools anchor there and
-    /// the agent is told its working directory. `None` falls back to
-    /// `~/.apollia`. Read once at boot.
-    pub chat_default_workspace: Option<String>,
-
-    /// Paths an agent may read and write without an approval prompt, from the
-    /// `[filesystem] trusted_paths` key of `apollia.toml`, `~` already
-    /// resolved. Read once at boot.
-    ///
-    /// It is a friction boundary, not a wall: a path outside every entry is
-    /// classified one level higher, which asks the user rather than refusing.
-    /// An empty list therefore means every write outside the working directory
-    /// is asked about. Default: the user's home directory.
-    pub filesystem_trusted_paths: Vec<std::path::PathBuf>,
 
     /// Temperature applied to a chat turn that advertises tools (the
     /// `[chat] tool_turn_temperature` key of `apollia.toml`).
@@ -309,11 +292,6 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `Some` when `~/.apollia/mcp.toml` exists and at least one server connected.
     /// `None` when the config file is absent, empty, or all servers failed to start.
     pub mcp_handle: Option<McpClientManagerHandle>,
-    /// Projects repository (SQLite).
-    ///
-    /// `Some` when `projects.db` opened successfully.
-    /// `None` when the open failed (warning logged).
-    pub project_repository: Option<std::sync::Arc<apollia_tools::ProjectRepository>>,
     /// Supervisor of the local sidecar runner.
     ///
     /// `Some` when a runner started successfully (GPU detected, binary present,
@@ -324,6 +302,8 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// Managed embedded `llama-server` (local LLM engine), or `None` when the
     /// binary is absent. Whisper STT stays on `runner_supervisor`.
     pub llama_server_supervisor: Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
+    /// The `vllm-mlx` processes serving MLX models, when this machine runs them.
+    pub mlx_engine: Option<Arc<crate::mlx_engine::MlxEngineSupervisor>>,
     /// The organisation policy verdict, read once at startup.
     pub org_policy: Arc<apollia_permissions::PolicyVerdict>,
 }

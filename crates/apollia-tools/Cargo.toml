@@ -7,10 +7,13 @@ description = "Apollia OS - Tool Registry, native tools (bash, python, file_io, 
 license.workspace = true
 
 [dependencies]
+apollia-auth        = { workspace = true }
 apollia-core        = { workspace = true }
 apollia-llm         = { workspace = true, features = ["cloud"] }
 apollia-permissions = { workspace = true }
 apollia-signing     = { workspace = true }
+apollia-sources     = { workspace = true }
+apollia-workspace   = { workspace = true }
 tokio        = { workspace = true }
 serde        = { workspace = true }
 serde_json   = { workspace = true }
@@ -24,7 +27,6 @@ futures      = { workspace = true }
 glob         = { workspace = true }
 regex        = { workspace = true }
 aes-gcm      = { workspace = true }
-rand         = { workspace = true }
 url          = { workspace = true }
 toml         = { workspace = true }
 semver       = { workspace = true }

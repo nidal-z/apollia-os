@@ -58,8 +58,6 @@ pub struct CreateSessionRequest {
     /// List of tool names available in this session.
     #[serde(default)]
     pub tools: Vec<String>,
-    /// Project to link this session to.
-    pub project_id: Option<String>,
 }
 
 /// Request body for `POST /api/v1/sessions/:id/messages`.
@@ -181,7 +179,6 @@ pub async fn create_session<B: ExecutionBackend + Clone>(
             agent_name: body.agent_name,
             system_prompt: body.system_prompt,
             tools: body.tools,
-            project_id: body.project_id,
         })
         .await
     {
@@ -719,7 +716,6 @@ fn chat_error_to_response(err: crate::chat::types::ChatError) -> (StatusCode, Js
         ChatError::NoLlmConfigured => (StatusCode::BAD_REQUEST, err.to_string()),
         ChatError::BudgetExhausted => (StatusCode::TOO_MANY_REQUESTS, err.to_string()),
         ChatError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
-        ChatError::ProjectNotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
         ChatError::NotAwaitingApproval { .. } => (StatusCode::CONFLICT, err.to_string()),
         ChatError::CostCeilingExceeded { .. } => (StatusCode::PAYMENT_REQUIRED, err.to_string()),
     };
@@ -860,8 +856,6 @@ mod tests {
             None,
             None,
             None,
-            None,
-            None,
             apollia_mcp::session::LoadingMode::Eager,
             20,
             None, // no hooks in tests
@@ -889,6 +883,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -909,9 +904,12 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
+            source_registry: None,
         }
     }
 

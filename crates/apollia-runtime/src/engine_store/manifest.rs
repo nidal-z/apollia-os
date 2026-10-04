@@ -23,6 +23,10 @@ pub enum Engine {
     /// The MLX engine, a Python environment for Apple Silicon.
     #[serde(rename = "vllm-mlx")]
     VllmMlx,
+    /// The Node.js runtime, a pinned LTS release, for the tool servers that
+    /// run on it. Published under the `cpu` variant.
+    #[serde(rename = "nodejs")]
+    NodeJs,
 }
 
 impl Engine {
@@ -32,11 +36,12 @@ impl Engine {
         match self {
             Engine::LlamaServer => "llama-server",
             Engine::VllmMlx => "vllm-mlx",
+            Engine::NodeJs => "nodejs",
         }
     }
 
     /// Every engine, in a stable order.
-    pub const ALL: [Engine; 2] = [Engine::LlamaServer, Engine::VllmMlx];
+    pub const ALL: [Engine; 3] = [Engine::LlamaServer, Engine::VllmMlx, Engine::NodeJs];
 }
 
 /// A build of an engine for one kind of hardware.
@@ -101,7 +106,7 @@ impl Channel {
 pub struct Package {
     /// Which engine the archive carries.
     pub engine: Engine,
-    /// Upstream tag, `b6000` for llama.cpp.
+    /// Upstream tag, `b6000` for llama.cpp, `v22.11.0` for Node.js.
     pub tag: String,
     /// Hardware the build targets.
     pub variant: Variant,
@@ -228,17 +233,31 @@ pub fn archive_kind(url: &str) -> Option<ArchiveKind> {
     url.ends_with(".zip").then_some(ArchiveKind::Zip)
 }
 
-/// Order two upstream tags: `b<number>` tags by their number, anything else by
-/// its bytes, numbered tags after the others.
+/// Order two upstream tags: `b<number>` tags by their number, `v<x>.<y>.<z>`
+/// release tags by their numbers in turn, anything else by its bytes; a
+/// numbered tag sorts after the others.
 #[must_use]
 pub fn compare_tags(a: &str, b: &str) -> std::cmp::Ordering {
-    let number = |t: &str| t.strip_prefix('b').and_then(|n| n.parse::<u64>().ok());
-    match (number(a), number(b)) {
+    match (tag_numbers(a), tag_numbers(b)) {
         (Some(x), Some(y)) => x.cmp(&y),
         (Some(_), None) => std::cmp::Ordering::Greater,
         (None, Some(_)) => std::cmp::Ordering::Less,
         (None, None) => a.cmp(b),
     }
+}
+
+/// The numbers of a `b<number>` or `v<x>.<y>.<z>` tag, or `None` for any
+/// other spelling.
+fn tag_numbers(tag: &str) -> Option<Vec<u64>> {
+    if let Some(n) = tag.strip_prefix('b') {
+        return n.parse::<u64>().ok().map(|n| vec![n]);
+    }
+    let parts: Option<Vec<u64>> = tag
+        .strip_prefix('v')?
+        .split('.')
+        .map(|p| p.parse::<u64>().ok())
+        .collect();
+    parts.filter(|p| p.len() == 3)
 }
 
 /// Verify `signature` over `bytes` with `trusted_key`, then parse the manifest

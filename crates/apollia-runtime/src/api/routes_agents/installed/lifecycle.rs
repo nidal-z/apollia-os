@@ -1,7 +1,8 @@
-//! Uninstalling and updating an installed agent, `DELETE` and
-//! `PUT /api/v1/agents/installed/{name}`.
+//! Updating an installed agent, `PUT /api/v1/agents/installed/{name}`. The
+//! uninstall is `POST /api/v1/agents/installed/{name}/uninstall`, with the
+//! packages (`routes_packages::uninstall`).
 //!
-//! Both read `agents.db`, the agent directory and the registry of the runtime,
+//! The update reads `agents.db`, the agent directory and the registry of the runtime,
 //! so they live here and serve every client: the desktop reaches them through
 //! the listener of the runtime in its process, or through the daemon's when it
 //! attached to one.
@@ -67,14 +68,7 @@ pub struct UpdateAgentResponse {
     pub restart_error: Option<String>,
 }
 
-/// Response to an agent uninstall.
-#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct AgentUninstalled {
-    /// Name of the agent removed.
-    pub name: String,
-}
-
-/// Why an uninstall or an update did not complete. The messages are the ones
+/// Why an update did not complete. The messages are the ones
 /// the window shows.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -110,29 +104,6 @@ impl LifecycleError {
             Self::Database(_) | Self::Copy { .. } => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
-}
-
-/// Removes the row of `name` from `agents.db` and its install directory, the
-/// latter best-effort. Returns the row removed.
-///
-/// # Errors
-///
-/// [`LifecycleError::NotInstalled`] when no row carries the name,
-/// [`LifecycleError::Database`] when `agents.db` refuses.
-pub fn remove_installed(
-    repo: &AgentRepository,
-    name: &str,
-) -> Result<InstalledAgent, LifecycleError> {
-    let agent = repo
-        .get(name)
-        .map_err(|e| LifecycleError::Database(format!("database error: {e}")))?
-        .ok_or_else(|| LifecycleError::NotInstalled(name.to_owned()))?;
-    repo.delete(name)
-        .map_err(|e| LifecycleError::Database(format!("failed to delete from database: {e}")))?;
-    if let Some(parent) = agent.install_path.parent() {
-        let _ = std::fs::remove_dir_all(parent);
-    }
-    Ok(agent)
 }
 
 /// Validates the module at `path`, copies it over the installed module of
@@ -318,39 +289,6 @@ async fn on_repository<T: Send + 'static>(
     .await
     .map_err(|e| failure(StatusCode::INTERNAL_SERVER_ERROR, e))?;
     outcome.map_err(|e| failure(e.status(), e))
-}
-
-/// Handler for `DELETE /api/v1/agents/installed/{name}`.
-///
-/// Removes the row and the install directory, then the agent from the
-/// registry, its coordinator dropped for good: a stopped agent would otherwise
-/// be loaded again by the next task that names it. Emits
-/// `RuntimeEvent::AgentUninstalled`.
-#[utoipa::path(
-    delete,
-    path = "/api/v1/agents/installed/{name}",
-    tag = "agents",
-    params(("name" = String, Path, description = "Name of the installed agent")),
-    responses(
-        (status = 200, description = "Agent uninstalled", body = AgentUninstalled),
-        (status = 404, description = "No installed agent of that name", body = crate::api::openapi::ApiErrorBody),
-        (status = 500, description = "agents.db cannot be written", body = crate::api::openapi::ApiErrorBody),
-    )
-)]
-pub async fn uninstall_agent<B: ExecutionBackend + Clone>(
-    State(state): State<AppState<B>>,
-    AxumPath(name): AxumPath<String>,
-) -> Result<Json<AgentUninstalled>, (StatusCode, Json<ErrorResponse>)> {
-    let target = name.clone();
-    on_repository(&state.data_dir, move |repo| remove_installed(repo, &target)).await?;
-    if let Ok(Some(agent_id)) = state.registry_handle.find_by_name(&name).await {
-        let _ = state.router_handle.forget_coordinator(&agent_id).await;
-        let _ = state.registry_handle.unregister(agent_id.as_str()).await;
-    }
-    let _ = state
-        .event_sender
-        .send(apollia_core::events::RuntimeEvent::AgentUninstalled { name: name.clone() });
-    Ok(Json(AgentUninstalled { name }))
 }
 
 /// Handler for `PUT /api/v1/agents/installed/{name}`.

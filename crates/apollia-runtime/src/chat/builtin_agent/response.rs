@@ -44,6 +44,10 @@ pub struct ChatAgentResponse {
     /// occupancy against [`Self::context_window_tokens`]. Zero when no usage was
     /// reported for the exchange.
     pub context_tokens_used: u32,
+    /// The measure of every model call of the exchange, in order, verification
+    /// retries included. Empty for a path that does not stream through the
+    /// built-in loop.
+    pub llm_calls: Vec<apollia_llm::CallMeasure>,
 }
 
 impl ChatAgentResponse {

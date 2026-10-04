@@ -88,6 +88,7 @@ pub fn execute_search(args: SearchArgs<'_>) -> Result<String, MemoryCommandError
             limit,
             sources: sources_slice,
             min_importance: None,
+            meaning: None,
         })
         .map_err(|e| MemoryCommandError::Io(std::io::Error::other(e.to_string())))?;
 

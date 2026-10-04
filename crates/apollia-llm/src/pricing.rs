@@ -5,13 +5,13 @@
 //! date suffixes of Anthropic models (e.g. `claude-sonnet-4-5-20261015`
 //! matches the `claude-sonnet-4-5` entry).
 //!
-//! Operator overrides are supported via `[llm.pricing_overrides]` in
-//! `apollia.toml`; they take priority over the default table.
+//! [`lookup_pricing`] also takes a table of overrides, consulted first; no
+//! production path fills it.
 
 use std::collections::HashMap;
 
 /// Pricing of an LLM model in dollars per million tokens.
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PricingTier {
     /// Cost per million input (prompt) tokens.
     pub input_per_mtok: f64,

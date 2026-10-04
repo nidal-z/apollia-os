@@ -2,10 +2,7 @@
   /**
    * Topbar - V3 Operator cockpit header.
    *
-   *   [Mobile menu] [Breadcrumb] ··· [Command bar] ··· [Agents-at-work] [ModeChip] [Activity] [Settings] [UserMenu]
-   *
-   * The ModeChip is the single deviation from the V3 mockup - kept here per
-   * product call so the OP/Builder toggle stays in the cockpit.
+   *   [Mobile menu] [Breadcrumb] ··· [Command bar] ··· [Agents-at-work] [Downloads] [Activity] [Settings] [UserMenu]
    */
   import { t } from "svelte-i18n";
   import { Menu, Search, ShieldCheck, Settings as SettingsIcon } from "lucide-svelte";
@@ -16,7 +13,7 @@
   import { OperatorBreadcrumb } from "$lib/components/layout";
   import { StatusDot } from "$lib/components/operator";
   import UserMenu from "./UserMenu.svelte";
-  import ModeChip from "./ModeChip.svelte";
+  import DownloadsPanel from "./DownloadsPanel.svelte";
 
   function toggleSearch() {
     // The store the shortcut drives, not a synthetic keystroke: the button
@@ -87,8 +84,7 @@
       </span>
     {/if}
 
-    <!-- Single deviation from V3: ModeChip kept in header -->
-    <ModeChip collapsed={false} />
+    <DownloadsPanel />
 
     <button
       type="button"

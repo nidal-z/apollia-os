@@ -8,6 +8,7 @@ from ...client import AuthenticatedClient, Client
 from ...models.api_error_body import ApiErrorBody
 from ...models.chat_response import ChatResponse
 from ...models.complete_request import CompleteRequest
+from ...models.guardrail_refused_body import GuardrailRefusedBody
 from ...types import Response
 
 
@@ -32,7 +33,7 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ApiErrorBody | ChatResponse | None:
+) -> ApiErrorBody | ChatResponse | GuardrailRefusedBody | None:
     if response.status_code == 200:
         response_200 = ChatResponse.from_dict(response.json())
 
@@ -42,6 +43,11 @@ def _parse_response(
         response_400 = ApiErrorBody.from_dict(response.json())
 
         return response_400
+
+    if response.status_code == 409:
+        response_409 = GuardrailRefusedBody.from_dict(response.json())
+
+        return response_409
 
     if response.status_code == 503:
         response_503 = ApiErrorBody.from_dict(response.json())
@@ -56,7 +62,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ApiErrorBody | ChatResponse]:
+) -> Response[ApiErrorBody | ChatResponse | GuardrailRefusedBody]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -69,7 +75,7 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     body: CompleteRequest,
-) -> Response[ApiErrorBody | ChatResponse]:
+) -> Response[ApiErrorBody | ChatResponse | GuardrailRefusedBody]:
     r"""Handler for `POST /api/v1/llm/complete`.
 
      Accepts a multi-turn conversation history and dispatches it through
@@ -92,7 +98,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ApiErrorBody | ChatResponse]
+        Response[ApiErrorBody | ChatResponse | GuardrailRefusedBody]
     """
 
     kwargs = _get_kwargs(
@@ -110,7 +116,7 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     body: CompleteRequest,
-) -> ApiErrorBody | ChatResponse | None:
+) -> ApiErrorBody | ChatResponse | GuardrailRefusedBody | None:
     r"""Handler for `POST /api/v1/llm/complete`.
 
      Accepts a multi-turn conversation history and dispatches it through
@@ -133,7 +139,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ApiErrorBody | ChatResponse
+        ApiErrorBody | ChatResponse | GuardrailRefusedBody
     """
 
     return sync_detailed(
@@ -146,7 +152,7 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     body: CompleteRequest,
-) -> Response[ApiErrorBody | ChatResponse]:
+) -> Response[ApiErrorBody | ChatResponse | GuardrailRefusedBody]:
     r"""Handler for `POST /api/v1/llm/complete`.
 
      Accepts a multi-turn conversation history and dispatches it through
@@ -169,7 +175,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ApiErrorBody | ChatResponse]
+        Response[ApiErrorBody | ChatResponse | GuardrailRefusedBody]
     """
 
     kwargs = _get_kwargs(
@@ -185,7 +191,7 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     body: CompleteRequest,
-) -> ApiErrorBody | ChatResponse | None:
+) -> ApiErrorBody | ChatResponse | GuardrailRefusedBody | None:
     r"""Handler for `POST /api/v1/llm/complete`.
 
      Accepts a multi-turn conversation history and dispatches it through
@@ -208,7 +214,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ApiErrorBody | ChatResponse
+        ApiErrorBody | ChatResponse | GuardrailRefusedBody
     """
 
     return (

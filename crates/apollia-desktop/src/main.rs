@@ -36,11 +36,11 @@ mod commands;
 )]
 mod embedded_docs;
 mod events;
+mod file_log;
 mod handlers;
 pub mod i18n;
 pub mod mcp;
 mod process_job;
-mod project_context;
 mod startup;
 pub mod stt;
 mod token_coalescer;
@@ -50,7 +50,6 @@ use std::sync::Arc;
 
 use apollia_core::{PendingApprovals, ToolsConfig};
 use apollia_llm::LlmRouter;
-use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use apollia_runtime::coordinator::DynBackend;
 use apollia_runtime::embedded::{EmbeddedConfig, RuntimeHandle};
@@ -72,7 +71,8 @@ use bootstrap::{
 pub type SharedLlmRouter = Arc<std::sync::RwLock<Option<Arc<LlmRouter>>>>;
 
 fn main() {
-    // Initialize tracing so Rust logs appear in the terminal during development.
+    // Initialize tracing so Rust logs appear in the terminal during development
+    // and in the log file the settings open.
     // RUST_LOG controls verbosity (e.g. RUST_LOG=apollia=debug); defaults to info.
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("apollia=info,warn"));
@@ -84,19 +84,61 @@ fn main() {
         Ok(directive) => env_filter.add_directive(directive),
         Err(_) => env_filter,
     };
-    tracing_subscriber::fmt().with_env_filter(env_filter).init();
-
     let apollia_data_dir = {
         let home = apollia_core::paths::home_dir_or_temp()
             .display()
             .to_string();
         apollia_core::paths::data_dir_under(home)
     };
+    // The same traces go to the terminal and to `~/.apollia/logs/desktop.log`,
+    // rotated by size; a folder that cannot be opened leaves the terminal
+    // alone, and says so once the subscriber is up.
+    let logs_dir = file_log::logs_dir_under(&apollia_data_dir);
+    let (file_layer, file_error) = match file_log::RotatingFile::open(&logs_dir) {
+        Ok(file) => (
+            Some(
+                tracing_subscriber::fmt::layer()
+                    .with_ansi(false)
+                    .with_writer(std::sync::Mutex::new(file)),
+            ),
+            None,
+        ),
+        Err(error) => (None, Some(error)),
+    };
+    {
+        use tracing_subscriber::layer::SubscriberExt as _;
+        use tracing_subscriber::util::SubscriberInitExt as _;
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(tracing_subscriber::fmt::layer())
+            .with(file_layer)
+            .init();
+    }
+    if let Some(error) = file_error {
+        tracing::event!(
+            tracing::Level::WARN,
+            path = %logs_dir.display(),
+            error = %error,
+            detail = "the traces go to the terminal only",
+            "desktop.log_file.unavailable"
+        );
+    }
+
+    // The port of the native API: the one a serving daemon recorded, else
+    // `[api].port`, else the default.
+    let config_text = apollia_core::paths::config_file()
+        .filter(|p| p.exists())
+        .and_then(|p| std::fs::read_to_string(p).ok());
+    let runtime_port = startup::resolve_port(&apollia_data_dir, config_text.as_deref());
 
     // Start, attach or refuse, before PyO3, any database or any listener of
     // the runtime. The claimed port is handed to the runtime below as is.
+    // When the runtime is installed as a service of the session, it is
+    // brought up first, so the decision finds it serving and attaches.
+    let runtime_addr = std::net::SocketAddr::from(([127, 0, 0, 1], runtime_port));
+    startup::service::bring_up(runtime_addr, &apollia_data_dir);
     let claimed_port = match startup::decide(
-        std::net::SocketAddr::from(([127, 0, 0, 1], startup::RUNTIME_PORT)),
+        runtime_addr,
         startup::read_token(&apollia_data_dir).as_deref(),
     ) {
         startup::StartupDecision::Launch(listener) => listener,
@@ -110,12 +152,10 @@ fn main() {
                         version = %version,
                         "desktop.startup.attach"
                     );
-                    attached::run(startup::RUNTIME_PORT, token, tauri_context())
+                    attached::run(runtime_port, token, tauri_context())
                 }
                 None => startup::refuse(
-                    &startup::RefusalReason::TokenRefused {
-                        port: startup::RUNTIME_PORT,
-                    },
+                    &startup::RefusalReason::TokenRefused { port: runtime_port },
                     &apollia_data_dir,
                     tauri_context(),
                 ),
@@ -172,13 +212,8 @@ fn main() {
     // Inter-agent mailbox, exposed as `ctx.mailbox` in Python agents.
     let mailbox_handle_lock: Arc<std::sync::OnceLock<AgentMailboxHandle>> =
         Arc::new(std::sync::OnceLock::new());
-    // Global user memory, used by Chat Agent runner to build `ctx.user_context`.
-    let user_memory_lock: Arc<std::sync::OnceLock<Arc<std::sync::Mutex<UserMemoryRepository>>>> =
-        Arc::new(std::sync::OnceLock::new());
     // Tools config (`[tools]` from apollia.toml) drives web_search/web_read
     // params and statically-disabled tools. Populated from RuntimeHandle.
-    let trusted_paths_lock: Arc<std::sync::OnceLock<Vec<std::path::PathBuf>>> =
-        Arc::new(std::sync::OnceLock::new());
     let tools_config_lock: Arc<std::sync::OnceLock<ToolsConfig>> =
         Arc::new(std::sync::OnceLock::new());
     // Plan-gate registry, forwarded to per-agent engines so the desktop UI can
@@ -206,7 +241,6 @@ fn main() {
             task_router: task_router_lock.clone(),
             mailbox_handle: mailbox_handle_lock.clone(),
             tools_config: tools_config_lock.clone(),
-            trusted_paths: trusted_paths_lock.clone(),
             plan_gates: plan_gates_lock.clone(),
             plan_cache: plan_cache_lock.clone(),
             agents_db: Some(
@@ -266,9 +300,7 @@ fn main() {
                 agent_registry: agent_registry_lock.clone(),
                 task_router: task_router_lock.clone(),
                 mailbox_handle: mailbox_handle_lock.clone(),
-                user_memory: user_memory_lock.clone(),
                 tools_config: tools_config_lock.clone(),
-                trusted_paths: trusted_paths_lock.clone(),
             })),
             Err(e) => {
                 tracing::warn!(
@@ -298,7 +330,7 @@ fn main() {
         backend_factory: Some(factory.clone()),
         agent_repository: None,
         chat_agent_runner,
-        tcp_port: Some(startup::RUNTIME_PORT),
+        tcp_port: Some(runtime_port),
         tcp_listener: Some(claimed_port),
         api_token: Some(api_token),
         ..EmbeddedConfig::default()
@@ -337,7 +369,6 @@ fn main() {
             agent_registry: &agent_registry_lock,
             task_router: &task_router_lock,
             mailbox_handle: &mailbox_handle_lock,
-            user_memory: &user_memory_lock,
             tools_config: &tools_config_lock,
         },
     );
@@ -364,11 +395,6 @@ fn main() {
             apollia_aip::package_tools::workflows::attach(&data_dir, workflows.as_ref()).await;
         });
     }
-    // The agent-mode file tools read these roots. They come from the same
-    // `[filesystem] trusted_paths` the chat classifies against, so one setting
-    // governs both surfaces instead of the hardcoded home directory this used
-    // to be.
-    let _ = trusted_paths_lock.set(runtime_handle.filesystem_trusted_paths.clone());
     if let Some(gates) = runtime_handle.plan_gates.clone() {
         let _ = plan_gates_lock.set(gates);
     }
@@ -393,14 +419,6 @@ fn main() {
         )))
     };
 
-    // Open PackageRepository for Tauri IPC commands (same agents.db, WAL allows concurrent readers).
-    let pkg_repo: Arc<std::sync::Mutex<apollia_tools::PackageRepository>> = {
-        let db_path = apollia_data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
-        Arc::new(std::sync::Mutex::new(or_exit(
-            apollia_tools::PackageRepository::open(&db_path),
-            "open agents.db for the package repository",
-        )))
-    };
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(backend::AIPAgentLoader);
 
     let app = tauri::Builder::default()
@@ -415,9 +433,9 @@ fn main() {
         // is the canonical replacement.
         .plugin(tauri_plugin_opener::init())
         .manage(runtime_handle.clone())
+        .manage(startup::ApiPort(runtime_handle.api_port))
         .manage(attached::RuntimeLink::Embedded(Box::new(runtime_handle.clone())))
         .manage(agent_repo)
-        .manage(pkg_repo)
         .manage(agent_loader)
         .manage(runtime_handle.event_sender.clone())
         .manage(llm_router_lock.clone())

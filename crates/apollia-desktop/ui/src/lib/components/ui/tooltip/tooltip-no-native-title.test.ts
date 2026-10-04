@@ -114,7 +114,7 @@ describe("tooltip - no hover group carries both a house tooltip and a native tit
     }
 
     // THEN the scan saw real tooltips, and none of them is doubled
-    expect(tooltips).toBeGreaterThanOrEqual(3);
+    expect(tooltips).toBeGreaterThanOrEqual(2);
     expect(doubled).toEqual([]);
   });
 

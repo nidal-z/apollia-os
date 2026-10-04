@@ -18,8 +18,6 @@ pub use tool_proxy::{
 };
 pub use workspace::WorkspaceContextPy;
 
-use std::collections::HashMap;
-
 use apollia_core::events::{AgentId, EventBusSender, RuntimeEvent};
 use apollia_llm::StepBudgetView;
 use apollia_runtime::a2a::A2AInvoker;
@@ -97,11 +95,6 @@ pub struct RuntimeContext {
     mailbox_send_requires_approval: bool,
     /// Name of the agent owning this context.
     agent_name: String,
-    /// User memory injected in chat mode; `None` in task mode.
-    ///
-    /// Structure: `{"preferences": [("key", "value"), ...], "habits": [...], "context": [...]}`.
-    /// The agent decides what to do with it; this is never deterministic.
-    user_context: Option<HashMap<String, Vec<(String, String)>>>,
     /// High-level A2A orchestrator; `None` if unavailable in this context.
     ///
     /// Exposes `ctx.a2a_invoke`, `ctx.a2a_discover`, `ctx.a2a_list_skills` to Python agents.
@@ -508,19 +501,6 @@ impl RuntimeContext {
         logging.call_method1("getLogger", (logger_name,))
     }
 
-    /// User context injected in chat mode; `None` in task mode.
-    ///
-    /// Python property `ctx.user_context`. Returns a `dict[str, list[tuple[str, str]]]`
-    /// with the categories `preferences`, `habits`, `context`, or Python `None`
-    /// if the agent is not in chat mode or the user memory is empty.
-    #[getter]
-    fn user_context(&self, py: Python<'_>) -> PyResult<PyObject> {
-        match &self.user_context {
-            Some(ctx) => Ok(ctx.clone().into_pyobject(py)?.into_any().unbind()),
-            None => Ok(py.None()),
-        }
-    }
-
     /// Whether this agent can write into the global user memory (`__user__`)
     /// via `ctx.memory.remember_user()`.
     ///
@@ -596,21 +576,6 @@ impl RuntimeContext {
             }
             None => Ok(py.None()),
         }
-    }
-}
-
-/// Computes the effective memory namespace for an agent in a session context.
-///
-/// If the agent runs inside a project (`project_id` not empty), the namespace
-/// is prefixed with the `project_id` to guarantee isolation between projects.
-///
-/// Convention: `"{project_id}:{manifest_namespace}"` | `"{manifest_namespace}"`
-///
-/// The `shared_memory_namespaces` are NOT prefixed; they are global.
-pub fn effective_memory_namespace(manifest_namespace: &str, project_id: Option<&str>) -> String {
-    match project_id {
-        Some(pid) if !pid.is_empty() => format!("{pid}:{manifest_namespace}"),
-        _ => manifest_namespace.to_owned(),
     }
 }
 
@@ -711,7 +676,6 @@ mod runtime_context_tests {
             None,          // memory_interface
             None,          // mailbox
             String::new(), // agent_name
-            None,          // user_context
             None,          // a2a_invoker
             false,         // user_memory_writable
         );
@@ -738,7 +702,6 @@ mod runtime_context_tests {
             None,          // memory_interface
             None,          // mailbox
             String::new(), // agent_name
-            None,          // user_context
             None,          // a2a_invoker
             false,         // user_memory_writable
         );
@@ -771,7 +734,6 @@ mod runtime_context_tests {
             None,          // memory_interface
             None,          // mailbox
             String::new(), // agent_name
-            None,          // user_context
             None,          // a2a_invoker
             false,         // user_memory_writable
         );
@@ -845,7 +807,6 @@ mod runtime_context_tests {
             None,          // memory_interface
             None,          // mailbox
             String::new(), // agent_name
-            None,          // user_context
             None,          // a2a_invoker
             false,         // user_memory_writable
         );
@@ -1674,88 +1635,6 @@ mod a2a_tests {
 
         handle.shutdown().await;
     }
-
-    #[tokio::test]
-    async fn test_user_context_some_in_chat_mode() {
-        // GIVEN a RuntimeContext with user_context populated (chat mode)
-        let mut uc = HashMap::new();
-        uc.insert(
-            "preferences".to_string(),
-            vec![
-                ("langue".to_string(), "francais".to_string()),
-                ("format".to_string(), "markdown".to_string()),
-            ],
-        );
-        uc.insert(
-            "habits".to_string(),
-            vec![("working_hours".to_string(), "9h-18h".to_string())],
-        );
-        uc.insert("context".to_string(), vec![]);
-
-        let mut ctx = RuntimeContext::for_test();
-        ctx.user_context = Some(uc);
-
-        // WHEN the context is read back
-        // THEN user_context is Some with expected categories
-        assert!(ctx.user_context.is_some());
-        let uc = ctx.user_context.as_ref().expect("should be Some");
-        assert_eq!(uc.get("preferences").expect("preferences").len(), 2);
-        assert_eq!(uc.get("habits").expect("habits").len(), 1);
-        assert!(uc.get("context").expect("context").is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_user_context_none_in_task_mode() {
-        // GIVEN a RuntimeContext with user_context = None (task mode)
-        let ctx = RuntimeContext::for_test();
-
-        // WHEN user_context is read
-        // THEN user_context is None
-        assert!(ctx.user_context.is_none());
-    }
-
-    // GIVEN a RuntimeContext whose user_context is populated
-    // WHEN the Python `ctx.user_context` getter is invoked
-    // THEN it converts to a Python dict without unwrapping / panicking
-    #[test]
-    fn test_user_context_getter_returns_dict() {
-        // GIVEN
-        let mut uc = HashMap::new();
-        uc.insert(
-            "preferences".to_string(),
-            vec![("langue".to_string(), "francais".to_string())],
-        );
-        let mut ctx = RuntimeContext::for_test();
-        ctx.user_context = Some(uc);
-
-        // WHEN / THEN
-        Python::with_gil(|py| {
-            let obj = ctx
-                .user_context(py)
-                .expect("getter must return Ok, not panic");
-            let bound = obj.bind(py);
-            assert!(!bound.is_none(), "populated user_context must not be None");
-            assert!(
-                bound.is_instance_of::<pyo3::types::PyDict>(),
-                "user_context must convert to a Python dict"
-            );
-        });
-    }
-
-    // GIVEN a RuntimeContext with no user_context (task mode)
-    // WHEN the Python getter is invoked
-    // THEN it returns Python None, still via a Result (no unwrap)
-    #[test]
-    fn test_user_context_getter_none() {
-        // GIVEN
-        let ctx = RuntimeContext::for_test();
-
-        // WHEN / THEN
-        Python::with_gil(|py| {
-            let obj = ctx.user_context(py).expect("getter must return Ok");
-            assert!(obj.bind(py).is_none());
-        });
-    }
 }
 
 #[cfg(test)]
@@ -2104,82 +1983,6 @@ mod workspace_context_tests {
         // THEN workspace is None
         assert!(ctx.workspace.is_none());
     }
-
-    // ── effective_memory_namespace ──────────────────────────────────────────────
-
-    #[test]
-    fn test_effective_namespace_with_project_id() {
-        // GIVEN
-        let manifest_ns = "dev-assistant";
-        let project_id = Some("proj_abc123");
-        // WHEN
-        let ns = effective_memory_namespace(manifest_ns, project_id);
-        // THEN
-        assert_eq!(ns, "proj_abc123:dev-assistant");
-    }
-
-    #[test]
-    fn test_effective_namespace_without_project_id() {
-        // GIVEN
-        let manifest_ns = "dev-assistant";
-        let project_id: Option<&str> = None;
-        // WHEN
-        let ns = effective_memory_namespace(manifest_ns, project_id);
-        // THEN
-        assert_eq!(ns, "dev-assistant");
-    }
-
-    #[test]
-    fn test_effective_namespace_empty_project_id_treated_as_none() {
-        // GIVEN
-        let manifest_ns = "test-agent";
-        let project_id = Some("");
-        // WHEN
-        let ns = effective_memory_namespace(manifest_ns, project_id);
-        // THEN
-        assert_eq!(ns, "test-agent");
-    }
-
-    #[test]
-    fn test_isolation_between_two_projects() {
-        use apollia_memory::{
-            manager::MemoryManager,
-            semantic::{RememberInput, SemanticMemory},
-        };
-        use tempfile::TempDir;
-
-        // GIVEN an agent that wrote "forbidden_deps" in proj_A
-        let dir = TempDir::new().expect("temp dir");
-
-        let ns_a = effective_memory_namespace("dev-assistant", Some("proj_A"));
-        let ns_b = effective_memory_namespace("dev-assistant", Some("proj_B"));
-
-        {
-            let mut mgr = MemoryManager::new(dir.path(), Some(ns_a.clone()), vec![]);
-            let store = mgr.store(&ns_a).expect("open store for proj_A");
-            let sem = SemanticMemory::new(store);
-            sem.remember(RememberInput {
-                namespace: &ns_a,
-                key: "forbidden_deps",
-                value: &serde_json::json!("no_async_std"),
-                confidence: 1.0,
-                source: None,
-                expires_at: None,
-            })
-            .expect("write to proj_A");
-        }
-
-        // WHEN reading from the same agent in proj_B
-        let mut mgr_b = MemoryManager::new(dir.path(), Some(ns_b.clone()), vec![]);
-        let store_b = mgr_b.store(&ns_b).expect("open store for proj_B");
-        let sem_b = SemanticMemory::new(store_b);
-        let found = sem_b
-            .recall(&ns_b, "forbidden_deps")
-            .expect("recall from proj_B");
-
-        // THEN the key written in proj_A is invisible in proj_B
-        assert!(found.is_none());
-    }
 }
 
 /// Pure-helper suite run under Miri to check the FFI-adjacent Rust code for
@@ -2244,18 +2047,6 @@ mod miri_pure {
             Some("pdf.read_text")
         );
         assert_eq!(extract_a2a_skill_id("bash"), None);
-    }
-
-    // GIVEN a namespace and an optional project id, WHEN composed, THEN the
-    // prefixing rule holds and the formatting allocates cleanly.
-    #[test]
-    fn miri_pure_effective_memory_namespace_prefixes_project() {
-        assert_eq!(
-            super::effective_memory_namespace("mem", Some("proj")),
-            "proj:mem"
-        );
-        assert_eq!(super::effective_memory_namespace("mem", None), "mem");
-        assert_eq!(super::effective_memory_namespace("mem", Some("")), "mem");
     }
 }
 

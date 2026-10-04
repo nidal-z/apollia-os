@@ -59,6 +59,9 @@ pub fn reads_by_default(agent: &ResolvedAgent) -> bool {
 /// The tools of the reading family `registry` holds, `disabled` left out, by
 /// name. A registry that cannot be listed yields none: a default never grants
 /// what could not be checked.
+///
+/// `code_context` is left out too: a checked code folder grants it, not the
+/// access ([`crate::granted_with_code_folders`]).
 pub async fn reading_family(registry: &ToolRegistryHandle, disabled: &[String]) -> Vec<String> {
     let descriptors = match registry.list().await {
         Ok(descriptors) => descriptors,
@@ -76,6 +79,7 @@ pub async fn reading_family(registry: &ToolRegistryHandle, disabled: &[String]) 
         .into_iter()
         .filter(|d| d.family == ActionFamily::Read)
         .map(|d| d.name)
+        .filter(|name| name != crate::CODE_CONTEXT_TOOL)
         .filter(|name| !disabled.contains(name))
         .collect();
     names.sort();

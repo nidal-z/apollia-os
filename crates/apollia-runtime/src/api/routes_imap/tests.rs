@@ -244,3 +244,23 @@ fn test_admission_sees_a_remote_mailbox_and_can_refuse_it() {
     assert_eq!(err.error, "remote connections are not allowed");
     assert!(admit(&governance, &local).is_ok());
 }
+
+#[tokio::test]
+async fn test_providers_route_lists_every_prefilled_provider() {
+    // GIVEN the provider table the runtime prefills from
+    let expected = KNOWN_PROVIDERS.len();
+
+    // WHEN the read-only providers route answers
+    let Json(answer) = list_imap_providers().await;
+
+    // THEN every provider is listed with its domains, server and port, and
+    // the port of any other server is the implicit TLS one
+    assert_eq!(answer.providers.len(), expected);
+    let gmail = answer.providers.iter().find(|p| p.name == "Gmail").unwrap();
+    assert_eq!(gmail.host, "imap.gmail.com");
+    assert_eq!(gmail.port, 993);
+    assert!(gmail.domains.iter().any(|d| d == "gmail.com"));
+    assert_eq!(answer.default_port, 993);
+    let json = serde_json::to_value(&answer).unwrap();
+    assert!(json.get("defaultPort").is_some());
+}

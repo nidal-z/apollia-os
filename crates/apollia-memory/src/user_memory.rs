@@ -1,21 +1,34 @@
-//! UserMemoryRepository: canonical user profile backed by SemanticMemory.
+//! UserMemoryRepository: the user profile, as every surface reads it.
 //!
-//! Persists the global user profile under the reserved `__user__` namespace.
-//! Keys are flat (no `category.` or `user.` prefix) and either match a
-//! canonical [`crate::profile_schema::PROFILE_SCHEMA`] entry or live as
-//! "extras" (free-form, surfaced separately in the UI).
+//! `user_memory.db` holds two things. The `profiles` table carries several
+//! named profiles, one of them the default, each made of the fields of
+//! [`crate::profile_schema::PROFILE_SCHEMA`]. The reserved `__user__`
+//! semantic namespace keeps the free-form entries: facts written by agents and
+//! any key outside the schema.
 //!
-//! Internal state markers (onboarding bookkeeping) use a double-underscore
-//! prefix and are hidden from the profile listing.
+//! The key-value API below reads and writes the **default** profile: a schema
+//! key goes to its field, any other key to the namespace. Internal state
+//! markers (onboarding bookkeeping) use a double-underscore prefix and are
+//! hidden from the listing.
+//!
+//! The first open of a database written before profiles existed migrates the
+//! former global profile into the default one ([`migration`]).
 
 use std::path::Path;
 
-use crate::profile_schema::{field_for, is_canonical, PROFILE_SCHEMA};
+use crate::profile_schema::{is_canonical, PROFILE_SCHEMA};
 use crate::search::{MemorySearch, SearchQuery, SearchSource};
 use crate::semantic::{RememberInput, SemanticMemory};
 use crate::store::MemoryStore;
 
-/// Reserved SemanticMemory namespace for the global user profile.
+mod facts;
+mod migration;
+mod persona;
+mod profiles;
+
+pub use profiles::{Profile, DEFAULT_PROFILE_NAME};
+
+/// Reserved SemanticMemory namespace for the free-form entries of the profile.
 pub const USER_NAMESPACE: &str = "__user__";
 
 /// All keys in `__user__` starting with this prefix are considered internal
@@ -76,11 +89,12 @@ impl WrittenBy {
 /// A single profile entry returned by recall operations.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ProfileEntry {
-    /// Flat storage key (e.g. `name`, `agents.hitl`).
+    /// Flat storage key (e.g. `name`, `free_text`, or a free-form key).
     pub key: String,
     /// Plain-text value.
     pub value: String,
-    /// Who wrote this entry.
+    /// Who wrote this entry. A profile field is the user's own and always
+    /// reads [`WrittenBy::User`].
     pub written_by: WrittenBy,
     /// ISO 8601 creation timestamp.
     pub created_at: String,
@@ -103,58 +117,139 @@ pub enum UserMemoryError {
     /// The provided key is empty or starts with the internal prefix.
     #[error("invalid key: {0}")]
     InvalidKey(String),
+    /// The default profile cannot be deleted; another one has to be made the
+    /// default first.
+    #[error(
+        "'{0}' is the default profile and cannot be deleted: make another profile the default first"
+    )]
+    DefaultProfile(String),
 }
 
 // ---------------------------------------------------------------------------
 // Repository
 // ---------------------------------------------------------------------------
 
-/// Repository for the global user profile, backed by [`SemanticMemory`].
-///
-/// All entries live under the [`USER_NAMESPACE`] namespace, with flat keys.
-/// Canonical fields are described by [`PROFILE_SCHEMA`]; free-form keys are
-/// tolerated and surfaced as "extras".
+/// Repository for the user profiles and the free-form entries.
 pub struct UserMemoryRepository {
     store: MemoryStore,
 }
 
-/// Canonical fields rendered on the persona headline line by
-/// [`UserMemoryRepository::push_headline`].
-struct PersonaHeadline {
-    name: Option<String>,
-    role: Option<String>,
-    industry: Option<String>,
-    expertise: Option<String>,
-    team_size: Option<String>,
-}
-
-/// Describes a persona-brief section gathered by
-/// [`UserMemoryRepository::push_prefixed_list`].
-struct PrefixedListSpec<'s> {
-    exact: &'s str,
-    prefix: &'s str,
-    header: &'s str,
-    inline: bool,
-}
-
 impl UserMemoryRepository {
-    /// Opens (or creates) the user profile database at `db_path`.
+    /// Opens (or creates) the user profile database at `db_path`, and
+    /// migrates a former global profile into the default profile once.
     pub fn new(db_path: &Path) -> Result<Self, UserMemoryError> {
         let store =
             MemoryStore::open(db_path).map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+        migration::run(&store)?;
         Ok(Self { store })
     }
 
-    /// Returns `true` when no user-visible (non-internal) entry is present.
-    pub fn is_empty(&self) -> Result<bool, UserMemoryError> {
-        let sem = SemanticMemory::new(&self.store);
-        let all = sem
-            .recall_all(USER_NAMESPACE, None)
-            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
-        Ok(all.iter().all(|e| e.key.starts_with(INTERNAL_KEY_PREFIX)))
+    // -- Profiles --
+
+    /// Returns the default profile.
+    pub fn default_profile(&self) -> Result<Profile, UserMemoryError> {
+        profiles::default_profile(self.store.conn())?
+            .ok_or_else(|| UserMemoryError::NotFound("default profile".to_owned()))
     }
 
-    /// Upserts a profile entry under [`key`] with the given provenance.
+    /// Reads one profile by identifier, `None` when no profile has it.
+    pub fn profile(&self, id: &str) -> Result<Option<Profile>, UserMemoryError> {
+        profiles::get(self.store.conn(), id)
+    }
+
+    /// The profile `designated` names, or the default profile when nothing is
+    /// designated or the designated identifier names no profile any more: a
+    /// designation left behind by a deleted profile reads as no designation.
+    pub fn profile_or_default(&self, designated: Option<&str>) -> Result<Profile, UserMemoryError> {
+        if let Some(id) = designated.filter(|id| !id.trim().is_empty()) {
+            if let Some(profile) = self.profile(id)? {
+                return Ok(profile);
+            }
+            tracing::event!(
+                tracing::Level::DEBUG,
+                profile_id = %id,
+                "user_memory.profile.designation_orphaned"
+            );
+        }
+        self.default_profile()
+    }
+
+    /// Lists every profile, the default first.
+    pub fn list_profiles(&self) -> Result<Vec<Profile>, UserMemoryError> {
+        profiles::list(self.store.conn())
+    }
+
+    /// Creates a profile with empty fields, not the default, and returns it.
+    pub fn create_profile(&self, name: &str) -> Result<Profile, UserMemoryError> {
+        let name = Self::profile_name(name)?;
+        profiles::insert(self.store.conn(), name, false)
+    }
+
+    /// Renames the profile `id`.
+    pub fn rename_profile(&self, id: &str, name: &str) -> Result<(), UserMemoryError> {
+        let name = Self::profile_name(name)?;
+        profiles::rename(self.store.conn(), id, name)
+    }
+
+    /// Makes `id` the default profile; the previous default stops being one.
+    pub fn set_default_profile(&self, id: &str) -> Result<(), UserMemoryError> {
+        profiles::set_default(self.store.conn(), id)
+    }
+
+    /// Writes one field of the profile `id`; `None` or an empty value empties
+    /// it. A key outside the schema is refused with
+    /// [`UserMemoryError::InvalidKey`].
+    pub fn set_profile_field(
+        &self,
+        id: &str,
+        key: &str,
+        value: Option<&str>,
+    ) -> Result<(), UserMemoryError> {
+        if !is_canonical(key) {
+            return Err(UserMemoryError::InvalidKey(key.to_owned()));
+        }
+        let value = value.filter(|v| !v.is_empty());
+        profiles::set_field(self.store.conn(), id, key, value)
+    }
+
+    /// Deletes the profile `id`. The default profile is refused with
+    /// [`UserMemoryError::DefaultProfile`]; a designation that named the
+    /// deleted profile then reads as the default ([`Self::profile_or_default`]).
+    pub fn delete_profile(&self, id: &str) -> Result<(), UserMemoryError> {
+        profiles::delete(self.store.conn(), id)
+    }
+
+    /// The filled fields of `profile` in schema order, as entries.
+    fn profile_entries(profile: &Profile) -> Vec<ProfileEntry> {
+        PROFILE_SCHEMA
+            .iter()
+            .filter_map(|f| Self::field_entry(profile, f.key))
+            .collect()
+    }
+
+    fn profile_name(name: &str) -> Result<&str, UserMemoryError> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(UserMemoryError::InvalidKey(
+                "(empty profile name)".to_owned(),
+            ));
+        }
+        Ok(name)
+    }
+
+    // -- Key-value view of the default profile --
+
+    /// Returns `true` when the default profile is blank and no user-visible
+    /// free-form entry is present.
+    pub fn is_empty(&self) -> Result<bool, UserMemoryError> {
+        if !self.default_profile()?.is_blank() {
+            return Ok(false);
+        }
+        Ok(self.visible_extras()?.is_empty())
+    }
+
+    /// Upserts an entry: a schema key writes the field of the default profile,
+    /// any other key a free-form entry with the given provenance.
     ///
     /// Empty keys and keys starting with the internal prefix `__` are
     /// rejected with [`UserMemoryError::InvalidKey`].
@@ -164,46 +259,67 @@ impl UserMemoryRepository {
         value: &str,
         written_by: WrittenBy,
     ) -> Result<(), UserMemoryError> {
-        Self::validate_external_key(key)?;
-        self.write_raw(key, value, written_by)
+        let profile = self.default_profile()?;
+        self.set_in(&profile, key, value, written_by)
     }
 
-    /// Reads a single profile entry by key.  Returns `Ok(None)` when missing.
+    /// Upserts an entry for the profile `profile`: a schema key writes its
+    /// field, any other key a fact of that profile ([`facts`]).
+    pub fn set_in(
+        &self,
+        profile: &Profile,
+        key: &str,
+        value: &str,
+        written_by: WrittenBy,
+    ) -> Result<(), UserMemoryError> {
+        Self::validate_external_key(key)?;
+        if is_canonical(key) {
+            return profiles::set_field(self.store.conn(), &profile.id, key, Some(value));
+        }
+        self.write_raw_in(&facts::namespace_of(profile), key, value, written_by)
+    }
+
+    /// Reads a single entry by key.  Returns `Ok(None)` when missing.
     pub fn get(&self, key: &str) -> Result<Option<ProfileEntry>, UserMemoryError> {
+        let profile = self.default_profile()?;
+        self.get_in(&profile, key)
+    }
+
+    /// Reads a single entry of `profile` by key: a schema key reads its
+    /// field, any other key a fact of that profile.
+    pub fn get_in(
+        &self,
+        profile: &Profile,
+        key: &str,
+    ) -> Result<Option<ProfileEntry>, UserMemoryError> {
+        if is_canonical(key) {
+            return Ok(Self::field_entry(profile, key));
+        }
         let sem = SemanticMemory::new(&self.store);
         let entry = sem
-            .recall(USER_NAMESPACE, key)
+            .recall(&facts::namespace_of(profile), key)
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
         Ok(entry.map(|se| Self::semantic_to_profile(&se)))
     }
 
-    /// Lists all user-visible entries (schema fields + extras), ordered by
-    /// schema position first, then alphabetically for extras.
+    /// Lists all user-visible entries: the filled fields of the default
+    /// profile in schema order, then the free-form entries alphabetically.
     pub fn list_all(&self) -> Result<Vec<ProfileEntry>, UserMemoryError> {
-        let sem = SemanticMemory::new(&self.store);
-        let all = sem
-            .recall_all(USER_NAMESPACE, None)
-            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+        let profile = self.default_profile()?;
+        self.list_all_in(&profile)
+    }
 
-        let mut by_key: std::collections::HashMap<String, ProfileEntry> = all
-            .into_iter()
-            .filter(|e| !e.key.starts_with(INTERNAL_KEY_PREFIX))
-            .map(|e| (e.key.clone(), Self::semantic_to_profile(&e)))
-            .collect();
-
-        let mut ordered = Vec::with_capacity(by_key.len());
-        for field in PROFILE_SCHEMA {
-            if let Some(entry) = by_key.remove(field.key) {
-                ordered.push(entry);
-            }
-        }
-        let mut extras: Vec<ProfileEntry> = by_key.into_values().collect();
+    /// Lists the filled fields of `profile` in schema order, then its facts
+    /// alphabetically.
+    pub fn list_all_in(&self, profile: &Profile) -> Result<Vec<ProfileEntry>, UserMemoryError> {
+        let mut ordered = Self::profile_entries(profile);
+        let mut extras = self.visible_extras_in(&facts::namespace_of(profile))?;
         extras.sort_by(|a, b| a.key.cmp(&b.key));
         ordered.extend(extras);
         Ok(ordered)
     }
 
-    /// Lists only canonical schema entries.
+    /// Lists only the filled fields of the default profile.
     pub fn list_schema(&self) -> Result<Vec<ProfileEntry>, UserMemoryError> {
         Ok(self
             .list_all()?
@@ -221,41 +337,20 @@ impl UserMemoryRepository {
             .collect())
     }
 
-    /// Deletes a single entry by key.  Returns [`UserMemoryError::NotFound`]
-    /// when the key did not exist.
+    /// Deletes a single entry by key: a schema key empties the field of the
+    /// default profile.  Returns [`UserMemoryError::NotFound`] when the key
+    /// held nothing.
     pub fn forget(&self, key: &str) -> Result<(), UserMemoryError> {
-        Self::validate_external_key(key)?;
-        let sem = SemanticMemory::new(&self.store);
-        let deleted = sem
-            .forget(USER_NAMESPACE, key)
-            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
-        if deleted {
-            Ok(())
-        } else {
-            Err(UserMemoryError::NotFound(key.to_owned()))
-        }
+        let profile = self.default_profile()?;
+        self.forget_in(&profile, key)
     }
 
-    /// Deletes every user-visible entry.  Internal state markers (onboarding
-    /// bookkeeping) are preserved.  Returns the number of deleted entries.
+    /// Empties the default profile and deletes its facts.  Internal state
+    /// markers (onboarding bookkeeping) are preserved.  Returns the number of
+    /// removed entries.
     pub fn reset(&self) -> Result<usize, UserMemoryError> {
-        let sem = SemanticMemory::new(&self.store);
-        let all = sem
-            .recall_all(USER_NAMESPACE, None)
-            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
-        let mut count = 0usize;
-        for entry in all {
-            if entry.key.starts_with(INTERNAL_KEY_PREFIX) {
-                continue;
-            }
-            let removed = sem
-                .forget(USER_NAMESPACE, &entry.key)
-                .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
-            if removed {
-                count += 1;
-            }
-        }
-        Ok(count)
+        let profile = self.default_profile()?;
+        self.reset_in(&profile)
     }
 
     /// Updates the value of an existing entry, preserving its provenance.
@@ -266,14 +361,24 @@ impl UserMemoryRepository {
         let Some(entry) = existing else {
             return Err(UserMemoryError::NotFound(key.to_owned()));
         };
-        self.write_raw(key, value, entry.written_by)
+        self.set(key, value, entry.written_by)
     }
 
-    /// Full-text search across user-visible entries.
+    /// Searches the user-visible entries: the fields of the default profile
+    /// whose value contains `query` (case-insensitive), then the full-text
+    /// matches among the free-form entries.
     pub fn search(&self, query: &str, limit: usize) -> Result<Vec<ProfileEntry>, UserMemoryError> {
+        let needle = query.to_lowercase();
+        let profile = self.default_profile()?;
+        let mut entries: Vec<ProfileEntry> = PROFILE_SCHEMA
+            .iter()
+            .filter_map(|f| Self::field_entry(&profile, f.key))
+            .filter(|e| !needle.is_empty() && e.value.to_lowercase().contains(&needle))
+            .take(limit)
+            .collect();
+
         let searcher = MemorySearch::new(&self.store);
         let sem = SemanticMemory::new(&self.store);
-
         let results = searcher
             .query(SearchQuery {
                 namespace: USER_NAMESPACE,
@@ -281,343 +386,24 @@ impl UserMemoryRepository {
                 limit: limit as u32,
                 sources: Some(&[SearchSource::Semantic]),
                 min_importance: None,
+                meaning: None,
             })
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
-
         let all = sem
             .recall_all(USER_NAMESPACE, None)
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
-
-        let mut entries = Vec::with_capacity(results.len());
         for result in &results {
+            if entries.len() >= limit {
+                break;
+            }
             if let Some(se) = all.iter().find(|e| e.id == result.source_id) {
-                if se.key.starts_with(INTERNAL_KEY_PREFIX) {
+                if se.key.starts_with(INTERNAL_KEY_PREFIX) || is_canonical(&se.key) {
                     continue;
                 }
                 entries.push(Self::semantic_to_profile(se));
             }
         }
         Ok(entries)
-    }
-
-    /// Produces a text block suitable for LLM system-prompt injection.
-    ///
-    /// Output groups entries by schema section:
-    /// ```text
-    /// Section: identity
-    /// - name: Nidal
-    /// - role: CTO
-    /// Section: preferences
-    /// - preferences.language: fr
-    /// ```
-    pub fn recall_all_for_injection(&self, max_entries: usize) -> Result<String, UserMemoryError> {
-        let entries = self.list_all()?;
-        let mut output = String::new();
-        let mut total = 0usize;
-
-        let sections = [
-            crate::profile_schema::ProfileSection::Identity,
-            crate::profile_schema::ProfileSection::Work,
-            crate::profile_schema::ProfileSection::Preferences,
-            crate::profile_schema::ProfileSection::Constraints,
-        ];
-
-        for section in sections {
-            let in_section: Vec<&ProfileEntry> = entries
-                .iter()
-                .filter(|e| field_for(&e.key).map(|f| f.section) == Some(section))
-                .collect();
-            Self::append_injection_section(
-                &mut output,
-                section.tag(),
-                &in_section,
-                &mut total,
-                max_entries,
-            );
-            if total >= max_entries {
-                break;
-            }
-        }
-
-        let extras: Vec<&ProfileEntry> = entries.iter().filter(|e| !e.in_schema).collect();
-        if total < max_entries {
-            Self::append_injection_section(&mut output, "other", &extras, &mut total, max_entries);
-        }
-
-        Ok(output)
-    }
-
-    /// Appends a `Section: <tag>` block for `group` to `output`, respecting the
-    /// `max_entries` budget tracked by `total`.  No-op when `group` is empty.
-    fn append_injection_section(
-        output: &mut String,
-        tag: &str,
-        group: &[&ProfileEntry],
-        total: &mut usize,
-        max_entries: usize,
-    ) {
-        if group.is_empty() {
-            return;
-        }
-        if !output.is_empty() {
-            output.push('\n');
-        }
-        output.push_str(&format!("Section: {tag}\n"));
-        for entry in group {
-            if *total >= max_entries {
-                break;
-            }
-            output.push_str(&format!("- {}: {}\n", entry.key, entry.value));
-            *total += 1;
-        }
-    }
-
-    /// Produces a structured persona brief for LLM system-prompt injection.
-    ///
-    /// Renders a French narrative summary aimed at agent system prompts.
-    /// Reads flat canonical keys; `goals` and `tools.daily` are surfaced as
-    /// dedicated sections.
-    pub fn recall_persona_brief(&self, max_entries: usize) -> Result<String, UserMemoryError> {
-        let entries = self.list_all()?;
-        if entries.is_empty() {
-            return Ok(String::new());
-        }
-
-        let find = |k: &str| -> Option<String> {
-            entries.iter().find(|e| e.key == k).map(|e| e.value.clone())
-        };
-
-        let role = find("role");
-        let language = find("preferences.language");
-
-        let mut output = String::new();
-
-        Self::push_headline(
-            &mut output,
-            PersonaHeadline {
-                name: find("name"),
-                role: role.clone(),
-                industry: find("domain.sector"),
-                expertise: find("tech.proficiency"),
-                team_size: find("domain.team_size"),
-            },
-        );
-        Self::push_governance(
-            &mut output,
-            find("agents.hitl"),
-            find("constraints.sovereignty"),
-            find("constraints.compliance"),
-        );
-
-        if let Some(ref lang) = language {
-            output.push_str(&format!("Language: {lang}\n"));
-        }
-
-        Self::push_prefixed_list(
-            &mut output,
-            &entries,
-            PrefixedListSpec {
-                exact: "goals",
-                prefix: "goal",
-                header: "\nGoals:\n",
-                inline: false,
-            },
-        );
-        Self::push_prefixed_list(
-            &mut output,
-            &entries,
-            PrefixedListSpec {
-                exact: "tools.daily",
-                prefix: "tools",
-                header: "\nTools: ",
-                inline: true,
-            },
-        );
-
-        Self::push_adaptation(&mut output, language.as_deref(), role.as_deref());
-        Self::push_context(&mut output, &entries, max_entries);
-
-        Ok(output)
-    }
-
-    /// Appends the persona headline line (name, role, industry, level, team).
-    fn push_headline(output: &mut String, headline: PersonaHeadline) {
-        let PersonaHeadline {
-            name,
-            role,
-            industry,
-            expertise,
-            team_size,
-        } = headline;
-        let mut headline_parts: Vec<String> = Vec::new();
-        if let Some(ref n) = name {
-            headline_parts.push(n.clone());
-        }
-        if let Some(ref r) = role {
-            if headline_parts.is_empty() {
-                headline_parts.push(format!("Role: {r}"));
-            } else {
-                headline_parts.push(format!("({r})"));
-            }
-        }
-        if let Some(ref ind) = industry {
-            headline_parts.push(format!("- {ind}"));
-        }
-        if headline_parts.is_empty() {
-            return;
-        }
-        output.push_str(&headline_parts.join(" "));
-        if let Some(ref exp) = expertise {
-            output.push_str(&format!(". Level: {exp}"));
-        }
-        if let Some(ref ts) = team_size {
-            output.push_str(&format!(". Team: {ts}"));
-        }
-        output.push('\n');
-    }
-
-    /// Appends the governance line (supervision, sovereignty, compliance).
-    fn push_governance(
-        output: &mut String,
-        hitl: Option<String>,
-        sovereignty: Option<String>,
-        compliance: Option<String>,
-    ) {
-        let mut gov_parts: Vec<String> = Vec::new();
-        if let Some(ref h) = hitl {
-            let label = match h.as_str() {
-                "always" => "systematic supervision",
-                "critical-only" => "supervision on critical actions",
-                "never" => "full autonomy requested",
-                other => other,
-            };
-            gov_parts.push(format!("Supervision: {label}"));
-        }
-        if let Some(ref s) = sovereignty {
-            let label = match s.as_str() {
-                "local-only" => "strictly local data",
-                "local-preferred" => "local preferred, cloud as a last resort",
-                "cloud-ok" => "cloud allowed",
-                other => other,
-            };
-            gov_parts.push(format!("Sovereignty: {label}"));
-        }
-        if let Some(ref c) = compliance {
-            if !c.trim().is_empty() {
-                gov_parts.push(format!("Compliance: {c}"));
-            }
-        }
-        if !gov_parts.is_empty() {
-            output.push_str(&gov_parts.join(" | "));
-            output.push('\n');
-        }
-    }
-
-    /// Appends a section gathering entries matching `exact` or starting with
-    /// `prefix`.  When `inline`, values are joined with `", "`; otherwise each
-    /// value is rendered as a `- value` bullet.
-    fn push_prefixed_list(
-        output: &mut String,
-        entries: &[ProfileEntry],
-        spec: PrefixedListSpec<'_>,
-    ) {
-        let PrefixedListSpec {
-            exact,
-            prefix,
-            header,
-            inline,
-        } = spec;
-        let values: Vec<String> = entries
-            .iter()
-            .filter(|e| e.key == exact || e.key.starts_with(prefix))
-            .map(|e| e.value.clone())
-            .collect();
-        if values.is_empty() {
-            return;
-        }
-        output.push_str(header);
-        if inline {
-            output.push_str(&values.join(", "));
-            output.push('\n');
-        } else {
-            for v in &values {
-                output.push_str(&format!("- {v}\n"));
-            }
-        }
-    }
-
-    /// Appends the "Adaptation" section based on language and role profile.
-    fn push_adaptation(output: &mut String, language: Option<&str>, role: Option<&str>) {
-        output.push_str("\nAdaptation:\n");
-        if let Some(lang) = language {
-            output.push_str(&format!("- Language: {lang}\n"));
-        }
-        if let Some(r) = role {
-            output.push_str(Self::role_adaptation_line(&r.to_lowercase()));
-        }
-    }
-
-    /// Returns the adaptation bullet matching a lowercased role string.
-    fn role_adaptation_line(r_lower: &str) -> &'static str {
-        const TECH: &[&str] = &["dev", "engineer", "data", "devops", "sysadmin"];
-        const CREATIVE: &[&str] = &["design", "creat", "vidéo", "video"];
-        const BUSINESS: &[&str] = &[
-            "manager",
-            "market",
-            "commercial",
-            "sales",
-            "rh",
-            "ceo",
-            "cto",
-            "coo",
-        ];
-        if TECH.iter().any(|k| r_lower.contains(k)) {
-            "- Technical profile: appropriate technical vocabulary\n"
-        } else if CREATIVE.iter().any(|k| r_lower.contains(k)) {
-            "- Creative profile: avoid technical jargon, favour the visuals\n"
-        } else if BUSINESS.iter().any(|k| r_lower.contains(k)) {
-            "- Business profile: focus on outcomes, KPIs, no needless technical detail\n"
-        } else {
-            "- Adapt the vocabulary to the user's profile\n"
-        }
-    }
-
-    /// Appends the "Contexte" section listing remaining (non-canonical) entries.
-    fn push_context(output: &mut String, entries: &[ProfileEntry], max_entries: usize) {
-        let mentioned = [
-            "name",
-            "role",
-            "domain.sector",
-            "domain.team_size",
-            "tech.proficiency",
-            "preferences.language",
-            "agents.hitl",
-            "constraints.sovereignty",
-            "constraints.compliance",
-            "tools.daily",
-            "goals",
-        ];
-        let remaining: Vec<&ProfileEntry> = entries
-            .iter()
-            .filter(|e| {
-                !mentioned.iter().any(|k| *k == e.key)
-                    && !e.key.starts_with("goal")
-                    && !e.key.starts_with("tools")
-            })
-            .take(max_entries)
-            .collect();
-        if remaining.is_empty() {
-            return;
-        }
-        output.push_str("\nContext:\n");
-        for entry in remaining {
-            let stale_marker = if Self::is_stale(&entry.updated_at) {
-                " (possibly stale)"
-            } else {
-                ""
-            };
-            output.push_str(&format!("- {}: {}{stale_marker}\n", entry.key, entry.value));
-        }
     }
 
     // -- Generic internal state (hidden from profile UI) --
@@ -745,11 +531,22 @@ impl UserMemoryRepository {
         value: &str,
         written_by: WrittenBy,
     ) -> Result<(), UserMemoryError> {
+        self.write_raw_in(USER_NAMESPACE, key, value, written_by)
+    }
+
+    /// [`Self::write_raw`] into `namespace`.
+    fn write_raw_in(
+        &self,
+        namespace: &str,
+        key: &str,
+        value: &str,
+        written_by: WrittenBy,
+    ) -> Result<(), UserMemoryError> {
         let sem = SemanticMemory::new(&self.store);
         let json_value = serde_json::Value::String(value.to_owned());
         let source_tag = written_by.tag();
         sem.remember(RememberInput {
-            namespace: USER_NAMESPACE,
+            namespace,
             key,
             value: &json_value,
             confidence: 1.0,
@@ -758,6 +555,38 @@ impl UserMemoryRepository {
         })
         .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
         Ok(())
+    }
+
+    /// The entry of one field of `profile`, `None` when the field is empty.
+    fn field_entry(profile: &Profile, key: &str) -> Option<ProfileEntry> {
+        let field = PROFILE_SCHEMA.iter().find(|f| f.key == key)?;
+        profile.field(field.key).map(|value| ProfileEntry {
+            key: field.key.to_owned(),
+            value: value.to_owned(),
+            written_by: WrittenBy::User,
+            created_at: profile.created_at.clone(),
+            updated_at: profile.updated_at.clone(),
+            in_schema: true,
+        })
+    }
+
+    /// The user-visible free-form entries of the namespace, unordered. A key
+    /// that names a schema field is not one: the field lives in the profile.
+    fn visible_extras(&self) -> Result<Vec<ProfileEntry>, UserMemoryError> {
+        self.visible_extras_in(USER_NAMESPACE)
+    }
+
+    /// [`Self::visible_extras`] of `namespace`.
+    fn visible_extras_in(&self, namespace: &str) -> Result<Vec<ProfileEntry>, UserMemoryError> {
+        let sem = SemanticMemory::new(&self.store);
+        let all = sem
+            .recall_all(namespace, None)
+            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+        Ok(all
+            .iter()
+            .filter(|e| !e.key.starts_with(INTERNAL_KEY_PREFIX) && !is_canonical(&e.key))
+            .map(Self::semantic_to_profile)
+            .collect())
     }
 
     /// Converts a [`crate::semantic::SemanticEntry`] to a [`ProfileEntry`].
@@ -778,250 +607,10 @@ impl UserMemoryRepository {
             written_by,
             created_at: se.created_at.clone(),
             updated_at: se.updated_at.clone(),
-            in_schema: is_canonical(&se.key),
+            in_schema: false,
         }
     }
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn setup() -> (UserMemoryRepository, std::path::PathBuf) {
-        let dir = std::env::temp_dir().join(format!("apollia_user_mem_{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("user_memory.db");
-        let repo = UserMemoryRepository::new(&path).unwrap();
-        (repo, path)
-    }
-
-    #[test]
-    fn set_and_get_roundtrip() {
-        // GIVEN an empty user-memory repository
-        let (repo, _) = setup();
-        // WHEN a schema key is written, then read back
-        repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
-        let entry = repo.get("name").unwrap().expect("entry should exist");
-        // THEN the value, its provenance and its schema flag all survive
-        assert_eq!(entry.value, "Nidal");
-        assert_eq!(entry.written_by, WrittenBy::Onboarding);
-        assert!(entry.in_schema);
-    }
-
-    #[test]
-    fn list_schema_and_extras_are_partitioned() {
-        // GIVEN one schema key and one key outside the schema
-        let (repo, _) = setup();
-        repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
-        repo.set("favorite_color", "blue", WrittenBy::User).unwrap();
-
-        // WHEN the two listings are read
-        let schema = repo.list_schema().unwrap();
-        let extras = repo.list_extras().unwrap();
-        // THEN each key appears in exactly one of them
-        assert!(schema.iter().any(|e| e.key == "name"));
-        assert!(!schema.iter().any(|e| e.key == "favorite_color"));
-        assert!(extras.iter().any(|e| e.key == "favorite_color"));
-        assert!(!extras.iter().any(|e| e.key == "name"));
-    }
-
-    #[test]
-    fn set_rejects_internal_keys() {
-        // GIVEN an empty user-memory repository
-        let (repo, _) = setup();
-        // WHEN a key reserved for internal state is written
-        let err = repo
-            .set("__sneaky", "x", WrittenBy::User)
-            .expect_err("internal keys must be rejected");
-        // THEN the write is refused as an invalid key
-        assert!(matches!(err, UserMemoryError::InvalidKey(_)));
-    }
-
-    #[test]
-    fn reset_preserves_internal_state() {
-        // GIVEN one visible entry, one covered topic and the skip marker
-        let (repo, _) = setup();
-        repo.set("name", "Nidal", WrittenBy::User).unwrap();
-        repo.mark_topic_covered("identity").unwrap();
-        repo.set_onboarding_skipped(true).unwrap();
-
-        // WHEN the repository is reset
-        let removed = repo.reset().unwrap();
-        // THEN the visible entry alone is dropped, and the internal state stands
-        assert_eq!(removed, 1, "only the user-visible entry should be removed");
-        assert!(repo.get("name").unwrap().is_none());
-        assert!(repo.get_onboarding_skipped().unwrap());
-        assert_eq!(repo.get_covered_topics().unwrap(), vec!["identity"]);
-    }
-
-    #[test]
-    fn list_orders_schema_then_extras() {
-        // GIVEN two schema keys and two keys outside it, written out of order
-        let (repo, _) = setup();
-        repo.set("zzz_extra", "x", WrittenBy::User).unwrap();
-        repo.set("role", "CTO", WrittenBy::User).unwrap();
-        repo.set("aaa_extra", "y", WrittenBy::User).unwrap();
-        repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
-
-        // WHEN everything is listed
-        let all = repo.list_all().unwrap();
-        // THEN the schema keys come first, and the extras follow in alphabetical order
-        assert_eq!(all[0].key, "name");
-        assert_eq!(all[1].key, "role");
-        let extras_keys: Vec<&str> = all
-            .iter()
-            .filter(|e| !e.in_schema)
-            .map(|e| e.key.as_str())
-            .collect();
-        assert_eq!(extras_keys, vec!["aaa_extra", "zzz_extra"]);
-    }
-
-    #[test]
-    fn forget_returns_not_found_when_missing() {
-        // GIVEN an empty user-memory repository
-        let (repo, _) = setup();
-        // WHEN a key that was never written is forgotten
-        let err = repo.forget("nonexistent").expect_err("must fail");
-        // THEN the call reports it as not found, rather than succeeding silently
-        assert!(matches!(err, UserMemoryError::NotFound(_)));
-    }
-
-    #[test]
-    fn forget_removes_entry() {
-        // GIVEN a repository holding one entry
-        let (repo, _) = setup();
-        repo.set("name", "Nidal", WrittenBy::User).unwrap();
-        // WHEN that key is forgotten
-        repo.forget("name").unwrap();
-        // THEN the entry is gone
-        assert!(repo.get("name").unwrap().is_none());
-    }
-
-    #[test]
-    fn update_preserves_provenance() {
-        // GIVEN an entry written by the onboarding
-        let (repo, _) = setup();
-        repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
-        // WHEN its value is updated
-        repo.update("name", "Alice").unwrap();
-        let entry = repo.get("name").unwrap().unwrap();
-        // THEN the new value is stored and the original provenance is kept
-        assert_eq!(entry.value, "Alice");
-        assert_eq!(entry.written_by, WrittenBy::Onboarding);
-    }
-
-    #[test]
-    fn recall_persona_brief_reflects_canonical_keys() {
-        // GIVEN four canonical keys and two extras, all written
-        let (repo, _) = setup();
-        repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
-        repo.set("role", "CTO fintech", WrittenBy::Onboarding)
-            .unwrap();
-        repo.set("agents.hitl", "critical-only", WrittenBy::Onboarding)
-            .unwrap();
-        repo.set(
-            "constraints.sovereignty",
-            "local-preferred",
-            WrittenBy::Onboarding,
-        )
-        .unwrap();
-        repo.set("domain.sector", "fintech", WrittenBy::User)
-            .unwrap();
-        repo.set("tech.proficiency", "expert", WrittenBy::User)
-            .unwrap();
-
-        // WHEN the persona brief is recalled
-        let brief = repo.recall_persona_brief(20).unwrap();
-        // THEN each of the six values is rendered into it
-        assert!(
-            brief.contains("Nidal"),
-            "brief should contain name: {brief}"
-        );
-        assert!(brief.contains("CTO fintech"), "{brief}");
-        assert!(brief.contains("supervision on critical actions"), "{brief}");
-        assert!(brief.contains("local preferred"), "{brief}");
-        assert!(brief.contains("fintech"), "{brief}");
-        assert!(brief.contains("expert"), "{brief}");
-    }
-
-    #[test]
-    fn is_empty_on_fresh_and_after_set() {
-        // GIVEN a fresh repository
-        let (repo, _) = setup();
-        // WHEN emptiness is asked, then the skip marker set, then a visible entry written
-        // THEN only the visible entry makes it non-empty
-        assert!(repo.is_empty().unwrap());
-        repo.set_onboarding_skipped(true).unwrap();
-        assert!(
-            repo.is_empty().unwrap(),
-            "internal markers should not count as 'visible' entries"
-        );
-        repo.set("name", "Nidal", WrittenBy::User).unwrap();
-        assert!(!repo.is_empty().unwrap());
-    }
-
-    #[test]
-    fn search_returns_visible_entries() {
-        // GIVEN two entries, one of them holding the searched term
-        let (repo, _) = setup();
-        repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
-        repo.set("preferences.language", "francais", WrittenBy::User)
-            .unwrap();
-        // WHEN that term is searched for
-        let results = repo.search("francais", 10).unwrap();
-        // THEN the entry holding it comes back
-        assert!(results.iter().any(|e| e.key == "preferences.language"));
-    }
-
-    #[test]
-    fn onboarding_topics_round_trip() {
-        // GIVEN a fresh repository
-        let (repo, _) = setup();
-        // WHEN two onboarding topics are marked covered, then read back
-        repo.mark_topic_covered("identity").unwrap();
-        repo.mark_topic_covered("preferences").unwrap();
-        let topics = repo.get_covered_topics().unwrap();
-        // THEN both come back
-        assert_eq!(topics.len(), 2);
-        assert!(topics.contains(&"identity".to_string()));
-        assert!(topics.contains(&"preferences".to_string()));
-    }
-
-    #[test]
-    fn onboarding_session_round_trip() {
-        // GIVEN a fresh repository, carrying no onboarding session
-        let (repo, _) = setup();
-        assert!(repo.get_last_onboarding_session().unwrap().is_none());
-        // WHEN a session timestamp is stored, then read back
-        repo.set_last_onboarding_session("2026-05-11T10:00:00Z")
-            .unwrap();
-        // THEN the stored timestamp comes back unchanged
-        assert_eq!(
-            repo.get_last_onboarding_session().unwrap().as_deref(),
-            Some("2026-05-11T10:00:00Z")
-        );
-    }
-
-    #[test]
-    fn written_by_tag_round_trip() {
-        // GIVEN the three provenance kinds an entry can carry
-        // WHEN each is rendered as its stored tag
-        // THEN the tags are the persisted forms, the agent one carrying its name
-        assert_eq!(WrittenBy::Onboarding.tag(), "onboarding");
-        assert_eq!(WrittenBy::User.tag(), "user");
-        assert_eq!(
-            WrittenBy::Agent("veille-ia".to_owned()).tag(),
-            "agent:veille-ia"
-        );
-        assert_eq!(WrittenBy::from_tag("onboarding"), WrittenBy::Onboarding);
-        assert_eq!(WrittenBy::from_tag("user"), WrittenBy::User);
-        assert_eq!(
-            WrittenBy::from_tag("agent:veille-ia"),
-            WrittenBy::Agent("veille-ia".to_owned())
-        );
-    }
-}
+mod tests;

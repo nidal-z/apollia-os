@@ -11,9 +11,8 @@
   } from "$lib/stores/chat";
   import { chatSessions } from "$lib/stores/sse";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import type { ChatSessionSummary, ProjectSummary } from "$lib/types";
+  import type { ChatSessionSummary } from "$lib/types";
   import { deleteChatSession, renameChatSession } from "$lib/ipc/chat";
-  import { listProjects } from "$lib/ipc/projects";
   import ChatConversation from "../components/chat/ChatConversation.svelte";
   import EmptySessionsState from "../components/chat/EmptySessionsState.svelte";
   import QuickPicker from "../components/chat/QuickPicker.svelte";
@@ -42,6 +41,7 @@
   } from "$lib/shortcuts/chatShortcuts";
   import { focusMessage } from "$lib/shortcuts/messageNav";
   import { commandPaletteOpen } from "$lib/stores/commandPalette";
+  import { developerMode } from "$lib/stores/developerMode";
   import { registerShortcuts } from "$lib/stores/shortcuts";
   import CommandPalette from "../components/chat/CommandPalette.svelte";
   import ShortcutsHelpDialog from "../components/chat/ShortcutsHelpDialog.svelte";
@@ -62,7 +62,9 @@
   let showNewChatPicker = $state(false);
   let showShortcutsHelp = $state(false);
   let sessionSearchQuery = $state("");
-  let journalMode = $state<JournalMode>("operator");
+  // The journal follows the developer mode: the technical reading when it
+  // is on, the plain one otherwise. There is no per-screen switch.
+  const journalMode = $derived<JournalMode>($developerMode ? "builder" : "operator");
   let railTab = $state<"journal" | "plan" | "config">("journal");
 
   // Open the inspector on the Config tab (from a row "..." action or the header
@@ -176,23 +178,7 @@
     },
   ];
 
-  // Projects loaded once so we can render a small "Project X" chip on
-  // each conversation row (mirrors the badge in the open conversation
-  // header). Refreshed when the user creates/links sessions elsewhere.
-  let projectList = $state<ProjectSummary[]>([]);
-  const projectNameById = $derived(
-    new Map(projectList.map((p) => [p.id, p.name])),
-  );
-  async function reloadProjectList(): Promise<void> {
-    try {
-      projectList = await listProjects();
-    } catch {
-      // Non-blocking - the chip just won't render.
-    }
-  }
-
   onMount(() => {
-    void reloadProjectList();
     const unsub = pendingChatSessionId.subscribe((id) => {
       if (id) { selectedSessionId = id; pendingChatSessionId.set(null); }
     });
@@ -537,9 +523,6 @@
             timestamp={relativeTime(session.lastActivityAt)}
             state={rowState(session, session.id === selectedSessionId)}
             live={session.status === "processing"}
-            projectLabel={session.project_id
-              ? (projectNameById.get(session.project_id) ?? undefined)
-              : undefined}
             onclick={() => { navigateToSession(session.id); closeSessionsDrawer(); }}
             onrename={(newTitle) => void handleRenameSession(session.id, newTitle)}
             ondelete={() => void handleDeleteSession(session.id)}
@@ -667,28 +650,6 @@
           {$t("chat.config_title")}
         </button>
       </div>
-      {#if railTab === "journal"}
-        <div class="inline-flex rounded-md border border-border p-0.5 text-micro-lg">
-          <button
-            type="button"
-            class="rounded px-2 py-0.5 transition-colors {journalMode === 'operator'
-              ? 'bg-primary/10 text-primary'
-              : 'text-muted-foreground hover:text-foreground'}"
-            onclick={() => (journalMode = "operator")}
-          >
-            {$t("chat.journal_mode_operator")}
-          </button>
-          <button
-            type="button"
-            class="rounded px-2 py-0.5 transition-colors {journalMode === 'builder'
-              ? 'bg-primary/10 text-primary'
-              : 'text-muted-foreground hover:text-foreground'}"
-            onclick={() => (journalMode = "builder")}
-          >
-            {$t("chat.journal_mode_builder")}
-          </button>
-        </div>
-      {/if}
     </div>
 
     {#if railTab === "config"}

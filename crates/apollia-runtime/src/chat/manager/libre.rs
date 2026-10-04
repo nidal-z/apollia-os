@@ -241,25 +241,6 @@ pub(in crate::chat::manager) fn accumulate_exchange_metrics(
     }
 }
 
-/// The project context source of the exchange, when injection is enabled and
-/// both a project id and a provider are available.
-fn project_context_source(
-    should_inject: bool,
-    session_project_id: &Option<String>,
-    project_ctx: &Option<Arc<dyn ProjectContextProvider>>,
-) -> Option<ProjectContextSource> {
-    if !should_inject {
-        return None;
-    }
-    let (Some(pid), Some(provider)) = (session_project_id, project_ctx) else {
-        return None;
-    };
-    Some(ProjectContextSource {
-        project_id: pid.clone(),
-        provider: Arc::clone(provider),
-    })
-}
-
 /// Resolve the conversation summary for the exchange.
 ///
 /// Reuses `stored_summary` when present or the history fits the context
@@ -315,7 +296,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         tool_registry,
         event_bus,
         a2a_for_agent,
-        mut apollia_context,
+        apollia_context,
         pending_approvals,
         autonomy_level,
         runtime_budget,
@@ -323,17 +304,13 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         available_tools,
         authorized_tools,
         system_prompt,
-        inject_project_context,
         is_companion,
         context_window_size,
         stored_summary,
         llm_for_summarize,
-        project_ctx,
-        session_project_id,
-        project_repo_for_session,
         pending_user_inputs_for_session,
         mcp_handle_for_session,
-        package_tools,
+        mut package_tools,
         composer,
         chat_tools_config_for_session,
         mcp_loading,
@@ -353,9 +330,17 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         cancel,
         pending_injection,
         preferred_backend,
+        turn_id,
     } = params;
 
     let available_tools = available_tools.tools(&tool_registry).await;
+    let available_tools = super::code_context::with_code_context(
+        chat_tools_config_for_session.as_deref(),
+        &agent_id,
+        available_tools,
+        &mut package_tools,
+    )
+    .await;
 
     // In deferred mode, snapshot the aggregated tool index once. The synthetic
     // `tool_search` tool is built from it twice: as a dispatcher executor (so a
@@ -384,9 +369,19 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     // connected account, or nothing.
     let available_tools =
         crate::connectors_bridge::resolve_connector_access(&agent_id, available_tools).await;
+    // The folders granted to the agent are the roots of its file tools.
+    let (available_tools, folders) = super::dispatcher::granted_folders(
+        available_tools,
+        chat_tools_config_for_session.as_deref(),
+    );
     let mcp_index = super::disabled::only_granted(mcp_index, &available_tools);
     let (available_tools, mcp_index) =
         super::disabled::without_disabled(available_tools, mcp_index, &disabled);
+    // The source tools are offered only when their source is checked.
+    let sources =
+        super::sources::source_access(chat_tools_config_for_session.as_deref(), &agent_id).await;
+    let available_tools = super::sources::offered(available_tools, &sources);
+    let memory_namespace = super::sources::memory_namespace(&agent_id, &session_id_str);
 
     // Read the tool-turn temperature before the config is moved into the
     // session invoker below; it is applied to the agent further down.
@@ -401,12 +396,10 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         .as_ref()
         .map(|c| c.data_dir.join(GOVERNANCE_DB_FILENAME));
 
-    // Resolve per-session sandbox root from project workspace_path.
-    // On error (project not found) surface as ExchangeError, no panic.
+    // The session invoker, its file tools rooted at the granted folders.
     let session_invoker = match build_session_invoker(
         WorkspaceResolutionParams {
-            project_id: session_project_id.clone(),
-            project_repo: project_repo_for_session,
+            folders,
             hitl: Some(hitl_params),
             pending_user_inputs: Some(pending_user_inputs_for_session),
             mcp_handle: mcp_handle_for_session,
@@ -416,6 +409,8 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             mcp_index: mcp_index.clone(),
             tool_search_limit,
             package_tools,
+            sources,
+            memory_namespace,
         },
         &a2a_for_agent,
         hook_executor.clone(),
@@ -449,20 +444,6 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     } else {
         build_prefix_checker(governance_db_path)
     };
-    // Inject project context on first message OR right after the
-    // session was linked to a project (consumed flag).
-    tracing::info!(
-        session_id = %sid,
-        inject_project_context,
-        has_project = session_project_id.is_some(),
-        has_provider = project_ctx.is_some(),
-        "chat.project_context.gate"
-    );
-    apollia_context.project = project_context_source(
-        inject_project_context && !is_companion,
-        &session_project_id,
-        &project_ctx,
-    );
     // The session runs its agent: Apollia, whose stored prompt is the mission,
     // whose session tools are its granted tools and whose stored backend is
     // its model; or a declarative agent, as resolved when the message is sent.
@@ -497,6 +478,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             approval_timeout: Some(crate::chat::builtin_agent::CHAT_APPROVAL_TIMEOUT),
             shared_budget: None,
             composition: composer.map(|composer| Composition { composer, depth: 1 }),
+            turn_id,
         },
         &runtime_budget,
         cancel,
@@ -777,8 +759,6 @@ mod context_gauge_tests {
             title: None,
             parent_session_id: None,
             fork_depth: 0,
-            project_id: None,
-            force_project_context_inject: false,
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashSet::new(),
             )),

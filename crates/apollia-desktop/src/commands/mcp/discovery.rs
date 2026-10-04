@@ -153,7 +153,7 @@ pub async fn fetch_mcp_registry(
         .collect();
 
     let mut result = views;
-    for enrichment in enrichments.iter().filter(|e| !e.awaiting_registration) {
+    for enrichment in enrichments.iter().filter(|e| e.is_listed()) {
         let already_present = enrichment
             .registry_names
             .iter()
@@ -187,7 +187,7 @@ pub async fn fetch_mcp_registry(
                     vec![RegistryPackage {
                         registry_type: reg_type.clone(),
                         identifier: enrichment.package_identifier.clone(),
-                        version: None,
+                        version: enrichment.package_version.clone(),
                         runtime_hint: enrichment.package_runtime_hint.clone(),
                         transport: RegistryTransport {
                             transport_type: "stdio".to_string(),
@@ -306,7 +306,7 @@ pub async fn fetch_mcp_curated(
     };
 
     let mut result: Vec<RegistryServerView> = Vec::with_capacity(enrichments.len());
-    for enrichment in enrichments.iter().filter(|e| !e.awaiting_registration) {
+    for enrichment in enrichments.iter().filter(|e| e.is_listed()) {
         let name = enrichment
             .registry_names
             .first()
@@ -331,7 +331,7 @@ pub async fn fetch_mcp_curated(
                 vec![RegistryPackage {
                     registry_type: reg_type.clone(),
                     identifier: enrichment.package_identifier.clone(),
-                    version: None,
+                    version: enrichment.package_version.clone(),
                     runtime_hint: enrichment.package_runtime_hint.clone(),
                     transport: RegistryTransport {
                         transport_type: "stdio".to_string(),

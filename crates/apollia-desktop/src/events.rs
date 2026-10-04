@@ -451,6 +451,8 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
 
         // ── System-level ─────────────────────────────────────────────────
         RuntimeEvent::AllReady | RuntimeEvent::ShutdownRequested => "system",
+        // The refused `apollia.toml`; its banner reads the diagnostics.
+        RuntimeEvent::ConfigInvalid { .. } => "system",
 
         // ── Triggers (extended) ───────────────────────────────────────────
         RuntimeEvent::TriggerQueueFull { .. } => "trigger-fired",
@@ -481,6 +483,7 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         // ── Observability: event-sourced runtime trace ────
         // Routed onto the front-side `trace-event` bus.
         RuntimeEvent::AgentLog { .. }
+        | RuntimeEvent::ProfileRead { .. }
         | RuntimeEvent::Thought { .. }
         | RuntimeEvent::LlmCallStarted { .. }
         | RuntimeEvent::ToolCallStarted { .. }
@@ -778,6 +781,11 @@ mod tests {
                 latency_ms: 0,
                 cost_usd: None,
                 run_id: None,
+                session_id: None,
+                turn_id: None,
+                ttft_ms: None,
+                finish_reason: None,
+                generation_ms: None,
             },
             RuntimeEvent::TriggerFired {
                 trigger_id: "t".into(),
@@ -799,6 +807,10 @@ mod tests {
                 trigger_id: "t".into(),
             },
             RuntimeEvent::TriggersReloaded { count: 0 },
+            RuntimeEvent::ConfigInvalid {
+                path: "apollia.toml".into(),
+                diagnostics: Vec::new(),
+            },
             RuntimeEvent::PlanGenerated {
                 task_id: "t".into(),
                 agent_name: "a".into(),

@@ -6,7 +6,6 @@
  * command names are snake_case. Error handling stays at the call site.
  */
 import { invoke } from "@tauri-apps/api/core";
-import { getProfile } from "$lib/ipc/profile";
 import type {
   AgentListItem,
   Connection,
@@ -50,6 +49,16 @@ export interface McpEnrichmentEntry {
 /** Every connection of this machine, as `GET /api/v1/connections` answers it. */
 export function listConnections(): Promise<Connection[]> {
   return invoke<Connection[]>("list_connections");
+}
+
+/** Add the folder at `path`, chosen with the system picker, as a connection. */
+export function addFolderConnection(path: string): Promise<Connection> {
+  return invoke<Connection>("add_folder_connection", { path });
+}
+
+/** Remove the folder connection `connectionId` (`folder:<id>`); answers the connection it was. */
+export function removeFolderConnection(connectionId: string): Promise<Connection> {
+  return invoke<Connection>("remove_folder_connection", { connectionId });
 }
 
 // ── MCP servers ────────────────────────────────────────────────────────────
@@ -119,50 +128,17 @@ export function oauthGetStatus(): Promise<OauthAccountInfo[]> {
   return invoke<OauthAccountInfo[]>("oauth_get_status");
 }
 
-/** The sovereignty profile as the Rust `SovereigntyProfile` enum spells it. */
-export type SovereigntyProfile = "local_only" | "cloud_allowed";
-
-/**
- * Read the user's sovereignty setting and map it to the backend enum.
- *
- * The profile stores `local-only` / `local-preferred` / `cloud-ok`; the command
- * takes `local_only` / `cloud_allowed`. Only `local-only` blocks: the
- * `local-preferred` profile allows cloud as a last resort after approval, which
- * is what an OAuth connection is.
- *
- * The permitting values are named explicitly rather than the blocking one, so
- * a value nobody anticipated blocks instead of passing. `constraints.sovereignty`
- * is a required tier-1 profile key marked sensitive and carries no default: a
- * profile reaching this point without it is not initialised, and an absent
- * sensitive setting must not read as consent. An unreadable store blocks for the
- * same reason.
- */
-const CLOUD_PERMITTING = new Set(["cloud-ok", "local-preferred"]);
-
-export async function resolveSovereignty(): Promise<SovereigntyProfile> {
-  try {
-    const profile = await getProfile();
-    const entry = profile.entries.find((e) => e.key === "constraints.sovereignty");
-    return entry && CLOUD_PERMITTING.has(entry.value) ? "cloud_allowed" : "local_only";
-  } catch {
-    return "local_only";
-  }
-}
-
 /**
  * Start a cloud OAuth flow.
  *
- * `sovereignty` is required and carries no default: the command refuses the
- * flow when it is `local_only`, and a default here would let a caller bypass
- * that gate by omission, which is exactly what happened while the parameter
- * defaulted to `cloud_allowed`. Pass {@link resolveSovereignty}.
+ * Whether the organisation allows the connection is decided by the runtime,
+ * from the policy it loaded: a refusal comes back as `refused_by_policy`.
  */
 export function oauthStartFlow(
   provider: ProviderId,
   scopes: string[],
-  sovereignty: SovereigntyProfile,
 ): Promise<OauthStartResult> {
-  return invoke<OauthStartResult>("oauth_start_flow", { provider, scopes, sovereignty });
+  return invoke<OauthStartResult>("oauth_start_flow", { provider, scopes });
 }
 
 export function oauthCompleteFlow(
@@ -302,7 +278,8 @@ export type WizardInvoke = <T>(
 ) => Promise<T>;
 
 /**
- * File the connector's secrets, then install its configuration.
+ * File the connector's secrets, then install its configuration, the warning
+ * shown before the addition accepted (the desktop journals it).
  *
  * Both calls carry `config.name`, and that is the whole point of this
  * function existing. The keyring key is written as `{server_name}:{env_var}`
@@ -328,5 +305,65 @@ export async function installConnector(
       value: secret.value,
     });
   }
-  await invokeFn("add_mcp_server", { config });
+  await invokeFn("add_mcp_server", { config, warningAccepted: true });
+}
+
+/** Where Node.js stands in the engine store, as `node_runtime_state` answers. */
+export type NodeRuntimeState =
+  | { state: "absent" }
+  | { state: "downloading"; received: number; total: number }
+  | { state: "ready"; tag: string; path: string }
+  | { state: "failed"; error: string };
+
+/** Read where Node.js stands, to show its download while an addition waits on it. */
+export function nodeRuntimeState(): Promise<NodeRuntimeState> {
+  return invoke<NodeRuntimeState>("node_runtime_state");
+}
+
+// ── Mailbox connection (IMAP) ───────────────────────────────────────────────
+
+/** A provider whose IMAP server and port are known from the address. */
+export interface ImapProvider {
+  name: string;
+  /** Address domains it serves, lowercase. */
+  domains: string[];
+  host: string;
+  port: number;
+}
+
+/** The providers known from the address, and the port of any other server. */
+export interface ImapProviders {
+  providers: ImapProvider[];
+  defaultPort: number;
+}
+
+/** What the add form sends; the password is never kept by the window. */
+export interface MailboxInput {
+  email: string;
+  host: string | null;
+  port: number | null;
+  password: string;
+}
+
+/** A mailbox the runtime verified and stored. */
+export interface MailboxAccount {
+  connectionId: string;
+  email: string;
+  host: string;
+  port: number;
+  username: string;
+}
+
+/** The providers whose server the add form fills from the address. */
+export function listImapProviders(): Promise<ImapProviders> {
+  return invoke<ImapProviders>("list_imap_providers");
+}
+
+/**
+ * Add a mailbox: the runtime logs in for real, then stores the connection and
+ * keeps the password in the secret store. A failed login stores nothing and
+ * rejects with the reason.
+ */
+export function addImapMailbox(mailbox: MailboxInput): Promise<MailboxAccount> {
+  return invoke<MailboxAccount>("add_imap_mailbox", { mailbox });
 }

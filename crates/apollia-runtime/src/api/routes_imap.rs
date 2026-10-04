@@ -1,6 +1,9 @@
 //! REST routes for a mailbox connected over IMAP, under
 //! `/api/v1/connectors/imap/`.
 //!
+//! - `GET /api/v1/connectors/imap/providers`: the providers whose server and
+//!   port are filled from the address, read-only, so a form can show them
+//!   before anything is sent.
 //! - `POST /api/v1/connectors/imap/test`: log in and open the inbox
 //!   read-only, store nothing.
 //! - `POST /api/v1/connectors/imap/accounts`: the same verification, then the
@@ -13,9 +16,15 @@
 //! addition goes through the connection admission first and is journaled.
 //! The password is never answered, never journaled, never traced.
 
-use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    routing::{get, post},
+    Json, Router,
+};
 use serde::{Deserialize, Serialize};
 
+use apollia_connectors::imap::providers::{KnownProvider, DEFAULT_IMAP_PORT, KNOWN_PROVIDERS};
 use apollia_connectors::imap::{
     ConnectionProbe, ImapAccount, ImapAccountInput, ImapAccountStore, ImapClient, ImapError,
 };
@@ -37,6 +46,10 @@ const MAX_PASSWORD_LEN: usize = 1024;
 /// Build the mailbox router.
 pub fn imap_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
+        .route(
+            "/api/v1/connectors/imap/providers",
+            get(list_imap_providers),
+        )
         .route("/api/v1/connectors/imap/test", post(test_imap_mailbox))
         .route(
             "/api/v1/connectors/imap/accounts",
@@ -78,6 +91,62 @@ pub struct ImapAccountResponse {
     pub port: u16,
     /// Identifier sent at login.
     pub username: String,
+}
+
+/// A provider whose IMAP server is known from the address.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ImapProviderResponse {
+    /// Name of the provider.
+    pub name: String,
+    /// Address domains it serves, lowercase.
+    pub domains: Vec<String>,
+    /// IMAP server.
+    pub host: String,
+    /// IMAP port, implicit TLS.
+    pub port: u16,
+}
+
+/// The providers known from the address, and the port of any other server.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ImapProvidersResponse {
+    /// Every provider prefilled from the address.
+    pub providers: Vec<ImapProviderResponse>,
+    /// Port of a server outside the list, implicit TLS.
+    pub default_port: u16,
+}
+
+impl From<&KnownProvider> for ImapProviderResponse {
+    fn from(provider: &KnownProvider) -> Self {
+        Self {
+            name: provider.name.to_owned(),
+            domains: provider.domains.iter().map(|d| (*d).to_owned()).collect(),
+            host: provider.host.to_owned(),
+            port: provider.port,
+        }
+    }
+}
+
+/// `GET /api/v1/connectors/imap/providers`: the providers whose server and
+/// port are filled from the address. Reads a table compiled into the runtime;
+/// nothing is reached, nothing is stored.
+#[utoipa::path(
+    get,
+    path = "/api/v1/connectors/imap/providers",
+    tag = "connectors",
+    responses(
+        (status = 200, description = "The providers known from the address", body = ImapProvidersResponse),
+    )
+)]
+pub(crate) async fn list_imap_providers() -> Json<ImapProvidersResponse> {
+    Json(ImapProvidersResponse {
+        providers: KNOWN_PROVIDERS
+            .iter()
+            .map(ImapProviderResponse::from)
+            .collect(),
+        default_port: DEFAULT_IMAP_PORT,
+    })
 }
 
 /// A refused mailbox: the message and its stable code.

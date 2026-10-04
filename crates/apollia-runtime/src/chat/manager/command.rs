@@ -12,8 +12,6 @@ pub enum ChatCommand {
         system_prompt: Option<String>,
         /// Tool names available in this session.
         tools: Vec<String>,
-        /// Project to link this session to (None = standalone).
-        project_id: Option<String>,
         /// Response channel.
         reply: oneshot::Sender<Result<SessionInfo, ChatError>>,
     },
@@ -55,6 +53,14 @@ pub enum ChatCommand {
         session_id: SessionId,
         /// Response channel.
         reply: oneshot::Sender<Option<SessionDetail>>,
+    },
+    /// The model a session runs on, as the next message would route it.
+    SessionModel {
+        /// Target session.
+        session_id: SessionId,
+        /// Response channel: the backend or model name, `None` for the
+        /// runtime default.
+        reply: oneshot::Sender<Result<Option<String>, ChatError>>,
     },
     /// Resolve the effective working directory for a session.
     ///
@@ -283,27 +289,6 @@ pub enum ChatCommand {
         session_id: SessionId,
         /// Response channel.
         reply: oneshot::Sender<Vec<SessionInfo>>,
-    },
-    /// Link or unlink a session to a project.
-    LinkSessionToProject {
-        /// Target session.
-        session_id: SessionId,
-        /// Project ID (None to unlink).
-        project_id: Option<String>,
-        /// Response channel.
-        reply: oneshot::Sender<Result<(), ChatError>>,
-    },
-    /// List sessions belonging to a specific project.
-    ListSessionsByProject {
-        /// Project identifier.
-        project_id: String,
-        /// Response channel.
-        reply: oneshot::Sender<Vec<SessionInfo>>,
-    },
-    /// Unlink all sessions from a project (orphan them on project deletion).
-    OrphanProjectSessions {
-        /// Project identifier.
-        project_id: String,
     },
     /// List in-memory tool authorizations across all active sessions
     /// (used by the desktop Settings > Permissions page to surface

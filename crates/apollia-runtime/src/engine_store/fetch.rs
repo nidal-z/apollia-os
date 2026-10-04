@@ -180,6 +180,22 @@ pub async fn install_package(
     engine: Engine,
     variant: Variant,
 ) -> Result<InstalledPackage, EngineStoreError> {
+    install_package_with_progress(store, settings, engine, variant, |_, _| {}).await
+}
+
+/// [`install_package`], calling `progress(received, total)` as the archive
+/// arrives, `total` being the size the verified manifest states.
+///
+/// # Errors
+///
+/// Those of [`install_package`].
+pub async fn install_package_with_progress(
+    store: &EngineStore,
+    settings: &EngineStoreSettings,
+    engine: Engine,
+    variant: Variant,
+    progress: impl Fn(u64, u64),
+) -> Result<InstalledPackage, EngineStoreError> {
     let (manifest, manifest_url) = refresh_manifest(store, settings).await?;
     let package = manifest
         .newest(engine, variant, &store.platform)
@@ -200,7 +216,7 @@ pub async fn install_package(
         .map_err(io(&downloads))?;
     let file_name = archive_file_name(&package);
     let archive_path = downloads.join(&file_name);
-    let result = download(&client(&url)?, &url, &archive_path, &package).await;
+    let result = download(&client(&url)?, &url, &archive_path, &package, &progress).await;
     let outcome = match result {
         Ok(()) => install_verified_archive(store, &package, &archive_path, Source::Downloaded),
         Err(e) => Err(e),
@@ -223,6 +239,7 @@ async fn download(
     url: &reqwest::Url,
     dest: &Path,
     package: &Package,
+    progress: &impl Fn(u64, u64),
 ) -> Result<(), EngineStoreError> {
     let mut response = get(client, url).await?;
     let mut file = tokio::fs::File::create(dest).await.map_err(io(dest))?;
@@ -246,6 +263,7 @@ async fn download(
         }
         hasher.update(&chunk);
         file.write_all(&chunk).await.map_err(io(dest))?;
+        progress(received, package.size);
     }
     file.flush().await.map_err(io(dest))?;
     check_digest(package, &hex::encode(hasher.finalize()))

@@ -132,6 +132,15 @@ pub struct ConnectorEnrichment {
     /// Drop the flag once the client id ships in the release build.
     #[serde(default)]
     pub awaiting_registration: bool,
+    /// The entry cannot be installed the way Apollia installs a selection
+    /// server: no package is published under its name, or it only works once
+    /// an install script has run, and none ever runs; or a native connection
+    /// replaces it, as the folder connection replaces the files server. A
+    /// server already installed from it stays installed. Like an entry awaiting
+    /// registration, it stays in the data, still shadows the same server
+    /// coming from the public registry, and is never listed.
+    #[serde(default)]
+    pub withdrawn: bool,
     /// Environment variable names required by this package (for synthetic entries).
     #[serde(default)]
     pub package_env_vars: Vec<EnrichmentEnvVar>,
@@ -332,6 +341,14 @@ pub enum TrustLevel {
     Custom,
 }
 
+impl ConnectorEnrichment {
+    /// Whether the entry is offered: neither awaiting a registration nor
+    /// withdrawn.
+    pub fn is_listed(&self) -> bool {
+        !self.awaiting_registration && !self.withdrawn
+    }
+}
+
 /// Load the builtin enrichments embedded at compile time.
 ///
 /// Returns all entries from `enrichments.json`. If the embedded JSON is somehow
@@ -357,13 +374,14 @@ pub fn find_enrichment<'a>(
 ///
 /// A remote connection matches on its URL; a local one on the package it
 /// launches, through `npx`/`bunx` (the package after the launcher's own
-/// options), `uvx`, or the entry point of an installed Python package. An
-/// entry awaiting registration is never listed and matches nothing.
+/// options), `uvx`, the file of an installed npm package, or the entry point
+/// of an installed Python package. An entry that is not listed matches
+/// nothing.
 pub fn selection_entry_for<'a>(
     config: &McpServerConfig,
     enrichments: &'a [ConnectorEnrichment],
 ) -> Option<&'a ConnectorEnrichment> {
-    let listed = enrichments.iter().filter(|e| !e.awaiting_registration);
+    let listed = enrichments.iter().filter(|e| e.is_listed());
     if config.transport != "stdio" {
         let url = config.url.as_deref()?;
         return listed
@@ -392,6 +410,8 @@ fn launched_package(config: &McpServerConfig) -> Option<String> {
         "uvx" => crate::mcp::python_server::UvxInvocation::parse(&config.args)
             .ok()
             .map(|i| i.package),
+        // An installed npm connection runs a file under `node_modules`.
+        "node" => crate::mcp::npm_server::installed_package(config),
         // An installed Python connection runs its entry point by path.
         _ => Some(stem),
     }
@@ -603,6 +623,93 @@ mod tests {
     }
 
     #[test]
+    fn every_listed_npx_entry_is_pinned_and_locked_by_integrity() {
+        // GIVEN the shipped catalogue's listed entries launched by `npx`
+        let enrichments = load_builtin_enrichments();
+        let npm: Vec<&ConnectorEnrichment> = enrichments
+            .iter()
+            .filter(|e| e.is_listed() && e.package_runtime_hint.as_deref() == Some("npx"))
+            .collect();
+        assert!(!npm.is_empty(), "the catalogue carries npm entries");
+        for entry in npm {
+            let package = entry.package_identifier.as_str();
+            // WHEN its version and its embedded lock are read
+            let version = entry
+                .package_version
+                .as_deref()
+                .unwrap_or_else(|| panic!("{package} carries no version"));
+            let raw = crate::mcp::npm_server::embedded_lock(package)
+                .unwrap_or_else(|| panic!("{package} carries no lock"));
+            // THEN the version is exact, the lock installs that version, and
+            //      every package of the lock carries a sha512 integrity and
+            //      comes from the public registry
+            assert!(
+                crate::mcp::npm_server::is_exact_version(version),
+                "{package}: {version}"
+            );
+            crate::mcp::npm_server::NpmLock::check(package, version, raw)
+                .unwrap_or_else(|e| panic!("{package}: {e}"));
+            let lock: serde_json::Value = serde_json::from_str(raw).expect("lock");
+            let packages = lock["packages"].as_object().expect("packages");
+            for (path, p) in packages.iter().filter(|(path, _)| !path.is_empty()) {
+                assert!(
+                    p["resolved"]
+                        .as_str()
+                        .is_some_and(|r| r.starts_with("https://registry.npmjs.org/")),
+                    "{package}: {path} comes from elsewhere"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_entry_no_one_can_install_is_withdrawn_from_the_listing() {
+        // GIVEN the shipped catalogue
+        let enrichments = load_builtin_enrichments();
+        // WHEN the withdrawn entries are collected
+        let mut withdrawn: Vec<&str> = enrichments
+            .iter()
+            .filter(|e| e.withdrawn)
+            .map(|e| e.package_identifier.as_str())
+            .collect();
+        withdrawn.sort_unstable();
+        // THEN they are the files server the folder connection replaces, the
+        //      two names npm does not publish and the browser server that
+        //      needs an install script, and none is listed
+        assert_eq!(
+            withdrawn,
+            [
+                "@modelcontextprotocol/server-filesystem",
+                "@modelcontextprotocol/server-git",
+                "@modelcontextprotocol/server-puppeteer",
+                "@modelcontextprotocol/server-sqlite",
+            ]
+        );
+        assert!(enrichments
+            .iter()
+            .filter(|e| e.withdrawn)
+            .all(|e| !e.is_listed()));
+    }
+
+    #[test]
+    fn test_the_files_server_leaves_the_selection_and_an_installed_one_keeps_its_entry() {
+        // GIVEN the shipped catalogue
+        let enrichments = load_builtin_enrichments();
+        // WHEN the files server is looked up
+        let files = find_enrichment(&enrichments, "@modelcontextprotocol/server-filesystem")
+            .expect("files server entry");
+        // THEN it is not listed, so neither the selection nor the public
+        //      registry offers it; its entry and its lock stay, so a server
+        //      already installed from it keeps its name and its pinned install
+        assert!(!files.is_listed());
+        assert_eq!(
+            files.operator_label.get("en").map(String::as_str),
+            Some("Local Files")
+        );
+        assert!(crate::mcp::npm_server::embedded_lock(&files.package_identifier).is_some());
+    }
+
+    #[test]
     fn brave_search_is_marked_freemium() {
         // GIVEN the shipped catalogue
         let enrichments = load_builtin_enrichments();
@@ -637,7 +744,7 @@ mod tests {
             serde_json::from_str(include_str!("enrichments.json"));
         let enrichments = parsed.expect("the embedded catalogue parses");
         // WHEN the listed entries are inspected
-        for entry in enrichments.iter().filter(|e| !e.awaiting_registration) {
+        for entry in enrichments.iter().filter(|e| e.is_listed()) {
             // THEN each classifies at least one tool, never as unclassified
             //      nor exempt, under a tool name a configuration accepts
             assert!(
@@ -696,6 +803,10 @@ mod tests {
         );
         let uvx = stdio("uvx", &["mcp-server-time"]);
         let installed = stdio("/data/connections/time/venv/bin/mcp-server-time", &[]);
+        let installed_npm = stdio(
+            "node",
+            &["/data/connections/memory/node_modules/@modelcontextprotocol/server-memory/dist/index.js"],
+        );
         // WHEN each is given the selection's classification
         // THEN each carries the family its entry gives
         let notion = with_selection_classification(remote, &enrichments);
@@ -703,11 +814,13 @@ mod tests {
             notion.tool_families.get("notion-search"),
             Some(&ActionFamily::ReadPersonal)
         );
-        let memory = with_selection_classification(npm, &enrichments);
-        assert_eq!(
-            memory.tool_families.get("delete_entities"),
-            Some(&ActionFamily::WriteOrDelete)
-        );
+        for config in [npm, installed_npm] {
+            let memory = with_selection_classification(config, &enrichments);
+            assert_eq!(
+                memory.tool_families.get("delete_entities"),
+                Some(&ActionFamily::WriteOrDelete)
+            );
+        }
         for config in [uvx, installed] {
             let time = with_selection_classification(config, &enrichments);
             assert_eq!(

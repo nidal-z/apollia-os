@@ -1,9 +1,10 @@
-//! The commands that change an agent's state: install, uninstall, update. The
-//! uninstall and the update, restart included, are routes of the runtime.
+//! The commands that change an agent's state: install and update. The
+//! update, restart included, is a route of the runtime.
 //!
 //! There is no start, stop, enable or disable here: an installed agent is
 //! always available, loaded by its first task and released once idle. The
-//! install makes it available at once.
+//! install makes it available at once. The uninstall goes through the
+//! runtime, with the packages (`agent_packages::uninstall`).
 
 use std::sync::Arc;
 
@@ -115,23 +116,6 @@ pub async fn install_agent(
 /// The route of an installed agent on the runtime.
 fn installed_path(name: &str) -> String {
     format!("/api/v1/agents/installed/{}", segment(name))
-}
-
-/// Uninstalls an installed agent.
-///
-/// The runtime removes the row of `agents.db` and the install directory, then
-/// the agent from its registry, and emits `RuntimeEvent::AgentUninstalled`
-/// (`DELETE /api/v1/agents/installed/{name}`), on the listener of the runtime
-/// in this process or on the daemon's.
-#[tauri::command]
-pub async fn uninstall_agent(name: String, link: State<'_, RuntimeLink>) -> Result<(), String> {
-    uninstall_on(link.inner(), &name).await
-}
-
-/// The body of [`uninstall_agent`], on either arm of the seam.
-pub(crate) async fn uninstall_on(link: &RuntimeLink, name: &str) -> Result<(), String> {
-    link.delete_json(&installed_path(name)).await?;
-    Ok(())
 }
 
 /// Updates an installed agent with a new Python file.

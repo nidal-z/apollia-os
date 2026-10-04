@@ -79,9 +79,30 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # clients of the connectors were served by the daemon, then at 103 once the plan
 # mode had its routes, then at 96 once the MCP secrets and registry had their
 # routes and the MCP sign-in was named a window command, then at 92 once the
-# uninstall and the update of an agent, the deletion of a stored task and its
-# delegation tree had their routes.
-EMBEDDED_ONLY_CEILING = 92
+# credentials of the native tools had their routes, then at 88 once the
+# downloads, the import and the removal of a model served the daemon, then at 83
+# once the LLM engines were listed, tested and reloaded, and the cost alert
+# threshold read, through the daemon, then at 78 once the settings, the status
+# and the models of the dictation were served by the daemon, then at 70 once the
+# onboarding had its routes, then at 65 once the onboarding, the memory, the logs
+# and the whole data directory could be reset or erased through the daemon,
+# then at 61 once the artifacts of a conversation were served by the daemon,
+# then at 58 once the timeline, the tool audit and the mailbox of the
+# Observability view were, then at 54 once the assists around the chat
+# (rewrite, next steps, automation, coaching) were, then at 49 once the
+# transcription history and the transcription of a file reached the daemon and
+# the dictation was named a command of the window, then at 44 once the reading
+# side of the Model Hub (hardware, search, cards, installed models,
+# recommendation) reached the daemon, then at 39 once the local AI could be
+# installed at onboarding through the daemon, then at 34 once the agent
+# packages were installed, listed and uninstalled through the daemon, then at
+# 30 once the companion read its preference and opened its guide session
+# through the daemon, then at 29 once the uninstall of an agent went through
+# the runtime, then at 8 once the commands of the former projects, served by
+# the embedded runtime alone, left with their screen, then at 5 once the update
+# of an agent, the deletion of a stored task and its delegation tree had their
+# routes.
+EMBEDDED_ONLY_CEILING = 5
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

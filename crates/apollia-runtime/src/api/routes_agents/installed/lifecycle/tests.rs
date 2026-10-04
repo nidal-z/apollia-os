@@ -52,42 +52,6 @@ fn test_is_running_covers_live_states_only() {
 }
 
 #[tokio::test]
-async fn test_an_uninstall_removes_the_row_the_directory_and_the_running_agent() {
-    // GIVEN veille installed and running on the daemon
-    let (data, _source, _module) = installed_veille().await;
-    let state = app_state(
-        Arc::new(VeilleLoader { refusal: None }),
-        data.path().to_path_buf(),
-    );
-    let agent_path = data.path().join("agents/veille/agent.py");
-    let body = serde_json::json!({ "agent_path": agent_path.display().to_string() });
-    let (started, _) = call(state.clone(), "POST", "/api/v1/agents", Some(body)).await;
-    assert_eq!(started, StatusCode::CREATED);
-
-    // WHEN it is uninstalled over HTTP
-    let (status, answer) = call(
-        state.clone(),
-        "DELETE",
-        "/api/v1/agents/installed/veille",
-        None,
-    )
-    .await;
-
-    // THEN the row, the directory and the registry entry are gone
-    assert_eq!(status, StatusCode::OK, "{answer}");
-    assert_eq!(answer["name"], "veille");
-    assert!(!data.path().join("agents/veille").exists());
-    assert!(state
-        .registry_handle
-        .find_by_name("veille")
-        .await
-        .unwrap()
-        .is_none());
-    let (_, listed) = call(state, "GET", "/api/v1/agents/installed", None).await;
-    assert_eq!(listed, serde_json::json!([]));
-}
-
-#[tokio::test]
 async fn test_an_unknown_agent_is_refused_with_the_message_of_the_embedded_command() {
     // GIVEN a daemon with nothing installed
     let data = tempfile::tempdir().unwrap();
@@ -96,26 +60,14 @@ async fn test_an_unknown_agent_is_refused_with_the_message_of_the_embedded_comma
         data.path().to_path_buf(),
     );
 
-    // WHEN an uninstall and an update name an agent it does not hold
-    let (uninstall, refused) = call(
-        state.clone(),
-        "DELETE",
-        "/api/v1/agents/installed/ghost",
-        None,
-    )
-    .await;
+    // WHEN an update names an agent it does not hold
     let file = data.path().join("ghost.py");
     std::fs::write(&file, "X = 1\n").unwrap();
     let body = serde_json::json!({ "path": file.display().to_string() });
     let (update, update_refused) =
         call(state, "PUT", "/api/v1/agents/installed/ghost", Some(body)).await;
 
-    // THEN both answer 404 with the words the window showed embedded
-    assert_eq!(uninstall, StatusCode::NOT_FOUND);
-    assert_eq!(
-        refused["error"],
-        "agent 'ghost' not found in installed agents"
-    );
+    // THEN it answers 404 with the words the window showed embedded
     assert_eq!(update, StatusCode::NOT_FOUND);
     assert_eq!(
         update_refused["error"],

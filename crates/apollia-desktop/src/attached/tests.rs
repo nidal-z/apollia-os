@@ -17,7 +17,6 @@ fn session(id: &str) -> SessionInfo {
         status: SessionStatus::Active,
         created_at: "2026-10-01T00:00:00Z".to_owned(),
         title: Some("Une conversation".to_owned()),
-        project_id: None,
     }
 }
 
@@ -161,7 +160,6 @@ async fn test_a_session_is_created_over_http_from_the_interface_request() {
         agent_name: None,
         system_prompt: None,
         tools: Vec::new(),
-        project_id: None,
     };
 
     // WHEN the attached arm creates a free conversation
@@ -538,51 +536,67 @@ fn test_the_proposed_rules_and_the_file_answers_pass_the_gate_attached() {
 // ── The profile ──────────────────────────────────────────────────────────
 
 #[tokio::test]
-async fn test_the_daemon_profile_reads_as_the_page_draws_it_and_an_entry_is_put_by_key() {
-    // GIVEN a daemon holding one profile entry, and accepting a write to a
-    // dotted key
+async fn test_the_daemon_profiles_read_by_identifier_and_a_fact_is_put_in_one_profile() {
+    // GIVEN a daemon holding a profile "Formateur" with one fact, and
+    // accepting a fact written to it under a dotted key
     let server = MockServer::start().await;
-    let entry = serde_json::json!({
-        "key": "tools.daily", "value": "tableur", "written_by": "user",
-        "created_at": "2026-10-02T00:00:00Z", "updated_at": "2026-10-02T00:00:00Z",
-        "in_schema": true,
+    let fact = serde_json::json!({
+        "key": "client.main", "value": "Atelier Morel", "written_by": "user",
+        "created_at": "2026-10-04T00:00:00Z", "updated_at": "2026-10-04T00:00:00Z",
+        "in_schema": false,
+    });
+    let summary = serde_json::json!({
+        "id": "p-1", "name": "Formateur", "is_default": false, "detail": null,
+        "created_at": "2026-10-04T00:00:00Z", "updated_at": "2026-10-04T00:00:00Z",
     });
     Mock::given(method("GET"))
-        .and(path("/api/v1/profile"))
+        .and(path("/api/v1/profiles/p-1"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "schema_entries": [entry.clone()], "extras": [], "entries": [entry.clone()],
-            "last_updated_at": "2026-10-02T00:00:00Z",
+            "profile": summary, "fields": [], "facts": [fact.clone()],
         })))
         .mount(&server)
         .await;
     Mock::given(method("PUT"))
-        .and(path("/api/v1/profile/entries/tools.daily"))
-        .and(body_json(serde_json::json!({ "value": "tableur" })))
-        .respond_with(ResponseTemplate::new(200).set_body_json(entry))
+        .and(path("/api/v1/profiles/p-1/facts/client.main"))
+        .and(body_json(serde_json::json!({ "value": "Atelier Morel" })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(fact))
         .expect(1)
         .mount(&server)
         .await;
     let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
 
-    // WHEN the attached arm reads the profile and writes the entry
-    let profile: apollia_runtime::profile::UserProfileView =
-        client.get("/api/v1/profile").await.unwrap();
+    // WHEN the attached arm reads the profile and writes the fact
+    let profile: apollia_runtime::profile::ProfileDetailView =
+        client.get("/api/v1/profiles/p-1").await.unwrap();
     let body = apollia_runtime::api::routes_profile::SetProfileEntryBody {
-        value: "tableur".to_owned(),
+        value: "Atelier Morel".to_owned(),
     };
     let stored: apollia_runtime::profile::ProfileEntryView = client
         .put(
-            &format!("/api/v1/profile/entries/{}", segment("tools.daily")),
+            &format!("/api/v1/profiles/p-1/facts/{}", segment("client.main")),
             &body,
         )
         .await
         .unwrap();
 
-    // THEN both read as the view the profile page draws
-    assert_eq!(profile.schema_entries.len(), 1);
-    assert_eq!(profile.entries[0].key, "tools.daily");
-    assert_eq!(stored.value, "tableur");
-    assert!(gate(LinkMode::Attached, "set_profile_entry").is_ok());
+    // THEN both read as the views the profile screen draws, and every profile
+    // command is routed
+    assert_eq!(profile.profile.name, "Formateur");
+    assert_eq!(profile.facts[0].key, "client.main");
+    assert_eq!(stored.value, "Atelier Morel");
+    for command in [
+        "list_profiles",
+        "create_profile",
+        "get_profile_by_id",
+        "update_profile",
+        "delete_profile",
+        "set_default_profile",
+        "reset_profile",
+        "set_profile_fact",
+        "delete_profile_fact",
+    ] {
+        assert!(gate(LinkMode::Attached, command).is_ok(), "{command}");
+    }
 }
 
 // ── The conversations ────────────────────────────────────────────────────
@@ -613,11 +627,6 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
             "/api/v1/sessions/s%201/title",
             serde_json::json!({ "title": "Plan" }),
         ),
-        (
-            "PUT",
-            "/api/v1/sessions/s%201/project",
-            serde_json::json!({ "project_id": "p-1" }),
-        ),
     ];
     for (verb, route, body) in routes {
         Mock::given(method(verb))
@@ -639,13 +648,6 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
         .expect(1)
         .mount(&server)
         .await;
-    Mock::given(method("GET"))
-        .and(path("/api/v1/projects/p%2F1/sessions"))
-        .and(header("authorization", auth.as_str()))
-        .respond_with(ResponseTemplate::new(200).set_body_json(vec![session("s-2")]))
-        .expect(1)
-        .mount(&server)
-        .await;
     let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
     let update = crate::commands::chat::UpdateSessionRequest {
         system_prompt: Some("Brief.".to_owned()),
@@ -660,21 +662,13 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
         .unwrap();
     conversations::erase(&client, "s 1").await.unwrap();
     conversations::rename(&client, "s 1", "Plan").await.unwrap();
-    conversations::link_project(&client, "s 1", Some("p-1"))
-        .await
-        .unwrap();
     let title = conversations::name(&client, "s 1", "Help me")
         .await
         .unwrap();
-    let sessions = conversations::project_sessions(&client, "p/1")
-        .await
-        .unwrap();
 
-    // THEN each reached its own route once (the mocks verify it on drop), the
-    // generated title and the project's sessions come back as the daemon said
+    // THEN each reached its own route once (the mocks verify it on drop), and
+    // the generated title comes back as the daemon said
     assert_eq!(title, "CV help");
-    assert_eq!(sessions.len(), 1);
-    assert_eq!(sessions[0].id, "s-2");
 }
 
 #[tokio::test]
@@ -716,8 +710,6 @@ fn test_the_conversation_commands_pass_the_gate_attached() {
     let commands = [
         "delete_chat_session",
         "generate_chat_session_name",
-        "link_chat_to_project",
-        "list_chats_by_project",
         "rename_chat_session",
         "update_chat_session",
     ];
@@ -1014,4 +1006,275 @@ fn test_the_mcp_sign_in_commands_run_attached_as_window_commands() {
             "{command} is not a window command"
         );
     }
+}
+
+// ── The model hub: downloads, import, removal ───────────────────────────
+
+#[tokio::test]
+async fn test_an_installed_model_is_removed_on_the_daemon_with_the_token() {
+    // GIVEN a daemon that removes an installed model, answering only the
+    // token, and a path holding a space
+    let server = MockServer::start().await;
+    let file = "/Users/nadia/.apollia/models/Qwen 3 8B.gguf";
+    Mock::given(method("DELETE"))
+        .and(path("/api/v1/llm/installed-models"))
+        .and(query_param("path", file))
+        .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "deleted": file })),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+
+    // WHEN the command removes it through the seam
+    let outcome =
+        crate::commands::model_hub::delete_installed_through(&link, file.to_owned()).await;
+
+    // THEN the daemon received the removal of that exact path, and the
+    // command succeeds
+    assert_eq!(outcome, Ok(()));
+}
+
+#[tokio::test]
+async fn test_a_removal_the_daemon_refuses_shows_its_own_words() {
+    // GIVEN a daemon refusing the removal of a model a backend uses
+    let server = MockServer::start().await;
+    let words = "model is in use by LLM backend 'local'; change or remove that configuration first";
+    Mock::given(method("DELETE"))
+        .and(path("/api/v1/llm/installed-models"))
+        .respond_with(
+            ResponseTemplate::new(409).set_body_json(serde_json::json!({ "error": words })),
+        )
+        .mount(&server)
+        .await;
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+
+    // WHEN the command asks for the removal
+    let outcome = crate::commands::model_hub::delete_installed_through(
+        &link,
+        "/Users/nadia/.apollia/models/qwen3-8b.gguf".to_owned(),
+    )
+    .await;
+
+    // THEN the interface reads the daemon's words, not an unavailability
+    assert_eq!(outcome, Err(words.to_owned()));
+}
+
+#[test]
+fn test_the_downloads_the_import_and_the_removal_of_a_model_pass_the_gate_attached() {
+    // GIVEN the commands the model hub opens a download, a cancellation, an
+    // import and a removal with
+    let commands = [
+        "start_model_download",
+        "cancel_model_download",
+        "import_model_file",
+        "delete_installed_model",
+    ];
+
+    // WHEN each is gated while attached
+    let refused: Vec<&str> = commands
+        .into_iter()
+        .filter(|command| gate(LinkMode::Attached, command).is_err())
+        .collect();
+
+    // THEN none is refused: the removal reaches the daemon, the other three
+    // belong to this window and say why
+    assert!(refused.is_empty(), "refused: {refused:?}");
+    assert!(ROUTED_COMMANDS.contains(&"delete_installed_model"));
+    for name in [
+        "start_model_download",
+        "cancel_model_download",
+        "import_model_file",
+    ] {
+        let reason = WINDOW_COMMANDS
+            .iter()
+            .find(|(window, _)| *window == name)
+            .map(|(_, reason)| *reason);
+        assert!(
+            reason.is_some_and(|r| r.contains("this")),
+            "{name}: {reason:?}"
+        );
+    }
+}
+
+// ── The LLM engines ──────────────────────────────────────────────────────
+
+fn attached_link(server: &MockServer) -> RuntimeLink {
+    RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap())
+}
+
+fn bearer() -> String {
+    format!("Bearer {TOKEN}")
+}
+
+#[tokio::test]
+async fn test_the_daemon_engines_are_listed_with_the_last_ping_of_this_window() {
+    // GIVEN a daemon holding one engine, answering only the token, and a ping
+    // of that engine this window recorded earlier
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/llm/backends"))
+        .and(header("authorization", bearer().as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "backends": [{
+                "name": "local",
+                "provider": "llama-cpp",
+                "model": "qwen3.gguf",
+                "config_json": {},
+                "enabled": true,
+                "is_default": true,
+            }]
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let cache = crate::commands::llm::LlmPingCache::default();
+    cache.write().unwrap().insert(
+        "local".to_owned(),
+        crate::commands::llm::PingState {
+            last_error: Some("connection refused".to_owned()),
+            last_latency_ms: None,
+            last_ping_at: Some("2026-10-03T00:00:00Z".to_owned()),
+            last_available: false,
+        },
+    );
+
+    // WHEN the attached arm lists the engines
+    let views = crate::commands::llm::backends_with_pings(&attached_link(&server), &cache)
+        .await
+        .unwrap();
+
+    // THEN the daemon's engine comes back with the last ping projected on it
+    assert_eq!(views.len(), 1);
+    assert_eq!(views[0].name, "local");
+    assert_eq!(
+        views[0].last_ping_error.as_deref(),
+        Some("connection refused")
+    );
+    assert!(gate(LinkMode::Attached, "list_llm_backends").is_ok());
+}
+
+#[tokio::test]
+async fn test_an_engine_is_pinged_on_the_daemon_and_the_outcome_recorded() {
+    // GIVEN a daemon that reaches the engine it is asked about
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/llm/ping"))
+        .and(header("authorization", bearer().as_str()))
+        .and(body_json(serde_json::json!({ "backend": "local" })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "backend": "local",
+            "available": true,
+            "latency_ms": 42,
+            "error": null,
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let cache = crate::commands::llm::LlmPingCache::default();
+
+    // WHEN the attached arm tests the engine
+    let result =
+        crate::commands::llm::ping_and_record(&attached_link(&server), &cache, "local".to_owned())
+            .await;
+
+    // THEN the engine answered, and this window remembers it for the list
+    assert!(result.available);
+    assert_eq!(result.latency_ms, Some(42));
+    let recorded = cache.read().unwrap().get("local").cloned().unwrap();
+    assert!(recorded.last_available);
+    assert!(recorded.last_error.is_none());
+    assert!(gate(LinkMode::Attached, "ping_llm_backend").is_ok());
+}
+
+#[tokio::test]
+async fn test_a_ping_refused_by_the_daemon_is_a_failed_test_with_its_message() {
+    // GIVEN a daemon serving no router
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/llm/ping"))
+        .respond_with(
+            ResponseTemplate::new(503)
+                .set_body_json(serde_json::json!({ "error": "no LLM router configured" })),
+        )
+        .mount(&server)
+        .await;
+    let cache = crate::commands::llm::LlmPingCache::default();
+
+    // WHEN the attached arm tests an engine
+    let result =
+        crate::commands::llm::ping_and_record(&attached_link(&server), &cache, "local".to_owned())
+            .await;
+
+    // THEN the test failed with the daemon's own words, recorded as such
+    assert!(!result.available);
+    assert_eq!(result.error.as_deref(), Some("no LLM router configured"));
+    let recorded = cache.read().unwrap().get("local").cloned().unwrap();
+    assert_eq!(
+        recorded.last_error.as_deref(),
+        Some("no LLM router configured")
+    );
+}
+
+#[tokio::test]
+async fn test_the_engines_are_reloaded_by_the_daemon_with_the_token() {
+    // GIVEN a daemon that rebuilds its router on request
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/llm/reload"))
+        .and(header("authorization", bearer().as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "backends": [],
+            "default": "local",
+            "reaches_running_agents": true,
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    // WHEN the attached arm asks for the reload
+    let outcome = crate::commands::llm::reload_runtime_router(&attached_link(&server)).await;
+
+    // THEN the daemon did it, and both reload commands pass the gate
+    assert_eq!(outcome, Ok(()));
+    assert!(gate(LinkMode::Attached, "reload_llm").is_ok());
+    assert!(gate(LinkMode::Attached, "reload_llm_from_db").is_ok());
+}
+
+#[tokio::test]
+async fn test_a_list_or_reload_refused_by_the_daemon_shows_its_message() {
+    // GIVEN a daemon refusing each of the two routes with its own words
+    let server = MockServer::start().await;
+    for (verb, route, words) in [
+        (
+            "GET",
+            "/api/v1/llm/backends",
+            "backend repository unavailable",
+        ),
+        (
+            "POST",
+            "/api/v1/llm/reload",
+            "rebuild failed: model file missing",
+        ),
+    ] {
+        Mock::given(method(verb))
+            .and(path(route))
+            .respond_with(
+                ResponseTemplate::new(503).set_body_json(serde_json::json!({ "error": words })),
+            )
+            .mount(&server)
+            .await;
+    }
+    let link = attached_link(&server);
+    let cache = crate::commands::llm::LlmPingCache::default();
+
+    // WHEN the attached arm lists and reloads
+    let listed = crate::commands::llm::backends_with_pings(&link, &cache).await;
+    let reloaded = crate::commands::llm::reload_runtime_router(&link).await;
+
+    // THEN the interface reads the daemon's own words, not an unavailability
+    assert_eq!(listed.unwrap_err(), "backend repository unavailable");
+    assert_eq!(reloaded.unwrap_err(), "rebuild failed: model file missing");
 }

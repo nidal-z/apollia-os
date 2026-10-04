@@ -62,9 +62,10 @@ qu'Apollia confine :
 Tous les autres outils s'exécutent sans confinement dans le processus
 runtime. Les outils de système de fichiers sont bornés par une vérification
 de préfixe de chemin : une racine canonicalisée qu'ils refusent de quitter,
-échappatoires par lien symbolique incluses. Cette racine est l'espace de
-travail dans une session de chat, et **le répertoire personnel entier de
-l'utilisateur** pour un agent installé. Les outils réseau sont bornés par une
+échappatoires par lien symbolique incluses. Cette racine est **l'union des
+dossiers accordés à l'agent**, dans une session de chat comme pour un agent
+installé ; un agent sans dossier accordé n'en atteint aucun. Les outils réseau
+sont bornés par une
 liste d'autorisation (allowlist) au niveau applicatif. Ni l'une ni l'autre
 n'est une frontière du système d'exploitation.
 
@@ -144,8 +145,10 @@ elles sont sur la feuille de route plutôt que livrées :
   qu'une simple métadonnée.
 - Une véritable prison de système de fichiers pour les exécuteurs shell et
   Python.
-- L'application du profil de souveraineté (`local_only`) comme barrière
-  automatique.
+- Une politique d'organisation qui interdit le cloud sur tous les chemins
+  sortants. Aujourd'hui, sa règle `connections.remote = "deny"` refuse l'ajout
+  d'une connexion à un service en ligne, vérifiée par le runtime ; elle ne
+  couvre pas encore les points d'accès d'inférence.
 
 Tant que ces éléments ne sont pas livrés, le modèle de confiance décrit
 ci-dessus est toute l'histoire. Quand ils le seront, cette page et le

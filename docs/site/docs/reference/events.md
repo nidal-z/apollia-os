@@ -206,6 +206,7 @@ the event carries announces a request that is already settled.
 | Variant | Payload | What it reports |
 |---|---|---|
 | `AllReady` | none | All components are ready, runtime operational. |
+| `ConfigInvalid` | named fields | The `apollia.toml` read at startup was refused: the embedded runtime |
 | `ContextCompacted` | named fields | Emitted by `ContextManager` when the conversation history was compacted. |
 | `FileModifiedSinceRead` | named fields | A previously read file was modified between two accesses. |
 | `McpServerHealthChanged` | named fields | An MCP server's operational health changed. |
@@ -248,6 +249,7 @@ the event carries announces a request that is already settled.
 | `ActionParseError` | named fields | The LLM returned an invalid action JSON that could not be repaired. |
 | `AgentLog` | named fields | An agent emitted a message via `ctx.log(level, msg, **fields)`. |
 | `LlmCallStarted` | named fields | An LLM call is about to be sent (before `LlmProxy::complete`). |
+| `ProfileRead` | named fields | An agent read the user profile through `ctx.profile`. |
 | `Retry` | named fields | The ReAct loop retries a step (parse error, tool failure, etc.). |
 | `Thought` | named fields | The LLM emitted a ReAct `thought` (reasoning chain). |
 | `ToolCallCompleted` | named fields | The tool finished its execution. |

@@ -26,7 +26,7 @@ use crate::protocol::{
     ClientCapabilities, ClientInfo, InitializeParams, InitializeResult, McpToolDefinition,
     ServerCapabilities, ServerInfo, APOLLIA_MCP_PROTOCOL_VERSION,
 };
-use crate::transport::{create_transport, McpTransport};
+use crate::transport::{create_transport, McpTransport, TransportError};
 
 // ─── errors ──────────────────────────────────────────────────────────────────
 
@@ -37,6 +37,13 @@ pub enum McpSessionError {
     /// The server subprocess could not be spawned.
     #[error("failed to spawn server '{server}': {cause}")]
     SpawnFailed { server: String, cause: String },
+
+    /// The server runs on Node.js and none is installed yet: the launch was
+    /// not attempted. Installing Node.js through the engine store lifts it.
+    #[error(
+        "Node.js required: server '{server}' runs `{command}`, and Node.js is not installed yet"
+    )]
+    NodeRequired { server: String, command: String },
 
     /// The `initialize` handshake completed but the response was malformed.
     #[error("server '{server}' initialize handshake failed: {cause}")]
@@ -322,13 +329,18 @@ impl McpSession {
                     cause: e.to_string(),
                 })?;
 
-        let transport: Arc<dyn McpTransport> =
-            Arc::from(create_transport(&config, resolved_env).map_err(|e| {
-                McpSessionError::SpawnFailed {
+        let transport: Arc<dyn McpTransport> = Arc::from(
+            create_transport(&config, resolved_env).map_err(|e| match e {
+                TransportError::NodeRequired { command } => McpSessionError::NodeRequired {
                     server: config.name.clone(),
-                    cause: e.to_string(),
-                }
-            })?);
+                    command,
+                },
+                other => McpSessionError::SpawnFailed {
+                    server: config.name.clone(),
+                    cause: other.to_string(),
+                },
+            })?,
+        );
 
         let pending: Arc<Mutex<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>> =
             Arc::new(Mutex::new(HashMap::new()));

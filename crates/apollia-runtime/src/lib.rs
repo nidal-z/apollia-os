@@ -6,18 +6,24 @@
 //! - `AgentRegistry`, Tokio actor tracking `ProcessState` per agent.
 //! - `TaskRouter`, Tokio actor dispatching tasks to available agents.
 //! - `ExecutionCoordinator`, per-agent lifecycle coordinator.
-//! - `APIServer`, axum HTTP server on Unix socket + TCP 7771.
+//! - `APIServer`, axum HTTP server on Unix socket + TCP (`[api].port`, 7771 by default).
 //! - `Supervisor`, ordered startup + watchdog.
 
 pub mod a2a;
+pub mod agent_packages;
 pub mod agents;
 pub mod analyzers;
 pub mod api;
+pub mod app_lifecycle;
+pub mod artifacts;
 pub mod audit_journal;
 pub mod backend_keys;
 pub mod batch;
 pub mod chat;
+pub mod chat_assists;
 pub mod commands;
+pub mod companion;
+pub mod compat_server;
 pub mod composition;
 pub mod connections;
 pub mod connectors_bridge;
@@ -25,38 +31,48 @@ pub mod conversation_stats;
 pub mod coordinator;
 pub mod drive_folders;
 pub mod embedded;
+pub mod embeddings;
 pub mod engine_store;
 pub mod eventbus;
 pub mod governance;
 pub mod hooks;
 pub mod inference_servers;
+pub mod installed_models;
 pub mod llama_server;
-pub mod llama_server_backend;
 pub mod llm_timings;
+pub mod local_ai;
+pub mod local_engine;
 pub mod mailbox;
 pub mod memory_maintenance;
+pub mod memory_vectors;
 pub mod memory_view;
+pub mod mlx_engine;
 pub mod oauth_clients;
 pub mod observability;
 pub mod on_demand;
+pub mod onboarding;
 pub mod package_tools;
 pub mod packages;
 pub mod perf_trace;
 pub mod permission_rules;
 pub mod plan_approval;
 pub mod profile;
-pub mod projects;
+pub mod project_migration;
+pub mod recommendation;
 pub mod registry;
 pub mod replay;
 pub mod router;
 pub mod runner_supervisor;
+pub mod service;
 pub mod session_metrics;
 pub mod session_replay;
 pub mod shutdown;
 pub mod stt;
 pub mod supervisor;
 pub mod timeout_watcher;
+pub mod tool_credentials;
 pub mod tool_governance;
+pub mod trigger_targets;
 pub mod workflows;
 
 #[cfg(test)]

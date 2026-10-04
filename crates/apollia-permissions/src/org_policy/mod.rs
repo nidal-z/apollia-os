@@ -33,6 +33,7 @@ mod tests;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use apollia_core::config::PolicySettings;
 use apollia_signing::{sha256, DigestList, PublicKey, SignatureFile, Verdict};
 
 pub use authoring::{
@@ -45,6 +46,10 @@ pub use schema::{
     JournalExportPolicy, JournalPolicy, OrgPolicy, PackagesPolicy, PolicyFamily, PolicySchemaError,
     POLICY_SCHEMA_VERSION,
 };
+
+/// The setting of the model import rule that `inference.require_model_hash`
+/// fixes: a model whose digest matches no known one is refused.
+pub const REQUIRE_VERIFIED_SETTING: &str = "models.import.require_verified";
 
 /// The system folder of the organisation policy on macOS.
 #[cfg(target_os = "macos")]
@@ -183,6 +188,48 @@ impl PolicyVerdict {
             Self::Absent => "absent",
             Self::Valid(_) => "valid",
             Self::Invalid(_) => "invalid",
+        }
+    }
+
+    /// The settings the policy fixes, as the settings contract of
+    /// `apollia.toml` reads them: each key of `[settings]` with its value.
+    ///
+    /// `inference.require_model_hash = true` fixes the import rule
+    /// [`REQUIRE_VERIFIED_SETTING`] to `true` on top of them, whatever
+    /// `[settings]` says of that key.
+    ///
+    /// Without a valid policy nothing is fixed. A refused policy fixes nothing
+    /// either: what it shuts down is decided where the policy is applied.
+    pub fn imposed_settings(&self) -> PolicySettings {
+        let Self::Valid(valid) = self else {
+            return PolicySettings::none();
+        };
+        let imposed =
+            valid
+                .policy
+                .settings
+                .iter()
+                .fold(PolicySettings::none(), |imposed, (key, value)| {
+                    // The parser already turned every value into JSON once, in
+                    // `check_setting`; a value that could not be is a refused
+                    // policy, never a valid one.
+                    match serde_json::to_value(value) {
+                        Ok(value) => imposed.impose(key.clone(), value),
+                        Err(_) => imposed,
+                    }
+                });
+        if valid.policy.inference.require_model_hash {
+            return imposed.impose(REQUIRE_VERIFIED_SETTING, serde_json::Value::Bool(true));
+        }
+        imposed
+    }
+
+    /// The `[packages]` section of a valid policy; the empty section, which
+    /// requires nothing, otherwise.
+    pub fn packages(&self) -> PackagesPolicy {
+        match self {
+            Self::Valid(valid) => valid.policy.packages.clone(),
+            Self::Absent | Self::Invalid(_) => PackagesPolicy::default(),
         }
     }
 }

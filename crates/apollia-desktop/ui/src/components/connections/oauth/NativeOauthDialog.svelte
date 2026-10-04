@@ -14,17 +14,15 @@
   import { Button } from "$lib/components/ui/button";
   import OauthAuthStep from "./OauthAuthStep.svelte";
   import OauthDriveFolderStep from "./OauthDriveFolderStep.svelte";
-  import { navigateToSettings } from "$lib/router";
-  import { setProfileEntry } from "$lib/ipc/profile";
+  import OauthPolicyRefusal from "./OauthPolicyRefusal.svelte";
   import {
     formatTauriError,
     isMissingClientError,
     isMissingSecretError,
-    isSovereigntyBlocked,
+    isRefusedByPolicy,
   } from "$lib/connections/errors";
   import {
     oauthStartFlow,
-    resolveSovereignty,
     oauthCompleteFlow,
     oauthSetDriveFolder,
     type ProviderId,
@@ -36,20 +34,20 @@
     onclose: () => void;
     /** Refresh the native account list once a connection completes. */
     oncompleted: () => void;
+    /** Bring the connection's OAuth client into view, on its page. */
+    onopenclient: (provider: ProviderId) => void;
   }
 
-  let { open, provider, onclose, oncompleted }: Props = $props();
+  let { open, provider, onclose, oncompleted, onopenclient }: Props = $props();
 
   let authUrl = $state<string | null>(null);
   let flowState = $state<string | null>(null);
   let pastedCode = $state("");
   let error = $state<string | null>(null);
   let errorIsMissingClient = $state(false);
-  // The profile refused cloud connectors. Offered as a choice, not an error:
-  // an onboarding left early never wrote `constraints.sovereignty`, and the
-  // absent value reads as local-only on purpose.
-  let errorIsSovereignty = $state(false);
-  let switchingProfile = $state(false);
+  // The organisation policy refused the connection. Said in its own box, not
+  // as an error: retrying cannot change it, only the policy can.
+  let errorIsPolicyRefusal = $state(false);
   let errorIsMissingSecret = $state(false);
   let busy = $state(false);
   let awaitingCallback = $state(false);
@@ -91,7 +89,7 @@
     pastedCode = "";
     error = null;
     errorIsMissingClient = false;
-    errorIsSovereignty = false;
+    errorIsPolicyRefusal = false;
     errorIsMissingSecret = false;
     busy = true;
     awaitingCallback = false;
@@ -125,7 +123,7 @@
             // action on Mail.Read alone, so a consent without it left that
             // operation advertised and unusable.
             ["mail.read", "mail.readwrite", "mail.send", "calendar.read", "calendar.write", "files.read"];
-      const startResult = await oauthStartFlow(provider, scopes, await resolveSovereignty());
+      const startResult = await oauthStartFlow(provider, scopes);
       authUrl = startResult.auth_url;
       flowState = startResult.state;
       awaitingCallback = true;
@@ -153,7 +151,7 @@
       error = formatTauriError(e, $t);
       errorIsMissingClient = isMissingClientError(e);
       errorIsMissingSecret = isMissingSecretError(e);
-      errorIsSovereignty = isSovereigntyBlocked(e);
+      errorIsPolicyRefusal = isRefusedByPolicy(e);
     } finally {
       busy = false;
     }
@@ -197,28 +195,10 @@
     }
   }
 
-  /**
-   * Allow cloud connectors and start the flow again. Writes the profile the
-   * settings page would write, `cloud-ok`, so the choice is the same one and
-   * lands in the same place.
-   */
-  async function allowCloudAndRetry(): Promise<void> {
-    switchingProfile = true;
-    try {
-      await setProfileEntry("constraints.sovereignty", "cloud-ok");
-      errorIsSovereignty = false;
-      error = null;
-      await startFlow();
-    } catch (e) {
-      error = formatTauriError(e, $t);
-    } finally {
-      switchingProfile = false;
-    }
-  }
-
-  function openSettingsIntegrations(): void {
+  function openClientSection(): void {
+    const target = provider;
     close();
-    navigateToSettings("integrations");
+    if (target) onopenclient(target);
   }
 
   function close(): void {
@@ -270,22 +250,17 @@
       <Button
         variant="primary-solid"
         size="sm"
-        onclick={openSettingsIntegrations}
+        onclick={openClientSection}
         data-testid="oauth-open-settings-btn"
       >
-        {$t("connections.open_settings_integrations")}
+        {$t("connections.open_connection_client")}
       </Button>
     </div>
-  {:else if errorIsSovereignty}
-    <Banner variant="warning" title={$t("connections.oauth_sovereignty_title")} data-testid="oauth-sovereignty-banner">
-      {$t("connections.oauth_sovereignty_body")}
-    </Banner>
+  {:else if errorIsPolicyRefusal}
+    <OauthPolicyRefusal {providerShort} />
     <div class="mt-4 flex justify-end gap-2">
-      <Button variant="outline" size="sm" onclick={close} data-testid="oauth-cancel-btn">
-        {$t("connections.oauth_sovereignty_keep_local")}
-      </Button>
-      <Button variant="primary-solid" size="sm" onclick={allowCloudAndRetry} disabled={switchingProfile} data-testid="oauth-allow-cloud-btn">
-        {$t("connections.oauth_sovereignty_allow_cloud")}
+      <Button variant="primary-solid" size="sm" onclick={close} data-testid="oauth-policy-refused-close-btn">
+        {$t("common.close")}
       </Button>
     </div>
   {:else if errorIsMissingClient}
@@ -301,8 +276,8 @@
       <Button variant="outline" size="sm" onclick={close} data-testid="oauth-cancel-btn">
         {$t("common.cancel")}
       </Button>
-      <Button variant="primary-solid" size="sm" onclick={openSettingsIntegrations} data-testid="oauth-open-settings-btn">
-        {$t("connections.open_settings_integrations")}
+      <Button variant="primary-solid" size="sm" onclick={openClientSection} data-testid="oauth-open-settings-btn">
+        {$t("connections.open_connection_client")}
       </Button>
     </div>
   {:else if busy && !authUrl}

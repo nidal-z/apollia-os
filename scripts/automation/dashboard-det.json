@@ -3,8 +3,7 @@
   "stopOnError": false,
   "dynamicTestids": [
     "dashboard-agent-row-seed-classifier",
-    "sidebar-mode-option-builder",
-    "sidebar-mode-option-operator"
+    "settings-nav-developer"
   ],
   "steps": [
     {
@@ -18,17 +17,26 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-operator"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
@@ -58,10 +66,6 @@
     },
     {
       "kind": "expect",
-      "testid": "dashboard-cta-projects"
-    },
-    {
-      "kind": "expect",
       "testid": "dashboard-cta-new-chat"
     },
     {
@@ -85,10 +89,6 @@
     {
       "kind": "screenshot",
       "label": "03-dashboard-activity"
-    },
-    {
-      "kind": "expect",
-      "testid": "dashboard-projects-see-all"
     },
     {
       "kind": "stubInvoke",
@@ -272,20 +272,6 @@
       "timeoutMs": 8000
     },
     {
-      "kind": "click",
-      "testid": "dashboard-projects-see-all",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "projects-page",
-      "timeoutMs": 10000
-    },
-    {
-      "kind": "screenshot",
-      "label": "04a-projects-see-all"
-    },
-    {
       "kind": "goto",
       "route": "dashboard"
     },
@@ -404,17 +390,8 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "click",
-      "testid": "dashboard-cta-projects",
-      "timeoutMs": 2500
-    },
-    {
       "kind": "sleep",
       "ms": 900
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-cta-projects-nav"
     },
     {
       "kind": "goto",
@@ -424,24 +401,6 @@
       "kind": "waitFor",
       "testid": "dashboard-page",
       "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-pinned-projects",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "dashboard-project-",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "06-dashboard-projects-populated"
-    },
-    {
-      "kind": "expect",
-      "testid": "dashboard-projects-see-all"
     },
     {
       "kind": "click",
@@ -488,17 +447,26 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-builder"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
     },
     {
       "kind": "sleep",
@@ -525,11 +493,6 @@
     {
       "kind": "waitFor",
       "testidPrefix": "dashboard-activity-",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "dashboard-project-",
       "timeoutMs": 4000
     },
     {
@@ -667,21 +630,39 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-operator"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
       "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
     },
     {
       "kind": "screenshot",

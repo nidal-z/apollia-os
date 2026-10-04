@@ -7,6 +7,8 @@
 //! - `POST /api/v1/engines/check`    , fetch and verify the channel manifest
 //! - `POST /api/v1/engines/install`  , download, verify and install one variant
 //! - `POST /api/v1/engines/import`   , install from a directory on a disk
+//! - `GET  /api/v1/engines/nodejs`   , where Node.js stands: absent, downloading, ready, failed
+//! - `POST /api/v1/engines/nodejs`   , start installing Node.js unless it is there or on its way
 
 use std::path::{Path, PathBuf};
 
@@ -20,8 +22,8 @@ use crate::api::routes_llm::servers::{api_err, ApiError};
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 use crate::engine_store::{
-    self, cached_manifest, installed_packages, Channel, Engine, EngineStore, EngineStoreError,
-    EngineStoreSettings, Source, Variant, VariantUpdate,
+    self, cached_manifest, installed_packages, node::NodeState, Channel, Engine, EngineStore,
+    EngineStoreError, EngineStoreSettings, Source, Variant, VariantUpdate,
 };
 
 /// One engine on this machine.
@@ -361,6 +363,40 @@ pub async fn import_engines<B: ExecutionBackend + Clone>(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/engines/nodejs",
+    tag = "engines",
+    responses(
+        (status = 200, description = "Where Node.js stands", body = NodeState),
+    )
+)]
+pub async fn node_runtime_state<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+) -> Json<NodeState> {
+    Json(engine_store::node::state(&engine_store::store_root(
+        &state.data_dir,
+    )))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/engines/nodejs",
+    tag = "engines",
+    responses(
+        (status = 200, description = "Node.js ready, or its download started or running; a failure is read from the state", body = NodeState),
+        (status = 500, description = "Settings file unreadable", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "This build carries no distribution key", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub async fn ensure_node_runtime<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+) -> Result<Json<NodeState>, ApiError> {
+    let store = open_store(&state.data_dir)?;
+    let settings = EngineStoreSettings::load(&store.root).map_err(store_err)?;
+    Ok(Json(engine_store::node::ensure(&store, &settings)))
+}
+
 /// The engine routes.
 pub fn engines_router<B: ExecutionBackend + Clone + 'static>() -> Router<AppState<B>> {
     Router::new()
@@ -372,6 +408,10 @@ pub fn engines_router<B: ExecutionBackend + Clone + 'static>() -> Router<AppStat
         .route("/api/v1/engines/check", post(check_engines::<B>))
         .route("/api/v1/engines/install", post(install_engine::<B>))
         .route("/api/v1/engines/import", post(import_engines::<B>))
+        .route(
+            "/api/v1/engines/nodejs",
+            get(node_runtime_state::<B>).post(ensure_node_runtime::<B>),
+        )
 }
 
 #[cfg(test)]

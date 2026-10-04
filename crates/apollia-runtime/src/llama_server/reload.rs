@@ -11,6 +11,8 @@ use std::path::PathBuf;
 
 use apollia_core::RuntimeEvent;
 
+use crate::local_engine::LoadConsent;
+
 use super::load_settings::{self, LoadSettings};
 use super::{LlamaServerError, LlamaServerSupervisor, ModelLease};
 
@@ -33,7 +35,7 @@ impl LlamaServerSupervisor {
     /// [`Self::default_load`] for a synchronous caller, such as a backend
     /// being built.
     #[must_use]
-    pub fn default_load_blocking(&self, backend: &str) -> LoadSettings {
+    pub(crate) fn default_load_blocking(&self, backend: &str) -> LoadSettings {
         match &self.system_db {
             Some(path) => load_settings::read_default(path, backend),
             None => LoadSettings::default(),
@@ -51,7 +53,9 @@ impl LlamaServerSupervisor {
     /// what makes a second resident model worth having: the hand-off between two
     /// agents on two models costs a lookup rather than a reload. Otherwise a
     /// process is started, evicting the least recently used one first when the
-    /// residency ceiling is reached.
+    /// residency ceiling is reached. A model the user loaded by hand is served
+    /// by that process whatever `n_ctx` asks, under the settings it was loaded
+    /// with (see `explicit`).
     ///
     /// The URL is carried by the lease rather than read back through a separate
     /// accessor: with several instances alive, "the current one" is not a
@@ -60,47 +64,43 @@ impl LlamaServerSupervisor {
     /// request is what lets [`unload_model`](Self::unload_model) refuse to stop
     /// a model in the middle of an answer.
     ///
+    /// A launch is first held to the load guardrail, before any resident
+    /// model is stopped to make room: a refused model leaves the others as
+    /// they were. `consent` says whether the user confirmed a launch the
+    /// guardrail would refuse.
+    ///
     /// # Errors
     ///
-    /// [`LlamaServerError`] when the process cannot be spawned or never becomes
-    /// healthy.
+    /// [`LlamaServerError::GuardrailRefused`] when the guardrail refuses the
+    /// model and the user did not confirm; another [`LlamaServerError`] when
+    /// the process cannot be spawned or never becomes healthy.
     pub async fn ensure_model(
         &self,
         backend: &str,
         model_path: String,
         n_ctx: Option<u32>,
+        consent: LoadConsent,
     ) -> Result<ModelLease, LlamaServerError> {
+        // The window is the environment's, else the preset's, else `n_ctx`,
+        // else the default. A resident process for the same model launched
+        // under other settings is stopped first, and the relaunch is announced
+        // once the new process is healthy.
         let load = self.default_load(backend).await;
-        self.ensure_model_with(backend, model_path, n_ctx, load)
-            .await
-    }
-
-    /// [`Self::ensure_model`] with the load settings already read.
-    ///
-    /// The window is the environment's, else the preset's, else `n_ctx`, else
-    /// the default. A resident process for the same model launched under other
-    /// settings is stopped first, and the relaunch is announced once the new
-    /// process is healthy.
-    ///
-    /// # Errors
-    ///
-    /// [`LlamaServerError`] when the process cannot be spawned or never becomes
-    /// healthy.
-    pub(super) async fn ensure_model_with(
-        &self,
-        backend: &str,
-        model_path: String,
-        n_ctx: Option<u32>,
-        load: LoadSettings,
-    ) -> Result<ModelLease, LlamaServerError> {
         let n_ctx = self.window_for(&load, n_ctx);
         let _guard = self.respawn_lock.lock().await;
+        // A model the user loaded by hand serves every request for it, under
+        // the settings it was loaded with, whatever window the request asks.
+        if let Some(lease) = self.touch_explicit_instance(&model_path).await {
+            return Ok(lease);
+        }
         if let Some(lease) = self.touch_live_instance(&model_path, n_ctx, &load).await {
             return Ok(lease);
         }
+        let config = self.launch_config(model_path.clone(), n_ctx, &load).await;
+        self.admit(&config, consent).await?;
         let stale = self.stop_stale_instances(&model_path, &load).await;
         self.evict_until_below_ceiling().await;
-        let lease = self.spawn_instance(model_path.clone(), n_ctx, load).await?;
+        let lease = self.spawn_configured(config, load, false).await?;
         if stale {
             tracing::event!(
                 tracing::Level::INFO,

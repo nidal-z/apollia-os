@@ -23,12 +23,15 @@
 //! ```toml
 //! [google]
 //! client_id = "1234.apps.googleusercontent.com"
-//! client_secret = "GOCSPX-…"   # required for Google Installed App type
 //!
 //! [microsoft]
 //! client_id = "00000000-0000-0000-0000-000000000000"
-//! # microsoft has no client_secret (public client per spec)
 //! ```
+//!
+//! The file holds no secret. The client secret and the Google API key live in
+//! the secret store ([`crate::oauth_client_secrets`]); the `client_secret` and
+//! `api_key` keys an earlier version wrote here are read only to be moved
+//! there, then removed from the file.
 //!
 //! Missing keys, missing sections, an empty file, and a missing file are all
 //! treated as "no override" (never an error), so the resolution chain falls
@@ -46,15 +49,13 @@ pub struct OAuthClientEntry {
     /// Override OAuth client ID for this provider. Empty/absent means "no override".
     #[serde(default)]
     pub client_id: String,
-    /// Override OAuth client secret for this provider. Empty/absent means
-    /// "no override". Required for Google's Installed App type; Microsoft
-    /// public clients leave this empty per spec.
+    /// Client secret an earlier version wrote here in clear. Read only by
+    /// [`crate::oauth_client_secrets::migrate_file_secrets`], which moves it to
+    /// the secret store and clears it; nothing writes it any more.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub client_secret: String,
-    /// Public Google API key used by Google Picker (separate from the OAuth
-    /// client_id; Google requires both). Restricted to the Picker + Drive
-    /// APIs in the Google Cloud Console. Empty means "no override".
-    /// Microsoft entries leave this empty (Picker is Google-only).
+    /// Google API key an earlier version wrote here in clear; same fate as
+    /// `client_secret`.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub api_key: String,
 }
@@ -134,49 +135,6 @@ pub fn lookup_client_id_at(path: &std::path::Path, provider_id: &str) -> Option<
     }
 }
 
-/// Look up the client_secret override for a provider id, using the default path.
-pub fn lookup_client_secret(provider_id: &str) -> Option<String> {
-    let path = oauth_clients_path()?;
-    lookup_client_secret_at(&path, provider_id)
-}
-
-/// Look up the Google API key override for `provider_id`, using the
-/// default path. Only meaningful for Google (Picker).
-pub fn lookup_api_key(provider_id: &str) -> Option<String> {
-    let path = oauth_clients_path()?;
-    lookup_api_key_at(&path, provider_id)
-}
-
-/// Look up the API key at an explicit `path`.
-pub fn lookup_api_key_at(path: &std::path::Path, provider_id: &str) -> Option<String> {
-    let file = load_from(path).ok().flatten()?;
-    let value = match provider_id {
-        "google" => &file.google.api_key,
-        "microsoft" => &file.microsoft.api_key,
-        _ => return None,
-    };
-    if value.is_empty() {
-        None
-    } else {
-        Some(value.clone())
-    }
-}
-
-/// Look up the client_secret override at an explicit `path`.
-pub fn lookup_client_secret_at(path: &std::path::Path, provider_id: &str) -> Option<String> {
-    let file = load_from(path).ok().flatten()?;
-    let value = match provider_id {
-        "google" => &file.google.client_secret,
-        "microsoft" => &file.microsoft.client_secret,
-        _ => return None,
-    };
-    if value.is_empty() {
-        None
-    } else {
-        Some(value.clone())
-    }
-}
-
 /// Write or update the client_id override for a provider id at the default path.
 pub fn set_client_id(provider_id: &str, client_id: &str) -> Result<(), std::io::Error> {
     let path = oauth_clients_path().ok_or_else(|| {
@@ -202,53 +160,20 @@ pub fn set_client_id_at(
     })
 }
 
-/// Write or update the client_secret override for a provider id, default path.
-pub fn set_client_secret(provider_id: &str, client_secret: &str) -> Result<(), std::io::Error> {
-    let path = oauth_clients_path().ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "cannot determine $HOME directory",
-        )
-    })?;
-    set_client_secret_at(&path, provider_id, client_secret)
+/// Rewrites the file at `path` without the `client_secret` and `api_key` keys
+/// an earlier version wrote in clear, keeping the client ids. Used once those
+/// values are in the secret store.
+pub(crate) fn strip_secrets_at(path: &std::path::Path) -> Result<(), std::io::Error> {
+    let mut existing = load_from(path)?.unwrap_or_default();
+    for entry in [&mut existing.google, &mut existing.microsoft] {
+        entry.client_secret.clear();
+        entry.api_key.clear();
+    }
+    write_private(path, &existing)
 }
 
-/// Write or update the client_secret override at an explicit `path`.
-pub fn set_client_secret_at(
-    path: &std::path::Path,
-    provider_id: &str,
-    client_secret: &str,
-) -> Result<(), std::io::Error> {
-    update_entry_at(path, provider_id, |entry| {
-        entry.client_secret = client_secret.to_string();
-    })
-}
-
-/// Write or update the Google API key for `provider_id`, default path.
-pub fn set_api_key(provider_id: &str, api_key: &str) -> Result<(), std::io::Error> {
-    let path = oauth_clients_path().ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "cannot determine $HOME directory",
-        )
-    })?;
-    set_api_key_at(&path, provider_id, api_key)
-}
-
-/// Write or update the API key at an explicit `path`.
-pub fn set_api_key_at(
-    path: &std::path::Path,
-    provider_id: &str,
-    api_key: &str,
-) -> Result<(), std::io::Error> {
-    update_entry_at(path, provider_id, |entry| {
-        entry.api_key = api_key.to_string();
-    })
-}
-
-/// Shared writer used by `set_client_id_at` and `set_client_secret_at`.
-/// Mutates the per-provider entry in place, preserves the other provider's
-/// data, and applies 0o600 perms on Unix.
+/// Shared writer used by `set_client_id_at`. Mutates the per-provider entry in
+/// place and preserves the other provider's data.
 fn update_entry_at(
     path: &std::path::Path,
     provider_id: &str,
@@ -270,23 +195,34 @@ fn update_entry_at(
         }
     };
     mutate(entry);
+    write_private(path, &existing)
+}
 
-    let serialized = toml::to_string_pretty(&existing).map_err(|e| {
+/// Writes `file` to `path` through a sibling temporary file created `0o600`
+/// on Unix and renamed over the target, so the file is never readable by
+/// others, not even between its creation and a later `chmod`.
+fn write_private(path: &std::path::Path, file: &OAuthClientsFile) -> Result<(), std::io::Error> {
+    use std::io::Write;
+
+    let serialized = toml::to_string_pretty(file).map_err(|e| {
         std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!("failed to serialize oauth-clients.toml: {e}"),
         )
     })?;
-    std::fs::write(path, serialized)?;
-
+    let tmp = path.with_extension("toml.tmp");
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(path)?.permissions();
-        perms.set_mode(0o600);
-        std::fs::set_permissions(path, perms)?;
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
     }
-    Ok(())
+    let mut out = options.open(&tmp)?;
+    out.write_all(serialized.as_bytes())?;
+    out.sync_all()?;
+    drop(out);
+    std::fs::rename(&tmp, path)
 }
 
 #[cfg(test)]
@@ -370,38 +306,40 @@ mod tests {
     }
 
     #[test]
-    fn client_secret_round_trips_per_provider() {
-        // GIVEN a provider carrying both a client id and a client secret
+    fn writing_an_id_keeps_legacy_secrets_until_they_are_stripped() {
+        // GIVEN a file an earlier version wrote, a client secret in clear
         let (_dir, path) = tmp_path();
-        set_client_id_at(&path, "google", "google-id-123").unwrap();
-        set_client_secret_at(&path, "google", "GOCSPX-secret").unwrap();
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            "[google]\nclient_id = \"a\"\nclient_secret = \"GOCSPX-old\"\n",
+        )
+        .unwrap();
 
-        // WHEN both are read, then the id alone is overwritten
-        // THEN the two fields are independent, and the secret survives the id change
-        assert_eq!(
-            lookup_client_id_at(&path, "google").as_deref(),
-            Some("google-id-123")
-        );
-        assert_eq!(
-            lookup_client_secret_at(&path, "google").as_deref(),
-            Some("GOCSPX-secret")
-        );
+        // WHEN a new client id is written, then the secrets are stripped
+        set_client_id_at(&path, "google", "b").unwrap();
+        let before_strip = std::fs::read_to_string(&path).unwrap();
+        strip_secrets_at(&path).unwrap();
+        let after_strip = std::fs::read_to_string(&path).unwrap();
 
-        set_client_id_at(&path, "google", "google-id-456").unwrap();
-        assert_eq!(
-            lookup_client_secret_at(&path, "google").as_deref(),
-            Some("GOCSPX-secret")
-        );
+        // THEN the id write loses nothing the move has not taken yet, and the
+        // strip leaves the id alone
+        assert!(before_strip.contains("GOCSPX-old"));
+        assert!(!after_strip.contains("GOCSPX-old"));
+        assert_eq!(lookup_client_id_at(&path, "google").as_deref(), Some("b"));
     }
 
+    #[cfg(unix)]
     #[test]
-    fn empty_client_secret_is_treated_as_no_override() {
-        // GIVEN an empty client file
+    fn the_file_is_written_private_to_its_owner() {
+        use std::os::unix::fs::PermissionsExt;
+        // GIVEN no file
         let (_dir, path) = tmp_path();
-        // WHEN an empty client secret is stored
-        set_client_secret_at(&path, "google", "").unwrap();
-        // THEN the lookup reports no override rather than an empty one
-        assert_eq!(lookup_client_secret_at(&path, "google"), None);
+        // WHEN a client id is written
+        set_client_id_at(&path, "google", "x").unwrap();
+        // THEN only its owner can read it
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600);
     }
 
     #[test]

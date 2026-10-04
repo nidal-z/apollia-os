@@ -29,6 +29,7 @@
 
 pub mod agent_definition;
 mod agent_overrides;
+pub mod agent_package;
 pub mod agent_repository;
 pub(crate) mod agents_db;
 pub mod apo_archive;
@@ -38,7 +39,9 @@ pub mod default_access;
 pub mod descriptor;
 pub mod dispatcher_invoker;
 pub mod executor;
+pub mod exposed_items;
 pub mod file_path_extractor;
+pub mod folder_access;
 pub mod governance_db;
 pub mod granted_access;
 pub mod hitl_schema;
@@ -50,7 +53,9 @@ pub mod project_repository;
 pub mod registry;
 pub mod resolver;
 pub mod sandbox_path;
+pub mod source_access;
 pub mod task_repository;
+pub mod tool_credentials;
 pub mod tool_registry;
 pub mod tools;
 pub mod trusted_keys;
@@ -72,7 +77,9 @@ pub use descriptor::{
 pub use executor::{
     SessionToolFilter, ToolBatchCall, ToolDispatcher, ToolExecutionError, ToolExecutor,
 };
+pub use exposed_items::{ExposedItem, ExposedItemError, ExposedItemRepository, ExposedKind};
 pub use file_path_extractor::FilePathExtractor;
+pub use folder_access::{granted_folders, resolve_folder_access, FolderRoots};
 pub use governance_db::{
     GovernanceDb, GovernanceError, GOVERNANCE_DB_FILENAME, LEGACY_BACKUP_FILENAME,
     LEGACY_PERMISSIONS_FILENAME,
@@ -83,31 +90,39 @@ pub use journal::{
 };
 pub use native_dispatcher::{
     build_dispatcher_with, build_native_dispatcher, is_disabled, NativeDispatcherConfig,
-    UnavailableTool,
+    NoFolderGranted, UnavailableTool,
 };
 pub use package_repository::{
     InstalledPackage, PackageItem, PackageItemKind, PackageRepository, PackageRepositoryError,
     PackageSignature,
 };
 pub use project_repository::{
-    ProjectDetail, ProjectDocument, ProjectPatch, ProjectProviderRow, ProjectRepository,
-    ProjectRepositoryError, ProjectSummary, ProjectTemplate,
+    ProjectDetail, ProjectDocument, ProjectProviderRow, ProjectRepository, ProjectRepositoryError,
+    ProjectSummary,
 };
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};
 pub use sandbox_path::{SandboxPathError, SandboxRoot, SandboxSpec};
+pub use source_access::{memory_is_checked, SourceAccess, MEMORY_SEARCH_TOOL};
 pub use task_repository::{
-    AgentRunEnd, AgentRunStart, ApprovalInfo, BatchItemRow, BatchRow, NewBatch, NewWorkflowRun,
-    PauseRecord, PausedTaskRow, PersistedTaskSummary, ResolvedApprovalRow, TaskDetail,
-    TaskRepoError, TaskRepository, WorkflowRunRow, WorkflowStepEnd, WorkflowStepRow,
+    AgentRunEnd, AgentRunStart, ApprovalInfo, BatchItemRow, BatchRow, HistoryRemoved, NewBatch,
+    NewWorkflowRun, PauseRecord, PausedTaskRow, PersistedTaskSummary, ResolvedApprovalRow,
+    TaskDetail, TaskRepoError, TaskRepository, WorkflowRunRow, WorkflowStepEnd, WorkflowStepRow,
+};
+pub use tool_credentials::{
+    credential_account, list_credential_index, CredentialEntry, ToolCredentialStore,
+    TOOL_CREDENTIALS_SERVICE,
 };
 pub use tool_registry::{
-    load_governance_snapshot, CredentialEntry, GovernanceSnapshot, ToolCredentialStore,
+    load_governance_snapshot, load_governance_snapshot_with, GovernanceSnapshot,
     ToolGovernanceError, ToolRegistry as NativeToolRegistry, ToolStatus,
     AGENT_CREDENTIALS_NAMESPACE, NATIVE_TOOL_NAMES,
 };
 pub use tools::bash_executor::{BashExecutor, BashExecutorError, BashInput, BashOutput};
 pub use tools::bash_validator::BashValidator;
+pub use tools::code_context::{
+    granted_with_code_folders, CodeContext, CodeFolder, CODE_CONTEXT_TOOL,
+};
 pub use tools::notebook_edit::{
     NotebookEdit, NotebookEditError, NotebookEditInput, NotebookEditOutput,
 };

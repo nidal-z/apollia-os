@@ -1,11 +1,16 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
-  import { searchMemory, deleteMemoryEntry } from "$lib/ipc/memory";
-  import { listMemoryNamespaces, listMemoryEntries } from "$lib/ipc/projects";
+  import {
+    searchMemory,
+    deleteMemoryEntry,
+    getMemoryEmbeddingsModel,
+    listMemoryNamespaces,
+  } from "$lib/ipc/memory";
+  import { listMemoryEntries } from "$lib/ipc/agents";
   import { listAgents } from "$lib/ipc/connections";
   import { memoryChanged } from "$lib/stores/sse";
-  import type { MemoryEntry, MemorySearchResult } from "$lib/types";
+  import type { MemoryEntry, MemorySearchResult, MemoryEmbeddings } from "$lib/types";
   import MemorySearch from "../components/memory/MemorySearch.svelte";
   import NamespaceSidebar, { type NamespaceCategory } from "../components/memory/NamespaceSidebar.svelte";
   import MemoryEntryRow from "../components/memory/MemoryEntryRow.svelte";
@@ -25,6 +30,7 @@
   import { listFlip, rowIn, rowOut } from "$lib/design/listMotion";
   import { contentIn, contentOut } from "$lib/design/routeTransition";
   import { reportError } from "$lib/errors/reportError";
+  import { navigateToSettings } from "$lib/router";
   import type { HumanizedError } from "$lib/errors/humanize";
 
   // The per-user profile is edited from `Settings -> Profile`.
@@ -241,7 +247,13 @@
     filterChips.map((c) => ({ key: c.key, label: $t(c.labelKey), count: entryCounts[c.key] })),
   );
 
+  /** The embeddings model the memory searches with; `null` reads as keywords. */
+  let embeddings = $state<MemoryEmbeddings | null>(null);
+
   onMount(async () => {
+    getMemoryEmbeddingsModel()
+      .then((model) => (embeddings = model))
+      .catch(() => (embeddings = null));
     await loadNamespaces();
     if (selectedNamespace !== "") {
       await loadEntries();
@@ -292,9 +304,14 @@
             <UserCircle2 size={14} class="text-primary mt-0.5" />
             <p class="text-caption text-muted-foreground leading-snug">
               {$t("memory.profile_banner_prefix")}
-              <a href="/settings/profile" class="text-primary underline-offset-2 hover:underline font-medium">
+              <button
+                type="button"
+                class="text-primary underline-offset-2 hover:underline font-medium"
+                onclick={() => navigateToSettings("profile")}
+                data-testid="memory-profile-link"
+              >
                 {$t("memory.profile_banner_link")}
-              </a>.
+              </button>.
               {$t("memory.profile_banner_suffix")}
             </p>
           </div>
@@ -407,6 +424,7 @@
                       {entry}
                       searching={searching}
                       relevance={searching ? searchRelevance.get(entry.id) : undefined}
+                      {embeddings}
                       selected={selectedEntry?.id === entry.id}
                       onclick={() => (selectedEntry = entry)}
                       oncopy={() => handleCopyEntry(entry)}
@@ -427,6 +445,7 @@
 <!-- Memory entry detail Sheet -->
 <MemoryEntrySheet
   entry={selectedEntry}
+  {embeddings}
   namespace={selectedNamespace}
   open={selectedEntry !== null}
   onclose={() => (selectedEntry = null)}

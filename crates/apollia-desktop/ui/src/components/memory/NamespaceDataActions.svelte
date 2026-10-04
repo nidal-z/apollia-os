@@ -23,7 +23,7 @@
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
   import { reportError } from "$lib/errors/reportError";
-  import { listMemoryEntries } from "$lib/ipc/projects";
+  import { listMemoryEntries } from "$lib/ipc/agents";
   import {
     memoryExportNamespace,
     memoryImportNamespace,

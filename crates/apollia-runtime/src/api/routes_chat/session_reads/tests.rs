@@ -11,20 +11,16 @@ use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
 use crate::chat::manager::ChatSessionManagerHandle;
 use crate::chat::ChatToolsConfig;
 
-/// A daemon state whose chat manager runs over `dir`, free chats working in
-/// `dir/workspace`.
+/// A daemon state whose chat manager runs over `dir`.
 fn state_with_chat(dir: &TempDir) -> AppState<MockBackend> {
     let loader = Arc::new(StemLoader { refusal: None });
     let mut state = app_state(loader.clone(), dir.path().to_path_buf());
-    let workspace = dir.path().join("workspace");
-    std::fs::create_dir_all(&workspace).unwrap();
     let tools_config = Arc::new(ChatToolsConfig {
         data_dir: dir.path().to_path_buf(),
         brave_api_key: None,
         tools_config: apollia_core::ToolsConfig::default(),
-        default_workspace: Some(workspace),
         tool_turn_temperature: None,
-        trusted_paths: Vec::new(),
+        source_registry: None,
     });
     let manager = ChatSessionManagerHandle::spawn(
         &dir.path().join("chat.db"),
@@ -36,8 +32,6 @@ fn state_with_chat(dir: &TempDir) -> AppState<MockBackend> {
         StepBudgetConfig::default(),
         None,
         state.registry_handle.clone(),
-        None,
-        None,
         None,
         None,
         Some(tools_config),
@@ -101,11 +95,31 @@ async fn test_the_metrics_are_refused_without_a_chat_subsystem() {
     assert_eq!(body["error"], "chat subsystem not available");
 }
 
+/// Grant the Apollia agent the folder at `path`, stored in `dir`, to read.
+fn grant_apollia_a_folder(dir: &TempDir, path: &std::path::Path) -> String {
+    use apollia_core::paths::DataFile;
+    let folder = apollia_core::FolderConnectionStore::open(&DataFile::System.path(dir.path()))
+        .unwrap()
+        .add(&path.to_string_lossy(), None)
+        .unwrap();
+    apollia_tools::AgentRepository::open(&DataFile::Agents.path(dir.path()))
+        .unwrap()
+        .set_override(
+            apollia_tools::APOLLIA_AGENT_ID,
+            apollia_tools::OverrideField::Access,
+            &serde_json::json!([format!("conn:folder:{}/file_read", folder.id)]),
+        )
+        .unwrap();
+    folder.path
+}
+
 #[tokio::test]
-async fn test_the_workspace_of_a_free_chat_is_the_default_one() {
-    // GIVEN a daemon whose free chats work in a configured folder
+async fn test_the_workspace_of_a_free_chat_is_the_folder_granted_to_apollia() {
+    // GIVEN a daemon whose Apollia agent is granted one folder
     let dir = TempDir::new().unwrap();
+    let granted = TempDir::new().unwrap();
     let state = state_with_chat(&dir);
+    let expected = grant_apollia_a_folder(&dir, granted.path());
     let id = new_free_chat(&state).await;
 
     // WHEN a client reads the working directory of the session, and of a
@@ -120,12 +134,32 @@ async fn test_the_workspace_of_a_free_chat_is_the_default_one() {
     let (unknown_status, unknown) =
         call(state, "GET", "/api/v1/sessions/unknown/workspace", None).await;
 
-    // THEN the first is the configured folder, the second resolves to nothing
+    // THEN the first is the granted folder, the second resolves to nothing
     assert_eq!(status, StatusCode::OK, "{known}");
-    let expected = dir.path().join("workspace");
-    assert_eq!(known["workspace"], expected.to_string_lossy().as_ref());
+    assert_eq!(known["workspace"], expected.as_str());
     assert_eq!(unknown_status, StatusCode::OK, "{unknown}");
     assert_eq!(unknown["workspace"], serde_json::Value::Null);
+}
+
+#[tokio::test]
+async fn test_a_free_chat_whose_agent_has_no_folder_has_no_workspace() {
+    // GIVEN a daemon whose Apollia agent is granted no folder
+    let dir = TempDir::new().unwrap();
+    let state = state_with_chat(&dir);
+    let id = new_free_chat(&state).await;
+
+    // WHEN a client reads the working directory of the session
+    let (status, body) = call(
+        state,
+        "GET",
+        &format!("/api/v1/sessions/{id}/workspace"),
+        None,
+    )
+    .await;
+
+    // THEN there is none: neither the data directory nor the home folder
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["workspace"], serde_json::Value::Null);
 }
 
 #[tokio::test]
@@ -140,4 +174,104 @@ async fn test_the_workspace_is_refused_without_a_chat_subsystem() {
     // THEN the refusal says why
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(body["error"], "chat subsystem not available");
+}
+
+/// `state` given a backend table whose default row serves a Qwen3 GGUF the
+/// index records as a reasoning switch that reads images.
+fn with_default_qwen3(mut state: AppState<MockBackend>, dir: &TempDir) -> AppState<MockBackend> {
+    use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider};
+    use apollia_llm::model_index::{
+        IndexedModel, ModelCategory, ModelFormat, ModelIndex, ModelOrigin, INDEX_FILE_NAME,
+    };
+    use apollia_llm::{Capabilities, VisionEngine};
+
+    let models = crate::installed_models::models_dir(dir.path());
+    std::fs::create_dir_all(&models).unwrap();
+    let file = models.join("qwen3.gguf");
+    ModelIndex {
+        models: vec![IndexedModel {
+            id: "qwen3".into(),
+            format: ModelFormat::Gguf,
+            path: file.clone(),
+            parts: Vec::new(),
+            annexes: Vec::new(),
+            size_bytes: 0,
+            origin: ModelOrigin::Import,
+            sha256: None,
+            origin_verified: false,
+            category: ModelCategory::Language,
+            parameters: None,
+            modified_at: None,
+            pinned_at: None,
+            category_override: None,
+            source_file_override: None,
+            capabilities: Some(
+                Capabilities::from_chat_template(Some("{{ enable_thinking }}"))
+                    .with_vision(VisionEngine::LlamaServer),
+            ),
+        }],
+        ..ModelIndex::default()
+    }
+    .save(&models.join(INDEX_FILE_NAME))
+    .unwrap();
+    let repo = LlmBackendRepository::open(&dir.path().join("system.db")).unwrap();
+    repo.save(&LlmBackendConfig {
+        name: "local-qwen".into(),
+        provider: LlmProvider::LlamaCpp,
+        model: file.display().to_string(),
+        config_json: serde_json::json!({}),
+        is_default: true,
+        enabled: true,
+    })
+    .unwrap();
+    state.llm_backend_repo = Some(Arc::new(std::sync::Mutex::new(repo)));
+    state
+}
+
+#[tokio::test]
+async fn test_the_model_capabilities_of_a_free_chat_are_those_of_the_default_model() {
+    // GIVEN a daemon whose default model is a local Qwen3 that reasons on a
+    // switch and reads images, and a free chat naming no model
+    let dir = TempDir::new().unwrap();
+    let state = with_default_qwen3(state_with_chat(&dir), &dir);
+    let id = new_free_chat(&state).await;
+
+    // WHEN a client reads what the model of the session can do
+    let (status, body) = call(
+        state,
+        "GET",
+        &format!("/api/v1/sessions/{id}/model-capabilities"),
+        None,
+    )
+    .await;
+
+    // THEN the default model answers: a reasoning switch, and images in the
+    // formats its engine decodes
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["model"], "local-qwen");
+    assert_eq!(body["local"], true);
+    assert_eq!(body["reasoning_profile"], "toggle");
+    assert_eq!(body["vision"], true);
+    assert!(body["image_formats"]
+        .as_array()
+        .is_some_and(|f| f.iter().any(|v| v == "png")));
+}
+
+#[tokio::test]
+async fn test_the_model_capabilities_of_an_unknown_session_are_not_found() {
+    // GIVEN a daemon with a chat subsystem and a backend table
+    let dir = TempDir::new().unwrap();
+    let state = with_default_qwen3(state_with_chat(&dir), &dir);
+
+    // WHEN a client reads the model capabilities of a session nobody created
+    let (status, body) = call(
+        state,
+        "GET",
+        "/api/v1/sessions/unknown/model-capabilities",
+        None,
+    )
+    .await;
+
+    // THEN the session is not found
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
 }

@@ -16,10 +16,11 @@ class PackageErrorBody:
 
         Attributes:
             code (str): Stable code: `archive`, `invalid_signature`, `signature_required`,
-                `downgrade`, `agent_taken`, `deps_confirmation_required`,
-                `changes_confirmation_required`, `mcp_unavailable`, `mcp_server`,
-                `environment`, `invalid_key`, `not_found`, `journal_unavailable`,
-                `internal`.
+                `publisher_not_trusted`, `downgrade`, `agent_taken`,
+                `deps_confirmation_required`, `changes_confirmation_required`,
+                `mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,
+                `policy_key`, `not_found`, `built_in`, `owned_by_package`,
+                `journal_unavailable`, `internal`.
             error (str): Human-readable description.
     """
 

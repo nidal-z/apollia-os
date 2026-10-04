@@ -23,6 +23,8 @@ use crate::api::server::AppState;
 use crate::coordinator::{DynBackend, ExecutionBackend};
 use crate::stt::TranscriptSource;
 
+pub mod settings;
+
 /// Error response body shared across STT routes.
 #[derive(Debug, Serialize)]
 pub struct SttErrorResponse {
@@ -214,15 +216,18 @@ pub async fn stt_status<B: ExecutionBackend + Clone + From<DynBackend>>(
 /// Accepts `multipart/form-data` with:
 /// - `audio` (required): WAV audio file
 /// - `language` (optional): language hint (ISO 639-1 code)
+/// - `source` (optional): what the audio is, `api` (default), `file` or
+///   `hotkey`, the tag the history shows; the desktop attached to this runtime
+///   sends a file it read or a dictation it captured
 ///
 /// Returns `200 OK` with the persisted transcript row (`TranscriptRow`).
-/// Returns `400 Bad Request` on missing or invalid audio.
+/// Returns `400 Bad Request` on missing or invalid audio, or an unknown source.
 /// Returns `503 Service Unavailable` when the engine is absent.
 #[utoipa::path(
     post,
     path = "/api/v1/stt/transcribe",
     tag = "stt",
-    request_body(content = inline(crate::api::openapi::TranscribeForm), content_type = "multipart/form-data", description = "Multipart form with an `audio` WAV field (required) and an optional `language` hint"),
+    request_body(content = inline(crate::api::openapi::TranscribeForm), content_type = "multipart/form-data", description = "Multipart form with an `audio` WAV field (required), an optional `language` hint and an optional `source` tag"),
     responses(
         (status = 200, description = "Persisted transcription row"),
         (status = 400, description = "Missing or invalid audio", body = crate::api::openapi::ApiErrorBody),
@@ -248,7 +253,9 @@ pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
         .ok_or_else(stt_unavailable)?;
 
     let mut audio_data: Option<Vec<u8>> = None;
+    let mut file_name: Option<String> = None;
     let mut language: Option<String> = None;
+    let mut source_tag: Option<String> = None;
 
     while let Some(field) = multipart.next_field().await.map_err(|e| {
         (
@@ -261,6 +268,7 @@ pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
         let field_name = field.name().unwrap_or_default().to_owned();
         match field_name.as_str() {
             "audio" => {
+                file_name = field.file_name().map(str::to_owned);
                 let bytes = field.bytes().await.map_err(|e| {
                     (
                         StatusCode::BAD_REQUEST,
@@ -284,9 +292,22 @@ pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
                     language = Some(text);
                 }
             }
+            "source" => {
+                source_tag = Some(field.text().await.map_err(|e| {
+                    (
+                        StatusCode::BAD_REQUEST,
+                        Json(SttErrorResponse {
+                            error: format!("failed to read source field: {e}"),
+                        }),
+                    )
+                })?);
+            }
             _ => {}
         }
     }
+
+    let source = transcript_source(source_tag.as_deref(), file_name)
+        .map_err(|error| (StatusCode::BAD_REQUEST, Json(SttErrorResponse { error })))?;
 
     let raw_audio = audio_data.ok_or_else(|| {
         (
@@ -318,18 +339,24 @@ pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
     // The `language` field is honoured for this request only; when the caller
     // omits it, the persisted configuration hint applies. It used to be parsed
     // and then dropped, so a caller could set it and see no effect at all.
-    let transcript = engine
-        .transcribe_with_language(audio, 16000, TranscriptSource::Api, language)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "stt.transcription.failed");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(SttErrorResponse {
-                    error: format!("transcription failed: {e}"),
-                }),
-            )
-        })?;
+    let tag = source.as_str().to_owned();
+    let transcribed = match language {
+        Some(code) => {
+            engine
+                .transcribe_with_language(audio, 16000, source, Some(code))
+                .await
+        }
+        None => engine.transcribe(audio, 16000, source).await,
+    };
+    let transcript = transcribed.map_err(|e| {
+        tracing::error!(error = %e, "stt.transcription.failed");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(SttErrorResponse {
+                error: format!("transcription failed: {e}"),
+            }),
+        )
+    })?;
 
     let row = repo
         .lock()
@@ -341,7 +368,7 @@ pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
                 }),
             )
         })?
-        .insert("api", &transcript, None)
+        .insert(&tag, &transcript, None)
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -380,6 +407,23 @@ pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
         })?;
 
     Ok((StatusCode::OK, Json(transcript_row)))
+}
+
+/// The source a transcription request names, `api` when it names none.
+///
+/// A `file` carries the name the upload gave its audio part.
+fn transcript_source(
+    tag: Option<&str>,
+    file_name: Option<String>,
+) -> Result<TranscriptSource, String> {
+    match tag.unwrap_or("api") {
+        "api" | "" => Ok(TranscriptSource::Api),
+        "file" => Ok(TranscriptSource::File(file_name.unwrap_or_default())),
+        "hotkey" => Ok(TranscriptSource::Hotkey),
+        other => Err(format!(
+            "unknown source '{other}': expected api, file or hotkey"
+        )),
+    }
 }
 
 /// `GET /api/v1/stt/transcriptions`, list transcription history.
@@ -491,10 +535,12 @@ pub async fn delete_transcription<B: ExecutionBackend + Clone + From<DynBackend>
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// `GET /api/v1/stt/models`, list available `.bin` model files.
+/// `GET /api/v1/stt/models`, list available model files.
 ///
-/// Scans `~/.apollia/models/` for `.bin` files and returns their name,
-/// path, and size. Returns an empty list if the directory does not exist.
+/// Scans `~/.apollia/models/` for the extensions in
+/// [`MODEL_EXTENSIONS`](crate::stt::MODEL_EXTENSIONS) and returns their name,
+/// path, and size, the list the desktop shows in both modes. Returns an empty
+/// list if the directory does not exist.
 #[utoipa::path(
     get,
     path = "/api/v1/stt/models",
@@ -509,7 +555,9 @@ pub async fn list_models<B: ExecutionBackend + Clone + From<DynBackend>>(
 ) -> RouteResult<ModelsListResponse> {
     // No home directory resolves to no models directory, hence the empty
     // list below, which is what the unresolved `~` used to produce.
-    let models_dir = apollia_core::paths::data_dir().map(|d| d.join("models"));
+    // Dictation models stay in the default folder whatever `[models] dir` says.
+    let models_dir =
+        apollia_core::paths::data_dir().map(|d| apollia_core::config::default_models_dir(&d));
 
     let mut models = Vec::new();
 
@@ -530,7 +578,7 @@ pub async fn list_models<B: ExecutionBackend + Clone + From<DynBackend>>(
                 Err(_) => continue,
             };
             let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) == Some("bin") {
+            if crate::stt::is_model_file(&path) {
                 let name = path
                     .file_name()
                     .map(|n| n.to_string_lossy().into_owned())
@@ -546,180 +594,6 @@ pub async fn list_models<B: ExecutionBackend + Clone + From<DynBackend>>(
     }
 
     Ok((StatusCode::OK, Json(ModelsListResponse { models })))
-}
-
-/// `GET /api/v1/stt/config`, return the persisted STT configuration.
-///
-/// Returns `200 OK` with the current [`SttConfigRow`] from `system.db`.
-/// If the table is empty (first boot), the defaults are inserted and returned.
-/// Returns `503 Service Unavailable` when the config repository is unavailable.
-#[utoipa::path(
-    get,
-    path = "/api/v1/stt/config",
-    tag = "stt",
-    responses(
-        (status = 200, description = "Persisted STT configuration"),
-        (status = 500, description = "Database error", body = crate::api::openapi::ApiErrorBody),
-        (status = 503, description = "STT config repository unavailable", body = crate::api::openapi::ApiErrorBody),
-    )
-)]
-pub async fn get_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
-    State(state): State<AppState<B>>,
-) -> RouteResult<SttConfigRow> {
-    let repo = state.stt_config_repo.as_ref().ok_or_else(|| {
-        (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(SttErrorResponse {
-                error: "STT config repository not available".into(),
-            }),
-        )
-    })?;
-
-    let config = repo
-        .lock()
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(SttErrorResponse {
-                    error: format!("repository lock error: {e}"),
-                }),
-            )
-        })?
-        .get_or_default()
-        .map_err(|e| {
-            tracing::error!(error = %e, "stt.config.read.failed");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(SttErrorResponse {
-                    error: format!("database error: {e}"),
-                }),
-            )
-        })?;
-
-    Ok((StatusCode::OK, Json(config)))
-}
-
-/// `PUT /api/v1/stt/config`, update the persisted STT configuration.
-///
-/// Accepts a JSON body of [`SttConfigRow`] (fields with `#[serde(default)]` may
-/// be omitted, missing fields receive their default values). Replaces the
-/// singleton row in `system.db` via an upsert.
-///
-/// Returns `200 OK` with the updated configuration.
-/// Returns `503 Service Unavailable` when the config repository is unavailable.
-#[utoipa::path(
-    put,
-    path = "/api/v1/stt/config",
-    tag = "stt",
-    request_body(content = Object, content_type = "application/json", description = "Updated STT configuration (SttConfigRow); fields with defaults may be omitted"),
-    responses(
-        (status = 200, description = "Updated STT configuration"),
-        (status = 500, description = "Database error", body = crate::api::openapi::ApiErrorBody),
-        (status = 503, description = "STT config repository unavailable", body = crate::api::openapi::ApiErrorBody),
-    )
-)]
-pub async fn update_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
-    State(state): State<AppState<B>>,
-    Json(new_config): Json<SttConfigRow>,
-) -> RouteResult<SttConfigRow> {
-    let repo = state.stt_config_repo.as_ref().ok_or_else(|| {
-        (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(SttErrorResponse {
-                error: "STT config repository not available".into(),
-            }),
-        )
-    })?;
-
-    let guard = repo.lock().map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(SttErrorResponse {
-                error: format!("repository lock error: {e}"),
-            }),
-        )
-    })?;
-
-    guard.upsert(&new_config).map_err(|e| {
-        tracing::error!(error = %e, "stt.config.persist.failed");
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(SttErrorResponse {
-                error: format!("database error: {e}"),
-            }),
-        )
-    })?;
-
-    let updated = guard.get_or_default().map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(SttErrorResponse {
-                error: format!("database error: {e}"),
-            }),
-        )
-    })?;
-
-    tracing::info!(enabled = updated.enabled, "stt.config.updated");
-    Ok((StatusCode::OK, Json(updated)))
-}
-
-/// Response body for `POST /api/v1/stt/reload`.
-#[derive(Debug, Serialize, utoipa::ToSchema)]
-pub struct SttReloadResponse {
-    /// Whether an engine is loaded after the reload. `false` when STT is
-    /// disabled, the model file is absent, or the runner is unavailable.
-    pub loaded: bool,
-}
-
-/// `POST /api/v1/stt/reload`, rebuild the STT engine from persisted config.
-///
-/// Reads the current `stt_config` row from `system.db`, rebuilds the engine
-/// actor via [`build_stt_engine`](crate::stt::build_stt_engine), swaps it into
-/// the shared cell, and shuts the previous engine down. Lets a model enabled or
-/// downloaded mid-session come online without restarting the daemon. Idempotent:
-/// swaps in `None` when STT is disabled or the model is missing.
-#[utoipa::path(
-    post,
-    path = "/api/v1/stt/reload",
-    tag = "stt",
-    responses(
-        (status = 200, description = "STT engine reloaded", body = SttReloadResponse),
-        (status = 500, description = "Database error", body = crate::api::openapi::ApiErrorBody),
-        (status = 503, description = "STT config repository unavailable", body = crate::api::openapi::ApiErrorBody),
-    )
-)]
-pub async fn reload_stt_engine<B: ExecutionBackend + Clone + From<DynBackend>>(
-    State(state): State<AppState<B>>,
-) -> RouteResult<SttReloadResponse> {
-    // Snapshot the persisted config, dropping the (!Send) lock guard before the
-    // async rebuild.
-    let cfg = read_stt_config(&state)?;
-
-    let (engine, repository) = crate::stt::build_stt_engine(
-        &state.data_dir,
-        Some(&cfg),
-        state.runner_proxy.clone(),
-        &state.event_sender,
-    )
-    .await;
-    let loaded = engine.is_some();
-
-    // Swap the new engine/repository in, then shut the previous engine down
-    // outside the write guard so no reader observes a half-swapped state.
-    let previous = {
-        let mut engine_cell = state.stt_engine.write().await;
-        let mut repo_cell = state.stt_repository.write().await;
-        let old = engine_cell.take();
-        *engine_cell = engine;
-        *repo_cell = repository;
-        old
-    };
-    if let Some(old) = previous {
-        old.shutdown().await;
-    }
-
-    tracing::info!(loaded, "stt.engine.reloaded");
-    Ok((StatusCode::OK, Json(SttReloadResponse { loaded })))
 }
 
 // ── WAV decoding ────────────────────────────────────────────────────
@@ -752,6 +626,7 @@ fn decode_wav(data: &[u8]) -> Result<(Vec<f32>, u32, u16), String> {
 
 #[cfg(test)]
 mod tests {
+    use super::settings::{get_stt_config, reload_stt_engine, update_stt_config};
     use super::*;
     use crate::api::server::AppState;
     use crate::coordinator::ExecutionBackend;
@@ -819,6 +694,7 @@ mod tests {
             audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
+            inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -839,9 +715,12 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            mlx_engine: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
             workflows: None,
+            compat_server: None,
+            source_registry: None,
         }
     }
 
@@ -1042,5 +921,330 @@ mod tests {
         let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert!(json["models"].is_array());
+    }
+
+    /// A backend that answers every audio with the same sentence.
+    struct EchoBackend;
+
+    impl apollia_stt::SttBackend for EchoBackend {
+        fn name(&self) -> &str {
+            "echo"
+        }
+
+        fn transcribe(
+            &self,
+            _audio: &[f32],
+            _sample_rate: u32,
+            _language_hint: Option<&str>,
+        ) -> Result<apollia_stt::TranscriptResult, apollia_stt::SttError> {
+            Ok(apollia_stt::TranscriptResult {
+                full_text: "bonjour".to_owned(),
+                segments: Vec::new(),
+                language: Some("fr".to_owned()),
+                audio_duration_ms: 1000,
+                processing_time_ms: 1,
+            })
+        }
+    }
+
+    /// A router whose engine and history are live, the engine echoing.
+    fn router_with_engine() -> Router {
+        let mut state = base_state();
+        let dir =
+            std::env::temp_dir().join(format!("apollia_stt_engine_test_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let engine_repo = apollia_stt::SttRepository::open(&dir.join("stt.db")).expect("repo");
+        let route_repo = apollia_stt::SttRepository::open(&dir.join("stt.db")).expect("repo");
+        let engine = crate::stt::SttEngineHandle::start(
+            Box::new(EchoBackend),
+            engine_repo,
+            SttConfigRow::default(),
+            state.event_sender.clone(),
+        );
+        state.stt_engine = crate::api::server::shared_stt_engine_from(Some(engine));
+        state.stt_repository = crate::api::server::shared_stt_repository_from(Some(Arc::new(
+            std::sync::Mutex::new(route_repo),
+        )));
+        Router::new()
+            .route(
+                "/api/v1/stt/transcribe",
+                post(transcribe_audio::<MockBackend>),
+            )
+            .with_state(state)
+    }
+
+    /// A multipart body carrying one second of silence and the given source.
+    fn upload(source: &str) -> Request<Body> {
+        let mut wav = std::io::Cursor::new(Vec::new());
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 16_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::new(&mut wav, spec).expect("writer");
+        for _ in 0..16_000 {
+            writer.write_sample(0i16).expect("sample");
+        }
+        writer.finalize().expect("finalize");
+        let mut body = Vec::new();
+        body.extend_from_slice(
+            b"--b\r\nContent-Disposition: form-data; name=\"audio\"; filename=\"memo.wav\"\r\n\
+              Content-Type: audio/wav\r\n\r\n",
+        );
+        body.extend_from_slice(wav.get_ref());
+        body.extend_from_slice(
+            format!(
+                "\r\n--b\r\nContent-Disposition: form-data; name=\"source\"\r\n\r\n{source}\r\n--b--\r\n"
+            )
+            .as_bytes(),
+        );
+        Request::builder()
+            .method("POST")
+            .uri("/api/v1/stt/transcribe")
+            .header("content-type", "multipart/form-data; boundary=b")
+            .body(Body::from(body))
+            .unwrap()
+    }
+
+    /// A router serving the settings routes over a configuration repository
+    /// in a fresh directory, or over none.
+    fn settings_router(with_repo: bool) -> Router {
+        let mut state = base_state();
+        if with_repo {
+            let dir =
+                std::env::temp_dir().join(format!("apollia_stt_api_test_{}", uuid::Uuid::new_v4()));
+            std::fs::create_dir_all(&dir).expect("create temp dir");
+            let repo = SttConfigRepository::open(&dir.join("system.db")).expect("open config repo");
+            state.stt_config_repo = Some(Arc::new(std::sync::Mutex::new(repo)));
+            state.data_dir = dir;
+        }
+        Router::new()
+            .route(
+                "/api/v1/stt/config",
+                get(get_stt_config::<MockBackend>).put(update_stt_config::<MockBackend>),
+            )
+            .route("/api/v1/stt/reload", post(reload_stt_engine::<MockBackend>))
+            .with_state(state)
+    }
+
+    async fn json_of(resp: axum::response::Response) -> serde_json::Value {
+        let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
+        serde_json::from_slice(&body).unwrap()
+    }
+
+    fn put_config(body: serde_json::Value) -> Request<Body> {
+        Request::builder()
+            .method("PUT")
+            .uri("/api/v1/stt/config")
+            .header("content-type", "application/json")
+            .body(Body::from(body.to_string()))
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn an_uploaded_file_is_kept_in_the_history_as_a_file() {
+        // GIVEN a live engine, and a WAV the desktop read from a file
+        let router = router_with_engine();
+
+        // WHEN it is uploaded with the source the desktop names
+        let resp = router.oneshot(upload("file")).await.unwrap();
+
+        // THEN the transcription is answered and kept under that source, the
+        // tag the history shows, as the embedded command keeps it
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        let row: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(row["source"], "file");
+        assert_eq!(row["full_text"], "bonjour");
+    }
+
+    #[tokio::test]
+    async fn an_unknown_source_is_refused() {
+        // GIVEN a live engine
+        let router = router_with_engine();
+
+        // WHEN an upload names a source the history does not know
+        let resp = router.oneshot(upload("radio")).await.unwrap();
+
+        // THEN it is refused before any transcription, with the reason
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json["error"]
+            .as_str()
+            .unwrap()
+            .contains("unknown source 'radio'"));
+    }
+
+    #[test]
+    fn a_request_naming_no_source_is_an_api_one() {
+        // GIVEN a request with no source field
+        // WHEN its source is read
+        let source = transcript_source(None, None).unwrap();
+
+        // THEN it keeps the tag every caller had before the field existed
+        assert_eq!(source.as_str(), "api");
+    }
+
+    #[tokio::test]
+    async fn config_is_read_with_its_defaults_on_first_boot() {
+        // GIVEN a configuration repository that holds no row yet
+        let router = settings_router(true);
+
+        // WHEN GET /api/v1/stt/config
+        let resp = router
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/stt/config")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // THEN 200 with the defaults, every field the desktop reads present
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = json_of(resp).await;
+        assert_eq!(json["enabled"], false);
+        for field in ["model_path", "hotkey", "clipboard_mode", "trigger_mode"] {
+            assert!(json[field].is_string(), "{field} missing: {json}");
+        }
+    }
+
+    #[tokio::test]
+    async fn config_without_repository_is_refused_with_503() {
+        // GIVEN no configuration repository
+        let router = settings_router(false);
+
+        // WHEN GET /api/v1/stt/config
+        let resp = router
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/stt/config")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // THEN 503 naming the missing repository
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let json = json_of(resp).await;
+        assert!(json["error"].as_str().unwrap().contains("not available"));
+    }
+
+    #[tokio::test]
+    async fn an_updated_configuration_is_persisted_and_returned() {
+        // GIVEN a configuration repository
+        let router = settings_router(true);
+
+        // WHEN PUT /api/v1/stt/config with another model and a listed language
+        let resp = router
+            .clone()
+            .oneshot(put_config(serde_json::json!({
+                "enabled": false,
+                "model_path": "/models/ggml-small.gguf",
+                "language": "de",
+                "input_device": "USB mic"
+            })))
+            .await
+            .unwrap();
+
+        // THEN 200 with the new values, and a later read returns them
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(json_of(resp).await["model_path"], "/models/ggml-small.gguf");
+        let read = router
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/stt/config")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let json = json_of(read).await;
+        assert_eq!(json["language"], "de");
+        assert_eq!(json["input_device"], "USB mic");
+    }
+
+    #[tokio::test]
+    async fn an_unlisted_language_is_refused_with_400_and_not_persisted() {
+        // GIVEN a configuration repository
+        let router = settings_router(true);
+
+        // WHEN PUT /api/v1/stt/config with a free-text language
+        let resp = router
+            .clone()
+            .oneshot(put_config(serde_json::json!({
+                "model_path": "/models/ggml-small.bin",
+                "language": "francais"
+            })))
+            .await
+            .unwrap();
+
+        // THEN 400 with the message the embedded desktop shows, and the
+        // persisted configuration is untouched
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let error = json_of(resp).await["error"].as_str().unwrap().to_owned();
+        assert!(
+            error.starts_with("unsupported dictation language 'francais'"),
+            "{error}"
+        );
+        let read = router
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/stt/config")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(json_of(read).await["model_path"], "/models/ggml-small.bin");
+    }
+
+    #[tokio::test]
+    async fn a_reload_with_dictation_disabled_answers_not_loaded() {
+        // GIVEN a configuration repository whose default row disables dictation
+        let router = settings_router(true);
+
+        // WHEN POST /api/v1/stt/reload
+        let resp = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/stt/reload")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // THEN 200, no engine loaded
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(json_of(resp).await["loaded"], false);
+    }
+
+    #[tokio::test]
+    async fn a_reload_without_repository_is_refused_with_503() {
+        // GIVEN no configuration repository
+        let router = settings_router(false);
+
+        // WHEN POST /api/v1/stt/reload
+        let resp = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/stt/reload")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // THEN 503
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 }

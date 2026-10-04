@@ -1,0 +1,202 @@
+---
+sidebar_position: 10
+title: Points d'accès compatibles
+description: "Le serveur compatible : un second écouteur du runtime, sur son propre port, que les autres applications appellent aux formats d'OpenAI et d'Anthropic. Éteint par défaut."
+---
+
+# Points d'accès compatibles
+
+Le runtime peut ouvrir un second écouteur, le **serveur compatible**, pour les
+autres applications de la machine. Elles l'appellent comme elles appelleraient
+OpenAI ou Anthropic : les chemins commencent par `/v1/`, les corps suivent ces
+API et leurs noms de champs (`snake_case`), et une erreur revient dans
+l'enveloppe de l'API que le client a appelée.
+
+Le serveur compatible n'est pas l'API native. L'API native, documentée dans la
+[référence de l'API HTTP](/reference/api/apollia-os-runtime-api), reste sur le
+port 7771 et le socket local, sous `/api/v1/` ; l'application de bureau et la
+CLI pilotent le runtime par elle. Le serveur compatible a son propre port et ne
+sert que les points d'accès listés plus bas, si bien que le démarrer ou
+l'arrêter ne touche jamais au runtime ni au bureau.
+
+## Éteint par défaut
+
+Le serveur n'écoute qu'une fois que quelqu'un l'allume. Quatre clés
+d'`apollia.toml` portent son état :
+
+```toml
+[server]
+enabled = false        # le serveur compatible écoute-t-il
+port = 7772            # son port TCP ; jamais le 7771 de l'API native
+require_auth = false   # chaque requête doit-elle présenter un jeton
+serve_on_lan = false   # les autres appareils du réseau local l'atteignent-ils
+```
+
+Par défaut, il écoute sur l'interface de boucle locale, `127.0.0.1`, si bien que
+seules les applications de cette machine l'atteignent.
+
+## Le démarrer et l'arrêter
+
+Quatre routes de l'API native le pilotent pendant que le runtime tourne :
+
+| Route | Effet |
+|---|---|
+| `GET /api/v1/server` | S'il écoute, son port, s'il sert le réseau local, l'adresse à copier, pourquoi son dernier démarrage a échoué, et combien de jetons sont actifs |
+| `POST /api/v1/server/start` | L'ouvre sur le port configuré et écrit `enabled = true` |
+| `POST /api/v1/server/stop` | Le ferme et écrit `enabled = false` ; l'API native continue de répondre |
+| `POST /api/v1/server/restart` | Le ferme et le rouvre pour qu'il applique les clés `[server]` telles qu'elles sont ; seul cet écouteur est rouvert, l'API native garde ses connexions. Un serveur arrêté reste arrêté |
+
+Comme démarrer et arrêter écrivent `enabled`, l'état survit à une relance : un
+runtime qui démarre avec `enabled = true` rouvre le serveur compatible. Si un
+autre programme tient déjà le port, le démarrage est refusé par une erreur
+lisible « port occupé » (HTTP 409 sur la route de démarrage), et le runtime
+continue sans le serveur compatible.
+
+## Jetons
+
+Avec `require_auth = true`, chaque requête doit présenter un jeton du serveur.
+Chaque application reçoit le sien, à son nom, si bien qu'on peut en retirer un
+sans toucher aux autres. Le jeton par lequel le bureau parle à son runtime n'en
+fait pas partie et n'ouvre jamais le serveur compatible ; un jeton du serveur
+n'ouvre jamais l'API native.
+
+| Route | Effet |
+|---|---|
+| `POST /api/v1/server/tokens` | Crée un jeton à partir de son `name` et répond sa valeur, `apo_` suivi de 64 caractères hexadécimaux. La valeur est montrée cette seule fois et gardée nulle part |
+| `GET /api/v1/server/tokens` | Liste chaque jeton : nom, quatre derniers caractères, création, dernier usage, révocation. Jamais la valeur |
+| `DELETE /api/v1/server/tokens/{token}` | Révoque un jeton par identifiant ou par nom ; il reste listé, marqué révoqué |
+
+Seule l'empreinte SHA-256 d'une valeur est gardée, dans `system.db`. Un client
+envoie son jeton comme sa propre API l'attend, l'un ou l'autre en-tête convient :
+
+```text
+Authorization: Bearer apo_...   # clients OpenAI
+x-api-key: apo_...              # clients Anthropic
+```
+
+Une requête sans jeton actif, ou avec un jeton révoqué, reçoit `401` au format
+du point d'accès appelé. Chaque succès date le dernier usage du jeton. Le
+réglage est lu à l'ouverture du serveur : le relancer applique un changement.
+
+## Réseau local
+
+Avec `serve_on_lan = true`, le serveur compatible écoute sur toutes les
+interfaces, si bien que les autres appareils du réseau local l'appellent à
+l'adresse de la machine. Le champ `address` de `GET /api/v1/server` donne
+l'adresse à copier : `http://127.0.0.1:7772` quand le serveur reste sur la
+machine, `http://<adresse IPv4 de la machine sur le réseau>:7772` quand il sert
+le réseau. La clé est lue à l'ouverture du serveur : le relancer applique un
+changement.
+
+Le réseau local et les jetons sont deux interrupteurs distincts :
+
+- **Les modèles** répondent au réseau avec ou sans jeton, comme le dit
+  `require_auth`. Ouvrir le réseau sans jeton est permis, comme d'autres
+  serveurs d'inférence locaux le permettent ; tout appareil du réseau peut alors
+  se servir des modèles.
+- **Les agents et les workflows** ne répondent jamais à un appel venu du réseau
+  sans jeton actif, quoi que dise `require_auth` : ils atteignent les connexions
+  et les documents de l'utilisateur. Le refus est un `401` qui se lit « A token
+  is required to call an agent or a workflow from the local network. »
+- **L'API native** reste sur la machine dans tous les cas : le port 7771 et la
+  socket locale n'écoutent jamais le réseau à cause de cette clé.
+
+Chaque requête est classée, à l'acceptation de sa connexion, comme venue de la
+machine (l'interface de boucle locale) ou du réseau local (toute autre adresse).
+La décision et sa lecture au regard du principe du local d'abord sont écrites
+dans les [décisions d'architecture](/architecture/decisions#local-server).
+
+## Journaux du serveur
+
+Le runtime garde en mémoire les lignes les plus récentes du serveur, 2000 au
+plus, la plus ancienne retirée d'abord : une par requête à laquelle il a
+répondu (heure, niveau, méthode, chemin, modèle, statut, durée) et chaque ligne
+qu'écrit le `llama-server` local. Une requête refusée (4xx) est au niveau
+`warn`, une requête en échec (5xx) au niveau `error`.
+
+| Route | Effet |
+|---|---|
+| `GET /api/v1/server/logs?level=warn` | Un flux d'événements : une trame `log` par ligne, celles gardées d'abord, puis chaque nouvelle. `level` est le niveau le plus bas envoyé, `debug` (par défaut), `info`, `warn` ou `error` |
+| `DELETE /api/v1/server/logs` | Vide les lignes gardées et répond combien il y en avait. Le journal d'audit n'est pas touché |
+
+Ces lignes sont une vue pour qui développe contre le serveur, pas un
+enregistrement : elles sont perdues à l'arrêt du runtime.
+
+## Erreurs
+
+Chaque point d'accès répond ses erreurs au format de sa propre API. Les points
+d'accès d'OpenAI, et tout chemin que le serveur ne sert pas, suivent
+l'enveloppe d'OpenAI :
+
+```json
+{
+  "error": {
+    "message": "Unknown endpoint: /v1/unknown",
+    "type": "invalid_request_error",
+    "code": "unknown_url"
+  }
+}
+```
+
+Les points d'accès d'Anthropic (`/v1/messages` et `/v1/messages/count_tokens`)
+suivent celle d'Anthropic : `{"type": "error", "error": {"type", "message"}}`.
+
+| Statut | `code` OpenAI | `type` Anthropic | Quand |
+|---|---|---|---|
+| `400` | `invalid_request` | `invalid_request_error` | Le corps n'est pas un objet JSON, ou ne nomme aucun `model` |
+| `401` | `invalid_api_key` | `authentication_error` | `require_auth` est allumé et aucun jeton en service n'a été présenté |
+| `404` | `model_not_loaded` | `not_found_error` | Le modèle nommé dans `model` n'est pas chargé |
+| `404` | `endpoint_not_served` | `not_found_error` | Le moteur qui fait tourner le modèle ne sert pas ce point d'accès |
+| `404` | `unknown_url` | | Aucun point d'accès ne vit à ce chemin |
+| `502` | `engine_unavailable` | `api_error` | Le moteur qui fait tourner le modèle n'a pas répondu |
+
+## Les modèles servis
+
+Le serveur compatible sert les modèles locaux chargés dans Apollia, et eux
+seuls. Une requête en nomme un dans son champ `model`, par l'identifiant que
+liste `GET /v1/models`, qui est son identifiant dans le registre des modèles
+d'Apollia. Le serveur transmet la requête au moteur qui fait tourner le
+modèle, `llama-server` pour un modèle GGUF, `vllm-mlx` pour un modèle MLX, avec
+`model` remplacé par ce que ce moteur attend, et rend la réponse du moteur
+telle quelle : un corps JSON, ou un flux d'événements relayé morceau par
+morceau quand la requête demandait `"stream": true`.
+
+- Un modèle qui n'est pas chargé répond `404 model_not_loaded`. Chargez-le
+  d'abord dans Apollia.
+- Un modèle d'un fournisseur distant n'est jamais relayé : le serveur
+  compatible n'est pas une passerelle vers un nuage.
+- Rien n'est traduit d'un format dans un autre. Un point d'accès que le moteur
+  du modèle ne sert pas répond `404 endpoint_not_served` plutôt qu'une
+  approximation. Le modèle de recherche par le sens sert `/v1/embeddings` et
+  rien d'autre ; un modèle de conversation sert tous les autres points d'accès
+  ci-dessous, sauf que `vllm-mlx` ne compte pas les jetons.
+
+Un modèle reste chargé tant qu'une requête qui lui est adressée tourne, flux
+compris : le décharger attend la fin de la réponse.
+
+## Points d'accès
+
+La table liste chaque chemin que sert le serveur compatible.
+
+<!-- compat-endpoints -->
+
+| Méthode | Chemin | Format |
+|---|---|---|
+| `GET` | `/v1/models` | OpenAI. Les modèles chargés, en liste : `id` (identifiant du registre), `object`, `created`, `owned_by`, et `type`, `llm` ou `embeddings` |
+| `POST` | `/v1/chat/completions` | OpenAI. Relayé au moteur du modèle |
+| `POST` | `/v1/responses` | OpenAI. Relayé au moteur du modèle |
+| `POST` | `/v1/embeddings` | OpenAI. Relayé au modèle de recherche par le sens |
+| `POST` | `/v1/messages` | Anthropic. Relayé au moteur du modèle |
+| `POST` | `/v1/messages/count_tokens` | Anthropic. Relayé au moteur du modèle (`llama-server` seulement) |
+
+Mesuré sur `llama-server` à la version qu'épingle Apollia (`b10092`) : les
+quatre points d'accès de conversation répondent `200` sur un modèle de
+conversation, et `/v1/embeddings` ne répond que sur l'instance lancée pour la
+recherche par le sens.
+
+### Pas la boîte aux lettres des agents
+
+`/v1/messages` est ici l'API Messages d'Anthropic : un tour de conversation
+avec un modèle. Elle n'a rien à voir avec `/api/v1/agents/{name}/messages` de
+l'API native, la boîte aux lettres par laquelle les agents s'envoient des
+messages. Les deux partagent un mot et rien d'autre.

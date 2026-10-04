@@ -6,7 +6,7 @@ sidebar_position: 7
 
 # Comprendre les permissions MCP
 
-> Pour tout operator qui veut savoir pourquoi un outil demande une approbation, comment changer une règle, et ce que fait le mode local-only.
+> Pour tout operator qui veut savoir pourquoi un outil demande une approbation, comment changer une règle, et ce que la politique de votre organisation interdit.
 
 ## Prérequis
 
@@ -23,7 +23,7 @@ Chaque outil exposé par un connecteur ou un MCP a une **policy d'approbation** 
 | `always_require_approval` | Une popup HITL apparaît, vous décidez. | Écritures, `gmail.send`, `outlook.send`, `gcal.create_event`. |
 | `confirm_phrase` | Popup HITL + il faut taper une phrase de confirmation (le nom de la chose à supprimer par exemple). | Suppressions irréversibles, `gcal.delete_event`, `outlook_cal.delete_event`. |
 
-La carte porte trois boutons, **Autoriser une fois**, **Refuser** et **Toujours autoriser**. La portée est un choix distinct, proposé à côté : *Pour cette session*, *Toujours pour cet assistant*, *Toujours pour ce projet* (indisponible si la session n'est rattachée à aucun projet) ou *Toujours, partout*. Répondre **Toujours autoriser** sur une portée autre que la session crée une **règle persistante** que vous retrouverez et pourrez révoquer dans **Paramètres, Permissions**.
+La carte porte trois boutons, **Autoriser une fois**, **Refuser** et **Toujours autoriser**. La portée est un choix distinct, proposé à côté : *Pour cette session*, *Toujours pour cet assistant* ou *Toujours, partout*. Répondre **Toujours autoriser** sur une portée autre que la session crée une **règle persistante** que vous retrouverez et pourrez révoquer dans **Paramètres, Permissions**.
 
 Il n'existe pas d'écran d'approbations propre au MCP, ni de file d'attente de demandes MCP à traiter. Un outil exposé par un serveur MCP passe par la même porte qu'un outil natif, celle qu'ouvre la boucle d'exécution : la carte dans la conversation si vous y êtes, la **Boîte de réception** pour une tâche d'agent en attente. Tout ce que le reste de ce centre d'aide dit sur l'approbation d'une action s'y applique sans changement.
 
@@ -46,16 +46,17 @@ Le niveau d'approbation par serveur n'est pas sur cette page : il se trouve dans
 
 Une règle se crée de deux façons. La plupart du temps elle apparaît toute seule, quand vous répondez « Toujours autoriser » à une demande d'approbation. Vous pouvez aussi en créer une à la main depuis cette page, via le formulaire **Ajouter une règle**, ce qui permet d'autoriser quelque chose avant même qu'un agent le demande.
 
-## Ce que fait le profil de souveraineté
+## Ce que la politique de l'organisation interdit
 
-Le **profil de souveraineté** est une décision globale, indépendante des règles par outil.
+Interdire le cloud est une décision de votre organisation, pas une règle par
+outil. Elle est écrite dans la politique signée que l'informatique peut déployer
+sur le poste, sous la forme `connections.remote = "deny"`, et c'est le runtime
+qui la vérifie.
 
-Il se règle dans **Réglages, Profil**, sous **Souveraineté des données**, et prend l'une de trois valeurs.
+- **Aucune politique** : vous êtes libre. Aucune connexion n'est refusée parce qu'elle est en ligne.
+- **Une politique avec `connections.remote = "deny"`** : ajouter une connexion à un service en ligne est refusé, qu'il s'agisse d'un compte Google ou Microsoft ou d'un serveur MCP distant. La fenêtre affiche « Refusé par la politique de l'organisation » et rien n'est envoyé.
 
-- **Cloud autorisé** et **Local préféré** : ouvrir une connexion OAuth cloud est permis.
-- **Local strict** : ouvrir une connexion OAuth cloud est refusé, et il l'est aussi tant que le réglage n'a jamais reçu de réponse, un réglage sensible sans réponse ne valant pas accord.
-
-C'est tout ce que le profil applique en `v0.1.0-preview`. Il est vérifié à un seul endroit, au clic sur **Connecter** d'un connecteur natif, et nulle part ailleurs. Il ne filtre **pas** les serveurs MCP : un serveur HTTP ou SSE distant déjà installé reste joignable sous *Local strict*, et aucun agent ne reçoit d'erreur de souveraineté, puisqu'aucune n'est levée sur le chemin des outils. Voyez le profil comme une barrière à la connexion d'un compte cloud, pas comme une frontière réseau.
+La politique est vérifiée à l'ajout d'une connexion, pas à chaque appel d'outil : aucun agent ne reçoit d'erreur de politique sur le chemin des outils. Voyez-la comme une barrière à la connexion, pas comme une frontière réseau.
 
 ## Ce qu'un serveur MCP peut, et ne peut pas, vous demander
 
@@ -76,7 +77,7 @@ elles arriveront.
 
 - Ouvrez **Paramètres, Permissions**, les quatre sections s'affichent.
 - Dans le chat, déclenchez une écriture (envoi de mail), la popup apparaît.
-- Répondez **Toujours autoriser** avec la portée *Toujours pour ce projet*, confirmez, vérifiez qu'une nouvelle ligne apparaît dans **Règles**.
+- Répondez **Toujours autoriser** avec la portée *Toujours pour cet assistant*, confirmez, vérifiez qu'une nouvelle ligne apparaît dans **Règles**.
 
 ## Si ça ne marche pas
 

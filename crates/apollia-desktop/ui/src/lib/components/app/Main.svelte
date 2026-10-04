@@ -2,6 +2,8 @@
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
   import { currentRoute, goBack, goForward } from "$lib/stores/navigation";
+  import { developerMode } from "$lib/stores/developerMode";
+  import { reachableRoute } from "$lib/navigation/developerRoutes";
   import { PageTransition } from "$lib/components/motion";
   import Topbar from "./Topbar.svelte";
   import { RuntimeStatusBanner } from "$lib/components/feedback";
@@ -16,16 +18,23 @@
   import Notifications from "../../../routes/Notifications.svelte";
   import Observability from "../../../routes/Observability.svelte";
   import Chat from "../../../routes/Chat.svelte";
-  import Settings from "../../../routes/Settings.svelte";
+  import SettingsWindow from "../../../components/settings/SettingsWindow.svelte";
   import Transcriptions from "../../../routes/Transcriptions.svelte";
   import Connections from "../../../routes/Connections.svelte";
-  import Projects from "../../../routes/Projects.svelte";
   import Design from "../../../routes/Design.svelte";
   import DesignMotion from "../../../routes/DesignMotion.svelte";
   import DesignEmptyStates from "../../../routes/DesignEmptyStates.svelte";
   import DesignDarkMode from "../../../routes/DesignDarkMode.svelte";
 
   const isDev = import.meta.env.DEV;
+
+  // A developer screen is out of reach with the developer mode off, whatever
+  // asked for it (a link, the guide, the automaton): the router shows the
+  // default route, and the store follows so the sidebar marks the right entry.
+  const shownRoute = $derived(reachableRoute($currentRoute, $developerMode));
+  $effect(() => {
+    if (shownRoute !== $currentRoute) currentRoute.set(shownRoute);
+  });
 
   onMount(() => {
     function handleKeydown(event: KeyboardEvent) {
@@ -62,43 +71,39 @@
 
   <!-- Route content: responsive padding plus a centred container. -->
   <div class="w-full flex-1 overflow-auto">
-    {#key $currentRoute}
+    {#key shownRoute}
       <PageTransition>
-        {#if $currentRoute === "dashboard"}
+        {#if shownRoute === "dashboard"}
           <Dashboard />
-        {:else if $currentRoute === "agents"}
+        {:else if shownRoute === "agents"}
           <Agents />
-        {:else if $currentRoute === "tasks"}
+        {:else if shownRoute === "tasks"}
           <Tasks />
-        {:else if $currentRoute === "chat"}
+        {:else if shownRoute === "chat"}
           <Chat />
-        {:else if $currentRoute === "inbox"}
+        {:else if shownRoute === "inbox"}
           <Inbox />
-        {:else if $currentRoute === "llm"}
+        {:else if shownRoute === "llm"}
           <Llm />
-        {:else if $currentRoute === "automations"}
+        {:else if shownRoute === "automations"}
           <Automations />
-        {:else if $currentRoute === "projects"}
-          <Projects />
-        {:else if $currentRoute === "memory"}
+        {:else if shownRoute === "memory"}
           <Memory />
-        {:else if $currentRoute === "transcriptions"}
+        {:else if shownRoute === "transcriptions"}
           <Transcriptions />
-        {:else if $currentRoute === "notifications"}
+        {:else if shownRoute === "notifications"}
           <Notifications />
-        {:else if $currentRoute === "observability"}
+        {:else if shownRoute === "observability"}
           <Observability />
-        {:else if $currentRoute === "integrations"}
+        {:else if shownRoute === "integrations"}
           <Connections />
-        {:else if $currentRoute === "settings"}
-          <Settings />
-        {:else if isDev && $currentRoute === "design"}
+        {:else if isDev && shownRoute === "design"}
           <Design />
-        {:else if isDev && $currentRoute === "design-motion"}
+        {:else if isDev && shownRoute === "design-motion"}
           <DesignMotion />
-        {:else if isDev && $currentRoute === "design-empty-states"}
+        {:else if isDev && shownRoute === "design-empty-states"}
           <DesignEmptyStates />
-        {:else if isDev && $currentRoute === "design-dark-mode"}
+        {:else if isDev && shownRoute === "design-dark-mode"}
           <DesignDarkMode />
         {:else}
           <!-- No branch matched. Without this fallback the window renders empty,
@@ -111,4 +116,8 @@
       </PageTransition>
     {/key}
   </div>
+
+  <!-- The settings open above the screen, which stays mounted underneath: the
+       `settings` route opens this window rather than switching the screen. -->
+  <SettingsWindow />
 </main>

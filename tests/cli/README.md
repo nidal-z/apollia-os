@@ -52,8 +52,8 @@ automation suite, never a fork). `lib/seed.sh` rebuilds a throwaway `HOME` per
 phase, so the reference fixtures a later assertion depends on are never mutated,
 and the real `~/.apollia` is never written to; when `APOLLIA_TEST_MODEL_GGUF` is
 unset, Track 3 reads one file from it (the default model GGUF), read-only.
-Isolation is a `HOME` swap: the CLI resolves everything from `$HOME/.apollia`
-and `$HOME/.config/apollia`.
+Isolation is a `HOME` swap: the CLI resolves everything from `$HOME/.apollia`,
+`apollia.toml` included.
 
 The builder also accepts a narrative overlay (`APOLLIA_SEED_OVERLAY`), used to
 give the documentation screenshots a coherent usage history. This suite never
@@ -62,7 +62,7 @@ below is the committed fixture and nothing else. See
 `tests/cli/seed/README.md`, section Overlay.
 
 Seeded content asserted by the tracks (fixed ids, fixed `2026-07-01` data):
-2 projects, 4 permission rules, 5 memory namespaces, 4 chat sessions, 4 agents
+2 former projects (migrated into sources at boot), 4 permission rules, 5 memory namespaces, 4 chat sessions, 4 agents
 (+ 1 package), 3 LLM backends (`local-llama-server` default, `gpu-server` and
 `vllm-qwen`, two OpenAI-compatible servers, none on a cloud API), 4 triggers,
 2 notify channels, 2 live MCP servers named `filesystem` and `notes` (via a
@@ -72,7 +72,7 @@ bundled stdio stub).
 
 | Track | Gate | What it does |
 |---|---|---|
-| 1 OFFLINE | always | Every command runnable without the daemon, against the seeded HOME. Content assertions (`project list` shows the 2 seeded projects, `permissions list` the 4 rules, `memory search` a known hit, …) plus the exit-code contract (daemon-off → 2, validation → 1, clap → 2). |
+| 1 OFFLINE | always | Every command runnable without the daemon, against the seeded HOME. Content assertions (`permissions list` the 4 rules, `memory search` a known hit, …) plus the exit-code contract (daemon-off → 2, validation → 1, clap → 2). |
 | 2 RUNTIME | `APOLLIA_REQUIRE_RUNTIME=1` | Daemon booted on the seeded HOME, so `agent/trigger/notify/mcp/llm-backends list` return seeded state; full CRUD lifecycle; the runtime-only leaves (`a2a`, `audit verify/anchor`, `tools config`, `stt config`, `mcp show/test/restart`, `trigger fire`, `notify events set`, …). |
 | 3 LLM CAPTURE | `APOLLIA_REQUIRE_RUNTIME=1` + a real model | Non-deterministic commands (`run --stream`, `chat` REPL via pty, `llm chat`, `do`, `explain`). Asserts STRUCTURE ONLY (exit code, streaming happened, terminated in time); the full input/output is captured into `report.md` for human review. The content is never asserted, matching the "prove the stream, not the answer" intent. |
 

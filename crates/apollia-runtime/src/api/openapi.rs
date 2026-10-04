@@ -12,116 +12,18 @@
 //! Stability: `/api/v1` is a versioned, stable contract. A breaking change ships
 //! as `/api/v2`; `v1` is never mutated in an incompatible way.
 //!
-//! `info.version` is deliberately not written here. `utoipa` fills it from
-//! `CARGO_PKG_VERSION`, so the document carries the version of the runtime that
-//! serves it. It used to be pinned to the literal `1.0.0` while every other
-//! surface of the product read `0.1.0-preview`, and an integrator reading the
-//! reference took a stability guarantee nobody had given. The path prefix, not
-//! this field, is what carries the contract's compatibility promise.
+//! `info.version` is deliberately not written here: `utoipa` fills it from
+//! `CARGO_PKG_VERSION`, the version of the runtime that serves the document.
+//! The path prefix, not this field, carries the compatibility promise.
+
+mod bodies;
+mod security;
 
 use axum::Json;
-use serde::Serialize;
-use utoipa::openapi::schema::{KnownFormat, ObjectBuilder, Schema, SchemaFormat, Type};
-use utoipa::openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme};
-use utoipa::openapi::RefOr;
-use utoipa::{Modify, OpenApi, ToSchema};
+use utoipa::OpenApi;
 
-/// Name of the single security scheme the contract declares.
-///
-/// Generated clients derive an identifier from this string, so it is part of
-/// the published surface and is not renamed without regenerating them.
-const BEARER_SCHEME: &str = "bearerAuth";
-
-/// Declares the Bearer token the TCP listener enforces.
-///
-/// `utoipa` builds the document from the handler annotations, which say nothing
-/// about authentication; this modifier is where the transport-level rule of
-/// `crates/apollia-runtime/src/api/middleware.rs` enters the spec. Without it
-/// the document describes an API that needs no credential, which is what every
-/// generated client and the published reference then say.
-struct BearerToken;
-
-impl Modify for BearerToken {
-    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
-        let components = openapi.components.get_or_insert_with(Default::default);
-        components.add_security_scheme(
-            BEARER_SCHEME,
-            SecurityScheme::Http(
-                HttpBuilder::new()
-                    .scheme(HttpAuthScheme::Bearer)
-                    .description(Some(
-                        "Token read from `<data_dir>/api-token`, generated on first start \
-                         and sent as `Authorization: Bearer <token>`. Enforced on the TCP \
-                         listener by `TokenAuthLayer`, on every route except two: \
-                         `GET /api/v1/health`, which reveals the product marker and the \
-                         version only, and `POST /webhooks/{id}`, which authenticates its \
-                         caller with an HMAC-SHA256 signature instead. Requests arriving on the Unix \
-                         socket bypass the check: the socket file is mode 0600, so its \
-                         permissions carry the same rule. Setting `[api] require_token = \
-                         false` in `apollia.toml` removes the layer from the TCP listener \
-                         altogether.",
-                    ))
-                    .build(),
-            ),
-        );
-    }
-}
-
-/// Canonical error body for every non-2xx response in the spec.
-///
-/// Matches the wire shape of the per-module `ErrorResponse { error }` used
-/// across the route handlers.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct ApiErrorBody {
-    /// Human-readable error description.
-    pub error: String,
-}
-
-/// Request body of `POST /api/v1/stt/transcribe`: a multipart form.
-///
-/// The handler reads the parts off axum's `Multipart` stream, so no Rust type
-/// carries the form and the schema is written by hand. Without one, the Python
-/// generator skips the operation and the client offers no way to call it.
-pub enum TranscribeForm {}
-
-impl utoipa::PartialSchema for TranscribeForm {
-    fn schema() -> RefOr<Schema> {
-        ObjectBuilder::new()
-            .property(
-                "audio",
-                ObjectBuilder::new()
-                    .schema_type(Type::String)
-                    .format(Some(SchemaFormat::KnownFormat(KnownFormat::Binary)))
-                    .description(Some("WAV audio file")),
-            )
-            .required("audio")
-            .property(
-                "language",
-                ObjectBuilder::new()
-                    .schema_type(Type::String)
-                    .description(Some("Language hint, an ISO 639-1 code")),
-            )
-            .into()
-    }
-}
-
-impl ToSchema for TranscribeForm {}
-
-/// Request body of `POST /webhooks/{id}`: the raw bytes the HMAC is computed on.
-///
-/// The handler takes `Bytes`, which carries no schema of its own.
-pub enum RawWebhookBody {}
-
-impl utoipa::PartialSchema for RawWebhookBody {
-    fn schema() -> RefOr<Schema> {
-        ObjectBuilder::new()
-            .schema_type(Type::String)
-            .format(Some(SchemaFormat::KnownFormat(KnownFormat::Binary)))
-            .into()
-    }
-}
-
-impl ToSchema for RawWebhookBody {}
+pub use bodies::{ApiErrorBody, RawWebhookBody, TranscribeForm};
+use security::BearerToken;
 
 /// The generated OpenAPI document for the `/api/v1` driving contract.
 ///
@@ -143,6 +45,7 @@ impl ToSchema for RawWebhookBody {}
         (name = "batches", description = "Run an agent on every item of a source"),
         (name = "workflows", description = "Run the workflows of installed packages, step by step"),
         (name = "chat", description = "Conversational chat sessions"),
+        (name = "assists", description = "Assists around the chat: prompt rewrite, next steps, automations in words, connector examples"),
         (name = "agents", description = "Agent inventory and lifecycle"),
         (name = "packages", description = "Package preview, installation, and trusted publisher keys"),
         (name = "a2a", description = "Agent-to-agent skill invocation"),
@@ -156,10 +59,18 @@ impl ToSchema for RawWebhookBody {}
         (name = "model_hub", description = "Hardware profiling and model registry"),
         (name = "engines", description = "Inference engines: channel, verified download and import"),
         (name = "resilience", description = "Circuit breakers"),
-        (name = "mcp", description = "MCP servers and resources"),
+        (name = "mcp", description = "MCP servers and resources, and the bridge that serves exposed agents and workflows to an MCP client"),
         (name = "connections", description = "Everything plugged into this machine, in one list"),
         (name = "profile", description = "The user profile"),
+        (name = "companion", description = "The in-app companion and its guide session"),
+        (name = "local_ai", description = "Installation of the local AI: the machine, the models on disk, the models chosen"),
+        (name = "onboarding", description = "The onboarding: its phases, its profile and its conversation"),
+        (name = "artifacts", description = "The artifacts captured in a conversation"),
         (name = "memory", description = "The memory of the agents, read and upkept per namespace"),
+        (name = "lifecycle", description = "Resets and erasures of the installation"),
+        (name = "server", description = "Starting and stopping the compatible server, the second listener"),
+        (name = "config", description = "The configuration file apollia.toml: read, validate, save, default text"),
+        (name = "sources", description = "The registry of sources an agent may consult once checked"),
         (name = "connectors", description = "Native connector accounts and their consent"),
         (name = "webhooks", description = "Inbound webhooks")
     ),
@@ -182,20 +93,22 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_batches::resume_batch,
         crate::api::routes_batches::stop_batch,
         crate::api::routes_batches::retry_batch,
+        crate::api::routes_batches::export_batch,
+        crate::api::routes_workflows::get_workflow,
         crate::api::routes_workflows::launch_workflow,
         crate::api::routes_workflows::list_workflow_runs,
         crate::api::routes_workflows::get_workflow_run,
         crate::api::routes_workflows::cancel_workflow_run,
+        crate::api::routes_mcp_bridge::list_bridge_tools,
+        crate::api::routes_mcp_bridge::call_bridge_tool,
+        crate::api::routes_mcp_bridge::list_exposed,
+        crate::api::routes_mcp_bridge::set_exposed,
         crate::api::routes_agents::list_agents,
         crate::api::routes_agents::start_agent,
         crate::api::routes_agents::get_agent,
         crate::api::routes_agents::stop_agent,
         crate::api::routes_agents::installed::list_installed_agents,
         crate::api::routes_agents::installed::install_agent,
-        crate::api::routes_agents::installed::lifecycle::uninstall_agent,
-        crate::api::routes_agents::installed::lifecycle::update_agent,
-        crate::api::routes_tasks::record::delete_task_record,
-        crate::api::routes_tasks::delegation::get_delegation_tree,
         crate::api::routes_messages::list_agent_messages,
         crate::api::routes_messages::inject_agent_message,
         crate::api::routes_messages::stream_mailbox,
@@ -223,10 +136,9 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_chat::conversations::rename_chat_session,
         crate::api::routes_chat::conversations::generate_session_title,
         crate::api::routes_chat::conversations::erase_session,
-        crate::api::routes_chat::conversations::link_session_project,
-        crate::api::routes_chat::conversations::list_project_sessions,
         crate::api::routes_chat::session_reads::get_session_metrics,
         crate::api::routes_chat::session_reads::get_session_workspace,
+        crate::api::routes_chat::session_reads::get_session_model_capabilities,
         crate::api::routes_chat::turns::regenerate_response,
         crate::api::routes_chat::turns::resend_message,
         crate::api::routes_chat::approval_history::list_approval_history,
@@ -279,15 +191,16 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_stt::list_transcriptions,
         crate::api::routes_stt::delete_transcription,
         crate::api::routes_stt::list_models,
-        crate::api::routes_stt::get_stt_config,
-        crate::api::routes_stt::update_stt_config,
-        crate::api::routes_stt::reload_stt_engine,
+        crate::api::routes_stt::settings::get_stt_config,
+        crate::api::routes_stt::settings::update_stt_config,
+        crate::api::routes_stt::settings::reload_stt_engine,
         crate::api::routes_webhooks::handle_webhook,
         crate::api::routes_llm::get_llm_status,
         crate::api::routes_llm::ping_llm_backend,
         crate::api::routes_llm::llm_chat,
         crate::api::routes_llm::llm_complete,
         crate::api::routes_llm::costs::get_llm_costs,
+        crate::api::routes_llm::turn_calls::get_turn_llm_calls,
         crate::api::routes_llm::costs::get_llm_daily_costs,
         crate::api::routes_llm::backends::list_llm_backends,
         crate::api::routes_llm::backends::create_llm_backend,
@@ -298,6 +211,10 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_llm::backends::reload_llm_router,
         crate::api::routes_llm::loaded::list_loaded_models,
         crate::api::routes_llm::loaded::unload_loaded_model,
+        crate::api::routes_llm::load::estimate_model_load,
+        crate::api::routes_llm::load::load_model,
+        crate::api::routes_llm::load::get_last_loaded_model,
+        crate::api::routes_llm::load::reload_last_loaded_model,
         crate::api::routes_llm::servers::test_llm_server,
         crate::api::routes_llm::servers::list_llm_servers,
         crate::api::routes_llm::servers::create_llm_server,
@@ -308,6 +225,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_agent_definitions::set_agent_override,
         crate::api::routes_agent_definitions::remove_agent_override,
         crate::api::routes_agent_definitions::reset_agent_overrides,
+        crate::api::routes_agent_definitions::export::export_agent_definition,
         crate::api::routes_llm::presets::list_llm_presets,
         crate::api::routes_llm::presets::create_llm_preset,
         crate::api::routes_llm::presets::update_llm_preset,
@@ -322,14 +240,21 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_model_hub::search_registry,
         crate::api::routes_model_hub::recommend_models,
         crate::api::routes_model_hub::get_registry_model,
+        crate::api::routes_model_hub::get_recommendations,
+        crate::api::routes_model_hub::installed::list_installed_models,
         crate::api::routes_engines::list_engines,
         crate::api::routes_engines::get_engine_settings,
         crate::api::routes_engines::set_engine_settings,
         crate::api::routes_engines::check_engines,
         crate::api::routes_engines::install_engine,
         crate::api::routes_engines::import_engines,
+        crate::api::routes_engines::node_runtime_state,
+        crate::api::routes_engines::ensure_node_runtime,
         crate::api::routes_model_hub::embeddings::list_embedding_models,
+        crate::api::routes_model_hub::embedding_default::get_embedding_default,
+        crate::api::routes_model_hub::embedding_default::set_embedding_default,
         crate::api::routes_model_hub::dictation::list_dictation_models,
+        crate::api::routes_model_hub::installed::delete_installed_model,
         crate::api::routes_model_hub::cards::list_model_cards,
         crate::api::routes_model_hub::cards::get_model_card,
         crate::api::routes_model_hub::cards::get_model_readme,
@@ -352,15 +277,79 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_mcp_secrets::put_mcp_secret,
         crate::api::routes_mcp_secrets::delete_mcp_secret,
         crate::api::routes_connections::list_connections,
+        crate::api::routes_connections::folders::add_folder_connection,
+        crate::api::routes_connections::folders::remove_folder_connection,
         crate::api::routes_profile::get_profile,
         crate::api::routes_profile::set_profile_entry,
         crate::api::routes_profile::delete_profile_entry,
         crate::api::routes_profile::reset_user_profile,
+        crate::api::routes_profiles::list_profiles,
+        crate::api::routes_profiles::create_profile,
+        crate::api::routes_profiles::get_profile_by_id,
+        crate::api::routes_profiles::update_profile,
+        crate::api::routes_profiles::delete_profile,
+        crate::api::routes_profiles::set_default_profile,
+        crate::api::routes_profiles::reset_profile,
+        crate::api::routes_profiles::set_profile_fact,
+        crate::api::routes_profiles::delete_profile_fact,
+        crate::api::routes_companion::get_companion_enabled,
+        crate::api::routes_companion::set_companion_enabled,
+        crate::api::routes_companion::create_companion_session,
+        crate::api::routes_local_ai::get_local_ai_system,
+        crate::api::routes_local_ai::scan_gguf_models,
+        crate::api::routes_local_ai::scan_whisper_models,
+        crate::api::routes_local_ai::setup_local_llm,
+        crate::api::routes_local_ai::setup_dictation,
+        crate::api::routes_tool_credentials::list_tool_credentials,
+        crate::api::routes_tool_credentials::set_tool_credential,
+        crate::api::routes_tool_credentials::delete_tool_credential,
+        crate::api::routes_tool_credentials::test_tool_credential,
+        crate::api::routes_onboarding::get_onboarding_state,
+        crate::api::routes_onboarding::advance_onboarding_phase,
+        crate::api::routes_onboarding::set_onboarding_profile,
+        crate::api::routes_onboarding::trigger_onboarding,
+        crate::api::routes_onboarding::resume_onboarding,
+        crate::api::routes_onboarding::dismiss_onboarding,
+        crate::api::routes_onboarding::finalize_onboarding_chat,
+        crate::api::routes_onboarding::check_onboarding_finalized,
+        crate::api::routes_artifacts::list_artifacts,
+        crate::api::routes_artifacts::save_artifact,
+        crate::api::routes_artifacts::update_artifact,
+        crate::api::routes_artifacts::delete_artifact,
         crate::api::routes_memory_maintenance::clear_memory,
         crate::api::routes_memory_maintenance::purge_memory,
         crate::api::routes_memory_maintenance::delete_memory_entry,
         crate::api::routes_memory_maintenance::export_memory_namespace,
         crate::api::routes_memory_maintenance::import_memory_namespace,
+        crate::api::routes_app_lifecycle::mark_onboarded,
+        crate::api::routes_app_lifecycle::reset_onboarding,
+        crate::api::routes_app_lifecycle::clear_all_memories,
+        crate::api::routes_app_lifecycle::clear_logs,
+        crate::api::routes_app_lifecycle::factory_reset,
+        crate::api::routes_server::server_status,
+        crate::api::routes_server::start_server,
+        crate::api::routes_server::stop_server,
+        crate::api::routes_server::restart_server,
+        crate::api::routes_server::tokens::list_server_tokens,
+        crate::api::routes_server::tokens::create_server_token,
+        crate::api::routes_server::tokens::revoke_server_token,
+        crate::api::routes_sources::list_sources,
+        crate::api::routes_sources::create_source,
+        crate::api::routes_sources::delete_source,
+        crate::api::routes_sources::preview::preview_source,
+        crate::api::routes_sources::project_migration::project_migration_report,
+        crate::api::routes_sources::folder_kinds,
+        crate::api::routes_server::logs::stream_server_logs,
+        crate::api::routes_server::logs::clear_server_logs,
+        crate::api::routes_config::read_config,
+        crate::api::routes_config::save_config,
+        crate::api::routes_config::validate_config,
+        crate::api::routes_config::default_config,
+        crate::api::routes_config::settings::read_observability,
+        crate::api::routes_config::settings::save_observability,
+        crate::api::routes_config::settings::read_python_interpreter,
+        crate::api::routes_config::settings::save_python_interpreter,
+        crate::api::routes_config::settings::security_posture,
         crate::api::routes_memory::list_memory_namespaces,
         crate::api::routes_memory::list_memory_entries,
         crate::api::routes_memory::search_memory,
@@ -385,6 +374,12 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_oauth_clients::set_oauth_api_key,
         crate::api::routes_oauth_clients::test_oauth_client,
         crate::api::routes_oauth_clients::import_oauth_client,
+        crate::api::routes_observability::get_global_timeline,
+        crate::api::routes_observability::list_mailbox_messages,
+        crate::api::routes_chat_assists::rewrite_prompt,
+        crate::api::routes_chat_assists::generate_next_steps,
+        crate::api::routes_chat_assists::parse_automation,
+        crate::api::routes_chat_assists::coach_connector,
         crate::api::routes_connectors::start_connector_consent,
         crate::api::routes_connectors::complete_connector_consent,
         crate::api::routes_connectors::list_connector_accounts,
@@ -392,6 +387,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_drive_folders::list_drive_folders,
         crate::api::routes_drive_folders::set_drive_folder,
         crate::api::routes_drive_folders::reset_drive_folder,
+        crate::api::routes_imap::list_imap_providers,
         crate::api::routes_imap::test_imap_mailbox,
         crate::api::routes_imap::add_imap_mailbox,
         crate::api::routes_packages::preview_package,
@@ -399,19 +395,40 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_packages::list_trusted_keys,
         crate::api::routes_packages::trust_key,
         crate::api::routes_packages::remove_trusted_key,
+        crate::api::routes_packages::uninstall::uninstall_package,
+        crate::api::routes_packages::uninstall::uninstall_agent,
+        crate::api::routes_agent_packages::list_agent_packages,
+        crate::api::routes_agent_packages::install_agent_package,
+        crate::api::routes_agent_packages::get_agent_package,
+        crate::api::routes_agent_packages::uninstall_agent_package,
+        crate::api::routes_agent_packages::preview_agent_package,
     ),
     components(schemas(
         ApiErrorBody,
         crate::chat::SessionMetrics,
         crate::chat::ToolStatEntry,
         crate::api::routes_chat::session_reads::SessionWorkspace,
+        crate::api::routes_chat::session_reads::SessionModelCapabilities,
+        crate::api::routes_chat::session_reads::ReasoningProfileDto,
         crate::api::routes_packages::PackageErrorBody,
         crate::api::routes_packages::PackagePreviewRequest,
         crate::api::routes_packages::PackageInstallRequest,
         crate::api::routes_packages::TrustKeyRequest,
         crate::api::routes_packages::TrustedKeyView,
+        crate::api::routes_packages::UninstallRequest,
+        crate::packages::UninstallReport,
         crate::packages::PackagePreview,
         crate::packages::InstallReport,
+        crate::agent_packages::AgentPackageAgent,
+        crate::agent_packages::AgentPackageTrigger,
+        crate::agent_packages::AgentPackageTriggerConfig,
+        crate::agent_packages::AgentPackageListItem,
+        crate::agent_packages::AgentPackageDetail,
+        crate::agent_packages::AgentPackagePreview,
+        crate::agent_packages::AgentPackageInstallReport,
+        crate::api::routes_agent_packages::AgentPackagePreviewBody,
+        crate::api::routes_agent_packages::AgentPackageInstallBody,
+        crate::api::routes_agent_packages::AgentPackageUninstalled,
         crate::api::server::router::HealthResponse,
         crate::api::server::router::ShutdownResponse,
         crate::api::routes_tasks::SubmitTaskRequest,
@@ -423,9 +440,23 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_batches::BatchDetailView,
         crate::api::routes_batches::BatchListView,
         crate::api::routes_batches::BatchAccessesView,
+        crate::batch::ExportFormat,
         crate::batch::BatchAccess,
         crate::batch::BatchRetry,
+        crate::api::routes_workflows::WorkflowView,
+        crate::workflows::InputField,
+        crate::workflows::InputKind,
+        crate::workflows::InputErrorCode,
         crate::api::routes_workflows::WorkflowLaunch,
+        crate::api::routes_mcp_bridge::McpBridgeErrorBody,
+        crate::api::routes_mcp_bridge::McpBridgeTool,
+        crate::api::routes_mcp_bridge::McpBridgeToolList,
+        crate::api::routes_mcp_bridge::McpBridgeCall,
+        crate::api::routes_mcp_bridge::McpBridgeCallResult,
+        crate::api::routes_mcp_bridge::McpExposedItem,
+        crate::api::routes_mcp_bridge::McpExposedItemList,
+        crate::api::routes_mcp_bridge::McpExposure,
+        crate::api::routes_mcp_bridge::McpExposedItemState,
         crate::api::routes_workflows::WorkflowErrorResponse,
         crate::api::routes_workflows::WorkflowRunView,
         crate::api::routes_workflows::WorkflowStepView,
@@ -447,11 +478,6 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_agents::installed::InstalledAgentView,
         crate::api::routes_agents::installed::InstallAgentRequest,
         crate::api::routes_agents::installed::InstallAgentResponse,
-        crate::api::routes_agents::installed::lifecycle::UpdateAgentRequest,
-        crate::api::routes_agents::installed::lifecycle::UpdateAgentResponse,
-        crate::api::routes_agents::installed::lifecycle::AgentUninstalled,
-        crate::api::routes_tasks::record::TaskRecordDeleted,
-        crate::api::routes_tasks::delegation::DelegationTreeNode,
         crate::api::routes_messages::AgentMessagesResponse,
         crate::api::routes_messages::AgentMessageDto,
         crate::api::routes_messages::InjectMessageBody,
@@ -478,7 +504,6 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_chat::conversations::RenameSessionBody,
         crate::api::routes_chat::conversations::GenerateTitleBody,
         crate::api::routes_chat::conversations::GeneratedTitle,
-        crate::api::routes_chat::conversations::LinkProjectBody,
         crate::api::routes_chat::TodoReadResponse,
         crate::api::routes_chat::plan::PlanModeDefault,
         crate::api::routes_chat::plan::SetPlanModeRequest,
@@ -528,7 +553,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_stt::TranscriptionsListResponse,
         crate::api::routes_stt::ModelInfo,
         crate::api::routes_stt::ModelsListResponse,
-        crate::api::routes_stt::SttReloadResponse,
+        crate::api::routes_stt::settings::SttReloadResponse,
         crate::api::routes_llm::LlmStatusResponse,
         crate::api::routes_llm::PingRequest,
         crate::api::routes_llm::PingResponse,
@@ -539,6 +564,8 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_llm::CompleteRequest,
         crate::api::routes_llm::costs::CostSummaryRow,
         crate::api::routes_llm::costs::CostsResponse,
+        crate::api::routes_llm::turn_calls::TurnLlmCall,
+        crate::api::routes_llm::turn_calls::TurnLlmCallsResponse,
         crate::api::routes_llm::costs::DailyCostEntry,
         crate::api::routes_llm::costs::DailyCostsResponse,
         crate::api::routes_llm::backends::CreateLlmBackendRequest,
@@ -549,9 +576,21 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_llm::backends::SetDefaultResponse,
         crate::api::routes_llm::backends::ReloadRouterResponse,
         crate::api::routes_llm::loaded::LoadedModelDto,
+        crate::llama_server::ModelKind,
+        crate::local_engine::guardrails::GuardrailRefusedBody,
+        crate::local_engine::guardrails::GuardrailLevel,
         crate::api::routes_llm::loaded::LoadedModelsResponse,
         crate::api::routes_llm::loaded::UnloadModelRequest,
         crate::api::routes_llm::loaded::UnloadModelResponse,
+        crate::api::routes_llm::load::LoadModelRequest,
+        crate::api::routes_llm::load::ReloadLastRequest,
+        crate::api::routes_llm::load::FitDto,
+        crate::api::routes_llm::load::GuardrailVerdictDto,
+        crate::api::routes_llm::load::GuardrailCheckDto,
+        crate::api::routes_llm::load::MemoryEstimateDto,
+        crate::api::routes_llm::load::LoadEstimateResponse,
+        crate::api::routes_llm::load::LoadModelResponse,
+        crate::api::routes_llm::load::LastLoadedModelResponse,
         crate::api::routes_llm::servers::TestServerRequest,
         crate::api::routes_llm::servers::CreateServerRequest,
         crate::api::routes_llm::servers::ServerResponse,
@@ -579,7 +618,10 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_model_hub::HardwareResponse,
         crate::api::routes_model_hub::embeddings::EmbeddingModelsResponse,
         crate::api::routes_model_hub::embeddings::CountedLanguageModel,
+        crate::api::routes_model_hub::embedding_default::EmbeddingDefaultResponse,
+        crate::api::routes_model_hub::embedding_default::SetEmbeddingDefaultBody,
         crate::api::routes_model_hub::dictation::DictationModelsResponse,
+        crate::api::routes_model_hub::installed::DeletedInstalledModel,
         crate::api::routes_model_hub::cards::ModelCardsResponse,
         crate::api::routes_model_hub::cards::ReadmeResponse,
         crate::api::routes_resilience::ResilienceStatusResponse,
@@ -592,12 +634,50 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_profile::SetProfileEntryBody,
         crate::api::routes_profile::DeletedProfileEntry,
         crate::api::routes_profile::ProfileReset,
+        crate::profile::ProfileSummaryView,
+        crate::profile::ProfileFieldView,
+        crate::profile::ProfileDetailView,
+        crate::profile::ProfileUpdate,
+        crate::api::routes_profiles::CreateProfileBody,
+        crate::api::routes_profiles::DeletedProfile,
+        crate::api::routes_companion::CompanionEnabled,
+        crate::api::routes_companion::CreateCompanionSessionBody,
+        crate::api::routes_companion::CompanionSession,
+        crate::api::routes_local_ai::SetupLlmBody,
+        crate::api::routes_local_ai::SetupDictationBody,
+        crate::local_ai::SystemInfo,
+        crate::local_ai::GgufModelInfo,
+        crate::local_ai::WhisperModelInfo,
+        crate::local_ai::SetupLlmResult,
+        crate::local_ai::DictationConfigured,
+        crate::tool_credentials::CredentialEntryView,
+        crate::tool_credentials::CredentialTestView,
+        crate::api::routes_tool_credentials::SetCredentialBody,
+        crate::api::routes_tool_credentials::StoredCredential,
+        crate::api::routes_tool_credentials::DeletedCredential,
+        crate::onboarding::state::OnboardingPhase,
+        crate::onboarding::state::OnboardingStats,
+        crate::onboarding::state::OnboardingState,
+        crate::onboarding::state::TriggerResult,
+        crate::api::routes_onboarding::AdvancePhaseBody,
+        crate::api::routes_onboarding::OnboardingProfileBody,
+        crate::api::routes_onboarding::TriggerOnboardingBody,
+        crate::api::routes_onboarding::OnboardingDismissed,
+        crate::api::routes_onboarding::OnboardingFinalized,
+        crate::artifacts::Artifact,
+        crate::artifacts::SaveArtifactRequest,
+        crate::artifacts::UpdateArtifactRequest,
+        crate::api::routes_artifacts::DeletedArtifact,
         crate::api::routes_memory_maintenance::ClearMemoryBody,
         crate::api::routes_memory_maintenance::PurgeMemoryBody,
         crate::api::routes_memory_maintenance::MemoryRemoved,
         crate::api::routes_memory_maintenance::MemoryEntryDeleted,
         crate::api::routes_memory_maintenance::ImportMemoryBody,
         crate::api::routes_memory_maintenance::MemoryImported,
+        crate::api::routes_app_lifecycle::OnboardingMarked,
+        crate::api::routes_app_lifecycle::OnboardingReset,
+        crate::api::routes_app_lifecycle::MemoryWiped,
+        crate::api::routes_app_lifecycle::DirectoryRemoved,
         crate::memory_view::MemoryEntryView,
         crate::memory_view::MemorySearchResultView,
         crate::memory_view::InjectedMemoryEntryView,
@@ -622,6 +702,14 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_oauth_clients::OauthClientValueBody,
         crate::api::routes_oauth_clients::ImportOauthClientBody,
         crate::api::routes_oauth_clients::OauthClientWritten,
+        crate::observability::global_timeline::GlobalTimelineEvent,
+        crate::observability::mailbox_rows::MailboxMessageRow,
+        crate::chat_assists::RewriteFallbackReason,
+        crate::chat_assists::RewriteReply,
+        crate::chat_assists::NextStepsReply,
+        crate::chat_assists::ParseAutomationRequest,
+        crate::chat_assists::CoachingRequest,
+        crate::chat_assists::CoachingExample,
         crate::connections::Connection,
         crate::connections::ConnectionTool,
         crate::connections::ConnectionKind,
@@ -636,6 +724,17 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_imap::ImapAccountBody,
         crate::api::routes_imap::ImapAccountResponse,
         crate::api::routes_imap::ImapErrorBody,
+        crate::api::routes_imap::ImapProviderResponse,
+        crate::api::routes_imap::ImapProvidersResponse,
+        crate::api::routes_connections::folders::AddFolderBody,
+        crate::api::routes_connections::folders::FolderErrorBody,
+        crate::project_migration::MigrationReport,
+        crate::project_migration::MigrationStatus,
+        crate::project_migration::ProjectOutcome,
+        crate::project_migration::MemoryMerge,
+        crate::project_migration::MigrationIssue,
+        crate::project_migration::IssueItem,
+        crate::project_migration::IssueReason,
     ))
 )]
 pub struct ApiDoc;
@@ -649,6 +748,7 @@ pub(crate) async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
 
 #[cfg(test)]
 mod tests {
+    use super::security::BEARER_SCHEME;
     use super::*;
 
     #[test]

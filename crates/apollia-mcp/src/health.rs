@@ -170,6 +170,9 @@ fn classify_session_error(err: &McpSessionError) -> Signal {
         McpSessionError::SpawnFailed { .. } => Signal::Unavailable {
             reason: "spawn_failed".to_string(),
         },
+        McpSessionError::NodeRequired { .. } => Signal::Unavailable {
+            reason: "node_required".to_string(),
+        },
         McpSessionError::InitializeFailed { .. } | McpSessionError::InitializeTimeout { .. } => {
             Signal::Unavailable {
                 reason: "handshake_failed".to_string(),

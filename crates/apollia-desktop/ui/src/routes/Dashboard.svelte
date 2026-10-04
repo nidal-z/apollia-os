@@ -5,10 +5,9 @@
   import { tasks } from "$lib/stores/tasks";
   import { pendingApprovals, pendingCount } from "$lib/stores/hitl";
   import { pendingChatApprovals, pendingChatApprovalCount } from "$lib/stores/chat";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { navigateTo } from "$lib/stores/navigation";
-  import { projects } from "$lib/stores/projects";
-  import { LayoutDashboard, MessageSquarePlus, FolderOpen } from "lucide-svelte";
+  import { LayoutDashboard, MessageSquarePlus } from "lucide-svelte";
 
   import AgentDetail from "../components/agents/AgentDetail.svelte";
   import AgentLogs from "../components/agents/AgentLogs.svelte";
@@ -21,18 +20,15 @@
   import DeliverablesCard from "../components/dashboard/DeliverablesCard.svelte";
   import AgentsAtWorkCard from "../components/dashboard/AgentsAtWorkCard.svelte";
   import RecentActivityStrip from "../components/dashboard/RecentActivityStrip.svelte";
-  import PinnedProjectsStrip from "../components/dashboard/PinnedProjectsStrip.svelte";
   import {
     buildInboxItems,
     toPendingRows,
     toDeliverableRows,
     toActivityRows,
-    toProjectRows,
   } from "../components/dashboard/dashboardData";
   import { formatDayHeadline } from "$lib/format";
 
   const PENDING_BLOCK_LIMIT = 5;
-  const PINNED_PROJECTS_LIMIT = 6;
 
   let detailAgent = $state<AgentListItem | null>(null);
   let detailOpen = $state(false);
@@ -70,15 +66,9 @@
     d.setHours(0, 0, 0, 0);
     return d.toISOString();
   });
-  const last24hIso = $derived.by(() =>
-    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-  );
 
   const deliverableRows = $derived(toDeliverableRows($tasks, todayStartIso, $locale ?? "en"));
   const activityRows = $derived(toActivityRows($tasks, $locale ?? "en"));
-  const projectRows = $derived(
-    toProjectRows($projects, PINNED_PROJECTS_LIMIT, last24hIso, $locale ?? "en"),
-  );
 
   const agentsAtWork = $derived(
     $agents.filter((a) => a.runtime_status === "active" || a.runtime_status === "degraded"),
@@ -140,36 +130,24 @@
   function navigateToTasks() {
     navigateTo("tasks");
   }
-  function navigateToProjects() {
-    navigateTo("projects");
-  }
   function navigateToChat() {
     navigateTo("chat");
   }
 
   const isColdStart = $derived(
-    $tasks.length === 0 && $agents.length === 0 && $projects.length === 0,
+    $tasks.length === 0 && $agents.length === 0,
   );
 </script>
 
 <!-- Unified dashboard - Operator layout shared by both modes; Builder mode
-     receives its technical overlay via BuilderOnly inside AgentsAtWorkCard. -->
-<div class="mx-auto w-full max-w-6xl" data-testid="dashboard-page" data-mode={$uiMode}>
+     receives its technical overlay via DeveloperOnly inside AgentsAtWorkCard. -->
+<div class="mx-auto w-full max-w-6xl" data-testid="dashboard-page" data-mode={$developerMode ? "builder" : "operator"}>
   <PageHeader
     kicker={todayLabel || undefined}
     title={headlineTitle}
     subtitle={headlineSubtitle}
   >
     {#snippet actions()}
-      <Button
-        variant="outline"
-        size="sm"
-        onclick={navigateToProjects}
-        data-testid="dashboard-cta-projects"
-      >
-        {#snippet icon()}<FolderOpen size={13} />{/snippet}
-        {$t("dashboard.header_action_projects")}
-      </Button>
       <Button
         variant="primary-solid"
         size="sm"
@@ -225,8 +203,6 @@
     </div>
 
     <RecentActivityStrip items={activityRows} onOpen={navigateToTasks} />
-
-    <PinnedProjectsStrip items={projectRows} onOpen={navigateToProjects} />
   {/if}
 </div>
 

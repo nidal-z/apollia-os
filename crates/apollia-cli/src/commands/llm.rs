@@ -38,28 +38,7 @@ pub enum LlmCommand {
         backend: Option<String>,
     },
     /// Display aggregated usage and costs (tokens and estimated cost per backend).
-    ///
-    /// Without flags, prints the cost table. Use `--get-threshold` to print
-    /// `[llm] cost_alert_threshold_usd` from `apollia.toml`, or
-    /// `--threshold N` to set it.
-    Costs {
-        /// Read the cost alert threshold from `apollia.toml` instead of the
-        /// cost table.
-        #[arg(long, conflicts_with = "threshold")]
-        get_threshold: bool,
-        /// Set the cost alert threshold (USD). Writes
-        /// `[llm] cost_alert_threshold_usd = N` to `apollia.toml`. Pass `0`
-        /// or a negative value to clear the threshold.
-        #[arg(long, value_name = "USD")]
-        threshold: Option<f64>,
-        /// Optional `apollia.toml` path override. Without it, the same file
-        /// the runtime loads at startup: `./apollia.toml` when the working
-        /// directory holds one, otherwise
-        /// `$XDG_CONFIG_HOME/apollia/apollia.toml` (default
-        /// `~/.config/apollia/apollia.toml`).
-        #[arg(long, value_name = "PATH")]
-        config: Option<PathBuf>,
-    },
+    Costs,
     /// Manage configured LLM backends (list, create, update, delete, set-default).
     Backends {
         /// Backends subcommand.
@@ -103,7 +82,8 @@ pub enum LlmCommand {
         /// Override the system database path (default: `~/.apollia/system.db`).
         #[arg(long, value_name = "PATH")]
         system_db: Option<PathBuf>,
-        /// Override the models directory (default: `~/.apollia/models/`).
+        /// Override the models directory. Without it, `[models] dir` of
+        /// `apollia.toml`, else `~/.apollia/models/`.
         #[arg(long, value_name = "DIR")]
         models_dir: Option<PathBuf>,
     },
@@ -255,11 +235,7 @@ pub async fn run(cmd: &LlmCommand, socket: Option<PathBuf>, json: bool) -> i32 {
         LlmCommand::Chat { prompt, backend } => {
             run_chat(&client, prompt, backend.as_deref(), json).await
         }
-        LlmCommand::Costs {
-            get_threshold,
-            threshold,
-            config,
-        } => run_costs(&client, *get_threshold, *threshold, config.as_deref(), json).await,
+        LlmCommand::Costs => run_costs(&client, json).await,
         LlmCommand::Backends { command } => run_backends(&client, command, json).await,
         LlmCommand::Reload => run_reload(&client, json).await,
         LlmCommand::Setup {
@@ -342,28 +318,6 @@ mod tests {
     }
 
     #[test]
-    fn costs_config_help_names_the_file_the_runtime_loads() {
-        // GIVEN the help clap publishes for `llm costs --config`
-        let help = published_help(&["costs"], "config");
-
-        // WHEN it is read as an operator reads the CLI reference page
-        // THEN it names the runtime's own search order, and no longer points at
-        // the data directory, which holds no configuration
-        assert!(
-            !help.contains(".apollia/apollia.toml"),
-            "help still points at the data directory: {help}"
-        );
-        assert!(
-            help.contains("./apollia.toml"),
-            "help omits the working-directory file: {help}"
-        );
-        assert!(
-            help.contains(".config/apollia/apollia.toml"),
-            "help omits the user config file: {help}"
-        );
-    }
-
-    #[test]
     fn device_help_does_not_promise_an_accelerator_choice() {
         // GIVEN the three places the CLI accepts --device
         let places = [
@@ -424,71 +378,24 @@ mod tests {
         // GIVEN "costs"
         // WHEN
         let cli = TestCli::parse_from(["apollia-os", "costs"]);
-        // THEN LlmCommand::Costs (no threshold flags)
-        assert!(matches!(
-            cli.command,
-            LlmCommand::Costs {
-                get_threshold: false,
-                threshold: None,
-                ..
-            }
-        ));
+        // THEN LlmCommand::Costs
+        assert!(matches!(cli.command, LlmCommand::Costs));
     }
 
     #[test]
-    fn test_llm_costs_get_threshold_parses() {
-        // GIVEN "llm costs --get-threshold"
-        // WHEN clap parses the argument line
-        let cli = TestCli::parse_from(["apollia-os", "costs", "--get-threshold"]);
-        // THEN the read flag is up and no new threshold is set
-        match &cli.command {
-            LlmCommand::Costs {
-                get_threshold,
-                threshold,
-                ..
-            } => {
-                assert!(*get_threshold);
-                assert!(threshold.is_none());
-            }
-            other => panic!("expected Costs, got {other:?}"),
+    fn test_llm_costs_threshold_flags_are_withdrawn() {
+        // GIVEN the flags that wrote and read a cost alert threshold nothing
+        // applied
+        let lines = [
+            vec!["apollia-os", "costs", "--threshold", "0.5"],
+            vec!["apollia-os", "costs", "--get-threshold"],
+            vec!["apollia-os", "costs", "--config", "/tmp/apollia.toml"],
+        ];
+        // WHEN clap parses each line
+        // THEN each is refused as an unknown argument
+        for line in lines {
+            assert!(TestCli::try_parse_from(&line).is_err(), "{line:?}");
         }
-    }
-
-    #[test]
-    fn test_llm_costs_set_threshold_parses() {
-        // GIVEN "llm costs --threshold 0.5"
-        // WHEN clap parses the argument line
-        let cli = TestCli::parse_from(["apollia-os", "costs", "--threshold", "0.5"]);
-        // THEN the value is captured and the read flag stays down
-        match &cli.command {
-            LlmCommand::Costs {
-                get_threshold,
-                threshold,
-                ..
-            } => {
-                assert!(!*get_threshold);
-                assert_eq!(*threshold, Some(0.5));
-            }
-            other => panic!("expected Costs, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_llm_costs_threshold_conflicts_with_get_threshold() {
-        // GIVEN a costs command line carrying both the read and the write flag
-        // WHEN clap parses the argument line
-        let result = TestCli::try_parse_from([
-            "apollia-os",
-            "costs",
-            "--threshold",
-            "0.5",
-            "--get-threshold",
-        ]);
-        // THEN parsing fails, so the two cannot be asked for at once
-        assert!(
-            result.is_err(),
-            "--threshold + --get-threshold must conflict"
-        );
     }
 
     #[test]

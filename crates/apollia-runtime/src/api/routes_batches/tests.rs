@@ -138,8 +138,6 @@ async fn fixture() -> Fixture {
         None,
         None,
         None,
-        None,
-        None,
         LoadingMode::Eager,
         20,
         None,
@@ -326,4 +324,101 @@ async fn test_no_batch_engine_answers_503() {
 
     // THEN
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+}
+
+/// A GET whose answer is a file: its status, media type, disposition, bytes.
+async fn download(app: &Router, uri: &str) -> (StatusCode, String, String, Vec<u8>) {
+    let req = Request::builder()
+        .method("GET")
+        .uri(uri)
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    let header = |name: axum::http::header::HeaderName| {
+        resp.headers()
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_owned()
+    };
+    let content_type = header(axum::http::header::CONTENT_TYPE);
+    let disposition = header(axum::http::header::CONTENT_DISPOSITION);
+    let status = resp.status();
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    (status, content_type, disposition, bytes.to_vec())
+}
+
+// GIVEN a completed batch of ten requests
+// WHEN it is exported over HTTP as CSV, JSON and Excel, in an unknown format,
+//      and an unknown batch is exported
+// THEN each file is offered as `batch-<id>.<format>` with its media type and
+//      one row per item, the unknown format is refused 400 and the unknown
+//      batch 404
+#[tokio::test]
+async fn test_a_batch_is_exported_over_http_in_three_formats() {
+    // GIVEN
+    let fx = fixture().await;
+    fx.gate.add_permits(100);
+    let (_, launched) = call(
+        &fx.app,
+        "POST",
+        "/api/v1/batches",
+        Some(launch_body("memory", 2)),
+    )
+    .await;
+    let batch_id = launched["batchId"].as_str().unwrap().to_string();
+    let completed = poll_until_async(WAIT, || async {
+        let (_, body) = call(&fx.app, "GET", &format!("/api/v1/batches/{batch_id}"), None).await;
+        body["batch"]["state"] == "completed"
+    })
+    .await;
+    assert!(completed, "the batch never completed");
+    let uri = |format: &str| format!("/api/v1/batches/{batch_id}/export?format={format}");
+
+    // WHEN
+    let csv = download(&fx.app, &uri("csv")).await;
+    let json_file = download(&fx.app, &uri("json")).await;
+    let xlsx = download(&fx.app, &uri("xlsx")).await;
+    let (pdf_status, pdf_body) = call(&fx.app, "GET", &uri("pdf"), None).await;
+    let (missing_status, _) = call(
+        &fx.app,
+        "GET",
+        "/api/v1/batches/missing/export?format=csv",
+        None,
+    )
+    .await;
+
+    // THEN
+    assert_eq!(csv.0, StatusCode::OK);
+    assert_eq!(csv.1, "text/csv; charset=utf-8");
+    assert_eq!(
+        csv.2,
+        format!("attachment; filename=\"batch-{batch_id}.csv\"")
+    );
+    let text = String::from_utf8(csv.3).unwrap();
+    let lines: Vec<&str> = text.split("\r\n").filter(|l| !l.is_empty()).collect();
+    assert_eq!(lines.len(), 11, "{text}");
+    assert_eq!(lines[0], "client,request,output,status,sources");
+    assert_eq!(lines[1], "client 0,Refund,Handled.,completed,");
+    assert_eq!(json_file.0, StatusCode::OK);
+    assert_eq!(json_file.1, "application/json");
+    let doc: Value = serde_json::from_slice(&json_file.3).unwrap();
+    assert_eq!(doc["batchId"], batch_id.as_str());
+    assert_eq!(doc["items"].as_array().unwrap().len(), 10);
+    assert_eq!(doc["items"][9]["input"]["client"], "client 9");
+    assert_eq!(xlsx.0, StatusCode::OK);
+    assert_eq!(
+        xlsx.1,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    assert!(xlsx.2.ends_with(&format!("batch-{batch_id}.xlsx\"")));
+    assert!(xlsx.3.starts_with(b"PK\x03\x04"), "not a zip archive");
+    assert_eq!(pdf_status, StatusCode::BAD_REQUEST);
+    assert!(
+        pdf_body["error"].as_str().unwrap().contains("'pdf'"),
+        "{pdf_body}"
+    );
+    assert_eq!(missing_status, StatusCode::NOT_FOUND);
 }

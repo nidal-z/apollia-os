@@ -125,6 +125,7 @@ pub(crate) fn app_state(loader: Arc<dyn AgentLoader>, data_dir: PathBuf) -> AppS
         audit_trail: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        inference_governance: Default::default(),
         obs_config: apollia_core::ObservabilityConfig::default(),
         llm_call_repository: None,
         trigger_def_repo: None,
@@ -145,9 +146,12 @@ pub(crate) fn app_state(loader: Arc<dyn AgentLoader>, data_dir: PathBuf) -> AppS
         resilience_layer: None,
         runner_proxy: None,
         llama_server_supervisor: None,
+        mlx_engine: None,
         secret_store: crate::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
+        source_registry: None,
     }
 }
 
@@ -192,7 +196,7 @@ pub(crate) fn seeded_chat(data_dir: &Path) -> AppState<MockBackend> {
     let db_path = apollia_core::paths::DataFile::Chat.path(data_dir);
     let now = chrono::Utc::now().to_rfc3339();
     let repo = ChatSessionRepository::open(&db_path).expect("open chat db");
-    repo.create_session("s-1", &ChatMode::Libre, None, "", &[], &now, None, None)
+    repo.create_session("s-1", &ChatMode::Libre, None, "", &[], &now, None)
         .expect("seed session");
     for (id, role, content) in [
         ("u-1", ChatRole::User, "Bonjour"),
@@ -237,8 +241,6 @@ pub(crate) fn seeded_chat(data_dir: &Path) -> AppState<MockBackend> {
         None,
         None,
         None,
-        None,
-        None,
         apollia_mcp::session::LoadingMode::Eager,
         20,
         None,
@@ -248,4 +250,47 @@ pub(crate) fn seeded_chat(data_dir: &Path) -> AppState<MockBackend> {
     state.tool_registry_handle = Some(tool_registry);
     state.chat_manager = Some(chat_manager);
     state
+}
+
+/// In-memory secret store shared by its clones, standing in for the OS
+/// keychain in a route test.
+#[derive(Clone, Default)]
+pub(crate) struct MemorySecrets(
+    Arc<std::sync::Mutex<std::collections::HashMap<(String, String), String>>>,
+);
+
+impl MemorySecrets {
+    /// The value stored under `(service, user)`, if any.
+    pub(crate) fn value(&self, service: &str, user: &str) -> Option<String> {
+        let entries = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        entries.get(&(service.to_owned(), user.to_owned())).cloned()
+    }
+
+    /// An opener handing out this store, for `AppState::secret_store`.
+    pub(crate) fn opener(&self) -> crate::inference_servers::SecretStoreOpener {
+        let store = self.clone();
+        Arc::new(move || Ok(Box::new(store.clone()) as Box<dyn apollia_auth::SecretStore>))
+    }
+}
+
+impl apollia_auth::SecretStore for MemorySecrets {
+    fn set(&self, service: &str, user: &str, value: &str) -> Result<(), apollia_auth::AuthError> {
+        let mut entries = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        entries.insert((service.to_owned(), user.to_owned()), value.to_owned());
+        Ok(())
+    }
+
+    fn get(&self, service: &str, user: &str) -> Result<Option<String>, apollia_auth::AuthError> {
+        Ok(self.value(service, user))
+    }
+
+    fn delete(&self, service: &str, user: &str) -> Result<(), apollia_auth::AuthError> {
+        let mut entries = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        entries.remove(&(service.to_owned(), user.to_owned()));
+        Ok(())
+    }
+
+    fn backend_id(&self) -> &'static str {
+        "memory"
+    }
 }

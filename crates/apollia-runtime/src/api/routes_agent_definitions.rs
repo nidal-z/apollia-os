@@ -6,6 +6,7 @@
 //! - `PUT    /api/v1/agent-definitions/{name}/overrides/{field}`, set an override
 //! - `DELETE /api/v1/agent-definitions/{name}/overrides/{field}`, remove an override
 //! - `DELETE /api/v1/agent-definitions/{name}/overrides`        , back to defaults
+//! - `POST   /api/v1/agent-definitions/{name}/export`           , the agent as a `.apo` package
 //!
 //! A resolved agent is its package definition, then the user's overrides
 //! field by field, with the model assigned to it in `system.db`. Every write
@@ -22,13 +23,13 @@ use apollia_tools::{
     AgentOrigin, AgentRepository, AgentRepositoryError, OverrideField, ResolvedAgent,
 };
 
-use crate::agents::overrides::{AgentOverrideError, OverrideWriter};
+use crate::agents::overrides::{record_model_change, AgentOverrideError, OverrideWriter};
 use crate::api::routes_llm::backends::map_backend_error;
 use crate::api::routes_llm::presets::AgentModelResponse;
 use crate::api::routes_llm::servers::{api_err, ApiError};
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
-use crate::governance::NoPolicyGovernance;
+use crate::governance::{NoPolicyGovernance, OverrideChange};
 
 /// Who the journal names for a change made through the API.
 const API_ACTOR: &str = "api";
@@ -81,8 +82,12 @@ pub struct ResolvedAgentResponse {
     /// `bounded_autonomous` or `long_autonomous`. The user's, else the
     /// package's, else the global default.
     pub autonomy: String,
+    /// Identifier of the user profile designated for the agent; absent when
+    /// it runs with the default profile.
+    pub profile: Option<String>,
     /// Fields whose value is the user's rather than the package's:
-    /// `name`, `mission`, `examples`, `access`, `sources`, `autonomy`.
+    /// `name`, `mission`, `examples`, `access`, `sources`, `autonomy`,
+    /// `profile`.
     pub overridden: Vec<String>,
     /// The definition as the package declares it, before any override.
     #[schema(value_type = Object)]
@@ -104,6 +109,7 @@ impl From<ResolvedAgent> for ResolvedAgentResponse {
             sources: agent.sources,
             model: agent.model.map(Into::into),
             autonomy: agent.autonomy.as_str().to_owned(),
+            profile: agent.profile,
             overridden: agent
                 .overridden
                 .into_iter()
@@ -118,7 +124,8 @@ impl From<ResolvedAgent> for ResolvedAgentResponse {
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct SetOverrideRequest {
     /// The user's value: a string for `name` and `mission`, a tier name for
-    /// `autonomy`, a list of strings for `examples`, `access` and `sources`.
+    /// `autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`.
+    /// A `sources` entry is a source identifier of `GET /api/v1/sources`, `profile` or `memory`.
     #[schema(value_type = Object)]
     pub value: serde_json::Value,
 }
@@ -217,6 +224,30 @@ async fn shown<B: ExecutionBackend + Clone>(
     }
 }
 
+/// Refuses a `sources` list naming an entry that is neither a source of the
+/// registry nor `profile` nor `memory`. A value that is not a list of strings
+/// is left to the shape check of the write.
+async fn check_sources<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    value: &serde_json::Value,
+) -> Result<(), ApiError> {
+    let Some(entries) = value.as_array().and_then(|items| {
+        items
+            .iter()
+            .map(|v| v.as_str().map(str::to_owned))
+            .collect::<Option<Vec<_>>>()
+    }) else {
+        return Ok(());
+    };
+    if crate::agents::sources::only_token_kinds(&entries) {
+        return Ok(());
+    }
+    crate::api::routes_sources::registry(state)?
+        .check_entries(entries)
+        .await
+        .map_err(crate::api::routes_sources::sources_error)
+}
+
 /// `GET /api/v1/agent-definitions`: every stored agent, resolved.
 #[utoipa::path(
     get,
@@ -273,14 +304,14 @@ pub async fn get_agent_definition<B: ExecutionBackend + Clone>(
     tag = "agents",
     params(
         ("name" = String, Path, description = "Agent identifier"),
-        ("field" = String, Path, description = "name, mission, examples, access, sources or autonomy"),
+        ("field" = String, Path, description = "name, mission, examples, access, sources, autonomy or profile"),
     ),
     request_body = SetOverrideRequest,
     responses(
         (status = 200, description = "Override set; the agent in force", body = ResolvedAgentResponse),
         (status = 404, description = "Agent not found", body = crate::api::openapi::ApiErrorBody),
-        (status = 422, description = "Unknown field, or a value of the wrong shape", body = crate::api::openapi::ApiErrorBody),
-        (status = 503, description = "Audit journal not available", body = crate::api::openapi::ApiErrorBody),
+        (status = 422, description = "Unknown field, a value of the wrong shape, or a source the registry does not hold", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Audit journal, or the source registry a sources list needs, not available", body = crate::api::openapi::ApiErrorBody),
     )
 )]
 pub async fn set_agent_override<B: ExecutionBackend + Clone>(
@@ -289,6 +320,9 @@ pub async fn set_agent_override<B: ExecutionBackend + Clone>(
     Json(req): Json<SetOverrideRequest>,
 ) -> Result<Json<ResolvedAgentResponse>, ApiError> {
     let field = parse_field(&field)?;
+    if field == OverrideField::Sources {
+        check_sources(&state, &req.value).await?;
+    }
     let governance = governance(&state)?;
     let repo = open_agents(&state)?;
     writer(&repo, &governance)
@@ -313,7 +347,7 @@ pub async fn set_agent_override<B: ExecutionBackend + Clone>(
     tag = "agents",
     params(
         ("name" = String, Path, description = "Agent identifier"),
-        ("field" = String, Path, description = "name, mission, examples, access, sources or autonomy"),
+        ("field" = String, Path, description = "name, mission, examples, access, sources, autonomy or profile"),
     ),
     responses(
         (status = 200, description = "Override removed, or there was none; the agent in force", body = ResolvedAgentResponse),
@@ -366,15 +400,45 @@ pub async fn reset_agent_overrides<B: ExecutionBackend + Clone>(
     let fields = writer(&repo, &governance)
         .reset(&name)
         .map_err(override_error)?;
+    // The model assigned in `system.db` is not an override, but going back
+    // to defaults removes it with them, and records its removal.
+    let model_cleared = clear_model(&state, &governance, &name)?;
     tracing::event!(
         tracing::Level::INFO,
         agent = %name,
         removed = fields.len(),
+        model_cleared = model_cleared,
         "agents.override.reset"
     );
     let agent = resolved(&state, &repo, &name)?;
     drop(repo);
     Ok(Json(shown(&state, agent).await))
+}
+
+/// Removes the model assigned to `name`, recording the removal; `false` when
+/// none was assigned or no model store is open.
+fn clear_model<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    governance: &NoPolicyGovernance,
+    name: &str,
+) -> Result<bool, ApiError> {
+    let Some(llm) = state.llm_backend_repo.as_ref() else {
+        return Ok(false);
+    };
+    let cleared = {
+        let guard = llm.lock().map_err(|_| {
+            api_err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "repository lock poisoned",
+            )
+        })?;
+        guard.clear_agent_model(name).map_err(map_backend_error)?
+    };
+    if cleared {
+        record_model_change(governance, name, OverrideChange::Removed, API_ACTOR)
+            .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    }
+    Ok(cleared)
 }
 
 /// Routes of the stored agents.
@@ -396,7 +460,15 @@ pub fn agent_definition_routes<B: ExecutionBackend + Clone>() -> Router<AppState
             "/api/v1/agent-definitions/:name/overrides/:field",
             put(set_agent_override::<B>).delete(remove_agent_override::<B>),
         )
+        .route(
+            "/api/v1/agent-definitions/:name/export",
+            axum::routing::post(export::export_agent_definition::<B>),
+        )
 }
+
+pub mod export;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_export;

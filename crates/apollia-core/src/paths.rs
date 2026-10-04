@@ -150,6 +150,30 @@ impl DataFile {
     }
 }
 
+/// Name of the directory, under the data directory, holding one index
+/// database per source.
+pub const SOURCES_DIR_NAME: &str = "sources";
+
+/// The index database of the source `source_id`:
+/// `<data_dir>/sources/<source_id>.db`.
+///
+/// Like the memory stores, these files are named by data rather than by the
+/// layout, so they are not in [`DataFile`]. Returns `None` for an identifier
+/// that is empty or holds anything but ASCII letters, digits, `-` and `_`: an
+/// identifier must never name a path outside that directory.
+#[must_use]
+pub fn source_index_path(data_dir: &Path, source_id: &str) -> Option<PathBuf> {
+    let safe = !source_id.is_empty()
+        && source_id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
+    safe.then(|| {
+        data_dir
+            .join(SOURCES_DIR_NAME)
+            .join(format!("{source_id}.db"))
+    })
+}
+
 /// The current user's home directory.
 ///
 /// `%USERPROFILE%` on Windows, `$HOME` on Unix. Returns `None` when neither is
@@ -217,6 +241,29 @@ pub fn data_dir() -> Option<PathBuf> {
 /// than by each caller.
 pub fn data_dir_under(home: impl Into<PathBuf>) -> PathBuf {
     home.into().join(DATA_DIR_NAME)
+}
+
+/// Name of the configuration file inside the data directory.
+pub const CONFIG_FILE_NAME: &str = "apollia.toml";
+
+/// The configuration file every surface reads and writes:
+/// `<home>/.apollia/apollia.toml`.
+///
+/// The CLI, the daemon and the desktop used to resolve the file in five
+/// different ways (the working directory, `$XDG_CONFIG_HOME/apollia/`,
+/// `~/.config/apollia/`, the data directory), so a key written by one tool
+/// could be read by no engine. The working directory was also ambiguous: an
+/// agent package keeps its manifest under the same name. Only an explicit path
+/// given on the command line replaces this location.
+///
+/// Returns `None` when the home directory cannot be resolved.
+pub fn config_file() -> Option<PathBuf> {
+    home_dir().map(config_file_under)
+}
+
+/// The configuration file under an explicit home.
+pub fn config_file_under(home: impl Into<PathBuf>) -> PathBuf {
+    data_dir_under(home).join(CONFIG_FILE_NAME)
 }
 
 /// Name of the API's Unix socket inside the data directory.
@@ -418,6 +465,46 @@ mod tests {
         );
     }
 
+    // GIVEN an explicit home
+    // WHEN the configuration file is resolved under it
+    // THEN it is `apollia.toml` inside the data directory of that home
+    #[test]
+    fn test_config_file_under_is_in_the_data_dir() {
+        let home = tempfile::tempdir().expect("a temporary home");
+        assert_eq!(
+            config_file_under(home.path()),
+            home.path().join(".apollia").join("apollia.toml")
+        );
+    }
+
+    // GIVEN a process whose HOME is a temporary directory (a child of this
+    //       test binary, so no other test sees the swapped variable)
+    // WHEN the configuration file is resolved without an explicit home
+    // THEN it is `<temporary home>/.apollia/apollia.toml`
+    #[test]
+    fn test_config_file_follows_a_temporary_home() {
+        const EXPECT: &str = "APOLLIA_TEST_EXPECTED_CONFIG_FILE";
+        if let Some(expected) = std::env::var_os(EXPECT) {
+            assert_eq!(config_file(), Some(PathBuf::from(expected)));
+            return;
+        }
+        let home = tempfile::tempdir().expect("a temporary home");
+        let expected = home.path().join(".apollia").join("apollia.toml");
+        let out = std::process::Command::new(std::env::current_exe().expect("test binary"))
+            .args([
+                "--exact",
+                "paths::tests::test_config_file_follows_a_temporary_home",
+            ])
+            .env("HOME", home.path())
+            .env("USERPROFILE", home.path())
+            .env(EXPECT, &expected)
+            .output()
+            .expect("the test binary runs");
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(out.status.success(), "child failed: {stdout}");
+        assert!(stdout.contains("1 passed"), "child ran no test: {stdout}");
+    }
+
     // GIVEN an ordinary account name
     // WHEN the runtime's pipe name is derived from it
     // THEN the account is part of the name, so two sessions on one machine
@@ -452,6 +539,33 @@ mod tests {
         assert_eq!(pipe_name_for(None), bare);
         assert_eq!(pipe_name_for(Some("")), bare);
         assert_eq!(pipe_name_for(Some("   ")), bare);
+    }
+    #[test]
+    fn test_a_source_index_sits_under_the_sources_directory() {
+        // GIVEN a data directory and a registry identifier
+        let data = Path::new("/home/tester/.apollia");
+
+        // WHEN the index path of the source is resolved
+        let path = source_index_path(data, "src-0a1b2c");
+
+        // THEN it is `<data>/sources/<id>.db`
+        assert_eq!(path, Some(data.join("sources").join("src-0a1b2c.db")));
+    }
+
+    #[test]
+    fn test_a_source_identifier_never_names_a_path_outside() {
+        // GIVEN identifiers that are empty or carry separators and dots
+        let data = Path::new("/home/tester/.apollia");
+        let hostile = ["", "..", "../system", "a/b", "a\\b", "a.b"];
+
+        // WHEN their index paths are resolved
+        let resolved: Vec<_> = hostile
+            .iter()
+            .map(|id| source_index_path(data, id))
+            .collect();
+
+        // THEN none of them resolves
+        assert!(resolved.iter().all(Option::is_none), "{resolved:?}");
     }
 }
 

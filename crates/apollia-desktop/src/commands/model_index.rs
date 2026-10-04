@@ -4,54 +4,20 @@
 //! where it is kept (beside the models, in `~/.apollia/models/`) and when it is
 //! written: reconciled with the disk at startup, extended when a download or an
 //! import finishes (with the digest of the weights and whether it was
-//! verified), trimmed when a model is deleted. The Hub lists what the
-//! index holds.
+//! verified). The removal of a model trims it in the runtime
+//! (`apollia_runtime::installed_models`). The Hub lists what the index holds.
 //!
 //! Every function takes the models directory as an argument so the tests run
 //! on a temporary folder, without touching the process environment.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use apollia_llm::model_index::INDEX_FILE_NAME;
-use apollia_llm::{ModelIndex, ModelIndexError, ModelOrigin};
+use apollia_llm::{ModelIndexError, ModelOrigin};
+use apollia_runtime::installed_models::load_or_empty;
 
-/// Where the index of `models_dir` is kept.
-pub(crate) fn index_path(models_dir: &Path) -> PathBuf {
-    models_dir.join(INDEX_FILE_NAME)
-}
-
-/// Read the persisted index, or start from an empty one when the file is
-/// unreadable: the disk is the truth and the next rebuild restores the rest.
-fn load_or_empty(models_dir: &Path) -> ModelIndex {
-    let path = index_path(models_dir);
-    ModelIndex::load(&path).unwrap_or_else(|e| {
-        tracing::event!(
-            tracing::Level::WARN,
-            path = %path.display(),
-            error = %e,
-            "model.index.load.failed"
-        );
-        ModelIndex::default()
-    })
-}
-
-/// Reconcile the index with the disk and persist it. Run at startup.
-pub(crate) fn reconcile(models_dir: &Path) -> Result<ModelIndex, ModelIndexError> {
-    let mut index = load_or_empty(models_dir);
-    index.rebuild(models_dir)?;
-    index.save(&index_path(models_dir))?;
-    Ok(index)
-}
-
-/// The index the Hub lists. Built from the disk the first time, when no index
-/// has been written yet.
-pub(crate) fn current(models_dir: &Path) -> Result<ModelIndex, ModelIndexError> {
-    if index_path(models_dir).is_file() {
-        Ok(load_or_empty(models_dir))
-    } else {
-        reconcile(models_dir)
-    }
-}
+/// Where the index is kept, how it is read and reconciled: shared with the
+/// daemon, which lists the same models.
+pub(crate) use apollia_runtime::installed_models::{current, index_path, reconcile};
 
 /// Add an imported model with its digest and whether that digest matched a
 /// known one.
@@ -125,13 +91,6 @@ pub(crate) fn record_download(
             "model.index.record.failed"
         );
     }
-}
-
-/// Drop the entry of a model whose file was just deleted.
-pub(crate) fn forget(models_dir: &Path, path: &Path) -> Result<(), ModelIndexError> {
-    let mut index = load_or_empty(models_dir);
-    index.remove_path(path);
-    index.save(&index_path(models_dir))
 }
 
 #[cfg(test)]
@@ -239,22 +198,5 @@ mod tests {
             index.get("whisper-fr").unwrap().effective_category(),
             ModelCategory::Dictation
         );
-    }
-
-    // GIVEN an indexed model whose file is then deleted
-    // WHEN the deletion is reported to the index
-    // THEN its entry is gone without waiting for the next startup
-    #[test]
-    fn test_forget_drops_a_deleted_model() {
-        let tmp = tempfile::tempdir().unwrap();
-        let dir = tmp.path();
-        let path = dir.join("gone.gguf");
-        std::fs::write(&path, b"GGUF").unwrap();
-        reconcile(dir).unwrap();
-
-        std::fs::remove_file(&path).unwrap();
-        forget(dir, &path).unwrap();
-
-        assert!(current(dir).unwrap().models.is_empty());
     }
 }

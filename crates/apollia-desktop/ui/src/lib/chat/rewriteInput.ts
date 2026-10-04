@@ -16,7 +16,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import type { UserProfileView } from '$lib/types';
+import { DEFAULT_PROFILE, getProfileById } from '$lib/ipc/profile';
 
 export type RewriteState = 'idle' | 'rewriting' | 'error';
 
@@ -40,8 +40,8 @@ interface RewriteInputRequest {
 /**
  * Why no rewrite happened.
  *
- * Mirrors `RewriteFallbackIpc` in
- * `crates/apollia-desktop/src/commands/meta_rewrite.rs`. Only the first two
+ * Mirrors `RewriteFallbackReason` in
+ * `crates/apollia-runtime/src/chat_assists.rs`. Only the first two
  * mean the operator has no engine to configure; the last two mean the engine
  * answered, and telling them to go set one up would be false.
  */
@@ -152,41 +152,27 @@ export class InputRewriter {
 }
 
 /**
- * Fetch Work context from user profile.
+ * Fetch Work context from the default profile.
  *
- * Reads the user's profile via get_profile and extracts the Work section fields
- * (domain.sector, domain.team_size, tech.stack, tools.daily, tech.integrations).
+ * Reads the default profile and maps its fields onto the work context the
+ * rewrite takes: the function as the sector, the tools used as the daily tools.
  *
  * @returns WorkContext with filled fields from profile, or null if profile fetch fails
  */
 export async function fetchWorkContext(): Promise<WorkContext | null> {
 	try {
-		const profile = await invoke<UserProfileView>('get_profile');
+		const profile = await getProfileById(DEFAULT_PROFILE);
 		const workContext: WorkContext = {};
 
-		// Extract Work section fields from profile entries
-		for (const entry of profile.entries) {
-			if (entry.key === 'domain.sector' && entry.value.trim()) {
-				workContext.sector = entry.value;
-			} else if (entry.key === 'domain.team_size' && entry.value.trim()) {
-				workContext.teamSize = entry.value;
-			} else if (entry.key === 'tech.stack' && entry.value.trim()) {
-				workContext.techStack = entry.value;
-			} else if (entry.key === 'tools.daily' && entry.value.trim()) {
-				workContext.dailyTools = entry.value;
-			} else if (entry.key === 'tech.integrations' && entry.value.trim()) {
-				workContext.integrations = entry.value;
+		for (const field of profile.fields) {
+			if (field.key === 'function' && field.value.trim()) {
+				workContext.sector = field.value;
+			} else if (field.key === 'tools' && field.value.trim()) {
+				workContext.dailyTools = field.value;
 			}
 		}
 
-		// Return null if all fields are empty
-		if (
-			!workContext.sector &&
-			!workContext.teamSize &&
-			!workContext.techStack &&
-			!workContext.dailyTools &&
-			!workContext.integrations
-		) {
+		if (!workContext.sector && !workContext.dailyTools) {
 			return null;
 		}
 

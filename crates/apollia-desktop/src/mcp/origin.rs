@@ -73,15 +73,12 @@ fn entry_named<'a>(
     name: &str,
     enrichments: &'a [ConnectorEnrichment],
 ) -> Option<&'a ConnectorEnrichment> {
-    enrichments
-        .iter()
-        .filter(|e| !e.awaiting_registration)
-        .find(|e| {
-            e.operator_label
-                .values()
-                .chain(e.registry_names.iter())
-                .any(|candidate| sanitize_server_name(candidate) == name)
-        })
+    enrichments.iter().filter(|e| e.is_listed()).find(|e| {
+        e.operator_label
+            .values()
+            .chain(e.registry_names.iter())
+            .any(|candidate| sanitize_server_name(candidate) == name)
+    })
 }
 
 /// The server name the interface derives from a label: lower case, every run

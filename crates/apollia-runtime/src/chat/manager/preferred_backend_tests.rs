@@ -77,8 +77,6 @@ fn spawn(dir: &tempfile::TempDir, router: Arc<LlmRouter>) -> ChatSessionManagerH
         None,
         None,
         None,
-        None,
-        None,
         LoadingMode::Eager,
         20,
         None,
@@ -123,7 +121,6 @@ async fn test_free_chat_turn_routes_to_the_preferred_backend() {
             agent_name: None,
             system_prompt: None,
             tools: vec![],
-            project_id: None,
         })
         .await
         .unwrap();

@@ -16,7 +16,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use thiserror::Error;
 
-use super::LlamaServerSupervisor;
+use super::{Instance, LlamaServerSupervisor};
 
 /// A claim on a resident model for the length of one request.
 ///
@@ -32,7 +32,7 @@ pub struct ModelLease {
 }
 
 impl ModelLease {
-    pub(super) fn new(base_url: String, n_ctx: u32, in_flight: Arc<AtomicUsize>) -> Self {
+    pub(crate) fn new(base_url: String, n_ctx: u32, in_flight: Arc<AtomicUsize>) -> Self {
         in_flight.fetch_add(1, Ordering::AcqRel);
         Self {
             base_url,
@@ -61,9 +61,25 @@ impl Drop for ModelLease {
     }
 }
 
+/// What a resident model serves.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, utoipa::ToSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelKind {
+    /// Chat completions, under the residency ceiling.
+    Chat,
+    /// Vectors for search by meaning, outside the residency ceiling.
+    Embeddings,
+}
+
 /// One resident model, as the supervisor launched it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoadedModel {
+    /// The engine serving it, chosen by the model's format.
+    pub engine: crate::engine_store::Engine,
+    /// What it serves.
+    pub kind: ModelKind,
     /// Display name, the file name of the model without its extension.
     pub model: String,
     /// Path the process was launched with (`-m`), the key an unload takes.
@@ -115,38 +131,90 @@ fn display_name(model_path: &str) -> String {
         .unwrap_or_else(|| model_path.to_owned())
 }
 
+/// How `instance` is listed, with the tick that orders it; `None` once its
+/// process has exited.
+fn listed(instance: &mut Instance, kind: ModelKind) -> Option<(u64, LoadedModel)> {
+    if !instance.is_running() {
+        return None;
+    }
+    Some((
+        instance.last_used,
+        LoadedModel {
+            engine: crate::engine_store::Engine::LlamaServer,
+            kind,
+            model: display_name(&instance.model_path),
+            model_path: instance.model_path.clone(),
+            port: instance.port,
+            n_ctx: instance.n_ctx,
+            n_gpu_layers: instance.n_gpu_layers,
+            n_parallel: instance.n_parallel,
+            loaded_at: instance.loaded_at,
+            last_used_at: instance.last_used_at,
+            active_requests: instance.in_flight.load(Ordering::Acquire),
+        },
+    ))
+}
+
 impl LlamaServerSupervisor {
-    /// Every model with a live process, most recently used first.
+    /// Every model with a live process, most recently used first, the
+    /// embeddings instance among them.
     ///
     /// A process that has exited is left out rather than reported: the
     /// supervision task owns its fate, and listing it would show a model that
     /// answers nothing.
     pub async fn loaded_models(&self) -> Vec<LoadedModel> {
-        let mut instances = self.instances.lock().await;
-        let mut live: Vec<(u64, LoadedModel)> = instances
+        let mut live: Vec<(u64, LoadedModel)> = self
+            .instances
+            .lock()
+            .await
             .iter_mut()
-            .filter_map(|i| {
-                if !i.is_running() {
-                    return None;
-                }
-                Some((
-                    i.last_used,
-                    LoadedModel {
-                        model: display_name(&i.model_path),
-                        model_path: i.model_path.clone(),
-                        port: i.port,
-                        n_ctx: i.n_ctx,
-                        n_gpu_layers: i.n_gpu_layers,
-                        n_parallel: i.n_parallel,
-                        loaded_at: i.loaded_at,
-                        last_used_at: i.last_used_at,
-                        active_requests: i.in_flight.load(Ordering::Acquire),
-                    },
-                ))
-            })
+            .filter_map(|i| listed(i, ModelKind::Chat))
             .collect();
+        if let Some(resident) = self.embedding.lock().await.as_mut() {
+            live.extend(listed(&mut resident.instance, ModelKind::Embeddings));
+        }
         live.sort_by_key(|(tick, _)| std::cmp::Reverse(*tick));
         live.into_iter().map(|(_, m)| m).collect()
+    }
+
+    /// A lease on the live process already serving `model_path`, chat model
+    /// or embeddings instance, marked as just used; `None` when none does.
+    ///
+    /// Never launches anything: a caller that relays a request to a model the
+    /// user loaded holds the process for the length of that request, so an
+    /// unload waits for it, without the spawn `ensure_model` falls back to.
+    pub async fn lease_resident(&self, model_path: &str) -> Option<ModelLease> {
+        {
+            let mut instances = self.instances.lock().await;
+            let tick = self.next_tick();
+            let live = instances
+                .iter_mut()
+                .filter(|i| i.model_path == model_path)
+                .filter_map(|i| i.is_running().then_some(i))
+                .max_by_key(|i| i.last_used);
+            if let Some(instance) = live {
+                instance.last_used = tick;
+                instance.last_used_at = Utc::now();
+                return Some(ModelLease::new(
+                    instance.base_url(),
+                    instance.n_ctx,
+                    Arc::clone(&instance.in_flight),
+                ));
+            }
+        }
+        let mut slot = self.embedding.lock().await;
+        let resident = slot.as_mut()?;
+        if resident.instance.model_path != model_path || !resident.instance.is_running() {
+            return None;
+        }
+        resident.last_call = std::time::Instant::now();
+        resident.instance.last_used = self.next_tick();
+        resident.instance.last_used_at = Utc::now();
+        Some(ModelLease::new(
+            resident.instance.base_url(),
+            resident.instance.n_ctx,
+            Arc::clone(&resident.instance.in_flight),
+        ))
     }
 
     /// Stop every process serving `model_path`, and forget it.
@@ -164,6 +232,9 @@ impl LlamaServerSupervisor {
         // Serialised with `ensure_model`, so no request can take a lease on a
         // process between the check below and its removal.
         let _guard = self.respawn_lock.lock().await;
+        if let Some(outcome) = self.unload_embedding(model_path).await {
+            return outcome;
+        }
         let mut instances = self.instances.lock().await;
         let active_requests: usize = instances
             .iter()
@@ -201,6 +272,32 @@ impl LlamaServerSupervisor {
             );
         }
         Ok(stopped)
+    }
+}
+
+/// A supervisor whose resident models are stand-in processes on ports the
+/// test chose, so a test outside this module can point them at a fake engine.
+#[cfg(test)]
+impl LlamaServerSupervisor {
+    pub(crate) async fn with_resident_for_test(
+        chat: &[(&str, u16)],
+        embeddings: Option<(&str, u16)>,
+    ) -> Arc<Self> {
+        use super::test_support::{live_instance, supervisor_with_ceiling};
+        let sup = supervisor_with_ceiling(chat.len().max(1));
+        for (model, port) in chat {
+            let instance = live_instance(&sup, model, *port).await;
+            sup.instances.lock().await.push(instance);
+        }
+        if let Some((model, port)) = embeddings {
+            let instance = live_instance(&sup, model, port).await;
+            *sup.embedding.lock().await = Some(super::embeddings::EmbeddingInstance {
+                instance,
+                pooling: apollia_llm::recommend::Pooling::Mean,
+                last_call: std::time::Instant::now(),
+            });
+        }
+        Arc::new(sup)
     }
 }
 
@@ -331,6 +428,38 @@ mod tests {
         assert_eq!(listed[0].active_requests, 0);
         assert!(listed[0].last_used_at >= listed[0].loaded_at);
         assert_eq!(listed[1].model_path, "/models/b.gguf");
+    }
+
+    #[tokio::test]
+    async fn test_a_resident_lease_holds_the_model_and_never_launches_one() {
+        // GIVEN one resident chat model, and an embeddings instance
+        let sup = LlamaServerSupervisor::with_resident_for_test(
+            &[("/models/a.gguf", 9001)],
+            Some(("/models/e.gguf", 9002)),
+        )
+        .await;
+
+        // WHEN a lease is asked for each, and for a model nobody loaded
+        let chat = sup.lease_resident("/models/a.gguf").await;
+        let vectors = sup.lease_resident("/models/e.gguf").await;
+        let absent = sup.lease_resident("/models/absent.gguf").await;
+
+        // THEN both resident ones answer their own port and refuse an unload
+        // while held, and the absent one is not launched
+        assert_eq!(
+            chat.as_ref().map(ModelLease::base_url),
+            Some("http://127.0.0.1:9001/v1")
+        );
+        assert_eq!(
+            vectors.as_ref().map(ModelLease::base_url),
+            Some("http://127.0.0.1:9002/v1")
+        );
+        assert!(absent.is_none());
+        assert!(matches!(
+            sup.unload_model("/models/a.gguf").await,
+            Err(UnloadError::InUse { .. })
+        ));
+        assert_eq!(sup.loaded_models().await.len(), 2);
     }
 
     #[tokio::test]

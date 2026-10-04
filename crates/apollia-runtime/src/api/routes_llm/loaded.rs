@@ -2,9 +2,11 @@
 //!
 //! - `GET  /api/v1/llm/loaded-models`        , list the resident models
 //! - `POST /api/v1/llm/loaded-models/unload` , stop one, by model path
+//! - `POST /api/v1/llm/loaded-models`        , load one by hand, see [`super::load`]
 //!
-//! Both read the embedded `llama-server` supervisor. Without one (the binary is
-//! absent), the list answers empty with `engineAvailable: false` and an unload
+//! Both read every local engine: `llama-server` for GGUF models and `vllm-mlx`
+//! for MLX ones, each model naming the engine that serves it. Without any
+//! engine, the list answers empty with `engineAvailable: false` and an unload
 //! answers 503, so a client can tell "nothing loaded" from "no local engine".
 
 use axum::extract::State;
@@ -16,12 +18,20 @@ use serde::{Deserialize, Serialize};
 use crate::api::openapi::ApiErrorBody;
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
-use crate::llama_server::{LoadedModel, UnloadError};
+use crate::engine_store::Engine;
+use crate::llama_server::{LoadedModel, ModelKind, UnloadError};
+use crate::local_engine::LocalEngine;
 
 /// One resident model.
 #[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LoadedModelDto {
+    /// The engine serving the model, chosen by its format: `llama-server` for
+    /// GGUF, `vllm-mlx` for MLX.
+    pub engine: Engine,
+    /// What the model serves: `chat`, or `embeddings` for the instance that
+    /// serves search by meaning, which does not count against `maxLoaded`.
+    pub kind: ModelKind,
     /// Display name, the model file name without its extension.
     pub model: String,
     /// Path the model was loaded from; the key an unload takes.
@@ -47,6 +57,8 @@ pub struct LoadedModelDto {
 impl From<LoadedModel> for LoadedModelDto {
     fn from(m: LoadedModel) -> Self {
         Self {
+            engine: m.engine,
+            kind: m.kind,
             model: m.model,
             model_path: m.model_path,
             port: m.port,
@@ -115,24 +127,49 @@ fn api_err(code: StatusCode, msg: impl std::fmt::Display) -> ApiError {
 pub async fn list_loaded_models<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Json<LoadedModelsResponse> {
-    let Some(supervisor) = state.llama_server_supervisor.as_ref() else {
+    let llama = state.llama_server_supervisor.as_deref();
+    let mlx = state.mlx_engine.as_deref();
+    if llama.is_none() && mlx.is_none() {
         return Json(LoadedModelsResponse {
             engine_available: false,
             max_loaded: 0,
             models: Vec::new(),
         });
-    };
-    let models = supervisor
-        .loaded_models()
-        .await
-        .into_iter()
-        .map(LoadedModelDto::from)
-        .collect();
+    }
+    let mut loaded = Vec::new();
+    let mut max_loaded = 0;
+    if let Some(engine) = llama {
+        loaded.extend(LocalEngine::loaded_models(engine).await);
+        max_loaded += LocalEngine::max_loaded(engine);
+    }
+    if let Some(engine) = mlx {
+        loaded.extend(LocalEngine::loaded_models(engine).await);
+        max_loaded += LocalEngine::max_loaded(engine);
+    }
+    loaded.sort_by_key(|m| std::cmp::Reverse(m.last_used_at));
     Json(LoadedModelsResponse {
         engine_available: true,
-        max_loaded: supervisor.max_loaded(),
-        models,
+        max_loaded,
+        models: loaded.into_iter().map(LoadedModelDto::from).collect(),
     })
+}
+
+/// Unload `model_path` from whichever engine serves it.
+async fn unload_from_engines(
+    llama: Option<&crate::llama_server::LlamaServerSupervisor>,
+    mlx: Option<&crate::mlx_engine::MlxEngineSupervisor>,
+    model_path: &str,
+) -> Result<usize, UnloadError> {
+    let mut outcome = Err(UnloadError::NotLoaded {
+        model_path: model_path.to_owned(),
+    });
+    if let Some(engine) = llama {
+        outcome = LocalEngine::unload_model(engine, model_path).await;
+    }
+    if let (Err(UnloadError::NotLoaded { .. }), Some(engine)) = (&outcome, mlx) {
+        outcome = LocalEngine::unload_model(engine, model_path).await;
+    }
+    outcome
 }
 
 /// Handler for `POST /api/v1/llm/loaded-models/unload`.
@@ -162,13 +199,15 @@ pub async fn unload_loaded_model<B: ExecutionBackend + Clone>(
             "modelPath must not be empty",
         ));
     }
-    let supervisor = state.llama_server_supervisor.as_ref().ok_or_else(|| {
-        api_err(
+    let llama = state.llama_server_supervisor.as_deref();
+    let mlx = state.mlx_engine.as_deref();
+    if llama.is_none() && mlx.is_none() {
+        return Err(api_err(
             StatusCode::SERVICE_UNAVAILABLE,
             "no local engine on this host",
-        )
-    })?;
-    match supervisor.unload_model(&body.model_path).await {
+        ));
+    }
+    match unload_from_engines(llama, mlx, &body.model_path).await {
         Ok(stopped) => Ok(Json(UnloadModelResponse {
             model_path: body.model_path,
             stopped,
@@ -181,7 +220,10 @@ pub async fn unload_loaded_model<B: ExecutionBackend + Clone>(
 /// Sub-router for the resident-model routes, merged into the LLM routes.
 pub fn loaded_model_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
-        .route("/api/v1/llm/loaded-models", get(list_loaded_models::<B>))
+        .route(
+            "/api/v1/llm/loaded-models",
+            get(list_loaded_models::<B>).post(super::load::load_model::<B>),
+        )
         .route(
             "/api/v1/llm/loaded-models/unload",
             post(unload_loaded_model::<B>),
@@ -311,5 +353,56 @@ mod tests {
         let listed: serde_json::Value = serde_json::from_slice(&list).expect("json");
         assert_eq!(listed["engineAvailable"], false);
         assert_eq!(listed["models"].as_array().map(Vec::len), Some(0));
+    }
+
+    #[tokio::test]
+    async fn test_the_list_and_the_unload_cover_the_mlx_models_with_their_engine() {
+        // GIVEN a GGUF model resident on llama-server and an MLX model
+        // resident on vllm-mlx, behind the LLM routes
+        let llama = LlamaServerSupervisor::with_stand_in_models(&["/models/a.gguf"]).await;
+        let mlx =
+            crate::mlx_engine::MlxEngineSupervisor::with_stand_in_models(&["/models/qwen-mlx"])
+                .await;
+        let mut state = test_app_state_no_llm();
+        state.llama_server_supervisor = Some(llama);
+        state.mlx_engine = Some(Arc::clone(&mlx));
+        let router = crate::api::routes_llm::llm_routes::<MockBackend>().with_state(state);
+
+        // WHEN the resident models are listed, then the MLX one is unloaded
+        let (_, listed) = send(router.clone(), Method::GET, "/api/v1/llm/loaded-models", "").await;
+        let (status, _) = send(
+            router.clone(),
+            Method::POST,
+            "/api/v1/llm/loaded-models/unload",
+            r#"{"modelPath":"/models/qwen-mlx"}"#,
+        )
+        .await;
+        let (_, after) = send(router, Method::GET, "/api/v1/llm/loaded-models", "").await;
+
+        // THEN both are listed, each naming its engine, the ceiling counts
+        // both engines, and the MLX model unloads like a GGUF one
+        let listed: serde_json::Value = serde_json::from_slice(&listed).expect("json");
+        let models = listed["models"].as_array().expect("models");
+        let engine_of = |path: &str| {
+            models
+                .iter()
+                .find(|m| m["modelPath"] == path)
+                .map(|m| m["engine"].clone())
+        };
+        assert_eq!(models.len(), 2);
+        assert_eq!(
+            engine_of("/models/a.gguf"),
+            Some(serde_json::json!("llama-server"))
+        );
+        assert_eq!(
+            engine_of("/models/qwen-mlx"),
+            Some(serde_json::json!("vllm-mlx"))
+        );
+        assert_eq!(listed["maxLoaded"], 2);
+        assert_eq!(status, StatusCode::OK);
+        assert!(mlx.loaded_models().await.is_empty());
+        let after: serde_json::Value = serde_json::from_slice(&after).expect("json");
+        assert_eq!(after["models"].as_array().map(Vec::len), Some(1));
+        assert_eq!(after["models"][0]["engine"], "llama-server");
     }
 }

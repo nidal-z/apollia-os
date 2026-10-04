@@ -1,8 +1,9 @@
 """Workflows of the example package."""
 
+import datetime
 from typing import Annotated, Any, NotRequired, TypedDict
 
-from apollia import WorkflowCtx, workflow
+from apollia import FileInput, LongText, WorkflowCtx, workflow
 
 
 class MonthClose(TypedDict):
@@ -10,6 +11,9 @@ class MonthClose(TypedDict):
 
     folder: Annotated[str, "folder holding the month's invoices"]
     notify: NotRequired[bool]
+    closing_day: NotRequired[datetime.date]
+    note: NotRequired[Annotated[LongText, "a note filed with the totals"]]
+    ledger: NotRequired[FileInput]
 
 
 @workflow(

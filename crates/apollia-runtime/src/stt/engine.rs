@@ -35,7 +35,7 @@ pub enum TranscriptSource {
 
 impl TranscriptSource {
     /// Returns the string tag persisted in the repository (`"hotkey"`, `"file"`, `"api"`).
-    fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         match self {
             Self::Hotkey => "hotkey",
             Self::File(_) => "file",
