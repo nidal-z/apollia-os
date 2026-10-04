@@ -203,7 +203,8 @@
       "transcriptions": "Transcriptions",
       "integrations": "Connexions",
       "settings": "Paramètres"
-    }
+    },
+    "policy": "Politique de l'organisation"
   },
   "sidebar": {},
   "topbar": {
@@ -1065,6 +1066,108 @@
       "revoke": "Révoquer",
       "revoke_confirm_title": "Révoquer cette règle ?",
       "revoke_confirm_body": "La règle sur « {tool} » sera supprimée. L'outil redemandera une approbation à sa prochaine utilisation. Cette action ne peut pas être annulée."
+    }
+  },
+  "policy": {
+    "title": "Politique de l'organisation",
+    "subtitle": "Fixée par le service informatique de votre organisation, elle s'applique à tout ce poste. Personne ne peut la modifier depuis Apollia.",
+    "load_failed": "La politique de l'organisation n'a pas pu être lue. Réessayez dans un instant.",
+    "badge": {
+      "none": "Aucune",
+      "active": "Active",
+      "invalid": "Invalide",
+      "read_only": "Lecture seule"
+    },
+    "none": {
+      "title": "Aucune politique : vous êtes libre",
+      "body": "Seules les autorisations que vous accordez s'appliquent."
+    },
+    "details": "Détails",
+    "no_rule": "Cette politique n'impose aucune règle.",
+    "footer_active": "Rien ici ne se modifie depuis Apollia. Pour changer une règle, adressez-vous à votre service informatique.",
+    "footer_invalid": "Seul votre service informatique peut corriger la politique. Transmettez-lui la raison affichée ici.",
+    "signature": {
+      "title": "Signature",
+      "description": "Qui a signé cette politique, et quand.",
+      "signed_at": "Date de signature",
+      "publisher": "Signée par",
+      "verified": "Signature vérifiée",
+      "verified_value": "Au démarrage d'Apollia",
+      "fingerprint": "Empreinte de la clé de l'organisation"
+    },
+    "file": {
+      "title": "Fichier lu",
+      "read_at": "Lecture",
+      "read_at_value": "Au démarrage d'Apollia",
+      "location": "Emplacement du fichier"
+    },
+    "section": {
+      "connections": {
+        "title": "Connexions",
+        "description": "Les services et outils que les agents peuvent joindre."
+      },
+      "families": {
+        "title": "Actions des agents",
+        "description": "Ce que les agents ne font jamais sur ce poste, même avec votre accord."
+      },
+      "inference": {
+        "title": "IA",
+        "description": "Où les modèles tournent, et lesquels sont acceptés."
+      },
+      "settings": {
+        "title": "Réglages imposés",
+        "description": "Affichés « Imposé par la politique » dans les Réglages."
+      },
+      "packages": {
+        "title": "Paquets",
+        "description": "Les agents que l'on peut installer."
+      },
+      "journal": {
+        "title": "Journal",
+        "description": "Ce qui est gardé de l'activité des agents."
+      }
+    },
+    "rule": {
+      "connections_allow": "Connexions permises, toutes les autres refusées",
+      "connections_deny": "Connexions refusées",
+      "connections_remote": "Serveurs distants",
+      "inference_servers": "Serveurs d'IA permis, tous les autres refusés",
+      "inference_remote": "Adresses distantes",
+      "inference_hash": "Modèles importés sans empreinte connue",
+      "packages_signature": "Signature des paquets d'agents",
+      "packages_publishers": "Éditeurs de confiance",
+      "journal_required": "Journal pour les actions sensibles",
+      "journal_retention": "Conservation des entrées",
+      "journal_detail": "Détail dans les exports",
+      "journal_daily": "Export quotidien du résumé"
+    },
+    "value": {
+      "refused": "Refusés",
+      "refused_feminine": "Refusées",
+      "forbidden": "Interdit",
+      "required": "Exigée",
+      "mandatory": "Obligatoire",
+      "days": "{days, plural, one {# jour} other {# jours}}",
+      "never": "Jamais",
+      "always": "Toujours",
+      "continues": "Continue"
+    },
+    "reason": {
+      "signature": "Signature non reconnue : le fichier de la politique ne correspond pas à sa signature.",
+      "schema": "Format non reconnu : une règle du fichier est inconnue ou mal écrite.",
+      "key": "Clé de l'organisation absente ou illisible.",
+      "owner": "Fichiers modifiables par un autre compte que l'administrateur du poste."
+    },
+    "invalid": {
+      "title": "La politique de l'organisation est invalide",
+      "not_read": "Ses règles ne sont pas lues tant qu'elle n'est pas corrigée.",
+      "meanwhile_title": "En attendant",
+      "meanwhile_sensitive": "Actions sensibles",
+      "meanwhile_connections": "Nouvelles connexions",
+      "meanwhile_read": "Lecture",
+      "copy_reason": "Copier la raison",
+      "copied": "Raison copiée",
+      "copy_failed": "La raison n'a pas pu être copiée."
     }
   },
   "plan_mode": {

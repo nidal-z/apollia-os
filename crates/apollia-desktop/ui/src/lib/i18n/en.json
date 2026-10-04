@@ -203,7 +203,8 @@
       "transcriptions": "Transcriptions",
       "integrations": "Connections",
       "settings": "Settings"
-    }
+    },
+    "policy": "Organization policy"
   },
   "sidebar": {},
   "topbar": {
@@ -1065,6 +1066,108 @@
       "revoke": "Revoke",
       "revoke_confirm_title": "Revoke this rule?",
       "revoke_confirm_body": "The rule on \"{tool}\" will be removed. The tool will ask for approval again on its next use. This cannot be undone."
+    }
+  },
+  "policy": {
+    "title": "Organization policy",
+    "subtitle": "Set by your organization's IT department, it applies to this whole computer. Nobody can change it from Apollia.",
+    "load_failed": "The organization policy could not be read. Try again in a moment.",
+    "badge": {
+      "none": "None",
+      "active": "Active",
+      "invalid": "Invalid",
+      "read_only": "Read only"
+    },
+    "none": {
+      "title": "No policy: you are free",
+      "body": "Only the permissions you grant apply."
+    },
+    "details": "Details",
+    "no_rule": "This policy imposes no rule.",
+    "footer_active": "Nothing here can be changed from Apollia. To change a rule, contact your IT department.",
+    "footer_invalid": "Only your IT department can fix the policy. Give them the reason shown here.",
+    "signature": {
+      "title": "Signature",
+      "description": "Who signed this policy, and when.",
+      "signed_at": "Signing date",
+      "publisher": "Signed by",
+      "verified": "Signature checked",
+      "verified_value": "When Apollia starts",
+      "fingerprint": "Organization key fingerprint"
+    },
+    "file": {
+      "title": "File read",
+      "read_at": "Read",
+      "read_at_value": "When Apollia starts",
+      "location": "File location"
+    },
+    "section": {
+      "connections": {
+        "title": "Connections",
+        "description": "The services and tools agents can reach."
+      },
+      "families": {
+        "title": "Agent actions",
+        "description": "What agents never do on this computer, even with your consent."
+      },
+      "inference": {
+        "title": "AI",
+        "description": "Where models run, and which ones are accepted."
+      },
+      "settings": {
+        "title": "Imposed settings",
+        "description": "Shown as \"Imposed by the policy\" in Settings."
+      },
+      "packages": {
+        "title": "Packages",
+        "description": "The agents that can be installed."
+      },
+      "journal": {
+        "title": "Journal",
+        "description": "What is kept of the agents' activity."
+      }
+    },
+    "rule": {
+      "connections_allow": "Connections allowed, all others refused",
+      "connections_deny": "Connections refused",
+      "connections_remote": "Remote servers",
+      "inference_servers": "AI servers allowed, all others refused",
+      "inference_remote": "Remote addresses",
+      "inference_hash": "Imported models without a known digest",
+      "packages_signature": "Agent package signature",
+      "packages_publishers": "Trusted publishers",
+      "journal_required": "Journal for sensitive actions",
+      "journal_retention": "Entries kept",
+      "journal_detail": "Detail in exports",
+      "journal_daily": "Daily summary export"
+    },
+    "value": {
+      "refused": "Refused",
+      "refused_feminine": "Refused",
+      "forbidden": "Forbidden",
+      "required": "Required",
+      "mandatory": "Mandatory",
+      "days": "{days, plural, one {# day} other {# days}}",
+      "never": "Never",
+      "always": "Always",
+      "continues": "Continues"
+    },
+    "reason": {
+      "signature": "Signature not recognized: the policy file does not match its signature.",
+      "schema": "Format not recognized: a rule of the file is unknown or badly written.",
+      "key": "Organization key missing or unreadable.",
+      "owner": "Files can be changed by an account other than the computer's administrator."
+    },
+    "invalid": {
+      "title": "The organization policy is invalid",
+      "not_read": "Its rules are not read until it is fixed.",
+      "meanwhile_title": "Meanwhile",
+      "meanwhile_sensitive": "Sensitive actions",
+      "meanwhile_connections": "New connections",
+      "meanwhile_read": "Reading",
+      "copy_reason": "Copy the reason",
+      "copied": "Reason copied",
+      "copy_failed": "The reason could not be copied."
     }
   },
   "plan_mode": {

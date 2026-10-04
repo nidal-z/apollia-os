@@ -124,6 +124,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::config::lifecycle::mark_onboarded,
         commands::config::system::get_system_info,
         commands::config::system::get_security_posture,
+        commands::org_policy::get_org_policy,
         commands::config::system::get_api_port,
         commands::config::system::get_python_interpreter,
         commands::config::system::set_python_interpreter,

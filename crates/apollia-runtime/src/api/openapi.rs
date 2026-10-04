@@ -355,6 +355,7 @@ use security::BearerToken;
         crate::api::routes_permissions::dismiss_proposed_permission_rule,
         crate::api::routes_permissions::add_permission_rule,
         crate::api::routes_permissions::respond_filesystem_approval,
+        crate::api::routes_policy::read_policy,
         crate::api::routes_tool_governance::list_governance_tools,
         crate::api::routes_tool_governance::set_governance_tool_enabled,
         crate::api::routes_tool_governance::get_governance_tool_config,

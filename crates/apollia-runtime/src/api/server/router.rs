@@ -403,6 +403,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(conversations_router::<B>())
         .merge(memory_router::<B>())
         .merge(permissions_router::<B>())
+        .merge(crate::api::routes_policy::policy_router::<B>())
         .merge(tool_governance_router::<B>())
         .merge(oauth_clients_router::<B>())
         .merge(crate::api::routes_observability::observability_router::<B>())

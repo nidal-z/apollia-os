@@ -22,6 +22,7 @@
   import SettingsWindow from "../../../components/settings/SettingsWindow.svelte";
   import Transcriptions from "../../../routes/Transcriptions.svelte";
   import Connections from "../../../routes/Connections.svelte";
+  import Policy from "../../../routes/Policy.svelte";
   import Design from "../../../routes/Design.svelte";
   import DesignMotion from "../../../routes/DesignMotion.svelte";
   import DesignEmptyStates from "../../../routes/DesignEmptyStates.svelte";
@@ -99,6 +100,8 @@
             <Observability />
           {:else if shownRoute === "integrations"}
             <Connections />
+          {:else if shownRoute === "policy"}
+            <Policy />
           {:else if isDev && shownRoute === "design"}
             <Design />
           {:else if isDev && shownRoute === "design-motion"}
