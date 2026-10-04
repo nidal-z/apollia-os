@@ -3,6 +3,8 @@
 //! - `GET    /api/v1/sources`      , every source, oldest first
 //! - `POST   /api/v1/sources`      , add a source
 //! - `DELETE /api/v1/sources/{id}` , remove a source
+//! - `POST   /api/v1/sources/preview`, what a batch on a workbook or a CSV
+//!   file would read ([`preview`])
 //!
 //! The registry lives in `system.db` and is owned by its actor; these routes
 //! talk to it through its handle, and answer 503 when the runtime holds none.
@@ -11,7 +13,7 @@
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::routing::{delete, get};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
@@ -32,7 +34,10 @@ pub fn sources_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             get(list_sources::<B>).post(create_source::<B>),
         )
         .route("/api/v1/sources/:id", delete(delete_source::<B>))
+        .route("/api/v1/sources/preview", post(preview::preview_source))
 }
+
+pub mod preview;
 
 /// What a source is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, utoipa::ToSchema)]

@@ -481,6 +481,13 @@ check_exit   "source list (off) → 2"           2     "$BIN" --socket "$OFFSOCK
 check_exit   "source create (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source create --kind folder --label Contracts --reference conn-contracts
 check_exit   "source delete (off) → 2"         2     "$BIN" --socket "$OFFSOCK" source delete src-absent --confirm
 check_exit   "source delete without --confirm → 1" 1 "$BIN" --socket "$OFFSOCK" source delete src-absent
+# The preview of a workbook or a CSV file is read by the daemon: daemon off it
+# refuses with 2, in human and in --json mode; a file that is not there is
+# refused with 1 before any call.
+printf 'name,city\nAda,London\n' > "$SCRATCH/inspect.csv"
+check_exit   "source inspect (off) → 2"        2     "$BIN" --socket "$OFFSOCK" source inspect "$SCRATCH/inspect.csv"
+check_exit   "source inspect --json (off) → 2" 2     "$BIN" --socket "$OFFSOCK" --json source inspect "$SCRATCH/inspect.csv" --sheet inspect --header-row 1
+check_exit   "source inspect missing file → 1" 1     "$BIN" --socket "$OFFSOCK" source inspect "$SCRATCH/no-such-file.xlsx"
 check        "agent list (off, local fallback)"      "$BIN" --socket "$OFFSOCK" agent list
 check_content "agent list shows 4 seeded agents" "apollia-chat" "$BIN" --socket "$OFFSOCK" agent list
 check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK" agent install /tmp/never-exists.py

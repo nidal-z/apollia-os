@@ -82,6 +82,7 @@ impl Supervisor {
         if let Some(supervisor) = &llama_server_supervisor {
             Arc::clone(supervisor).spawn_supervision();
         }
+        crate::memory_vectors::start(&self.config.data_dir, llama_server_supervisor.clone());
         // The MLX engine, on a Mac with Apple Silicon whose build carries it.
         // An MLX model elsewhere is refused with its reason by the router.
         let mlx_engine = crate::mlx_engine::MlxEngineSupervisor::for_this_machine(

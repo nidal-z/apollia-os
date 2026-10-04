@@ -144,3 +144,60 @@ fn test_injected_entries_are_read_from_the_tracker_of_this_process() {
     assert_eq!(entries[1].id, "ep-1");
     assert!(none.is_empty());
 }
+
+/// A minimal GGUF header naming `arch`, with no tensor.
+fn gguf(arch: &str) -> Vec<u8> {
+    let mut out = b"GGUF".to_vec();
+    out.extend_from_slice(&3u32.to_le_bytes());
+    out.extend_from_slice(&0u64.to_le_bytes());
+    out.extend_from_slice(&1u64.to_le_bytes());
+    let key = "general.architecture";
+    out.extend_from_slice(&(key.len() as u64).to_le_bytes());
+    out.extend_from_slice(key.as_bytes());
+    out.extend_from_slice(&8u32.to_le_bytes());
+    out.extend_from_slice(&(arch.len() as u64).to_le_bytes());
+    out.extend_from_slice(arch.as_bytes());
+    out
+}
+
+#[tokio::test]
+async fn test_the_memory_names_the_embeddings_model_only_when_it_is_installed() {
+    // GIVEN a data directory without a default embeddings model
+    let data = TempDir::new().unwrap();
+    let none = embeddings_model(data.path().to_path_buf()).await.unwrap();
+
+    // WHEN a model is chosen whose file is absent, then once its file is in
+    // the model index
+    crate::embeddings::set_default_model(data.path(), "multilingual-e5-small").unwrap();
+    let absent = embeddings_model(data.path().to_path_buf()).await.unwrap();
+    let models = crate::installed_models::models_dir(data.path());
+    std::fs::create_dir_all(&models).unwrap();
+    std::fs::write(models.join("multilingual-e5-small-q8_0.gguf"), gguf("bert")).unwrap();
+    let mut index = apollia_llm::ModelIndex::default();
+    index.rebuild(&models).unwrap();
+    index
+        .save(&models.join(apollia_llm::model_index::INDEX_FILE_NAME))
+        .unwrap();
+    let installed = embeddings_model(data.path().to_path_buf()).await.unwrap();
+
+    // THEN the memory names no model until its file is there, then names it
+    // with the dimension of its vectors
+    assert_eq!(none, MemoryEmbeddingsView::default());
+    assert_eq!(absent, MemoryEmbeddingsView::default());
+    assert_eq!(installed.model.as_deref(), Some("multilingual-e5-small"));
+    assert_eq!(installed.dimensions, Some(384));
+}
+
+#[test]
+fn test_an_unknown_or_uninstalled_model_reads_as_words_alone() {
+    // GIVEN what a daemon may answer for its default embeddings model
+    // WHEN the desktop reads it
+    let unknown = embeddings_view(Some("not-a-model"), true);
+    let uninstalled = embeddings_view(Some("multilingual-e5-small"), false);
+    let unset = embeddings_view(None, false);
+
+    // THEN none of them names a model
+    assert_eq!(unknown, MemoryEmbeddingsView::default());
+    assert_eq!(uninstalled, MemoryEmbeddingsView::default());
+    assert_eq!(unset, MemoryEmbeddingsView::default());
+}

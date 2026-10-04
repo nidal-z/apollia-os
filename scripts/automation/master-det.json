@@ -206,6 +206,7 @@
     "tool-configure-web_search",
     "tool-contract-credential-brave.api_key",
     "tool-contract-field-query",
+    "tool-id-web_search",
     "tool-inspect-web_search",
     "tool-toggle-web_search",
     "trigger-logs-filter-all",
@@ -368,15 +369,6 @@
     },
     {
       "kind": "click",
-      "testid": "nav-memory"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
       "testid": "nav-integrations"
     },
     {
@@ -419,6 +411,11 @@
     {
       "kind": "waitGone",
       "testid": "nav-observability",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-memory",
       "timeoutMs": 4000
     },
     {
@@ -697,6 +694,11 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "waitFor",
+      "testid": "nav-memory",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "screenshot",
       "label": "12-sidebar-developer-entries"
     },
@@ -738,6 +740,19 @@
     {
       "kind": "screenshot",
       "label": "14b-nav-observability-developer"
+    },
+    {
+      "kind": "click",
+      "testid": "nav-memory"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "14c-nav-memory-developer"
     },
     {
       "kind": "click",
@@ -813,6 +828,11 @@
     {
       "kind": "waitGone",
       "testid": "nav-observability",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-memory",
       "timeoutMs": 4000
     },
     {
@@ -9167,12 +9187,71 @@
     },
     {
       "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-memory",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-mode-off-memory-unreachable (the router lands on the default route)"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "memory"
+    },
+    {
+      "kind": "waitFor",
       "testid": "memory-page",
       "timeoutMs": 15000
     },
     {
+      "kind": "waitFor",
+      "testid": "sidebar-developer-group",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "nav-memory",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "screenshot",
-      "label": "01-memory-operator"
+      "label": "01b-memory-developer-mode"
     },
     {
       "kind": "waitFor",
@@ -9851,60 +9930,6 @@
     },
     {
       "kind": "click",
-      "testid": "developer-mode-on"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "goto",
-      "route": "memory"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "memory-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "screenshot",
-      "label": "13-memory-builder"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "namespace-sidebar",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "namespace-sidebar-item-",
-      "nth": 0,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "14-namespace-sidebar-builder"
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
       "testid": "developer-mode-off"
     },
     {
@@ -9917,12 +9942,22 @@
     },
     {
       "kind": "waitFor",
-      "testid": "memory-page",
+      "testid": "dashboard-page",
       "timeoutMs": 15000
     },
     {
+      "kind": "waitGone",
+      "testid": "memory-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-memory",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "screenshot",
-      "label": "15-back-operator"
+      "label": "15-back-mode-off-redirected"
     },
     {
       "kind": "screenshot",
@@ -18577,27 +18612,28 @@
       "timeoutMs": 30000
     },
     {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 15000
-    },
-    {
       "kind": "stubInvoke",
       "command": "governance_list_tools",
       "resolve": []
     },
     {
-      "kind": "click",
-      "testid": "settings-nav-tools"
+      "kind": "goto",
+      "route": "integrations"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-tools",
+      "testid": "connections-route",
       "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-builtin-tools",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "builtin-tools-detail",
+      "timeoutMs": 8000
     },
     {
       "kind": "waitFor",
@@ -18642,20 +18678,21 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-tools"
+      "testid": "connections-builtin-tools",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "settings-tools",
-      "timeoutMs": 15000
+      "testid": "builtin-tools-detail",
+      "timeoutMs": 8000
     },
     {
       "kind": "screenshot",
-      "label": "01-settings-tools-operator"
+      "label": "01-connections-builtin-tools-operator"
     },
     {
       "kind": "expect",
-      "testid": "settings-tools"
+      "testid": "builtin-tools-detail"
     },
     {
       "kind": "waitFor",
@@ -18805,102 +18842,22 @@
     },
     {
       "kind": "waitFor",
-      "testid": "tool-inspect-web_search",
+      "testid": "tool-card-web_search",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "tool-inspect-web_search",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tool-contract-sheet",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tool-contract-identity",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tool-contract-input",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tool-contract-field-query",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07b-tool-contract-web-search"
-    },
-    {
-      "kind": "click",
-      "testid": "tool-contract-input-raw-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "tool-contract-output-raw-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 150
-    },
-    {
-      "kind": "click",
-      "testid": "tool-contract-output-raw-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tool-contract-input-raw",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07c-tool-contract-raw-input-schema"
-    },
-    {
-      "kind": "click",
-      "testid": "tool-contract-input-raw-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tool-contract-credentials",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tool-contract-credential-brave.api_key",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07d-tool-contract-credentials (key names and dates only, never a value)"
-    },
-    {
-      "kind": "click",
-      "testid": "sheet-close",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
     },
     {
       "kind": "waitGone",
-      "testid": "tool-contract-sheet",
+      "testid": "tool-inspect-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tool-id-web_search",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "07e-tool-contract-closed"
+      "label": "07a-tool-contract-absent (developer mode off: no contract button, no identifier)"
     },
     {
       "kind": "waitFor",
@@ -19330,25 +19287,26 @@
     },
     {
       "kind": "goto",
-      "route": "settings"
+      "route": "integrations"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
+      "testid": "connections-route",
       "timeoutMs": 15000
     },
     {
       "kind": "click",
-      "testid": "settings-nav-tools"
+      "testid": "connections-builtin-tools",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "settings-tools",
-      "timeoutMs": 15000
+      "testid": "builtin-tools-detail",
+      "timeoutMs": 8000
     },
     {
       "kind": "screenshot",
-      "label": "19-settings-tools-builder"
+      "label": "19-connections-builtin-tools-builder"
     },
     {
       "kind": "waitFor",
@@ -19364,6 +19322,105 @@
       "kind": "waitFor",
       "testid": "tool-toggle-web_search",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-inspect-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "tool-inspect-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-sheet",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-identity",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-field-query",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07b-tool-contract-web-search"
+    },
+    {
+      "kind": "click",
+      "testid": "tool-contract-input-raw-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "tool-contract-output-raw-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 150
+    },
+    {
+      "kind": "click",
+      "testid": "tool-contract-output-raw-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-input-raw",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07c-tool-contract-raw-input-schema"
+    },
+    {
+      "kind": "click",
+      "testid": "tool-contract-input-raw-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-credentials",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-contract-credential-brave.api_key",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07d-tool-contract-credentials (key names and dates only, never a value)"
+    },
+    {
+      "kind": "click",
+      "testid": "sheet-close",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tool-contract-sheet",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07e-tool-contract-closed"
     },
     {
       "kind": "waitFor",
@@ -19440,21 +19497,22 @@
     },
     {
       "kind": "goto",
-      "route": "settings"
+      "route": "integrations"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
+      "testid": "connections-route",
       "timeoutMs": 15000
     },
     {
       "kind": "click",
-      "testid": "settings-nav-tools"
+      "testid": "connections-builtin-tools",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "settings-tools",
-      "timeoutMs": 15000
+      "testid": "builtin-tools-detail",
+      "timeoutMs": 8000
     },
     {
       "kind": "screenshot",

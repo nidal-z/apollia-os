@@ -18,6 +18,12 @@ export interface NativeConnectorCard {
   description: string;
 }
 
+/** How many built-in tools are on, out of how many. */
+export interface BuiltinToolsCount {
+  active: number;
+  total: number;
+}
+
 /** Status filter values for the sidebar chip bar. */
 export type StatusFilter = "all" | "active" | "attention" | "error" | "idle";
 

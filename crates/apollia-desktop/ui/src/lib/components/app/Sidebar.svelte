@@ -28,7 +28,6 @@
     { route: "automations"    as Route, Icon: Repeat,          labelKey: "nav.sidebar.automations",    badge: "none"      },
     { route: "inbox"          as Route, Icon: ShieldCheck,     labelKey: "nav.sidebar.inbox",          badge: "approvals" },
     { route: "notifications"  as Route, Icon: Bell,            labelKey: "nav.sidebar.notifications",  badge: "none"      },
-    { route: "memory"         as Route, Icon: Database,        labelKey: "nav.sidebar.memory",         badge: "none"      },
     { route: "llm"            as Route, Icon: Brain,           labelKey: "nav.sidebar.llm",            badge: "none"      },
   ];
 
@@ -50,6 +49,7 @@
   export const DEVELOPER_NAV: readonly DeveloperNavEntry[] = [
     { route: "transcriptions" as Route, Icon: Mic,      labelKey: "nav.sidebar.transcriptions" },
     { route: "observability"  as Route, Icon: Activity, labelKey: "nav.sidebar.observability" },
+    { route: "memory"         as Route, Icon: Database, labelKey: "nav.sidebar.memory" },
   ];
 
   /** The developer group for a given developer mode: empty with the mode off. */

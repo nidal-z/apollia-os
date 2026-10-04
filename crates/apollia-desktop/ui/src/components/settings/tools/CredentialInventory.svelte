@@ -25,9 +25,11 @@
   interface Props {
     /** Resolves a tool identifier to its humanized display name. */
     labelFor: (name: string) => string;
+    /** Shows the technical name of each key (developer mode). */
+    showKeyNames: boolean;
   }
 
-  let { labelFor }: Props = $props();
+  let { labelFor, showKeyNames }: Props = $props();
 
   let entries = $state<CredentialEntry[]>([]);
   let loading = $state(false);
@@ -112,9 +114,14 @@
           data-testid="credential-row-{entry.tool_name}-{entry.key_name}"
         >
           <span class="text-body-sm font-medium text-foreground">{labelFor(entry.tool_name)}</span>
-          <span class="font-mono text-overline tracking-tight text-muted-foreground/80">
-            {entry.key_name}
-          </span>
+          {#if showKeyNames}
+            <span
+              class="font-mono text-overline tracking-tight text-muted-foreground/80"
+              data-testid="credential-key-{entry.tool_name}-{entry.key_name}"
+            >
+              {entry.key_name}
+            </span>
+          {/if}
           <span class="ml-auto text-overline text-muted-foreground">
             {$t("settings.tool_credentials.created", {
               values: { date: formatRelativeTime(entry.created_at, $locale ?? "en") },
