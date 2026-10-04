@@ -446,6 +446,10 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "fetches the card of a link the window shows",
     ),
     (
+        "take_opened_package_files",
+        "hands over the package files the system opened in this window",
+    ),
+    (
         "get_api_port",
         "reads the port this window resolved at startup, the daemon's when attached",
     ),
@@ -704,7 +708,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
     let setup_bus = bus.clone();
     let dictation: crate::commands::stt::SttFlowState =
         std::sync::Arc::new(std::sync::Mutex::new(None));
-    let app = tauri::Builder::default()
+    let app = crate::package_open::attach(tauri::Builder::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -726,6 +730,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
         .setup(move |app| {
             crate::i18n::attach_listener(app);
             crate::tray::setup_tray(app)?;
+            crate::package_open::launch(app.handle());
             #[cfg(target_os = "macos")]
             crate::tray::setup_app_menu(app)?;
 
@@ -764,7 +769,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
 
     match app {
         Ok(app) => {
-            let _ = app.run_return(|_, _| {});
+            let _ = app.run_return(|app, event| crate::package_open::on_run_event(app, &event));
             std::process::exit(0)
         }
         Err(error) => {

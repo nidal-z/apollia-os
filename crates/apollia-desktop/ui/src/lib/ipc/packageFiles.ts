@@ -167,3 +167,12 @@ export async function trustPackagePublisher(
 ): Promise<TrustedKeyView> {
   return invoke<TrustedKeyView>("trust_package_publisher", { publicKey, label });
 }
+
+/**
+ * The package files the system opened since the last call, oldest first: a
+ * file that started the application, one opened while it runs. Each path is
+ * handed over once.
+ */
+export async function takeOpenedPackageFiles(): Promise<string[]> {
+  return invoke<string[]>("take_opened_package_files");
+}

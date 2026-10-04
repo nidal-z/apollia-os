@@ -32,6 +32,7 @@
   import { getSttConfig } from "$lib/ipc/models";
   import { getOnboardingState, markOnboarded } from "$lib/ipc/onboarding";
   import { automationScript } from "$lib/ipc/system";
+  import { mountPackageOpening } from "$lib/packages/packageOpening";
 
   let ready = $state(false);
   let prevLlmCount = 0;
@@ -188,8 +189,13 @@
 
     window.addEventListener("keydown", handleAncillaryKeydown);
 
+    // A package file opened from the system, or dropped on the window, opens
+    // its preview.
+    const stopPackageOpening = mountPackageOpening();
+
     return () => {
       cleanup?.();
+      stopPackageOpening();
       window.removeEventListener("keydown", handleAncillaryKeydown);
       disposeGlobalHandlers();
       disposeShortcutDispatcher();
