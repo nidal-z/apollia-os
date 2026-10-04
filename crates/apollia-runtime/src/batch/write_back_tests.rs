@@ -18,6 +18,7 @@ use crate::governance::{
     governance_run_id, AccessCall, AccessDecision, DeclaredAccess, EffectiveAccess,
     GovernanceContract, GovernanceError, GovernanceEvent, InstallSubject, NoPolicyGovernance,
 };
+use crate::test_support::collect_events_until;
 
 const LOCATION: &str = "/data/requests.xlsx";
 const ANSWER: &str = r#"{"category": "billing", "urgency": "high"}"#;
@@ -139,17 +140,13 @@ fn writing_launch(destination: Option<WriteDestination>, grants: &[&str]) -> Bat
 /// Waits for the end of `batch_id` to be announced, which comes after its
 /// answers are written.
 async fn wait_end(bus: &mut tokio::sync::broadcast::Receiver<RuntimeEvent>, batch_id: &str) {
-    let ended = tokio::time::timeout(WAIT, async {
-        loop {
-            match bus.recv().await {
-                Ok(RuntimeEvent::BatchEnded { batch_id: id, .. }) if id == batch_id => return,
-                Ok(_) => {}
-                Err(e) => panic!("the bus closed before the end: {e}"),
-            }
-        }
-    })
+    let (seen, ended) = collect_events_until(
+        WAIT,
+        bus,
+        |e| matches!(e, RuntimeEvent::BatchEnded { batch_id: id, .. } if id == batch_id),
+    )
     .await;
-    assert!(ended.is_ok(), "the end of {batch_id} was never announced");
+    assert!(ended, "the end of {batch_id} was never announced: {seen:?}");
 }
 
 fn expected_writes() -> Vec<(String, String, String)> {
