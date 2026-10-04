@@ -99,7 +99,7 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # 30 once the companion read its preference and opened its guide session
 # through the daemon, then at 29 once the uninstall of an agent went through
 # the runtime.
-EMBEDDED_ONLY_CEILING = 29
+EMBEDDED_ONLY_CEILING = 23
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

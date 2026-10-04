@@ -1011,6 +1011,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/config/observability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/config/observability`: the capture and retention policy. */
+        get: operations["read_observability"];
+        /**
+         * `PUT /api/v1/config/observability`: writes the policy, applied at the next
+         *     start of the runtime.
+         */
+        put: operations["save_observability"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/python-interpreter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/config/python-interpreter`: the chosen interpreter and the
+         *     one this runtime ships.
+         */
+        get: operations["read_python_interpreter"];
+        /**
+         * `PUT /api/v1/config/python-interpreter`: chooses an interpreter, checked
+         *     before it is written (it exists, starts, and has the minor version of the
+         *     bundled standard library), or returns to the bundled one. Applies to the
+         *     agents started after it.
+         */
+        put: operations["save_python_interpreter"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/config/validate": {
         parameters: {
             query?: never;
@@ -3901,6 +3948,26 @@ export interface paths {
         };
         /** `GET /api/v1/resilience/status/:tool`, single-tool snapshot. */
         get: operations["get_breaker"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security-posture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/security-posture`: the confinement of native tools and the
+         *     trust model of agent code where this runtime runs them.
+         */
+        get: operations["security_posture"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8071,6 +8138,62 @@ export interface components {
             /** @description Provider id (`"google"` / `"microsoft"`). */
             provider: string;
         };
+        /**
+         * @description The observability policy, one form over the two sections that hold it.
+         *
+         *     Every field but `debug_log_prompt` is a key of `[observability]`;
+         *     `debug_log_prompt` is the key of `[llm.observability]`, read by a different
+         *     type, and is written there: under `[observability]` nothing would read it.
+         *     An absent field reads as its default.
+         */
+        ObservabilitySettings: {
+            /**
+             * @description Whether the logs an agent writes are kept on its trace.
+             * @default true
+             */
+            capture_agent_logs: boolean;
+            /**
+             * @description Whether the reasoning of an agent is kept on its trace.
+             * @default true
+             */
+            capture_thoughts: boolean;
+            /**
+             * @description Whether the arguments of tool calls are kept.
+             * @default true
+             */
+            capture_tool_args: boolean;
+            /**
+             * @description Whether the outputs of tool calls are kept.
+             * @default true
+             */
+            capture_tool_outputs: boolean;
+            /**
+             * @description Logs the whole prompt at `TRACE`, and persists nothing.
+             * @default false
+             */
+            debug_log_prompt: boolean;
+            /**
+             * @description Max size of task and step inputs, in bytes.
+             * @default 32768
+             */
+            max_input_bytes: number;
+            /**
+             * @description Max size of task, step and completion outputs, in bytes.
+             * @default 32768
+             */
+            max_output_bytes: number;
+            /**
+             * @description Max size of a tool's stdout and stderr, in bytes.
+             * @default 10240
+             */
+            max_tool_output_bytes: number;
+            /**
+             * Format: int32
+             * @description Days the trace is kept before it is purged.
+             * @default 90
+             */
+            retention_days: number;
+        };
         /** @description Response for enable/disable. */
         OkResponse: {
             /** @description Confirmation flag. */
@@ -8519,6 +8642,36 @@ export interface components {
         PutMcpSecretBody: {
             /** @description The secret. Stored, never answered back. */
             value: string;
+        };
+        /**
+         * @description The interpreter to use: an absolute path, or none to return to the bundled
+         *     one.
+         */
+        PythonInterpreterRequest: {
+            /**
+             * @description Absolute path of an interpreter; `null` or blank returns to the bundled
+             *     interpreter.
+             */
+            path?: string | null;
+        };
+        /** @description The Python interpreter setting. */
+        PythonInterpreterSetting: {
+            /**
+             * @description Absolute path of the interpreter this runtime ships, when it knows it;
+             *     `None` in a development tree, where no bundle is staged.
+             */
+            bundled?: string | null;
+            /**
+             * @description The absolute path in `[tools] python_interpreter`, or `None` when the
+             *     bundled interpreter is in use.
+             */
+            chosen?: string | null;
+            /**
+             * Format: int32
+             * @description Minor version the bundled standard library requires of any chosen
+             *     interpreter.
+             */
+            required_minor: number;
         };
         /** @description A README, as text. */
         ReadmeResponse: {
@@ -12576,6 +12729,193 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConfigDefaultText"];
+                };
+            };
+        };
+    };
+    read_observability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The observability policy */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObservabilitySettings"];
+                };
+            };
+            /** @description The file cannot be read or parsed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description No configuration file in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+        };
+    };
+    save_observability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ObservabilitySettings"];
+            };
+        };
+        responses: {
+            /** @description The policy as saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObservabilitySettings"];
+                };
+            };
+            /** @description The policy fixes one of the keys (`locked`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description A value is refused (`invalid`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description The file cannot be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description No configuration file in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+        };
+    };
+    read_python_interpreter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Python interpreter setting */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PythonInterpreterSetting"];
+                };
+            };
+            /** @description No configuration file in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+        };
+    };
+    save_python_interpreter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PythonInterpreterRequest"];
+            };
+        };
+        responses: {
+            /** @description The setting as saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PythonInterpreterSetting"];
+                };
+            };
+            /** @description The policy fixes the key (`locked`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description The interpreter is refused, with the condition it failed (`invalid`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description The file cannot be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
+                };
+            };
+            /** @description No configuration file in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
                 };
             };
         };
@@ -19563,6 +19903,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    security_posture: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The active security posture */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description The probe did not finish */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigErrorBody"];
                 };
             };
         };

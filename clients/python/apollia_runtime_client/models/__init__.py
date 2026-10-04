@@ -281,6 +281,7 @@ from .oauth_client_id_status import OauthClientIdStatus
 from .oauth_client_test_result import OauthClientTestResult
 from .oauth_client_value_body import OauthClientValueBody
 from .oauth_client_written import OauthClientWritten
+from .observability_settings import ObservabilitySettings
 from .ok_response import OkResponse
 from .onboarding_dismissed import OnboardingDismissed
 from .onboarding_finalized import OnboardingFinalized
@@ -333,6 +334,8 @@ from .profile_update_fields import ProfileUpdateFields
 from .proposed_rule_view import ProposedRuleView
 from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
+from .python_interpreter_request import PythonInterpreterRequest
+from .python_interpreter_setting import PythonInterpreterSetting
 from .readme_response import ReadmeResponse
 from .reasoning_profile_dto import ReasoningProfileDto
 from .reject_plan_request import RejectPlanRequest
@@ -363,6 +366,7 @@ from .rewrite_fallback_reason import RewriteFallbackReason
 from .rewrite_prompt_body import RewritePromptBody
 from .rewrite_reply import RewriteReply
 from .save_artifact_request import SaveArtifactRequest
+from .security_posture_response_200 import SecurityPostureResponse200
 from .send_message_request import SendMessageRequest
 from .send_message_response import SendMessageResponse
 from .server_log_level import ServerLogLevel
@@ -791,6 +795,7 @@ __all__ = (
     "OauthClientTestResult",
     "OauthClientValueBody",
     "OauthClientWritten",
+    "ObservabilitySettings",
     "OkResponse",
     "OnboardingDismissed",
     "OnboardingFinalized",
@@ -841,6 +846,8 @@ __all__ = (
     "ProposedRuleView",
     "PurgeMemoryBody",
     "PutMcpSecretBody",
+    "PythonInterpreterRequest",
+    "PythonInterpreterSetting",
     "ReadmeResponse",
     "ReasoningProfileDto",
     "RejectPlanRequest",
@@ -869,6 +876,7 @@ __all__ = (
     "RewritePromptBody",
     "RewriteReply",
     "SaveArtifactRequest",
+    "SecurityPostureResponse200",
     "SendMessageRequest",
     "SendMessageResponse",
     "ServerLogLevel",
