@@ -141,7 +141,7 @@
       });
 
     // Live channel - supervisor emits OnboardingRequired at first launch and
-    // OnboardingCompleted once the agent writes onboarding.completed_at.
+    // OnboardingCompleted once the phase machine reaches its last phase.
     let unlistenRuntime: UnlistenFn | null = null;
     void listen<{ category: string; event_type: string }>(
       "runtime-event",

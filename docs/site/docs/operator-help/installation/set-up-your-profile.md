@@ -7,7 +7,7 @@ sidebar_position: 4
 # Set up your profile on first launch
 
 > On the first start of Apollia (or after a reset), a configuration flow opens automatically.
-> It walks you through three steps - welcome, AI setup, conversational calibration - so that Apollia is ready to use. It never asks you to pick a usage profile: the interface is the same for everyone, and the extra technical screens sit behind the developer mode in Settings, off by default.
+> It walks you through three steps - welcome, AI setup, a short conversation that proposes your profile - so that Apollia is ready to use. It never asks you to pick a usage profile: the interface is the same for everyone, and the extra technical screens sit behind the developer mode in Settings, off by default.
 > Total duration: 3 to 8 minutes depending on model downloads.
 >
 > This page covers **the initial flow only**. To edit your profile day to day from the installed application, see **[My profile](../memoire/manage-my-profile.md)**.
@@ -19,13 +19,13 @@ sidebar_position: 4
 
 ## Flow overview
 
-The flow is paced by a progress rail visible at the top of the window: **Welcome · Models · Calibration**. You can go back at any step, and **Configure later** is available at the bottom to postpone the whole thing.
+The flow is paced by a progress rail visible at the top of the window: **Welcome · Models · About me**. You can go back at any step, and **Configure later** is available at the bottom to postpone the whole thing.
 
 | Step | What happens there |
 |---|---|
 | **Welcome** | Introduction to Apollia and start of the flow. |
 | **Models** | LLM setup (local GGUF with built-in download, or cloud provider) and, optionally, the Whisper voice dictation model. |
-| **Calibration** | Conversation with an agent that collects 4 quick pieces of information (name, role, supervision level, data sovereignty) and suggests matching permission rules. |
+| **About me** | A short conversation with an agent, every question of which can be skipped. The agent then proposes a profile, which you read over and correct before it is saved. |
 
 ## Detailed steps
 
@@ -73,62 +73,38 @@ You can skip this section and enable it later from **Settings → Speech-to-Text
 #### Buttons available in the footer
 
 - **← Back** - returns to the Welcome step.
-- **Configure later** - jumps straight to the conversational calibration (only if an LLM is already available).
+- **Configure later** - jumps straight to the conversation (only if an LLM is already available).
 - **Continue** - disabled as long as no LLM is usable, becomes active as soon as a cloud or local backend is configured.
 
-### Step 3 - Conversational calibration
+### Step 3 - A short conversation, then your profile to review
 
-The onboarding agent opens in the window. It asks you up to 4 questions, one after another.
+The onboarding agent opens in the window. It asks a few questions, one topic at a time, and every one of them can be skipped.
 
-![Calibration step with 4 progress pips at the top, the onboarding agent asking the first question and the user answering by describing their role](/img/operator-help/installation-configurer-votre-profil-5.png)
+![About me step with the progress pips at the top, the onboarding agent asking its first question and the user answering by describing their role](/img/operator-help/installation-configurer-votre-profil-5.png)
 
-The questions cover:
+The questions cover the fields of a profile:
 
-| Information collected | Why |
+| Field | Why |
 |---|---|
-| Your name or alias | Agents address you by your name |
-| Your role | Answers and suggestions stay within your domain |
-| Desired supervision level | How often agents ask you to confirm |
-| Data sovereignty preference | With or without third-party cloud services |
+| Name | Agents address you by your name |
+| Role | Answers and suggestions stay within your job |
+| Function | The department or field you work in |
+| Tools you use | Agents know the tools of your day |
+| Preferences | The language, tone and answer format you prefer |
+| What your agents should know | Anything else, in your own words |
+
+Answer naturally, no precise wording required. **Nothing is written during the conversation.** When the questions are done, or as soon as you click **I'm done**, the agent proposes a profile and the conversation gives way to a form, **Your profile, to review**, filled with what it understood.
+
+No field is required. Correct anything that is off, then choose:
+
+- **Save** - the form is written to your default profile, and the window closes.
+- **Skip without saving** - nothing is written, and the window closes. Your profile stays empty until you fill it from **Settings → Profile**.
+- **Back** - returns to the conversation; **See the proposal again** reopens the form.
 
 <!-- claim:onboarding-skip-direct -->
-The first questions are the important ones; the rest is optional enrichment. The **Skip the optional questions** button (in the window footer) ends the interview **immediately, with no extra AI turn**: the flow goes straight to the permission suggestions below. The in-chat **Finish** button, by contrast, lets the agent wrap up the conversation itself.
+The **Skip the questions** button (in the window footer) ends the conversation **immediately, with no extra AI turn**: the form opens at once, empty or holding what the agent had already proposed, and you fill it by hand or skip it. The in-chat **I'm done** button, by contrast, lets the agent propose a profile from what you already said.
 
-Answer naturally, no precise wording required. After the last question, the agent derives a set of permission rules from your answers and offers them **inline in the onboarding window, right before the "Finish" button**. Each suggestion is a small card with two buttons:
-
-- **Apply** - the rule is stored immediately in the `governance.db` database with author `onboarding-agent`.
-- **Dismiss** - the rule is discarded, no permission is created. You can always add it later from **Settings → Permissions**.
-
-> The **Finish** button only becomes active once every card has been applied or dismissed - this is how Apollia makes sure you have seen each suggestion.
-
-The number and nature of the cards offered depend on your earlier choices:
-
-| Your choices | Suggested rules |
-|---|---|
-| Sovereignty `Strictly local` | `deny http_fetch https://` and `http://` (global) - only reaches `http_fetch` |
-| Sovereignty `Local preferred` | `deny http_fetch` on `api.openai.com` and `api.anthropic.com` (global) - blocks cloud LLMs by default |
-| Sovereignty `Cloud allowed` | no network rule |
-| Supervision `Critical only` or `Never` | `allow file_read` (global) - reduces friction on read actions |
-| Supervision `Always confirm` | no allow rule - every sensitive action will raise an approval card |
-| Integrations ticked (GitHub, Slack, Notion, Gmail) | `allow http_fetch` on the matching API (global) |
-
-:::caution What sovereignty covers, and what it does not
-
-The rules suggested here are permission rules on `http_fetch`, and that is
-the only tool they reach. `Strictly local` is therefore not a network
-cut-off for the machine.
-
-Whatever the setting, these stay open: `web_search` and `web_read`, MCP
-servers joined over HTTP, a remote model backend you may have configured,
-and any outbound command launched by `bash_executor`, `curl` for example.
-If you need a real cut-off, it belongs at the system level, firewall or
-network namespace, not in this profile.
-
-:::
-
-![Permission rule cards suggested by the agent at the end of calibration: deny http_fetch on api.openai.com and api.anthropic.com, allow file_read, Dismiss and Apply buttons on each card](/img/operator-help/installation-configurer-votre-profil-6.png)
-
-Once every card is handled, the window closes automatically. Apollia is ready.
+The onboarding no longer proposes permission rules. Rules are created from the approval prompts, or by hand in **Settings → Permissions**.
 
 ### Skip the flow
 
@@ -142,14 +118,14 @@ The flow is **resumable**: if you leave the window midway (for example by clicki
 
 ## Restart the flow
 
-If you have significantly changed your profile (new role, new sovereignty policy and so on) and want your permission rules recalibrated:
+If you want to go through the first-launch flow again:
 
 1. Open **Settings → Danger Zone**.
 2. Click **Reset Onboarding**. This action only clears the progress and profile markers - your LLM backends, downloaded models and other data stay intact.
 3. A confirmation window asks you to type `RESET`. Confirm.
 4. The three-step flow restarts from Welcome.
 
-For **small adjustments** (fixing your name, adding a daily tool, toggling an integration) without going through the flow again, open **Settings → Profile** directly - see [My profile](../memoire/manage-my-profile.md).
+For **small adjustments** (fixing your name, adding a daily tool) without going through the flow again, open **Settings → Profile** directly - see [My profile](../memoire/manage-my-profile.md). On a profile with empty fields, **Complete with an agent** starts the same short conversation for that profile; its proposal comes back into the form, where **Save** writes it and **Skip** drops it.
 
 :::warning Reset Apollia entirely
 The **Factory Reset** button (danger zone, bottom of the page) deletes **all** your data - agents, memory, downloaded models, LLM backends, integrations. This action cannot be undone. See [Reset Apollia](../troubleshooting/factory-reset.md).
@@ -157,7 +133,7 @@ The **Factory Reset** button (danger zone, bottom of the page) deletes **all** y
 
 ## Verification
 
-Once the flow is finished, open a chat and ask a question about your domain. The agent addresses you by your name and adapts its answer to your context. In **Settings → Permissions**, the rules suggested during calibration are visible, and in **Settings → Profile** you find every piece of information collected, editable at any time.
+Once the flow is finished, open **Settings → Profile**: the default profile holds what you saved, editable at any time. If you skipped without saving, its fields are empty.
 
 ![Settings → Profile page after onboarding, Identity (first name, role, sector), Goals, and Agent supervision sections with the HITL levels](/img/operator-help/installation-configurer-votre-profil-7.png)
 
@@ -166,7 +142,7 @@ Once the flow is finished, open a chat and ask a question about your domain. The
 - **The window does not open on first launch:** check the startup logs. If the error mentions the onboarding agent, restart Apollia; it is provisioned automatically at every launch.
 - **The Continue button stays disabled on the Models step:** check that at least one LLM backend is listed. A GGUF download must be complete (green **Configured** dot), or a cloud backend must be added through **Use a cloud provider**.
 - **A model download is stuck at 0 %:** check your internet connection, cancel with the **X** button, then start again. Expected throughput is 5 to 50 MB/s depending on your link.
-- **The agent stops answering during calibration:** close the window through **Configure later** and restart from **Settings → Danger Zone → Reset Onboarding**.
-- **The permission rules do not apply:** see [An action was denied](../troubleshooting/une-action-est-refusee.md).
+- **The agent stops answering during the conversation:** close the window through **Configure later** and restart from **Settings → Danger Zone → Reset Onboarding**.
+- **The form opens empty:** the agent proposed nothing, or you skipped the questions. Fill the fields by hand, or skip and come back from **Settings → Profile**.
 
 > **Technical reference:** [Apollia reference](/reference) - full spec of the 4 steps, backend persistence, IPC commands, runtime events.

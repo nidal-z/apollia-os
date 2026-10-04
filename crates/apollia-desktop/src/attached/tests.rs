@@ -543,14 +543,9 @@ fn test_a_window_command_runs_attached_and_carries_its_reason() {
 // ── Permissions ──────────────────────────────────────────────────────────
 
 #[test]
-fn test_the_proposed_rules_pass_the_gate_attached() {
-    // GIVEN the commands of the proposed rules
-    let commands = [
-        "list_proposed_permission_rules",
-        "apply_proposed_permission_rule",
-        "dismiss_proposed_permission_rule",
-        "add_permission_prefix_rule",
-    ];
+fn test_the_rule_of_an_approval_card_passes_the_gate_attached() {
+    // GIVEN the command that writes a rule from an approval card
+    let commands = ["add_permission_prefix_rule"];
 
     // WHEN each is gated while attached
     let refused: Vec<&str> = commands

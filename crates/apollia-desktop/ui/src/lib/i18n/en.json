@@ -2467,6 +2467,12 @@
         "resume": "Complete with an agent",
         "dismiss": "Dismiss"
       },
+      "proposal": {
+        "title": "The agent's proposal, to review",
+        "detail": "The agent filled in the fields below from your conversation. Correct anything that is off: nothing is written before \"Save\".",
+        "skip": "Skip",
+        "save": "Save"
+      },
       "source": {
         "onboarding": "onboarding",
         "user": "you",
@@ -3789,12 +3795,6 @@
     "switch_locale": "Switch to {code}"
   },
   "onboarding_chat": {
-    "permission_banner": "At the end of the conversation, Apollia will suggest a few permission rules tailored to your answers - each rule appears as a card you can approve or refuse.",
-    "wrapup_title_finalized": "Calibration complete",
-    "wrapup_title_safety": "You can move on",
-    "wrapup_detail_finalized": "The agent saved your profile and applied the permission rules you approved. You can now open Apollia and explore.",
-    "wrapup_detail_safety": "If you answered the main questions, we can wrap this up.",
-    "finish": "Finish",
     "no_llm_title": "No LLM engine available",
     "no_llm_detail": "Go back to the previous step to configure a local model or a cloud provider - the agent needs one to chat.",
     "llm_starting_title": "Starting the engine…",
@@ -3803,38 +3803,31 @@
     "bootstrap": "Starting the agent…",
     "bootstrap_failed": "Couldn't start onboarding.",
     "progress_label": "Onboarding progress",
-    "phase_calibration": "Calibration",
-    "phase_enrichment": "Profile",
     "finish_early": "I'm done",
-    "finish_early_hint_calibration": "You can wrap up once the first questions are answered.",
-    "finish_early_hint_enrichment": "Optional from here - skip the rest whenever you like.",
     "kick_message": "Hello!",
-    "finish_early_message": "That's good for me, let's wrap up."
+    "finish_early_message": "That's good for me, let's wrap up.",
+    "review_banner": "At the end of the conversation, Apollia proposes a profile for you to review. Nothing is saved without your consent.",
+    "finish_early_hint": "Every question is optional: wrap up whenever you like.",
+    "review_again": "See the proposal again",
+    "review_again_hint": "Your profile is not saved yet.",
+    "kick_message_resume": "Hello! My profile already holds this: {known}. Only ask me about what is missing."
+  },
+  "onboarding_review": {
+    "title": "Your profile, to review",
+    "description": "Correct anything that is off. No field is required, and nothing is written until you save.",
+    "loading": "Loading the profile…",
+    "back": "Back",
+    "skip": "Skip without saving",
+    "save": "Save"
   },
   "onboarding_modal": {
     "title": "Apollia - First contact",
     "progress_label": "Onboarding progress",
     "skip_later": "Configure later",
-    "skip_optional": "Skip the optional questions",
+    "skip_optional": "Skip the questions",
     "step_welcome": "Welcome",
     "step_models": "Models",
-    "step_calibration": "Calibration"
-  },
-  "onboarding_permissions": {
-    "title": "Suggested permission rules",
-    "subtitle_html": "Based on your answers, Apollia suggests the rules below. Apply the ones you want, dismiss the rest - you can always edit them under <strong>Settings → Permissions</strong>.",
-    "loading": "Loading…",
-    "empty": "No rules left.",
-    "apply": "Apply",
-    "dismiss": "Dismiss",
-    "action_allow": "Allow",
-    "action_deny": "Deny",
-    "scope_label": "{scope}",
-    "rule_applied": "Rule applied",
-    "tool_title": "Tool",
-    "prefix_title": "Target",
-    "scope_title": "Scope",
-    "count_aria": "Pending rules"
+    "step_about": "About me"
   },
   "onboarding_stt": {
     "hotkey_label": "Global keyboard shortcut",

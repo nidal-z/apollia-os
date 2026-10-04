@@ -41,7 +41,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "notifications.field_url_placeholder", // https://hooks.example.com/notify
   "observability.timeline_window_30min", // 30 min
   "observability.type_llm", // LLM
-  "onboarding_permissions.scope_label", // {scope}
   "settings.integrations.drive.placeholder", // Apollia
   "settings.integrations.field.client_id", // Client ID
   "settings.integrations.placeholder.api_key", // AIzaSy…

@@ -2467,6 +2467,12 @@
         "resume": "Compléter avec un agent",
         "dismiss": "Ignorer"
       },
+      "proposal": {
+        "title": "Proposition de l'agent, à relire",
+        "detail": "L'agent a rempli les champs ci-dessous d'après votre échange. Corrigez ce qui ne va pas : rien n'est écrit avant « Enregistrer ».",
+        "skip": "Passer",
+        "save": "Enregistrer"
+      },
       "source": {
         "onboarding": "onboarding",
         "user": "vous",
@@ -3789,12 +3795,6 @@
     "switch_locale": "Passer en {code}"
   },
   "onboarding_chat": {
-    "permission_banner": "À la fin du dialogue, Apollia te proposera quelques règles de permissions adaptées à tes choix - chaque règle s'affichera comme une carte à valider ou refuser dans la conversation.",
-    "wrapup_title_finalized": "Calibrage terminé",
-    "wrapup_title_safety": "Tu peux passer à la suite",
-    "wrapup_detail_finalized": "L'agent a enregistré ton profil et appliqué les règles de permissions que tu as validées. Tu peux désormais ouvrir Apollia et explorer.",
-    "wrapup_detail_safety": "Si tu as répondu aux questions principales, on peut clore ici.",
-    "finish": "Terminer",
     "no_llm_title": "Aucun moteur LLM disponible",
     "no_llm_detail": "Reviens à l'étape précédente pour configurer un modèle local ou un fournisseur cloud - l'agent en a besoin pour dialoguer.",
     "llm_starting_title": "Démarrage du moteur…",
@@ -3803,38 +3803,31 @@
     "bootstrap": "Initialisation de l'agent…",
     "bootstrap_failed": "Impossible de démarrer l'onboarding.",
     "progress_label": "Progression de l'onboarding",
-    "phase_calibration": "Calibrage",
-    "phase_enrichment": "Profil",
     "finish_early": "J'ai fini",
-    "finish_early_hint_calibration": "Vous pourrez conclure une fois les premières questions répondues.",
-    "finish_early_hint_enrichment": "Optionnel à partir d'ici, passez le reste quand vous voulez.",
     "kick_message": "Bonjour !",
-    "finish_early_message": "C'est bon pour moi, terminons."
+    "finish_early_message": "C'est bon pour moi, terminons.",
+    "review_banner": "À la fin de l'échange, Apollia vous propose un profil à relire. Rien n'est enregistré sans votre accord.",
+    "finish_early_hint": "Chaque question est facultative : concluez quand vous voulez.",
+    "review_again": "Revoir la proposition",
+    "review_again_hint": "Votre profil n'est pas encore enregistré.",
+    "kick_message_resume": "Bonjour ! Mon profil contient déjà ceci : {known}. Pose-moi seulement les questions sur ce qui manque."
+  },
+  "onboarding_review": {
+    "title": "Votre profil, à relire",
+    "description": "Corrigez ce qui ne va pas. Aucun champ n'est obligatoire, et rien n'est écrit tant que vous n'avez pas enregistré.",
+    "loading": "Chargement du profil…",
+    "back": "Retour",
+    "skip": "Passer sans enregistrer",
+    "save": "Enregistrer"
   },
   "onboarding_modal": {
     "title": "Apollia - Premier contact",
     "progress_label": "Progression de l'onboarding",
     "skip_later": "Configurer plus tard",
-    "skip_optional": "Passer les questions optionnelles",
+    "skip_optional": "Passer les questions",
     "step_welcome": "Accueil",
     "step_models": "Modèles",
-    "step_calibration": "Calibrage"
-  },
-  "onboarding_permissions": {
-    "title": "Règles de permissions proposées",
-    "subtitle_html": "D'après tes choix, Apollia te suggère les règles ci-dessous. Applique celles qui te conviennent, ignore les autres - tu pourras toujours les modifier dans <strong>Paramètres → Permissions</strong>.",
-    "loading": "Chargement…",
-    "empty": "Aucune règle restante.",
-    "apply": "Appliquer",
-    "dismiss": "Ignorer",
-    "action_allow": "Autoriser",
-    "action_deny": "Refuser",
-    "scope_label": "{scope}",
-    "rule_applied": "Règle appliquée",
-    "tool_title": "Outil concerné",
-    "prefix_title": "Cible",
-    "scope_title": "Portée",
-    "count_aria": "Règles en attente"
+    "step_about": "Qui je suis"
   },
   "onboarding_stt": {
     "hotkey_label": "Raccourci clavier global",
