@@ -3439,6 +3439,55 @@
     "config_provider": "AI Model",
     "config_no_providers": "No models loaded",
     "delete_session": "Delete",
+    "generation": {
+      "label": "Generation info",
+      "speed": "{value} tokens/s",
+      "speed_unmeasured": "Speed not measured",
+      "tokens": "{count, plural, one {# token} other {# tokens}}",
+      "ttft": "First token {value} s",
+      "ttft_unmeasured": "First token not measured",
+      "duration": "Took {value} s",
+      "duration_unmeasured": "Time taken not measured",
+      "unmeasured": "not measured",
+      "seconds": "{value} s",
+      "stop": {
+        "completed": "Finished normally",
+        "length": "Length limit reached",
+        "user_stop": "Stopped by you",
+        "error": "Interrupted by an error"
+      },
+      "help": {
+        "speed": "Average speed: tokens generated per second of generation, across every call of the turn.",
+        "tokens": "Tokens generated: what the model wrote during this turn, every call included.",
+        "ttft": "Time to first token: the delay between sending and the first word received; for a turn with several calls, that of the first.",
+        "duration": "Time taken: from sending your message to the end of the turn, steps included.",
+        "stop": "Stop reason: why the answer ended, according to the last call of the turn."
+      },
+      "detail_toggle": "Detail per call",
+      "detail_show": "Show the detail per call",
+      "detail_hide": "Hide the detail per call",
+      "detail_loading": "Reading the detail…",
+      "detail_error": "The detail of this turn could not be read: {message}",
+      "detail_empty": "No model call is recorded for this turn.",
+      "steps_count": "{count, plural, =0 {no step} one {# step} other {# steps}}",
+      "calls_count": "{count, plural, one {# model call} other {# model calls}}",
+      "call_title": "Model call {n}",
+      "call": {
+        "model": "Model",
+        "input_tokens": "Tokens in",
+        "output_tokens": "Tokens out",
+        "ttft": "First token",
+        "duration": "Time taken",
+        "end": "End"
+      },
+      "call_end": {
+        "stop": "finished normally",
+        "tool_calls": "tool requested",
+        "length": "length limit",
+        "error": "error",
+        "cancelled": "stop requested"
+      }
+    },
     "copy_message": "Copy",
     "stop": "Stop",
     "regenerate": "Regenerate",

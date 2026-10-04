@@ -168,6 +168,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::chat::naming::generate_chat_session_name,
         commands::chat::update_chat_session,
         commands::chat::targets::list_chat_targets,
+        commands::chat::turn_calls::list_turn_llm_calls,
         commands::chat::send_chat_message,
         commands::chat::images::get_chat_model_capabilities,
         commands::chat::images::read_chat_image,

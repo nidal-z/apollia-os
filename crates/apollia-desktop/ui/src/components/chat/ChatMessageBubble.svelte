@@ -12,6 +12,8 @@
   import MessageImages from "./MessageImages.svelte";
   import MessageDocuments from "./MessageDocuments.svelte";
   import { documentsText, typedText } from "$lib/chat/messageDocuments";
+  import GenerationInfo from "./GenerationInfo.svelte";
+  import { readGeneration } from "$lib/chat/generationStats";
   import { parseStream } from "$lib/chat/streamParser";
   import { extractSources } from "$lib/chat/reasoning";
   import {
@@ -91,6 +93,10 @@
   const hasThinking = $derived(
     !!message.metadata?.thinking_trace || hasInlineThinking,
   );
+
+  // The total of the turn, written by the runtime under its answer: read from
+  // the message itself, so a reloaded conversation shows the same line.
+  const generation = $derived(isUser ? null : readGeneration(message.metadata));
 
   // Source cards (zone 3): deduplicated web pages the agent consulted.
   const sources = $derived(extractSources(nonPendingCalls));
@@ -296,6 +302,18 @@
       </p>
     {/if}
   </div>
+
+  <!-- The generation figures of the turn, and the detail per call on demand. -->
+  {#if generation}
+    <div class={widthClass}>
+      <GenerationInfo
+        {generation}
+        {sessionId}
+        turnId={message.id}
+        stepCount={nonPendingCalls.length}
+      />
+    </div>
+  {/if}
 
   <!-- Zone 5: turn actions - a row below the turn (mockup .actions). Assistant
        turns get regenerate + copy; user turns get the inline edit affordance. -->

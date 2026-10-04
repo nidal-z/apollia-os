@@ -20,6 +20,7 @@
  */
 export const IDENTICAL_BY_NATURE: string[] = [
   "authorizations.apollia_name", // Apollia
+  "chat.generation.seconds", // {value} s
   "connections.capabilities.group_gdocs", // Google Docs
   "connections.capabilities.group_gdrive", // Google Drive
   "connections.capabilities.group_gforms", // Google Forms

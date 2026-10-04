@@ -58,6 +58,8 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "update_chat_session",
     // The agents and the models the selector of a conversation offers.
     "list_chat_targets",
+    // The model calls behind the total of one answer.
+    "list_turn_llm_calls",
     // The chat: a turn played again, a decision on a tool call, the history
     // of those decisions, and the skills of the worker agents.
     "authorize_chat_tool",

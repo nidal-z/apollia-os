@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { t, locale } from "svelte-i18n";
   import { Plus, Search } from "lucide-svelte";
   import { connectionStatus } from "$lib/stores/sse";
@@ -56,6 +56,8 @@
     type JournalMode,
     type ConversationState,
   } from "$lib/components/operator";
+  import { llmJournalEvents, readGeneration } from "$lib/chat/generationStats";
+  import { loadTurnCalls, turnCallsOf } from "$lib/chat/turnCalls.svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
 
@@ -318,6 +320,7 @@
   }
 
   function buildJournalFromMessages(
+    sessionId: string,
     messages: ChatMessageView[],
     mode: JournalMode,
   ): JournalEvent[] {
@@ -325,6 +328,18 @@
     const out: JournalEvent[] = [];
     for (const m of messages) {
       const time = fmtTime(m.created_at);
+      // The model calls of the turn, once read: one event per call.
+      const held = m.role === "assistant" ? turnCallsOf(sessionId, m.id) : undefined;
+      if (held?.status === "ready") {
+        out.push(
+          ...llmJournalEvents(held.calls, {
+            developer: isBuilder,
+            loc: $locale ?? "en",
+            time,
+            translate: $t,
+          }),
+        );
+      }
       // Tool calls - surface each one as a dedicated tool event.
       const calls = m.tool_calls ?? [];
       for (const tc of calls) {
@@ -407,9 +422,26 @@
 
   const journalEvents = $derived<JournalEvent[]>(
     $currentSession && $currentSession.id === selectedSessionId
-      ? buildJournalFromMessages($currentSession.messages ?? [], journalMode)
+      ? buildJournalFromMessages($currentSession.id, $currentSession.messages ?? [], journalMode)
       : [],
   );
+
+  // The panel reads the model calls of the latest turns when it is shown; an
+  // older turn joins once its detail was opened under its answer.
+  const JOURNAL_TURNS_READ = 12;
+  $effect(() => {
+    const session = $currentSession;
+    if (!session || session.id !== selectedSessionId) return;
+    if (railTab !== "journal" || !$contextDrawerOpen) return;
+    const answers = (session.messages ?? [])
+      .filter((m) => m.role === "assistant" && readGeneration(m.metadata) !== null)
+      .slice(-JOURNAL_TURNS_READ);
+    untrack(() => {
+      for (const m of answers) {
+        if (turnCallsOf(session.id, m.id) === undefined) void loadTurnCalls(session.id, m.id);
+      }
+    });
+  });
 </script>
 
 <!-- Chat-route command palette enrichment + Help dialog. -->
