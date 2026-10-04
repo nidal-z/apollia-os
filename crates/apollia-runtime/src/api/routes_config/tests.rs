@@ -93,7 +93,7 @@ async fn test_saving_against_the_fingerprint_read_writes_the_text() {
     let (_, read) = call(state.clone(), "GET", "/api/v1/config", None).await;
 
     // WHEN a client saves a new text against the fingerprint it read
-    let text = "# mine\n[api]\nport = 7772\n";
+    let text = "# mine\n[api]\nport = 7773\n";
     let (status, body) = call(
         state,
         "PUT",

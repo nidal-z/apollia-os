@@ -3072,6 +3072,216 @@
         }
       }
     },
+    "/api/v1/config/observability": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "`GET /api/v1/config/observability`: the capture and retention policy.",
+        "operationId": "read_observability",
+        "responses": {
+          "200": {
+            "description": "The observability policy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservabilitySettings"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file cannot be read or parsed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No configuration file in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "config"
+        ],
+        "summary": "`PUT /api/v1/config/observability`: writes the policy, applied at the next\nstart of the runtime.",
+        "operationId": "save_observability",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObservabilitySettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The policy as saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservabilitySettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The policy fixes one of the keys (`locked`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A value is refused (`invalid`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file cannot be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No configuration file in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/config/python-interpreter": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "`GET /api/v1/config/python-interpreter`: the chosen interpreter and the\none this runtime ships.",
+        "operationId": "read_python_interpreter",
+        "responses": {
+          "200": {
+            "description": "The Python interpreter setting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PythonInterpreterSetting"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No configuration file in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "config"
+        ],
+        "summary": "`PUT /api/v1/config/python-interpreter`: chooses an interpreter, checked\nbefore it is written (it exists, starts, and has the minor version of the\nbundled standard library), or returns to the bundled one. Applies to the\nagents started after it.",
+        "operationId": "save_python_interpreter",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PythonInterpreterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The setting as saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PythonInterpreterSetting"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The policy fixes the key (`locked`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The interpreter is refused, with the condition it failed (`invalid`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file cannot be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No configuration file in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/config/validate": {
       "post": {
         "tags": [
@@ -11113,6 +11323,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/security-posture": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/security-posture`: the confinement of native tools and the\ntrust model of agent code where this runtime runs them.",
+        "operationId": "security_posture",
+        "responses": {
+          "200": {
+            "description": "The active security posture",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The probe did not finish",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigErrorBody"
                 }
               }
             }
@@ -21904,6 +22145,62 @@
           }
         }
       },
+      "ObservabilitySettings": {
+        "type": "object",
+        "description": "The observability policy, one form over the two sections that hold it.\n\nEvery field but `debug_log_prompt` is a key of `[observability]`;\n`debug_log_prompt` is the key of `[llm.observability]`, read by a different\ntype, and is written there: under `[observability]` nothing would read it.\nAn absent field reads as its default.",
+        "properties": {
+          "capture_agent_logs": {
+            "type": "boolean",
+            "description": "Whether the logs an agent writes are kept on its trace.",
+            "default": true
+          },
+          "capture_thoughts": {
+            "type": "boolean",
+            "description": "Whether the reasoning of an agent is kept on its trace.",
+            "default": true
+          },
+          "capture_tool_args": {
+            "type": "boolean",
+            "description": "Whether the arguments of tool calls are kept.",
+            "default": true
+          },
+          "capture_tool_outputs": {
+            "type": "boolean",
+            "description": "Whether the outputs of tool calls are kept.",
+            "default": true
+          },
+          "debug_log_prompt": {
+            "type": "boolean",
+            "description": "Logs the whole prompt at `TRACE`, and persists nothing.",
+            "default": false
+          },
+          "max_input_bytes": {
+            "type": "integer",
+            "description": "Max size of task and step inputs, in bytes.",
+            "default": 32768,
+            "minimum": 0
+          },
+          "max_output_bytes": {
+            "type": "integer",
+            "description": "Max size of task, step and completion outputs, in bytes.",
+            "default": 32768,
+            "minimum": 0
+          },
+          "max_tool_output_bytes": {
+            "type": "integer",
+            "description": "Max size of a tool's stdout and stderr, in bytes.",
+            "default": 10240,
+            "minimum": 0
+          },
+          "retention_days": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Days the trace is kept before it is purged.",
+            "default": 90,
+            "minimum": 0
+          }
+        }
+      },
       "OkResponse": {
         "type": "object",
         "description": "Response for enable/disable.",
@@ -22885,6 +23182,48 @@
           "value": {
             "type": "string",
             "description": "The secret. Stored, never answered back."
+          }
+        }
+      },
+      "PythonInterpreterRequest": {
+        "type": "object",
+        "description": "The interpreter to use: an absolute path, or none to return to the bundled\none.",
+        "properties": {
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Absolute path of an interpreter; `null` or blank returns to the bundled\ninterpreter."
+          }
+        }
+      },
+      "PythonInterpreterSetting": {
+        "type": "object",
+        "description": "The Python interpreter setting.",
+        "required": [
+          "required_minor"
+        ],
+        "properties": {
+          "bundled": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Absolute path of the interpreter this runtime ships, when it knows it;\n`None` in a development tree, where no bundle is staged."
+          },
+          "chosen": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The absolute path in `[tools] python_interpreter`, or `None` when the\nbundled interpreter is in use."
+          },
+          "required_minor": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Minor version the bundled standard library requires of any chosen\ninterpreter.",
+            "minimum": 0
           }
         }
       },

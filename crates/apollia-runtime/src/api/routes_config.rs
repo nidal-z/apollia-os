@@ -27,6 +27,8 @@ use serde::{Deserialize, Serialize};
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 
+pub mod settings;
+
 /// Builds the router of the configuration routes.
 pub fn config_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
@@ -36,6 +38,7 @@ pub fn config_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         )
         .route("/api/v1/config/validate", post(validate_config::<B>))
         .route("/api/v1/config/default", get(default_config::<B>))
+        .merge(settings::settings_router::<B>())
 }
 
 /// One fault of a configuration text, at its line.
