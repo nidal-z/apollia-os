@@ -13024,6 +13024,146 @@
       "label": "04b-nav-model-defaults"
     },
     {
+      "kind": "waitFor",
+      "testid": "model-defaults-images",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-image-limit",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-image-side",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-context",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-guardrails",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-guardrails-help",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-guardrail-selector",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-bypass",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-unload",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.images.limit_side"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.defaults.context"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.guardrails.level"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.guardrails.bypass"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.residency.idle_unload_minutes"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-stt"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-model-defaults"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-images-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-context-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-guardrails-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-bypass-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-unload-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b3-model-defaults-policy-locked"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resolved_setting"
+    },
+    {
       "kind": "click",
       "testid": "settings-nav-developer"
     },
