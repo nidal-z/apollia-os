@@ -23,6 +23,7 @@ pub mod decision_point;
 pub mod embedding_default;
 pub mod error_analysis;
 pub mod events;
+pub mod folder_connection;
 pub mod hitl_payload;
 pub mod hitl_request;
 pub mod inference_server;
@@ -79,6 +80,7 @@ pub use events::{
     resilient, subscribe_resilient, AgentId, EventBusSender, FilesystemPreview, Received,
     ResilientReceiver, RunId, RuntimeEvent, TaskId, ToolCallRationale,
 };
+pub use folder_connection::{FolderConnection, FolderConnectionError, FolderConnectionStore};
 pub use hitl_payload::{
     AnswerError, Approbation, HitlPayload, PayloadError, Proposition, Question, QuestionGenre,
     Risque,

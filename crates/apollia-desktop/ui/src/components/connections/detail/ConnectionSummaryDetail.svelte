@@ -2,13 +2,17 @@
   /**
    * ConnectionSummaryDetail - the page of a connection that has no dedicated
    * page yet (a mailbox, a folder): its name, account, state, the "Remote"
-   * badge, and what it offers. With the developer mode on, the provenance of
-   * the connection and of each of its tools.
+   * badge, and what it offers. A folder shows its path and can be removed.
+   * With the developer mode on, the provenance of the connection and of each
+   * of its tools.
    */
   import { t } from "svelte-i18n";
   import { Link as LinkIcon } from "lucide-svelte";
   import { DetailHeader } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
+  import { Button } from "$lib/components/ui/button";
+  import { removeFolderConnection } from "$lib/ipc/connections";
+  import { reportError } from "$lib/errors/reportError";
   import { Card } from "$lib/components/ui/card";
   import { developerMode } from "$lib/stores/developerMode";
   import { accentTokenFor } from "$lib/connections/accent";
@@ -20,12 +24,34 @@
   interface Props {
     connection: Connection;
     label: string;
+    /** Called once the connection is removed. */
+    onremoved?: () => void;
   }
 
-  let { connection, label }: Props = $props();
+  let { connection, label, onremoved }: Props = $props();
+
+  let removing = $state(false);
+
+  /** Remove a folder connection; its files stay where they are. */
+  async function removeFolder(): Promise<void> {
+    if (!confirm($t("connections.folder.remove_confirm", { values: { name: label } }))) return;
+    removing = true;
+    try {
+      await removeFolderConnection(connection.id);
+      onremoved?.();
+    } catch (err: unknown) {
+      reportError(err, { surface: "toast", testid: "connection-folder-remove-error" });
+    } finally {
+      removing = false;
+    }
+  }
 </script>
 
-<DetailHeader title={label} titleTestid="connection-detail-title" meta={connection.account ?? ""}>
+<DetailHeader
+  title={label}
+  titleTestid="connection-detail-title"
+  meta={connection.account ?? connection.path ?? ""}
+>
   {#snippet leading()}
     <ConnectorTile size="lg" accent={accentTokenFor(label)} glow>
       {#snippet icon()}<LinkIcon size={18} />{/snippet}
@@ -37,6 +63,19 @@
       <Badge size="sm" variant="info" data-testid="connection-detail-remote">
         {$t("connections.remote")}
       </Badge>
+    {/if}
+  {/snippet}
+  {#snippet actions()}
+    {#if connection.kind === "folder"}
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={removing}
+        onclick={() => void removeFolder()}
+        data-testid="connection-folder-remove"
+      >
+        {$t("connections.folder.remove")}
+      </Button>
     {/if}
   {/snippet}
 </DetailHeader>

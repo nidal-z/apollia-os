@@ -51,6 +51,16 @@ export function listConnections(): Promise<Connection[]> {
   return invoke<Connection[]>("list_connections");
 }
 
+/** Add the folder at `path`, chosen with the system picker, as a connection. */
+export function addFolderConnection(path: string): Promise<Connection> {
+  return invoke<Connection>("add_folder_connection", { path });
+}
+
+/** Remove the folder connection `connectionId` (`folder:<id>`); answers the connection it was. */
+export function removeFolderConnection(connectionId: string): Promise<Connection> {
+  return invoke<Connection>("remove_folder_connection", { connectionId });
+}
+
 // ── MCP servers ────────────────────────────────────────────────────────────
 
 export function listMcpServers(): Promise<McpServerStatusView[]> {

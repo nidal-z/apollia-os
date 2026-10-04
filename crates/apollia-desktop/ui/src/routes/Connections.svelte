@@ -24,6 +24,9 @@
   import NativeOauthDialog from "../components/connections/oauth/NativeOauthDialog.svelte";
   import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
   import MailboxDialog from "../components/integrations/MailboxDialog.svelte";
+  import FolderConnectionDialog from "../components/connections/catalogue/FolderConnectionDialog.svelte";
+  import { chooseAndAddFolder, type FolderOutcome } from "$lib/connections/folderConnection";
+  import { openSettingsWindow } from "$lib/stores/settingsWindow";
   import {
     listMcpServers,
     listMcpEnrichments,
@@ -147,6 +150,10 @@
   let selectedRegistryServer = $state<RegistryServerView | null>(null);
   let wizardOpen = $state(false);
   let mailboxOpen = $state(false);
+
+  // ── Folder connections ───────────────────────────────────────────────────────
+  let folderOutcome = $state<Exclude<FolderOutcome, { kind: "cancelled" }> | null>(null);
+  let folderDialogOpen = $state(false);
 
   // ── Derived ──────────────────────────────────────────────────────────────────
   function resolveEnrichment(server: McpServerStatusView): ConnectorEnrichmentView | null {
@@ -287,6 +294,27 @@
     const entry = findSelectionEntry(registry, entryId);
     if (entry) handleConnect(entry);
     else catalogueOpen = true;
+  }
+
+  /**
+   * "Folder" in the selection, or "Choose another folder" after one: the
+   * system picker, then the folder added. A cancelled picker changes nothing.
+   */
+  async function addFolder(): Promise<void> {
+    catalogueOpen = false;
+    const outcome = await chooseAndAddFolder($t("connections.folder.picker_title"));
+    if (outcome.kind === "cancelled") return;
+    folderOutcome = outcome;
+    folderDialogOpen = true;
+    if (outcome.kind === "added") {
+      await loadAll();
+      selection = { kind: "connection", id: outcome.connection.id };
+    }
+  }
+
+  function closeFolderDialog(): void {
+    folderDialogOpen = false;
+    folderOutcome = null;
   }
 
   function handleManage(name: string): void {
@@ -458,6 +486,10 @@
       <ConnectionSummaryDetail
         connection={selectedConnection}
         label={selectedRow?.label ?? selectedConnection.label}
+        onremoved={() => {
+          selection = null;
+          void loadAll();
+        }}
       />
     {:else}
       <div
@@ -497,6 +529,17 @@
   }}
 />
 
+<FolderConnectionDialog
+  open={folderDialogOpen}
+  outcome={folderOutcome}
+  onclose={closeFolderDialog}
+  onchooseanother={() => void addFolder()}
+  onopenrule={() => {
+    closeFolderDialog();
+    openSettingsWindow("permissions");
+  }}
+/>
+
 <NativeOauthDialog
   open={oauthOpen}
   provider={oauthProvider}
@@ -516,6 +559,7 @@
   onclose={() => (catalogueOpen = false)}
   onconnect={handleConnect}
   onmanage={handleManage}
+  onaddfolder={() => void addFolder()}
   onaddnative={(provider) => {
     catalogueOpen = false;
     selection = { kind: "native", provider };

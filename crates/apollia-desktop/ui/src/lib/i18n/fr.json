@@ -591,7 +591,25 @@
         "runtime": "Apollia ne répond pas pour l'instant. Réessayez dans un moment.",
         "generic": "La boîte mail n'a pas pu être ajoutée. Réessayez."
       }
-    }
+    },
+    "folder": {
+      "name": "Dossier",
+      "description": "Un dossier de votre ordinateur, ouvert aux agents",
+      "picker_title": "Choisir le dossier à ouvrir aux agents",
+      "added_title": "Dossier ajouté : {name}",
+      "added_subtitle": "Sur cet ordinateur · rien à télécharger",
+      "abilities_title": "Ce que les agents pourront y faire",
+      "ability_read": "Lire : ouvrir et rechercher les fichiers du dossier",
+      "ability_write": "Écrire ou supprimer : seulement avec votre accord",
+      "bounds": "Rien en dehors de ce dossier. Vous choisissez quels agents y ont accès depuis leur fiche.",
+      "not_added_title": "Dossier non ajouté",
+      "add_failed": "Ce dossier n'a pas pu être ajouté.",
+      "choose_another": "Choisir un autre dossier",
+      "done": "Terminé",
+      "remove": "Retirer",
+      "remove_confirm": "Retirer le dossier {name} des connexions ? Ses fichiers restent sur votre ordinateur."
+    },
+    "badge_builtin": "Intégrée"
   },
   "integrations": {
     "disclaimer": {
@@ -4467,7 +4485,7 @@
       "catalogue_tab_discover": "Catalogue MCP",
       "catalogue_tab_custom": "MCP personnalisé",
       "catalogue_loading": "Chargement du catalogue MCP…",
-      "custom_intro": "Pour brancher un serveur MCP interne, communautaire ou en cours de développement. Pour un service de la sélection (Notion, GitHub, Local Files…), utilisez plutôt une carte du catalogue.",
+      "custom_intro": "Pour brancher un serveur MCP interne, communautaire ou en cours de développement. Pour un service de la sélection (Notion, Linear, Brave Search…), utilisez plutôt une carte du catalogue.",
       "custom_transport_label": "Transport",
       "custom_transport_stdio": "stdio (subprocess local)",
       "custom_transport_http": "Streamable HTTP (MCP 2025-11-25)",

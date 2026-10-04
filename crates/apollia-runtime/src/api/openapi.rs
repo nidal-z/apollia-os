@@ -279,6 +279,8 @@ use security::BearerToken;
         crate::api::routes_mcp_secrets::put_mcp_secret,
         crate::api::routes_mcp_secrets::delete_mcp_secret,
         crate::api::routes_connections::list_connections,
+        crate::api::routes_connections::folders::add_folder_connection,
+        crate::api::routes_connections::folders::remove_folder_connection,
         crate::api::routes_profile::get_profile,
         crate::api::routes_profile::set_profile_entry,
         crate::api::routes_profile::delete_profile_entry,
@@ -725,6 +727,8 @@ use security::BearerToken;
         crate::api::routes_imap::ImapErrorBody,
         crate::api::routes_imap::ImapProviderResponse,
         crate::api::routes_imap::ImapProvidersResponse,
+        crate::api::routes_connections::folders::AddFolderBody,
+        crate::api::routes_connections::folders::FolderErrorBody,
     ))
 )]
 pub struct ApiDoc;

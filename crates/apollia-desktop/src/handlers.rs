@@ -226,6 +226,8 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::connections::list_connections,
         commands::connections::list_imap_providers,
         commands::connections::add_imap_mailbox,
+        commands::connections::add_folder_connection,
+        commands::connections::remove_folder_connection,
         commands::mcp_bridge::list_mcp_exposable,
         commands::mcp_bridge::set_mcp_exposed,
         commands::mcp::list_mcp_servers,

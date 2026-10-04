@@ -1098,6 +1098,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connections/folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/connections/folders`: add a folder of this machine. */
+        post: operations["add_folder_connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connections/folders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** `DELETE /api/v1/connections/folders/{id}`: remove a folder connection. */
+        delete: operations["remove_folder_connection"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connectors/accounts": {
         parameters: {
             query?: never;
@@ -5737,6 +5771,13 @@ export interface components {
             /** @description Using it is sensitive. */
             sensitive: boolean;
         };
+        /** @description Body of `POST /api/v1/connections/folders`. */
+        AddFolderBody: {
+            /** @description Name shown to the user; the folder's own name when absent. */
+            label?: string | null;
+            /** @description Absolute path of the folder, as the system picker answered it. */
+            path: string;
+        };
         /** @description Request body for `POST /api/v1/permissions/rules`. */
         AddPermissionRuleBody: {
             /** @description `allow` or `deny`. */
@@ -6610,7 +6651,7 @@ export interface components {
             account?: string | null;
             /**
              * @description Stable identifier: `mcp:<server>`, `native:<provider>:<account>`,
-             *     `imap:<address>`.
+             *     `imap:<address>`, `folder:<id>`.
              */
             id: string;
             /** @description Kind of connection. */
@@ -6619,6 +6660,8 @@ export interface components {
             label: string;
             /** @description Published by the service's own publisher. */
             official: boolean;
+            /** @description Folder of this machine the connection opens, for a folder. */
+            path?: string | null;
             /** @description Where the connection was found before it was added. */
             provenance: string;
             /** @description Sends data off this machine. Computed, see [`is_remote`]. */
@@ -7157,6 +7200,19 @@ export interface components {
          * @enum {string}
          */
         FitDto: "fits" | "might_fit" | "too_large";
+        /** @description A refused folder: the message and its stable code. */
+        FolderErrorBody: {
+            /**
+             * @description Stable code: `not_a_folder`, `already_added`, `admission_refused`,
+             *     `not_found`, `store`.
+             */
+            code: string;
+            /**
+             * @description What went wrong, for a person. For `admission_refused`, the reason
+             *     the admission gave, as is.
+             */
+            error: string;
+        };
         /** @description Request body for `POST /api/v1/sessions/:id/fork`. */
         ForkSessionRequest: {
             /** @description Number of messages to copy from the parent (None = all). */
@@ -13109,6 +13165,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    add_folder_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddFolderBody"];
+            };
+        };
+        responses: {
+            /** @description Folder added as a connection */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Connection"];
+                };
+            };
+            /** @description The path is not a folder of this machine */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+            /** @description Refused by the connection admission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+            /** @description The folder is already a connection */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+            /** @description system.db could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+        };
+    };
+    remove_folder_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifier of the stored folder, the part of the connection identifier after `folder:` */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Folder connection removed; the connection it was */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Connection"];
+                };
+            };
+            /** @description No folder connection has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+            /** @description system.db could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
                 };
             };
         };
