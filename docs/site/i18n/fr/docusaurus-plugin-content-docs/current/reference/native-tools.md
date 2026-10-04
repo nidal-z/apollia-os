@@ -148,16 +148,15 @@ face à `/private/var`, les préfixes verbatim Windows `\\?\`) se résolvent
 au lieu d'être refusés. Les échappatoires par lien symbolique et tout chemin
 dont la cible réelle sort de la racine sont rejetés.
 
-<!-- claim:chat-file-root-is-home-without-project -->
-Le répertoire qui fait office de racine dépend de la session. Avec un projet
-ouvert, c'est le répertoire du projet. Dans un chat sans projet, c'est le
-`default_workspace` de `[chat]` quand l'opérateur en a configuré un qui existe,
-et `~/.apollia` sinon ; la barrière sur ce chemin est l'approbation qui vous est
-demandée avant une écriture, pas une racine plus étroite. Votre répertoire
-personnel est le repli quand aucun des deux ne se résout, et le répertoire
-temporaire système seulement lorsque le répertoire personnel ne peut être résolu
-du tout. En pratique `~/.apollia` existe après le premier démarrage, donc un
-chat libre est enraciné là et non dans votre répertoire personnel.
+<!-- claim:file-tools-root-is-the-granted-folders -->
+Les racines sont les dossiers accordés à l'agent, agent de conversation intégré
+compris, dans une conversation comme dans une tâche. Un dossier du poste est une
+connexion, et ses outils s'accordent à un agent sur sa fiche : les outils de
+lecture atteignent tous les dossiers accordés, les outils d'écriture seulement
+ceux accordés pour écrire. Le premier dossier accordé, par date d'ajout, est
+celui où arrive un chemin relatif. Ni le répertoire personnel, ni le dossier de
+données, ni le dossier d'un projet ne sont des racines. Un agent sans dossier
+accordé a des outils de fichiers qui refusent, en disant comment en accorder un.
 
 | Outil | Objectif | Paramètres clés |
 |---|---|---|

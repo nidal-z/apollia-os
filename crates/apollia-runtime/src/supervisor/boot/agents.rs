@@ -89,13 +89,7 @@ impl Supervisor {
                     data_dir: self.config.data_dir.clone(),
                     brave_api_key: None, // resolved lazily by web_search when missing
                     tools_config: self.config.tools_config.clone(),
-                    default_workspace: self
-                        .config
-                        .chat_default_workspace
-                        .clone()
-                        .map(std::path::PathBuf::from),
                     tool_turn_temperature: self.config.chat_tool_turn_temperature,
-                    trusted_paths: self.config.filesystem_trusted_paths.clone(),
                 })),
                 self.config.mcp_loading,
                 self.config.tool_search_limit,

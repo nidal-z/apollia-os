@@ -190,7 +190,7 @@ everything else through, which is how the switch reaches the builder.
 | chat.db | 4 sessions + messages + 3 tool auths + 1 plan | session list, session-auths, plan tab |
 | agents.db + agents/ | 4 agents (incl apollia-chat) + 1 package; + `seed-planner` under `APOLLIA_SEED_PLANNER=1` | agent rows, detail, package rows; the plan gate |
 | user_memory + memory/*.db | 5 namespaces, 3 types each | namespace items, category chips, type tabs, entries |
-| system.db | 3 llm backends (1 default) + stt config | llm cards, set-default, stt form |
+| system.db | 3 llm backends (1 default) + stt config + 1 folder connection (the checkout, granted to the Apollia agent in agents.db) | llm cards, set-default, stt form; the folder the chat's file tools reach |
 | llm_calls.db | 5 recent calls (3 backends) | llm-stats-table, observability llm-costs |
 | models/*.gguf | 2 (Phi deletable, Qwen in-use) | installed-model rows + delete dialog |
 | notifications.db | 2 channels + 3 global events + 6 logs | channel cards, global events, activity |

@@ -677,17 +677,6 @@ impl ProjectRepository {
 
     // ─── Async wrappers ───────────────────────────────────────────────────────
 
-    /// Async wrapper for [`get_project`](Self::get_project).
-    pub async fn get_project_async(
-        &self,
-        id: String,
-    ) -> Result<ProjectDetail, ProjectRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.get_project(&id))
-            .await
-            .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
-    }
-
     /// Async wrapper for [`create_project`](Self::create_project).
     pub async fn create_project_async(
         &self,

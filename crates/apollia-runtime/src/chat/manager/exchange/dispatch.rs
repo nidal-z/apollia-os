@@ -154,7 +154,6 @@ impl ChatSessionManager {
             // The invoker is created per-session inside the task.
             let project_ctx = self.project_context.clone();
             let session_project_id = session.project_id.clone();
-            let project_repo_for_session = self.project_repo.clone();
             let a2a_for_agent = self.a2a_invoker.clone();
             let tool_registry = self.tool_registry.clone();
             let event_bus = self.event_bus.clone();
@@ -174,11 +173,6 @@ impl ChatSessionManager {
                 pending_fs: self.pending_fs_approvals.clone(),
                 fs_allow_rules: std::sync::Arc::clone(&session.fs_allow_rules),
                 risk_config: apollia_core::FilesystemRiskConfig::default(),
-                trusted_paths: self
-                    .chat_tools_config
-                    .as_ref()
-                    .map(|c| c.trusted_paths.clone())
-                    .unwrap_or_default(),
             };
 
             tokio::spawn(run_libre_exchange(LibreExchangeParams {
@@ -202,7 +196,6 @@ impl ChatSessionManager {
                 llm_for_summarize,
                 project_ctx,
                 session_project_id,
-                project_repo_for_session,
                 pending_user_inputs_for_session,
                 mcp_handle_for_session,
                 package_tools,

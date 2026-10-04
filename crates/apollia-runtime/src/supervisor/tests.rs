@@ -212,8 +212,6 @@ fn test_config(port: u16, socket_path: PathBuf) -> (SupervisorConfig, tempfile::
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
     };
@@ -420,8 +418,6 @@ async fn test_startup_timeout_rollback() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
     };
@@ -511,8 +507,6 @@ async fn test_start_without_llm_config_succeeds() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
     };
@@ -652,8 +646,6 @@ async fn test_supervisor_starts_with_zero_triggers() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
     };
@@ -727,8 +719,6 @@ async fn test_no_notifications_section_starts_ok() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
     };
@@ -815,8 +805,6 @@ async fn test_trigger_engine_loads_from_sqlite() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
     };
@@ -1078,8 +1066,6 @@ async fn test_story187_appstate_contains_repos() {
         tool_search_limit: 20,
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
-        chat_default_workspace: None,
-        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
     };

@@ -3,9 +3,8 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    ApiConfig, AuthorConfig, ChatConfig, DesktopConfig, EnginesConfig, FilesystemConfig,
-    HitlConfig, HooksConfig, LlmConfig, McpConfig, ModelsConfig, RuntimeConfig, ServerConfig,
-    ToolsConfig, WorkflowsConfig,
+    ApiConfig, AuthorConfig, ChatConfig, DesktopConfig, EnginesConfig, HitlConfig, HooksConfig,
+    LlmConfig, McpConfig, ModelsConfig, RuntimeConfig, ServerConfig, ToolsConfig, WorkflowsConfig,
 };
 use crate::ObservabilityConfig;
 
@@ -48,9 +47,6 @@ pub struct ApolliaConfig {
     /// `[chat]`: chat session defaults.
     #[serde(default)]
     pub chat: ChatConfig,
-    /// `[filesystem]`: the trusted paths.
-    #[serde(default)]
-    pub filesystem: FilesystemConfig,
     /// `[models]`: the signed index of model cards, the models folder and the
     /// import rule.
     #[serde(default)]

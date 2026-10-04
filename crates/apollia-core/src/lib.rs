@@ -66,8 +66,8 @@ pub use budget::StepBudgetConfig;
 pub use config::{
     validate_bounds, A2AConfig, ApiConfig, AutonomyConfig, AutonomyLevel, AutonomyLevelConfig,
     AutonomyLevelParseError, BashValidatorConfig, BraveBackendConfig, CeilingAction, ChatConfig,
-    ConfigError, DesktopConfig, DuckDuckGoBackendConfig, FilesystemConfig, FilesystemRiskConfig,
-    GatePolicy, HitlConfig, HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig,
+    ConfigError, DesktopConfig, DuckDuckGoBackendConfig, FilesystemRiskConfig, GatePolicy,
+    HitlConfig, HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig,
     HybridRoutingConfig, LlmRoutingConfig, McpConfig, McpToolLoading, ModelsConfig, ORIAConfig,
     RegistryConfig, RuntimeConfig, ServerConfig, ToolsConfig, TriggersConfig, WebReadConfig,
     WebSearchBackend, WebSearchConfig, WorkflowsConfig,

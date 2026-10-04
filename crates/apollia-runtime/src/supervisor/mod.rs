@@ -150,24 +150,6 @@ pub struct SupervisorConfig {
     /// `false`.
     pub plan_mode_default: bool,
 
-    /// Default working directory for free-chat sessions (the
-    /// `[chat] default_workspace` key of `apollia.toml`).
-    ///
-    /// When set to an existing directory, free-chat file tools anchor there and
-    /// the agent is told its working directory. `None` falls back to
-    /// `~/.apollia`. Read once at boot.
-    pub chat_default_workspace: Option<String>,
-
-    /// Paths an agent may read and write without an approval prompt, from the
-    /// `[filesystem] trusted_paths` key of `apollia.toml`, `~` already
-    /// resolved. Read once at boot.
-    ///
-    /// It is a friction boundary, not a wall: a path outside every entry is
-    /// classified one level higher, which asks the user rather than refusing.
-    /// An empty list therefore means every write outside the working directory
-    /// is asked about. Default: the user's home directory.
-    pub filesystem_trusted_paths: Vec<std::path::PathBuf>,
-
     /// Temperature applied to a chat turn that advertises tools (the
     /// `[chat] tool_turn_temperature` key of `apollia.toml`).
     ///

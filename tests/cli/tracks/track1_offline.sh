@@ -42,9 +42,9 @@ check_exit "update refuses while the lock is held" 1 bash -c "/usr/bin/touch \"\
 
 # ── A.2 config (seeded apollia.toml) ────────────────────────────────────────
 section "A.2 config"
-check_grep   "config show has seeded [chat] workspace" "default_workspace" "$BIN" config show
+check_grep   "config show has seeded [chat] temperature" "tool_turn_temperature" "$BIN" config show
 check_json   "config show --json"                       "$BIN" config show --json
-check        "config get chat.default_workspace"        "$BIN" config get chat.default_workspace
+check        "config get chat.tool_turn_temperature"    "$BIN" config get chat.tool_turn_temperature
 check_json   "config get --json"                        "$BIN" config get --json
 # Mutations on a throwaway config file (never touch the seeded one).
 SCFG="$SCRATCH/apollia.toml"

@@ -49,13 +49,17 @@ use crate::tools::web_read::WebRead;
 /// the dispatcher can be reused across tool calls within a single `run()`.
 #[derive(Clone)]
 pub struct NativeDispatcherConfig {
-    /// Filesystem roots the file and notebook tools may reach, anchor first.
+    /// Folders the reading file and notebook tools may reach, anchor first:
+    /// the folders granted to the agent ([`crate::folder_access`]).
     ///
-    /// The anchor is where a relative path lands and is created if missing. The
-    /// rest come from `[filesystem] trusted_paths` and only widen what an
-    /// absolute path reaches; naming a disk that is not mounted does not create
-    /// it. A single-root caller passes a one-entry vector.
+    /// The anchor is where a relative path lands. The rest only widen what an
+    /// absolute path reaches. Empty, the reading tools refuse every call with
+    /// a message that says how to grant a folder.
     pub sandbox_roots: Vec<PathBuf>,
+    /// Folders the writing file tools (`file_write`, `file_edit`,
+    /// `notebook_edit`) may reach, anchor first: the folders granted to the
+    /// agent for writing. Empty, those tools refuse every call.
+    pub write_roots: Vec<PathBuf>,
     /// Agent identifier, namespaces the per-agent Python venv.
     pub agent_id: String,
     /// Root directory under which per-agent venvs are created for `python_executor`.
@@ -295,69 +299,109 @@ pub fn build_dispatcher_with(
 }
 
 /// Register the sandbox-bound file and notebook tools that are not explicitly
-/// disabled. Each is constructed against `cfg.sandbox_roots`; construction
-/// failures are logged and skipped by [`push_sandbox_tool`].
+/// disabled. The reading ones are constructed against `cfg.sandbox_roots`, the
+/// writing ones against `cfg.write_roots`; construction failures are logged and
+/// skipped by [`push_sandbox_tool`]. A tool with no root answers every call
+/// with [`NoFolderGranted`].
 fn register_sandbox_tools(
     executors: &mut Vec<Box<dyn ToolExecutor>>,
     cfg: &NativeDispatcherConfig,
     is_active: &impl Fn(&str) -> bool,
 ) {
-    if is_active("file_read") {
-        push_sandbox_tool(
-            executors,
-            "file_read",
-            FileRead::new(cfg.sandbox_roots.clone()),
-        );
+    let read = &cfg.sandbox_roots;
+    let write = &cfg.write_roots;
+    let mut push =
+        |name: &'static str,
+         roots: &Vec<PathBuf>,
+         build: &dyn Fn(Vec<PathBuf>) -> Option<Box<dyn ToolExecutor>>| {
+            if !is_active(name) {
+                return;
+            }
+            if roots.is_empty() {
+                executors.push(Box::new(NoFolderGranted { name }));
+            } else if let Some(exec) = build(roots.clone()) {
+                executors.push(exec);
+            }
+        };
+    push("file_read", read, &|r| built("file_read", FileRead::new(r)));
+    push("file_write", write, &|r| {
+        built("file_write", FileWrite::new(r))
+    });
+    push("file_list", read, &|r| built("file_list", FileList::new(r)));
+    push("file_edit", write, &|r| {
+        built("file_edit", FileEdit::new(r))
+    });
+    push("file_glob", read, &|r| built("file_glob", FileGlob::new(r)));
+    push("file_grep", read, &|r| built("file_grep", FileGrep::new(r)));
+    push("notebook_read", read, &|r| {
+        built("notebook_read", NotebookRead::new(r))
+    });
+    push("notebook_edit", write, &|r| {
+        built("notebook_edit", NotebookEdit::new(r))
+    });
+}
+
+/// A file tool of an agent granted no folder: every call is refused with a
+/// message that says what to do.
+pub struct NoFolderGranted {
+    name: &'static str,
+}
+
+impl NoFolderGranted {
+    /// The stand-in for the file tool `name`.
+    #[must_use]
+    pub fn new(name: &'static str) -> Self {
+        Self { name }
     }
-    if is_active("file_write") {
-        push_sandbox_tool(
-            executors,
-            "file_write",
-            FileWrite::new(cfg.sandbox_roots.clone()),
-        );
+}
+
+impl ToolExecutor for NoFolderGranted {
+    fn name(&self) -> &str {
+        self.name
     }
-    if is_active("file_list") {
-        push_sandbox_tool(
-            executors,
-            "file_list",
-            FileList::new(cfg.sandbox_roots.clone()),
-        );
+
+    fn execute(
+        &self,
+        _input: serde_json::Value,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<
+                    Output = Result<serde_json::Value, crate::executor::ToolExecutionError>,
+                > + Send
+                + '_,
+        >,
+    > {
+        Box::pin(async move {
+            Err(crate::executor::ToolExecutionError::ExecutionFailed {
+                code: "no_folder_granted".to_string(),
+                message: no_folder_message(self.name),
+            })
+        })
     }
-    if is_active("file_edit") {
-        push_sandbox_tool(
-            executors,
-            "file_edit",
-            FileEdit::new(cfg.sandbox_roots.clone()),
-        );
-    }
-    if is_active("file_glob") {
-        push_sandbox_tool(
-            executors,
-            "file_glob",
-            FileGlob::new(cfg.sandbox_roots.clone()),
-        );
-    }
-    if is_active("file_grep") {
-        push_sandbox_tool(
-            executors,
-            "file_grep",
-            FileGrep::new(cfg.sandbox_roots.clone()),
-        );
-    }
-    if is_active("notebook_read") {
-        push_sandbox_tool(
-            executors,
-            "notebook_read",
-            NotebookRead::new(cfg.sandbox_roots.clone()),
-        );
-    }
-    if is_active("notebook_edit") {
-        push_sandbox_tool(
-            executors,
-            "notebook_edit",
-            NotebookEdit::new(cfg.sandbox_roots.clone()),
-        );
-    }
+}
+
+/// What the agent hears when `tool` has no folder to work in.
+fn no_folder_message(tool: &str) -> String {
+    let what = if crate::folder_access::FOLDER_WRITE_TOOLS.contains(&tool) {
+        "for writing"
+    } else {
+        "to read"
+    };
+    format!(
+        "no folder is granted to this agent {what}: add the folder as a connection, \
+         then grant it to the agent on its sheet"
+    )
+}
+
+/// The executor `result` built, boxed, or `None` after a warning.
+fn built<T, E>(name: &'static str, result: Result<T, E>) -> Option<Box<dyn ToolExecutor>>
+where
+    T: ToolExecutor + 'static,
+    E: std::fmt::Display,
+{
+    let mut out: Vec<Box<dyn ToolExecutor>> = Vec::new();
+    push_sandbox_tool(&mut out, name, result);
+    out.pop()
 }
 
 /// Push a sandbox-bound tool onto *executors*, logging a warning if
@@ -445,6 +489,7 @@ mod tests {
         let root = std::env::temp_dir().join("apollia-native-dispatcher-disabled-test");
         NativeDispatcherConfig {
             sandbox_roots: vec![root.clone()],
+            write_roots: vec![root.clone()],
             agent_id: "agent".to_string(),
             venv_base_dir: root.join("venvs"),
             memory_namespace: None,
@@ -594,6 +639,7 @@ mod tests {
         let root = std::env::temp_dir().join("apollia-native-dispatcher-session-test");
         let cfg = NativeDispatcherConfig {
             sandbox_roots: vec![root.clone()],
+            write_roots: vec![root.clone()],
             agent_id: "apollia:chat:s1".to_string(),
             venv_base_dir: root.join("venvs"),
             memory_namespace: None,
@@ -642,5 +688,70 @@ mod tests {
         // the inbox open the conversation that asked
         assert_eq!(request.session_id.as_deref(), Some("s1"));
         call.abort();
+    }
+
+    #[tokio::test]
+    async fn a_file_tool_without_a_granted_folder_refuses_with_a_readable_message() {
+        // GIVEN an agent granted no folder at all
+        let mut cfg = config_disabling(&[]);
+        cfg.sandbox_roots = Vec::new();
+        cfg.write_roots = Vec::new();
+        let dispatcher = build_native_dispatcher(&cfg);
+
+        // WHEN it reads and writes a file
+        let read = dispatcher
+            .dispatch("file_read", serde_json::json!({ "path": "notes.txt" }))
+            .await;
+        let write = dispatcher
+            .dispatch(
+                "file_write",
+                serde_json::json!({ "path": "notes.txt", "content": "x" }),
+            )
+            .await;
+
+        // THEN both are refused, saying which folder is missing and how to grant one
+        for (result, what) in [(read, "to read"), (write, "for writing")] {
+            match result {
+                Err(ToolExecutionError::ExecutionFailed { code, message }) => {
+                    assert_eq!(code, "no_folder_granted");
+                    assert!(message.contains(what), "{message}");
+                    assert!(message.contains("grant it to the agent"), "{message}");
+                }
+                other => panic!("expected a refusal, got {other:?}"),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_folder_granted_to_read_only_refuses_a_write_there() {
+        // GIVEN an agent granted one folder, to read only
+        let folder = tempfile::tempdir().expect("tempdir");
+        std::fs::write(folder.path().join("notes.txt"), "kept").expect("seed file");
+        let mut cfg = config_disabling(&[]);
+        cfg.sandbox_roots = vec![folder.path().to_path_buf()];
+        cfg.write_roots = Vec::new();
+        let dispatcher = build_native_dispatcher(&cfg);
+
+        // WHEN it reads, then writes, in that folder
+        let read = dispatcher
+            .dispatch("file_read", serde_json::json!({ "path": "notes.txt" }))
+            .await;
+        let write = dispatcher
+            .dispatch(
+                "file_write",
+                serde_json::json!({ "path": "notes.txt", "content": "changed" }),
+            )
+            .await;
+
+        // THEN the read succeeds and the write is refused, the file untouched
+        assert!(read.is_ok(), "{read:?}");
+        assert!(
+            matches!(write, Err(ToolExecutionError::ExecutionFailed { ref code, .. }) if code == "no_folder_granted"),
+            "{write:?}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(folder.path().join("notes.txt")).expect("read back"),
+            "kept"
+        );
     }
 }

@@ -27,16 +27,9 @@ pub struct ChatToolsConfig {
     /// Native-tools subsection of `apollia.toml` (web cfg, http allowlist,
     /// disabled list). Defaults are sensible when no file is loaded.
     pub tools_config: apollia_core::ToolsConfig,
-    /// Default working directory for free-chat sessions (`[chat]
-    /// default_workspace`). `None` falls back to `~/.apollia`.
-    pub default_workspace: Option<std::path::PathBuf>,
     /// Temperature applied to a chat turn that advertises tools (`[chat]
     /// tool_turn_temperature`). `None` resolves to the agent default.
     pub tool_turn_temperature: Option<f32>,
-    /// Paths an agent may work in without being asked (`[filesystem]
-    /// trusted_paths`, `~` already resolved). Empty means every write outside
-    /// the working directory is asked about, never that it is refused.
-    pub trusted_paths: Vec<std::path::PathBuf>,
 }
 
 /// Snapshot of a tool-level `scope=session` authorization for an active session.
@@ -128,7 +121,6 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     pub(in crate::chat::manager) llm_for_summarize: Option<Arc<LlmRouter>>,
     pub(in crate::chat::manager) project_ctx: Option<Arc<dyn ProjectContextProvider>>,
     pub(in crate::chat::manager) session_project_id: Option<String>,
-    pub(in crate::chat::manager) project_repo_for_session: Option<Arc<ProjectRepository>>,
     pub(in crate::chat::manager) pending_user_inputs_for_session:
         apollia_tools::tools::ask_user::PendingUserInputs,
     pub(in crate::chat::manager) mcp_handle_for_session:
@@ -271,11 +263,8 @@ pub(in crate::chat::manager) struct PendingUserInputMeta {
 pub(in crate::chat::manager) struct FullDispatcherParams<'a> {
     pub(in crate::chat::manager) cfg: &'a Arc<ChatToolsConfig>,
     pub(in crate::chat::manager) session_id: &'a str,
-    pub(in crate::chat::manager) sandbox_root: &'a std::path::Path,
-    /// Every root the file tools may reach, anchor first. Wider than
-    /// `sandbox_root`, which stays the anchor for relative paths alone.
-    pub(in crate::chat::manager) sandbox_roots: &'a [std::path::PathBuf],
-    pub(in crate::chat::manager) workspace_path: &'a Option<std::path::PathBuf>,
+    /// The folders granted to the agent, the roots of its file tools.
+    pub(in crate::chat::manager) folders: &'a apollia_tools::FolderRoots,
     pub(in crate::chat::manager) pending_user_inputs:
         &'a Option<apollia_tools::tools::ask_user::PendingUserInputs>,
     pub(in crate::chat::manager) hitl: Option<&'a HitlInvokerParams>,
@@ -285,8 +274,9 @@ pub(in crate::chat::manager) struct FullDispatcherParams<'a> {
 
 /// Parameters for [`resolve_workspace_for_session`].
 pub(in crate::chat::manager) struct WorkspaceResolutionParams {
-    pub(in crate::chat::manager) project_id: Option<String>,
-    pub(in crate::chat::manager) project_repo: Option<Arc<ProjectRepository>>,
+    /// The folders granted to the agent of the run, the roots of its file
+    /// tools; the first anchors a relative path.
+    pub(in crate::chat::manager) folders: apollia_tools::FolderRoots,
     pub(in crate::chat::manager) hitl: Option<HitlInvokerParams>,
     pub(in crate::chat::manager) pending_user_inputs:
         Option<apollia_tools::tools::ask_user::PendingUserInputs>,
