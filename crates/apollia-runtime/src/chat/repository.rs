@@ -50,6 +50,8 @@ pub struct SessionRow {
     pub plan_phase: String,
     /// Profile the conversation designates (nullable: the current default).
     pub profile_id: Option<String>,
+    /// Profile switch of the conversation (on by default).
+    pub use_profile: bool,
 }
 
 /// Raw row from the `chat_messages` table.
@@ -246,6 +248,10 @@ impl ChatSessionRepository {
             parts.push("profile_id = ?");
             values.push(Box::new(profile.clone()));
         }
+        if let Some(use_profile) = update.use_profile {
+            parts.push("use_profile = ?");
+            values.push(Box::new(i64::from(use_profile)));
+        }
 
         if parts.is_empty() {
             return Ok(());
@@ -393,7 +399,7 @@ impl ChatSessionRepository {
             .prepare(
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
                         closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
-                        plan_mode, plan_phase, profile_id
+                        plan_mode, plan_phase, profile_id, use_profile
                  FROM chat_sessions WHERE id = ?1",
             )
             .map_err(|e| ChatError::InternalError(format!("get_session prepare: {e}")))?;
@@ -412,14 +418,14 @@ impl ChatSessionRepository {
             Some(s) => (
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
                         closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
-                        plan_mode, plan_phase, profile_id
+                        plan_mode, plan_phase, profile_id, use_profile
                  FROM chat_sessions WHERE status = ?1 ORDER BY created_at DESC",
                 Some(s),
             ),
             None => (
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
                         closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
-                        plan_mode, plan_phase, profile_id
+                        plan_mode, plan_phase, profile_id, use_profile
                  FROM chat_sessions ORDER BY created_at DESC",
                 None,
             ),
@@ -701,6 +707,7 @@ fn row_to_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRow> {
         plan_mode: row.get::<_, i64>(13)? != 0,
         plan_phase: row.get(14)?,
         profile_id: row.get(15)?,
+        use_profile: row.get::<_, i64>(16)? != 0,
     })
 }
 

@@ -199,11 +199,21 @@ content into an agent's prompt. An agent that wants context asks for it, which
 keeps the prompt something the agent author controls and can reason about.
 
 Three exceptions exist, and none of them is reachable from an agent execution
-path. Two are inside the built-in conversational assistant: a user-persona brief
-at the longest autonomy tier, and past session summaries on the first message of
+path. Two are inside the built-in conversational assistant: a brief of the
+profile of the conversation, and past session summaries on the first message of
 a free chat. The third is outside the assistant, in the desktop prompt-rewrite
-command, which carries the Work section of the user profile into its own one-shot
-prompt and returns text to the composer rather than to a run.
+command, which carries the role, the function and the tools of that profile into
+its own one-shot prompt and returns text to the composer rather than to a run.
+
+The profile brief is appended on every turn of the assistant, at every autonomy
+tier, while the profile switch of the conversation is on. The switch is on by
+default, stored with the conversation, and the conversation gauge reports
+whether the prompt carries the profile. The brief was previously gated by the
+longest autonomy tier, which free chat never runs at, so a profile the user
+filled in never reached the assistant. A setting with no effect is worse than an
+injection the user sees and can turn off, so the gate moved from the tier to the
+conversation. The rule for agents is unchanged: an installed agent reads the
+profile only when it asks for it.
 
 ## Local inference {#local-inference}
 

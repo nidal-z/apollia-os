@@ -77,6 +77,9 @@ pub struct ChatSessionDetail {
     pub plan_phase: String,
     /// Profile the conversation designates; `None` follows the default.
     pub profile_id: Option<String>,
+    /// Profile switch of the conversation: whether the built-in assistant
+    /// receives the profile in its prompt.
+    pub use_profile: bool,
 }
 
 /// Request payload for updating session configuration.
@@ -93,6 +96,9 @@ pub struct UpdateSessionRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub profile_id: Option<Option<String>>,
+    /// Profile switch of the conversation; absent keeps it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub use_profile: Option<bool>,
 }
 
 /// Individual message view for the frontend.
@@ -267,6 +273,7 @@ pub async fn update_chat_session(
                 available_tools: update.tools,
                 llm_backend,
                 profile_id: update.profile_id,
+                use_profile: update.use_profile,
             },
         )
         .await
@@ -693,6 +700,7 @@ fn session_detail_to_flat(detail: SessionDetail) -> ChatSessionDetail {
         plan_mode: session.plan_mode,
         plan_phase: session.plan_phase.as_sql().to_string(),
         profile_id: session.profile_id,
+        use_profile: session.use_profile,
     }
 }
 

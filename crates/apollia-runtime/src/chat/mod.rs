@@ -18,6 +18,7 @@ pub mod native_wrappers;
 pub mod plan_actor;
 pub mod plan_prompt;
 pub mod plan_tool;
+pub mod profile_injection;
 pub mod repository;
 pub(crate) mod schema;
 pub mod summarizer;

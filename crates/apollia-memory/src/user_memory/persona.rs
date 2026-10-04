@@ -1,91 +1,23 @@
-//! Renderings of the default profile for a system prompt: the sectioned block
-//! and the persona brief.
+//! Rendering of a profile for a system prompt: the persona brief.
 
-use crate::profile_schema::{field_for, ProfileSection, FREE_TEXT_KEY};
+use crate::profile_schema::FREE_TEXT_KEY;
 
 use super::{ProfileEntry, UserMemoryError, UserMemoryRepository};
 
 impl UserMemoryRepository {
-    /// Produces a text block suitable for LLM system-prompt injection.
-    ///
-    /// Output groups the fields of the default profile by schema section, then
-    /// the free-form entries under `other`:
-    /// ```text
-    /// Section: identity
-    /// - name: Nidal
-    /// - role: CTO
-    /// Section: preferences
-    /// - preferences: fr
-    /// ```
-    pub fn recall_all_for_injection(&self, max_entries: usize) -> Result<String, UserMemoryError> {
-        let entries = self.list_all()?;
-        let mut output = String::new();
-        let mut total = 0usize;
-
-        let sections = [
-            ProfileSection::Identity,
-            ProfileSection::Work,
-            ProfileSection::Preferences,
-            ProfileSection::Notes,
-        ];
-
-        for section in sections {
-            let in_section: Vec<&ProfileEntry> = entries
-                .iter()
-                .filter(|e| field_for(&e.key).map(|f| f.section) == Some(section))
-                .collect();
-            Self::append_injection_section(
-                &mut output,
-                section.tag(),
-                &in_section,
-                &mut total,
-                max_entries,
-            );
-            if total >= max_entries {
-                break;
-            }
-        }
-
-        let extras: Vec<&ProfileEntry> = entries.iter().filter(|e| !e.in_schema).collect();
-        if total < max_entries {
-            Self::append_injection_section(&mut output, "other", &extras, &mut total, max_entries);
-        }
-
-        Ok(output)
-    }
-
-    /// Appends a `Section: <tag>` block for `group` to `output`, respecting the
-    /// `max_entries` budget tracked by `total`.  No-op when `group` is empty.
-    fn append_injection_section(
-        output: &mut String,
-        tag: &str,
-        group: &[&ProfileEntry],
-        total: &mut usize,
-        max_entries: usize,
-    ) {
-        if group.is_empty() {
-            return;
-        }
-        if !output.is_empty() {
-            output.push('\n');
-        }
-        output.push_str(&format!("Section: {tag}\n"));
-        for entry in group {
-            if *total >= max_entries {
-                break;
-            }
-            output.push_str(&format!("- {}: {}\n", entry.key, entry.value));
-            *total += 1;
-        }
-    }
-
     /// Produces a structured persona brief for LLM system-prompt injection.
     ///
-    /// Reads the fields of the default profile: a headline (name, role,
-    /// function), the preferences, the tools, the free text, then the
-    /// free-form entries as context.
-    pub fn recall_persona_brief(&self, max_entries: usize) -> Result<String, UserMemoryError> {
-        let entries = self.list_all()?;
+    /// Reads the profile `designated` names, or the default profile when
+    /// nothing is designated ([`Self::profile_or_default`]): a headline (name,
+    /// role, function), the preferences, the tools, the free text, then the
+    /// free-form entries as context. Empty when that profile holds nothing.
+    pub fn recall_persona_brief(
+        &self,
+        designated: Option<&str>,
+        max_entries: usize,
+    ) -> Result<String, UserMemoryError> {
+        let profile = self.profile_or_default(designated)?;
+        let entries = self.list_all_in(&profile)?;
         if entries.is_empty() {
             return Ok(String::new());
         }

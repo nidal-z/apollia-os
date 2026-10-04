@@ -20018,7 +20018,7 @@
           },
           "user_memory_injected": {
             "type": "boolean",
-            "description": "Whether the user profile was injected into the system prompt."
+            "description": "Whether the assistant's prompt carries the profile of the conversation."
           }
         }
       },
@@ -28994,6 +28994,13 @@
               "type": "string"
             },
             "description": "New list of tools available in the session."
+          },
+          "use_profile": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Profile switch of the conversation: whether the built-in assistant\nreceives the profile in its prompt."
           }
         }
       },

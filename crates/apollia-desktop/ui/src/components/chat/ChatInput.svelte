@@ -15,6 +15,7 @@
   import { t } from "svelte-i18n";
   import {
     InputRewriter,
+    fetchConversationWorkContext,
     fetchWorkContext,
     type RewriteFallback,
   } from "$lib/chat/rewriteInput";
@@ -70,6 +71,11 @@
     planDisabled?: boolean;
     /** What the model of the conversation does with images; `null` unknown. */
     imageSupport?: ImageSupport | null;
+    /**
+     * Conversation the composer writes in. The prompt rewrite reads the
+     * profile that conversation designates; without it, the default profile.
+     */
+    sessionId?: string | null;
   }
 
   let {
@@ -85,6 +91,7 @@
     onplantoggle,
     planDisabled = false,
     imageSupport = null,
+    sessionId = null,
   }: Props = $props();
 
   const DEFAULT_SUGGESTION_KEYS = [
@@ -233,8 +240,10 @@
     // WHEN: rewrite triggered
     isRewriting = true;
     try {
-      // THEN: fetch Work context from profile
-      const workContext = await fetchWorkContext();
+      // THEN: fetch the work context from the profile of the conversation
+      const workContext = sessionId
+        ? await fetchConversationWorkContext(sessionId)
+        : await fetchWorkContext();
 
       // THEN: call rewriter
       const outcome = await rewriter.rewrite(value, workContext);

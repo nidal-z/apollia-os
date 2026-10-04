@@ -68,15 +68,14 @@ les paliers échange de l'interruption contre de l'élan.
 ## Ce que le palier change réellement
 
 <!-- claim:plan-gate-yields-to-the-per-run-override -->
-Cinq choses varient avec le palier, et aucune autre. La porte du plan : dans les
+Quatre choses varient avec le palier, et aucune autre. La porte du plan : dans les
 deux paliers les plus bas, un plan à conséquence marque une pause pour attendre
 une approbation humaine ; dans les deux paliers les plus hauts, non ; et dans les
 deux cas une exécution qui porte sa propre décision l'emporte sur le palier.
 L'auto-vérification : la passe de vérification et de critique du runtime est
 inactive en Assisté et entre en jeu à partir de Supervisé, si bien qu'une
 exécution terminée peut être vérifiée avant que son résultat ne soit accepté.
-L'injection mémoire : le palier le plus élevé est le seul à ajouter un brief de
-persona utilisateur, et seulement à l'intérieur de l'assistant intégré. Le profil
+Le profil
 de prompt système : Assisté prend un prompt intégré, les trois autres paliers en
 prennent un plus persévérant. Et le budget de pas suggéré, qui mérite une seconde
 lecture.
