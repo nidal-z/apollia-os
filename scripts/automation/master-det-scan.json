@@ -15757,11 +15757,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "01c-enrichment-resume-opens-onboarding"
+      "label": "01c-enrichment-resume-opens-conversation"
     },
     {
       "kind": "click",
-      "testid": "onboarding-skip",
+      "testid": "onboarding-skip-optional",
       "timeoutMs": 3000
     },
     {

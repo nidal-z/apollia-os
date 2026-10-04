@@ -17,10 +17,16 @@
    * together via the shared frame's Save (footer / Cmd+S / nav guard), and are
    * saved before another profile is displayed. Profile changes (create,
    * rename, default, reset, delete) and facts persist immediately.
+   *
+   * A proposal of the onboarding agent arrives here as unsaved edits of that
+   * same form: the banner says so, "Save" is the Save of the frame and "Skip"
+   * its Reset. The agent itself writes nothing.
    */
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
   import { setRouteState } from "$lib/stores/settingsDirty";
+  import { pendingProfileProposal } from "$lib/stores/onboarding";
+  import { layProposal } from "$lib/onboarding/profileProposal";
   import { addToast } from "$lib/components/ui/toast";
   import { reportError } from "$lib/errors/reportError";
   import {
@@ -55,6 +61,8 @@
   let detail = $state<ProfileDetailView | null>(null);
   let values = $state<Record<string, string>>({});
   let factsNonce = $state(0);
+  // A proposal of the agent is laid over the form, not saved yet.
+  let reviewing = $state(false);
 
   const changed = $derived(detail ? changedFields(detail.fields, values) : {});
   const dirty = $derived(Object.keys(changed).length > 0);
@@ -64,7 +72,21 @@
     selectedId = next.profile.id;
     values = fieldValues(next.fields);
     factsNonce += 1;
+    reviewing = false;
   }
+
+  // The proposal a conversation hands back: laid over the form of the profile
+  // it was asked for, as edits the person reads over. A proposal for another
+  // profile, or one that changes nothing, is dropped.
+  $effect(() => {
+    const pending = $pendingProfileProposal;
+    if (!pending || !detail) return;
+    pendingProfileProposal.set(null);
+    const next = layProposal(detail.profile.id, detail.fields, values, pending);
+    if (!next) return;
+    values = next;
+    reviewing = true;
+  });
 
   async function refreshList(): Promise<void> {
     profiles = await listProfiles();
@@ -100,6 +122,7 @@
       show(await updateProfile(detail.profile.id, { fields: changed }));
       await refreshList();
       setRouteState("profile", { dirty: false, savingState: "saved" });
+      reviewing = false;
       return true;
     } catch (err) {
       const humanized = reportError(err, { surface: "inline" });
@@ -113,6 +136,7 @@
 
   function reset(): void {
     if (detail) values = fieldValues(detail.fields);
+    reviewing = false;
     setRouteState("profile", { dirty: false, savingState: "idle" });
   }
 
@@ -208,7 +232,13 @@
     />
     {#if detail}
       {#key factsNonce}
-        <ProfileEnrichmentBanner fields={detail.fields} />
+        <ProfileEnrichmentBanner
+          profileId={detail.profile.id}
+          fields={detail.fields}
+          {reviewing}
+          onsave={() => void save()}
+          onskip={reset}
+        />
       {/key}
       <ProfileFieldsCard
         profileName={detail.profile.name}

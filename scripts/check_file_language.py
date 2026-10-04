@@ -335,8 +335,6 @@ FRENCH_DATA: dict[str, int] = {
     "scripts/check_method_references.py": 18,
     "scripts/check_python_rules.py": 4,
     "tests/cli/seed/files/agents/onboarding-agent/agent.py": 28,
-    "agents/system/onboarding-agent/tools/onboarding.py": 21,
-    "tests/test_onboarding_tool.py": 2,
     # prompt: French text sent to a model, because the operator writes French
     "crates/apollia-runtime/src/chat/title.rs": 17,
     # fixture: French user text, or a multi-byte character, a test feeds to the

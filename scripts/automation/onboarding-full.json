@@ -4,6 +4,7 @@
   "dynamicTestids": [
     "onboarding-lang-en",
     "onboarding-lang-fr",
+    "profile-field-role",
     "settings-nav-appearance"
   ],
   "steps": [
@@ -443,16 +444,30 @@
     },
     {
       "kind": "waitFor",
-      "testid": "onboarding-finish",
+      "testid": "onboarding-profile-review",
       "timeoutMs": 30000
     },
     {
+      "kind": "expect",
+      "testid": "onboarding-review-skip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-field-role",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "fill",
+      "testid": "profile-field-role",
+      "text": "Automation QA engineer"
+    },
+    {
       "kind": "screenshot",
-      "label": "11-onb-celebration"
+      "label": "11-onb-profile-review"
     },
     {
       "kind": "click",
-      "testid": "onboarding-finish",
+      "testid": "onboarding-review-save",
       "timeoutMs": 3000
     },
     {
@@ -692,8 +707,8 @@
     }
   ],
   "notes": [
-    "The footer button is step-dependent (OnboardingModal.svelte): every step but the conversation renders onboarding-skip (abandon onboarding), while the conversation renders onboarding-skip-optional, which drops only the remaining optional questions and still routes to the permissions phase. Abandoning there would skip permissions entirely, so the button is deliberately not the same one.",
-    "The phase that follows the optional skip depends on the agent answering, which a deterministic run has no model for. The script therefore stops at the click plus a screenshot instead of asserting a downstream phase.",
+    "The footer button is step-dependent (OnboardingModal.svelte): every step but the conversation renders onboarding-skip (abandon onboarding), while the conversation renders onboarding-skip-optional, which skips the questions, all of them optional, and opens the profile review (OnboardingProfileReview.svelte). The review writes nothing by itself: onboarding-review-save writes the default profile, onboarding-review-skip leaves it untouched, and both close the modal.",
+    "The skip finalizes the conversation through finalize_onboarding_chat, with no model turn, so the review opens in a deterministic run with an empty proposal; the book fills the role by hand (profile-field-role, a field drawn from the list Rust sends with the default profile) and saves. A proposal filled by the agent needs a model and is played by onboarding-llm.",
     "llm-load-model-btn is played through the invoke stub: OnboardingLlmSection.svelte:13 imports plugin-dialog `open`, which is invoke('plugin:dialog|open'), so a once stub resolving ${HOME}/.apollia/models/Phi-3-mini-Q4.gguf skips the OS picker and continues into import_model_file (model_hub.rs:495 copies only when dest differs from source, so the seed's own file is left intact) then selectGgufModel, the same wiring as the llm-model-row click. It sits in the operator ai-setup pass, before any row click, so llmConfiguring is false (OnboardingLlmSection.svelte:143 returns early while a configuration is in flight).",
     "The onboarding asks no usage profile: the welcome leads straight to the AI setup, and ai-setup-back returns to the welcome. The book walks that pair three times, once bare, once with the whisper scan stubbed empty, once to replay the detected rows, and after the finish it checks that the developer group of the sidebar is absent, the developer mode staying off.",
     "onboarding-skip-error-details is played at the end, after a second danger-zone reset reopens the modal: a once stub rejects dismiss_onboarding (lib/ipc/onboarding.ts:43), skipOnboarding reports instead of closing (lib/onboarding/skipOnboarding.ts:37-41), humanize keeps the raw text on detail (lib/errors/humanize.ts:263-274) and the disclosure at OnboardingModal.svelte:248 renders. The stubs are then cleared and a second onboarding-skip closes the modal for real, so the book ends on a healthy shell. It comes last because onboarding-open-cloud closes the modal (OnboardingModal.svelte:226 passes onclose as onopencloud) and the earlier flow needs the modal.",

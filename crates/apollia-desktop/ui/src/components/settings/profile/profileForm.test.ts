@@ -144,6 +144,7 @@ describe("the form (criterion 2)", () => {
     const files = [
       "profileForm.ts",
       "ProfileFieldsCard.svelte",
+      "ProfileFieldGrid.svelte",
       "ProfileListCard.svelte",
       "ProfileEnrichmentBanner.svelte",
       "../../../routes/settings/Profile.svelte",
