@@ -19,6 +19,9 @@ rust-version.workspace = true
 default = ["cloud"]
 ## Turns on the HTTP backends (OpenAI-compatible servers, Ollama).
 cloud = ["apollia-runtime/cloud"]
+## Optical character recognition of scanned pages and pictures in sources.
+## Compiles Tesseract from source and links it statically; off by default.
+ocr = ["apollia-runtime/ocr"]
 
 [dependencies]
 reqwest          = { workspace = true }

@@ -6,12 +6,21 @@ rust-version.workspace = true
 description = "Apollia OS - the sources an agent may consult: the registry, the actor that owns it, the readers of workbooks, CSV files, PDF, Word and PowerPoint documents, the table a batch reads from them and writes its results to, and the index of each source, kept in step with its files"
 license.workspace = true
 
+[features]
+default = []
+## Optical character recognition of scanned pages and pictures. Compiles
+## Tesseract and Leptonica from source (cmake, a C++ compiler and the network
+## at build time) and links them statically. Off by default so that an everyday
+## `cargo check --workspace` does not build them; on for the packaged build.
+ocr = ["dep:tesseract-rs"]
+
 [dependencies]
 apollia-core = { workspace = true }
 apollia-llm  = { workspace = true, features = ["cloud"] }
 calamine     = { workspace = true }
 chrono       = { workspace = true }
 csv          = { workspace = true }
+image        = { workspace = true }
 notify       = { workspace = true }
 pdf_oxide    = { workspace = true }
 quick-xml    = { workspace = true }
@@ -20,6 +29,7 @@ rust_xlsxwriter = { workspace = true }
 serde        = { workspace = true }
 serde_json   = { workspace = true }
 sha2         = { workspace = true }
+tesseract-rs = { workspace = true, optional = true }
 thiserror    = { workspace = true }
 tokio        = { workspace = true }
 tracing      = { workspace = true }
@@ -27,6 +37,7 @@ zip          = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+wiremock = { workspace = true }
 
 [lints]
 workspace = true

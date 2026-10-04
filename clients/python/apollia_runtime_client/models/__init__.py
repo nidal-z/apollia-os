@@ -530,6 +530,8 @@ from .uninstall_report import UninstallReport
 from .uninstall_request import UninstallRequest
 from .unload_model_request import UnloadModelRequest
 from .unload_model_response import UnloadModelResponse
+from .unread_page_response import UnreadPageResponse
+from .unread_reason_dto import UnreadReasonDto
 from .update_agent_request import UpdateAgentRequest
 from .update_agent_response import UpdateAgentResponse
 from .update_artifact_request import UpdateArtifactRequest
@@ -1086,6 +1088,8 @@ __all__ = (
     "UninstallRequest",
     "UnloadModelRequest",
     "UnloadModelResponse",
+    "UnreadPageResponse",
+    "UnreadReasonDto",
     "UpdateAgentRequest",
     "UpdateAgentResponse",
     "UpdateArtifactRequest",

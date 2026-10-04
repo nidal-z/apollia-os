@@ -8,8 +8,9 @@
 //! the text of each page with its number ([`PdfPage`]). A Word document is read
 //! by [`read_word`], which answers its paragraphs and table rows in order
 //! ([`WordSegment`]), and a PowerPoint presentation by [`read_presentation`],
-//! which answers the text and the notes of each slide ([`Slide`]). The readers
-//! only read:
+//! which answers the text and the notes of each slide ([`Slide`]). A scanned
+//! page and a picture are read by recognition ([`read_pdf_scanned`],
+//! [`read_picture`], over [`crate::Ocr`]). The readers only read:
 //! nothing is written, nothing leaves the machine. They are synchronous and read the whole file, so an async
 //! caller runs them under `spawn_blocking`.
 
@@ -18,13 +19,15 @@ use std::path::{Path, PathBuf};
 mod delimited;
 mod office;
 mod pdf;
+mod picture;
 mod presentation;
 mod word;
 mod workbook;
 
 pub use delimited::{read_csv, CsvFile, Delimiter};
 pub use office::{OFFICE_MAX_DECOMPRESSED_BYTES, OFFICE_MAX_ENTRIES};
-pub use pdf::{read_pdf, PageText, PdfDocument, PdfPage};
+pub use pdf::{read_pdf, read_pdf_scanned, PageText, PdfDocument, PdfPage};
+pub use picture::{read_picture, PICTURE_EXTENSIONS};
 pub use presentation::{read_presentation, Presentation, Slide, PRESENTATION_EXTENSIONS};
 pub use word::{read_word, SegmentKind, WordDocument, WordSegment, WORD_EXTENSIONS};
 pub use workbook::{read_workbook, Workbook, WORKBOOK_EXTENSIONS};
