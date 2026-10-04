@@ -91,29 +91,11 @@ check_grep   "config keys lists api.port" "api.port"    "$BIN" config keys
 check        "hooks list --dry-run"                     "$BIN" hooks list --dry-run
 check_json   "hooks list --dry-run --json"              "$BIN" --json hooks list --dry-run
 
-# ── A.3 project (2 seeded: alpha, beta) ─────────────────────────────────────
+# ── A.3 project (retired) ───────────────────────────────────────────────────
+# Projects became sources: the noun is gone, refused as a usage error (1).
 section "A.3 project"
-check_content "project list shows Seed Project Alpha" "Seed Project Alpha"  "$BIN" project list
-check_content "project list shows Seed Project Beta"  "Seed Project Beta"   "$BIN" project list
-check         "project show alpha"                     "$BIN" project show seed-project-alpha
-check_json_field "project show alpha id"    "d['id']"          "seed-project-alpha" "$BIN" project show seed-project-alpha --json
-check_json_field "project show alpha name"  "d['name']"        "Seed Project Alpha" "$BIN" project show seed-project-alpha --json
-check_content "project show alpha: 3 providers" "Providers +3|Providers[[:space:]]+3" "$BIN" project show seed-project-alpha
-# CRUD on a fresh project (leaves the seeded rows intact).
-PID=$("$BIN" project create e2e-tmp --description demo --json 2>/dev/null | "${E2E_PYTHON:-python3}" -c "import sys,json;print(json.load(sys.stdin)['id'])" 2>/dev/null)
-[[ -n "$PID" ]] && _pass "project create + JSON id parse" || { _fail "project create" ""; PID=ghost; }
-check         "project update --name e2e-tmp2"         "$BIN" project update "$PID" --name e2e-tmp2
-check         "project agents add"                     "$BIN" project agents add "$PID" my-agent
-check_content "project agents list has my-agent" "my-agent" "$BIN" project agents list "$PID"
-check         "project agents remove"                  "$BIN" project agents remove "$PID" my-agent --confirm
-check         "project templates list"                 "$BIN" project templates list
-check         "project templates seed-builtins"        "$BIN" project templates seed-builtins
-# Link a seeded chat session to the seeded project, list, unlink.
-check         "project link (seed session)"            "$BIN" project link seed-project-alpha --session seed-session-1
-check         "project chats"                          "$BIN" project chats seed-project-alpha
-check         "project link --unlink"                  "$BIN" project link seed-project-alpha --session seed-session-1 --unlink
-check_exit    "project link empty session → 1"  1      "$BIN" project link seed-project-alpha --session ""
-check         "project delete --confirm"               "$BIN" project delete "$PID" --confirm
+check_exit    "project list (retired) → 1"       1     "$BIN" project list
+check_exit    "project link (retired) → 1"       1     "$BIN" project link seed-project-alpha --session seed-session-1
 
 # ── A.4 profile (3 seeded __user__ keys) ────────────────────────────────────
 # The seed is a profile written before profiles existed: the first open migrates

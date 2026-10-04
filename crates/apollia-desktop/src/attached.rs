@@ -47,11 +47,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "pause_chat_session",
     "send_chat_message",
     // The conversations as the list manages them: configure, rename, name,
-    // erase, link to a project, list by project.
+    // erase.
     "delete_chat_session",
     "generate_chat_session_name",
-    "link_chat_to_project",
-    "list_chats_by_project",
     "rename_chat_session",
     "update_chat_session",
     // The chat: a turn played again, a decision on a tool call, the history
@@ -120,6 +118,8 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_connections",
     "list_imap_providers",
     "remove_folder_connection",
+    // The report of the migration of the former projects.
+    "get_project_migration_report",
     // Apollia as an MCP server, over `/api/v1/mcp/exposed`.
     "list_mcp_exposable",
     "set_mcp_exposed",

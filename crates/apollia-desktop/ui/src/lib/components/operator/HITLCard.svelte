@@ -10,7 +10,6 @@
   export type AlwaysScope =
     | "this_session"
     | "this_agent"
-    | "this_project"
     | "global";
 
   interface Props {
@@ -35,8 +34,6 @@
     onReject?: (e: MouseEvent) => void;
     /** When set, surfaces the "Toujours autoriser" scope picker (chat tool flows). */
     onAlwaysAccept?: (scope: AlwaysScope) => void;
-    /** Disables the "Toujours pour ce projet" option when the session has no project. */
-    hasProject?: boolean;
   }
 
   let {
@@ -52,7 +49,6 @@
     onApprove,
     onReject,
     onAlwaysAccept,
-    hasProject = false,
   }: Props = $props();
 
   let scopeOpen = $state(false);
@@ -209,21 +205,6 @@
         <div class="font-medium text-foreground">{$t("approval.scope.agent_title")}</div>
         <div class="text-micro text-muted-foreground">
           {$t("approval.scope.agent_desc")}
-        </div>
-      </button>
-      <button
-        type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-card transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-        disabled={!hasProject}
-        onclick={() => { scopeOpen = false; onAlwaysAccept!("this_project"); }}
-        data-testid="hitl-scope-project"
-        title={!hasProject ? $t("approval.scope.project_no_project") : undefined}
-      >
-        <div class="font-medium text-foreground">{$t("approval.scope.project_title")}</div>
-        <div class="text-micro text-muted-foreground">
-          {hasProject
-            ? $t("approval.scope.project_desc")
-            : $t("approval.scope.project_unavailable")}
         </div>
       </button>
       <button

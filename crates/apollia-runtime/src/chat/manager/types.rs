@@ -80,7 +80,6 @@ pub(in crate::chat::manager) struct AlwaysAcceptScopeCtx<'a> {
     pub(in crate::chat::manager) scope: &'a super::super::types::AlwaysAcceptScope,
     pub(in crate::chat::manager) session_mode: ChatMode,
     pub(in crate::chat::manager) session_agent_name: Option<String>,
-    pub(in crate::chat::manager) session_project_id: Option<&'a str>,
     pub(in crate::chat::manager) session_id: &'a str,
     pub(in crate::chat::manager) tool_name: &'a str,
 }
@@ -100,7 +99,7 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     pub(in crate::chat::manager) event_bus: EventBusSender,
     pub(in crate::chat::manager) a2a_for_agent: Option<Arc<A2AInvoker>>,
     /// The principle 6 injections gathered for the session (user memory,
-    /// past sessions block); the project context is added by the exchange.
+    /// past sessions block).
     pub(in crate::chat::manager) apollia_context: ApolliaContext,
     pub(in crate::chat::manager) pending_approvals: PendingChatApprovals,
     /// Autonomy tier of the exchange; the executor derives the budget, the
@@ -114,13 +113,10 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     pub(in crate::chat::manager) available_tools: apollia_tools::AgentAccess,
     pub(in crate::chat::manager) authorized_tools: std::collections::HashSet<String>,
     pub(in crate::chat::manager) system_prompt: String,
-    pub(in crate::chat::manager) inject_project_context: bool,
     pub(in crate::chat::manager) is_companion: bool,
     pub(in crate::chat::manager) context_window_size: usize,
     pub(in crate::chat::manager) stored_summary: Option<String>,
     pub(in crate::chat::manager) llm_for_summarize: Option<Arc<LlmRouter>>,
-    pub(in crate::chat::manager) project_ctx: Option<Arc<dyn ProjectContextProvider>>,
-    pub(in crate::chat::manager) session_project_id: Option<String>,
     pub(in crate::chat::manager) pending_user_inputs_for_session:
         apollia_tools::tools::ask_user::PendingUserInputs,
     pub(in crate::chat::manager) mcp_handle_for_session:
@@ -223,7 +219,6 @@ pub struct CreateSessionParams {
     pub agent_name: Option<String>,
     pub system_prompt: Option<String>,
     pub tools: Vec<String>,
-    pub project_id: Option<String>,
 }
 
 /// Parameters for [`ChatSessionManager::handle_register_user_input_reply`].

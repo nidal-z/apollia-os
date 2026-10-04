@@ -12,7 +12,6 @@ const SESSION: ChatSessionSummary = {
   created_at: "2026-08-18T09:00:00Z",
   closed_at: null,
   title: null,
-  project_id: null,
 };
 
 interface Recorder {

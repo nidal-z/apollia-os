@@ -7,9 +7,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use apollia_aip::bridge::AIPBridge;
-use apollia_aip::context::{
-    effective_memory_namespace, DispatcherExecutor, RuntimeContext, ToolProxy, ToolProxyConfig,
-};
+use apollia_aip::context::{DispatcherExecutor, RuntimeContext, ToolProxy, ToolProxyConfig};
 use apollia_aip::memory::MemoryInterface;
 use apollia_core::{
     AIPError, AIPResult, AIPTask, AgentManifest, ORIAConfig, PendingApprovals, TaskStatus,
@@ -421,7 +419,7 @@ impl AgentRunner for BridgeRunner {
             };
 
             let memory_interface = memory_namespace.as_deref().and_then(|ns| {
-                let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
+                let eff_ns = ns.to_owned();
                 let mut manager =
                     MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
                 if let Some(ref memory_config) = memory_config {

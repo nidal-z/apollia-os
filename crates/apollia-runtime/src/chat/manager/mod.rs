@@ -26,13 +26,13 @@ use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_permissions::prefix_rule_engine::RuleAction;
 use apollia_permissions::PrefixRuleEngine;
 use apollia_tools::governance_db::GOVERNANCE_DB_FILENAME;
-use apollia_tools::{ProjectRepository, ToolRegistryHandle};
+use apollia_tools::ToolRegistryHandle;
 
 use super::a2a_tools::CompositeToolInvoker;
 use super::agent_chat::{AgentChatExecutor, AgentChatRequest, ChatAgentRunner};
 use super::agent_executor::{
-    AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, Composition,
-    ProjectContextSource, RunInput, SessionWiring,
+    AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, Composition, RunInput,
+    SessionWiring,
 };
 use super::builtin_agent::{
     ChatAgentResponse, HitlInvokerParams, NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE,
@@ -45,8 +45,8 @@ use super::todo_handle::TodoHandle;
 use super::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, InjectedInstruction,
     MessageId, PauseState, PendingChatApprovals, PendingFilesystemApprovals, PlanPhase,
-    ProjectContextProvider, RecentSessionSummary, SessionDetail, SessionId, SessionInfo,
-    SessionMetrics, SessionStatus, ToolCallRecord, ToolDecision,
+    RecentSessionSummary, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
+    ToolCallRecord, ToolDecision,
 };
 use crate::a2a::A2AInvoker;
 use crate::api::routes_agents::AgentLoader;
@@ -128,15 +128,6 @@ struct ChatSessionManager {
     tx: mpsc::Sender<ChatCommand>,
     /// Optional A2A invoker, when present, worker agent skills are exposed as virtual tools.
     a2a_invoker: Option<Arc<A2AInvoker>>,
-    /// Optional project context provider for injecting project context into system prompts.
-    project_context: Option<Arc<dyn ProjectContextProvider>>,
-    /// Project repository. A project's folder no longer roots the file tools
-    /// of its sessions, so nothing reads it here.
-    #[allow(
-        dead_code,
-        reason = "kept for the spawn signature its callers share; it goes with the projects"
-    )]
-    project_repo: Option<Arc<ProjectRepository>>,
     /// Pending user input registry for the `ask_user` tool.
     pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs,
     /// MCP manager handle, populated when the supervisor's MCP bootstrap

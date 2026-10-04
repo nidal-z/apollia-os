@@ -69,19 +69,6 @@ impl ToolInvoker for NoTool {
     }
 }
 
-/// Counts the project context blocks it is asked for.
-struct CountingProject {
-    calls: Arc<AtomicU32>,
-}
-
-#[async_trait::async_trait]
-impl ProjectContextProvider for CountingProject {
-    async fn build_context(&self, _project_id: &str) -> Option<String> {
-        self.calls.fetch_add(1, Ordering::SeqCst);
-        Some("## Project context\nThe ledger project.".into())
-    }
-}
-
 /// A router holding `default` and `assigned`, with the stream counters of
 /// each, in that order.
 fn two_backend_router() -> (Arc<LlmRouter>, Arc<AtomicU32>, Arc<AtomicU32>) {
@@ -155,9 +142,9 @@ fn deps(router: Arc<LlmRouter>, bus: EventBusSender) -> AgentExecutorDeps {
     }
 }
 
-/// The three injections, each one observable: a persona in memory, a past
-/// sessions block, and a project provider that counts its calls.
-fn full_apollia_context(project_calls: &Arc<AtomicU32>) -> ApolliaContext {
+/// The two injections, each one observable: a persona in memory and a past
+/// sessions block.
+fn full_apollia_context() -> ApolliaContext {
     let dir = std::env::temp_dir().join(format!("apollia_exec_um_{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).expect("create temp dir");
     let repo = UserMemoryRepository::new(&dir.join("user_memory.db")).expect("open user memory");
@@ -166,12 +153,6 @@ fn full_apollia_context(project_calls: &Arc<AtomicU32>) -> ApolliaContext {
     ApolliaContext {
         user_memory: Some(Arc::new(std::sync::Mutex::new(repo))),
         past_sessions: Some("## Context from earlier, unrelated sessions\n- [x] budget".into()),
-        project: Some(ProjectContextSource {
-            project_id: "p1".into(),
-            provider: Arc::new(CountingProject {
-                calls: Arc::clone(project_calls),
-            }),
-        }),
     }
 }
 
@@ -358,17 +339,16 @@ async fn test_executor_fallback_names_the_agent() {
     assert_eq!(fallback_agent.as_deref(), Some("ledger-clerk"));
 }
 
-// GIVEN a resolved agent that is not Apollia, handed the three injections
-//       (a persona in memory, a past sessions block, a project provider)
+// GIVEN a resolved agent that is not Apollia, handed the two injections
+//       (a persona in memory, a past sessions block)
 // WHEN its executor is built and its system prompt composed
-// THEN the prompt is the mission alone, the project provider is never asked,
-//      and even the memory tier composes no persona block
+// THEN the prompt is the mission alone, and even the memory tier composes no
+//      persona block
 #[tokio::test]
 async fn test_other_agent_receives_none_of_the_apollia_injections() {
     // GIVEN
     let (router, _, _) = two_backend_router();
     let (bus, _) = tokio::sync::broadcast::channel(16);
-    let project_calls = Arc::new(AtomicU32::new(0));
     let spec =
         AgentRunSpec::from_resolved(&resolved_agent("assigned", AutonomyLevel::LongAutonomous));
 
@@ -376,7 +356,7 @@ async fn test_other_agent_receives_none_of_the_apollia_injections() {
     let executor = AgentExecutor::new(
         spec,
         deps(router, bus),
-        full_apollia_context(&project_calls),
+        full_apollia_context(),
         SessionWiring::default(),
         &ceiling(),
         CancellationToken::new(),
@@ -389,22 +369,19 @@ async fn test_other_agent_receives_none_of_the_apollia_injections() {
 
     // THEN
     assert_eq!(prompt, "Reconcile the ledger, then report the gaps.");
-    assert_eq!(project_calls.load(Ordering::SeqCst), 0);
     assert!(!composed.contains("User Persona"), "{composed}");
     assert!(!composed.contains("earlier, unrelated sessions"));
-    assert!(!composed.contains("Project context"));
 }
 
-// GIVEN the Apollia agent, handed the same three injections
+// GIVEN the Apollia agent, handed the same two injections
 // WHEN its executor is built and its system prompt composed
-// THEN the prompt carries the mission, the past sessions block and the
-//      project block in that order, and the memory tier adds the persona
+// THEN the prompt carries the mission then the past sessions block, nothing
+//      after it, and the memory tier adds the persona
 #[tokio::test]
-async fn test_apollia_receives_the_three_injections() {
+async fn test_apollia_receives_the_two_injections() {
     // GIVEN
     let (router, _, _) = two_backend_router();
     let (bus, _) = tokio::sync::broadcast::channel(16);
-    let project_calls = Arc::new(AtomicU32::new(0));
     let spec = AgentRunSpec {
         agent_id: APOLLIA_CHAT_AGENT_ID.to_string(),
         mission: "You are Apollia.".into(),
@@ -417,7 +394,7 @@ async fn test_apollia_receives_the_three_injections() {
     let executor = AgentExecutor::new(
         spec,
         deps(router, bus),
-        full_apollia_context(&project_calls),
+        full_apollia_context(),
         SessionWiring::default(),
         &ceiling(),
         CancellationToken::new(),
@@ -431,10 +408,8 @@ async fn test_apollia_receives_the_three_injections() {
     // THEN
     assert_eq!(
         prompt,
-        "You are Apollia.\n\n## Context from earlier, unrelated sessions\n- [x] budget\n\n\
-         ## Project context\nThe ledger project."
+        "You are Apollia.\n\n## Context from earlier, unrelated sessions\n- [x] budget"
     );
-    assert_eq!(project_calls.load(Ordering::SeqCst), 1);
     assert!(composed.contains("User Persona"), "{composed}");
 }
 

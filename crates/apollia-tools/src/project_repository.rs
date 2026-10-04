@@ -1,13 +1,13 @@
-//! SQLite repository for project persistence.
+//! SQLite reader of the former projects (`projects.db`).
 //!
-//! Provides [`ProjectRepository`], which stores projects, attached documents,
-//! context providers, and templates in a local SQLite database (`projects.db`).
+//! Projects are no longer a feature: at boot the runtime migrates them into
+//! sources, then removes the file once a migration has completed. What is left
+//! here is what that migration reads ([`ProjectRepository::list_projects`],
+//! [`ProjectRepository::get_project`]) and the writers its tests build a
+//! former database with.
 //!
 //! The `010_projects.sql` migration is applied idempotently when
 //! [`ProjectRepository::open`] is called.
-//!
-//! All mutation methods are synchronous; the async wrappers use
-//! `tokio::task::spawn_blocking`.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -102,26 +102,6 @@ pub struct ProjectProviderRow {
     pub priority: u8,
 }
 
-/// Predefined project template.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProjectTemplate {
-    pub id: String,
-    pub name: String,
-    pub description: Option<String>,
-    pub providers_config_json: String,
-    pub is_builtin: bool,
-    pub created_at: String,
-}
-
-/// Partial patch for updating a project.
-#[derive(Debug, Default)]
-pub struct ProjectPatch {
-    pub name: Option<String>,
-    pub description: Option<Option<String>>,
-    pub instructions: Option<Option<String>>,
-    pub workspace_path: Option<Option<String>>,
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Errors
 // ─────────────────────────────────────────────────────────────────────────────
@@ -141,14 +121,6 @@ pub enum ProjectRepositoryError {
     /// Project not found.
     #[error("project '{0}' not found")]
     NotFound(String),
-
-    /// JSON serialization error.
-    #[error("JSON error: {0}")]
-    Json(#[from] serde_json::Error),
-
-    /// A `spawn_blocking` task failed.
-    #[error("async task error: {0}")]
-    SpawnError(String),
 
     /// The internal lock was poisoned.
     #[error("internal lock poisoned")]
@@ -305,6 +277,8 @@ impl ProjectRepository {
     }
 
     /// Creates a new project. Returns its `id` (UUID v4).
+    /// TEST-ONLY: production never writes a project any more; the tests of
+    /// the migration build a former database through it.
     pub fn create_project(
         &self,
         name: impl Into<String>,
@@ -326,62 +300,9 @@ impl ProjectRepository {
         Ok(id)
     }
 
-    /// Updates the non-null fields of a project. Returns `false` if not found.
-    pub fn update_project(
-        &self,
-        id: &str,
-        patch: ProjectPatch,
-    ) -> Result<bool, ProjectRepositoryError> {
-        let now = now_rfc3339();
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
-
-        if let Some(name) = patch.name {
-            conn.execute(
-                "UPDATE projects SET name = ?1, updated_at = ?2 WHERE id = ?3",
-                params![name, now, id],
-            )?;
-        }
-        if let Some(description) = patch.description {
-            conn.execute(
-                "UPDATE projects SET description = ?1, updated_at = ?2 WHERE id = ?3",
-                params![description, now, id],
-            )?;
-        }
-        if let Some(instructions) = patch.instructions {
-            conn.execute(
-                "UPDATE projects SET instructions = ?1, updated_at = ?2 WHERE id = ?3",
-                params![instructions, now, id],
-            )?;
-        }
-        if let Some(workspace_path) = patch.workspace_path {
-            conn.execute(
-                "UPDATE projects SET workspace_path = ?1, updated_at = ?2 WHERE id = ?3",
-                params![workspace_path, now, id],
-            )?;
-        }
-
-        let n: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM projects WHERE id = ?1",
-            params![id],
-            |r| r.get(0),
-        )?;
-        Ok(n > 0)
-    }
-
-    /// Deletes a project and cascades to its documents and providers.
-    pub fn delete_project(&self, id: &str) -> Result<bool, ProjectRepositoryError> {
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
-        let n = conn.execute("DELETE FROM projects WHERE id = ?1", params![id])?;
-        Ok(n > 0)
-    }
-
     /// Attaches a document to a project. Returns the document `id`.
+    /// TEST-ONLY: production never writes a project any more; the tests of
+    /// the migration build a former database through it.
     pub fn add_document(
         &self,
         project_id: &str,
@@ -403,52 +324,13 @@ impl ProjectRepository {
         Ok(id)
     }
 
-    /// Removes a document by its `id`. Returns `false` if not found.
-    pub fn remove_document(&self, doc_id: &str) -> Result<bool, ProjectRepositoryError> {
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
-        let n = conn.execute(
-            "DELETE FROM project_documents WHERE id = ?1",
-            params![doc_id],
-        )?;
-        Ok(n > 0)
-    }
-
-    /// Lists the providers configured for a project, sorted by priority.
-    pub fn list_providers(
-        &self,
-        project_id: &str,
-    ) -> Result<Vec<ProjectProviderRow>, ProjectRepositoryError> {
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
-        let mut stmt = conn.prepare(
-            "SELECT id, project_id, provider_type, name, config_json, path, enabled, priority
-             FROM project_providers WHERE project_id = ?1 ORDER BY priority ASC",
-        )?;
-        let rows = stmt.query_map(params![project_id], |row| {
-            Ok(ProjectProviderRow {
-                id: row.get(0)?,
-                project_id: row.get(1)?,
-                provider_type: row.get(2)?,
-                name: row.get(3)?,
-                config_json: row.get(4)?,
-                path: row.get(5)?,
-                enabled: row.get::<_, i64>(6)? != 0,
-                priority: row.get::<_, i64>(7)? as u8,
-            })
-        })?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
-    }
-
     /// Inserts or updates a provider for a project.
     ///
     /// If `provider_id` is `Some(id)` and a row with that id exists for this
     /// project, it is updated. Otherwise a new row is inserted with a fresh
     /// UUID. Returns the id of the row that was actually affected.
+    /// TEST-ONLY: production never writes a project any more; the tests of
+    /// the migration build a former database through it.
     // REASON: each argument is one column of the provider row; the table schema is the struct.
     #[allow(clippy::too_many_arguments)]
     pub fn set_provider(
@@ -518,81 +400,9 @@ impl ProjectRepository {
         Ok(new_id)
     }
 
-    /// Lists all available project templates (built-in and custom).
-    pub fn list_templates(&self) -> Result<Vec<ProjectTemplate>, ProjectRepositoryError> {
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
-        let mut stmt = conn.prepare(
-            "SELECT id, name, description, providers_config_json, is_builtin, created_at
-             FROM project_templates ORDER BY is_builtin DESC, name ASC",
-        )?;
-        let rows = stmt.query_map([], |row| {
-            Ok(ProjectTemplate {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                description: row.get(2)?,
-                providers_config_json: row.get(3)?,
-                is_builtin: row.get::<_, i64>(4)? != 0,
-                created_at: row.get(5)?,
-            })
-        })?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
-    }
-
-    /// Inserts the built-in templates if they do not already exist (`INSERT OR IGNORE`).
-    ///
-    /// Called at supervisor startup so the base templates are always available,
-    /// even on a fresh installation.
-    pub fn seed_builtin_templates(&self) -> Result<(), ProjectRepositoryError> {
-        let now = now_rfc3339();
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
-
-        // "Git development" template: git + rules + tree providers
-        let git_providers = serde_json::json!([
-            {"provider_type": "git",   "name": "Git Status",    "enabled": true, "priority": 10},
-            {"provider_type": "rules", "name": "Project Rules",  "enabled": true, "priority": 20},
-            {"provider_type": "tree",  "name": "Directory Tree", "enabled": true, "priority": 30}
-        ])
-        .to_string();
-
-        conn.execute(
-            "INSERT OR IGNORE INTO project_templates
-                (id, name, description, providers_config_json, is_builtin, created_at)
-             VALUES (?1, ?2, ?3, ?4, 1, ?5)",
-            params![
-                "builtin-git",
-                "Git development",
-                "Code-oriented project: git, APOLLIA.md rules and file tree.",
-                git_providers,
-                now,
-            ],
-        )?;
-
-        // "Empty" template: no providers
-        conn.execute(
-            "INSERT OR IGNORE INTO project_templates
-                (id, name, description, providers_config_json, is_builtin, created_at)
-             VALUES (?1, ?2, ?3, ?4, 1, ?5)",
-            params![
-                "builtin-empty",
-                "Empty",
-                "Project with no workspace context - configure it by hand.",
-                "[]",
-                now,
-            ],
-        )?;
-
-        Ok(())
-    }
-
-    // ─── Agent linking ─────────────────────────────────────────────────────────
-
     /// Links an agent to a project. Idempotent (`INSERT OR IGNORE`).
+    /// TEST-ONLY: production never writes a project any more; the tests of
+    /// the migration build a former database through it.
     pub fn add_agent(
         &self,
         project_id: &str,
@@ -609,96 +419,6 @@ impl ProjectRepository {
             params![project_id, agent_name, now],
         )?;
         Ok(())
-    }
-
-    /// Unlinks an agent from a project.
-    pub fn remove_agent(
-        &self,
-        project_id: &str,
-        agent_name: &str,
-    ) -> Result<bool, ProjectRepositoryError> {
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
-        let n = conn.execute(
-            "DELETE FROM project_agents WHERE project_id = ?1 AND agent_name = ?2",
-            params![project_id, agent_name],
-        )?;
-        Ok(n > 0)
-    }
-
-    /// Lists the agent names linked to a project.
-    pub fn list_agents(&self, project_id: &str) -> Result<Vec<String>, ProjectRepositoryError> {
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
-        let mut stmt = conn.prepare(
-            "SELECT agent_name FROM project_agents WHERE project_id = ?1 ORDER BY added_at ASC",
-        )?;
-        let agents = stmt
-            .query_map(params![project_id], |row| row.get::<_, String>(0))?
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(agents)
-    }
-
-    // ─── Provider management ─────────────────────────────────────────────────
-
-    /// Removes a context provider.
-    pub fn remove_provider(&self, provider_id: &str) -> Result<bool, ProjectRepositoryError> {
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
-        let n = conn.execute(
-            "DELETE FROM project_providers WHERE id = ?1",
-            params![provider_id],
-        )?;
-        Ok(n > 0)
-    }
-
-    /// Enables or disables a context provider.
-    pub fn toggle_provider(
-        &self,
-        provider_id: &str,
-        enabled: bool,
-    ) -> Result<bool, ProjectRepositoryError> {
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
-        let n = conn.execute(
-            "UPDATE project_providers SET enabled = ?1 WHERE id = ?2",
-            params![enabled as i64, provider_id],
-        )?;
-        Ok(n > 0)
-    }
-
-    // ─── Async wrappers ───────────────────────────────────────────────────────
-
-    /// Async wrapper for [`create_project`](Self::create_project).
-    pub async fn create_project_async(
-        &self,
-        name: String,
-        description: Option<String>,
-        instructions: Option<String>,
-        workspace_path: Option<String>,
-    ) -> Result<String, ProjectRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || {
-            repo.create_project(name, description, instructions, workspace_path)
-        })
-        .await
-        .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
-    }
-
-    /// Async wrapper for [`delete_project`](Self::delete_project).
-    pub async fn delete_project_async(&self, id: String) -> Result<bool, ProjectRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.delete_project(&id))
-            .await
-            .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
     }
 }
 
@@ -854,91 +574,19 @@ mod tests {
         assert!(detail.providers.is_empty());
     }
 
-    #[tokio::test]
-    async fn test_create_project_async_with_workspace_path() {
-        // GIVEN an in-memory repository
-        let repo = open_memory();
-        // WHEN a project is created via the async wrapper with an explicit workspace_path
-        let id = repo
-            .create_project_async(
-                "WS Project".to_string(),
-                None,
-                None,
-                Some("/tmp/my-workspace".to_string()),
-            )
-            .await
-            .expect("create_project_async");
-        // THEN the workspace_path is persisted and readable via get_project
-        let detail = repo.get_project(&id).expect("get");
-        assert_eq!(detail.workspace_path.as_deref(), Some("/tmp/my-workspace"));
-    }
-
     #[test]
-    fn test_update_project() {
+    fn test_a_document_appears_in_the_project_detail() {
         // GIVEN a project
-        let repo = open_memory();
-        let id = repo.create_project("A", None, None, None).expect("create");
-        // WHEN updated
-        let found = repo
-            .update_project(
-                &id,
-                ProjectPatch {
-                    name: Some("B".into()),
-                    ..Default::default()
-                },
-            )
-            .expect("update");
-        // THEN found=true and name changed
-        assert!(found);
-        let detail = repo.get_project(&id).expect("get");
-        assert_eq!(detail.name, "B");
-    }
-
-    #[test]
-    fn test_delete_project() {
-        // GIVEN a project
-        let repo = open_memory();
-        let id = repo
-            .create_project("Del", None, None, None)
-            .expect("create");
-        // WHEN deleted
-        let deleted = repo.delete_project(&id).expect("delete");
-        // THEN not found
-        assert!(deleted);
-        let list = repo.list_projects().expect("list");
-        assert!(list.is_empty());
-    }
-
-    #[test]
-    fn test_add_remove_document() {
-        // GIVEN a project with a document
         let repo = open_memory();
         let pid = repo.create_project("P", None, None, None).expect("create");
+        // WHEN a document is attached
         let doc_id = repo
             .add_document(&pid, "readme.md", "/tmp/readme.md", 512)
             .expect("add_doc");
-        // THEN detail includes the document
+        // THEN the detail lists it
         let detail = repo.get_project(&pid).expect("get");
         assert_eq!(detail.documents.len(), 1);
         assert_eq!(detail.documents[0].id, doc_id);
-        // WHEN removed
-        let removed = repo.remove_document(&doc_id).expect("remove");
-        assert!(removed);
-        let detail2 = repo.get_project(&pid).expect("get");
-        assert!(detail2.documents.is_empty());
-    }
-
-    #[test]
-    fn test_seed_builtin_templates_idempotent() {
-        // GIVEN an in-memory repository
-        let repo = open_memory();
-        // WHEN templates are seeded twice
-        repo.seed_builtin_templates().expect("seed 1");
-        repo.seed_builtin_templates().expect("seed 2");
-        // THEN exactly 2 builtin templates exist
-        let templates = repo.list_templates().expect("list");
-        assert_eq!(templates.len(), 2);
-        assert!(templates.iter().all(|t| t.is_builtin));
     }
 
     #[test]

@@ -156,8 +156,6 @@ async fn fixture_with(
         None,
         None,
         None,
-        None,
-        None,
         LoadingMode::Eager,
         20,
         None,

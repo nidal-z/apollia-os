@@ -371,20 +371,28 @@ impl<'a> Run<'a> {
 
     /// Detaches every conversation from its project. A free conversation is
     /// the Apollia agent's; a conversation with an agent keeps it.
+    ///
+    /// The linked conversations are counted, then the chat database is opened
+    /// at its current schema, which drops the project column.
     fn conversations(&mut self) {
         let path = DataFile::Chat.path(self.data_dir);
         if !path.exists() {
             return;
         }
-        let outcome =
-            ChatSessionRepository::open(&path).and_then(|repo| repo.detach_all_projects());
+        let outcome = linked_conversations(&path)
+            .map_err(|e| e.to_string())
+            .and_then(|count| {
+                ChatSessionRepository::open(&path)
+                    .map(|_| count)
+                    .map_err(|e| e.to_string())
+            });
         match outcome {
             Ok(count) => self.report.conversations_detached = count,
             Err(e) => self.report.issues.push(MigrationIssue {
                 item: IssueItem::Conversations,
                 subject: DataFile::Chat.file_name().to_owned(),
                 reason: IssueReason::Failed,
-                detail: Some(e.to_string()),
+                detail: Some(e),
                 blocking: true,
                 ..MigrationIssue::default()
             }),
@@ -428,4 +436,22 @@ impl<'a> Run<'a> {
             blocking,
         });
     }
+}
+
+/// The conversations of the chat database at `path` that still name a
+/// project: 0 once the project column is gone.
+fn linked_conversations(path: &Path) -> Result<usize, rusqlite::Error> {
+    let conn = rusqlite::Connection::open(path)?;
+    let has_column = conn
+        .prepare("SELECT 1 FROM pragma_table_info('chat_sessions') WHERE name = 'project_id'")?
+        .exists([])?;
+    if !has_column {
+        return Ok(0);
+    }
+    conn.query_row(
+        "SELECT COUNT(*) FROM chat_sessions WHERE project_id IS NOT NULL",
+        [],
+        |row| row.get::<_, i64>(0),
+    )
+    .map(|count| usize::try_from(count).unwrap_or(0))
 }

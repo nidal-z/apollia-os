@@ -137,7 +137,7 @@ DEAD_RATCHET: dict[str, str] = {
         "the CLI consumes `PlanAlternativesProposed` and nothing emits it; the missing half is the emission, not this method."
     ),
     "with_style_detection@apollia-workspace": (
-        "the style provider is installed by `from_providers_config` from the stored configuration, never by this builder."
+        "the style provider was installed only from the context providers of the former projects, retired with them; this builder has no caller."
     ),
 }
 
@@ -156,7 +156,7 @@ DEAD_RATCHET: dict[str, str] = {
 TEST_ONLY_RATCHET: frozenset[str] = frozenset([
     "always_accept_default@apollia-runtime", "backend_names@apollia-llm",
     "build_a2a_context@apollia-runtime", "complete_with_fallback@apollia-llm",
-    "context_window_pct@apollia-core", "create_project_async@apollia-tools", "data_dir_or_err@apollia-core",
+    "context_window_pct@apollia-core", "data_dir_or_err@apollia-core",
     "estimate_tokens@apollia-oria", "filter_kinds@apollia-runtime", "from_config_with_bus@apollia-llm",
     "from_profile@apollia-prompts", "from_repository@apollia-llm", "from_risk_score@apollia-tools",
     "get_choice@apollia-memory", "get_covered_topics@apollia-memory", "get_last_onboarding_session@apollia-memory",

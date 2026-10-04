@@ -96,8 +96,8 @@ pub use package_repository::{
     PackageSignature,
 };
 pub use project_repository::{
-    ProjectDetail, ProjectDocument, ProjectPatch, ProjectProviderRow, ProjectRepository,
-    ProjectRepositoryError, ProjectSummary, ProjectTemplate,
+    ProjectDetail, ProjectDocument, ProjectProviderRow, ProjectRepository, ProjectRepositoryError,
+    ProjectSummary,
 };
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};

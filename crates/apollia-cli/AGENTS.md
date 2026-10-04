@@ -40,8 +40,8 @@ purpose, verified against real usage:
 
 - `get` / `set` are config key/value pairs (`config`, `chat config`,
   `tools config`, `notify events`), not entity reads.
-- `add` / `remove` attach and detach a relationship, git-style (`mcp add`,
-  `project agents add`); they do not create or delete an entity.
+- `add` / `remove` attach and detach a relationship, git-style (`mcp add`);
+  they do not create or delete an entity.
 - `clear` and `evict` are distinct in `plan cache`: wipe all against purge by
   age.
 

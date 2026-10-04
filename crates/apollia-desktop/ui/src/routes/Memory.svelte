@@ -1,8 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
-  import { searchMemory, deleteMemoryEntry, getMemoryEmbeddingsModel } from "$lib/ipc/memory";
-  import { listMemoryNamespaces, listMemoryEntries } from "$lib/ipc/projects";
+  import {
+    searchMemory,
+    deleteMemoryEntry,
+    getMemoryEmbeddingsModel,
+    listMemoryNamespaces,
+  } from "$lib/ipc/memory";
+  import { listMemoryEntries } from "$lib/ipc/agents";
   import { listAgents } from "$lib/ipc/connections";
   import { memoryChanged } from "$lib/stores/sse";
   import type { MemoryEntry, MemorySearchResult, MemoryEmbeddings } from "$lib/types";

@@ -31,8 +31,6 @@ pub struct CreateSessionRequest {
     /// Tools to make available in this session.
     #[serde(default)]
     pub tools: Vec<String>,
-    /// Project to link this session to (None = standalone).
-    pub project_id: Option<String>,
 }
 
 /// Summary of a chat session for list responses (flat structure for frontend).
@@ -47,7 +45,6 @@ pub struct ChatSessionSummary {
     pub created_at: String,
     pub closed_at: Option<String>,
     pub title: Option<String>,
-    pub project_id: Option<String>,
 }
 
 /// Detailed view of a chat session (flat structure for frontend).
@@ -65,7 +62,6 @@ pub struct ChatSessionDetail {
     pub closed_at: Option<String>,
     pub llm_backend: Option<String>,
     pub title: Option<String>,
-    pub project_id: Option<String>,
     /// Whether the session runs in first-class conversational plan mode.
     pub plan_mode: bool,
     /// Current plan-mode lifecycle phase as a stable lowercase string
@@ -121,7 +117,6 @@ pub async fn create_chat_session(
             agent_name: request.agent_name,
             system_prompt: request.system_prompt,
             tools: request.tools,
-            project_id: request.project_id,
         })
         .await
         .map_err(|e| e.to_string())?;
@@ -578,57 +573,6 @@ pub struct ResolvedChatApproval {
     pub reason: Option<String>,
 }
 
-/// Links or unlinks a chat session to/from a project.
-///
-/// Pass `project_id = null` to unlink.
-#[tauri::command]
-pub async fn link_chat_to_project(
-    link: State<'_, RuntimeLink>,
-    session_id: String,
-    project_id: Option<String>,
-) -> Result<(), String> {
-    let state = match link.inner() {
-        RuntimeLink::Embedded(runtime) => runtime,
-        RuntimeLink::Attached(remote) => {
-            return conversations::link_project(remote, &session_id, project_id.as_deref()).await;
-        }
-    };
-    let manager = state
-        .chat_manager
-        .as_ref()
-        .ok_or_else(|| "chat subsystem not available".to_string())?;
-
-    manager
-        .link_session_to_project(session_id, project_id)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-/// Lists chat sessions belonging to a specific project.
-#[tauri::command]
-pub async fn list_chats_by_project(
-    link: State<'_, RuntimeLink>,
-    project_id: String,
-) -> Result<Vec<ChatSessionSummary>, String> {
-    let state = match link.inner() {
-        RuntimeLink::Embedded(runtime) => runtime,
-        RuntimeLink::Attached(remote) => {
-            let sessions = conversations::project_sessions(remote, &project_id).await?;
-            return Ok(sessions.iter().map(session_info_to_summary).collect());
-        }
-    };
-    let manager = match state.chat_manager.as_ref() {
-        Some(m) => m,
-        None => return Ok(Vec::new()),
-    };
-
-    let sessions = manager.list_sessions_by_project(project_id).await;
-    Ok(sessions
-        .into_iter()
-        .map(|s| session_info_to_summary(&s))
-        .collect())
-}
-
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
 fn parse_chat_mode(s: &str) -> Result<ChatMode, String> {
@@ -675,7 +619,6 @@ fn session_info_to_summary(info: &SessionInfo) -> ChatSessionSummary {
         created_at: info.created_at.clone(),
         closed_at: None,
         title: info.title.clone(),
-        project_id: info.project_id.clone(),
     }
 }
 
@@ -716,7 +659,6 @@ fn session_detail_to_flat(detail: SessionDetail) -> ChatSessionDetail {
         closed_at: None,
         llm_backend: session.llm_backend,
         title: session.title,
-        project_id: session.project_id,
         plan_mode: session.plan_mode,
         plan_phase: session.plan_phase.as_sql().to_string(),
     }
@@ -922,7 +864,6 @@ mod tests {
             created_at: "2026-03-20T10:00:00Z".into(),
             closed_at: None,
             title: None,
-            project_id: None,
         };
         // WHEN it is serialized and read back
         let json = serde_json::to_string(&summary).expect("serialize");
@@ -945,7 +886,6 @@ mod tests {
             status: SessionStatus::Processing,
             created_at: "2026-03-20T10:00:00Z".into(),
             title: None,
-            project_id: None,
         };
         // WHEN it is converted to the summary the front end reads
         let summary = session_info_to_summary(&info);

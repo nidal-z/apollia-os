@@ -3940,26 +3940,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{id}/sessions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Handler for `GET /api/v1/projects/{id}/sessions`, the sessions of a
-         *     project.
-         */
-        get: operations["list_project_sessions"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/resilience/reset/{tool}": {
         parameters: {
             query?: never;
@@ -4568,26 +4548,6 @@ export interface paths {
         put?: never;
         /** Handler for `POST /api/v1/sessions/:id/plan/reject`. */
         post: operations["reject_plan"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/sessions/{id}/project": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Handler for `PUT /api/v1/sessions/{id}/project`, link the session to a
-         *     project or, with `null`, unlink it.
-         */
-        put: operations["link_session_project"];
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6893,8 +6853,6 @@ export interface components {
             agent_name?: string | null;
             /** @description Session mode: `"libre"` or `"agent"`. */
             mode: string;
-            /** @description Project to link this session to. */
-            project_id?: string | null;
             /** @description Custom system prompt. */
             system_prompt?: string | null;
             /** @description List of tool names available in this session. */
@@ -7789,11 +7747,6 @@ export interface components {
             loadedAt: string;
             /** @description The model, by the identifier the model index gives it. */
             modelId: string;
-        };
-        /** @description Request body for `PUT /api/v1/sessions/{id}/project`. */
-        LinkProjectBody: {
-            /** @description The project to link, `null` to unlink. */
-            project_id?: string | null;
         };
         /** @description Response body for a single backend. */
         LlmBackendResponse: {
@@ -20281,36 +20234,6 @@ export interface operations {
             };
         };
     };
-    list_project_sessions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Project id */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Session list */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Chat subsystem unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
     reset_breaker: {
         parameters: {
             query?: never;
@@ -21821,49 +21744,6 @@ export interface operations {
             };
             /** @description The session is not awaiting approval */
             409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description Chat subsystem unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
-    link_session_project: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Session id */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LinkProjectBody"];
-            };
-        };
-        responses: {
-            /** @description Link stored */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Session or project not found */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };
