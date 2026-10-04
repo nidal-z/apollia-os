@@ -40,8 +40,9 @@ use super::todo_actor::spawn_todo_actor;
 use super::todo_handle::TodoHandle;
 use super::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, InjectedInstruction,
-    MessageId, PauseState, PendingChatApprovals, PlanPhase, RecentSessionSummary, SessionDetail,
-    SessionId, SessionInfo, SessionMetrics, SessionStatus, ToolCallRecord, ToolDecision,
+    MessageId, PauseState, PendingChatApprovals, PlanPhase, RecentSessionSummary,
+    SessionConfigUpdate, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
+    ToolCallRecord, ToolDecision,
 };
 use crate::a2a::A2AInvoker;
 use crate::api::routes_agents::AgentLoader;
@@ -247,6 +248,8 @@ mod live_config_tests;
 mod plan_regression_tests;
 #[cfg(test)]
 mod preferred_backend_tests;
+#[cfg(test)]
+mod profile_tests;
 #[cfg(test)]
 mod tests;
 

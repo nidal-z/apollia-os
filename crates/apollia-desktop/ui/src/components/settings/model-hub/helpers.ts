@@ -22,10 +22,6 @@ export function formatSizeBytes(bytes: number): string {
   return `${bytes} B`;
 }
 
-export function formatBudget(gb: number): string {
-  return `${gb.toFixed(1)} GB`;
-}
-
 export function formatSpeed(bps: number): string {
   if (bps > 1_000_000) return `${(bps / 1_000_000).toFixed(1)} MB/s`;
   if (bps > 1_000) return `${(bps / 1_000).toFixed(0)} KB/s`;

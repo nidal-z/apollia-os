@@ -981,8 +981,6 @@ pub enum RuntimeEvent {
     /// The frontend uses this event to permanently hide the resume banner and
     /// enable all application features.
     OnboardingCompleted {
-        /// Profile chosen by the user (`"operator"` or `"builder"`).
-        profile: String,
         /// Total onboarding duration in seconds.
         duration_sec: u64,
         /// Total number of actions completed during the flow.

@@ -107,6 +107,7 @@ fn libre_session_params() -> CreateSessionParams {
         agent_name: None,
         system_prompt: None,
         tools: vec![],
+        model: None,
     }
 }
 
@@ -123,6 +124,7 @@ async fn test_create_session_libre() {
             agent_name: None,
             system_prompt: None,
             tools: vec!["bash_executor".into()],
+            model: None,
         })
         .await
         .expect("create_session");
@@ -148,6 +150,7 @@ async fn test_create_session_agent_without_name() {
             agent_name: None,
             system_prompt: None,
             tools: vec![],
+            model: None,
         })
         .await;
 
@@ -416,6 +419,7 @@ async fn test_resolve_tool_approval() {
         fork_depth: 0,
         plan_mode: false,
         plan_phase: PlanPhase::Done,
+        profile_id: None,
     };
     manager.sessions.insert("sess-1".into(), session);
 
@@ -499,6 +503,7 @@ async fn test_always_accept_grants_no_tool_by_name() {
         fork_depth: 0,
         plan_mode: false,
         plan_phase: PlanPhase::Done,
+        profile_id: None,
     };
     manager.sessions.insert("sess-1".into(), session);
 
@@ -991,6 +996,7 @@ pub(super) fn manager_with_session_in_phase(
         fork_depth: 0,
         plan_mode: true,
         plan_phase: phase,
+        profile_id: None,
     };
     manager.sessions.insert("sess-1".into(), session);
     (manager, event_rx)
@@ -1520,6 +1526,7 @@ async fn test_create_session_agent_invalid_agent() {
             agent_name: Some("nonexistent".into()),
             system_prompt: None,
             tools: vec![],
+            model: None,
         })
         .await;
 

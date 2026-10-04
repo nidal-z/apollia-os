@@ -14,6 +14,7 @@ use apollia_memory::user_memory::{Profile, UserMemoryError, UserMemoryRepository
 use serde::{Deserialize, Serialize};
 
 use super::{view, with_repo, ProfileEntryView, ProfileError, ProfileStore};
+use crate::chat::ChatSessionManagerHandle;
 
 /// The word that names the default profile in place of its identifier.
 pub const DEFAULT_PROFILE_ALIAS: &str = "default";
@@ -245,6 +246,34 @@ pub async fn delete_profile(store: ProfileStore<'_>, id: String) -> Result<(), P
         repo.delete_profile(&profile.id).map_err(storage)
     })
     .await
+}
+
+/// Deletes a profile, then empties the conversations of `chat` that designated
+/// it, so they follow the default profile again. A conversation the release
+/// could not reach keeps the identifier of a profile that no longer exists,
+/// which reads as empty wherever a profile is resolved.
+///
+/// # Errors
+///
+/// Those of [`delete_profile`]; a failed release is logged, not returned,
+/// since the profile is gone either way.
+pub async fn delete_profile_and_release(
+    store: ProfileStore<'_>,
+    chat: Option<&ChatSessionManagerHandle>,
+    id: String,
+) -> Result<(), ProfileError> {
+    delete_profile(store, id.clone()).await?;
+    if let Some(chat) = chat {
+        if let Err(error) = chat.release_profile(id.clone()).await {
+            tracing::event!(
+                tracing::Level::WARN,
+                profile_id = %id,
+                error = %error,
+                "profile.delete.release_failed"
+            );
+        }
+    }
+    Ok(())
 }
 
 /// Empties every field and the free text of a profile and deletes its facts;

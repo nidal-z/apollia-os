@@ -143,6 +143,7 @@ from .deleted_installed_model import DeletedInstalledModel
 from .deleted_profile import DeletedProfile
 from .deleted_profile_entry import DeletedProfileEntry
 from .dictation_configured import DictationConfigured
+from .dictation_engine import DictationEngine
 from .dictation_models_response import DictationModelsResponse
 from .dictation_models_response_models_item import DictationModelsResponseModelsItem
 from .dictation_models_response_reason_type_0 import DictationModelsResponseReasonType0
@@ -301,7 +302,6 @@ from .onboarding_dismissed import OnboardingDismissed
 from .onboarding_finalized import OnboardingFinalized
 from .onboarding_marked import OnboardingMarked
 from .onboarding_phase import OnboardingPhase
-from .onboarding_profile_body import OnboardingProfileBody
 from .onboarding_reset import OnboardingReset
 from .onboarding_state import OnboardingState
 from .onboarding_stats import OnboardingStats
@@ -692,6 +692,7 @@ __all__ = (
     "DeleteResponse",
     "DeleteServerResponse",
     "DictationConfigured",
+    "DictationEngine",
     "DictationModelsResponse",
     "DictationModelsResponseModelsItem",
     "DictationModelsResponseReasonType0",
@@ -850,7 +851,6 @@ __all__ = (
     "OnboardingFinalized",
     "OnboardingMarked",
     "OnboardingPhase",
-    "OnboardingProfileBody",
     "OnboardingReset",
     "OnboardingState",
     "OnboardingStats",

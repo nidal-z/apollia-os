@@ -1,3 +1,25 @@
+<script module lang="ts">
+  import type { ProfileSummaryView } from "$lib/ipc/profile";
+
+  /**
+   * The value of the profile select for a session: its designated profile
+   * while that profile exists, otherwise `""`, the current default. A
+   * designation of a profile deleted since reads as empty.
+   */
+  export function profileSelection(
+    profileId: string | null | undefined,
+    profiles: readonly ProfileSummaryView[],
+  ): string {
+    if (!profileId) return "";
+    return profiles.some((p) => p.id === profileId) ? profileId : "";
+  }
+
+  /** What the session stores for a select value: `""` designates no profile. */
+  export function profileIdOf(selection: string): string | null {
+    return selection === "" ? null : selection;
+  }
+</script>
+
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { Save, Cpu, Settings2, TriangleAlert, Brain, ChevronDown } from "lucide-svelte";
@@ -15,6 +37,8 @@
   import { Input } from "$lib/components/ui/input";
   import { Textarea } from "$lib/components/ui/textarea";
   import { FormField } from "$lib/components/ui/form-field";
+  import { Select } from "$lib/components/ui/select";
+  import { listProfiles } from "$lib/ipc/profile";
   import { StatusDot } from "$lib/components/operator";
 
   interface Props {
@@ -43,6 +67,11 @@
   let stepBudget = $state<number | null>(null);
   let saving = $state(false);
   let saveError = $state<string | null>(null);
+  let profiles = $state<ProfileSummaryView[]>([]);
+  let profilesLoaded = $state(false);
+  let selectedProfile = $state("");
+
+  const defaultProfileName = $derived(profiles.find((p) => p.is_default)?.name ?? null);
 
   const isClosed = $derived(session?.status === "closed");
   const isProcessing = $derived(session?.status === "processing");
@@ -101,6 +130,7 @@
     systemPrompt = session.system_prompt ?? "";
     enabledTools = new Set(session.available_tools ?? []);
     selectedBackend = session.llm_backend ?? null;
+    selectedProfile = session.profile_id ?? "";
     saveError = null;
     try {
       const stored = window.localStorage.getItem(stepBudgetStorageKey(session.id));
@@ -121,6 +151,9 @@
         tools: selectedTools,
         llm_backend: selectedBackend,
       };
+      if (profilesLoaded) {
+        update.profile_id = profileIdOf(profileSelection(selectedProfile, profiles));
+      }
       await updateChatSession(session.id, update);
       try {
         const key = stepBudgetStorageKey(session.id);
@@ -142,6 +175,23 @@
   }
 
   const isOperator = $derived(!$developerMode);
+
+  $effect(() => {
+    let cancelled = false;
+    listProfiles()
+      .then((list) => {
+        if (cancelled) return;
+        profiles = list;
+        profilesLoaded = true;
+      })
+      .catch(() => {
+        // Without the list the select offers the default alone and a save
+        // leaves the designation untouched.
+      });
+    return () => {
+      cancelled = true;
+    };
+  });
 
   // Re-sync whenever the session identity changes (drawer stays mounted across sessions).
   let lastSessionId = $state<string | null>(null);
@@ -375,6 +425,33 @@
       <p class="text-micro font-medium uppercase tracking-wider text-muted-foreground/50">
         {$t("chat.memory_section")}
       </p>
+      <div class="space-y-1.5">
+        <label for="config-profile-select" class="text-xs font-medium">
+          {$t("chat.config.profile_label")}
+        </label>
+        <Select
+          id="config-profile-select"
+          size="sm"
+          value={profileSelection(selectedProfile, profiles)}
+          onchange={(e: Event) => {
+            selectedProfile = (e.currentTarget as HTMLSelectElement).value;
+          }}
+          disabled={isReadOnly}
+          data-testid="config-profile-select"
+        >
+          <option value="" data-testid="config-profile-option-default">
+            {defaultProfileName
+              ? $t("chat.config.profile_default", { values: { name: defaultProfileName } })
+              : $t("chat.config.profile_default_unnamed")}
+          </option>
+          {#each profiles as profile (profile.id)}
+            <option value={profile.id} data-testid="config-profile-option-{profile.id}">
+              {profile.name}
+            </option>
+          {/each}
+        </Select>
+        <p class="text-micro-xs text-muted-foreground/60">{$t("chat.config.profile_hint")}</p>
+      </div>
       <div class="flex items-center justify-between rounded-lg px-3 py-2 glass-surface">
         <div class="flex items-center gap-2.5">
           <Brain class="h-3.5 w-3.5 text-secondary" />

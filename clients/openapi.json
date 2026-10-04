@@ -10573,57 +10573,6 @@
         }
       }
     },
-    "/api/v1/onboarding/profile": {
-      "put": {
-        "tags": [
-          "onboarding"
-        ],
-        "summary": "`PUT /api/v1/onboarding/profile`: records the profile chosen.",
-        "operationId": "set_onboarding_profile",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OnboardingProfileBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "The state with its profile",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OnboardingState"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Neither operator nor builder",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "The user memory did not open",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/onboarding/reset": {
       "post": {
         "tags": [
@@ -10725,7 +10674,7 @@
             }
           },
           "400": {
-            "description": "Unknown topic or profile",
+            "description": "Unknown topic",
             "content": {
               "application/json": {
                 "schema": {
@@ -11832,6 +11781,7 @@
           "profile"
         ],
         "summary": "`DELETE /api/v1/profiles/{id}`: deletes a profile and its facts.",
+        "description": "The conversations that designated it return to the default profile.",
         "operationId": "delete_profile",
         "parameters": [
           {
@@ -17819,7 +17769,7 @@
         "properties": {
           "phase": {
             "type": "string",
-            "description": "The phase to move to, in its snake_case name (`profile_choice`...)."
+            "description": "The phase to move to, in its snake_case name (`ai_setup`...)."
           }
         }
       },
@@ -20299,6 +20249,13 @@
             "type": "string",
             "description": "Session mode: `\"libre\"` or `\"agent\"`."
           },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model of the session: the identifier of a language model of the\nmodel index, `<server>/<model>` for a model of a declared server, or\nthe name of a backend. Absent keeps the model of the agent."
+          },
           "system_prompt": {
             "type": [
               "string",
@@ -20832,6 +20789,26 @@
           }
         }
       },
+      "DictationEngine": {
+        "type": "object",
+        "description": "The dictation engine, whisper.cpp inside the runner the daemon starts.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "The runner binary."
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The whisper.cpp version the runner states with `--version`; unknown\nwhen it does not answer."
+          }
+        }
+      },
       "DictationModelsResponse": {
         "type": "object",
         "description": "The dictation category of the registry, and the entry for this machine.",
@@ -21077,6 +21054,13 @@
                 "description": "Variant; unknown for an embedded engine whose build is not stated."
               }
             ]
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The version the engine states at its source: the `--version` banner of\na binary, the package metadata of a Python environment. Unknown when it\ndoes not answer."
           }
         }
       },
@@ -21190,6 +21174,17 @@
           "cuda_proposable": {
             "type": "boolean",
             "description": "True when an NVIDIA card is detected and no CUDA engine is installed."
+          },
+          "dictation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DictationEngine",
+                "description": "The dictation engine, when a runner is in reach."
+              }
+            ]
           },
           "engines": {
             "type": "array",
@@ -23923,29 +23918,15 @@
       },
       "OnboardingPhase": {
         "type": "string",
-        "description": "The seven ordered phases of the onboarding flow.",
+        "description": "The six ordered phases of the onboarding flow.",
         "enum": [
           "welcome",
-          "profile_choice",
           "ai_setup",
           "acquaintance",
           "guided_tour",
           "graduation",
           "done"
         ]
-      },
-      "OnboardingProfileBody": {
-        "type": "object",
-        "description": "Request body for `PUT /api/v1/onboarding/profile`.",
-        "required": [
-          "profile"
-        ],
-        "properties": {
-          "profile": {
-            "type": "string",
-            "description": "`operator` or `builder`."
-          }
-        }
       },
       "OnboardingReset": {
         "type": "object",
@@ -24006,13 +23987,6 @@
             "$ref": "#/components/schemas/OnboardingPhase",
             "description": "Current phase of the onboarding flow."
           },
-          "profile": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Chosen user profile (`\"operator\"` or `\"builder\"`); set during ProfileChoice."
-          },
           "skipped": {
             "type": "boolean",
             "description": "`true` if the user explicitly skipped the onboarding."
@@ -24022,7 +23996,7 @@
               "string",
               "null"
             ],
-            "description": "ISO 8601 timestamp of the first phase transition (Welcome → ProfileChoice)."
+            "description": "ISO 8601 timestamp of the first phase transition (Welcome to AiSetup)."
           },
           "stats": {
             "$ref": "#/components/schemas/OnboardingStats",
@@ -28209,13 +28183,6 @@
         "type": "object",
         "description": "Request body for `POST /api/v1/onboarding/sessions`.",
         "properties": {
-          "profile": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The profile the agent adapts its questions to, when one was chosen."
-          },
           "topic": {
             "type": [
               "string",
@@ -28815,7 +28782,14 @@
               "string",
               "null"
             ],
-            "description": "Inference server of the session."
+            "description": "Model of the session: a backend, `<server>/<model>`, or the\nidentifier of a language model of the model index. `null` returns to\nthe model of the agent."
+          },
+          "profile_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Profile the conversation designates; `null` returns it to the current\ndefault profile."
           },
           "system_prompt": {
             "type": [
@@ -29458,7 +29432,7 @@
     },
     {
       "name": "onboarding",
-      "description": "The onboarding: its phases, its profile and its conversation"
+      "description": "The onboarding: its phases and its conversation"
     },
     {
       "name": "artifacts",

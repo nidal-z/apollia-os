@@ -400,3 +400,85 @@ async fn test_an_image_name_leaving_the_conversation_folder_is_refused() {
     // THEN the name is refused
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
+
+#[tokio::test]
+async fn test_a_session_created_with_a_model_of_the_index_names_its_row() {
+    // GIVEN a daemon whose index holds the language model `qwen3`, with no
+    // row named after it yet
+    let dir = tempfile::tempdir().unwrap();
+    let state = with_default_qwen3(state_with_chat(&dir), &dir);
+
+    // WHEN a free chat is created with that model, and a second one with a
+    // model of a declared server
+    let (status, local) = call(
+        state.clone(),
+        "POST",
+        "/api/v1/sessions",
+        Some(serde_json::json!({ "mode": "libre", "model": "qwen3" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{local}");
+    let (status, served) = call(
+        state.clone(),
+        "POST",
+        "/api/v1/sessions",
+        Some(serde_json::json!({ "mode": "libre", "model": "lab/llama-3.3-70b" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{served}");
+    let local_id = local["id"].as_str().unwrap();
+    let served_id = served["id"].as_str().unwrap();
+    let (_, local_detail) = call(
+        state.clone(),
+        "GET",
+        &format!("/api/v1/sessions/{local_id}"),
+        None,
+    )
+    .await;
+    let (_, served_detail) = call(
+        state.clone(),
+        "GET",
+        &format!("/api/v1/sessions/{served_id}"),
+        None,
+    )
+    .await;
+
+    // THEN the local session names the row its model got, written once, and
+    // the served one names the server's model as it was chosen
+    assert_eq!(
+        local_detail["session"]["llm_backend"], "qwen3",
+        "{local_detail}"
+    );
+    assert_eq!(served_detail["session"]["llm_backend"], "lab/llama-3.3-70b");
+    let repo = state.llm_backend_repo.as_ref().unwrap().lock().unwrap();
+    let row = repo.find_by_name("qwen3").unwrap().expect("row written");
+    assert_eq!(row.provider, apollia_core::LlmProvider::LlamaCpp);
+}
+
+#[tokio::test]
+async fn test_a_model_chosen_on_a_started_session_becomes_its_model() {
+    // GIVEN a daemon whose index holds `qwen3`, and a free chat on the default
+    let dir = tempfile::tempdir().unwrap();
+    let state = with_default_qwen3(state_with_chat(&dir), &dir);
+    let id = new_free_chat(&state).await;
+
+    // WHEN the model `qwen3` is chosen for it
+    let (status, body) = call(
+        state.clone(),
+        "PATCH",
+        &format!("/api/v1/sessions/{id}"),
+        Some(serde_json::json!({ "llm_backend": "qwen3" })),
+    )
+    .await;
+    let (_, detail) = call(
+        state.clone(),
+        "GET",
+        &format!("/api/v1/sessions/{id}"),
+        None,
+    )
+    .await;
+
+    // THEN the session names the row of that model
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(detail["session"]["llm_backend"], "qwen3", "{detail}");
+}

@@ -796,33 +796,6 @@
     },
     {
       "kind": "waitFor",
-      "testid": "onboarding-profile-selector",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-card-operator",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-card-builder",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "installation-configurer-votre-profil-2"
-    },
-    {
-      "kind": "click",
-      "testid": "profile-card-operator"
-    },
-    {
-      "kind": "waitFor",
       "testid": "onboarding-ai-setup",
       "timeoutMs": 15000
     },

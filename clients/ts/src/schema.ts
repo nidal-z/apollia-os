@@ -3581,23 +3581,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/onboarding/profile": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** `PUT /api/v1/onboarding/profile`: records the profile chosen. */
-        put: operations["set_onboarding_profile"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/onboarding/reset": {
         parameters: {
             query?: never;
@@ -4018,7 +4001,10 @@ export interface paths {
         get: operations["get_profile_by_id"];
         put?: never;
         post?: never;
-        /** `DELETE /api/v1/profiles/{id}`: deletes a profile and its facts. */
+        /**
+         * `DELETE /api/v1/profiles/{id}`: deletes a profile and its facts.
+         * @description The conversations that designated it return to the default profile.
+         */
         delete: operations["delete_profile"];
         options?: never;
         head?: never;
@@ -6025,7 +6011,7 @@ export interface components {
         };
         /** @description Request body for `POST /api/v1/onboarding/phase`. */
         AdvancePhaseBody: {
-            /** @description The phase to move to, in its snake_case name (`profile_choice`...). */
+            /** @description The phase to move to, in its snake_case name (`ai_setup`...). */
             phase: string;
         };
         /** @description Response body for agent list. */
@@ -7063,6 +7049,12 @@ export interface components {
             agent_name?: string | null;
             /** @description Session mode: `"libre"` or `"agent"`. */
             mode: string;
+            /**
+             * @description The model of the session: the identifier of a language model of the
+             *     model index, `<server>/<model>` for a model of a declared server, or
+             *     the name of a backend. Absent keeps the model of the agent.
+             */
+            model?: string | null;
             /** @description Custom system prompt. */
             system_prompt?: string | null;
             /** @description List of tool names available in this session. */
@@ -7273,6 +7265,16 @@ export interface components {
             /** @description The Whisper model file dictation now reads. */
             model_path: string;
         };
+        /** @description The dictation engine, whisper.cpp inside the runner the daemon starts. */
+        DictationEngine: {
+            /** @description The runner binary. */
+            path: string;
+            /**
+             * @description The whisper.cpp version the runner states with `--version`; unknown
+             *     when it does not answer.
+             */
+            version?: string | null;
+        };
         /** @description The dictation category of the registry, and the entry for this machine. */
         DictationModelsResponse: {
             /** @description The machine the recommendation was made for. */
@@ -7368,6 +7370,12 @@ export interface components {
             /** @description Upstream tag; unknown for an embedded engine. */
             tag?: string | null;
             variant?: null | components["schemas"]["EngineVariant"];
+            /**
+             * @description The version the engine states at its source: the `--version` banner of
+             *     a binary, the package metadata of a Python environment. Unknown when it
+             *     does not answer.
+             */
+            version?: string | null;
         };
         /** @description Body of `POST /api/v1/engines/import`. */
         EngineImportRequest: {
@@ -7414,6 +7422,7 @@ export interface components {
             channel: components["schemas"]["EngineChannel"];
             /** @description True when an NVIDIA card is detected and no CUDA engine is installed. */
             cuda_proposable: boolean;
+            dictation?: null | components["schemas"]["DictationEngine"];
             /** @description Engines embedded in the bundle, then installed ones. */
             engines: components["schemas"]["EngineEntry"][];
             /**
@@ -8698,15 +8707,10 @@ export interface components {
             onboarded: boolean;
         };
         /**
-         * @description The seven ordered phases of the onboarding flow.
+         * @description The six ordered phases of the onboarding flow.
          * @enum {string}
          */
-        OnboardingPhase: "welcome" | "profile_choice" | "ai_setup" | "acquaintance" | "guided_tour" | "graduation" | "done";
-        /** @description Request body for `PUT /api/v1/onboarding/profile`. */
-        OnboardingProfileBody: {
-            /** @description `operator` or `builder`. */
-            profile: string;
-        };
+        OnboardingPhase: "welcome" | "ai_setup" | "acquaintance" | "guided_tour" | "graduation" | "done";
         /** @description Answer of `POST /api/v1/onboarding/reset`. */
         OnboardingReset: {
             /** @description How many profile entries were removed. */
@@ -8726,11 +8730,9 @@ export interface components {
             mandatory_complete: boolean;
             /** @description Current phase of the onboarding flow. */
             phase: components["schemas"]["OnboardingPhase"];
-            /** @description Chosen user profile (`"operator"` or `"builder"`); set during ProfileChoice. */
-            profile?: string | null;
             /** @description `true` if the user explicitly skipped the onboarding. */
             skipped: boolean;
-            /** @description ISO 8601 timestamp of the first phase transition (Welcome → ProfileChoice). */
+            /** @description ISO 8601 timestamp of the first phase transition (Welcome to AiSetup). */
             started_at?: string | null;
             /** @description Accumulated stats for the graduation screen. */
             stats: components["schemas"]["OnboardingStats"];
@@ -10603,8 +10605,6 @@ export interface components {
         };
         /** @description Request body for `POST /api/v1/onboarding/sessions`. */
         TriggerOnboardingBody: {
-            /** @description The profile the agent adapts its questions to, when one was chosen. */
-            profile?: string | null;
             /** @description One topic to run again; absent for a full onboarding. */
             topic?: string | null;
         };
@@ -10869,8 +10869,17 @@ export interface components {
          *     value.
          */
         UpdateSessionBody: {
-            /** @description Inference server of the session. */
+            /**
+             * @description Model of the session: a backend, `<server>/<model>`, or the
+             *     identifier of a language model of the model index. `null` returns to
+             *     the model of the agent.
+             */
             llm_backend?: string | null;
+            /**
+             * @description Profile the conversation designates; `null` returns it to the current
+             *     default profile.
+             */
+            profile_id?: string | null;
             /** @description New system prompt. */
             system_prompt?: string | null;
             /** @description New list of tools available in the session. */
@@ -19642,48 +19651,6 @@ export interface operations {
             };
         };
     };
-    set_onboarding_profile: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OnboardingProfileBody"];
-            };
-        };
-        responses: {
-            /** @description The state with its profile */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OnboardingState"];
-                };
-            };
-            /** @description Neither operator nor builder */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description The user memory did not open */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
     reset_onboarding: {
         parameters: {
             query?: never;
@@ -19773,7 +19740,7 @@ export interface operations {
                     "application/json": components["schemas"]["TriggerResult"];
                 };
             };
-            /** @description Unknown topic or profile */
+            /** @description Unknown topic */
             400: {
                 headers: {
                     [name: string]: unknown;

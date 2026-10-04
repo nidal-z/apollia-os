@@ -152,6 +152,7 @@ async fn free_chat(handle: &ChatSessionManagerHandle) -> String {
             agent_name: None,
             system_prompt: None,
             tools: vec![],
+            model: None,
         })
         .await
         .expect("session")

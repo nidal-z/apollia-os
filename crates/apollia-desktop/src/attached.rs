@@ -56,6 +56,8 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "generate_chat_session_name",
     "rename_chat_session",
     "update_chat_session",
+    // The agents and the models the selector of a conversation offers.
+    "list_chat_targets",
     // The chat: a turn played again, a decision on a tool call, the history
     // of those decisions, and the skills of the worker agents.
     "authorize_chat_tool",
@@ -250,14 +252,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_transcriptions",
     "transcribe_file",
     // The onboarding, over `/api/v1/onboarding`: its state and phases, the
-    // profile chosen, the conversation with its agent and its completion.
+    // conversation with its agent and its completion.
     "advance_onboarding_phase",
     "check_onboarding_finalized",
     "dismiss_onboarding",
     "finalize_onboarding_chat",
     "get_onboarding_state",
     "resume_onboarding",
-    "set_onboarding_profile",
     "trigger_onboarding",
     // Resets and erasures, over `/api/v1/onboarding/*`, `/api/v1/memory/wipe`,
     // `/api/v1/logs/clear` and `/api/v1/factory-reset`. The flag, the memory,
@@ -366,10 +367,12 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // that runs its tools: the observability policy over
     // `/api/v1/config/observability`, the Python interpreter over
     // `/api/v1/config/python-interpreter`, the security posture over
-    // `/api/v1/security-posture`.
+    // `/api/v1/security-posture`, and the engines of the machine with their
+    // versions over `/api/v1/engines`.
     "get_observability_config",
     "get_python_interpreter",
     "get_security_posture",
+    "list_engines",
     "set_observability_config",
     "set_python_interpreter",
     // The organisation policy the runtime applies, read only, over

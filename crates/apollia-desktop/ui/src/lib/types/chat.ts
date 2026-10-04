@@ -35,6 +35,11 @@ export interface ChatSessionDetail {
   plan_mode: boolean;
   /** Plan-mode lifecycle phase as a stable lowercase string. */
   plan_phase: PlanPhase;
+  /**
+   * Profile the conversation designates; absent or `null` when it follows
+   * the current default profile.
+   */
+  profile_id?: string | null;
 }
 
 /** Plan-mode lifecycle phase of a chat session. */
@@ -50,6 +55,8 @@ export interface UpdateSessionRequest {
   system_prompt?: string;
   tools?: string[];
   llm_backend?: string | null;
+  /** Profile of the conversation; `null` returns it to the default profile. */
+  profile_id?: string | null;
 }
 
 /** What the model of a conversation can do, as the composer reads it. */
@@ -143,6 +150,9 @@ export interface CreateSessionRequest {
   agent_name?: string;
   system_prompt?: string;
   tools?: string[];
+  /** The model of the session: the index identifier of a local language
+   * model, or `<server>/<model>`. Absent keeps the agent's model. */
+  model?: string;
 }
 
 /** Request sending a message inside a chat session. */

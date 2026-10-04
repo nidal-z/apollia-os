@@ -40,7 +40,6 @@
   import { createSessionActions } from "./useSessionActions.svelte";
   import {
     editAndResendChatMessage,
-    getChatModelCapabilities,
     getChatSession,
     getConversationStats,
     pauseChatSession,
@@ -49,7 +48,6 @@
   } from "$lib/ipc/chat";
   import { DEFAULT_PROFILE, getProfileById } from "$lib/ipc/profile";
   import {
-    type ImageSupport,
     type PendingAttachment,
     composeUserPayload,
     imagePayloads,
@@ -70,6 +68,9 @@
   import SessionNotFound from "./SessionNotFound.svelte";
   import AgentUnavailableBanner from "./AgentUnavailableBanner.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
+  import type { ChatTarget, ConversationTarget } from "$lib/chat/chatTargets";
+  import { applyTargetChoice } from "$lib/chat/applyTargetChoice";
+  import { createImageSupport } from "./useImageSupport.svelte";
 
   interface Props {
     sessionId: string;
@@ -111,6 +112,8 @@
      * (session not found) - lets the parent open the QuickPicker.
      */
     onnewChat?: () => void;
+    /** Called with the conversation a choice in the selector opened. */
+    onopensession?: (sessionId: string) => void;
   }
 
   let {
@@ -124,6 +127,7 @@
     collapseActions = true,
     ondelete,
     onnewChat,
+    onopensession,
     inputHidden = false,
   }: Props = $props();
 
@@ -159,17 +163,24 @@
     injectedSheetOpen = true;
   }
   let sessionDetail = $state<ChatSessionDetail | null>(null);
-  /** What the model of the conversation does with images, re-read when it changes. */
-  let imageSupport = $state<ImageSupport | null>(null);
-  $effect(() => {
-    const id = sessionId;
-    void sessionDetail?.llm_backend;
-    let cancelled = false;
-    getChatModelCapabilities(id)
-      .then((c) => { if (!cancelled) imageSupport = { vision: c.vision, formats: c.image_formats }; })
-      .catch(() => { if (!cancelled) imageSupport = null; });
-    return () => { cancelled = true; };
+  const images = createImageSupport(() => sessionId, () => sessionDetail?.llm_backend);
+
+  const target = $derived<ConversationTarget>({
+    mode: sessionMode,
+    agentName: sessionAgentName,
+    model: sessionDetail?.llm_backend ?? null,
   });
+
+  async function handleTargetPick(choice: ChatTarget): Promise<void> {
+    try {
+      const outcome = await applyTargetChoice(choice, sessionId, target, messages.length);
+      if (outcome.openedSessionId) onopensession?.(outcome.openedSessionId);
+      else await refreshSession();
+    } catch (err) {
+      pendingError = $t("chat.target_selector.choose_failed", { values: { error: String(err) } });
+    }
+  }
+
   /** Plan-mode state of the active session (drives the header chip + review). */
   let planMode = $state(false);
 
@@ -666,6 +677,8 @@
       {hideConfig}
       {collapseActions}
       renameTrigger={actions.renameTrigger}
+      {target}
+      ontargetpick={onopensession ? (choice) => void handleTargetPick(choice) : undefined}
       onclose={onclose}
       onconfigtoggle={onconfigtoggle ? onconfigtoggle : () => (configOpen = true)}
       {onsessionsopen}
@@ -769,7 +782,7 @@
       {planMode}
       onplantoggle={togglePlanMode}
       planDisabled={sessionStatus === "closed"}
-      {imageSupport}
+      imageSupport={images.value}
     />
   {/if}
 </div>

@@ -2225,14 +2225,6 @@
       "copy_success": "Copied to clipboard",
       "copied": "Copied",
       "copy_field": "Copy {field}",
-      "build_title": "Version and build",
-      "build_desc": "Useful for a bug report or a support request.",
-      "info_unavailable": "System information could not be loaded. Make sure Apollia is running, then reopen this page.",
-      "kv_version": "Version",
-      "kv_platform": "Platform",
-      "kv_python": "Python interpreter",
-      "kv_engine": "Inference engine",
-      "kv_stt": "Transcription",
       "kv_license": "SPDX identifier",
       "copy_diagnostics": "Copy diagnostic report",
       "copy_hint": "One click copies the raw value.",
@@ -2244,8 +2236,6 @@
       "diag_unknown": "unknown",
       "diag_platform": "Platform",
       "diag_data_dir": "Data directory",
-      "diag_engine": "Engine",
-      "diag_transcription": "Transcription",
       "diag_license": "License"
     },
     "observability": {
@@ -2682,17 +2672,6 @@
         "deleted_toast": "Model ''{name}'' deleted",
         "help": "Files present in your local models directory."
       },
-      "hardware": {
-        "label": "Your hardware",
-        "detecting": "Detecting hardware…",
-        "ram": "RAM",
-        "available": "Available",
-        "gpu": "GPU / Accelerator",
-        "budget": "Inference budget",
-        "cpu_info": "CPU: {cpu} · {cores} cores",
-        "cpu_only": "CPU only",
-        "help": "Determines which models fit in memory."
-      },
       "downloads": {
         "active": "Active downloads",
         "cancel_aria": "Cancel download",
@@ -2818,7 +2797,7 @@
       "python_interpreter_label": "Python interpreter",
       "python_interpreter_hint_bundled": "Agents run on the interpreter Apollia ships with ({path}), which needs nothing installed on this machine. Name another one by absolute path to use it instead.",
       "python_interpreter_hint_chosen": "Agents run on this interpreter. It has to exist, start, and be a Python 3.{minor}: the bundled standard library cannot be read by another minor version. If it stops being valid, the bundled interpreter takes over.",
-      "python_interpreter_use_bundled": "Use the bundled one",
+      "python_interpreter_use_bundled": "Back to automatic",
       "python_interpreter_saved": "Python interpreter saved",
       "subtitle": "Installation details and configuration paths."
     },
@@ -3254,11 +3233,40 @@
       }
     },
     "engines": {
-      "subtitle": "The engines that run the models and dictation on this machine."
+      "subtitle": "The engines that run the models and dictation on this machine.",
+      "list_title": "Engines and libraries",
+      "list_desc": "Every engine on this computer, with the version it states itself.",
+      "loading": "Reading the engines…",
+      "empty": "No engine found on this computer.",
+      "version_unknown": "Version not stated",
+      "variant_cpu": "Processor",
+      "role_gguf": "Runs the models on this computer, on its graphics chip when it has one.",
+      "role_mlx": "Runs MLX models on Apple silicon Macs.",
+      "role_node": "Runs the tool servers written for Node.js.",
+      "role_dictation": "Dictation: speech turned into text, on this computer."
     },
     "window": {
       "label": "Settings",
       "close": "Close settings"
+    },
+    "hardware": {
+      "detecting": "Detecting the hardware…",
+      "processor": "Processor",
+      "compatible": "Compatible",
+      "cpu_name": "Name",
+      "architecture": "Architecture",
+      "cores": "Cores",
+      "memory": "Memory",
+      "memory_unified": "Unified memory",
+      "memory_dedicated": "Dedicated video memory",
+      "ram": "System memory",
+      "vram": "Video memory",
+      "gb": "{n} GB",
+      "none": "None",
+      "gpu": "GPU",
+      "gpu_detected": "1 GPU detected, {backend}",
+      "gpu_vram": "Video memory {size} · {backend}",
+      "no_gpu": "No GPU detected: models run on the processor."
     }
   },
   "onboarding": {
@@ -3337,24 +3345,6 @@
       "recommend_measured_on_gpu": "Measured on {cpu} with {ram} GB of RAM, and {gpu} with {vram} GB of video memory",
       "recommend_measured_on_unified": "Measured on {chip} with {ram} GB of unified memory",
       "reason_trained_context": "Trained on {tokens}k tokens: runs at {tokens}k instead of the {asked}k chosen"
-    },
-    "profile_selector": {
-      "title": "How will you use Apollia?",
-      "subtitle": "Choose the profile that fits you. You can change it later in settings.",
-      "operator_title": "Operator",
-      "operator_desc": "You want agents that carry out concrete tasks for you - emails, monitoring, summaries, automations.",
-      "operator_bullet_1": "Simplified interface",
-      "operator_bullet_2": "Explicit validation of sensitive actions",
-      "operator_bullet_3": "Ready-to-use agents",
-      "operator_examples": "e.g.: PM, CSR, Support, Management",
-      "builder_desc": "You want to design, debug and observe agents. More control, more visibility, more autonomy.",
-      "builder_bullet_1": "Full observability (timeline, traces, costs)",
-      "builder_bullet_2": "Python SDK + MCP tools",
-      "builder_bullet_3": "Granular per-agent permissions",
-      "builder_examples": "e.g.: Dev, Data, Infra, AI",
-      "back": "← Back",
-      "both": "I'm both → Builder mode",
-      "builder_title": "Builder"
     }
   },
   "agent_detail": {
@@ -3420,7 +3410,8 @@
       "toggle_sidebar": "Toggle sessions sidebar",
       "next_message": "Next message",
       "prev_message": "Previous message",
-      "stop_or_close": "Stop streaming / close modal"
+      "stop_or_close": "Stop streaming / close modal",
+      "target_selector": "Choose the agent or the model"
     },
     "shortcut_group": {
       "chat": "Chat",
@@ -3453,6 +3444,10 @@
     "step_budget_placeholder": "Runtime default",
     "step_budget_hint": "Maximum reasoning steps per turn (1–200). Leave empty to use the runtime default.",
     "config": {
+      "profile_label": "Conversation profile",
+      "profile_default": "Default profile ({name})",
+      "profile_default_unnamed": "Default profile",
+      "profile_hint": "Left empty, the conversation follows your default profile, even when it changes.",
       "errors": {
         "llm_required": "Select an LLM provider before saving.",
         "system_prompt_too_long": "System prompt is too long (max 4000 characters).",
@@ -3731,6 +3726,22 @@
       "refused": "Step refused.",
       "running": "Running",
       "raw_label": "Raw data"
+    },
+    "target_selector": {
+      "placeholder": "Choose an agent or a model",
+      "aria": "Agent or model of the conversation",
+      "search_placeholder": "Search an agent or a model",
+      "search_aria": "Search among the agents and the models",
+      "group_agents": "Agents",
+      "group_models": "Models",
+      "formats_help": "GGUF and MLX are two model formats. An MLX model runs only on a Mac with Apple silicon; a GGUF model runs anywhere.",
+      "formats_help_aria": "What GGUF and MLX mean",
+      "default_model": "default model",
+      "no_results": "No agent or model matches.",
+      "loading": "Loading the agents and the models…",
+      "behaviour": "A chosen agent opens a new conversation with it; a chosen model becomes the model of the current conversation.",
+      "server_unreachable": "{server} does not answer",
+      "choose_failed": "The choice did not go through: {error}"
     }
   },
   "transcriptions": {
@@ -3804,7 +3815,6 @@
     "skip_later": "Configure later",
     "skip_optional": "Skip the optional questions",
     "step_welcome": "Welcome",
-    "step_profile": "Profile",
     "step_models": "Models",
     "step_calibration": "Calibration"
   },

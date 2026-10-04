@@ -40,6 +40,7 @@ pub mod conversations;
 pub mod pause;
 pub mod plan;
 pub mod session_reads;
+mod session_route;
 mod sse;
 pub mod turns;
 pub mod user_inputs;
@@ -58,6 +59,11 @@ pub struct CreateSessionRequest {
     /// List of tool names available in this session.
     #[serde(default)]
     pub tools: Vec<String>,
+    /// The model of the session: the identifier of a language model of the
+    /// model index, `<server>/<model>` for a model of a declared server, or
+    /// the name of a backend. Absent keeps the model of the agent.
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 /// Request body for `POST /api/v1/sessions/:id/messages`.
@@ -172,12 +178,17 @@ pub async fn create_session<B: ExecutionBackend + Clone>(
         }
     };
 
+    let model = match body.model.filter(|m| !m.trim().is_empty()) {
+        Some(model) => Some(session_route::session_route(&state, model).await),
+        None => None,
+    };
     match manager
         .create_session(crate::chat::manager::CreateSessionParams {
             mode,
             agent_name: body.agent_name,
             system_prompt: body.system_prompt,
             tools: body.tools,
+            model,
         })
         .await
     {

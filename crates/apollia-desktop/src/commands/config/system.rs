@@ -18,6 +18,9 @@ pub struct SystemInfo {
     pub version: String,
     /// Operating system and architecture (e.g. `"macos aarch64"`).
     pub os: String,
+    /// Processor architecture this build runs on (e.g. `"aarch64"`), shown
+    /// beside the processor in System > Hardware.
+    pub arch: String,
     /// Absolute path to the Python 3 interpreter, if detected.
     pub python_path: Option<String>,
     /// Absolute path to the runtime data directory (`<home>/.apollia`), where
@@ -81,9 +84,21 @@ pub async fn get_system_info() -> Result<SystemInfo, String> {
     Ok(SystemInfo {
         version,
         os,
+        arch: std::env::consts::ARCH.to_owned(),
         python_path,
         data_dir,
     })
+}
+
+/// Route of the engine list on the runtime.
+pub(crate) const ENGINES_ROUTE: &str = "/api/v1/engines";
+
+/// Returns the engines of this machine, embedded or installed by the engine
+/// store, each with the version it states at its source, and the dictation
+/// engine, over `GET /api/v1/engines`. Read by System > Engines.
+#[tauri::command]
+pub async fn list_engines(link: State<'_, RuntimeLink>) -> Result<Value, String> {
+    link.get_json(ENGINES_ROUTE).await
 }
 
 /// Route of the security posture on the runtime.
@@ -273,6 +288,7 @@ mod tests {
             "set_python_interpreter",
             "get_security_posture",
             "get_system_info",
+            "list_engines",
         ];
 
         // WHEN each passes the gate of an attached window
@@ -358,6 +374,33 @@ mod tests {
             info.os.contains(std::env::consts::ARCH),
             "os should contain the current architecture"
         );
+        assert_eq!(info.arch, std::env::consts::ARCH);
+    }
+
+    #[tokio::test]
+    async fn test_the_engine_list_is_read_from_the_daemon_as_it_answers() {
+        // GIVEN a daemon listing one engine with the version it states
+        let server = MockServer::start().await;
+        let listed = json!({
+            "engines": [{
+                "engine": "llama-server", "tag": null, "variant": "metal",
+                "path": "/app/llama-server", "source": "embedded",
+                "version": "7001 (0ff1ce0)",
+            }],
+            "channel": "stable", "manifest_sequence": null, "updates": [],
+            "cuda_proposable": false, "dictation": null,
+        });
+        authorized("GET", ENGINES_ROUTE)
+            .respond_with(ResponseTemplate::new(200).set_body_json(listed.clone()))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        // WHEN the window reads the engine list through the seam
+        let read = attached(&server).get_json(ENGINES_ROUTE).await;
+
+        // THEN it is the daemon's answer, version included, unchanged
+        assert_eq!(read.unwrap(), listed);
     }
 }
 

@@ -252,6 +252,7 @@ impl ChatSessionManagerHandle {
             agent_name,
             system_prompt,
             tools,
+            model,
         } = params;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -260,6 +261,7 @@ impl ChatSessionManagerHandle {
                 agent_name,
                 system_prompt,
                 tools,
+                model,
                 reply: reply_tx,
             })
             .await
@@ -393,21 +395,18 @@ impl ChatSessionManagerHandle {
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))
     }
 
-    /// Update session configuration (system_prompt, tools, llm_backend).
+    /// Update session configuration (system_prompt, tools, llm_backend,
+    /// profile); an absent field keeps its value.
     pub async fn update_session(
         &self,
         session_id: SessionId,
-        system_prompt: Option<String>,
-        available_tools: Option<Vec<String>>,
-        llm_backend: Option<Option<String>>,
+        update: SessionConfigUpdate,
     ) -> Result<(), ChatError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(ChatCommand::UpdateSession {
                 session_id,
-                system_prompt,
-                available_tools,
-                llm_backend,
+                update,
                 reply: reply_tx,
             })
             .await
