@@ -389,6 +389,7 @@ async fn test_resolve_tool_approval() {
         hook_executor: None,
         package_tools: None,
         composer: None,
+        governance: None,
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
@@ -432,7 +433,7 @@ async fn test_resolve_tool_approval() {
 }
 
 #[tokio::test]
-async fn test_always_accept_not_honored_for_code_executor() {
+async fn test_always_accept_grants_no_tool_by_name() {
     // GIVEN a manager with pending approvals for a code executor and a normal tool
     let dir = tempfile::tempdir().expect("tempdir");
     let db_path = dir.path().join("chat.db");
@@ -473,6 +474,7 @@ async fn test_always_accept_not_honored_for_code_executor() {
         hook_executor: None,
         package_tools: None,
         composer: None,
+        governance: None,
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
@@ -525,10 +527,16 @@ async fn test_always_accept_not_honored_for_code_executor() {
     assert!(rx_bash.await.expect("bash decision").is_always_accept());
     assert!(rx_web.await.expect("web decision").is_always_accept());
 
-    // AND the code executor is NOT blanket-authorized, while the normal tool is
+    // AND neither tool is authorized by name, in the session or in chat.db:
+    // the run that asked turns "always" into a standing consent of its agent
+    // for the family of the tool
     let session = manager.sessions.get("sess-1").expect("session");
-    assert!(!session.authorized_tools.contains("bash_executor"));
-    assert!(session.authorized_tools.contains("web_read"));
+    assert!(session.authorized_tools.is_empty());
+    assert!(manager
+        .repository
+        .get_authorized_tools("sess-1")
+        .expect("read authorized tools")
+        .is_empty());
 }
 
 #[tokio::test]
@@ -631,6 +639,7 @@ async fn test_cross_session_context_substantive_message() {
         hook_executor: None,
         package_tools: None,
         composer: None,
+        governance: None,
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
@@ -705,6 +714,7 @@ async fn test_cross_session_context_trivial_message() {
         hook_executor: None,
         package_tools: None,
         composer: None,
+        governance: None,
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
@@ -758,6 +768,7 @@ async fn test_cross_session_context_no_relevant_sessions() {
         hook_executor: None,
         package_tools: None,
         composer: None,
+        governance: None,
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
@@ -953,6 +964,7 @@ pub(super) fn manager_with_session_in_phase(
         hook_executor: None,
         package_tools: None,
         composer: None,
+        governance: None,
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
@@ -1728,52 +1740,4 @@ async fn test_approve_plan_emits_executing_phase_changed() {
 
     // THEN a phase-changed event announces the Executing phase
     assert_eq!(next_phase_event(&mut rx).as_deref(), Some("executing"));
-}
-
-#[test]
-fn test_agent_scoped_prefix_rule_does_not_seed_the_name_set() {
-    use apollia_permissions::{PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction};
-
-    // GIVEN one agent-scoped allow rule carrying an arg_prefix and one
-    // name-only, both for the chat agent
-    let dir = tempfile::tempdir().expect("tempdir");
-    let db = dir.path().join("governance.db");
-    let mut engine = PrefixRuleEngine::new(&db).expect("open engine");
-    engine
-        .add_rule(&PrefixRule {
-            tool_name: "file_read".to_string(),
-            arg_prefix: Some("/tmp/safe".to_string()),
-            action: RuleAction::Allow,
-            scope: PermissionScope::Agent,
-            agent_id: Some(APOLLIA_CHAT_AGENT_ID.to_string()),
-            ..PrefixRule::default()
-        })
-        .expect("seed prefixed rule");
-    engine
-        .add_rule(&PrefixRule {
-            tool_name: "web_search".to_string(),
-            arg_prefix: None,
-            action: RuleAction::Allow,
-            scope: PermissionScope::Agent,
-            agent_id: Some(APOLLIA_CHAT_AGENT_ID.to_string()),
-            ..PrefixRule::default()
-        })
-        .expect("seed name-only rule");
-
-    // WHEN the chat overrides are seeded from the store
-    let mut out = ChatLibreOverrides::default();
-    super::libre::apply_chat_prefix_allow_rules(&mut out, &db);
-
-    // THEN the prefixed rule does not authorize the whole tool name (it is
-    // evaluated per invocation instead), while the name-only rule does
-    assert!(
-        !out.pre_authorized_tools.contains("file_read"),
-        "a prefixed rule must not widen into a tool-wide authorization: {:?}",
-        out.pre_authorized_tools
-    );
-    assert!(
-        out.pre_authorized_tools.contains("web_search"),
-        "{:?}",
-        out.pre_authorized_tools
-    );
 }

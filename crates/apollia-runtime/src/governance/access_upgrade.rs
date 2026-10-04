@@ -95,21 +95,17 @@ pub fn upgrade_and_journal(
 /// Startup step: runs the upgrade on the instance `governance.db` and
 /// journals it, or defers it while the journal is unavailable, so a change of
 /// access is never made without its record.
-pub(crate) fn run_at_startup(
-    data_dir: &Path,
-    journal: Option<&crate::audit_journal::AuditJournalHandle>,
-) {
-    let Some(journal) = journal else {
+pub(crate) fn run_at_startup(data_dir: &Path, governance: &crate::governance::GovernanceHandle) {
+    if !governance.journaled() {
         tracing::event!(
             tracing::Level::WARN,
             detail = "audit journal unavailable, upgrade deferred to the next start",
             "governance.access_upgrade.deferred"
         );
         return;
-    };
+    }
     let db = data_dir.join(apollia_core::paths::DataFile::Governance.file_name());
-    let governance = crate::governance::NoPolicyGovernance::new(journal.clone());
-    match upgrade_and_journal(&db, &governance) {
+    match upgrade_and_journal(&db, governance) {
         Ok(changes) => tracing::event!(
             tracing::Level::INFO,
             changes,
