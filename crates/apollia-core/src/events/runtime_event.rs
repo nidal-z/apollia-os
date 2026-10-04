@@ -136,6 +136,19 @@ pub enum RuntimeEvent {
         diagnostics: Vec<crate::config::ConfigDiagnostic>,
     },
 
+    /// A new `apollia.toml`, saved through the configuration routes or changed
+    /// on disk, was applied by the running runtime.
+    ///
+    /// Emitted after each application, by the configuration reloader: the
+    /// sections whose new values the runtime now uses, and the keys whose new
+    /// value waits for a restart.
+    ConfigReloaded {
+        /// The sections applied without a restart, such as `tools` or `hitl`.
+        sections: Vec<String>,
+        /// The dotted keys changed since the start that wait for a restart.
+        pending_restart: Vec<String>,
+    },
+
     /// An MCP server was hot-reloaded successfully.
     ///
     /// Emitted by `McpClientManagerHandle::reload_server` after the new session

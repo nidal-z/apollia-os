@@ -63,6 +63,22 @@ son chemin, son type, sa valeur par défaut, sa documentation, sa classe de
 rechargement, si la politique de l'organisation peut l'imposer, et si elle est
 retirée.
 
+## Changements pendant que le moteur tourne
+
+Le moteur suit son fichier. Un texte enregistré par `PUT /api/v1/config`, ou le
+fichier modifié sur le disque par tout autre moyen, est relu une fois qu'il est
+resté inchangé un instant. Un texte valide est appliqué : une clé de classe de
+rechargement `Reloadable` prend effet sans redémarrage, au prochain usage du
+réglage (la prochaine conversation, le prochain échange, la prochaine exécution
+d'un agent, le prochain passage sur les tâches en attente). Une clé de classe
+`Restart` garde son ancienne valeur jusqu'au prochain démarrage du moteur ;
+`GET /api/v1/config` la liste sous `pendingRestart`, avec sa ligne, et la liste
+est vide après un démarrage. Un texte invalide ne change rien : la dernière
+configuration valide reste en vigueur, la route de lecture rend les fautes à
+leur ligne, et un événement `ConfigInvalid` est publié. Chaque application publie
+un événement `ConfigReloaded` avec les sections appliquées et les clés en attente
+de redémarrage.
+
 ## Sections
 
 Le fichier est lu strictement, par la même validation partout. Une clé

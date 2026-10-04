@@ -47,8 +47,9 @@ pub(super) struct BridgeRunner {
     pub(super) memory_base_dir: PathBuf,
     /// High-level A2A invoker, `None` if not available.
     pub(super) a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
-    /// Operator-supplied tools configuration loaded from `apollia.toml`.
-    pub(super) tools_config: apollia_core::ToolsConfig,
+    /// Operator-supplied tools configuration loaded from `apollia.toml`, read
+    /// at each run so a saved change applies to the next one.
+    pub(super) tools_config: apollia_runtime::config_reload::Live<apollia_core::ToolsConfig>,
     /// Manifest opt-in for `ctx.memory.remember_user()` writes into `__user__`.
     pub(super) user_memory_write: bool,
     /// Datasources declared in the manifest.
@@ -121,7 +122,8 @@ impl BridgeRunner {
             );
             Default::default()
         });
-        let disabled_tools = merge_disabled(&self.tools_config.disabled, snapshot.disabled_tools);
+        let tools_config = self.tools_config.get();
+        let disabled_tools = merge_disabled(&tools_config.disabled, snapshot.disabled_tools);
         let mut extra_executors = task_tool_executors(
             &self.mcp_handle,
             task,
@@ -154,10 +156,10 @@ impl BridgeRunner {
                 session_id: None,
                 disabled_tools,
                 brave_api_key: snapshot.brave_api_key,
-                web_search_config: self.tools_config.web_search.clone(),
-                web_read_config: self.tools_config.web_read.clone(),
-                python_interpreter: self.tools_config.python_interpreter.clone(),
-                max_output_chars: self.tools_config.max_output_chars,
+                web_search_config: tools_config.web_search.clone(),
+                web_read_config: tools_config.web_read.clone(),
+                python_interpreter: tools_config.python_interpreter.clone(),
+                max_output_chars: tools_config.max_output_chars,
                 // `memory_search` only when the agent's memory is checked.
                 sources: apollia_tools::SourceAccess::memory_only(
                     apollia_tools::memory_is_checked(&governance_base, &self.agent_id),
@@ -204,7 +206,7 @@ impl AgentRunner for BridgeRunner {
         let task_for_gate = task.clone();
         let memory_base_dir = self.memory_base_dir.clone();
         let a2a_invoker = self.a2a_invoker.clone();
-        let tools_config = self.tools_config.clone();
+        let tools_config = self.tools_config.get();
         let user_memory_write = self.user_memory_write;
         let datasources_declared = self.datasources_declared.clone();
         let templates_declared = self.templates_declared.clone();
