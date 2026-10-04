@@ -216,6 +216,7 @@ fn test_config(port: u16, socket_path: PathBuf) -> (SupervisorConfig, tempfile::
         plan_mode_default: false,
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
+        config_channels: None,
     };
     (config, temp_dir)
 }
@@ -422,6 +423,7 @@ async fn test_startup_timeout_rollback() {
         plan_mode_default: false,
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
+        config_channels: None,
     };
     let supervisor = Supervisor::new(config);
 
@@ -511,6 +513,7 @@ async fn test_start_without_llm_config_succeeds() {
         plan_mode_default: false,
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
+        config_channels: None,
     };
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();
@@ -573,6 +576,7 @@ async fn test_app_state_clone_with_llm_router_none() {
         connection_governance: Default::default(),
         inference_governance: Default::default(),
         obs_config: apollia_core::ObservabilityConfig::default(),
+        config_reload: None,
         llm_call_repository: None,
         trigger_def_repo: None,
         notification_repo: None,
@@ -650,6 +654,7 @@ async fn test_supervisor_starts_with_zero_triggers() {
         plan_mode_default: false,
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
+        config_channels: None,
     };
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();
@@ -723,6 +728,7 @@ async fn test_no_notifications_section_starts_ok() {
         plan_mode_default: false,
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
+        config_channels: None,
     };
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();
@@ -809,6 +815,7 @@ async fn test_trigger_engine_loads_from_sqlite() {
         plan_mode_default: false,
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
+        config_channels: None,
     };
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();
@@ -1070,6 +1077,7 @@ async fn test_story187_appstate_contains_repos() {
         plan_mode_default: false,
         chat_tool_turn_temperature: None,
         workflows_config: apollia_core::WorkflowsConfig::default(),
+        config_channels: None,
     };
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();

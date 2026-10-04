@@ -153,6 +153,11 @@ pub struct RuntimeHandle {
     /// reads it to seed its own per-user preference rather than inventing one.
     pub plan_mode_default: bool,
 
+    /// The live sections of the configuration, for the consumers the host
+    /// builds once the runtime is up: the agent runners read `[tools]` from
+    /// them at each run.
+    pub config_feed: crate::config_reload::ConfigFeed,
+
     /// Temperature applied to a chat turn that advertises tools, read from the
     /// `[chat] tool_turn_temperature` key of `apollia.toml` at boot. `None`
     /// resolves to the agent default.
@@ -546,6 +551,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         plan_mode_default: config.chat_config.plan_mode_default,
         chat_tool_turn_temperature,
         workflows_config: config.workflows_config,
+        config_channels: None,
     };
 
     let supervisor = Supervisor::new(supervisor_config);
@@ -597,6 +603,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         org_policy: handles.org_policy,
         plan_mode_default,
         chat_tool_turn_temperature,
+        config_feed: handles.config_feed,
     })
 }
 

@@ -25,6 +25,7 @@ pub mod commands;
 pub mod companion;
 pub mod compat_server;
 pub mod composition;
+pub mod config_reload;
 pub mod connections;
 pub mod connectors_bridge;
 pub mod conversation_stats;

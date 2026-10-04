@@ -209,6 +209,16 @@ struct ChatSessionManager {
     /// approved plans unexecuted), it is parked here. At most one is held per
     /// session, latest decision wins.
     pending_plan_continuations: HashMap<SessionId, String>,
+    /// The live sections of the configuration this actor follows, once the
+    /// supervisor handed them over; `None` keeps the values it was spawned
+    /// with.
+    config_feed: Option<crate::config_reload::ConfigFeed>,
+    /// Sends the plan-mode default to the handles, which answer it without a
+    /// round trip.
+    plan_mode_default_tx: tokio::sync::watch::Sender<bool>,
+    /// Sends the hook executor in force to the handles, which list its
+    /// handlers.
+    hook_executor_tx: tokio::sync::watch::Sender<Option<Arc<HookExecutor>>>,
 }
 
 mod actor;
@@ -225,12 +235,15 @@ mod exchange;
 mod handle;
 mod handle_ext;
 mod libre;
+mod live_config;
 mod plan;
 mod session;
 mod sources;
 mod types;
 mod user_input;
 
+#[cfg(test)]
+mod live_config_tests;
 #[cfg(test)]
 mod plan_regression_tests;
 #[cfg(test)]

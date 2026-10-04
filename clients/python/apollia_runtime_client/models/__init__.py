@@ -317,6 +317,7 @@ from .parse_automation_response_200 import ParseAutomationResponse200
 from .pending_approval_response import PendingApprovalResponse
 from .pending_approval_response_context_type_0 import PendingApprovalResponseContextType0
 from .pending_approval_response_payload_type_0 import PendingApprovalResponsePayloadType0
+from .pending_restart_key import PendingRestartKey
 from .pending_user_input_view import PendingUserInputView
 from .permission_rule_dto import PermissionRuleDto
 from .ping_request import PingRequest
@@ -846,6 +847,7 @@ __all__ = (
     "PendingApprovalResponse",
     "PendingApprovalResponseContextType0",
     "PendingApprovalResponsePayloadType0",
+    "PendingRestartKey",
     "PendingUserInputView",
     "PermissionRuleDto",
     "PingRequest",

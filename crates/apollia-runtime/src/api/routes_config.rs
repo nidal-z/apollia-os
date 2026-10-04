@@ -7,9 +7,9 @@
 //! organisation policy, and replaces the file atomically. The keys the policy
 //! fixes are listed with their value so an editor can lock their lines.
 //!
-//! Nothing is reloaded here: a saved file applies at the next start of the
-//! runtime, and the list of keys waiting for that restart stays empty until
-//! the runtime reloads its configuration.
+//! A saved text is handed to the configuration reloader, which applies the
+//! sections the running engine can apply and marks the other changed keys as
+//! waiting for a restart; the read route lists those keys with their line.
 
 use std::path::PathBuf;
 
@@ -93,8 +93,9 @@ pub struct ConfigView {
     pub diagnostics: Vec<ConfigDiagnosticBody>,
     /// The keys the organisation policy fixes, with their value.
     pub locked: Vec<LockedKeyBody>,
-    /// Keys changed in the file that wait for a restart of the runtime.
-    pub pending_restart: Vec<String>,
+    /// Keys changed since the runtime started that wait for its restart, each
+    /// with its line; empty in a runtime that does not follow its file.
+    pub pending_restart: Vec<crate::config_reload::PendingRestartKey>,
 }
 
 /// A text to check.
@@ -199,7 +200,12 @@ fn config_path<B: ExecutionBackend + Clone>(state: &AppState<B>) -> Result<PathB
     })
 }
 
-fn view(path: &std::path::Path, snapshot: ConfigSnapshot, policy: &PolicySettings) -> ConfigView {
+fn view(
+    path: &std::path::Path,
+    snapshot: ConfigSnapshot,
+    policy: &PolicySettings,
+    pending_restart: Vec<crate::config_reload::PendingRestartKey>,
+) -> ConfigView {
     let diagnostics = if snapshot.text.is_empty() {
         Vec::new()
     } else {
@@ -216,7 +222,7 @@ fn view(path: &std::path::Path, snapshot: ConfigSnapshot, policy: &PolicySetting
                 value: k.value,
             })
             .collect(),
-        pending_restart: Vec::new(),
+        pending_restart,
         text: snapshot.text,
         sha256: snapshot.sha256,
     }
@@ -233,7 +239,7 @@ pub fn read_view(
     policy: &PolicySettings,
 ) -> Result<ConfigView, ConfigWriteError> {
     let snapshot = read_snapshot(path)?;
-    Ok(view(path, snapshot, policy))
+    Ok(view(path, snapshot, policy, Vec::new()))
 }
 
 /// `GET /api/v1/config`: the text of `apollia.toml`, its fingerprint, its
@@ -253,10 +259,13 @@ pub async fn read_config<B: ExecutionBackend + Clone>(
 ) -> Result<Json<ConfigView>, RouteError> {
     let path = config_path(&state)?;
     let policy = state.inference_governance.imposed_settings();
-    let read = tokio::task::spawn_blocking(move || read_view(&path, &policy))
+    let mut read = tokio::task::spawn_blocking(move || read_view(&path, &policy))
         .await
         .map_err(|e| failure(StatusCode::INTERNAL_SERVER_ERROR, "internal", e))?
         .map_err(refusal)?;
+    if let Some(reload) = &state.config_reload {
+        read.pending_restart = reload.status().await.pending_restart;
+    }
     Ok(Json(read))
 }
 
@@ -306,20 +315,25 @@ pub async fn save_config<B: ExecutionBackend + Clone>(
 ) -> Result<Json<ConfigView>, RouteError> {
     let path = config_path(&state)?;
     let policy = state.inference_governance.imposed_settings();
-    let saved = tokio::task::spawn_blocking(move || {
+    let (path, written) = tokio::task::spawn_blocking(move || {
         let written = write_config(
             &path,
             ConfigEdit::Text(request.text),
             &request.sha256,
             &policy,
         )?;
-        Ok::<_, ConfigWriteError>(view(&path, written, &policy))
+        Ok::<_, ConfigWriteError>((path, written))
     })
     .await
     .map_err(|e| failure(StatusCode::INTERNAL_SERVER_ERROR, "internal", e))?
     .map_err(refusal)?;
     tracing::event!(tracing::Level::INFO, "config.saved");
-    Ok(Json(saved))
+    let pending_restart = match &state.config_reload {
+        Some(reload) => reload.saved(written.text.clone()).await.pending_restart,
+        None => Vec::new(),
+    };
+    let policy = state.inference_governance.imposed_settings();
+    Ok(Json(view(&path, written, &policy, pending_restart)))
 }
 
 /// `GET /api/v1/config/default`: the default text of the file, the keys the

@@ -143,6 +143,7 @@ async fn build_app_state_with_repos(
         tool_registry_handle: None,
         audit_trail: None,
         obs_config: ObservabilityConfig::default(),
+        config_reload: None,
         llm_call_repository: None,
         trigger_def_repo: Some(trigger_def_repo),
         notification_repo: Some(notification_repo),

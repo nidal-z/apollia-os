@@ -269,6 +269,12 @@ pub enum ChatCommand {
         /// Used by every run that starts afterwards.
         host: Arc<dyn crate::package_tools::PackageToolHost>,
     },
+    /// Hand the live sections of the configuration to the actor.
+    FollowConfig {
+        /// Read between two commands: a changed section applies to the next
+        /// conversation and the next exchange.
+        feed: crate::config_reload::ConfigFeed,
+    },
     /// Hand the composer of the granted agent and workflow calls to the actor.
     SetComposer {
         /// Used by every run that starts afterwards.

@@ -702,6 +702,7 @@ mod tests {
             connection_governance: Default::default(),
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            config_reload: None,
             llm_call_repository: None,
             trigger_def_repo: None,
             notification_repo: Some(Arc::new(std::sync::Mutex::new(repo))),

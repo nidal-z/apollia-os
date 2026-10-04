@@ -31,6 +31,7 @@ endpoints. Most of the project's day-to-day Rust changes land here.
 | `CompatServerHandle` | the compatible server's listener: opens it at start when `[server] enabled` says so, starts, stops and restarts it on request (binding the loopback interface, or every interface when `[server] serve_on_lan` says so) and writes the switch, keeps the last start error, closes it on `ShutdownRequested` without touching the switch | mpsc | 64 | `src/compat_server/actor.rs` |
 | `ServerTokensHandle` | the tokens of the compatible server in `system.db`: creates one (`apo_` value answered once, only its SHA-256 kept), lists and revokes them, counts those in use, checks a presented token in constant time and stamps its last use; spawned by `CompatServerHandle`, stops when its handles drop | mpsc | 256 | `src/compat_server/tokens.rs` |
 | `ServerLogsHandle` | the logs of the compatible server: a ring of the last 2000 lines (one per request it answered, one per line a local `llama-server` printed), oldest out first; streams them to each subscriber at its level, then the new ones, through a bounded channel of 256 that drops what a slow reader cannot hold; clears the ring and nothing else; writers never wait (`try_send`); spawned by `CompatServerHandle`, stops on `ShutdownRequested` | mpsc | 1024 | `src/compat_server/logs.rs` |
+| `ConfigReloadHandle` | the configuration in force: applies a saved or changed `apollia.toml`, sends its live sections on one `watch` channel each, lists the keys waiting for a restart, publishes `ConfigReloaded` and `ConfigInvalid`; stops on `ShutdownRequested` | mpsc | 16 | `src/config_reload/actor.rs` |
 | `WorkflowActor` | the workflow runs in progress and their cancellation tokens: launches a run after checking its inputs, stops one and answers once it ended, fails at start the runs a stopped process left running; each run reports its steps itself, to `hitl.db` and the bus | mpsc | 64 | `src/workflows/actor.rs` |
 
 Hosted from other crates, started by this one :
@@ -254,12 +255,19 @@ otherwise `apollia_core::paths::config_file()`, that is
 directory and `~/.config/apollia/` are never read. Parsed via `serde` into the
 `RuntimeConfig` struct (`crates/apollia-core/src/config/runtime.rs`).
 
-There is no `SIGHUP` handler. What reloads does so through an explicit
-route or command, each on its own subsystem: `POST /api/v1/triggers/reload`
-(503 when the runtime was started without a config file), the STT reload
-route and the desktop reload command, both swapping a shared cell rather
-than restarting the actor. A change to any other key takes effect at the
-next start.
+There is no `SIGHUP` handler. The runtime follows `apollia.toml` itself:
+`ConfigReloadHandle` (`src/config_reload/`) holds the last valid
+configuration, reads a text the save route wrote or the file changed on disk
+(`ApolliaConfigWatcher`, `apollia-triggers`), and sends each changed section
+whose keys are `Reloadable` in the key registry on a `tokio::sync::watch`
+channel of its own. A consumer holds that section as a `Live<T>`: it reads
+`get()` at each use, or applies `changed()` between two messages. The keys of
+class `Restart` wait for the next start and are listed by `GET /api/v1/config`.
+A new consumer of a live section takes a `Live<T>` (a plain value converts,
+for the tests), never a copy made at boot. The subsystems with a reload of
+their own keep it: `POST /api/v1/triggers/reload` (503 when the runtime was
+started without a config file), the STT reload route and the desktop reload
+command, both swapping a shared cell rather than restarting the actor.
 
 Inter-agent mailbox caps live on `RuntimeConfig` as `mailbox_*` fields,
 mapped to `MailboxConfig` at boot :

@@ -212,6 +212,12 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     ///
     /// Passed to the `ExecutionCoordinator` for persisting input/output/transitions.
     pub obs_config: apollia_core::ObservabilityConfig,
+    /// The configuration reloader: the save route hands it the text it wrote,
+    /// the read route asks it the keys waiting for a restart, and the live
+    /// sections are read from its feed.
+    ///
+    /// `None` when the runtime was started without a configuration file.
+    pub config_reload: Option<crate::config_reload::ConfigReloadHandle>,
     /// LLM call repository, aggregates cost and token usage.
     ///
     /// `Some` when an `LlmRouter` is configured and `llm_calls.db` is open.
@@ -349,6 +355,25 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     pub source_registry: Option<apollia_sources::SourceRegistryHandle>,
 }
 
+impl<B: ExecutionBackend + Clone> AppState<B> {
+    /// The `[observability]` section in force: the live one when the runtime
+    /// follows its file, the one it started with otherwise.
+    pub fn observability(&self) -> apollia_core::ObservabilityConfig {
+        self.observability_live().get()
+    }
+
+    /// The `[observability]` section as a consumer that outlives the request
+    /// holds it, such as the coordinator of a loaded agent.
+    pub fn observability_live(
+        &self,
+    ) -> crate::config_reload::Live<apollia_core::ObservabilityConfig> {
+        self.config_reload.as_ref().map_or_else(
+            || self.obs_config.clone().into(),
+            |reload| reload.feed().observability,
+        )
+    }
+}
+
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
     fn clone(&self) -> Self {
         Self {
@@ -371,6 +396,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             connection_governance: self.connection_governance.clone(),
             inference_governance: self.inference_governance.clone(),
             obs_config: self.obs_config.clone(),
+            config_reload: self.config_reload.clone(),
             llm_call_repository: self.llm_call_repository.clone(),
             trigger_def_repo: self.trigger_def_repo.clone(),
             notification_repo: self.notification_repo.clone(),
@@ -819,6 +845,7 @@ mod tests {
             connection_governance: Default::default(),
             inference_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            config_reload: None,
             llm_call_repository: None,
             trigger_def_repo: None,
             notification_repo: None,

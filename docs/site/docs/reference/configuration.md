@@ -60,6 +60,21 @@ database.
 path, type, default, documentation, reload class, whether the organization
 policy can fix it, and whether it is withdrawn.
 
+## Changes while the runtime runs
+
+The runtime follows its file. A text saved through `PUT /api/v1/config`, or the
+file changed on disk by any other means, is read again once it has stayed
+unchanged for a moment. A valid text is applied: a key whose reload class is
+`Reloadable` takes effect without a restart, at the next use of the setting (the
+next conversation, the next exchange, the next run of an agent, the next scan of
+the paused tasks). A key of class `Restart` keeps its former value until the
+runtime starts again; `GET /api/v1/config` lists it under `pendingRestart`, with
+its line, and the list is empty after a start. A text that does not validate
+changes nothing: the last valid configuration stays in force, the read route
+returns the faults at their line, and a `ConfigInvalid` event is published. Each
+application publishes a `ConfigReloaded` event with the sections applied and the
+keys waiting for a restart.
+
 ## Sections
 
 The file is read strictly, by the same validation everywhere. A key that no
