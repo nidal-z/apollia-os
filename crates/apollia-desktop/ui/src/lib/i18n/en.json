@@ -544,25 +544,25 @@
     "custom_connection": "Custom connection",
     "native_google_name": "Google Workspace",
     "native_microsoft_name": "Microsoft 365",
-    "remote": "Remote"
+    "remote": "Remote",
+    "refusal": {
+      "organisation_title": "Refused by the organisation's policy",
+      "permissions_title": "Refused by your permissions",
+      "remote_denied": "Your organisation does not allow connections to online services.",
+      "policy_unreadable": "Your organisation's policy could not be read, so no connection can be added until it is fixed.",
+      "nothing_installed": "Nothing was installed or downloaded.",
+      "ask_administrator": "To change this rule, contact your organisation's administrator.",
+      "open_policy": "See the policy",
+      "open_permissions": "See the permissions"
+    }
   },
   "integrations": {
     "disclaimer": {
-      "title": "External connections - Read before continuing",
-      "step_title": "What you need to know before connecting",
-      "step_subtitle": "Check each item to confirm your understanding.",
-      "items": {
-        "code_on_machine": "I understand this connection runs code on my machine",
-        "code_on_machine_desc": "The connection runs as third-party software on your computer, with the same rights as you.",
-        "external_data": "I understand this connection can access external data through APIs",
-        "external_data_desc": "Your data may be sent to the connected service (Notion, GitHub, etc.) through their APIs.",
-        "revocable": "I can revoke this connection at any time",
-        "revocable_desc": "Go to Connections → Manage to disconnect and remove stored secrets.",
-        "read_capabilities": "I have read the capabilities offered by this connection",
-        "read_capabilities_desc": "The exposed tools will be listed after the connection test."
-      },
-      "learn_more": "Learn more: Security of connections",
-      "continue": "Continue"
+      "title": "Before adding this connection",
+      "agents": "Your agents will be able to use what {name} offers. An action that sends, changes or deletes something asks for your agreement first.",
+      "data": "What your agents read or send through this connection goes through {name}, under its own terms.",
+      "responsibility": "Apollia tests the connections of its selection; it does not answer for the service itself, which you can remove at any time from Connections.",
+      "journal": "Your agreement is recorded in the Journal."
     },
     "status": {
       "connected": "Connected",
@@ -578,11 +578,6 @@
     },
     "wizard": {
       "title": "Configure {name}",
-      "step_auth": "Authentication",
-      "step_test": "Test",
-      "step_disclaimer": "What it does",
-      "step_coaching": "Settings",
-      "confirm_exit": "Close the wizard? Unsaved information will be lost.",
       "encrypted_locally": "Encrypted and stored locally",
       "test_retry": "Retry",
       "test_err": {
@@ -595,13 +590,9 @@
         "transport_closed": "The server closed the connection before the handshake completed. Common causes: package not found on npm/pypi (check the identifier), remote URL unreachable (DNS/firewall), or missing local command.",
         "command_missing": "Command not found - the package is probably not installed.",
         "generic": "The connection failed. Check your credentials and try again.",
-        "raw_details": "Show technical details",
-        "fix_auth": "Fix authentication"
+        "raw_details": "Show technical details"
       },
       "coaching": {
-        "approval_title": "Permissions",
-        "approval_subtitle": "Choose how this connection asks for permission before acting in an agent task. In a conversation, a tool you have not authorized always asks first.",
-        "auto_write_warning": "Security risk: with \"Allow automatically\", an agent task can use this connection to modify your data without confirmation.",
         "examples_title": "What can you do now?",
         "examples_subtitle": "A few usage examples to get started.",
         "loading": "Generating suggestions…",
@@ -610,7 +601,6 @@
         "try": "Try",
         "no_tools": "No tool is available for this connection yet, so the example cannot run."
       },
-      "next": "Next",
       "optional": "optional",
       "auth_help_link": "Where to find your key",
       "auth_help_default": "You need an API key or token to connect this service.",
@@ -635,21 +625,23 @@
       "oauth_discovery_failed": "Couldn't discover the server's OAuth configuration. If you have a static token, use the custom mode to paste it manually.",
       "oauth_settings_connected": "Connected via OAuth",
       "oauth_preregistered_scope_note": "Permissions are set on your OAuth app's page at the provider's dev portal (figma.com/developers/apps, etc.). To change them, edit the app there then come back here.",
-      "test_button": "Test connection",
-      "test_testing": "Testing…",
-      "test_hint": "Verify that the configuration is correct before saving.",
-      "test_success": "{count} tools discovered",
-      "test_duration": "Response time: {ms} ms",
       "approval_auto_label": "Allow automatically (recommended for read-only)",
       "approval_auto_desc": "In an agent task, actions run without asking you each time.",
       "approval_ask_label": "Ask me every time",
       "approval_ask_desc": "In an agent task, each action requires your confirmation (recommended).",
-      "confirm_button": "Add connection",
-      "adding": "Adding…",
-      "test_unavailable": "Connection test is unavailable - no configuration found for this server.",
-      "no_package_title": "Server not configurable",
+      "confirm_button": "Add",
       "no_package_body": "This server has no installable package and no remote endpoint. It cannot be added automatically.",
-      "connector_not_configured": "This connection is not yet configured in this build of Apollia. See the help above."
+      "connector_not_configured": "This connection is not yet configured in this build of Apollia. See the help above.",
+      "preparing": "Getting the connection ready…",
+      "component_downloading": "Downloading a required component",
+      "component_verified": "Its integrity is checked before it is installed.",
+      "trying": "Trying the connection…",
+      "added_success": "Connection added and working: {count, plural, one {# tool} other {# tools}} available",
+      "added_where": "You will find it in Connections, ready to be granted to your agents.",
+      "added_failed": "The connection is added, but its trial failed",
+      "failed_badge": "Failed",
+      "remove": "Remove",
+      "add_failed": "The connection could not be added"
     },
     "manage": {
       "approval_section": "Approval",
@@ -4522,6 +4514,11 @@
       "custom_transport_sse": "SSE (legacy 2024-11-05)",
       "mcp_installed_fallback": "Installed MCP server",
       "tool_provenance": "MCP server {server} · {name}"
+    },
+    "integrations": {
+      "wizard": {
+        "node_downloading": "Downloading a required component: Node.js"
+      }
     }
   }
 }

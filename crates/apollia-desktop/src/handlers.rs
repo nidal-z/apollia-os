@@ -229,6 +229,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::mcp::update_mcp_server_config,
         commands::mcp::test_mcp_connection,
         commands::mcp::test_mcp_live_server,
+        commands::mcp::node_runtime_state,
         commands::mcp::oauth::mcp_oauth_discover,
         commands::mcp::oauth::mcp_oauth_resolve_client_id,
         commands::mcp::oauth::mcp_oauth_login,
