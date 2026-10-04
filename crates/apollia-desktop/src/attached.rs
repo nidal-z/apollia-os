@@ -102,6 +102,7 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "set_mcp_server_approval",
     "test_mcp_connection",
     "test_mcp_live_server",
+    "node_runtime_state",
     "update_mcp_server_config",
     // Agent packages installed from a folder, over
     // `/api/v1/agent-packages/`. The preview and the install name the folder
@@ -111,8 +112,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_agent_packages",
     "preview_agent_package",
     "uninstall_agent_package",
-    // Connections.
+    // Connections, and the folders added as connections.
+    "add_folder_connection",
     "list_connections",
+    "remove_folder_connection",
     // Apollia as an MCP server, over `/api/v1/mcp/exposed`.
     "list_mcp_exposable",
     "set_mcp_exposed",
