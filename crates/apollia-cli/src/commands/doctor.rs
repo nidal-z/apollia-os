@@ -159,7 +159,7 @@ fn check_apollia_home(data_dir: &Path) -> CheckResult {
 /// `apollia.toml` is **optional**: it only carries runtime tuning sections
 /// (`[api]`, `[runtime]`, `[hitl]`, `[tools]`, `[a2a]`, `[oria]`, `[llm]`).
 /// All operational data (triggers, notifications, agents, MCP servers, LLM
-/// backends, projects, ...) lives in SQLite and is managed via `apollia-os`
+/// backends, sources, ...) lives in SQLite and is managed via `apollia-os`
 /// subcommands or the Desktop app, so absence is expected for most setups.
 ///
 /// The file is `~/.apollia/apollia.toml`, the one every surface reads.

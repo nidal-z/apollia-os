@@ -62,10 +62,6 @@ PURPOSES = {
              "handler that times out, fails to deliver, or answers with something "
              "unparseable falls back to `allow`, so the tool call proceeds.",
     "chat": "Chat session defaults.",
-    "filesystem": "The paths an agent works in without "
-                  "being asked. `trusted_paths` sets friction rather than a wall, and "
-                  "the two surfaces read it differently; see *Trusted paths, and what "
-                  "happens outside them* below.",
     "models": "The signed index of model cards, its mirror, the models folder, "
               "and the rule applied to an imported model file.",
     "server": "The compatible server, which answers the OpenAI and Anthropic "

@@ -91,7 +91,6 @@ ASYNC_TRAIT_TRAITS = {
     "crates/apollia-notifications/src/engine.rs::NotificationChannel",
     "crates/apollia-oria/src/actor.rs::ToolProxyTrait",
     "crates/apollia-runtime/src/chat/agent_chat.rs::ChatAgentRunner",
-    "crates/apollia-runtime/src/chat/types.rs::ProjectContextProvider",
     "crates/apollia-tools/src/tools/web_search/backend.rs::SearchBackend",
 }
 

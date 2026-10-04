@@ -139,15 +139,15 @@ in-root path (macOS `/var` vs `/private/var`, Windows `\\?\` verbatim
 prefixes) resolve instead of being refused. Symlink escapes and any path
 whose real target leaves the root are rejected.
 
-<!-- claim:chat-file-root-is-home-without-project -->
-Which directory is the root depends on the session. With a project open, it is
-the project directory. In a chat with no project, it is the `default_workspace`
-of `[chat]` when the operator configured one that exists, and `~/.apollia`
-otherwise; the barrier on that path is the approval you are asked for before a
-write, not a narrower root. Your home directory is the fallback when neither of
-those resolves, and the system temporary directory only when the home directory
-cannot be resolved at all. In practice `~/.apollia` exists after the first
-start, so a free chat is rooted there and not at your home directory.
+<!-- claim:file-tools-root-is-the-granted-folders -->
+The roots are the folders granted to the agent, the built-in chat agent
+included, in a conversation as in a task. A folder of the machine is a
+connection, and its tools are granted to an agent on its sheet: the reading
+tools reach every folder granted, the writing tools only the folders granted
+for writing. The first folder granted, by the date it was added, is where a
+relative path lands. Neither the home folder, the data directory nor the folder
+of a project is a root. An agent granted no folder has file tools that refuse,
+saying how to grant one.
 
 | Tool | Purpose | Key parameters |
 |---|---|---|
@@ -186,6 +186,12 @@ and is treated as data, not instructions.
 | Tool | Purpose | Key parameters |
 |---|---|---|
 | `memory_search` | Full-text search (FTS5, BM25 ranking) over the agent's own namespace and declared shared namespaces. FTS5 operators are escaped automatically. | `query`, `namespace`, `limit`, `source` |
+| `source_search` | Search of the indexed folders and files checked for the agent, by keywords, and by meaning when an embeddings model is installed. Each result carries its excerpt, document, location, score and source, and the answer says how it was ranked. A source that is not checked is refused. | `query`, `sources`, `limit` (1 to 50) |
+
+Each of these tools is offered to an agent only when its source is checked
+for it: `memory_search` when its memory is, `source_search` when at least one
+indexed folder or file is. The Apollia agent's memory is one space, kept across
+its conversations.
 
 Memory retrieval is always agent-initiated: the runtime never injects memory into
 an agent's prompt. The built-in conversational assistant is the exception, and

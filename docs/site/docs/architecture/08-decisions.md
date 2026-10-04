@@ -95,6 +95,19 @@ memory search. File tools are confined to a resolved root: the path is
 canonicalized and re-checked against the root after resolution, so a symlink
 cannot walk out of it.
 
+The root of an agent's file tools is the union of the folders granted to that
+agent, the built-in chat agent included, on the chat path and on the task path
+alike. A folder of the machine is a connection, chosen with the system picker,
+and its tools are granted to an agent one by one: the reading tools reach every
+folder granted to it, the writing tools only those granted for writing. The
+first folder granted, by the date it was added, anchors a relative path. An
+agent with no folder granted has file tools that refuse with a message saying
+how to grant one. Nothing else is a root: not the home folder, not the data
+directory, not the volume, not the folder of a project. The former
+`[filesystem] trusted_paths` and `[chat] default_workspace` keys are withdrawn;
+the folders they named, the home folder excepted, were added once as
+connections, granted to no agent.
+
 Confinement is not uniform across platforms, and the difference is not
 cosmetic. On Linux, shell execution runs under PID and mount namespaces. On
 macOS the confinement is weaker. On Windows there is none. This is stated
@@ -606,6 +619,23 @@ system features. It is the raw binding Microsoft publishes, it has no
 dependency beyond its own linker shim, and the same version was already in the
 tree through other crates, so the lockfile gained no package. The cost is a
 block of FFI code with its own `unsafe` allowance, confined to one module.
+
+## The configuration file {#configuration-file}
+
+`apollia.toml` has one writer, `apollia_core::config::writer`. The settings
+screens of the desktop application, the command line, the routes under
+`/api/v1/config` and the backends the runtime mirrors into the file all go
+through it, so the same four checks hold whoever writes: the text validates
+against the strict schema, no line gives a key the organisation policy fixes
+another value, the file on disk is still the one the caller read, compared by
+its SHA-256 fingerprint, and the text replaces the file through a sibling file
+renamed over it. A write by key keeps the comments and the order of the file.
+The command line calls the writer directly, so it works with the daemon
+stopped, and a refusal reads the same sentence on every surface.
+
+Holding the writer in the foundation crate puts `toml`, `toml_edit` and `sha2`
+among the direct dependencies of `apollia-core`. All three were already
+workspace dependencies and the lockfile gained no package.
 
 ## Command line {#cli}
 

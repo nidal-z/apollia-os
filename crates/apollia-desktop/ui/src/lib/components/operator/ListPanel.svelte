@@ -11,7 +11,7 @@
    * ListPanel - canonical bordered list/table container.
    *
    * Replaces the repeated `rounded-xl border border-border/60 bg-card
-   * overflow-hidden` wrapper (Tasks, Inbox, Automations, Projects). Optionally
+   * overflow-hidden` wrapper (Tasks, Inbox, Automations). Optionally
    * renders the standard uppercase column-header row from `columns`, or a custom
    * `header` snippet. Rows go in `children`; `footer` is optional.
    */

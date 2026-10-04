@@ -169,7 +169,7 @@ pub(crate) fn sync_toml_after_mutation<B: ExecutionBackend + Clone>(
     guard: &LlmBackendRepository,
 ) {
     if let Some(path) = &state.config_path {
-        if let Err(e) = guard.sync_to_toml(path) {
+        if let Err(e) = guard.sync_to_toml(path, &state.inference_governance.imposed_settings()) {
             tracing::warn!(error = %e, "llm.backends.sync.failed");
         }
     }

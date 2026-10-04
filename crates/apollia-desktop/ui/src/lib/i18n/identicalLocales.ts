@@ -43,7 +43,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "observability.timeline_window_30min", // 30 min
   "observability.type_llm", // LLM
   "onboarding_permissions.scope_label", // {scope}
-  "projects.provider_type_git", // Git
   "settings.integrations.drive.placeholder", // Apollia
   "settings.integrations.field.client_id", // Client ID
   "settings.integrations.placeholder.api_key", // AIzaSy…
@@ -133,6 +132,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "connections.badge_status_attention", // attention
   "connections.custom_test_ok", // Test OK - {result}
   "connections.mcp_settings.transport", // Transport
+  "connections.mailbox.port_label", // Port
   "dev.connections.custom_transport_label", // Transport
   "connections.settings_provider_title", // Provider
   "connections.status_chip_attention", // Attention
@@ -143,7 +143,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "inbox.row.type_question", // question
   "inbox.row.type_trigger", // trigger
   "integrations.wizard.local_loopback_badge", // Local
-  "integrations.wizard.step_test", // Test
   "llm.ping_ok", // Ping OK ({latency}ms)
   "llm.table.backend", // Backend
   "llm.table.tokens", // Tokens
@@ -183,15 +182,10 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "plan_session.origin_initial", // Initial
   "plan_session.tab_journal", // Journal
   "plan_session.tab_plan", // Plan
-  "projects.card_agents", // {n, plural, one {# agent} other {# agents}}
-  "projects.field_description", // Description
-  "projects.provider_field_timeout_ms", // Timeout (ms)
-  "projects.provider_field_type", // Type
-  "projects.provider_type_script", // Script
-  "projects.provider_type_style", // Style
-  "projects.settings_field_description", // Description
-  "projects.tab_agents", // Agents
-  "projects.tab_conversations", // Conversations
+  "project_migration.row_documents_title", // Documents
+  "project_migration.row_instructions_title", // Instructions
+  "project_migration.where_chat_title", // Chat
+  "project_migration.where_sources_title", // Agents › Apollia › Sources
   "settings.about.contact_title", // Contact
   "settings.about.diag_transcription", // Transcription
   "settings.about.docs_title", // Documentation

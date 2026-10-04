@@ -20,7 +20,7 @@ Exemptions, three kinds:
   dev namespace   keys under `dev.` are the texts of the developer mode; they
                   may name anything, and the call side below keeps them there.
   exempt blocks   the namespaces of the screens mounted only in developer
-                  mode (`observability`, `transcriptions`) are exempt as a
+                  mode (`memory`, `observability`, `transcriptions`) are exempt as a
                   block, on one condition the guard checks: their route sits in
                   the developer group of the sidebar (`DEVELOPER_NAV` in
                   `src/lib/components/app/Sidebar.svelte`). A route taken out of
@@ -64,7 +64,11 @@ LOCALES = ("en", "fr")
 
 DEV_NAMESPACE = "dev"
 # Namespace of a screen mounted only in developer mode -> its sidebar route.
-EXEMPT_BLOCKS = {"observability": "observability", "transcriptions": "transcriptions"}
+EXEMPT_BLOCKS = {
+    "memory": "memory",
+    "observability": "observability",
+    "transcriptions": "transcriptions",
+}
 
 PLACEHOLDER = re.compile(r"\{[^{}]*\}")
 DEV_CALL = re.compile(r"(?:\$t|\$_|get\(t\))\(\s*[\"'`]dev\.")

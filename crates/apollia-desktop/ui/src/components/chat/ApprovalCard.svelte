@@ -3,7 +3,6 @@
   import { slide } from "svelte/transition";
   import { ShieldAlert, Zap, ChevronDown } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
-  import { currentSession } from "$lib/stores/chat";
   import { authorizeChatTool } from "$lib/ipc/inbox";
   import RejectReasonDialog from "../inbox/RejectReasonDialog.svelte";
 
@@ -17,17 +16,11 @@
 
   let { sessionId, messageId, toolCallId, toolName, inputPreview }: Props = $props();
 
-  /** True when the current session belongs to a project - used to grey out
-   *  the "Always for this project" option outside a project context. */
-  const hasProject = $derived(
-    $currentSession?.id === sessionId && $currentSession?.project_id !== null,
-  );
-
   /**
    * Scope of the "Always allow" rule.
    * Maps onto the runtime enum `AlwaysAcceptScope` (snake_case through serde).
    */
-  type AlwaysScope = "this_session" | "this_agent" | "this_project" | "global";
+  type AlwaysScope = "this_session" | "this_agent" | "global";
 
   let isProcessing = $state(false);
   let error = $state<string | null>(null);
@@ -205,21 +198,6 @@
         <div class="font-medium text-foreground">{$t("approval.scope.agent_title")}</div>
         <div class="text-micro text-muted-foreground">
           {$t("approval.scope.agent_desc_apollia")}
-        </div>
-      </button>
-      <button
-        type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-caption hover:bg-surface-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-        disabled={isProcessing || !hasProject}
-        onclick={() => handleAlwaysAccept("this_project")}
-        data-testid="approval-scope-project-{toolName}"
-        title={!hasProject ? $t("approval.scope.project_no_project") : undefined}
-      >
-        <div class="font-medium text-foreground">{$t("approval.scope.project_title")}</div>
-        <div class="text-micro text-muted-foreground">
-          {hasProject
-            ? $t("approval.scope.project_desc")
-            : $t("approval.scope.project_unavailable")}
         </div>
       </button>
       <button

@@ -25,7 +25,6 @@ import {
   Activity,
   Settings as SettingsIcon,
   Mic,
-  FolderOpen,
   Plus,
   Moon,
   Terminal,
@@ -122,7 +121,6 @@ export function buildPaletteActions(): PaletteAction[] {
     // ── Pages ─────────────────────────────────────────────────────
     nav("nav.dashboard", "dashboard", "nav.dashboard", LayoutDashboard, ["home"]),
     nav("nav.agents", "agents", "nav.agents", Bot, ["assistants", "bots"]),
-    nav("nav.projects", "projects", "nav.projects", FolderOpen, ["project", "workspaces"]),
     nav("nav.tasks", "tasks", "nav.tasks", ListChecks, ["tasks", "activity"]),
     nav("nav.chat", "chat", "nav.chat", MessageSquare, ["chat", "conversation"]),
     nav("nav.inbox", "inbox", "nav.inbox", ShieldCheck, ["inbox", "approvals", "hitl"]),

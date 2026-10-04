@@ -22,8 +22,8 @@ garder la main sur les actions sensibles et suivre ce qui se passe.
 
 ## Les grands blocs
 
-- **Demarrer** : [connecter un modele](./installation/connecter-un-modele-distant.md), [installer un agent](./agents/install-an-agent.md), [creer un projet](./projets/create-a-project.md).
-- **Discuter** : [conversation libre et dictee vocale](./chat/chat-with-your-ai.md), contexte projet automatique.
+- **Demarrer** : [connecter un modele](./installation/connecter-un-modele-distant.md), [installer un agent](./agents/install-an-agent.md), [ce que sont devenus les projets](./projets/what-became-of-projects.md).
+- **Discuter** : [conversation libre et dictee vocale](./chat/chat-with-your-ai.md).
 - **Automatiser** : [programmer un trigger](./automatisations/schedule-a-trigger.md), suivre l'historique des declenchements.
 - **Garder la main** : [approuver ou refuser une action](./controle/approve-or-reject-an-action.md), [configurer les permissions de fichiers](./controle/manage-tool-permissions.md), [inspecter un outil](./controle/inspect-a-tool.md), [choisir le palier d'autonomie](./agents/choose-an-autonomy-level.md), [mesurer un agent avec eval](./agents/measure-an-agent-with-eval.md).
 - **Connecter** : brancher vos outils via le [catalogue MCP](./integrations/connecter-un-serveur-mcp.md).

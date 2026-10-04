@@ -137,7 +137,7 @@ DEAD_RATCHET: dict[str, str] = {
         "the CLI consumes `PlanAlternativesProposed` and nothing emits it; the missing half is the emission, not this method."
     ),
     "with_style_detection@apollia-workspace": (
-        "the style provider is installed by `from_providers_config` from the stored configuration, never by this builder."
+        "the style provider was installed only from the context providers of the former projects, retired with them; this builder has no caller."
     ),
 }
 
@@ -156,7 +156,7 @@ DEAD_RATCHET: dict[str, str] = {
 TEST_ONLY_RATCHET: frozenset[str] = frozenset([
     "always_accept_default@apollia-runtime", "backend_names@apollia-llm",
     "build_a2a_context@apollia-runtime", "complete_with_fallback@apollia-llm",
-    "context_window_pct@apollia-core", "create_project_async@apollia-tools", "data_dir_or_err@apollia-core",
+    "context_window_pct@apollia-core", "data_dir_or_err@apollia-core",
     "estimate_tokens@apollia-oria", "filter_kinds@apollia-runtime", "from_config_with_bus@apollia-llm",
     "from_profile@apollia-prompts", "from_repository@apollia-llm", "from_risk_score@apollia-tools",
     "get_choice@apollia-memory", "get_covered_topics@apollia-memory", "get_last_onboarding_session@apollia-memory",
@@ -165,7 +165,7 @@ TEST_ONLY_RATCHET: frozenset[str] = frozenset([
     "is_enabled@apollia-tools", "language_footer@apollia-prompts",
     "list_entries@apollia-memory", "list_extras@apollia-memory", "load_step_provenance@apollia-oria",
     "log_plan_choice@apollia-memory", "maybe_purge@apollia-memory", "new_for_test@apollia-runtime",
-    "new_with_cwd@apollia-oria", "new_with_workspace@apollia-runtime", "notify_agent_free@apollia-triggers",
+    "new_with_cwd@apollia-oria", "notify_agent_free@apollia-triggers",
     "observe@apollia-oria", "open_with_signer@apollia-runtime", "parse_tool_name@apollia-mcp",
     "plan_with_tombstones@apollia-runtime", "prune_deleted@apollia-memory", "query_by_task@apollia-llm",
     "query_last@apollia-tools", "recall_all_for_injection@apollia-memory", "register_tool@apollia-oria",

@@ -124,7 +124,6 @@ fn every_section_carries_the_reload_class_of_the_measured_table() {
         ("mcp", ReloadClass::Reloadable),
         ("hooks", ReloadClass::Reloadable),
         ("chat", ReloadClass::Reloadable),
-        ("filesystem", ReloadClass::Reloadable),
         ("observability", ReloadClass::Reloadable),
         ("desktop", ReloadClass::Reloadable),
         ("server", ReloadClass::Restart),

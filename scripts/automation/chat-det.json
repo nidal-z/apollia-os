@@ -125,21 +125,6 @@
       "label": "04-quickpicker"
     },
     {
-      "kind": "waitFor",
-      "testid": "quickpicker-project",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "selectOption",
-      "testid": "quickpicker-project",
-      "index": 1,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-quickpicker-project-selected"
-    },
-    {
       "kind": "sleep",
       "ms": 200
     },
@@ -853,45 +838,12 @@
       "testid": "chat-header-menu-delete"
     },
     {
-      "kind": "expect",
-      "testid": "chat-header-menu-link-project"
-    },
-    {
       "kind": "screenshot",
-      "label": "21-header-overflow-menu (drawer = md:hidden, unlink = only when linked, link submenu = closes-on-click: screenshot only)"
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-menu-link-project",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-link-project-menu",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-link-project-item",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-link-project-item",
-      "timeoutMs": 3000
+      "label": "21-header-overflow-menu (drawer = md:hidden)"
     },
     {
       "kind": "sleep",
       "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-meta-project",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "22-header-project-linked"
     },
     {
       "kind": "click",
@@ -899,27 +851,8 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
-      "testid": "chat-header-overflow-menu",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-menu-unlink-project",
-      "timeoutMs": 3000
-    },
-    {
       "kind": "sleep",
       "ms": 400
-    },
-    {
-      "kind": "waitGone",
-      "testid": "chat-header-meta-project",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "22b-header-project-unlinked"
     },
     {
       "kind": "click",
@@ -1627,54 +1560,6 @@
       "kind": "waitGone",
       "testid": "keyboard-hint-overlay",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-overflow-button",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-overflow-menu",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-menu-link-project",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-link-project-menu",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-link-project-item",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-header-meta-project",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "chat-header-meta-project",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "projects-page",
-      "timeoutMs": 10000
-    },
-    {
-      "kind": "screenshot",
-      "label": "39-project-chip-opens-project"
     },
     {
       "kind": "goto",

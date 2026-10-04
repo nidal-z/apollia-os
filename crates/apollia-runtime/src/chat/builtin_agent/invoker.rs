@@ -9,9 +9,6 @@ pub struct HitlInvokerParams {
     pub pending_fs: super::super::types::PendingFilesystemApprovals,
     pub fs_allow_rules: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
     pub risk_config: apollia_core::FilesystemRiskConfig,
-    /// Paths the operator trusts (`[filesystem] trusted_paths`). They ride with
-    /// the risk table because they are read by the same classification.
-    pub trusted_paths: Vec<std::path::PathBuf>,
 }
 
 /// Production [`ToolInvoker`] that dispatches to native Apollia tools.
@@ -42,9 +39,8 @@ pub struct NativeChatToolInvoker {
     /// Original workspace path for risk classification (may differ from sandbox_root
     /// when sandbox_root has been resolved via fallback).
     workspace_path: Option<std::path::PathBuf>,
-    /// Paths the operator trusts, from `[filesystem] trusted_paths`. A path
-    /// under none of them, nor under the workspace, is escalated and therefore
-    /// asked about; it is never refused on that ground alone.
+    /// The folders granted to the agent for writing. A path under none of
+    /// them, nor under the workspace, is escalated and therefore asked about.
     trusted_paths: Vec<std::path::PathBuf>,
     /// EventBus sender for emitting `HitlFilesystemRequired` events.
     #[allow(
@@ -119,29 +115,6 @@ impl NativeChatToolInvoker {
         }
     }
 
-    /// Create a new invoker with unrestricted filesystem access.
-    ///
-    /// The sandbox root is set to `/` so file tools can access any path on the machine.
-    /// `workspace_path` is kept solely for HITL risk classification: paths inside the
-    /// workspace are rated Safe/Low, paths outside trigger Medium/High approval modals.
-    ///
-    /// Use this for Chat Libre sessions where the HITL layer is the security boundary,
-    /// not the sandbox.
-    pub fn new_unrestricted(workspace_path: Option<std::path::PathBuf>) -> Self {
-        Self {
-            sandbox_root: std::path::PathBuf::from("/"),
-            workspace_path,
-            trusted_paths: Vec::new(),
-            event_bus: None,
-            pending_fs: None,
-            fs_allow_rules: None,
-            session_id: None,
-            risk_config: apollia_core::FilesystemRiskConfig::default(),
-            pending_user_inputs: None,
-            fallback_dispatcher: None,
-        }
-    }
-
     /// Attach a generic fallback dispatcher that handles any tool not
     /// covered by the hardcoded native fast path. The fast path stays in
     /// place (Chat Libre keeps inline HITL filesystem semantics for
@@ -182,11 +155,10 @@ impl NativeChatToolInvoker {
     /// When enabled, write and edit operations are classified by risk level before
     /// execution. Operations at `RiskLevel::Medium` or above are suspended pending
     /// user approval via `HitlFilesystemModal`.
-    /// Set the paths the operator trusts, from `[filesystem] trusted_paths`.
+    /// Set the folders granted to the agent for writing.
     ///
     /// They join the session's working directory as the roots under which an
-    /// operation needs no approval. Leaving them empty is not a lockout: it
-    /// means every write outside the working directory is asked about.
+    /// operation needs no approval.
     pub fn with_trusted_paths(mut self, paths: Vec<std::path::PathBuf>) -> Self {
         self.trusted_paths = paths;
         self
@@ -198,7 +170,6 @@ impl NativeChatToolInvoker {
         self.pending_fs = Some(params.pending_fs);
         self.fs_allow_rules = Some(params.fs_allow_rules);
         self.risk_config = params.risk_config;
-        self.trusted_paths = params.trusted_paths;
         self
     }
 
