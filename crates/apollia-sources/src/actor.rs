@@ -11,6 +11,8 @@ use apollia_core::source_registry::{NewSource, Source, SourceRegistryError, Sour
 use tokio::sync::{mpsc, oneshot};
 
 use crate::checked::{checked_sources, CheckedSource};
+use crate::index::IndexError;
+use crate::search::{search_sources, SourcesQuery, SourcesSearchOutcome};
 
 /// Capacity of the command channel: a caller past it waits for room.
 pub const COMMAND_CAPACITY: usize = 64;
@@ -28,6 +30,12 @@ pub enum SourcesError {
     /// The actor has stopped and answers no more.
     #[error("the source registry has stopped")]
     Stopped,
+    /// An index could not be opened or searched.
+    #[error(transparent)]
+    Index(#[from] IndexError),
+    /// The registry file has no directory to hold the indexes in.
+    #[error("the source registry has no data directory")]
+    NoDataDirectory,
 }
 
 type Reply<T> = oneshot::Sender<Result<T, SourceRegistryError>>;
@@ -38,6 +46,10 @@ enum Command {
     Delete(String, Reply<Source>),
     CheckEntries(Vec<String>, Reply<()>),
     Checked(String, Vec<String>, Reply<Vec<CheckedSource>>),
+    Search(
+        SourcesQuery,
+        oneshot::Sender<Result<SourcesSearchOutcome, SourcesError>>,
+    ),
 }
 
 /// A clonable handle to the registry actor.
@@ -125,6 +137,23 @@ impl SourceRegistryHandle {
         self.ask(|reply| Command::Checked(agent, entries, reply))
             .await
     }
+
+    /// Searches the indexes of the sources `query` names; see
+    /// [`search_sources`]. The caller has already bounded the list to the
+    /// sources the agent checked.
+    ///
+    /// # Errors
+    /// [`SourcesError::Index`] when an index cannot be read,
+    /// [`SourcesError::NoDataDirectory`] for a registry outside any
+    /// directory, or [`SourcesError::Stopped`].
+    pub async fn search(&self, query: SourcesQuery) -> Result<SourcesSearchOutcome, SourcesError> {
+        let (reply, answer) = oneshot::channel();
+        self.tx
+            .send(Command::Search(query, reply))
+            .await
+            .map_err(|_| SourcesError::Stopped)?;
+        answer.await.map_err(|_| SourcesError::Stopped)?
+    }
 }
 
 /// The actor loop: one command at a time, until every handle is gone.
@@ -168,6 +197,13 @@ fn run(store: SourceRegistryStore, data_dir: Option<PathBuf>, mut rx: mpsc::Rece
                     .list()
                     .map(|registry| checked_sources(&agent, &entries, &registry));
                 let _ = reply.send(checked);
+            }
+            Command::Search(query, reply) => {
+                let outcome = match data_dir.as_deref() {
+                    Some(dir) => search_sources(dir, &query).map_err(SourcesError::from),
+                    None => Err(SourcesError::NoDataDirectory),
+                };
+                let _ = reply.send(outcome);
             }
         }
     }

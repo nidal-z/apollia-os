@@ -42,10 +42,10 @@ impl ExecutionBackend for MockBackend {
 fn native_tool_descriptors_returns_expected_count() {
     // GIVEN: the native_tool_descriptors() function
     // WHEN: called
-    // THEN: 14 baseline tools, plus optional web tools when their features
+    // THEN: 15 baseline tools, plus optional web tools when their features
     // are on.
     let expected_count =
-        14 + cfg!(feature = "web-search") as usize + cfg!(feature = "web-read") as usize;
+        15 + cfg!(feature = "web-search") as usize + cfg!(feature = "web-read") as usize;
     let descriptors = native_tool_descriptors();
     assert_eq!(descriptors.len(), expected_count);
 }
@@ -79,6 +79,7 @@ const NATIVE_TOOL_FAMILIES: &[(&str, apollia_tools::ActionFamily)] = &[
     ("mcp_resources_list", apollia_tools::ActionFamily::Read),
     ("mcp_resources_read", apollia_tools::ActionFamily::Read),
     ("memory_search", apollia_tools::ActionFamily::ReadPersonal),
+    ("source_search", apollia_tools::ActionFamily::Read),
     ("file_write", apollia_tools::ActionFamily::WriteOrDelete),
     ("file_edit", apollia_tools::ActionFamily::WriteOrDelete),
     ("notebook_edit", apollia_tools::ActionFamily::WriteOrDelete),

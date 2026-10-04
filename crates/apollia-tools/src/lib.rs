@@ -53,6 +53,7 @@ pub mod project_repository;
 pub mod registry;
 pub mod resolver;
 pub mod sandbox_path;
+pub mod source_access;
 pub mod task_repository;
 pub mod tool_credentials;
 pub mod tool_registry;
@@ -102,6 +103,7 @@ pub use project_repository::{
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};
 pub use sandbox_path::{SandboxPathError, SandboxRoot, SandboxSpec};
+pub use source_access::{memory_is_checked, SourceAccess, MEMORY_SEARCH_TOOL};
 pub use task_repository::{
     AgentRunEnd, AgentRunStart, ApprovalInfo, BatchItemRow, BatchRow, HistoryRemoved, NewBatch,
     NewWorkflowRun, PauseRecord, PausedTaskRow, PersistedTaskSummary, ResolvedApprovalRow,

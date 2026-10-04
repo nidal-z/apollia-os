@@ -90,6 +90,7 @@ impl Supervisor {
                     brave_api_key: None, // resolved lazily by web_search when missing
                     tools_config: self.config.tools_config.clone(),
                     tool_turn_temperature: self.config.chat_tool_turn_temperature,
+                    source_registry: inference.source_registry.clone(),
                 })),
                 self.config.mcp_loading,
                 self.config.tool_search_limit,

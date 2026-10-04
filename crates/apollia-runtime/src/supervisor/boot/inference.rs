@@ -9,6 +9,9 @@ use crate::supervisor::bootstrap::spawn_runner_supervisor;
 pub(super) struct Inference {
     pub(super) runner_supervisor: Option<Arc<crate::runner_supervisor::RunnerSupervisor>>,
     pub(super) system_db_path: std::path::PathBuf,
+    /// The registry of sources over `system_db_path`, shared by the routes
+    /// and by the source tools of the chat.
+    pub(super) source_registry: Option<apollia_sources::SourceRegistryHandle>,
     pub(super) llama_server_supervisor: Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
     pub(super) mlx_engine: Option<Arc<crate::mlx_engine::MlxEngineSupervisor>>,
     pub(super) llm_router: Option<Arc<LlmRouter>>,
@@ -110,9 +113,11 @@ impl Supervisor {
             None
         };
 
+        let source_registry = crate::agents::sources::open_registry(&system_db_path);
         Inference {
             runner_supervisor,
             system_db_path,
+            source_registry,
             llama_server_supervisor,
             mlx_engine,
             llm_router,

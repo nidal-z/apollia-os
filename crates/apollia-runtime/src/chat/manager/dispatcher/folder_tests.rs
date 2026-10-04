@@ -11,6 +11,7 @@ fn config(data_dir: &std::path::Path) -> Arc<ChatToolsConfig> {
         brave_api_key: None,
         tools_config: apollia_core::ToolsConfig::default(),
         tool_turn_temperature: None,
+        source_registry: None,
     })
 }
 
@@ -58,6 +59,8 @@ async fn apollia_invoker(data_dir: &std::path::Path) -> NativeChatToolInvoker {
         mcp_index: Vec::new(),
         tool_search_limit: 20,
         package_tools: Vec::new(),
+        sources: apollia_tools::SourceAccess::default(),
+        memory_namespace: "apollia".to_owned(),
     })
     .await
     .expect("the invoker is built")

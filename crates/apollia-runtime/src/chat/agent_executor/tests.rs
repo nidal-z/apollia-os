@@ -516,3 +516,64 @@ async fn test_run_outside_a_conversation_waits_on_its_approvals() {
         Some(crate::chat::builtin_agent::CHAT_APPROVAL_TIMEOUT)
     );
 }
+
+// GIVEN the same agent twice, once with sources checked (a folder, its
+//       memory, the profile) and once with none, both the Apollia agent and
+//       an installed one
+// WHEN the system prompt of each is composed as a run composes it
+// THEN the prompts with sources are identical to those without: a source is
+//      consulted by a tool, never injected (principle 6)
+#[tokio::test]
+async fn test_checked_sources_leave_the_system_prompt_unchanged() {
+    // GIVEN
+    let (router, _, _) = two_backend_router();
+    let (bus, _) = tokio::sync::broadcast::channel(16);
+    let with_sources = [AgentOverride {
+        field: OverrideField::Sources,
+        value: json!(["src-contracts", "memory", "profile"]),
+    }];
+    let mut prompts: Vec<(String, String, String)> = Vec::new();
+    for id in [APOLLIA_CHAT_AGENT_ID, "ledger-clerk"] {
+        let stored = StoredAgent {
+            name: id.into(),
+            origin: AgentOrigin::Package,
+            package: None,
+            version: "1.0.0".into(),
+            definition: json!({ "id": id, "mission": "Answer the user." }),
+            enabled: true,
+            installed_at: "2026-10-04T00:00:00Z".into(),
+            updated_at: "2026-10-04T00:00:00Z".into(),
+        };
+        let mut composed = Vec::new();
+        for overrides in [&with_sources[..], &[]] {
+            let resolved = resolve_agent(&stored, overrides, None, AutonomyLevel::Assisted);
+            let spec = AgentRunSpec::from_resolved(&resolved);
+
+            // WHEN
+            let executor = AgentExecutor::new(
+                spec,
+                deps(Arc::clone(&router), bus.clone()),
+                ApolliaContext::default(),
+                SessionWiring::default(),
+                &ceiling(),
+                CancellationToken::new(),
+            );
+            let prompt = executor.system_prompt().await;
+            composed.push(executor.agent().build_system_prompt(
+                Some(&prompt),
+                AutonomyLevel::Assisted,
+                true,
+            ));
+        }
+        assert_eq!(
+            resolve_agent(&stored, &with_sources, None, AutonomyLevel::Assisted).sources,
+            vec!["src-contracts", "memory", "profile"]
+        );
+        prompts.push((id.to_owned(), composed[0].clone(), composed[1].clone()));
+    }
+
+    // THEN
+    for (id, with, without) in prompts {
+        assert_eq!(with, without, "{id}: the sources changed the system prompt");
+    }
+}
