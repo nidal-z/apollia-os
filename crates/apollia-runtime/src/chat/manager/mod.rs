@@ -286,5 +286,5 @@ pub use command::ChatCommand;
 pub use handle::ChatSessionManagerHandle;
 pub use types::{
     ChatPlanSnapshot, ChatToolsConfig, CreateSessionParams, InjectError, PauseError,
-    PendingUserInputView, SessionAuthorizationView, APOLLIA_CHAT_AGENT_ID,
+    PendingUserInputView, APOLLIA_CHAT_AGENT_ID,
 };

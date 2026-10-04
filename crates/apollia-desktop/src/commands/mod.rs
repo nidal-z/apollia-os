@@ -12,11 +12,11 @@ pub mod agent_packages;
 pub mod agent_sheet;
 pub mod agents;
 pub mod artifacts;
+pub mod authorizations;
 #[cfg(debug_assertions)]
 pub mod automation;
 pub mod background_service;
 pub mod chat;
-pub mod chat_permissions;
 pub mod cli;
 pub mod config;
 pub mod connections;

@@ -39,23 +39,6 @@ pub struct ChatToolsConfig {
     pub governance: Option<crate::governance::GovernanceHandle>,
 }
 
-/// Snapshot of a tool-level `scope=session` authorization for an active session.
-///
-/// Returned by `ChatHandle::list_session_authorizations` so the desktop can
-/// display in-memory authorizations in Settings > Permissions (`scope =
-/// 'session'` rules are never persisted).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct SessionAuthorizationView {
-    /// Unique session identifier.
-    pub session_id: String,
-    /// Session title (None for untitled sessions).
-    pub session_title: Option<String>,
-    /// Session mode (`"libre"` | `"agent"` | `"companion"`).
-    pub mode: String,
-    /// Name of the tool auto-authorized during this session.
-    pub tool_name: String,
-}
-
 #[derive(Debug, Default)]
 pub(in crate::chat::manager) struct ChatLibreOverrides {
     pub(in crate::chat::manager) system_prompt: Option<String>,
