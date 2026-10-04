@@ -98,7 +98,6 @@ const ROUTE_ALLOWLIST: Record<string, Route> = {
   "/triggers": "automations",
   "/memory": "memory",
   "/observability": "observability",
-  "/notifications": "notifications",
   "/settings": "settings",
 };
 

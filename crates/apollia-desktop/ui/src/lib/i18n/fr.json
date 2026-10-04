@@ -179,7 +179,6 @@
     "llm": "Modèles LLM",
     "automations": "Automatisations",
     "memory": "Mémoire",
-    "notifications": "Notifications",
     "observability": "Observabilité",
     "transcriptions": "Transcriptions",
     "chat": "Chat",
@@ -196,7 +195,6 @@
       "tasks": "Mon travail",
       "automations": "Automatisations",
       "inbox": "Boîte de réception",
-      "notifications": "Notifications",
       "memory": "Mémoire",
       "observability": "Observabilité",
       "llm": "Modèles LLM",
@@ -1581,35 +1579,20 @@
     "injected_principle": "Principe 6 - la mémoire n'est jamais injectée automatiquement."
   },
   "notifications": {
-    "title": "Notifications",
-    "subtitle": "Canaux d'alerte et historique des notifications",
     "channels_title": "Canaux",
-    "history_moved": "L'historique d'envoi se trouve désormais dans la Boîte de réception → onglet Notifications envoyées.",
-    "history_open_inbox": "Ouvrir l'historique",
     "empty_history": "Aucune notification dans l'historique.",
-    "enabled": "Activé",
-    "disabled": "Désactivé",
     "all_events": "Tous les événements",
     "test": "Tester",
     "filter_by_channel": "Filtrer par canal :",
     "all_channels": "Tous les canaux",
-    "new_channel": "Nouveau canal",
-    "create_channel": "Créer le canal",
     "edit_channel": "Modifier le canal",
     "creating": "Création...",
     "saving": "Enregistrement...",
-    "created_toast": "Canal « {id} » créé",
-    "updated_toast": "Canal « {id} » mis à jour",
-    "deleted_toast": "Canal « {id} » supprimé",
     "delete_confirm_title": "Supprimer le canal",
-    "delete_confirm_message": "Voulez-vous vraiment supprimer le canal « {id} » ? Cette action est irréversible.",
     "delete_confirm_yes": "Supprimer",
-    "scope_title": "Portée des notifications",
-    "scope_desc": "Seuls les événements activés ici peuvent déclencher une notification. Chaque canal peut ensuite se restreindre à un sous-ensemble.",
     "global_events_error": "Échec de l'enregistrement : {message}",
     "field_label": "Nom",
-    "field_label_placeholder": "Alertes Slack équipe",
-    "field_label_help": "Nom affiché dans l'interface, libre (espaces, accents et emojis acceptés)",
+    "field_label_placeholder": "Ce poste",
     "field_label_too_long": "Le nom doit faire 80 caractères maximum",
     "field_id_advanced": "Identifiant technique (avancé)",
     "field_id": "ID du canal",
@@ -1617,33 +1600,30 @@
     "field_id_help": "Identifiant unique (minuscules, tirets autorisés). Généré automatiquement depuis le Nom.",
     "field_id_required": "L'ID est requis",
     "field_id_invalid": "L'ID doit être alphanumérique minuscule avec tirets",
-    "test_success": "Test du canal réussi",
-    "toggle_enabled_toast": "Canal {label} activé",
-    "toggle_disabled_toast": "Canal {label} désactivé",
     "events": {
       "task": {
-        "completed": "Tâche terminée avec succès",
+        "completed": "Tâche terminée",
         "failed": "Tâche échouée",
-        "input_required": "Approbation requise"
+        "input_required": "Décision attendue"
       },
       "agent": {
-        "degraded": "Agent en mode dégradé"
+        "degraded": "Agent en capacité réduite"
       },
       "trigger": {
-        "error": "Erreur de déclencheur"
+        "error": "Automatisation non déclenchée"
       },
       "llm": {
-        "backend_down": "Fournisseur LLM indisponible"
+        "backend_down": "IA indisponible"
       },
       "chat": {
-        "user_input_required": "Question d'agent"
+        "user_input_required": "Question d'un agent"
       }
     },
     "events_desc": {
       "task": {
         "completed": "Un agent vient d'achever sa mission.",
         "failed": "Une tâche d'agent s'est interrompue sur un échec.",
-        "input_required": "Un agent attend votre décision (HITL)."
+        "input_required": "Un agent attend votre décision."
       },
       "agent": {
         "degraded": "Un outil optionnel est indisponible ; l'agent continue avec des capacités réduites."
@@ -1655,11 +1635,9 @@
         "backend_down": "Le fournisseur d'IA configuré ne répond plus."
       },
       "chat": {
-        "user_input_required": "Un agent attend votre réponse à une question (ask_user)."
+        "user_input_required": "Un agent attend votre réponse à une question."
       }
     },
-    "field_throttle": "Limiter les notifications",
-    "field_throttle_help": "Une notification au maximum par fenêtre, pour ce canal et ce type d'événement. Les notifications dépassant la limite sont regroupées dans un récapitulatif.",
     "field_throttle_too_large": "Intervalle trop long (max 86400 s = 24 h)",
     "throttle_options": {
       "none": "Aucune limite",
@@ -1670,17 +1648,12 @@
     },
     "throttle_custom_label": "Intervalle minimal (secondes)",
     "field_type": "Type",
-    "field_type_desktop": "Desktop",
-    "field_type_webhook": "Webhook",
     "field_enabled": "Activé",
-    "field_url": "URL du webhook",
     "field_url_placeholder": "https://hooks.example.com/notify",
     "field_url_required": "L'URL est requise",
     "field_headers": "En-têtes (JSON)",
     "field_headers_placeholder": "{\"Authorization\": \"Bearer ...\"}",
     "field_headers_invalid": "Les en-têtes doivent être du JSON valide",
-    "field_events": "Événements",
-    "field_events_hint": "Laissez vide pour recevoir tous les événements globaux",
     "edit": "Modifier",
     "delete": "Supprimer",
     "table": {
@@ -1703,7 +1676,6 @@
       "tool_failure_title": "Outil échoué - Apollia OS",
       "tool_failure_body": "L'outil « {tool} » a échoué (session {id})"
     },
-    "toggle_action": "Activer / désactiver",
     "error_details": "Détails techniques"
   },
   "trace": {
@@ -2088,7 +2060,8 @@
       "chat": "Chat",
       "model_defaults": "Défauts des modèles",
       "engines": "Moteurs",
-      "hardware": "Matériel"
+      "hardware": "Matériel",
+      "notifications": "Notifications"
     },
     "help": {
       "intro": "Apollia OS exécute vos agents IA en local, sur votre propre machine, avec vos propres modèles. Les rubriques ci-dessous couvrent l'essentiel pour démarrer.",
@@ -3134,6 +3107,42 @@
       "subtitle": "Les valeurs que reçoit un modèle quand rien d'autre ne les fixe.",
       "empty": "Aucun défaut n'est encore réglable ici : chaque modèle garde les valeurs de l'écran IA."
     },
+    "notifications": {
+      "subtitle": "Où Apollia vous prévient, et de quoi.",
+      "intro": "Les canaux disent où Apollia vous prévient : une notification sur ce poste, ou un appel web vers un outil de votre équipe. Les événements notifiés disent de quoi.",
+      "add_channel": "Ajouter un canal",
+      "type_desktop": "Notification sur ce poste",
+      "type_webhook": "Appel web",
+      "field_address": "Adresse de l'appel web",
+      "field_channel_events": "Événements du canal",
+      "field_channel_events_hint": "Par défaut, le canal reçoit tous les événements notifiés. Décochez « Tous les événements » pour n'en garder qu'une partie.",
+      "event_off": "Éteint dans les événements notifiés",
+      "field_frequency": "Fréquence maximale",
+      "field_frequency_hint": "Au-delà, Apollia regroupe les notifications dans un récapitulatif.",
+      "events_title": "Événements notifiés",
+      "events_desc": "Seuls les événements allumés ici déclenchent une notification. Un canal peut n'en garder qu'une partie.",
+      "channels_error": "Les canaux n'ont pas pu être lus.",
+      "recent_title": "Derniers envois",
+      "recent_empty": "Aucune notification envoyée pour l'instant.",
+      "recent_error": "Les derniers envois n'ont pas pu être lus.",
+      "recent_sent": "Envoyée",
+      "recent_failed": "Échec",
+      "created_toast": "Canal « {name} » ajouté",
+      "updated_toast": "Canal « {name} » enregistré",
+      "deleted_toast": "Canal « {name} » supprimé",
+      "delete_message": "Le canal « {name} » ne recevra plus rien. Les autres canaux et les événements notifiés ne changent pas.",
+      "row": {
+        "no_limit": "Sans limite",
+        "custom_limit": "1 toutes les {seconds} s",
+        "event_count": "{count, plural, one {# événement} other {# événements}}",
+        "test_pending": "Envoi en cours…",
+        "test_ok": "Test réussi",
+        "test_ok_latency": "Test réussi en {ms} ms",
+        "test_failed": "Échec : {reason}",
+        "more_actions": "Plus d'actions pour {name}",
+        "enabled_label": "Canal {name} activé"
+      }
+    },
     "engines": {
       "subtitle": "Les moteurs qui font tourner les modèles et la dictée sur ce poste."
     },
@@ -4081,8 +4090,8 @@
       "secondary_cta": "Voir les agents"
     },
     "notifications": {
-      "title": "Le silence est d'or, sauf quand il ne l'est pas",
-      "description": "Ajoutez un canal desktop ou webhook pour que vos agents vous préviennent quand ils ont besoin de vous ou terminent une longue exécution.",
+      "title": "Aucun canal pour l'instant",
+      "description": "Un canal dit où Apollia vous prévient : une notification sur ce poste, ou un appel web vers un outil de votre équipe.",
       "primary_cta": "Ajouter un canal",
       "secondary_cta": "Voir les événements"
     },

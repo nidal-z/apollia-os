@@ -62,7 +62,6 @@
     "/memory": { route: "memory" },
     "/memory?new": { route: "memory" },
     "/observability": { route: "observability" },
-    "/notifications": { route: "notifications" },
     "/settings": { route: "settings" },
   };
 

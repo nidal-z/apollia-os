@@ -154,15 +154,10 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "memory.namespaces.cat_agent_header", // Agents
   "memory.namespaces.title", // Namespaces
   "nav.chat", // Chat
-  "nav.notifications", // Notifications
   "nav.sidebar.chat", // Chat
-  "nav.sidebar.notifications", // Notifications
   "nav.sidebar.transcriptions", // Transcriptions
   "nav.transcriptions", // Transcriptions
   "notifications.field_type", // Type
-  "notifications.field_type_desktop", // Desktop
-  "notifications.field_type_webhook", // Webhook
-  "notifications.title", // Notifications
   "observability.agent", // Agent
   "observability.filter", // Type
   "observability.hooks_col_timeout", // Timeout
@@ -207,6 +202,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.nav.chat", // Chat
   "settings.nav.configuration", // Configuration
   "settings.nav.mobile_open", // Sections
+  "settings.nav.notifications", // Notifications
   "settings.permissions.add.action_label", // Action
   "settings.permissions.scope_agent", // Chat / agent
   "settings.permissions.session_badge", // Session

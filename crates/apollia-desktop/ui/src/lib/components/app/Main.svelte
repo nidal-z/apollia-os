@@ -16,7 +16,6 @@
   import Llm from "../../../routes/Llm.svelte";
   import Automations from "../../../routes/Automations.svelte";
   import Memory from "../../../routes/Memory.svelte";
-  import Notifications from "../../../routes/Notifications.svelte";
   import Observability from "../../../routes/Observability.svelte";
   import Chat from "../../../routes/Chat.svelte";
   import SettingsWindow from "../../../components/settings/SettingsWindow.svelte";
@@ -93,8 +92,6 @@
             <Memory />
           {:else if shownRoute === "transcriptions"}
             <Transcriptions />
-          {:else if shownRoute === "notifications"}
-            <Notifications />
           {:else if shownRoute === "observability"}
             <Observability />
           {:else if shownRoute === "integrations"}

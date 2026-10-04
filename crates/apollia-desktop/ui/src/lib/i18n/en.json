@@ -179,7 +179,6 @@
     "llm": "LLM models",
     "automations": "Automations",
     "memory": "Memory",
-    "notifications": "Notifications",
     "observability": "Observability",
     "transcriptions": "Transcriptions",
     "chat": "Chat",
@@ -196,7 +195,6 @@
       "tasks": "My work",
       "automations": "Automations",
       "inbox": "Inbox",
-      "notifications": "Notifications",
       "memory": "Memory",
       "observability": "Observability",
       "llm": "LLM models",
@@ -1581,35 +1579,20 @@
     "injected_principle": "Principle 6 - memory is never injected automatically."
   },
   "notifications": {
-    "title": "Notifications",
-    "subtitle": "Alert channels and notification history",
     "channels_title": "Channels",
-    "history_moved": "The delivery history now lives in the Inbox → Notifications sent tab.",
-    "history_open_inbox": "Open history",
     "empty_history": "No notifications in history.",
-    "enabled": "Enabled",
-    "disabled": "Disabled",
     "all_events": "All events",
     "test": "Test",
     "filter_by_channel": "Filter by channel:",
     "all_channels": "All channels",
-    "new_channel": "New channel",
-    "create_channel": "Create channel",
     "edit_channel": "Edit channel",
     "creating": "Creating...",
     "saving": "Saving...",
-    "created_toast": "Channel \"{id}\" created",
-    "updated_toast": "Channel \"{id}\" updated",
-    "deleted_toast": "Channel \"{id}\" deleted",
     "delete_confirm_title": "Delete channel",
-    "delete_confirm_message": "Are you sure you want to delete channel \"{id}\"? This action cannot be undone.",
     "delete_confirm_yes": "Delete",
-    "scope_title": "Notification scope",
-    "scope_desc": "Only events enabled here can trigger a notification. Each channel can then narrow down to a subset.",
     "global_events_error": "Failed to save global events: {message}",
     "field_label": "Name",
-    "field_label_placeholder": "Slack team alerts",
-    "field_label_help": "Display name shown in the UI, free-form (spaces, accents and emojis accepted)",
+    "field_label_placeholder": "This computer",
     "field_label_too_long": "Name must be 80 characters or fewer",
     "field_id_advanced": "Technical identifier (advanced)",
     "field_id": "Channel ID",
@@ -1617,33 +1600,30 @@
     "field_id_help": "Unique identifier (lowercase, hyphens allowed). Generated automatically from the Name.",
     "field_id_required": "ID is required",
     "field_id_invalid": "ID must be lowercase alphanumeric with hyphens",
-    "test_success": "Channel test succeeded",
-    "toggle_enabled_toast": "Channel {label} enabled",
-    "toggle_disabled_toast": "Channel {label} disabled",
     "events": {
       "task": {
-        "completed": "Task completed successfully",
+        "completed": "Task completed",
         "failed": "Task failed",
-        "input_required": "Approval required"
+        "input_required": "Decision awaited"
       },
       "agent": {
-        "degraded": "Agent degraded"
+        "degraded": "Agent with reduced capability"
       },
       "trigger": {
-        "error": "Trigger error"
+        "error": "Automation not triggered"
       },
       "llm": {
-        "backend_down": "LLM provider unavailable"
+        "backend_down": "AI unavailable"
       },
       "chat": {
-        "user_input_required": "Agent question"
+        "user_input_required": "Question from an agent"
       }
     },
     "events_desc": {
       "task": {
         "completed": "An agent has just completed its mission.",
         "failed": "An agent task aborted on failure.",
-        "input_required": "An agent is waiting for your decision (HITL)."
+        "input_required": "An agent is waiting for your decision."
       },
       "agent": {
         "degraded": "An optional tool is unavailable; the agent continues with reduced capability."
@@ -1655,11 +1635,9 @@
         "backend_down": "The configured AI provider is no longer responding."
       },
       "chat": {
-        "user_input_required": "An agent is waiting for your answer to a question (ask_user)."
+        "user_input_required": "An agent is waiting for your answer to a question."
       }
     },
-    "field_throttle": "Throttle notifications",
-    "field_throttle_help": "At most one notification per window, per (channel, event type). Extra notifications are grouped into a summary.",
     "field_throttle_too_large": "Interval too long (max 86400 s = 24 h)",
     "throttle_options": {
       "none": "No limit",
@@ -1670,17 +1648,12 @@
     },
     "throttle_custom_label": "Minimum interval (seconds)",
     "field_type": "Type",
-    "field_type_desktop": "Desktop",
-    "field_type_webhook": "Webhook",
     "field_enabled": "Enabled",
-    "field_url": "Webhook URL",
     "field_url_placeholder": "https://hooks.example.com/notify",
     "field_url_required": "URL is required",
     "field_headers": "Headers (JSON)",
     "field_headers_placeholder": "{\"Authorization\": \"Bearer ...\"}",
     "field_headers_invalid": "Headers must be valid JSON",
-    "field_events": "Events",
-    "field_events_hint": "Leave unchecked to receive all global events",
     "edit": "Edit",
     "delete": "Delete",
     "table": {
@@ -1703,7 +1676,6 @@
       "tool_failure_title": "Tool failed - Apollia OS",
       "tool_failure_body": "Tool “{tool}” failed (session {id})"
     },
-    "toggle_action": "Enable / disable",
     "error_details": "Technical details"
   },
   "trace": {
@@ -2088,7 +2060,8 @@
       "chat": "Chat",
       "model_defaults": "Model defaults",
       "engines": "Engines",
-      "hardware": "Hardware"
+      "hardware": "Hardware",
+      "notifications": "Notifications"
     },
     "help": {
       "intro": "Apollia OS runs your AI agents locally, on your own machine, with your own models. The topics below cover the essentials to get up and running.",
@@ -3134,6 +3107,42 @@
       "subtitle": "The values a model receives when nothing else sets them.",
       "empty": "No default can be set here yet: each model keeps the values of the AI screen."
     },
+    "notifications": {
+      "subtitle": "Where Apollia warns you, and about what.",
+      "intro": "Channels say where Apollia warns you: a notification on this computer, or a web call to a tool of your team. Notified events say about what.",
+      "add_channel": "Add a channel",
+      "type_desktop": "Notification on this computer",
+      "type_webhook": "Web call",
+      "field_address": "Web call address",
+      "field_channel_events": "Channel events",
+      "field_channel_events_hint": "By default, the channel receives every notified event. Uncheck “All events” to keep only some of them.",
+      "event_off": "Off in the notified events",
+      "field_frequency": "Maximum frequency",
+      "field_frequency_hint": "Beyond it, Apollia gathers the notifications into a summary.",
+      "events_title": "Notified events",
+      "events_desc": "Only the events switched on here trigger a notification. A channel can keep only some of them.",
+      "channels_error": "The channels could not be read.",
+      "recent_title": "Recent sends",
+      "recent_empty": "No notification sent yet.",
+      "recent_error": "The recent sends could not be read.",
+      "recent_sent": "Sent",
+      "recent_failed": "Failed",
+      "created_toast": "Channel “{name}” added",
+      "updated_toast": "Channel “{name}” saved",
+      "deleted_toast": "Channel “{name}” deleted",
+      "delete_message": "The channel “{name}” will receive nothing more. The other channels and the notified events do not change.",
+      "row": {
+        "no_limit": "No limit",
+        "custom_limit": "1 every {seconds} s",
+        "event_count": "{count, plural, one {# event} other {# events}}",
+        "test_pending": "Sending…",
+        "test_ok": "Test passed",
+        "test_ok_latency": "Test passed in {ms} ms",
+        "test_failed": "Failed: {reason}",
+        "more_actions": "More actions for {name}",
+        "enabled_label": "Channel {name} on"
+      }
+    },
     "engines": {
       "subtitle": "The engines that run the models and dictation on this machine."
     },
@@ -4081,8 +4090,8 @@
       "secondary_cta": "See installed agents"
     },
     "notifications": {
-      "title": "Silence is golden - until it isn't",
-      "description": "Add a desktop or webhook channel so your agents can reach you when they need attention or finish a long run.",
+      "title": "No channel yet",
+      "description": "A channel says where Apollia warns you: a notification on this computer, or a web call to a tool of your team.",
       "primary_cta": "Add a channel",
       "secondary_cta": "See notification events"
     },
