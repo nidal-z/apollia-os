@@ -4978,6 +4978,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sources/{id}/index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/sources/{id}/index`: where the index of a source stands. */
+        get: operations["source_index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stt/config": {
         parameters: {
             query?: never;
@@ -7258,6 +7275,15 @@ export interface components {
             /** @description The key removed. */
             deleted: string;
         };
+        /** @description A source made on a folder connection. */
+        DependentSource: {
+            /** @description Source identifier. */
+            id: string;
+            /** @description `folder` or `code_folder`. */
+            kind: string;
+            /** @description The name the user sees. */
+            label: string;
+        };
         /** @description What the dictation setup did. */
         DictationConfigured: {
             /** @description The transcription language stored, `None` when none is set. */
@@ -7484,9 +7510,14 @@ export interface components {
         FolderErrorBody: {
             /**
              * @description Stable code: `not_a_folder`, `already_added`, `admission_refused`,
-             *     `not_found`, `store`.
+             *     `not_found`, `has_dependent_sources`, `sources`, `store`.
              */
             code: string;
+            /**
+             * @description For `has_dependent_sources`, the sources removing the folder would
+             *     remove; absent otherwise.
+             */
+            dependent_sources?: components["schemas"]["DependentSource"][];
             /**
              * @description What went wrong, for a person. For `admission_refused`, the reason
              *     the admission gave, as is.
@@ -8119,6 +8150,11 @@ export interface components {
              */
             rememberedPresetId?: number | null;
         };
+        /**
+         * @description Who loaded a resident model.
+         * @enum {string}
+         */
+        LoadOrigin: "app" | "server";
         /** @description One resident model. */
         LoadedModelDto: {
             /** @description Requests being answered right now. An unload is refused above zero. */
@@ -8158,6 +8194,11 @@ export interface components {
              *     default applies.
              */
             nParallel?: number | null;
+            /**
+             * @description Who loaded the model: `app`, or `server` when the compatible server
+             *     loaded it for a request of another program. Fixed at load.
+             */
+            origin: components["schemas"]["LoadOrigin"];
             /**
              * Format: int32
              * @description Loopback port of the process serving it.
@@ -10031,6 +10072,23 @@ export interface components {
             /** @description Human-readable skill name. */
             skill_name: string;
         };
+        /**
+         * @description Why a file was left out of an index.
+         * @enum {string}
+         */
+        SkipReasonDto: "too_large" | "unreadable";
+        /** @description A file left out of an index. */
+        SkippedFileResponse: {
+            /** @description Path of the file on this machine. */
+            path: string;
+            /** @description Why it was left out. */
+            reason: components["schemas"]["SkipReasonDto"];
+            /**
+             * Format: int64
+             * @description Its size in bytes when it was left out.
+             */
+            sizeBytes: number;
+        };
         /** @description The source a batch reads its items from. */
         SourceDescriptor: {
             /** @description The kind of source, as registered (a spreadsheet, a folder, a mailbox). */
@@ -10041,6 +10099,25 @@ export interface components {
             options?: {
                 [key: string]: string;
             };
+        };
+        /** @description Where the index of a source stands. */
+        SourceIndexResponse: {
+            /**
+             * Format: int64
+             * @description Passages the index holds.
+             */
+            chunks: number;
+            /**
+             * Format: int64
+             * @description Documents the index holds.
+             */
+            documents: number;
+            /** @description Source identifier. */
+            id: string;
+            /** @description The state of its index. */
+            indexState: components["schemas"]["IndexStateDto"];
+            /** @description Files left out of the index. */
+            skipped: components["schemas"]["SkippedFileResponse"][];
         };
         /**
          * @description What a source is.
@@ -13819,7 +13896,13 @@ export interface operations {
     };
     remove_folder_connection: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description Remove the sources made on the folder, and their indexes, with it.
+                 *     Without it, a folder sources depend on is not removed.
+                 */
+                confirm?: boolean;
+            };
             header?: never;
             path: {
                 /** @description Identifier of the stored folder, the part of the connection identifier after `folder:` */
@@ -13829,7 +13912,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Folder connection removed; the connection it was */
+            /** @description Folder connection removed, with the sources made on it when confirmed; the connection it was */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13847,7 +13930,16 @@ export interface operations {
                     "application/json": components["schemas"]["FolderErrorBody"];
                 };
             };
-            /** @description system.db could not be written */
+            /** @description Sources depend on the folder and the removal was not confirmed; nothing was removed, `dependent_sources` lists them */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+            /** @description system.db could not be written, or a dependent source could not be removed */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -15995,7 +16087,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The default embeddings model, as now set */
+            /** @description The default embeddings model, as now set; every source index is rebuilt with it in the background */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23123,6 +23215,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourceResponse"];
+                };
+            };
+            /** @description Source not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Source registry not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    source_index: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Source identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The state of the source's index, its counts and the files it left out */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceIndexResponse"];
                 };
             };
             /** @description Source not found */

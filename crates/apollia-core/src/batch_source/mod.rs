@@ -10,7 +10,8 @@
 //!   with an estimated count ([`BatchSource::items`], [`SourceItems`]);
 //! - when it allows it, writes `(reference, column, value)` back to its
 //!   origin ([`SourceWriter`]), and every such write is preceded by a dated
-//!   backup copy placed next to the original file.
+//!   backup copy placed next to the original file, or goes to a copy of
+//!   results created in its place, which leaves the original untouched.
 //!
 //! The backup rule is held by the types rather than by convention:
 //! [`SourceWriter::write_value`] takes a [`WriteGuard`], which only
@@ -109,6 +110,11 @@ pub trait BatchSource: Send {
 pub trait SourceWriter: Send {
     /// Copies the original next to itself under a dated name (see
     /// [`dated_backup_path`]) and returns the location of the copy.
+    ///
+    /// A source whose writes go to a copy of results rather than to the
+    /// original creates that copy here, next to the original, and returns
+    /// its location: the original is then never written, and the copy plays
+    /// the part of the backup for the session.
     fn back_up(&mut self, taken_at: DateTime<Utc>) -> Result<PathBuf, SourceError>;
 
     /// Writes `value` into `column` of the item at `origin`. The `guard` is

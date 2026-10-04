@@ -42,11 +42,38 @@
     /** Prefix of every `data-testid`, completed by `-{answer}-{toolName}`. */
     testidPrefix: string;
     toolName: string;
+    /** The answers the request offers; all three when absent. */
+    answers?: readonly ConsentAnswer[];
+    /** The call runs code: "always" then allows this command for the agent,
+     *  and without it every run asks. */
+    runsCode?: boolean;
+    /** The code chains several commands, which "always" never covers. */
+    compound?: boolean;
     disabled?: boolean;
     onanswer: (decision: ConsentDecision) => void;
   }
 
-  let { testidPrefix, toolName, disabled = false, onanswer }: Props = $props();
+  let {
+    testidPrefix,
+    toolName,
+    answers = CONSENT_ANSWERS,
+    runsCode = false,
+    compound = false,
+    disabled = false,
+    onanswer,
+  }: Props = $props();
+
+  const offersAlways = $derived(answers.includes("always"));
+
+  /** The line above the answers, saying what "always" covers, or why it is
+   *  not offered on code. */
+  const hintKey = $derived.by((): string | null => {
+    if (runsCode) {
+      if (offersAlways) return "approval.code.always_hint";
+      return compound ? "approval.code.compound_hint" : "approval.code.each_time_hint";
+    }
+    return offersAlways ? "approval.always_hint" : null;
+  });
 
   let reasonText = $state("");
 
@@ -55,7 +82,11 @@
   }
 </script>
 
-<p class="mt-3 text-micro text-muted-foreground">{$t("approval.always_hint")}</p>
+{#if hintKey}
+  <p class="mt-3 text-micro text-muted-foreground" data-testid="{testidPrefix}-hint-{toolName}">
+    {$t(hintKey)}
+  </p>
+{/if}
 
 <div class="mt-2 flex flex-wrap items-center gap-2">
   <Button
@@ -68,16 +99,18 @@
   >
     {$t("approval.action.once")}
   </Button>
-  <Button
-    variant="outline"
-    size="sm"
-    class="h-7 px-3 text-caption"
-    {disabled}
-    onclick={() => answer("always")}
-    data-testid="{testidPrefix}-always-{toolName}"
-  >
-    {$t("approval.action.always_for_agent")}
-  </Button>
+  {#if offersAlways}
+    <Button
+      variant="outline"
+      size="sm"
+      class="h-7 px-3 text-caption"
+      {disabled}
+      onclick={() => answer("always")}
+      data-testid="{testidPrefix}-always-{toolName}"
+    >
+      {runsCode ? $t("approval.code.always") : $t("approval.action.always_for_agent")}
+    </Button>
+  {/if}
 </div>
 
 <form

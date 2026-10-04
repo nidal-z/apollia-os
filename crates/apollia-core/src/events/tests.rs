@@ -240,6 +240,10 @@ fn test_all_variants_exist_and_clone() {
             tool_call_id: "call-005".into(),
             tool_name: "bash_executor".into(),
             prompt: "Allow bash execution?".into(),
+            answers: Vec::new(),
+            detail: String::new(),
+            code: None,
+            working_dir: None,
         },
         RuntimeEvent::ChatApprovalResolved {
             session_id: "sess-001".into(),

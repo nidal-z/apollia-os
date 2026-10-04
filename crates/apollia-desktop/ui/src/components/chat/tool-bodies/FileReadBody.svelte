@@ -1,69 +1,49 @@
 <script lang="ts">
   /**
-   * Per-tool expanded body for `file_read`.
-   *
-   * Operator layer: the file name as a chip plus a short muted preview (first
-   * few lines) with a "N more lines" hint. Builder layer: the full content with
-   * left-aligned line numbers, capped so a huge file cannot flood the DOM.
+   * Body of a file read: the file and the lines read, then the opening lines
+   * of its content.
    */
 
   import type { ReasoningItem } from "$lib/chat/reasoning";
-  import { basename } from "$lib/chat/toolBodies";
   import FileRef from "./FileRef.svelte";
+  import BodyField from "./BodyField.svelte";
+  import BodyCode from "./BodyCode.svelte";
   import { t } from "svelte-i18n";
-  import { fly, fade } from "svelte/transition";
 
   type ToolCallItem = Extract<ReasoningItem, { kind: "tool_call" }>;
 
-  interface Props {
-    item: ToolCallItem;
-    skin: "builder" | "operator";
-    /** Session id, so a relative path resolves against the working directory. */
-    sessionId?: string;
-  }
+  let { item, sessionId }: { item: ToolCallItem; sessionId?: string } = $props();
 
-  let { item, skin, sessionId }: Props = $props();
+  /** Lines of the file shown at most. */
+  const SHOWN = 12;
 
-  const PREVIEW_LINES = 4;
-  const BUILDER_MAX_LINES = 500;
-
-  const filePath = $derived(
-    typeof item.args.path === "string" ? item.args.path : "",
-  );
-  const fileName = $derived(filePath ? basename(filePath) : "");
+  const filePath = $derived(typeof item.args.path === "string" ? item.args.path : "");
+  const offset = $derived(typeof item.args.offset === "number" ? item.args.offset : 0);
 
   const lines = $derived((item.output ?? "").replace(/\n$/, "").split("\n"));
-  const totalLines = $derived(item.output ? lines.length : 0);
+  const total = $derived(item.output ? lines.length : 0);
+  const shown = $derived(lines.slice(0, SHOWN).join("\n"));
+  const remaining = $derived(Math.max(0, total - SHOWN));
 
-  const previewLines = $derived(lines.slice(0, PREVIEW_LINES));
-  const remaining = $derived(Math.max(0, totalLines - PREVIEW_LINES));
-
-  const builderLines = $derived(lines.slice(0, BUILDER_MAX_LINES));
-  const builderOverflow = $derived(Math.max(0, totalLines - BUILDER_MAX_LINES));
+  const range = $derived(
+    total > 0
+      ? $t("tools.body.lines_range", { values: { from: offset + 1, to: offset + total } })
+      : "",
+  );
 </script>
 
-<div class="text-body-xs" in:fly={{ y: 8, duration: 200 }}>
-  {#key skin}
-    <div in:fade={{ duration: 150 }}>
-      {#if skin === "operator"}
-        <div class="flex flex-col gap-2">
-          {#if fileName}
-            <span class="tb-chip">
-              <span class="tb-chip-key">{$t("tools.body.file_label")}</span>
-              <FileRef path={filePath} label={fileName} mono class="tb-chip-val" {sessionId} />
-            </span>
-          {/if}
-          {#if item.output}
-            <pre class="tb-preview font-mono"><code>{previewLines.join("\n")}{#if remaining > 0}
-<span class="tb-more">{$t("tools.body.more_lines", { values: { n: remaining } })}</span>{/if}</code></pre>
-          {/if}
-        </div>
-      {:else}
-        <div class="flex flex-col gap-1">
-          <div class="tb-iolabel">{$t("tools.body.raw_content")}</div>
-          <pre class="tb-preview font-mono"><code>{#each builderLines as line, i}<span class="tb-ln">{i + 1}</span>{line}{"\n"}{/each}</code>{#if builderOverflow > 0}<span class="tb-more">{$t("tools.body.more_lines", { values: { n: builderOverflow } })}</span>{/if}</pre>
-        </div>
-      {/if}
-    </div>
-  {/key}
+<div class="flex flex-col gap-2" data-testid="tool-body-file_read">
+  {#if filePath}
+    <BodyField label={$t("tools.body.file_label")} value={filePath} mono>
+      <FileRef path={filePath} mono {sessionId} />{#if range}, {range}{/if}
+    </BodyField>
+  {/if}
+  {#if item.output}
+    <BodyCode text={shown} />
+    {#if remaining > 0}
+      <p class="text-caption text-muted-foreground">
+        {$t("tools.body.more_lines", { values: { n: remaining } })}
+      </p>
+    {/if}
+  {/if}
 </div>

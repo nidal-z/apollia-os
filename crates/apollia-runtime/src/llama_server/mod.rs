@@ -900,6 +900,20 @@ mod test_support {
             Arc::new(sup)
         }
 
+        /// The same as [`Self::with_engine_in_dir_for_test`], without a
+        /// fixed ceiling: the load guardrail alone decides how many stay.
+        pub(crate) fn with_uncapped_engine_in_dir_for_test(
+            bin: PathBuf,
+            dir: &std::path::Path,
+        ) -> Arc<Self> {
+            let mut sup = supervisor_with_ceiling(1);
+            sup.max_loaded = None;
+            sup.bin_path = bin;
+            sup.system_db = Some(dir.join("system.db"));
+            sup.config_file = Some(dir.join("apollia.toml"));
+            Arc::new(sup)
+        }
+
         /// Take a lease on a resident model the way a request does, without the
         /// spawn path `ensure_model` would fall back to.
         pub(crate) async fn lease_for_test(&self, model_path: &str) -> Option<ModelLease> {

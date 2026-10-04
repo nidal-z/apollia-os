@@ -32,7 +32,7 @@ async function installTauriStub(page: Page): Promise<void> {
   await page.addInitScript(() => {
     const handlers: Record<string, (args: unknown) => unknown> = {
       get_user_memory: () => [],
-      get_config: () => ({ config_path: "~/.apollia/apollia.toml", config_exists: true, sections: [] }),
+      read_config_file: () => ({ path: "~/.apollia/apollia.toml", exists: true, text: "", sha256: "", diagnostics: [], locked: [], pendingRestart: [] }),
       get_system_info: () => ({}),
       list_llm_backends: () => [],
     };

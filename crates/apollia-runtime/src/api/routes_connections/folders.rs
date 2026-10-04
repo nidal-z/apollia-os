@@ -7,15 +7,22 @@
 //! is kept in `system.db` by its canonical path and the addition is journaled
 //! as `folder_added`. A removal deletes the row and is journaled as
 //! `connection_removed`. Both answer the connection as the list shows it.
+//!
+//! Sources may be made on a folder connection (a folder whose documents are
+//! indexed, a code folder). Removing the connection then asks for
+//! confirmation: without `?confirm=true` the route removes nothing and
+//! answers 409 with the sources that depend on it; with it, those sources and
+//! their indexes go first, then the connection.
 
 use std::path::Path;
 
-use axum::extract::{Path as UrlPath, State};
+use axum::extract::{Path as UrlPath, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use apollia_core::{FolderConnectionError, FolderConnectionStore};
+use apollia_sources::{SourceKind, SourceRegistryHandle};
 
 use crate::api::server::AppState;
 use crate::connections::folders::folder_families;
@@ -39,6 +46,27 @@ pub struct AddFolderBody {
     pub label: Option<String>,
 }
 
+/// Query of `DELETE /api/v1/connections/folders/{id}`.
+#[derive(Debug, Default, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct RemoveFolderQuery {
+    /// Remove the sources made on the folder, and their indexes, with it.
+    /// Without it, a folder sources depend on is not removed.
+    #[serde(default)]
+    pub confirm: bool,
+}
+
+/// A source made on a folder connection.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, utoipa::ToSchema)]
+pub struct DependentSource {
+    /// Source identifier.
+    pub id: String,
+    /// The name the user sees.
+    pub label: String,
+    /// `folder` or `code_folder`.
+    pub kind: String,
+}
+
 /// A refused folder: the message and its stable code.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct FolderErrorBody {
@@ -46,8 +74,12 @@ pub struct FolderErrorBody {
     /// the admission gave, as is.
     pub error: String,
     /// Stable code: `not_a_folder`, `already_added`, `admission_refused`,
-    /// `not_found`, `store`.
+    /// `not_found`, `has_dependent_sources`, `sources`, `store`.
     pub code: String,
+    /// For `has_dependent_sources`, the sources removing the folder would
+    /// remove; absent otherwise.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dependent_sources: Vec<DependentSource>,
 }
 
 pub(crate) type FolderRouteError = (StatusCode, Json<FolderErrorBody>);
@@ -58,6 +90,7 @@ fn refused(status: StatusCode, code: &str, error: impl std::fmt::Display) -> Fol
         Json(FolderErrorBody {
             error: error.to_string(),
             code: code.to_owned(),
+            dependent_sources: Vec::new(),
         }),
     )
 }
@@ -148,19 +181,107 @@ pub(crate) fn add_as(
     delete,
     path = "/api/v1/connections/folders/{id}",
     tag = "connections",
-    params(("id" = String, Path, description = "Identifier of the stored folder, the part of the connection identifier after `folder:`")),
+    params(
+        ("id" = String, Path, description = "Identifier of the stored folder, the part of the connection identifier after `folder:`"),
+        RemoveFolderQuery,
+    ),
     responses(
-        (status = 200, description = "Folder connection removed; the connection it was", body = Connection),
+        (status = 200, description = "Folder connection removed, with the sources made on it when confirmed; the connection it was", body = Connection),
         (status = 404, description = "No folder connection has this identifier", body = FolderErrorBody),
-        (status = 500, description = "system.db could not be written", body = FolderErrorBody),
+        (status = 409, description = "Sources depend on the folder and the removal was not confirmed; nothing was removed, `dependent_sources` lists them", body = FolderErrorBody),
+        (status = 500, description = "system.db could not be written, or a dependent source could not be removed", body = FolderErrorBody),
     )
 )]
 pub(crate) async fn remove_folder_connection<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     UrlPath(id): UrlPath<String>,
+    Query(query): Query<RemoveFolderQuery>,
 ) -> Result<Json<Connection>, FolderRouteError> {
-    let store = store(&state.data_dir).map_err(|e| store_err(&e))?;
-    remove(&state.connection_governance, &store, &id).map(Json)
+    remove_with_sources(
+        &state.connection_governance,
+        &state.data_dir,
+        state.source_registry.as_ref(),
+        &id,
+        query.confirm,
+    )
+    .await
+    .map(Json)
+}
+
+/// The sources of `registry` made on the folder connection `id`.
+async fn dependent_sources(
+    registry: &SourceRegistryHandle,
+    id: &str,
+) -> Result<Vec<DependentSource>, FolderRouteError> {
+    let sources = registry
+        .list()
+        .await
+        .map_err(|e| refused(StatusCode::INTERNAL_SERVER_ERROR, "sources", e))?;
+    Ok(sources
+        .into_iter()
+        .filter(|s| matches!(s.kind, SourceKind::Folder | SourceKind::CodeFolder))
+        .filter(|s| {
+            s.reference
+                .as_deref()
+                .map(|r| r.strip_prefix("folder:").unwrap_or(r))
+                == Some(id)
+        })
+        .map(|s| DependentSource {
+            id: s.id,
+            label: s.label,
+            kind: s.kind.as_str().to_owned(),
+        })
+        .collect())
+}
+
+/// [`remove`], after the sources made on the folder: without `confirm`, a
+/// folder sources depend on is refused with their list and nothing is
+/// removed; with it, each of them, and its index, goes first. The folder
+/// store of `data_dir` is opened around the awaits, never held across them.
+pub(crate) async fn remove_with_sources(
+    governance: &ConnectionGovernance,
+    data_dir: &Path,
+    registry: Option<&SourceRegistryHandle>,
+    id: &str,
+    confirm: bool,
+) -> Result<Connection, FolderRouteError> {
+    let known = store(data_dir)
+        .and_then(|store| store.get(id))
+        .map_err(|e| store_err(&e))?;
+    if known.is_none() {
+        return Err(store_err(&FolderConnectionError::NotFound(id.to_owned())));
+    }
+    if let Some(registry) = registry {
+        let dependents = dependent_sources(registry, id).await?;
+        if !dependents.is_empty() && !confirm {
+            let (status, Json(mut body)) = refused(
+                StatusCode::CONFLICT,
+                "has_dependent_sources",
+                format!(
+                    "{} source(s) depend on this folder; confirm to remove them with it",
+                    dependents.len()
+                ),
+            );
+            body.dependent_sources = dependents;
+            return Err((status, Json(body)));
+        }
+        for source in &dependents {
+            match registry.delete(&source.id).await {
+                Ok(_) => tracing::event!(
+                    tracing::Level::INFO,
+                    source = %source.id,
+                    connection_id = %id,
+                    "connections.folder.source_removed"
+                ),
+                Err(apollia_sources::SourcesError::Registry(
+                    apollia_sources::SourceRegistryError::NotFound(_),
+                )) => {}
+                Err(e) => return Err(refused(StatusCode::INTERNAL_SERVER_ERROR, "sources", e)),
+            }
+        }
+    }
+    let store = store(data_dir).map_err(|e| store_err(&e))?;
+    remove(governance, &store, id)
 }
 
 /// Remove and journal the folder connection `id`.

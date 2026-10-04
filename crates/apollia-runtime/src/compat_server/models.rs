@@ -1,30 +1,53 @@
-//! The local models the compatible server relays to: those the user loaded,
-//! named by their identifier in the model registry.
+//! The local models the compatible server relays to, named by their
+//! identifier in the model registry.
 //!
-//! Only a model resident in a local engine is served. A model of a remote
-//! backend has no process on this machine, so it is never listed and never
-//! relayed: the compatible server is not a relay to a cloud. Nothing is
-//! loaded on demand here either; a model that is not resident answers
-//! `model_not_loaded`.
+//! A model resident in a local engine is served as it is. With `[server]
+//! jit_loading` on, the default, a request naming a language model of the
+//! registry that is not resident loads it first, through the engine's
+//! `ensure_model`, and the process carries the server origin (see
+//! [`crate::residency::origin`]); with it off, such a request answers
+//! `model_not_loaded`. A model of a remote backend has no process on this
+//! machine, so it is never listed and never relayed: the compatible server is
+//! not a relay to a cloud.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use apollia_llm::model_index::{ModelIndex, INDEX_FILE_NAME};
+use apollia_core::config::{resolve_setting, PolicySettings, ServerConfig, JIT_LOADING_KEY};
+use apollia_core::llm_backend::LlmBackendRepository;
+use apollia_llm::model_index::{
+    IndexedModel, ModelCategory, ModelFormat, ModelIndex, INDEX_FILE_NAME,
+};
+use chrono::Utc;
 
 use super::logs::ServerLogsHandle;
 use crate::engine_store::Engine;
 use crate::llama_server::{LlamaServerSupervisor, LoadedModel, ModelKind, ModelLease};
-use crate::local_engine::LocalEngine;
+use crate::local_engine::{engine_for_format, local_row_for, LoadConsent, LocalEngine};
 use crate::mlx_engine::MlxEngineSupervisor;
+use crate::residency::Engines;
 
-/// The local engines the compatible server reads, and where the registry of
-/// models lives.
+/// The local engines the compatible server reads, where the registry of
+/// models lives, and the files its on-demand loading reads.
 #[derive(Clone, Default)]
 pub struct LocalModels {
     llama: Option<Arc<LlamaServerSupervisor>>,
     mlx: Option<Arc<MlxEngineSupervisor>>,
     models_dir: Option<PathBuf>,
+    /// `apollia.toml`, whose `[server] jit_loading` is read at every request.
+    /// `None` holds the default, on.
+    settings: Option<PathBuf>,
+    /// `system.db`, whose backend row of a model gives its load preset.
+    system_db: Option<PathBuf>,
+}
+
+/// Why a request's model could not be held.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Unheld {
+    /// The model is not resident, and is not loaded on demand.
+    NotLoaded,
+    /// Loading it on demand failed, for this reason.
+    LoadFailed(String),
 }
 
 impl std::fmt::Debug for LocalModels {
@@ -33,6 +56,7 @@ impl std::fmt::Debug for LocalModels {
             .field("llama", &self.llama.is_some())
             .field("mlx", &self.mlx.is_some())
             .field("models_dir", &self.models_dir)
+            .field("settings", &self.settings)
             .finish()
     }
 }
@@ -76,7 +100,18 @@ impl LocalModels {
             llama,
             mlx,
             models_dir,
+            settings: None,
+            system_db: None,
         }
+    }
+
+    /// Reads `[server] jit_loading` in `settings` and the load presets in
+    /// `system_db`.
+    #[must_use]
+    pub fn with_files(mut self, settings: PathBuf, system_db: PathBuf) -> Self {
+        self.settings = Some(settings);
+        self.system_db = Some(system_db);
+        self
     }
 
     /// Sends the lines the local `llama-server` processes print to `logs`.
@@ -102,8 +137,52 @@ impl LocalModels {
             .collect()
     }
 
+    /// What `GET /v1/models` lists: every resident model and, while
+    /// on-demand loading is on, every language model of the registry an
+    /// engine of this machine can load.
+    pub(crate) async fn listed(&self) -> Vec<ServedModel> {
+        let mut listed = self.served().await;
+        if !self.jit_loading() {
+            return listed;
+        }
+        let Some(index) = self.index().await else {
+            return listed;
+        };
+        for entry in &index.models {
+            let path = entry.path.display().to_string();
+            let loadable = self.engine_runs(entry.format)
+                && entry.effective_category() == ModelCategory::Language;
+            if loadable
+                && !listed
+                    .iter()
+                    .any(|m| m.id == entry.id || m.model_path == path)
+            {
+                listed.push(ServedModel {
+                    id: entry.id.clone(),
+                    kind: ModelKind::Chat,
+                    engine: engine_for_format(entry.format),
+                    model_path: path,
+                    created: entry.modified_at.map_or(0, |at| at.timestamp()),
+                });
+            }
+        }
+        listed
+    }
+
+    /// The model a client names `id`, held for one request: the resident one,
+    /// else, while on-demand loading is on, the one this request loads.
+    pub(crate) async fn hold(&self, id: &str) -> Result<HeldModel, Unheld> {
+        if let Some(held) = self.hold_resident(id).await {
+            return Ok(held);
+        }
+        if !self.jit_loading() {
+            return Err(Unheld::NotLoaded);
+        }
+        self.load_on_demand(id).await
+    }
+
     /// The resident model a client names `id`, held for one request.
-    pub(crate) async fn hold(&self, id: &str) -> Option<HeldModel> {
+    async fn hold_resident(&self, id: &str) -> Option<HeldModel> {
         let served = self.served().await.into_iter().find(|m| m.id == id)?;
         let (lease, request_model) = match served.engine {
             Engine::LlamaServer => {
@@ -127,6 +206,102 @@ impl LocalModels {
             request_model,
             lease,
         })
+    }
+
+    /// Whether `[server] jit_loading` is on now; the default, on, when the
+    /// file cannot be read.
+    fn jit_loading(&self) -> bool {
+        let default = ServerConfig::default().jit_loading;
+        let Some(path) = &self.settings else {
+            return default;
+        };
+        match resolve_setting(path, JIT_LOADING_KEY, &PolicySettings::none()) {
+            Ok(resolved) => resolved.value.as_bool().unwrap_or(default),
+            Err(error) => {
+                tracing::event!(
+                    tracing::Level::WARN,
+                    key = JIT_LOADING_KEY,
+                    error = %error,
+                    "compat_server.models.setting_unreadable"
+                );
+                default
+            }
+        }
+    }
+
+    /// Whether an engine of this runtime runs a model of `format`.
+    fn engine_runs(&self, format: ModelFormat) -> bool {
+        match format {
+            ModelFormat::Gguf => self.llama.is_some(),
+            ModelFormat::Mlx => self.mlx.is_some(),
+        }
+    }
+
+    /// Load the language model of the registry named `id` for this request,
+    /// mark the process as the server's, and, when `[server]
+    /// jit_keep_last_only` asks for it, unload the other models the server
+    /// loaded.
+    async fn load_on_demand(&self, id: &str) -> Result<HeldModel, Unheld> {
+        let index = self.index().await.ok_or(Unheld::NotLoaded)?;
+        let entry = index
+            .get(id)
+            .filter(|m| m.effective_category() == ModelCategory::Language)
+            .ok_or(Unheld::NotLoaded)?;
+        let model_path = entry.path.display().to_string();
+        let backend = self.backend_row(id).await;
+        let started = Utc::now();
+        let (lease, request_model, loaded) = match entry.format {
+            ModelFormat::Gguf => {
+                let engine = self.llama.as_deref().ok_or_else(|| no_engine(id))?;
+                load_with(engine, &backend, id, &model_path).await?
+            }
+            ModelFormat::Mlx => {
+                let engine = self.mlx.as_deref().ok_or_else(|| no_engine(id))?;
+                load_with(engine, &backend, id, &model_path).await?
+            }
+        };
+        let engines = Engines {
+            llama: self.llama.as_deref(),
+            mlx: self.mlx.as_deref(),
+        };
+        if let (Some(residency), Some(model)) = (engines.residency(), &loaded) {
+            if model.loaded_at >= started {
+                residency.mark_loaded_by_server(&model_path, model.loaded_at);
+                if residency.keep_last_server_model_only() {
+                    engines
+                        .unload_other_server_models(&residency, &model_path)
+                        .await;
+                }
+            }
+        }
+        let served = match loaded {
+            Some(model) => served(model, Some(&index)),
+            None => indexed(entry, started.timestamp()),
+        };
+        Ok(HeldModel {
+            served,
+            request_model,
+            lease,
+        })
+    }
+
+    /// The backend row of the model `id`, written when it has none yet: the
+    /// key its load preset is kept under. The identifier itself when there is
+    /// no `system.db` or the row cannot be written.
+    async fn backend_row(&self, id: &str) -> String {
+        let (Some(system_db), Some(models_dir)) = (self.system_db.clone(), self.models_dir.clone())
+        else {
+            return id.to_owned();
+        };
+        let model_id = id.to_owned();
+        let row = tokio::task::spawn_blocking(move || {
+            let repo = LlmBackendRepository::open(&system_db).ok()?;
+            local_row_for(&repo, &models_dir, &model_id).ok().flatten()
+        })
+        .await
+        .ok()
+        .flatten();
+        row.unwrap_or_else(|| id.to_owned())
     }
 
     /// The registry of models, read at each call so a model indexed after the
@@ -173,4 +348,52 @@ fn served(model: LoadedModel, index: Option<&ModelIndex>) -> ServedModel {
         model_path: model.model_path,
         created: model.loaded_at.timestamp(),
     }
+}
+
+/// A model of the registry listed before its process has been seen.
+fn indexed(entry: &IndexedModel, created: i64) -> ServedModel {
+    ServedModel {
+        id: entry.id.clone(),
+        kind: ModelKind::Chat,
+        engine: engine_for_format(entry.format),
+        model_path: entry.path.display().to_string(),
+        created,
+    }
+}
+
+fn no_engine(id: &str) -> Unheld {
+    Unheld::LoadFailed(format!("No local engine on this machine runs '{id}'."))
+}
+
+/// Load `model_path` on `engine` and return the lease of this request, the
+/// `model` field the engine expects, and the process as the engine lists it.
+async fn load_with<E: LocalEngine>(
+    engine: &E,
+    backend: &str,
+    id: &str,
+    model_path: &str,
+) -> Result<(ModelLease, String, Option<LoadedModel>), Unheld> {
+    let lease = engine
+        .ensure_model(
+            backend,
+            model_path.to_owned(),
+            None,
+            LoadConsent::Unconfirmed,
+        )
+        .await
+        .map_err(|error| {
+            tracing::event!(
+                tracing::Level::WARN,
+                model = %id,
+                error = %error,
+                "compat_server.models.load_failed"
+            );
+            Unheld::LoadFailed(format!("The model '{id}' could not be loaded: {error}"))
+        })?;
+    let loaded = engine
+        .loaded_models()
+        .await
+        .into_iter()
+        .find(|m| m.kind == ModelKind::Chat && m.model_path == model_path);
+    Ok((lease, engine.request_model(id, model_path), loaded))
 }
