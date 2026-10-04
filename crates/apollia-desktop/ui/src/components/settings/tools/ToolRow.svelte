@@ -3,7 +3,8 @@
    * ToolRow - one native tool as a discrete governance card.
    *
    * A bordered card (icon tile + title / mono id / status pill + description +
-   * optional warning + contract button + configure button + toggle). Richer than the canonical
+   * optional warning + contract button + configure button + toggle). The
+   * identifier and the contract actions render only with `showContract`. Richer than the canonical
    * EntityCard because governance needs four visual states (active, disabled,
    * attention, toggling) expressed on the border and the icon tile, plus a
    * right-click context menu of quick governance actions. Toggle and
@@ -35,6 +36,8 @@
     canConfigure: boolean;
     /** List-level reload in flight: disables the toggle. */
     busy: boolean;
+    /** Shows the technical identifier and the contract actions (developer mode). */
+    showContract: boolean;
     onToggle: (enabled: boolean) => Promise<void> | void;
     onConfigure: () => void;
     /** Opens the read-only contract panel (descriptor + input schema). */
@@ -50,6 +53,7 @@
     warning,
     canConfigure,
     busy,
+    showContract,
     onToggle,
     onConfigure,
     onInspect,
@@ -131,20 +135,24 @@
             },
           ]
         : []),
-      {
-        id: "inspect",
-        label: $t("settings.tools_page.ctx_inspect"),
-        icon: Braces,
-        onclick: onInspect,
-        testid: `tool-ctx-inspect-${tool.name}`,
-      },
-      {
-        id: "copy",
-        label: $t("settings.tools_page.ctx_copy_id"),
-        icon: Copy,
-        onclick: onCopyId,
-        testid: `tool-ctx-copy-${tool.name}`,
-      },
+      ...(showContract
+        ? [
+            {
+              id: "inspect",
+              label: $t("settings.tools_page.ctx_inspect"),
+              icon: Braces,
+              onclick: onInspect,
+              testid: `tool-ctx-inspect-${tool.name}`,
+            },
+            {
+              id: "copy",
+              label: $t("settings.tools_page.ctx_copy_id"),
+              icon: Copy,
+              onclick: onCopyId,
+              testid: `tool-ctx-copy-${tool.name}`,
+            },
+          ]
+        : []),
       ...(canConfigure
         ? [
             {
@@ -182,7 +190,14 @@
         <span class={cn("text-body-sm font-medium", tool.enabled ? "text-foreground" : "text-muted-foreground")}>
           {title}
         </span>
-        <span class="font-mono text-overline tracking-tight text-muted-foreground/80">{tool.name}</span>
+        {#if showContract}
+          <span
+            class="font-mono text-overline tracking-tight text-muted-foreground/80"
+            data-testid="tool-id-{tool.name}"
+          >
+            {tool.name}
+          </span>
+        {/if}
         <span
           class={cn(
             "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-overline font-semibold",
@@ -207,16 +222,18 @@
     </div>
 
     <div class="flex shrink-0 items-center gap-1.5">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        onclick={onInspect}
-        title={$t("settings.tools_page.inspect")}
-        aria-label={$t("settings.tools_page.inspect_aria", { values: { name: title } })}
-        data-testid="tool-inspect-{tool.name}"
-      >
-        <Braces size={14} strokeWidth={1.9} aria-hidden="true" />
-      </Button>
+      {#if showContract}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onclick={onInspect}
+          title={$t("settings.tools_page.inspect")}
+          aria-label={$t("settings.tools_page.inspect_aria", { values: { name: title } })}
+          data-testid="tool-inspect-{tool.name}"
+        >
+          <Braces size={14} strokeWidth={1.9} aria-hidden="true" />
+        </Button>
+      {/if}
       {#if canConfigure}
         <Button
           variant="ghost"

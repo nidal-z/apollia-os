@@ -22,7 +22,9 @@ import type {
 export type RowSelection =
   | { kind: "native"; provider: ProviderId }
   | { kind: "mcp"; name: string }
-  | { kind: "connection"; id: string };
+  | { kind: "connection"; id: string }
+  /** The tools Apollia ships, a source of their own after the connections. */
+  | { kind: "builtin" };
 
 /** One row of the connection list. */
 export interface ConnectionRow {
@@ -174,6 +176,8 @@ export function isSelected(row: ConnectionRow, selection: RowSelection | null): 
       return row.selection.kind === "mcp" && row.selection.name === selection.name;
     case "connection":
       return row.selection.kind === "connection" && row.selection.id === selection.id;
+    case "builtin":
+      return false;
   }
 }
 
