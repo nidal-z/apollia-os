@@ -3125,7 +3125,20 @@
     "chat": {
       "subtitle": "Comportement des conversations et raccourcis clavier.",
       "conversations_title": "Conversations",
-      "shortcuts_title": "Raccourcis clavier"
+      "shortcuts_title": "Raccourcis clavier",
+      "all_shortcuts_title": "Tous les raccourcis",
+      "send_mod_label_mac": "Utiliser ⌘ + ⏎ pour envoyer le message",
+      "send_mod_hint_mac": "Éteint, Entrée envoie le message et Maj + Entrée passe à la ligne. Allumé, ⌘ + Entrée envoie et Entrée passe à la ligne.",
+      "send_mod_label_other": "Utiliser Ctrl + Entrée pour envoyer le message",
+      "send_mod_hint_other": "Éteint, Entrée envoie le message et Maj + Entrée passe à la ligne. Allumé, Ctrl + Entrée envoie et Entrée passe à la ligne.",
+      "naming_title": "Nommage automatique",
+      "naming_label": "Nom des conversations donné par le modèle",
+      "naming_never": "Jamais",
+      "naming_never_hint": "Une conversation garde son nom provisoire jusqu'à ce que vous la renommiez.",
+      "naming_auto": "Automatique",
+      "naming_auto_hint": "Apollia nomme la conversation quand le modèle génère assez vite, selon la vitesse de génération mesurée.",
+      "naming_always": "Toujours",
+      "naming_always_hint": "Apollia nomme chaque nouvelle conversation, quelle que soit la vitesse de génération."
     },
     "model_defaults": {
       "subtitle": "Les valeurs que reçoit un modèle quand rien d'autre ne les fixe.",
@@ -3521,7 +3534,8 @@
       "install_agent": "Installer un agent",
       "docs_link": "Documentation",
       "error_no_llm": "Aucun modèle de langage n'est configuré. Ouvre les Réglages et ajoute un backend LLM (un modèle GGUF local ou un fournisseur cloud) avant de démarrer une conversation.",
-      "error_generic": "Impossible de démarrer la conversation : {error}"
+      "error_generic": "Impossible de démarrer la conversation : {error}",
+      "submit_hint_enter": "Entrée pour démarrer un chat libre"
     },
     "agent_status": {
       "online": "En ligne",
@@ -3634,7 +3648,15 @@
       "role_tool": "Outil",
       "role_system": "Système"
     },
-    "plan_abandoned_reason": "plan abandonné"
+    "plan_abandoned_reason": "plan abandonné",
+    "sort": {
+      "trigger": "Trier les conversations",
+      "title": "Trier par",
+      "newest": "Plus récentes d'abord",
+      "oldest": "Plus anciennes d'abord",
+      "activity": "Dernière activité",
+      "name": "Nom, de A à Z"
+    }
   },
   "transcriptions": {
     "title": "Transcriptions",

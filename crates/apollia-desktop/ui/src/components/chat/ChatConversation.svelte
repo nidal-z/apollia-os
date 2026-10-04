@@ -61,6 +61,7 @@
   import { classifySessionError } from "$lib/stores/runtimeHealth";
   import { agents } from "$lib/stores/sse";
   import { triggerAutoName } from "$lib/chat/autoName";
+  import { noteSessionActivity } from "$lib/stores/chatSessions";
   import SessionNotFound from "./SessionNotFound.svelte";
   import AgentUnavailableBanner from "./AgentUnavailableBanner.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
@@ -507,6 +508,7 @@
     if (isFirstUserMessage) {
       triggerAutoName(sessionId, content);
     }
+    noteSessionActivity(sessionId);
 
     // Attachments v1: inline small payloads as fenced blocks, reference larger
     // files by absolute path. The backend sees a single user message - the

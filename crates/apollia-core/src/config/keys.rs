@@ -181,6 +181,7 @@ pub const KEYS: &[ConfigKey] = &[
     locked(key("desktop.link_preview_enabled", Boolean, Some("false"), Reloadable, "Fetch the preview of a link shown in a conversation.")),
     locked(key("desktop.update_channel", Enum(&["stable", "preview"]), Some("\"stable\""), Reloadable, "Update channel of the application: stable receives the published versions, preview the trial versions as well.")),
     locked(key("desktop.background_service_allowed", Boolean, Some("true"), Reloadable, "Allow the application to install the engine as a service of the user's session.")),
+    locked(key("desktop.chat_auto_naming", Enum(&["never", "auto", "always"]), Some("\"auto\""), Reloadable, "Name a new conversation from its first message: never, automatically when the model generates fast enough, or always.")),
     // [server]
     locked(key("server.enabled", Boolean, Some("false"), Restart, "Start the compatible server (OpenAI and Anthropic formats) with the engine.")),
     locked(key("server.port", Integer, Some("7772"), Restart, "TCP port of the compatible server.")),

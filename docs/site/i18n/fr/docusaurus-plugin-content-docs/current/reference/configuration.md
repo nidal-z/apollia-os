@@ -103,7 +103,7 @@ avertissement `config.key.retired`.
 | `[workflows]` | Le budget avec lequel démarre l'exécution d'un workflow, partagé par chaque agent et chaque workflow qu'elle lance. |
 | `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), et la règle appliquée à un fichier importé (`[models.import]`). |
 | `[observability]` | Capture et rétention des traces, documentées plus bas. |
-| `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
+| `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` ou `always`), et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
 | `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`. |
 | `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`). |
 | `[author]` | Le nom d'éditeur des agents exportés depuis cette machine (`name`). |
@@ -289,6 +289,7 @@ Réglages de l'application de bureau que le moteur lit.
 | `desktop.link_preview_enabled` | booléen | `false` | Récupérer l'aperçu d'un lien affiché dans une conversation. La politique de l'organisation peut l'imposer. |
 | `desktop.update_channel` | l'une de stable, preview | `"stable"` | Canal de mise à jour de l'application : stable reçoit les versions publiées, preview aussi les versions d'essai. La politique de l'organisation peut l'imposer. |
 | `desktop.background_service_allowed` | booléen | `true` | Autoriser l'application à installer le moteur comme service de la session de l'utilisateur. La politique de l'organisation peut l'imposer. |
+| `desktop.chat_auto_naming` | l'une de never, auto, always | `"auto"` | Nommer une nouvelle conversation d'après son premier message : jamais, automatiquement quand le modèle génère assez vite, ou toujours. La politique de l'organisation peut l'imposer. |
 
 ### `[server]`
 

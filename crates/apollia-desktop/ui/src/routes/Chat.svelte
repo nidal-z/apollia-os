@@ -20,9 +20,12 @@
   import {
     decoratedSessions,
     markSessionRead,
+    sessionSort,
     sidebarDensity,
+    sidebarSessions,
     type DecoratedSession,
   } from "$lib/stores/chatSessions";
+  import ConversationSortMenu from "../components/chat/ConversationSortMenu.svelte";
   import {
     toggleSessionsSidebar,
     openSessionsDrawer,
@@ -277,19 +280,7 @@
   }
 
   const filteredSessions = $derived(
-    $decoratedSessions
-      .filter((s) => !s.archived)
-      .filter((s) => {
-        if (!sessionSearchQuery.trim()) return true;
-        const q = sessionSearchQuery.toLowerCase();
-        const hay = [
-          s.title ?? "",
-          s.agent_name ?? "",
-          s.last_message_preview ?? "",
-          s.mode,
-        ].join(" ").toLowerCase();
-        return hay.includes(q);
-      }),
+    sidebarSessions($decoratedSessions, sessionSearchQuery, $sessionSort),
   );
 
   // Live agent activity events for the right Journal panel.
@@ -448,12 +439,15 @@
     aria-hidden={!panesInline && !$sessionsDrawerOpen}
   >
     <div class="px-3.5 pt-4 pb-2">
-      <h2
-        class="mb-3 text-heading-sm font-semibold tracking-[-0.2px] text-foreground"
-        data-testid="chat-header"
-      >
-        {$t("chat.title")}
-      </h2>
+      <div class="mb-3 flex items-center justify-between gap-2">
+        <h2
+          class="text-heading-sm font-semibold tracking-[-0.2px] text-foreground"
+          data-testid="chat-header"
+        >
+          {$t("chat.title")}
+        </h2>
+        <ConversationSortMenu />
+      </div>
 
       <div class="relative mb-2.5">
         <Search
