@@ -385,6 +385,32 @@ The cost is named: `calamine` depends on `zip` 8 while the workspace carries
 `csv`. `calamine` is pinned to 0.36.1, so that a new release, and the version of
 `zip` it brings, is a decision rather than an update.
 
+The text of a PDF document is extracted in Rust by `pdf_oxide` (MIT or
+Apache-2.0), page by page, each page with its number. It is pure Rust, reads
+only, links no system library and opens no connection; its default features are
+off, so neither its colour-profile engine nor its rendering, OCR or signature
+modules enter the build, and only `legacy-crypto` is kept, so that a document
+locked with an owner password alone still opens. A page that draws no letter
+and no digit is marked as a page without text, the page that optical character
+recognition has to read. A document that needs a password to be opened, or a
+damaged one, is a typed error, and a defect of the parser on a malformed file
+is caught and reported as a damaged file, never a crash. It was measured before
+it was adopted, on twenty real French documents published under the Licence
+Ouverte (contract documents and terms of use, budgets and price lists,
+methodological reports), with five accented witness phrases per document taken
+from an independent extractor: nineteen documents of twenty yield all five
+phrases with every accent intact; the twentieth loses one phrase whose words a
+table cell spreads over two lines. The corpus is versioned with the tests that
+read it, and PDFium, the native fallback considered, is not shipped.
+
+The cost is named: `pdf_oxide` brings fifty-three crate versions the lock file
+did not hold, among them a font stack (`skrifa`, `read-fonts`, `write-fonts`,
+`ttf-parser`, `subsetter`), a layout engine (`taffy`) and second majors of
+`quick-xml`, `brotli`, `sha2` and `aes`. `pdf_oxide` is pinned to 0.3.78, and
+`office_oxide`, which it depends on, is held at 0.1.11 in the lock file: its
+0.1.12 release no longer compiles under `pdf_oxide` 0.3.78, so an update of
+either is a decision rather than a refresh.
+
 A mailbox connects over IMAP with an application password, so any provider is
 reachable, Gmail included, without an OAuth client and without a relay. The
 client is `async-imap` (MIT or Apache-2.0), on the Tokio runtime, over the
