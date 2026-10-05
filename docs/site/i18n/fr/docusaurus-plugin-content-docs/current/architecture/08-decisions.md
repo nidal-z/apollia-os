@@ -973,6 +973,16 @@ il est inscrit au journal d'audit, une version installée plus récente n'est
 jamais rétrogradée, et les surcharges de l'utilisateur comme l'état désactivé de
 ses agents survivent à une mise à jour.
 
+Les paquets d'exemple suivent la même règle, à une différence près sur la
+suite. Ce sont des paquets déclaratifs embarqués dans le runtime à la
+compilation, depuis un dossier de l'arbre des sources. L'application les propose
+et n'en installe un que lorsque l'utilisateur le choisit, après l'aperçu que
+reçoit tout paquet. Un exemple est désigné au runtime par le nom de son paquet,
+jamais par un chemin, si bien que seul ce que porte le binaire est traité comme
+un exemple ; il n'est pas signé, et n'est ni signalé ni refusé pour cela, pour
+la raison ci-dessus. Une fois installé, il appartient à l'utilisateur : à la
+différence du guide, il se désinstalle comme tout paquet.
+
 Un outil de paquet s'exécute avec un contexte nu : ni mémoire, ni profil de
 l'utilisateur. Une exception est décidée par l'hôte, jamais par un paquet.
 L'onboarding d'Apollia est livré comme un agent déclaratif doté d'un outil qui

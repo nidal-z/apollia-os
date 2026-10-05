@@ -178,6 +178,9 @@ from .engine_source import EngineSource
 from .engine_variant import EngineVariant
 from .engines_response import EnginesResponse
 from .events_response import EventsResponse
+from .example_agent import ExampleAgent
+from .example_install_request import ExampleInstallRequest
+from .example_package import ExamplePackage
 from .export_agent_request import ExportAgentRequest
 from .export_format import ExportFormat
 from .export_memory_namespace_response_200 import ExportMemoryNamespaceResponse200
@@ -755,6 +758,9 @@ __all__ = (
     "EnginesResponse",
     "EngineVariant",
     "EventsResponse",
+    "ExampleAgent",
+    "ExampleInstallRequest",
+    "ExamplePackage",
     "ExportAgentRequest",
     "ExportFormat",
     "ExportMemoryNamespaceResponse200",

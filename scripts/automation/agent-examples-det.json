@@ -1,0 +1,262 @@
+{
+  "name": "agent-examples-det (the examples the Agents screen proposes: the band, the cards, the preview of one cancelled then accepted)",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_example_packages",
+      "resolve": [
+        {
+          "name": "veille-web",
+          "version": "1.0.0",
+          "description": "Watches a topic on the web.",
+          "agents": [
+            {
+              "id": "veille-web",
+              "name": "Veille web",
+              "mission": "Searches the web on your topic and writes a summary."
+            }
+          ],
+          "requires": [
+            {
+              "type": "imap",
+              "reason": "Reads the newsletters of your mailbox.",
+              "present": false,
+              "broughtByPackage": false
+            }
+          ],
+          "installedVersion": null
+        },
+        {
+          "name": "analyse-documents",
+          "version": "1.0.0",
+          "description": "Reads a folder and writes a cited summary.",
+          "agents": [
+            {
+              "id": "analyse-documents",
+              "name": "Analyse de documents",
+              "mission": "Reads a folder or a document and writes a summary that cites its sources."
+            }
+          ],
+          "requires": [],
+          "installedVersion": "1.0.0"
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "preview_example_package",
+      "argsMatch": {
+        "name": "veille-web"
+      },
+      "resolve": {
+        "name": "veille-web",
+        "version": "1.0.0",
+        "description": "Watches a topic on the web.",
+        "sdk": ">=0.3",
+        "signature": {
+          "status": "unsigned",
+          "publisher": "Apollia",
+          "declaredPublisher": "Apollia",
+          "keyFingerprint": null,
+          "publicKey": null,
+          "trusted": false,
+          "reason": null
+        },
+        "signatureRequired": false,
+        "agents": [
+          {
+            "id": "veille-web",
+            "name": "Veille web",
+            "mission": "Searches the web on your topic and writes a summary.",
+            "examples": [],
+            "access": []
+          }
+        ],
+        "workflows": [],
+        "tools": [],
+        "requires": [
+          {
+            "type": "imap",
+            "reason": "Reads the newsletters of your mailbox.",
+            "present": false,
+            "broughtByPackage": false
+          }
+        ],
+        "mcpServers": [],
+        "pip": [],
+        "triggers": [],
+        "installedVersion": null,
+        "update": null,
+        "notices": [
+          {
+            "code": "missing_connection",
+            "type": "imap"
+          }
+        ],
+        "refusal": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "install_example_package",
+      "argsMatch": {
+        "name": "veille-web"
+      },
+      "resolve": {
+        "name": "veille-web",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-page",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-examples",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "agents-examples-names",
+      "contains": "Veille web, Analyse de documents"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-examples-band"
+    },
+    {
+      "kind": "click",
+      "testid": "agents-examples-show"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-example-card",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "agents-example-card",
+      "nth": 0,
+      "contains": "Searches the web on your topic"
+    },
+    {
+      "kind": "expect",
+      "testid": "agents-example-requires",
+      "contains": "imap"
+    },
+    {
+      "kind": "expect",
+      "testid": "agents-example-installed"
+    },
+    {
+      "kind": "expect",
+      "testid": "agents-example-open-sheet"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-examples-cards"
+    },
+    {
+      "kind": "click",
+      "testid": "agents-example-install"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "package-preview-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "package-preview-title",
+      "contains": "veille-web",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "package-preview-publisher",
+      "contains": "Apollia"
+    },
+    {
+      "kind": "expect",
+      "testid": "package-preview-origin"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-example-preview"
+    },
+    {
+      "kind": "click",
+      "testid": "package-preview-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "package-preview-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "agents-example-install"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "package-preview-title",
+      "contains": "veille-web",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "package-preview-install"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "package-preview-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-example-card",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 10000
+    }
+  ],
+  "notes": [
+    "Code-verified against routes/Agents.svelte, components/agents/AgentsOverview.svelte, AgentExamples.svelte, agentExamples.ts and components/packages/PackagePreviewDialog.svelte.",
+    "The binary proposes no example of its own yet, so the three example commands are stubbed: list_example_packages, preview_example_package and install_example_package. The stubbed values imitate ExamplePackage of crates/apollia-runtime/src/packages/examples.rs and PackagePreview of crates/apollia-runtime/src/packages/preview.rs: a field renamed there drifts here silently. The real list, preview and installation are held by the runtime tests of the example routes.",
+    "The seed installs agents, so the section opens as a band and agents-examples-show opens the cards; the section open from the start, on a screen with nothing else, is held by the Playwright spec tests/agents/examples.spec.ts.",
+    "A stub is static: the list answers one example proposed and one installed from the start, so the card of the installed one (agents-example-installed, agents-example-open-sheet) is read without an installation, and the card of the accepted one still reads proposed afterwards. agents-example-open-sheet is read and not clicked: the stubbed agent is not installed, and its sheet would wait for it.",
+    "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run: just desktop-dev-automation-seeded scripts/automation/agent-examples-det.json"
+  ]
+}

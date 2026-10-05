@@ -3695,6 +3695,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/packages/examples": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/packages/examples`: the example packages the binary carries,
+         *     each with its agents and their mission, the connections it requires
+         *     (present or missing on this machine) and the installed version when the
+         *     user installed it. None of them is installed until the user chooses it.
+         */
+        get: operations["list_example_packages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages/examples/{name}/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/packages/examples/{name}/install`: install the example.
+         * @description The example is assembled into a package archive and installed like any
+         *     package file: its preview is computed again and its refusal applies, an
+         *     update that adds accesses or connections needs `changesConfirmed`, and the
+         *     installation is recorded in the audit journal. Once installed it is
+         *     uninstalled like any package.
+         */
+        post: operations["install_example_package"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages/examples/{name}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/packages/examples/{name}/preview`: what the example
+         *     contains, what it asks for and which connections it requires, as the
+         *     preview of a package file says it. Nothing is written.
+         */
+        post: operations["preview_example_package"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/packages/install": {
         parameters: {
             query?: never;
@@ -7655,6 +7722,37 @@ export interface components {
             /** @description List of global events. */
             events: string[];
         };
+        /** @description One agent of an example. */
+        ExampleAgent: {
+            /** @description Agent identifier. */
+            id: string;
+            /** @description What the agent does. */
+            mission: string;
+            /** @description Display name. */
+            name: string;
+        };
+        /** @description Body of `POST /api/v1/packages/examples/{name}/install`. */
+        ExampleInstallRequest: {
+            /** @description The user accepted what an update adds. */
+            changesConfirmed?: boolean;
+            /** @description The user accepted the Python dependencies the package installs. */
+            depsConfirmed?: boolean;
+        };
+        /** @description An example as the application proposes it. */
+        ExamplePackage: {
+            /** @description Its agents, each with its mission. */
+            agents: components["schemas"]["ExampleAgent"][];
+            /** @description What the package delivers. */
+            description: string;
+            /** @description Installed version, when the user installed it. */
+            installedVersion?: string | null;
+            /** @description Package identifier. */
+            name: string;
+            /** @description The connections it requires, present or missing on this machine. */
+            requires: components["schemas"]["RequiredConnectionPreview"][];
+            /** @description Version the binary carries. */
+            version: string;
+        };
         /** @description Body of `POST /api/v1/agent-definitions/{name}/export`. */
         ExportAgentRequest: {
             /**
@@ -9047,7 +9145,7 @@ export interface components {
              *     `deps_confirmation_required`, `changes_confirmation_required`,
              *     `mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,
              *     `policy_key`, `not_found`, `built_in`, `owned_by_package`,
-             *     `journal_unavailable`, `internal`.
+             *     `journal_unavailable`, `example`, `internal`.
              */
             code: string;
             /** @description Human-readable description. */
@@ -20263,6 +20361,148 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_example_packages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The examples */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamplePackage"][];
+                };
+            };
+            /** @description A store cannot be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
+    install_example_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package name of the example */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExampleInstallRequest"];
+            };
+        };
+        responses: {
+            /** @description Installed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallReport"];
+                };
+            };
+            /** @description No example of that name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description Older than the installed version, or agent owned elsewhere */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description A confirmation is missing */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description Store, environment or journal failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description No audit journal, or no MCP manager for the servers it brings */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
+    preview_example_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package name of the example */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackagePreview"];
+                };
+            };
+            /** @description No example of that name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description No audit journal */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
                 };
             };
         };

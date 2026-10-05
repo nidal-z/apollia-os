@@ -19,7 +19,8 @@
 //! A signature that does not hold is refused. An unsigned package installs
 //! with a notice, unless the governance contract requires a signature; a
 //! package Apollia ships inside its binary is the exception, see
-//! [`install_embedded`]. A
+//! [`install_embedded`], and so are the examples it proposes, see
+//! [`proposed_examples`]. A
 //! version older than the installed one is refused unless the caller allows
 //! it. The user's overrides of an agent survive an update: only the package
 //! definition is replaced.
@@ -38,6 +39,7 @@
 //! key is refused ([`InstallRefusal::PublisherNotTrusted`]).
 
 mod embedded;
+mod examples;
 mod export;
 mod install;
 mod preview;
@@ -51,6 +53,8 @@ mod tests;
 #[cfg(test)]
 mod tests_embedded;
 #[cfg(test)]
+mod tests_examples;
+#[cfg(test)]
 mod tests_export;
 #[cfg(test)]
 mod tests_install;
@@ -60,6 +64,10 @@ mod tests_uninstall;
 use apollia_tools::apo_archive::ApoError;
 
 pub use embedded::{install_embedded, EmbeddedOutcome, EMBEDDED_ACTOR};
+pub use examples::{
+    find_example, list_examples, preview_example, proposed_examples, ExampleAgent, ExamplePackage,
+    ExampleSource,
+};
 pub use export::{export_agent, export_plan, publisher_of, AgentExport, ExportError, ExportPlan};
 pub use install::{
     commit, prepare, CommitTargets, InstallOptions, InstallReport, McpServerAdder, StagedInstall,
@@ -126,6 +134,14 @@ pub enum PackageError {
         /// The underlying error.
         #[source]
         source: std::io::Error,
+    },
+    /// An example the binary carries cannot be used as it is.
+    #[error("the example package `{name}` is unusable: {reason}")]
+    Example {
+        /// Folder of the example.
+        name: String,
+        /// Why.
+        reason: String,
     },
     /// The installation could not be recorded in the audit journal.
     #[error("cannot record the installation: {0}")]

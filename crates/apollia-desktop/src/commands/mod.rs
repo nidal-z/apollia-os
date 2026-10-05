@@ -41,6 +41,7 @@ pub mod notifications;
 pub mod observability;
 pub mod onboarding;
 pub mod org_policy;
+pub mod package_examples;
 pub mod package_files;
 pub mod plan_mode;
 pub mod project_migration;

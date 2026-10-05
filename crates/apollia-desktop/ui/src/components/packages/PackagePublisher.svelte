@@ -13,17 +13,19 @@
 
   interface Props {
     preview: PackagePreview;
+    /** The application carries the package: it vouches for it, unsigned. */
+    shipped?: boolean;
     trusting?: boolean;
     /** Offer the trust gesture; off where trusting would change nothing. */
     allowTrust?: boolean;
     ontrust?: () => void;
   }
 
-  let { preview, trusting = false, allowTrust = true, ontrust }: Props = $props();
+  let { preview, shipped = false, trusting = false, allowTrust = true, ontrust }: Props = $props();
 
-  const seal = $derived(publisherState(preview));
+  const seal = $derived(publisherState(preview, shipped));
   const Seal = $derived(
-    seal === "trusted"
+    seal === "trusted" || seal === "shipped"
       ? ShieldCheck
       : seal === "signed_untrusted"
         ? ShieldQuestion
@@ -32,7 +34,7 @@
           : ShieldX,
   );
   const tone = $derived(
-    seal === "trusted"
+    seal === "trusted" || seal === "shipped"
       ? "text-success-a11y"
       : seal === "invalid"
         ? "text-danger-a11y"
