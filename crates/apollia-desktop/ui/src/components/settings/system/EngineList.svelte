@@ -7,9 +7,40 @@
     /** A newer build exists; `tag` names it. */
     | { kind: "available"; tag: string };
 
+  /** What an engine is for: the kinds the type filter offers. */
+  export type EngineType = "inference" | "dictation" | "tools";
+
+  /** The i18n key of each type's name. */
+  export const ENGINE_TYPE_LABEL_KEYS: Record<EngineType, string> = {
+    inference: "settings.engines.type_inference",
+    dictation: "settings.engines.type_dictation",
+    tools: "settings.engines.type_tools",
+  };
+
+  /** What the three filters of the list hold. */
+  export interface EngineFilters {
+    /** Free text, matched against the name, the variant and the version. */
+    query: string;
+    /** True to keep only the engines this machine can run: the default. */
+    compatibleOnly: boolean;
+    /** One type, or `"all"`. */
+    type: EngineType | "all";
+  }
+
+  /** The filters a page opens on. */
+  export const DEFAULT_ENGINE_FILTERS: EngineFilters = {
+    query: "",
+    compatibleOnly: true,
+    type: "all",
+  };
+
   /** What a row of the engine list says: which engine, built for what, at which version. */
   export interface EngineRow {
     id: string;
+    /** What the engine is for. */
+    type: EngineType;
+    /** False when this machine has not the hardware the build is made for. */
+    compatible: boolean;
     /** Upstream project name, a proper noun, never translated. */
     name: string;
     /** `metal`, `cuda`, `vulkan`, `cpu`, or `null` when the build does not say. */
@@ -68,6 +99,34 @@
     nodejs: "Node.js",
   };
 
+  const ENGINE_TYPES: Record<EngineEntry["engine"], EngineType> = {
+    "llama-server": "inference",
+    "vllm-mlx": "inference",
+    nodejs: "tools",
+  };
+
+  /**
+   * Whether this machine can run the build `e`, given the `accelerator.kind`
+   * of the hardware probe. The engine shipped with the application is made
+   * for this machine. A build of the store needs what its variant names: an
+   * NVIDIA card for CUDA, an Apple chip for Metal and for the MLX engine, a
+   * graphics card for Vulkan. An unknown machine excludes nothing.
+   */
+  export function engineCompatible(e: EngineEntry, acceleratorKind: string | null): boolean {
+    if (acceleratorKind === null || e.source === "embedded") return true;
+    if (e.engine === "vllm-mlx") return acceleratorKind === "apple_silicon";
+    switch (e.variant) {
+      case "cuda":
+        return acceleratorKind === "cuda";
+      case "metal":
+        return acceleratorKind === "apple_silicon";
+      case "vulkan":
+        return acceleratorKind === "cuda" || acceleratorKind === "generic";
+      default:
+        return true;
+    }
+  }
+
   const ENGINE_ROLES: Record<EngineEntry["engine"], string> = {
     "llama-server": "settings.engines.role_gguf",
     "vllm-mlx": "settings.engines.role_mlx",
@@ -79,10 +138,15 @@
    * The version is the one the runtime read from the engine itself; nothing
    * here supplies one.
    */
-  export function engineRows(response: EnginesResponse | null): EngineRow[] {
+  export function engineRows(
+    response: EnginesResponse | null,
+    acceleratorKind: string | null = null,
+  ): EngineRow[] {
     if (!response) return [];
     const rows: EngineRow[] = response.engines.map((e, i) => ({
       id: `${e.engine}-${e.variant ?? "any"}-${e.tag ?? e.source}-${i}`,
+      type: ENGINE_TYPES[e.engine],
+      compatible: engineCompatible(e, acceleratorKind),
       name: ENGINE_NAMES[e.engine],
       variant: e.variant,
       roleKey: ENGINE_ROLES[e.engine],
@@ -97,6 +161,8 @@
     if (response.dictation) {
       rows.push({
         id: "whisper",
+        type: "dictation",
+        compatible: true,
         name: "whisper.cpp",
         variant: null,
         roleKey: "settings.engines.role_dictation",
@@ -126,6 +192,30 @@
         return null;
     }
   }
+
+  /** The types `rows` carry, in the order the filter lists them. */
+  export function presentEngineTypes(rows: EngineRow[]): EngineType[] {
+    const order: EngineType[] = ["inference", "dictation", "tools"];
+    return order.filter((type) => rows.some((row) => row.type === type));
+  }
+
+  /**
+   * The rows the filters keep: those this machine can run unless every engine
+   * is asked for, of the type asked for, whose name, variant or version
+   * carries the text searched, case ignored.
+   */
+  export function filterEngineRows(rows: EngineRow[], filters: EngineFilters): EngineRow[] {
+    const query = filters.query.trim().toLowerCase();
+    return rows.filter((row) => {
+      if (filters.compatibleOnly && !row.compatible) return false;
+      if (filters.type !== "all" && row.type !== filters.type) return false;
+      if (query === "") return true;
+      const text = [row.name, row.variant ?? "", row.version ?? "", row.tag ?? ""]
+        .join(" ")
+        .toLowerCase();
+      return text.includes(query);
+    });
+  }
 </script>
 
 <script lang="ts">
@@ -135,11 +225,14 @@
    * the one in service, where each stands against the followed channel, and
    * the dictation engine. One table, one source: the engine list of the
    * runtime. The developer mode adds the channel, the source of each engine
-   * and the tag the channel published it under. The diagnostic copy composes
-   * the same facts.
+   * and the tag the channel published it under. Three filters narrow the
+   * table: a search, the engines this machine can run or all of them, and
+   * the type of engine. The diagnostic copy composes the same facts, filters
+   * aside.
    */
   import { t } from "svelte-i18n";
-  import { Cpu, Copy, Check, Activity, RefreshCw } from "lucide-svelte";
+  import { Cpu, Copy, Check, Activity, RefreshCw, Search } from "lucide-svelte";
+  import { Input } from "$lib/components/ui/input";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Select } from "$lib/components/ui/select";
@@ -159,6 +252,10 @@
     response: EnginesResponse | null;
     loading: boolean;
     error: string | null;
+    /** `accelerator.kind` of the hardware probe; `null` until it answers. */
+    acceleratorKind?: string | null;
+    /** The filters the list opens on. */
+    initialFilters?: EngineFilters;
     /** Lines of the diagnostic block that precede the engines. */
     diagnosticHead: string[];
     /** Developer mode: the channel, the sources and the channel tags are shown. */
@@ -175,6 +272,8 @@
     response,
     loading,
     error,
+    acceleratorKind = null,
+    initialFilters = DEFAULT_ENGINE_FILTERS,
     diagnosticHead,
     developer,
     checking,
@@ -183,7 +282,18 @@
     oncheck,
   }: Props = $props();
 
-  const rows = $derived(engineRows(response));
+  const rows = $derived(engineRows(response, acceleratorKind));
+
+  // The filters belong to this visit of the page: they are not a setting.
+  // svelte-ignore state_referenced_locally
+  let query = $state(initialFilters.query);
+  // svelte-ignore state_referenced_locally
+  let compatibleOnly = $state(initialFilters.compatibleOnly);
+  // svelte-ignore state_referenced_locally
+  let type = $state<EngineType | "all">(initialFilters.type);
+
+  const types = $derived(presentEngineTypes(rows));
+  const shown = $derived(filterEngineRows(rows, { query, compatibleOnly, type }));
 
   function label(row: EngineRow): string {
     const variant = variantLabel(row.variant, $t("settings.engines.variant_cpu"));
@@ -286,8 +396,50 @@
       {$t("settings.engines.empty")}
     </p>
   {:else}
+    <div class="flex flex-wrap items-center gap-2 pb-2" data-testid="engines-filters">
+      <div class="min-w-0 flex-1">
+        <Input
+          size="sm"
+          icon={Search}
+          bind:value={query}
+          placeholder={$t("settings.engines.search_placeholder")}
+          aria-label={$t("settings.engines.search_placeholder")}
+          data-testid="engines-search"
+        />
+      </div>
+      <Select
+        size="sm"
+        value={compatibleOnly ? "compatible" : "all"}
+        onchange={(e) => (compatibleOnly = e.currentTarget.value !== "all")}
+        aria-label={$t("settings.engines.filter_compat_label")}
+        data-testid="engines-filter-compat"
+      >
+        <option value="compatible">{$t("settings.engines.filter_compatible")}</option>
+        <option value="all">{$t("settings.engines.filter_all")}</option>
+      </Select>
+      <Select
+        size="sm"
+        value={type}
+        onchange={(e) => {
+          const chosen = e.currentTarget.value;
+          type = types.find((known) => known === chosen) ?? "all";
+        }}
+        aria-label={$t("settings.engines.filter_type_label")}
+        data-testid="engines-filter-type"
+      >
+        <option value="all">{$t("settings.engines.type_all")}</option>
+        {#each types as known (known)}
+          <option value={known}>{$t(ENGINE_TYPE_LABEL_KEYS[known])}</option>
+        {/each}
+      </Select>
+    </div>
+    {#if shown.length === 0}
+      <p class="py-3 text-body-sm text-muted-foreground" data-testid="engines-list-no-match">
+        {$t("settings.engines.no_match")}
+      </p>
+    {/if}
     <ul class="divide-y divide-border/50">
-      {#each rows as row (row.id)}
+      {#each shown as row (row.id)}
         <li class="flex items-start gap-3 py-3" data-testid="engine-row">
           <Activity size={15} strokeWidth={1.75} class="mt-0.5 shrink-0 text-muted-foreground" />
           <div class="min-w-0 flex-1">

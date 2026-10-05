@@ -66,6 +66,9 @@
     "danger-card-factory-reset",
     "dashboard-agent-row-seed-classifier",
     "empty-state-plan-cache",
+    "engine-format-gguf",
+    "engine-format-gguf-fell-back",
+    "engine-format-gguf-select",
     "env-input-BRAVE_API_KEY",
     "env-toggle-BRAVE_API_KEY",
     "global-event-agent.degraded",
@@ -15128,6 +15131,16 @@
     },
     {
       "kind": "waitFor",
+      "testid": "engines-filter-compat",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engines-filter-compat",
+      "value": "all"
+    },
+    {
+      "kind": "waitFor",
       "testid": "engine-row-update-available",
       "contains": "b7100",
       "timeoutMs": 4000
@@ -15161,6 +15174,374 @@
       "label": "56b-engines-check-refused"
     },
     {
+      "kind": "expect",
+      "testid": "engines-selection"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-format-gguf"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_setting",
+      "resolve": {
+        "key": "engines.gguf",
+        "value": "vulkan",
+        "source": "user"
+      },
+      "argsMatch": {
+        "key": "engines.gguf"
+      },
+      "once": true
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engine-format-gguf-select",
+      "value": "vulkan"
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "screenshot",
+      "label": "56e-engines-format-gguf-vulkan-chosen"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_engines"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "resolve": {
+        "engines": [
+          {
+            "engine": "llama-server",
+            "variant": "metal",
+            "source": "embedded",
+            "tag": null,
+            "version": "7001 (0ff1ce0)",
+            "in_service": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "source": "downloaded",
+            "tag": "b7001",
+            "version": "7001 (0ff1ce0)",
+            "in_service": false
+          }
+        ],
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          }
+        ],
+        "cuda_proposable": false,
+        "dictation": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-format-gguf-fell-back",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56f-engines-format-variant-removed"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_setting",
+      "resolve": {
+        "key": "engines.gguf",
+        "value": "embedded",
+        "source": "user"
+      },
+      "argsMatch": {
+        "key": "engines.gguf"
+      },
+      "once": true
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engine-format-gguf-select",
+      "value": "embedded"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-format-gguf-fell-back",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_engines"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "resolve": {
+        "engines": [
+          {
+            "engine": "llama-server",
+            "variant": "metal",
+            "source": "embedded",
+            "tag": null,
+            "version": "7001 (0ff1ce0)",
+            "in_service": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "source": "downloaded",
+            "tag": "b7001",
+            "version": "7001 (0ff1ce0)",
+            "in_service": false
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "source": "imported",
+            "tag": "b6900",
+            "version": "6800 (deadbee)",
+            "in_service": false
+          }
+        ],
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ],
+        "cuda_proposable": false,
+        "dictation": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-update-latest",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "engines-auto-update"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_setting",
+      "resolve": {
+        "key": "engines.auto_update",
+        "value": false,
+        "source": "user"
+      },
+      "argsMatch": {
+        "key": "engines.auto_update"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-auto-update-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "screenshot",
+      "label": "56g-engines-auto-update-off"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_setting",
+      "resolve": {
+        "key": "engines.auto_update",
+        "value": true,
+        "source": "user"
+      },
+      "argsMatch": {
+        "key": "engines.auto_update"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-auto-update-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "fill",
+      "testid": "engines-search",
+      "text": "zzz-no-engine-xyz"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-list-no-match",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "engines-filters"
+    },
+    {
+      "kind": "screenshot",
+      "label": "56h-engines-search-no-match"
+    },
+    {
+      "kind": "fill",
+      "testid": "engines-search",
+      "text": ""
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engines-list-no-match",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engines-filter-type",
+      "value": "inference"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-name"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-version"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engines-filter-type",
+      "value": "all"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engines-filter-compat",
+      "value": "compatible"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-in-service"
+    },
+    {
+      "kind": "screenshot",
+      "label": "56i-engines-compatible-only"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "engines.auto_update"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-hardware"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "advanced-section",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-engines"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-auto-update-policy",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56j-engines-auto-update-imposed"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resolved_setting"
+    },
+    {
       "kind": "click",
       "testid": "settings-nav-developer"
     },
@@ -15185,6 +15566,16 @@
       "kind": "waitFor",
       "testid": "engines-channel",
       "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-filter-compat",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engines-filter-compat",
+      "value": "all"
     },
     {
       "kind": "expect",

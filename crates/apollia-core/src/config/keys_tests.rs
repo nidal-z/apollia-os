@@ -134,6 +134,9 @@ fn every_section_carries_the_reload_class_of_the_measured_table() {
         ("server.jit_keep_last_only", ReloadClass::Reloadable),
         ("server.separate_reasoning_content", ReloadClass::Reloadable),
         ("engines", ReloadClass::Reloadable),
+        // Read once, when each engine supervisor locates what it starts.
+        ("engines.gguf", ReloadClass::Restart),
+        ("engines.mlx", ReloadClass::Restart),
         ("author", ReloadClass::Reloadable),
         // Read again at every model launch, unlike the rest of `[llm]`.
         ("llm.guardrails", ReloadClass::Reloadable),
@@ -259,6 +262,9 @@ fn the_named_settings_are_lockable() {
             "server.separate_reasoning_content",
             "server.serve_on_lan",
             "engines.log_level",
+            "engines.gguf",
+            "engines.mlx",
+            "engines.auto_update",
             "author.name",
         ]
     );

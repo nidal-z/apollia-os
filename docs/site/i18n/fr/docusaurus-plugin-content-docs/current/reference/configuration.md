@@ -105,7 +105,7 @@ avertissement `config.key.retired`.
 | `[observability]` | Capture et rétention des traces, documentées plus bas. |
 | `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` ou `always`), et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
 | `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`, `cors`, et le chargement à la demande : `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`, et `separate_reasoning_content`. |
-| `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`). |
+| `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`, `gguf`, `mlx`, `auto_update`). |
 | `[author]` | Le nom d'éditeur des agents exportés depuis cette machine (`name`). |
 
 Les tableaux ci-dessous suivent le registre des clés du moteur, la liste dont
@@ -320,6 +320,9 @@ Réglages des moteurs d'inférence locaux.
 | Clé | Type | Défaut | Rôle |
 | --- | --- | --- | --- |
 | `engines.log_level` | l'une de error, warning, info, debug | `"debug"` | Niveau de journal du moteur local, appliqué au prochain chargement d'un modèle. La politique de l'organisation peut l'imposer. |
+| `engines.gguf` | l'une de auto, embedded, cuda, vulkan, cpu, metal | `"auto"` | Moteur qui sert les modèles GGUF : le choix automatique, le moteur livré avec l'application, ou une variante installée par le magasin de moteurs. Une variante qui n'est plus installée retombe sur le choix automatique. Lu au démarrage suivant. La politique de l'organisation peut l'imposer. |
+| `engines.mlx` | l'une de auto, embedded, metal | `"auto"` | Moteur qui sert les modèles MLX sur un Mac à puce Apple : le choix automatique, le moteur livré avec l'application, ou celui installé par le magasin de moteurs. Lu au démarrage suivant. La politique de l'organisation peut l'imposer. |
+| `engines.auto_update` | booléen | `true` | Télécharger et vérifier la mise à jour d'un moteur choisi quand le canal suivi en annonce une ; éteint, la mise à jour est seulement annoncée. La politique de l'organisation peut l'imposer. |
 
 ### `[author]`
 
