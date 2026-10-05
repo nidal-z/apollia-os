@@ -29,6 +29,13 @@ vi.mock("@tauri-apps/api/event", () => ({
   emit: vi.fn(async () => {}),
 }));
 
+// The tooltip primitive needs the provider the application shell mounts; here
+// it only has to hand its trigger through, so the "?" of the guardrails is
+// rendered bare.
+vi.mock("$lib/components/ui/tooltip", () => ({
+  Tooltip: (out: unknown, props: { children?: (out: unknown) => void }) => props.children?.(out),
+}));
+
 import Engines from "./Engines.svelte";
 import System from "./System.svelte";
 import ResourceMonitor, {

@@ -54,6 +54,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::llm_loaded::list_loaded_models,
         commands::llm_loaded::unload_loaded_model,
         commands::model_hub::get_hardware_profile,
+        commands::hardware_window::open_hardware_window,
         commands::recommend::recommend_models,
         commands::model_hub::search_hf_models,
         commands::model_hub::get_hf_model,

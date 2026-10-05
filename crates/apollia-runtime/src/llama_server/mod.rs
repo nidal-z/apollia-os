@@ -19,6 +19,7 @@
 //! Whisper STT still lives in `apollia-runner`; only the LLM engine moves here.
 
 mod config;
+pub mod devices;
 mod embeddings;
 mod engine_facts;
 mod explicit;
@@ -290,6 +291,9 @@ impl LlamaServerSupervisor {
         let n_ctx = resolve_env_overrides(&config, env_getter).n_ctx;
         let max_loaded = resolve_max_loaded(env_getter);
         let n_ctx_pinned = env_getter(config::ENV_N_CTX).is_some();
+        // The devices held back count in every estimate from the first one,
+        // before any model is loaded.
+        devices::sync_selection(config_file.as_deref(), &imposed);
         Ok(Arc::new(Self {
             bin_path,
             n_ctx,

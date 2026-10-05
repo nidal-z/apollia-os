@@ -30,13 +30,13 @@ sidebar_position: 5
 
 ## Report a problem with the right information
 
-1. Still on the **About** page, in the **Version and build** section, click **Copy diagnostic report**. This copies a plain-text block with the version, the platform, the Python interpreter, the data directory, both engines and the license.
+1. In **Settings**, open **Hardware** (in the **System** group) and click **Copy the information** in its header. This copies a plain-text block with the version, the operating system, the processor, the memory, each GPU, and each engine with its version. In developer mode it also carries the Python interpreter, the configuration file and the data directory.
 
 2. In the **Resources** section, click **Report a problem**. Your browser opens a new issue on the public repository.
 
-3. Paste the diagnostic report into the issue, then describe what you were doing and what you expected instead.
+3. Paste that block into the issue, then describe what you were doing and what you expected instead.
 
-> **Nothing is sent automatically.** The diagnostic report goes to your clipboard and nowhere else. Read it before pasting it, and remove any path you would rather not publish.
+> **Nothing is sent automatically.** The block goes to your clipboard and nowhere else. Read it before pasting it, and remove any path you would rather not publish.
 
 ## Back up or erase everything
 

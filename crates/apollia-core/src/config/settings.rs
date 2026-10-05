@@ -26,9 +26,10 @@ use serde::Serialize;
 use serde_json::Value;
 
 use super::{
-    AuthorConfig, DesktopConfig, EnginesConfig, LlmDefaultsConfig, LlmImagesConfig,
-    LlmResidencyConfig, McpConfig, ModelsConfig, ServerConfig, CONTEXT_MODES, CONTEXT_MODE_KEY,
-    ENGINE_LOG_LEVELS, GGUF_ENGINE_CHOICES, LOAD_BYPASS_KEY, LOAD_BYPASS_MODES, MLX_ENGINE_CHOICES,
+    AuthorConfig, DesktopConfig, EnginesConfig, LlmDefaultsConfig, LlmDevicesConfig,
+    LlmImagesConfig, LlmResidencyConfig, McpConfig, ModelsConfig, ServerConfig, CONTEXT_MODES,
+    CONTEXT_MODE_KEY, ENGINE_LOG_LEVELS, GGUF_ENGINE_CHOICES, LOAD_BYPASS_KEY, LOAD_BYPASS_MODES,
+    MLX_ENGINE_CHOICES,
 };
 
 /// Wire names of the load guardrail levels, the values `llm.guardrails.level`
@@ -167,8 +168,9 @@ pub enum SettingError {
 /// (`llm.guardrails.level`, `llm.guardrails.ceiling_gb`, where `0` sets no
 /// ceiling, `llm.guardrails.bypass`), the idle unload delay of a local model
 /// (`llm.residency.idle_unload_minutes`, where `0` never unloads), the default
-/// context window (`[llm.defaults]`) and the image ceiling (`[llm.images]`),
-/// then the whole `[server]` and `[engines]` sections.
+/// context window (`[llm.defaults]`), the image ceiling (`[llm.images]`) and
+/// the graphics devices held back (`[llm.devices]`), then the whole `[server]`
+/// and `[engines]` sections.
 fn defaults() -> serde_json::Map<String, Value> {
     let mut sections = serde_json::Map::new();
     // A struct of plain fields always serializes; a failure would only make
@@ -197,6 +199,7 @@ fn defaults() -> serde_json::Map<String, Value> {
                 serde_json::to_value(LlmDefaultsConfig::default()),
             ),
             ("images", serde_json::to_value(LlmImagesConfig::default())),
+            ("devices", serde_json::to_value(LlmDevicesConfig::default())),
         ] {
             if let Ok(section) = section {
                 llm.insert(name.to_owned(), section);

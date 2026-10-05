@@ -293,7 +293,7 @@ BILINGUAL_DATA = (
 #   prompt     French text sent to a model, because the operator writes French
 FRENCH_DATA: dict[str, int] = {
     # locale: the French half of a bilingual surface
-    "crates/apollia-desktop/src/i18n.rs": 16,
+    "crates/apollia-desktop/src/i18n.rs": 17,
     # The French label and explanation of the trash row of Settings > Chat,
     # pinned word for word by the test of that row.
     "crates/apollia-desktop/ui/src/routes/settings/ChatSettings.test.ts": 3,

@@ -175,6 +175,14 @@ pub fn overlay_recording(l: UiLocale) -> &'static str {
     }
 }
 
+/// Window title of the hardware window.
+pub fn hardware_window_title(l: UiLocale) -> &'static str {
+    match l {
+        UiLocale::Fr => "Matériel",
+        UiLocale::En => "Hardware",
+    }
+}
+
 /// Error a command not routed yet answers while the runtime is a daemon.
 pub(crate) fn attached_unavailable(locale: UiLocale, command: &str) -> String {
     match locale {
@@ -306,6 +314,10 @@ mod tests {
             (
                 overlay_recording(UiLocale::Fr),
                 overlay_recording(UiLocale::En),
+            ),
+            (
+                hardware_window_title(UiLocale::Fr),
+                hardware_window_title(UiLocale::En),
             ),
         ];
         // WHEN comparing the two locales pairwise

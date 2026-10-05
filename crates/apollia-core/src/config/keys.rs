@@ -126,6 +126,7 @@ pub const KEYS: &[ConfigKey] = &[
     locked(key("llm.defaults.context_tokens", Integer, Some("0"), Reloadable, "Default context window, in tokens, when llm.defaults.context is custom; 0 lets the engine size it to the memory of this machine, model by model, up to 32768.")),
     locked(key("llm.images.limit_side", Boolean, Some("true"), Reloadable, "Scale an image down before it is sent to a model when its largest side exceeds llm.images.max_side_px.")),
     locked(key("llm.images.max_side_px", Integer, Some("2048"), Reloadable, "Largest side, in pixels, of an image sent to a model; proportions are kept.")),
+    locked(key("llm.devices.disabled", StringArray, Some("[]"), Reloadable, "Graphics devices the local engine is kept away from, each named as the engine lists it (CUDA0, Vulkan1): a listed device receives no layer and its memory is left out of every estimate; empty leaves the engine every device.")),
     withdrawn("llm.vertex", "the Google Vertex AI client was removed; declare an OpenAI-compatible server instead"),
     // [api]
     key("api.bind", KeyType::String, Some("\"127.0.0.1\""), Restart, "Address the daemon's TCP listener binds to."),

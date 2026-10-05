@@ -145,6 +145,8 @@ fn every_section_carries_the_reload_class_of_the_measured_table() {
         // Read again at every model load, and at every image attached.
         ("llm.defaults", ReloadClass::Reloadable),
         ("llm.images", ReloadClass::Reloadable),
+        // Read again at every model load and every read of the hardware.
+        ("llm.devices", ReloadClass::Reloadable),
     ];
 
     // WHEN every live key of those sections is read, against its longest
@@ -237,6 +239,7 @@ fn the_named_settings_are_lockable() {
             "llm.defaults.context_tokens",
             "llm.images.limit_side",
             "llm.images.max_side_px",
+            "llm.devices.disabled",
             "mcp.approval_ttl_hours",
             "mcp.tool_loading",
             "mcp.tool_search_limit",

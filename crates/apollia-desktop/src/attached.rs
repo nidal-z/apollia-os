@@ -429,6 +429,10 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "stops the daemon through its own route, then relaunches this window, which starts the service again and attaches",
     ),
     (
+        "open_hardware_window",
+        "opens or brings forward a window of this application; what it shows is read by routed commands",
+    ),
+    (
         "quit_app",
         "closes this window and leaves the daemon serving",
     ),

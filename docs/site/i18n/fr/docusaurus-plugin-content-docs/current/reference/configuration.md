@@ -175,6 +175,7 @@ Backends LLM, routage, et le runner de transcription. Le fichier par défaut lai
 | `llm.defaults.context_tokens` | entier | `0` | Fenêtre de contexte par défaut, en jetons, quand llm.defaults.context vaut custom ; 0 laisse le moteur la dimensionner à la mémoire de cette machine, modèle par modèle, jusqu'à 32768. La politique de l'organisation peut l'imposer. |
 | `llm.images.limit_side` | booléen | `true` | Réduire une image avant de l'envoyer à un modèle quand son plus grand côté dépasse llm.images.max_side_px. La politique de l'organisation peut l'imposer. |
 | `llm.images.max_side_px` | entier | `2048` | Plus grand côté, en pixels, d'une image envoyée à un modèle ; les proportions sont gardées. La politique de l'organisation peut l'imposer. |
+| `llm.devices.disabled` | liste de chaînes | `[]` | Périphériques graphiques dont le moteur local est tenu à l'écart, chacun nommé comme le moteur le liste (CUDA0, Vulkan1) : un périphérique listé ne reçoit aucune couche et sa mémoire sort de toute estimation ; vide, le moteur garde tous les périphériques. La politique de l'organisation peut l'imposer. |
 
 ### `[api]`
 
@@ -637,6 +638,24 @@ image voyage à sa taille, jusqu'à ce que le moteur accepte.
 garde-fou a refusé : `confirm` montre une confirmation qui rappelle le risque,
 `unrestricted` charge aussitôt. Le garde-fou lui-même n'est pas affaibli : le
 refus reste affiché, et une requête qui ne confirme pas reste refusée.
+
+`[llm.devices]` nomme les périphériques graphiques dont le moteur local est
+tenu à l'écart, chacun par l'identifiant qu'affiche
+`llama-server --list-devices`. L'application l'écrit depuis Réglages, Matériel,
+où chaque périphérique a son interrupteur.
+
+```toml
+[llm.devices]
+disabled = ["CUDA1"]
+```
+
+Un périphérique listé sort de la liste `--device` avec laquelle le moteur est
+lancé, et sa mémoire sort de l'estimation que lisent le badge de compatibilité,
+le garde-fou de chargement et le plan de déchargement. Tous les périphériques
+listés, le moteur tourne sur le seul processeur (`--device none`, `-ngl 0`).
+Un identifiant que le moteur ne liste pas est ignoré. Une machine à mémoire
+unifiée n'a qu'un périphérique, qui n'est jamais coupé. La section est relue à
+chaque chargement : un changement s'applique au prochain modèle chargé.
 
 ## Dictée (`system.db`, pas `apollia.toml`)
 

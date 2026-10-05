@@ -21,6 +21,7 @@ pub mod cli;
 pub mod config;
 pub mod connections;
 pub mod embeddings;
+pub mod hardware_window;
 pub mod hf_token;
 pub mod hitl;
 pub mod integrations;

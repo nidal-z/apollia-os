@@ -9,7 +9,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{LlmDefaultsConfig, LlmImagesConfig, LlmResidencyConfig, LlmRoutingConfig};
+use super::{
+    LlmDefaultsConfig, LlmDevicesConfig, LlmImagesConfig, LlmResidencyConfig, LlmRoutingConfig,
+};
 use crate::{LlmBackendConfig, LlmProvider};
 
 /// LLM configuration deserialized from the `[llm]` section of `apollia.toml`.
@@ -54,6 +56,10 @@ pub struct LlmConfig {
     /// The largest side of an image sent to a model (`[llm.images]` section).
     #[serde(default)]
     pub images: LlmImagesConfig,
+    /// The graphics devices held back from the local engine (`[llm.devices]`
+    /// section), read again at every load.
+    #[serde(default)]
+    pub devices: LlmDevicesConfig,
 }
 
 /// The `[llm.guardrails]` section: how strictly a local model launch is held
@@ -113,6 +119,7 @@ impl LlmConfig {
             residency: LlmResidencyConfig::default(),
             defaults: LlmDefaultsConfig::default(),
             images: LlmImagesConfig::default(),
+            devices: LlmDevicesConfig::default(),
         }
     }
 

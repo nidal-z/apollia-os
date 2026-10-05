@@ -32,6 +32,7 @@
   import { RouteTransition } from "$lib/components/ui/route-transition";
   import SettingSectionSkeleton from "../components/settings/SettingSectionSkeleton.svelte";
   import UnsavedChangesBadge from "../components/settings/UnsavedChangesBadge.svelte";
+  import HardwareHeaderActions from "../components/settings/system/HardwareHeaderActions.svelte";
   import UnsavedChangesDialog from "../components/settings/UnsavedChangesDialog.svelte";
   import { Button } from "$lib/components/ui/button";
   import { SETTINGS_NAV, visibleSettingsNav } from "$lib/settings/settingsNav";
@@ -432,6 +433,9 @@
     <div class="flex min-w-0 flex-1 flex-col overflow-hidden" data-testid="settings-content">
       <PageHeader kicker={head.kicker} title={head.title} subtitle={head.subtitle}>
         {#snippet actions()}
+          {#if $settingsSubRoute === "hardware"}
+            <HardwareHeaderActions />
+          {/if}
           <UnsavedChangesBadge />
           {#if !currentDirty}
             <span

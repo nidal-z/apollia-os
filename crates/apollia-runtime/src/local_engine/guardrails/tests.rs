@@ -344,6 +344,7 @@ fn test_an_estimate_of_an_mlx_folder_is_graded_on_the_budget() {
             vram_gb: 16.0,
         },
         memory_budget_gb: 12.0,
+        devices: Vec::new(),
     };
     let footprint = |total_gb: f64| MemoryEstimate {
         weights_gb: total_gb,
