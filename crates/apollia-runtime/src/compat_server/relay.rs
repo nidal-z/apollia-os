@@ -6,8 +6,9 @@
 //! an event stream passed on chunk by chunk, in order, as the engine sends it.
 //! Nothing is translated from one format into another: an endpoint the engine
 //! of the model does not serve answers 404, never an approximation. A chat
-//! completion on an `apollia/...` model is not relayed: the runtime runs the
-//! exposed agent or workflow it names (see [`super::agent_call`]).
+//! completion, a response or a message on an `apollia/...` model is not
+//! relayed: the runtime runs the exposed agent or workflow it names (see
+//! [`super::agent_call`]).
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,7 +23,7 @@ use futures::StreamExt;
 use serde::Serialize;
 use serde_json::Value;
 
-use super::agent_call::{admitted, chat_with_exposed, Caller};
+use super::agent_call::{admitted, call_exposed, Caller, ExposedCall};
 use super::agents::{ExposedAgents, MODEL_PREFIX};
 use super::errors::{error_response, ErrorKind, Family};
 use super::logs::RequestedModel;
@@ -81,7 +82,7 @@ impl Endpoint {
         }
     }
 
-    fn family(self) -> Family {
+    pub(crate) fn family(self) -> Family {
         Family::of_path(self.path())
     }
 }
@@ -364,12 +365,13 @@ fn merged_answer(bytes: Vec<u8>) -> Vec<u8> {
     serde_json::to_vec(&answer).unwrap_or(bytes)
 }
 
-/// `POST /v1/chat/completions`: an `apollia/...` model is an exposed agent or
-/// workflow, run by the runtime; any other is relayed to its engine.
-pub(crate) async fn chat_completions(
-    State(state): State<Arc<RelayState>>,
+/// Answers a call on `endpoint`: an `apollia/...` model is an exposed agent
+/// or workflow, run by the runtime; any other is relayed to its engine.
+async fn run_or_relay(
+    state: &RelayState,
+    endpoint: Endpoint,
     origin: Option<Extension<CallOrigin>>,
-    headers: HeaderMap,
+    headers: &HeaderMap,
     body: Bytes,
 ) -> Response {
     let request: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
@@ -379,27 +381,45 @@ pub(crate) async fn chat_completions(
         .filter(|model| model.starts_with(MODEL_PREFIX))
         .map(str::to_owned)
     else {
-        return relay(&state, Endpoint::ChatCompletions, body).await;
+        return relay(state, endpoint, body).await;
     };
     let caller = Caller {
         origin: origin_of(origin),
-        headers: &headers,
+        headers,
     };
-    let mut response = chat_with_exposed(
+    let mut response = call_exposed(
         &state.agents,
         state.tokens.as_ref(),
         caller,
-        &request,
-        &model,
+        ExposedCall {
+            endpoint,
+            body: &request,
+            model: &model,
+        },
     )
     .await;
     response.extensions_mut().insert(RequestedModel(model));
     response
 }
 
+/// `POST /v1/chat/completions`.
+pub(crate) async fn chat_completions(
+    State(state): State<Arc<RelayState>>,
+    origin: Option<Extension<CallOrigin>>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    run_or_relay(&state, Endpoint::ChatCompletions, origin, &headers, body).await
+}
+
 /// `POST /v1/responses`.
-pub(crate) async fn responses(State(state): State<Arc<RelayState>>, body: Bytes) -> Response {
-    relay(&state, Endpoint::Responses, body).await
+pub(crate) async fn responses(
+    State(state): State<Arc<RelayState>>,
+    origin: Option<Extension<CallOrigin>>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    run_or_relay(&state, Endpoint::Responses, origin, &headers, body).await
 }
 
 /// `POST /v1/embeddings`.
@@ -408,8 +428,13 @@ pub(crate) async fn embeddings(State(state): State<Arc<RelayState>>, body: Bytes
 }
 
 /// `POST /v1/messages`.
-pub(crate) async fn messages(State(state): State<Arc<RelayState>>, body: Bytes) -> Response {
-    relay(&state, Endpoint::Messages, body).await
+pub(crate) async fn messages(
+    State(state): State<Arc<RelayState>>,
+    origin: Option<Extension<CallOrigin>>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    run_or_relay(&state, Endpoint::Messages, origin, &headers, body).await
 }
 
 /// `POST /v1/messages/count_tokens`.

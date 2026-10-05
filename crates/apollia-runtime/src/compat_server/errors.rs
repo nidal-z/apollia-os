@@ -142,11 +142,7 @@ impl ErrorKind {
 /// The body of an OpenAI error of `kind`, with `extra` fields beside its
 /// `message`, `type` and `code`: what a client needs to act on it, such as the
 /// schema an input must follow or the decision a run waits for.
-pub(crate) fn openai_error_body(
-    kind: ErrorKind,
-    message: String,
-    extra: Map<String, Value>,
-) -> Value {
+fn openai_error_body(kind: ErrorKind, message: String, extra: Map<String, Value>) -> Value {
     let (openai_kind, code) = kind.openai();
     let mut error = Map::new();
     error.insert("message".to_owned(), Value::String(message));
@@ -158,14 +154,49 @@ pub(crate) fn openai_error_body(
     Value::Object(body)
 }
 
-/// The answer to an OpenAI error of `kind` carrying `extra` fields (see
-/// [`openai_error_body`]).
-pub(crate) fn openai_error_with(
+/// The body of an Anthropic error of `kind`, with `extra` fields beside its
+/// `type` and `message`.
+fn anthropic_error_body(kind: ErrorKind, message: String, extra: Map<String, Value>) -> Value {
+    let mut error = Map::new();
+    error.insert(
+        "type".to_owned(),
+        Value::String(kind.anthropic().to_owned()),
+    );
+    error.insert("message".to_owned(), Value::String(message));
+    error.extend(extra);
+    let mut body = Map::new();
+    body.insert("type".to_owned(), Value::String("error".to_owned()));
+    body.insert("error".to_owned(), Value::Object(error));
+    Value::Object(body)
+}
+
+/// The body of an error of `kind` in the format of `family`, with `extra`
+/// fields in its error object (see [`openai_error_body`]).
+pub(crate) fn error_body(
+    family: Family,
+    kind: ErrorKind,
+    message: String,
+    extra: Map<String, Value>,
+) -> Value {
+    match family {
+        Family::OpenAi => openai_error_body(kind, message, extra),
+        Family::Anthropic => anthropic_error_body(kind, message, extra),
+    }
+}
+
+/// The answer to an error of `kind` in the format of `family`, carrying
+/// `extra` fields (see [`error_body`]).
+pub(crate) fn error_with(
+    family: Family,
     kind: ErrorKind,
     message: String,
     extra: Map<String, Value>,
 ) -> Response {
-    (kind.status(), Json(openai_error_body(kind, message, extra))).into_response()
+    (
+        kind.status(),
+        Json(error_body(family, kind, message, extra)),
+    )
+        .into_response()
 }
 
 /// The answer to an error of `kind`, in the format of `family`.
@@ -203,6 +234,38 @@ pub(crate) fn error_response(family: Family, kind: ErrorKind, message: String) -
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_the_extra_fields_sit_in_the_error_object_of_each_family() {
+        // GIVEN an error that carries the decision a run waits for
+        let extra = || {
+            let mut extra = Map::new();
+            extra.insert("pending_id".to_owned(), Value::String("batch:b:0".into()));
+            extra
+        };
+
+        // WHEN it is written for each family
+        let openai = error_body(
+            Family::OpenAi,
+            ErrorKind::ApprovalPending,
+            "wait".into(),
+            extra(),
+        );
+        let anthropic = error_body(
+            Family::Anthropic,
+            ErrorKind::ApprovalPending,
+            "wait".into(),
+            extra(),
+        );
+
+        // THEN each keeps its envelope, and the field is beside the message
+        assert_eq!(openai["error"]["code"], "approval_pending");
+        assert_eq!(openai["error"]["pending_id"], "batch:b:0");
+        assert_eq!(anthropic["type"], "error");
+        assert_eq!(anthropic["error"]["type"], "approval_pending");
+        assert_eq!(anthropic["error"]["message"], "wait");
+        assert_eq!(anthropic["error"]["pending_id"], "batch:b:0");
+    }
 
     #[test]
     fn test_only_the_messages_endpoints_read_as_anthropic() {

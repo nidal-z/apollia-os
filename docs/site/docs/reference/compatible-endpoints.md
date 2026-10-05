@@ -269,7 +269,11 @@ lists it after the local models, as `apollia/<id>` with the `type` `agent` or
 its package and its name (`apollia/office/close-month`). An agent identifier
 never carries `/`, so an agent and a workflow never answer to the same name.
 
-A client calls it with `POST /v1/chat/completions`, as it would call a model:
+A client calls it as it would call a model, with the client it already uses:
+`POST /v1/chat/completions`, `POST /v1/responses` or `POST /v1/messages`. The
+rules below hold for the three; the example and the field names are those of
+chat completions, and [the two other formats](#responses-and-messages) say
+where each puts the same things.
 
 ```bash
 curl http://127.0.0.1:7772/v1/chat/completions \
@@ -302,6 +306,53 @@ curl http://127.0.0.1:7772/v1/chat/completions \
   another device presents a token in use, whatever `require_auth` says, and
   `GET /v1/models` does not list them to a device without one.
 
+### Responses and messages
+
+The same run answers a client of the OpenAI Responses API and a client of the
+Anthropic Messages API. Only the reading of the request and the writing of the
+answer change:
+
+| | `POST /v1/responses` | `POST /v1/messages` |
+|---|---|---|
+| The request | The last item of `input` whose role is `user`, or `input` itself when it is a text | The last message of `messages` whose role is `user` |
+| The conversation | The message items before it; an item that is not a message is left out | The messages before it |
+| Instructions of the client | `instructions` | `system`, a text or text blocks |
+| The answer | The last item of `output`, a `message` holding one `output_text` | The last block of `content`, a `text` block |
+| The steps | One `reasoning` item per step, before the message, its text in `summary` | One `thinking` block per step, before the text |
+| `usage` | `input_tokens`, `output_tokens`, `total_tokens` | `input_tokens`, `output_tokens` |
+
+```bash
+curl http://127.0.0.1:7772/v1/messages \
+  -H "content-type: application/json" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{
+    "model": "apollia/demand-clerk",
+    "max_tokens": 1024,
+    "system": "Answer in one line.",
+    "messages": [{"role": "user", "content": "Qualify the demand of Durand."}]
+  }'
+```
+
+- **Instructions are context, never the mission.** `system` and `instructions`
+  open the conversation the agent reads, as a `system` message does in a chat
+  completion. They do not replace the mission the agent was given in Apollia.
+- **A response holds no state either.** `previous_response_id` and
+  `conversation` are refused with a readable `400`: send the earlier messages
+  in `input`. `store` is accepted and ignored, nothing is kept to read back.
+- **A stream follows the events of its API.** For a response:
+  `response.created`, then for each step a reasoning item
+  (`response.output_item.added`, `response.reasoning_summary_text.delta`,
+  `response.output_item.done`), then the message item with the answer in
+  `response.output_text.delta`, then `response.completed` carrying the usage.
+  For a message: `message_start`, then for each step a `thinking` block
+  (`content_block_start`, a `thinking_delta`, `content_block_stop`), then the
+  `text` block with the answer in a `text_delta`, then `message_delta` carrying
+  `stop_reason` and the usage, and `message_stop`.
+- **A `thinking` block has an empty `signature`.** The steps are Apollia's
+  account of the work, not the signed reasoning of a model.
+- **Tokens are not counted beforehand.** `/v1/messages/count_tokens` serves
+  local models only; on an `apollia/...` model it answers `404`.
+
 ### A decision the agent waits for
 
 An agent that reaches for an access nobody granted, such as writing a file
@@ -324,7 +375,27 @@ pending decisions of Apollia, with its notification, and the call answers
 }
 ```
 
-In a stream, the same error object is the last event. Ending the answer does
+On `/v1/messages`, the same fields sit in the error object of the Anthropic
+envelope, whose `type` is `approval_pending`:
+
+```json
+{
+  "type": "error",
+  "error": {
+    "type": "approval_pending",
+    "message": "The agent waits for your approval to use an access nobody granted. ...",
+    "pending_id": "batch:3f1c...:0",
+    "batch_id": "3f1c...",
+    "task_id": "9a7e...",
+    "access": "file_write"
+  }
+}
+```
+
+In a stream, the same error object is the last event: as it stands for a chat
+completion, as an `error` event for a message, and for a response as an `error`
+event whose fields (`code`, `message`, `pending_id` and the others) sit beside
+its `type`. Ending the answer does
 not withdraw the decision: it stays pending until someone answers it, in
 Apollia or through the native API with
 `POST /api/v1/pending-decisions/decide` and the `pending_id`. Once allowed, the
@@ -341,9 +412,9 @@ The table lists every path the compatible server serves.
 |---|---|---|
 | `GET` | `/v1/models` | OpenAI. The loaded models, as a list: `id` (registry identifier), `object`, `created`, `owned_by`, and `type`, `llm` or `embeddings`; then the agents and workflows available to other applications, `apollia/<id>`, of `type` `agent` or `workflow` |
 | `POST` | `/v1/chat/completions` | OpenAI. Relayed to the model's engine; on an `apollia/...` model, run by Apollia (agents and workflows above) |
-| `POST` | `/v1/responses` | OpenAI. Relayed to the model's engine |
+| `POST` | `/v1/responses` | OpenAI. Relayed to the model's engine; on an `apollia/...` model, run by Apollia |
 | `POST` | `/v1/embeddings` | OpenAI. Relayed to the search-by-meaning model |
-| `POST` | `/v1/messages` | Anthropic. Relayed to the model's engine |
+| `POST` | `/v1/messages` | Anthropic. Relayed to the model's engine; on an `apollia/...` model, run by Apollia |
 | `POST` | `/v1/messages/count_tokens` | Anthropic. Relayed to the model's engine (`llama-server` only) |
 
 Measured on `llama-server` at the release Apollia pins (`b10092`): the four
