@@ -445,15 +445,32 @@ pub async fn list_audit_journal<B: ExecutionBackend + Clone>(
     // history, which `offset` walks past.
     let limit = params.limit.min(500) as usize;
     let offset = params.offset as usize;
-    let mut filter = JournalFilter::from_criteria(JournalCriteria {
-        agents: params.agents.as_deref(),
-        families: params.family.as_deref(),
-        natures: params.nature.as_deref(),
-        outcomes: params.result.as_deref(),
-        since: params.since.as_deref(),
-        until: params.until.as_deref(),
-    })
-    .map_err(|e| {
+    let filter = resolve_filter(
+        &state,
+        JournalCriteria {
+            agents: params.agents.as_deref(),
+            families: params.family.as_deref(),
+            natures: params.nature.as_deref(),
+            outcomes: params.result.as_deref(),
+            since: params.since.as_deref(),
+            until: params.until.as_deref(),
+        },
+    )
+    .await?;
+    let entries = handle.query_lines(filter, limit, offset).await;
+    let count = entries.len();
+
+    Ok(Json(AuditJournalPageResponse { entries, count }))
+}
+
+/// The filter `criteria` describe, with the runs of the tasks of its agents
+/// resolved. 400 on a value that cannot be read, 503 when agents are named and
+/// no task repository can resolve them.
+pub(crate) async fn resolve_filter<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    criteria: JournalCriteria<'_>,
+) -> Result<JournalFilter, (StatusCode, Json<ErrorResponse>)> {
+    let mut filter = JournalFilter::from_criteria(criteria).map_err(|e| {
         (
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
@@ -479,10 +496,7 @@ pub async fn list_audit_journal<B: ExecutionBackend + Clone>(
             )
         })?;
     }
-    let entries = handle.query_lines(filter, limit, offset).await;
-    let count = entries.len();
-
-    Ok(Json(AuditJournalPageResponse { entries, count }))
+    Ok(filter)
 }
 
 /// `GET /api/v1/audit/journal/:run_id/entries/:seq`, one entry with its detail.

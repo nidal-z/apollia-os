@@ -1212,7 +1212,7 @@ Audit trail (list, stats, export, verify, show, replay)
 * `list` - List recent audit events (default)
 * `journal` - Browse the hash-chained journal across every run, newest first
 * `stats` - Display audit statistics
-* `export` - Export the audit trail as JSON, up to `--limit` events
+* `export` - Export the hash-chained journal to a file, as CSV or JSON
 * `verify` - Verify the audit journal's hash chains and signatures
 * `anchor` - Print the exportable head anchor of the global chain
 * `replay` - Replay a captured run and detect divergences
@@ -1269,16 +1269,30 @@ Display audit statistics
 
 ## `apollia-os audit export`
 
-Export the audit trail as JSON, up to `--limit` events
+Export the hash-chained journal to a file, as CSV or JSON.
 
-**Usage:** `apollia-os audit export [OPTIONS]`
+The file holds every entry that passes the filters, newest first, each as its summary: when, who, what, on what, with which result, and its place in the chain. `--detail` adds the payload of each entry and the arguments and output of each tool call, which may hold personal data. The filters are those of `audit journal`. The file is written on this machine, and the export is itself recorded in the journal.
+
+**Usage:** `apollia-os audit export [OPTIONS] --format <FORMAT> --output <PATH>`
 
 ###### **Options:**
 
-* `--output <PATH>` - Destination file (default: stdout)
-* `--limit <LIMIT>` - Maximum number of events to include (default: 10000)
+* `--format <FORMAT>` - Format of the file
 
-  Default value: `10000`
+  Possible values:
+  - `csv`:
+    Comma-separated values, UTF-8, one header row
+  - `json`:
+    One JSON document with the entries
+
+* `--detail` - Add the detail of each entry: its payload, and the arguments and output of its tool call. May hold personal data
+* `--agent <AGENT>` - Keep what names this agent, and the runs of its tasks. Repeat it for several agents
+* `--family <FAMILY>` - Keep this action family: read, read_personal, write_or_delete, send_external, execute_code. Repeat it for several
+* `--nature <NATURE>` - Keep this nature: action, access_change, policy, system. Repeat it for several
+* `--result <RESULT>` - Keep this result: success, failure, refused. Repeat it for several
+* `--since <DATE>` - Start of the period, included: YYYY-MM-DD (UTC) or an RFC 3339 instant
+* `--until <DATE>` - End of the period, excluded: YYYY-MM-DD (UTC) or an RFC 3339 instant
+* `--output <PATH>` - File the export is written to
 
 
 
@@ -1324,7 +1338,7 @@ Compares the replayed run against its captured trace across every category: LLM 
 
 Show a run's full journal, including the model's LLM completions.
 
-Unlike `audit list`/`export` (the tool-only audit trail), this reads the hash-chained journal so the captured reasoning (prompts/responses) is readable. Accepts a run_id or a task_id (resolved to its run_id).
+Unlike `audit list` (the tool-only audit trail), this reads the hash-chained journal so the captured reasoning (prompts/responses) is readable. Accepts a run_id or a task_id (resolved to its run_id).
 
 **Usage:** `apollia-os audit show <RUN_OR_TASK>`
 

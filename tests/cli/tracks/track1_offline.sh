@@ -444,6 +444,15 @@ check_exit   "audit stats (off) → 2"   2  "$BIN" --socket "$OFFSOCK" audit sta
 # too: every filter is parsed, and the refusal is the runtime being off.
 check_exit   "audit journal, every filter (off) → 2" 2 "$BIN" --socket "$OFFSOCK" audit journal --agent flux-quotes --family read --family send_external --nature action --result refused --since 2026-10-01 --until 2026-10-04
 check_content "audit journal, every filter (off): refused by the runtime being off" 'runtime not started' bash -c "'$BIN' --socket '$OFFSOCK' audit journal --agent flux-quotes --family read --family send_external --nature action --result refused --since 2026-10-01 --until 2026-10-04; true"
+# The export writes its file itself, from what the runtime answers: with the
+# runtime off it is refused for that reason and the file is not created. A
+# missing --format or --output, and a format the journal is not written in,
+# are usage errors, told apart from the runtime being off by their message.
+check_exit   "audit export, detail and every filter (off) → 2" 2 "$BIN" --socket "$OFFSOCK" audit export --format csv --detail --agent flux-quotes --family read --nature action --result refused --since 2026-10-01 --until 2026-10-04 --output "$RUN_TMP/journal-off.csv"
+check_content "audit export (off): refused by the runtime being off" 'runtime not started' bash -c "'$BIN' --socket '$OFFSOCK' audit export --format json --output '$RUN_TMP/journal-off.json'; true"
+check_content "audit export (off): no file is written" '^absent$' bash -c "'$BIN' --socket '$OFFSOCK' audit export --format csv --output '$RUN_TMP/journal-off.csv' >/dev/null 2>&1; test -e '$RUN_TMP/journal-off.csv' && echo present || echo absent"
+check_content "audit export without --output: usage error" 'required arguments were not provided' bash -c "'$BIN' --socket '$OFFSOCK' audit export --format csv 2>&1; true"
+check_content "audit export --format pdf: usage error naming the formats" 'possible values: csv, json' bash -c "'$BIN' --socket '$OFFSOCK' audit export --format pdf --output '$RUN_TMP/journal-off.pdf' 2>&1; true"
 check_exit   "llm status (off) → 2"    2  "$BIN" --socket "$OFFSOCK" llm status
 check_exit   "llm backends list (off) → 2" 2 "$BIN" --socket "$OFFSOCK" llm backends list
 check_exit   "task list (off) → 2"     2  "$BIN" --socket "$OFFSOCK" task list

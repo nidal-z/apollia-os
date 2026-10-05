@@ -13,7 +13,7 @@ use apollia_permissions::{JournalOutbox, PolicyVerdict};
 
 use crate::audit_journal::{AuditJournalHandle, JournalEntryKind};
 use crate::governance::fail_closed::FailClosed;
-use crate::governance::record::{GovernanceEvent, GovernanceRecord, POLICY_RUN_ID};
+use crate::governance::record::{ExportFilters, GovernanceEvent, GovernanceRecord, POLICY_RUN_ID};
 
 /// Moves the events waiting in the outbox of `db` to `journal`, oldest
 /// first, and removes them from the outbox once the journal holds them.
@@ -162,6 +162,28 @@ pub(crate) fn record_fail_closed(journal: &AuditJournalHandle, state: &FailClose
         &GovernanceEvent::FailClosedTriggered {
             cause: state.cause().to_owned(),
             detail: state.detail(),
+        },
+        now(),
+    );
+}
+
+/// Records that the journal was exported: in which format, how many entries,
+/// narrowed to what, and whether the detail of each entry went with it.
+pub(crate) fn record_export(
+    journal: &AuditJournalHandle,
+    format: &str,
+    entries: u64,
+    filters: ExportFilters,
+    detail: bool,
+) {
+    append(
+        journal,
+        &GovernanceEvent::JournalExported {
+            format: format.to_owned(),
+            entries,
+            actor: "user".to_owned(),
+            filters,
+            detail,
         },
         now(),
     );

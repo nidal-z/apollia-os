@@ -15,8 +15,8 @@ lit un seul :
 
 | Registre | Ce qu'il contient | Commandes qui le lisent |
 |---|---|---|
-| la piste d'invocations d'outils | une table SQLite plate des appels d'outils : ce qui a été exécuté, une empreinte de ses entrées, son succès, sa durée. Ni chaînage par hachage, ni signature. Les mises à jour comme les suppressions sont refusées par un déclencheur | `audit list`, `audit stats`, `audit export` |
-| le journal chaîné par hachage | des entrées rattachées à une exécution, chaînées deux fois, à l'entrée précédente de leur exécution et à l'entrée précédente de n'importe quelle exécution, signées au moment de l'ajout, avec une ancre de tête exportable | `audit journal`, `audit show`, `audit verify`, `audit anchor`, `audit replay` |
+| la piste d'invocations d'outils | une table SQLite plate des appels d'outils : ce qui a été exécuté, une empreinte de ses entrées, son succès, sa durée. Ni chaînage par hachage, ni signature. Les mises à jour comme les suppressions sont refusées par un déclencheur | `audit list`, `audit stats` |
+| le journal chaîné par hachage | des entrées rattachées à une exécution, chaînées deux fois, à l'entrée précédente de leur exécution et à l'entrée précédente de n'importe quelle exécution, signées au moment de l'ajout, avec une ancre de tête exportable | `audit journal`, `audit export`, `audit show`, `audit verify`, `audit anchor`, `audit replay` |
 
 Pour comprendre la logique de ce modèle et son lien avec les exigences
 réglementaires, voir [Le modèle de responsabilisation](/explanation/accountability-model).
@@ -43,8 +43,9 @@ apollia-os audit stats
 Le point de terminaison derrière `audit list` ne sert au maximum que 500
 événements par requête, et cette commande ne parcourt pas les pages au-delà :
 `--limit 2000` rend les 500 événements les plus récents, présentés comme la
-réponse entière et sans aucun avertissement. Utilisez `audit export`, qui
-parcourt les pages, quand il vous en faut plus de 500.
+réponse entière et sans aucun avertissement. Par l'API, la route prend un
+`offset` qui passe ce plafond, comme dans
+`GET /api/v1/audit?limit=500&offset=500`.
 
 Pour lire les entrées d'une exécution donnée dans le journal chaîné par
 hachage, y compris les complétions du modèle capturées, résolvez-la par un
@@ -103,30 +104,51 @@ apollia-os audit journal --nature access_change --since 2026-10-01
 apollia-os audit journal --family send_external --result refused
 ```
 
-Pour extraire la piste d'invocations d'outils à des fins d'archivage ou de revue
-externe :
+## Exporter le journal
+
+Pour remettre le journal à un audit ou le conserver pour une revue,
+exportez-le dans un fichier, en CSV ou en JSON. `--format` et `--output` sont
+tous deux obligatoires, et les cinq filtres de `audit journal` restreignent
+l'export de la même façon :
 
 ```sh
-apollia-os audit export --output audit.json --limit 100000
+apollia-os audit export --format csv --output journal.csv
+apollia-os audit export --format json --since 2026-10-01 --until 2026-11-01 --output october.json
+apollia-os audit export --format csv --agent flux-quotes --result refused --detail --output refused.csv
 ```
 
-<!-- claim:audit-export-pages-past-the-server-ceiling -->
-**Le point de terminaison ne sert au maximum que 500 événements par
-requête**, et la commande parcourt les pages jusqu'à ce qu'une page plus
-courte revienne, de sorte que `--limit` borne l'export plutôt que
-l'historique atteignable. Elle avertit sur stderr lorsque l'export s'est
-arrêté sur votre `--limit` plutôt qu'à la fin du journal, ce qui est le
-signal pour l'augmenter.
+Le fichier contient toutes les entrées qui passent les filtres, de la plus
+récente à la plus ancienne. L'export n'est pas paginé : il n'y a pas de
+`--limit`, donc un fichier n'est jamais la partie la plus récente du journal
+sous un nom qui annonce le tout.
 
-Les mêmes enregistrements sont disponibles via l'API HTTP pour une
-intégration hôte ; voir les opérations d'audit dans la
+<!-- claim:audit-export-holds-no-content-without-detail -->
+**Sans `--detail`, un export ne contient aucun contenu.** Chaque entrée est le
+résumé qu'affiche `audit journal` (`ts`, `agent`, `nature`, `family`, `what`,
+`tool`, `target`, `outcome`) et sa place dans la chaîne (`run_id`, `seq`,
+`kind`, `hash`). `--detail` ajoute la charge utile de chaque entrée et, pour un
+appel d'outil, ses arguments, sa sortie et son statut : en CSV sous la forme de
+quatre colonnes de plus (`payload`, `arguments`, `output`, `status`, les trois
+premières contenant du JSON), en JSON sous la forme d'un objet `detail` sur
+chaque entrée. C'est là que des données personnelles peuvent se trouver, et la
+commande le dit sur stderr quand elle écrit un tel fichier.
+
+Le runtime répond le contenu du fichier et la commande l'écrit, donc un export
+va vers un chemin de cette machine et nulle part ailleurs. Chaque export est
+lui-même inscrit au journal, sous l'exécution `governance:journal:export`, avec
+son format, ses filtres, le nombre d'entrées et la présence du détail. Sans
+runtime, la commande sort avec le code 2 et n'écrit rien.
+
+Le même export est disponible via l'API HTTP pour une intégration hôte, sous
+la forme `GET /api/v1/audit/export?format=csv&detail=true&agents=<agent>,<agent>` ;
+voir les opérations d'audit dans la
 [référence de l'API HTTP](/reference/api/apollia-os-runtime-api).
 
 Deux choses méritent d'être connues avant de s'appuyer sur l'un ou l'autre
 registre. Un appel d'outil effectué dans une session de **chat** n'atteint pas la
 piste d'invocations d'outils : cette piste est écrite depuis le `ctx.tools` d'un
-agent, et le chemin du chat n'y passe pas, donc `audit list` et `audit export` ne
-montreront pas cet appel. Il atteint en revanche le journal chaîné par hachage :
+agent, et le chemin du chat n'y passe pas, donc `audit list` ne montrera pas
+cet appel. Il atteint en revanche le journal chaîné par hachage :
 la boucle de chat émet chaque sortie d'outil et chaque complétion du modèle comme
 un événement rattaché à une exécution, et le souscripteur du journal en fait des
 entrées chaînées. Lisez-les avec `audit show` sur l'exécution, ou avec `audit
@@ -180,9 +202,10 @@ conservée hors machine qui couvre ce cas, et `audit anchor` l'affiche.
 
 Ajoutez `--json` à `audit list`, `audit show`, `audit stats` et `audit
 verify` pour obtenir une sortie exploitable par une machine. `audit export`
-écrit toujours du JSON. `--json` est une option globale, donc `audit export
---json` est accepté aussi, mais cela ne change rien à l'export lui-même ; cela
-ne modifie que la forme d'un message d'erreur.
+écrit le format que nomme `--format`. `--json` est une option globale, donc
+`audit export --json` est accepté aussi, mais cela ne change rien au fichier :
+cela modifie ce que la commande affiche une fois le fichier écrit, et la forme
+d'un message d'erreur.
 
 ## En pratique
 

@@ -73,6 +73,7 @@ use tokio::sync::{mpsc, oneshot};
 use crate::eventbus::EventBusSender;
 
 pub use access::BatchAccess;
+pub(crate) use export::csv_line;
 pub use export::{export, BatchExport, ExportError, ExportFormat, XLSX_CELL_MAX};
 pub use request_source::{register_request_source, RequestSource, REQUEST_SOURCE_KIND};
 pub use runner::AgentItemRunner;

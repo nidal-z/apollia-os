@@ -271,13 +271,44 @@ pub enum GovernanceEvent {
     },
     /// The journal was exported.
     JournalExported {
-        /// Format of the export (`csv`, `pdf`).
+        /// Format of the export (`csv`, `json`, `pdf`).
         format: String,
         /// Number of entries exported.
         entries: u64,
         /// Who exported it.
         actor: String,
+        /// What the export was narrowed to.
+        #[serde(default)]
+        filters: ExportFilters,
+        /// Whether the export holds the detail of each entry, beyond its
+        /// summary.
+        #[serde(default)]
+        detail: bool,
     },
+}
+
+/// The filters an export of the journal was made with, as the journal keeps
+/// them. An empty list, or an absent bound, narrowed nothing.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExportFilters {
+    /// Agents kept.
+    #[serde(default)]
+    pub agents: Vec<String>,
+    /// Action families kept.
+    #[serde(default)]
+    pub families: Vec<String>,
+    /// Natures kept.
+    #[serde(default)]
+    pub natures: Vec<String>,
+    /// Results kept.
+    #[serde(default)]
+    pub results: Vec<String>,
+    /// Start of the period, included, RFC 3339 UTC.
+    #[serde(default)]
+    pub since: Option<String>,
+    /// End of the period, excluded, RFC 3339 UTC.
+    #[serde(default)]
+    pub until: Option<String>,
 }
 
 impl From<StoreEvent> for GovernanceEvent {
