@@ -2,6 +2,7 @@
 //! that results.
 //!
 //! - `GET    /api/v1/agent-definitions`                         , list the agents, resolved
+//! - `POST   /api/v1/agent-definitions`                         , create an agent without code
 //! - `GET    /api/v1/agent-definitions/{name}`                  , read one agent, resolved
 //! - `PUT    /api/v1/agent-definitions/{name}/overrides/{field}`, set an override
 //! - `DELETE /api/v1/agent-definitions/{name}/overrides/{field}`, remove an override
@@ -451,7 +452,7 @@ pub fn agent_definition_routes<B: ExecutionBackend + Clone>() -> Router<AppState
     Router::new()
         .route(
             "/api/v1/agent-definitions",
-            get(list_agent_definitions::<B>),
+            get(list_agent_definitions::<B>).post(create::create_agent_definition::<B>),
         )
         .route(
             "/api/v1/agent-definitions/:name",
@@ -471,9 +472,12 @@ pub fn agent_definition_routes<B: ExecutionBackend + Clone>() -> Router<AppState
         )
 }
 
+pub mod create;
 pub mod export;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_create;
 #[cfg(test)]
 mod tests_export;

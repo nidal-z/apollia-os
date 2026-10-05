@@ -190,11 +190,13 @@ test.describe("agents and workflows", () => {
     const [left, right] = await Promise.all([agents.boundingBox(), workflows.boundingBox()]);
     expect(left && right && Math.abs(left.y - right.y) < 2 && right.x > left.x + left.width / 2).toBe(true);
 
-    // AND the screen holds no tab, and one install gesture only: the package file
+    // AND the screen holds no tab, and one install gesture only, the package
+    // file, beside the creation of an agent
     const header = page.getByTestId("agents-list").locator("h1").locator("xpath=../..");
     await expect(page.getByTestId("agents-page").getByRole("tab")).toHaveCount(0);
-    await expect(header.getByRole("button")).toHaveCount(1);
+    await expect(header.getByRole("button")).toHaveCount(2);
     await expect(header.getByTestId("agents-install-apo-button")).toBeVisible();
+    await expect(header.getByTestId("agents-create-button")).toBeVisible();
   });
 
   test("the sheet of a workflow shows what it does, its steps, its accesses and its history", async ({ page }) => {

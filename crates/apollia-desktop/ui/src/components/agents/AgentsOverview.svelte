@@ -10,7 +10,7 @@
    * presentation and event wiring only.
    */
   import { t } from "svelte-i18n";
-  import { Bot, FileArchive, Search, Workflow } from "lucide-svelte";
+  import { Bot, FileArchive, Plus, Search, Workflow } from "lucide-svelte";
   import { EmptyState, PageHeader, SkeletonList } from "$lib/components/operator";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -34,6 +34,8 @@
     onOpenWorkflow: (workflow: WorkflowListItem, launch: boolean) => void;
     /** Choose a package file, then open its preview. */
     onInstallPackageFile: () => void;
+    /** Create an agent by describing it. */
+    onCreateAgent: () => void;
     onOpenLogs: (agentId: string) => void;
     onRequestUninstallAgent: (agent: AgentListItem) => void;
     onStartChat: (name: string) => void;
@@ -50,6 +52,7 @@
     onSelectApollia,
     onOpenWorkflow,
     onInstallPackageFile,
+    onCreateAgent,
     onOpenLogs,
     onRequestUninstallAgent,
     onStartChat,
@@ -73,6 +76,10 @@
       >
         {#snippet icon()}<FileArchive size={13} />{/snippet}
         {$t("agents.install_package")}
+      </Button>
+      <Button variant="primary-solid" size="sm" onclick={onCreateAgent} data-testid="agents-create-button">
+        {#snippet icon()}<Plus size={13} />{/snippet}
+        {$t("agent_create.open")}
       </Button>
     {/snippet}
   </PageHeader>

@@ -19,6 +19,7 @@ impl BuiltInChatAgent {
             tool_search_limit: 20,
             todo: deps.todo,
             plan: deps.plan,
+            agent_draft: None,
             session_plan_mode: false,
             session_plan_phase: PlanPhase::Done,
             hook_executor: None,
@@ -37,6 +38,13 @@ impl BuiltInChatAgent {
             resilience: apollia_oria::ResilienceLayer::default(),
             turn_id: None,
         }
+    }
+
+    /// Offer the `propose_agent` tool, its drafts held to `offer`. `None`,
+    /// the default, leaves the tool out.
+    pub fn with_agent_draft(mut self, offer: Option<DraftOffer>) -> Self {
+        self.agent_draft = offer;
+        self
     }
 
     /// Keep a tool output too long for the context whole in `dir`, and give

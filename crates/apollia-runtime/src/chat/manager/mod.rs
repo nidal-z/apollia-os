@@ -219,6 +219,7 @@ struct ChatSessionManager {
 }
 
 mod actor;
+mod agent_draft;
 mod agent_task;
 mod apollia_agent;
 mod authz;
@@ -241,6 +242,8 @@ mod sources;
 mod types;
 mod user_input;
 
+#[cfg(test)]
+mod agent_draft_tests;
 #[cfg(test)]
 mod documents_tests;
 #[cfg(test)]

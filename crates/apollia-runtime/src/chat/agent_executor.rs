@@ -170,6 +170,9 @@ pub struct SessionWiring {
     /// The conversation turn the run answers, the identifier of its answer
     /// message; `None` outside a conversation.
     pub turn_id: Option<String>,
+    /// What a draft of an agent may hold, in the conversation that creates
+    /// one; `None` everywhere else, where `propose_agent` is not offered.
+    pub agent_draft: Option<crate::chat::agent_draft_tool::DraftOffer>,
 }
 
 /// What the granted agent and workflow calls of a run go through.
@@ -315,7 +318,8 @@ impl AgentExecutor {
         .with_approval_timeout(wiring.approval_timeout)
         .with_tool_output_dir(wiring.tool_output_dir)
         .with_preferred_backend(spec.model.clone())
-        .with_turn_id(wiring.turn_id);
+        .with_turn_id(wiring.turn_id)
+        .with_agent_draft(wiring.agent_draft);
         Self {
             spec,
             agent,

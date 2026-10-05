@@ -190,6 +190,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "reset_agent_overrides",
     "set_agent_model",
     "set_agent_override",
+    // The creation of an agent without code: the validated sheet, sent to
+    // the runtime that stores it.
+    "create_agent_definition",
     // The export of an agent from its sheet: the runtime builds and signs the
     // archive, this process writes the file the user chose.
     "export_agent",

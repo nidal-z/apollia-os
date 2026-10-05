@@ -15,7 +15,7 @@ use crate::governance::governance_run_id;
 
 const KEY: &[u8] = b"agent-definitions-journal-key-01";
 
-async fn call(
+pub(super) async fn call(
     state: AppState<MockBackend>,
     method: &str,
     uri: &str,
@@ -44,7 +44,7 @@ async fn call(
 
 /// A runtime over a data directory holding one agent, `invoices`, assigned a
 /// local model in `system.db`; with a signed journal when `journal` is set.
-async fn state(
+pub(super) async fn state(
     dir: &tempfile::TempDir,
     journal: bool,
 ) -> (AppState<MockBackend>, Option<AuditJournalHandle>) {
