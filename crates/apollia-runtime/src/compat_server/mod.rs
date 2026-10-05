@@ -48,6 +48,10 @@
 //! enters a bounded ring of recent lines that the native API streams (see
 //! [`ServerLogsHandle`]); clearing it never touches the audit journal.
 //!
+//! Every request also leaves one signed entry in the audit journal, in the
+//! run [`SERVER_CALLS_RUN_ID`]: who called, from where, what it named and how
+//! it was answered, never what was said ([`ServerCallRecord`]).
+//!
 //! [`CompatServerHandle`] is the actor that owns the listener. Every path its
 //! router mounts is listed on the public page of compatible endpoints, which
 //! `scripts/check_compat_routes.py` holds.
@@ -63,6 +67,7 @@ mod agents;
 mod auth;
 mod cors;
 mod errors;
+mod journal;
 mod logs;
 mod models;
 mod origin;
@@ -80,6 +85,8 @@ mod auth_tests;
 #[cfg(test)]
 mod jit_tests;
 #[cfg(test)]
+mod journal_tests;
+#[cfg(test)]
 mod lan_tests;
 #[cfg(test)]
 mod logs_tests;
@@ -90,8 +97,9 @@ mod relay_tests;
 #[cfg(test)]
 pub(crate) mod tests;
 
-pub use actor::{CompatServerHandle, CompatServerStatus};
+pub use actor::{CompatServerHandle, CompatServerStatus, ServerRecords};
 pub use agents::ExposedAgents;
+pub use journal::{ServerCallRecord, ServerCallTarget, SERVER_CALLS_RUN_ID};
 pub use logs::{
     ServerLogLevel, ServerLogLine, ServerLogSource, ServerLogSubscription, ServerLogsError,
     ServerLogsHandle, DEFAULT_CAPACITY as SERVER_LOGS_CAPACITY,

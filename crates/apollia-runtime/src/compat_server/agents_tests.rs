@@ -197,7 +197,7 @@ pub(super) struct Fixture {
     pub(super) batches: BatchHandle,
     pub(super) gate: Arc<Semaphore>,
     pub(super) events: broadcast::Receiver<RuntimeEvent>,
-    _dir: tempfile::TempDir,
+    pub(super) _dir: tempfile::TempDir,
 }
 
 impl Fixture {

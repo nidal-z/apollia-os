@@ -393,6 +393,18 @@ the last text applied, kept beside the file as `apollia.toml.applied` and
 trusted only when its fingerprint is the journaled one; otherwise the entry
 has no `keys` field.
 
+A request the compatible server received is `ServerCall`, in the run
+`server:calls`, written by a layer above every other layer of its router
+(`crates/apollia-runtime/src/compat_server/journal.rs`), so a request the
+token check refused has its entry too. The payload names the method and the
+path, the model or the agent the request named, the name of the token (never
+its value), the address read when the connection was accepted and whether it
+is the machine or the local network, the status, the tokens the answer stated
+and the duration; a call that started an agent or a workflow adds `task_id`
+and `run_id`. It never carries a message, an answer or a header. The entry of
+a stream is written when the stream closes, with the tokens read in passing
+from its events.
+
 ---
 
 ## 10. Telemetry export

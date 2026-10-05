@@ -142,6 +142,11 @@ pub enum JournalEntryKind {
     /// [`crate::config_reload::ConfigChangeRecord`]: the paths of the keys,
     /// the origin, the fingerprint of the file before and after, never a value.
     ConfigurationChanged,
+    /// A request reached the compatible server. The payload is a
+    /// [`crate::compat_server::ServerCallRecord`]: the endpoint, the model or
+    /// the agent named, the name of the token, where the call came from, the
+    /// status, the tokens and the duration, never a message nor an answer.
+    ServerCall,
     /// A run-scoped event with no explicit mapping; `raw_kind` keeps the
     /// original variant name so coverage stays auditable.
     Unknown {
@@ -201,6 +206,7 @@ impl JournalEntryKind {
             JournalEntryKind::FailClosedTriggered => "fail_closed_triggered",
             JournalEntryKind::JournalExported => "journal_exported",
             JournalEntryKind::ConfigurationChanged => "configuration_changed",
+            JournalEntryKind::ServerCall => "server_call",
             JournalEntryKind::Unknown { raw_kind } => raw_kind,
         }
     }
@@ -254,6 +260,7 @@ impl JournalEntryKind {
             "fail_closed_triggered" => JournalEntryKind::FailClosedTriggered,
             "journal_exported" => JournalEntryKind::JournalExported,
             "configuration_changed" => JournalEntryKind::ConfigurationChanged,
+            "server_call" => JournalEntryKind::ServerCall,
             other => JournalEntryKind::Unknown {
                 raw_kind: other.to_string(),
             },
@@ -474,8 +481,8 @@ mod tests {
         }
     }
 
-    // The kinds of consents, refusals, rules, batches, policy and
-    // configuration round-trip through their stable tags.
+    // The kinds of consents, refusals, rules, batches, policy,
+    // configuration and server calls round-trip through their stable tags.
     #[test]
     fn test_decision_and_policy_kinds_tags_round_trip() {
         // GIVEN the kinds and their expected tags
@@ -499,6 +506,7 @@ mod tests {
                 JournalEntryKind::ConfigurationChanged,
                 "configuration_changed",
             ),
+            (JournalEntryKind::ServerCall, "server_call"),
         ];
         for (kind, expected) in cases {
             // WHEN converting to its tag and back

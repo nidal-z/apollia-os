@@ -493,3 +493,41 @@ fn natures_and_outcomes_round_trip_through_their_wire_names() {
     assert_eq!(JournalNature::parse("other"), None);
     assert_eq!(JournalOutcome::parse("other"), None);
 }
+
+#[test]
+fn a_server_call_names_its_endpoint_its_target_and_how_it_was_answered() {
+    // GIVEN the entries of three calls: an agent answered, a model refused
+    // for want of a token, and a model whose engine did not answer
+    let call = |target: &str, kind: &str, status: u16| {
+        entry(
+            JournalEntryKind::ServerCall,
+            json!({
+                "event": "server_call", "method": "POST",
+                "endpoint": "/v1/chat/completions", "target": target,
+                "target_kind": kind, "status": status, "duration_ms": 12,
+            }),
+        )
+    };
+    // WHEN each is summarised
+    let answered = summarize(&call("apollia/quotes", "agent", 200));
+    let refused = summarize(&call("acme/chat", "model", 401));
+    let failed = summarize(&call("acme/chat", "model", 502));
+    // THEN the line is an action naming the endpoint and the target, the
+    // agent by its own name, and the status reads as its outcome
+    assert_eq!(
+        answered,
+        JournalSummary {
+            agent: Some("quotes".into()),
+            nature: JournalNature::Action,
+            family: None,
+            what: "Server call: POST /v1/chat/completions".into(),
+            tool: None,
+            target: Some("apollia/quotes".into()),
+            outcome: Some(JournalOutcome::Success),
+            ts: TS.into(),
+        }
+    );
+    assert_eq!(refused.agent, None);
+    assert_eq!(refused.outcome, Some(JournalOutcome::Refused));
+    assert_eq!(failed.outcome, Some(JournalOutcome::Failure));
+}

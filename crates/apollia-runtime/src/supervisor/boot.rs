@@ -201,8 +201,12 @@ impl Supervisor {
         )
         .with_batches(batches.clone(), stores.task_repository.clone())
         .with_workflows(executors.workflows.clone());
-        let compat_server =
-            self.spawn_compat_server(&inference, &core.event_sender, exposed_agents);
+        let compat_server = self.spawn_compat_server(
+            &inference,
+            &core.event_sender,
+            exposed_agents,
+            governance.audit_journal.clone(),
+        );
         let mut state = self.app_state(
             &core,
             &inference,

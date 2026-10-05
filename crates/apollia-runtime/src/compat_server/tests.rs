@@ -38,7 +38,10 @@ pub(crate) fn settings_file(content: &str) -> (TempDir, PathBuf) {
 pub(crate) fn spawn_server(path: &std::path::Path, bus: &EventBusSender) -> CompatServerHandle {
     CompatServerHandle::spawn(
         path.to_path_buf(),
-        path.with_file_name("system.db"),
+        super::ServerRecords {
+            system_db: path.with_file_name("system.db"),
+            journal: None,
+        },
         super::LocalModels::default(),
         super::ExposedAgents::default(),
         bus,

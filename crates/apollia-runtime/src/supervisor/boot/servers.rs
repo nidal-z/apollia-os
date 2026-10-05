@@ -26,12 +26,14 @@ impl Supervisor {
     /// the runtime was started with, or in the data directory's apollia.toml,
     /// the file the desktop reads, when it was started without one.
     ///
-    /// It serves `agents`, the exposed agents and workflows, as models.
+    /// It serves `agents`, the exposed agents and workflows, as models, and
+    /// writes each request it answers to `journal`.
     pub(super) fn spawn_compat_server(
         &self,
         inference: &Inference,
         event_sender: &EventBusSender,
         agents: crate::compat_server::ExposedAgents,
+        journal: Option<AuditJournalHandle>,
     ) -> crate::compat_server::CompatServerHandle {
         let settings = self
             .config
@@ -40,7 +42,10 @@ impl Supervisor {
             .unwrap_or_else(|| self.config.data_dir.join("apollia.toml"));
         crate::compat_server::CompatServerHandle::spawn(
             settings.clone(),
-            inference.system_db_path.clone(),
+            crate::compat_server::ServerRecords {
+                system_db: inference.system_db_path.clone(),
+                journal,
+            },
             crate::compat_server::LocalModels::new(
                 inference.llama_server_supervisor.clone(),
                 inference.mlx_engine.clone(),

@@ -25,6 +25,7 @@ use super::agent_turn::read_turn;
 use super::agents::{ExposedAgents, ExposedTarget};
 use super::auth::{presented_token, unauthorized_with};
 use super::errors::{error_response, error_with, ErrorKind, Family};
+use super::journal::LaunchedRun;
 use super::origin::{admit_agent_call, admits_agent_call, CallOrigin, AGENT_TOKEN_REQUIRED};
 use super::relay::Endpoint;
 use super::tokens::ServerTokensHandle;
@@ -186,12 +187,18 @@ pub(crate) async fn call_exposed(
         }
     };
     let header = AnswerHeader::new(&run.run_id, model);
+    let launched = LaunchedRun {
+        task_id: run.task_id.clone(),
+        run_id: run.journal_run.clone(),
+    };
     let streamed = body.get("stream") == Some(&Value::Bool(true));
-    match endpoint {
+    let mut response = match endpoint {
         Endpoint::Responses => answer(run, ResponsesAnswer::new(header), streamed).await,
         Endpoint::Messages => answer(run, MessagesAnswer::new(header), streamed).await,
         _ => answer(run, ChatAnswer::new(header), streamed).await,
-    }
+    };
+    response.extensions_mut().insert(launched);
+    response
 }
 
 #[cfg(test)]

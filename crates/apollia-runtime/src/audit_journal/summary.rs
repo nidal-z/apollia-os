@@ -139,7 +139,8 @@ pub fn nature_of(kind: &JournalEntryKind) -> JournalNature {
         | K::ToolCallCompleted
         | K::ConsentAnswered
         | K::PolicyRefused
-        | K::RuleRefused => JournalNature::Action,
+        | K::RuleRefused
+        | K::ServerCall => JournalNature::Action,
         K::AccessChanged
         | K::AgentInstalled
         | K::AgentUpdated
@@ -247,6 +248,7 @@ pub fn summarize(entry: &JournalEntry) -> JournalSummary {
             summary.what = "Configuration changed".to_owned();
             summary.outcome = Some(JournalOutcome::Success);
         }
+        K::ServerCall => server_call_summary(&mut summary, payload),
         K::AgentStarted => {
             summary.what = "Agent started".to_owned();
             summary.agent = text(payload, "agent_id");
@@ -324,6 +326,30 @@ fn success_outcome(success: bool) -> JournalOutcome {
     } else {
         JournalOutcome::Failure
     }
+}
+
+/// Fills `summary` from the record of a call to the compatible server: the
+/// endpoint, the model or the agent it named, and how it was answered. A
+/// status under 400 is a success, a 4xx a refusal, anything else a failure.
+fn server_call_summary(summary: &mut JournalSummary, payload: &Value) {
+    let method = text(payload, "method").unwrap_or_default();
+    let endpoint = text(payload, "endpoint").unwrap_or_default();
+    summary.what = format!("Server call: {method} {endpoint}");
+    summary.target = text(payload, "target");
+    if payload.get("target_kind").and_then(Value::as_str) == Some("agent") {
+        summary.agent = summary
+            .target
+            .as_deref()
+            .map(|target| target.strip_prefix("apollia/").unwrap_or(target).to_owned());
+    }
+    summary.outcome = payload
+        .get("status")
+        .and_then(Value::as_u64)
+        .map(|status| match status {
+            0..=399 => JournalOutcome::Success,
+            400..=499 => JournalOutcome::Refused,
+            _ => JournalOutcome::Failure,
+        });
 }
 
 /// Fills `summary` from a connection event. The target is the connection, the
