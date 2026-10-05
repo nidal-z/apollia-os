@@ -462,7 +462,7 @@ impl ChatSessionManager {
     /// injection, and refuses any pending tool approval (so a loop blocked on
     /// approval unblocks). Called when a session closes or is deleted; without
     /// it these maps leak entries for the lifetime of the actor.
-    fn purge_session_runtime_state(&mut self, session_id: &str) {
+    pub(in crate::chat::manager) fn purge_session_runtime_state(&mut self, session_id: &str) {
         if let Some(token) = self.pause_tokens.remove(session_id) {
             token.cancel();
         }
@@ -576,6 +576,11 @@ impl ChatSessionManager {
                 session: session.clone(),
                 message_count,
             });
+        }
+
+        // A session in the trash is resumed only once restored.
+        if self.repository.is_trashed(session_id)? {
+            return Err(ChatError::SessionNotFound(session_id.to_string()));
         }
 
         // Load from SQLite.

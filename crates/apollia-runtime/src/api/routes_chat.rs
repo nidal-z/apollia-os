@@ -42,6 +42,7 @@ pub mod plan;
 pub mod session_reads;
 mod session_route;
 mod sse;
+pub mod trash;
 pub mod turns;
 pub mod user_inputs;
 

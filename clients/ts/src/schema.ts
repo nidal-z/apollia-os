@@ -641,6 +641,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/audit/export`: the journal as a file, narrowed by the filters
+         *     of `GET /api/v1/audit/journal`.
+         * @description Every entry that passes the filters is in the file, newest first: the
+         *     export is not paged. Each entry is its summary (when, who, what, on what,
+         *     with which result) and its place in the chain (run, sequence, kind, hash),
+         *     without content. With `detail=true` each entry also holds its payload and,
+         *     for a tool call, its arguments and its output. `csv` is UTF-8 with one
+         *     header row, `json` is one document with the entries. The file is offered
+         *     as `journal.<format>`, and the export is recorded in the journal. 400 on a
+         *     format or a filter value that cannot be read, 503 when the journal is not
+         *     configured.
+         */
+        get: operations["export_audit_journal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit/journal": {
         parameters: {
             query?: never;
@@ -4416,6 +4445,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/trash`, the conversations in the trash,
+         *     the last removed first.
+         */
+        get: operations["list_trashed_sessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{id}": {
         parameters: {
             query?: never;
@@ -4758,6 +4807,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/sessions/{id}/restore`, take the session out of
+         *     the trash, back into the list with its messages.
+         */
+        post: operations["restore_session"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{id}/resume": {
         parameters: {
             query?: never;
@@ -4872,6 +4941,26 @@ export interface paths {
         get: operations["get_session_todo"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/sessions/{id}/trash`, send the session to the
+         *     trash: it leaves the list and keeps its messages.
+         */
+        post: operations["trash_session"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8212,6 +8301,11 @@ export interface components {
          */
         JournalBreakReason: "global_seq_gap" | "global_prev_hash_mismatch" | "global_hash_mismatch" | "global_signature_invalid" | "unknown_signing_key" | "per_run_broken";
         /**
+         * @description A file format the journal is exported in.
+         * @enum {string}
+         */
+        JournalExportFormat: "csv" | "json";
+        /**
          * @description What kind of fact an entry records.
          * @enum {string}
          */
@@ -10941,6 +11035,21 @@ export interface components {
             /** @description List of transcription rows. */
             transcriptions: Record<string, never>[];
         };
+        /** @description A conversation in the trash. */
+        TrashedSession: {
+            /** @description Agent of the conversation, when it has one. */
+            agent_name?: string | null;
+            /** @description ISO-8601 creation timestamp. */
+            created_at: string;
+            /** @description ISO-8601 timestamp of the move to the trash. */
+            deleted_at: string;
+            /** @description Session identifier. */
+            id: string;
+            /** @description Mode string (`"libre"`, `"agent"` or `"companion"`). */
+            mode: string;
+            /** @description Title the user or the model gave it, when it has one. */
+            title?: string | null;
+        };
         /** @description Response for CRUD operations returning a full definition. */
         TriggerDefinitionResponse: {
             /** @description Target agent, for an agent target. */
@@ -12975,6 +13084,71 @@ export interface operations {
                 };
             };
             /** @description Audit journal not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    export_audit_journal: {
+        parameters: {
+            query: {
+                /** @description `csv` or `json`. */
+                format: components["schemas"]["JournalExportFormat"];
+                /**
+                 * @description `true` to add, to each entry, its payload and the arguments and output
+                 *     of its tool call. Those may hold personal data. Defaults to `false`.
+                 */
+                detail?: boolean;
+                /**
+                 * @description Comma-separated agent names. When set, the export holds the entries
+                 *     that name one of those agents and the runs of their tasks.
+                 */
+                agents?: string;
+                /** @description Comma-separated action families (`read`, `write_or_delete`, ...). */
+                family?: string;
+                /** @description Comma-separated natures: `action`, `access_change`, `policy`, `system`. */
+                nature?: string;
+                /** @description Comma-separated results: `success`, `failure`, `refused`. */
+                result?: string;
+                /**
+                 * @description Start of the period, included: a day (`YYYY-MM-DD`, UTC) or an RFC 3339
+                 *     instant.
+                 */
+                since?: string;
+                /** @description End of the period, excluded: a day or an RFC 3339 instant. */
+                until?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The filtered journal as a CSV or JSON file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description A format or a filter value that cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal not configured, or `agents` given with no task repository to resolve them */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -22127,6 +22301,35 @@ export interface operations {
             };
         };
     };
+    list_trashed_sessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The conversations in the trash */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrashedSession"][];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     get_session: {
         parameters: {
             query?: never;
@@ -23035,6 +23238,45 @@ export interface operations {
             };
         };
     };
+    restore_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session restored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such session in the trash */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     resume_session: {
         parameters: {
             query?: never;
@@ -23303,6 +23545,45 @@ export interface operations {
             };
             /** @description Internal error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    trash_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session sent to the trash */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

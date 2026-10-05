@@ -8,18 +8,22 @@ import type { OnboardingPhase } from "$lib/types";
  * rendering a component: a step added or removed is a change to this file,
  * and its test says which step may never come back.
  */
-export type OnboardingStep = "welcome" | "ai-setup" | "chat";
+export type OnboardingStep = "welcome" | "ai-setup" | "embeddings" | "chat";
 
 export interface OnboardingStepEntry {
   id: OnboardingStep;
   labelKey: string;
-  /** The phase the backend moves to when the step opens; `null` for the first. */
+  /**
+   * The phase the backend moves to when the step opens; `null` for a step the
+   * backend machine does not know, which a restart reopens on the step before.
+   */
   phase: OnboardingPhase | null;
 }
 
 export const ONBOARDING_STEPS: readonly OnboardingStepEntry[] = [
   { id: "welcome", labelKey: "onboarding_modal.step_welcome", phase: null },
   { id: "ai-setup", labelKey: "onboarding_modal.step_models", phase: "ai_setup" },
+  { id: "embeddings", labelKey: "onboarding_modal.step_search", phase: null },
   { id: "chat", labelKey: "onboarding_modal.step_about", phase: "acquaintance" },
 ];
 

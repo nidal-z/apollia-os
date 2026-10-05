@@ -219,7 +219,8 @@ fn csv_field(out: &mut String, field: &str) {
     }
 }
 
-fn csv_line<'a>(out: &mut String, fields: impl Iterator<Item = &'a str>) {
+/// One CSV record (RFC 4180), ended by a line break.
+pub(crate) fn csv_line<'a>(out: &mut String, fields: impl Iterator<Item = &'a str>) {
     for (i, field) in fields.enumerate() {
         if i > 0 {
             out.push(',');

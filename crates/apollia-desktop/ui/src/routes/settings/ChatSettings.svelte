@@ -10,6 +10,13 @@
     "settings.chat.all_shortcuts_title",
   ] as const;
 
+  /** The trash row of the Conversations block: its `data-testid` and texts. */
+  export const CHAT_TRASH_ROW = {
+    testId: "chat-trash-toggle",
+    labelKey: "settings.chat.trash_label",
+    hintKey: "settings.chat.trash_hint",
+  } as const;
+
   /** The rows of the keyboard shortcuts block, by `data-testid`. */
   export const CHAT_SHORTCUT_ROWS = ["chat-send-key"] as const;
 
@@ -58,6 +65,7 @@
   import { Keyboard, Lock, MessageSquare, Tag } from "lucide-svelte";
   import { planModeDefault } from "$lib/stores/planModeSetting";
   import { chatSendKey } from "$lib/stores/chatSendKey";
+  import { chatTrashEnabled } from "$lib/stores/chatTrash";
   import {
     chatAutoNaming,
     chatAutoNamingSource,
@@ -94,7 +102,6 @@
       label={$t("settings.planMode.title")}
       hint={$t("settings.planMode.description")}
       for="plan-mode-default"
-      border={false}
     >
       {#snippet control()}
         <Toggle
@@ -103,6 +110,22 @@
           onchange={(next) => planModeDefault.set(next)}
           aria-label={$t("settings.planMode.title")}
           data-testid="plan-mode-default-toggle"
+        />
+      {/snippet}
+    </SettingsFieldRow>
+    <SettingsFieldRow
+      label={$t(CHAT_TRASH_ROW.labelKey)}
+      hint={$t(CHAT_TRASH_ROW.hintKey)}
+      for="chat-trash"
+      border={false}
+    >
+      {#snippet control()}
+        <Toggle
+          id="chat-trash"
+          checked={$chatTrashEnabled}
+          onchange={(next) => chatTrashEnabled.set(next)}
+          aria-label={$t(CHAT_TRASH_ROW.labelKey)}
+          data-testid={CHAT_TRASH_ROW.testId}
         />
       {/snippet}
     </SettingsFieldRow>

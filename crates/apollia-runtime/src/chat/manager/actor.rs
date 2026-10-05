@@ -90,6 +90,15 @@ impl ChatSessionManager {
                     let result = self.handle_delete_session(&session_id);
                     let _ = reply.send(result);
                 }
+                ChatCommand::TrashSession { session_id, reply } => {
+                    let _ = reply.send(self.handle_trash_session(&session_id));
+                }
+                ChatCommand::RestoreSession { session_id, reply } => {
+                    let _ = reply.send(self.handle_restore_session(&session_id));
+                }
+                ChatCommand::ListTrashedSessions { reply } => {
+                    let _ = reply.send(self.handle_list_trashed_sessions());
+                }
                 ChatCommand::RenameSession {
                     session_id,
                     title,

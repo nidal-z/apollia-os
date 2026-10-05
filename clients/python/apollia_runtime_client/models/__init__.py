@@ -243,6 +243,7 @@ from .item_preview import ItemPreview
 from .journal_anchor import JournalAnchor
 from .journal_break import JournalBreak
 from .journal_break_reason import JournalBreakReason
+from .journal_export_format import JournalExportFormat
 from .journal_nature import JournalNature
 from .journal_outcome import JournalOutcome
 from .journal_summary import JournalSummary
@@ -524,6 +525,7 @@ from .transcriptions_list_response import TranscriptionsListResponse
 from .transcriptions_list_response_transcriptions_item import (
     TranscriptionsListResponseTranscriptionsItem,
 )
+from .trashed_session import TrashedSession
 from .trigger_definition_response import TriggerDefinitionResponse
 from .trigger_definition_response_source_config import TriggerDefinitionResponseSourceConfig
 from .trigger_definition_response_workflow_inputs_type_0 import (
@@ -820,6 +822,7 @@ __all__ = (
     "JournalAnchor",
     "JournalBreak",
     "JournalBreakReason",
+    "JournalExportFormat",
     "JournalNature",
     "JournalOutcome",
     "JournalSummary",
@@ -1095,6 +1098,7 @@ __all__ = (
     "TranscribeAudioBodySource",
     "TranscriptionsListResponse",
     "TranscriptionsListResponseTranscriptionsItem",
+    "TrashedSession",
     "TriggerDefinitionResponse",
     "TriggerDefinitionResponseSourceConfig",
     "TriggerDefinitionResponseWorkflowInputsType0",

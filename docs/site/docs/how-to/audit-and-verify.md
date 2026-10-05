@@ -14,8 +14,8 @@ them:
 
 | Register | What it holds | Commands that read it |
 |---|---|---|
-| the tool-invocation trail | a flat SQLite table of tool calls: what ran, a hash of its inputs, whether it succeeded, how long it took. No hash chain, no signature. Updates and deletions are both refused by a trigger | `audit list`, `audit stats`, `audit export` |
-| the hash-chained journal | run-scoped entries chained twice, to the previous entry of the run and to the previous entry of any run, signed as they are appended, with an exportable head anchor | `audit journal`, `audit show`, `audit verify`, `audit anchor`, `audit replay` |
+| the tool-invocation trail | a flat SQLite table of tool calls: what ran, a hash of its inputs, whether it succeeded, how long it took. No hash chain, no signature. Updates and deletions are both refused by a trigger | `audit list`, `audit stats` |
+| the hash-chained journal | run-scoped entries chained twice, to the previous entry of the run and to the previous entry of any run, signed as they are appended, with an exportable head anchor | `audit journal`, `audit export`, `audit show`, `audit verify`, `audit anchor`, `audit replay` |
 
 For the reasoning behind this model and how it maps to regulatory requirements,
 see [The accountability model](/explanation/accountability-model).
@@ -39,8 +39,9 @@ apollia-os audit stats
 
 The endpoint behind `audit list` serves at most 500 events per request, and this
 command does not page past that ceiling: `--limit 2000` returns the newest 500
-events, presented as the whole answer and with no warning. Use `audit export`,
-which does page, when you need more than 500.
+events, presented as the whole answer and with no warning. Over the API the
+route takes an `offset` that walks past the ceiling, as in
+`GET /api/v1/audit?limit=500&offset=500`.
 
 To read a single run's entries from the hash-chained journal, including the
 captured model completions, resolve it by run identifier or by a task identifier
@@ -94,26 +95,47 @@ apollia-os audit journal --nature access_change --since 2026-10-01
 apollia-os audit journal --family send_external --result refused
 ```
 
-To take the tool-invocation trail out for archival or external review:
+## Export the journal
+
+To hand the journal to an audit or keep it for review, export it to a file, as
+CSV or JSON. `--format` and `--output` are both required, and the five filters
+of `audit journal` narrow the export the same way:
 
 ```sh
-apollia-os audit export --output audit.json --limit 100000
+apollia-os audit export --format csv --output journal.csv
+apollia-os audit export --format json --since 2026-10-01 --until 2026-11-01 --output october.json
+apollia-os audit export --format csv --agent flux-quotes --result refused --detail --output refused.csv
 ```
 
-<!-- claim:audit-export-pages-past-the-server-ceiling -->
-**The endpoint serves at most 500 events per request**, and the command pages
-through it until a short page comes back, so `--limit` bounds the export rather
-than the reachable history. It warns on stderr when the export stopped on your
-`--limit` instead of on the end of the trail, which is the signal to raise it.
+The file holds every entry that passes the filters, newest first. The export is
+not paged: there is no `--limit`, so a file is never the newest part of the
+journal under a name that claims the whole.
 
-The same records are available over the HTTP API for a host integration; see the
-audit operations in the
+<!-- claim:audit-export-holds-no-content-without-detail -->
+**Without `--detail`, an export holds no content.** Each entry is the summary
+`audit journal` prints (`ts`, `agent`, `nature`, `family`, `what`, `tool`,
+`target`, `outcome`) and its place in the chain (`run_id`, `seq`, `kind`,
+`hash`). `--detail` adds the payload of each entry and, for a tool call, its
+arguments, its output and its status: in CSV as four more columns (`payload`,
+`arguments`, `output`, `status`, the first three holding JSON), in JSON as a
+`detail` object on each entry. That is where personal data may be, and the
+command says so on stderr when it writes such a file.
+
+The runtime answers the content of the file and the command writes it, so an
+export goes to a path on this machine and nowhere else. Every export is itself
+recorded in the journal, under the run `governance:journal:export`, with its
+format, its filters, the number of entries and whether the detail went with it.
+With no runtime the command exits 2 and writes nothing.
+
+The same export is available over the HTTP API for a host integration, as
+`GET /api/v1/audit/export?format=csv&detail=true&agents=<agent>,<agent>`; see
+the audit operations in the
 [HTTP API reference](/reference/api/apollia-os-runtime-api).
 
 Two things are worth knowing before you rely on either register. A tool call made
 in a **chat** session does not reach the tool-invocation trail: that trail is
 written from an agent's `ctx.tools`, and the chat path does not go through it, so
-`audit list` and `audit export` will not show the call. It does reach the
+`audit list` will not show the call. It does reach the
 hash-chained journal: the chat loop emits every tool output and every model
 completion as a run-scoped event, and the journal subscriber turns them into
 chained entries. Read them with `audit show` on the run, or with `audit journal`.
@@ -161,9 +183,10 @@ re-signs a shorter chain; storing the exported anchor off-machine is what covers
 that, and `audit anchor` prints it.
 
 Add `--json` to `audit list`, `audit show`, `audit stats` and `audit verify` for
-machine-readable output. `audit export` always writes JSON. `--json` is a global
-flag so `audit export --json` is accepted too, but it changes nothing about the
-export itself; it only switches the shape of an error message.
+machine-readable output. `audit export` writes the format `--format` names.
+`--json` is a global flag, so `audit export --json` is accepted too, but it
+changes nothing about the file: it switches what the command prints once the
+file is written, and the shape of an error message.
 
 ## Putting it together
 

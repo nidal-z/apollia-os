@@ -419,6 +419,281 @@
     },
     {
       "kind": "waitFor",
+      "testid": "onboarding-embeddings",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-model-card",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-model-name"
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-recommended"
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-model-size",
+      "contains": "tourne sur votre poste"
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-reason"
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-download"
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-import"
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-continue"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08d-onb-embeddings-offer"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-import",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-error",
+      "contains": "Phi-3-mini-Q4.gguf"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:dialog|open"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08e-onb-embeddings-import-refused"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_variant_download",
+      "reject": "automation: start_variant_download refused (seeded fault, embeddings)",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-download",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-error",
+      "contains": "start_variant_download refused"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_variant_download",
+      "resolve": "automation-embeddings-download",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-download",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-download-progress",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08f-onb-embeddings-downloading"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "start_variant_download"
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-download-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "embeddings-download-progress",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-ai-setup",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_embeddings_recommendation",
+      "reject": "automation: get_embeddings_recommendation refused (seeded fault, registry unreadable)",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "ai-setup-continue",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-unavailable",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-error",
+      "contains": "get_embeddings_recommendation refused"
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-skip"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_embeddings_recommendation"
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-ai-setup",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_memory_embeddings_model",
+      "resolve": {
+        "model": "multilingual-e5-small",
+        "dimensions": 384
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "ai-setup-continue",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-ready",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-model-name",
+      "contains": "Multilingual E5 small"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08f2-onb-embeddings-installed"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_memory_embeddings_model"
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-ai-setup",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-setup-continue",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-embeddings",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-skip",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-skip-warning",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-skip-warning",
+      "contains": "dans vos sources"
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-skip-warning",
+      "contains": "dans la mémoire de vos agents"
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-skip-warning",
+      "contains": "l'écran IA"
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-skip-lost"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08g-onb-embeddings-skip-warning"
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-continue-without",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
       "testid": "onboarding-chat-step",
       "timeoutMs": 15000
     },
@@ -713,6 +988,7 @@
     "The onboarding asks no usage profile: the welcome leads straight to the AI setup, and ai-setup-back returns to the welcome. The book walks that pair three times, once bare, once with the whisper scan stubbed empty, once to replay the detected rows, and after the finish it checks that the developer group of the sidebar is absent, the developer mode staying off.",
     "onboarding-skip-error-details is played at the end, after a second danger-zone reset reopens the modal: a once stub rejects dismiss_onboarding (lib/ipc/onboarding.ts:43), skipOnboarding reports instead of closing (lib/onboarding/skipOnboarding.ts:37-41), humanize keeps the raw text on detail (lib/errors/humanize.ts:263-274) and the disclosure at OnboardingModal.svelte:248 renders. The stubs are then cleared and a second onboarding-skip closes the modal for real, so the book ends on a healthy shell. It comes last because onboarding-open-cloud closes the modal (OnboardingModal.svelte:226 passes onclose as onopencloud) and the earlier flow needs the modal.",
     "curated-llm-row is played through the invoke stub, in the operator ai-setup pass right after the picker import: a once stub rejects start_model_download (lib/ipc/models.ts:102, OnboardingLlmSection.svelte:213-228) so llm-download-error renders and the curated list stays, then a once stub resolves a fake id so llm-download-progress renders with the first row's filename (Qwen3-4B-Q4_K_M.gguf, onboardingCatalogs.ts:38, the first entry fits any machine with 4 GB). No event ever settles that fake id (downloader.rs:159-161), so the block sits last before ai-setup-back, which unmounts the step (OnboardingModal.svelte:221) and resets the state.",
-    "curated-stt-row is played on the second visit of the AI setup: scan_for_whisper_models (lib/ipc/models.ts:84) is stubbed to an empty list before onboarding-welcome-cta mounts the step, which is the only way curated-stt-list renders (aiSetupRules.ts:84, the seed ships ggml-base.bin, copied from tests/cli/seed/files/models/ by build-seed.sh:183); the row then goes through the same reject-then-resolve pair on start_model_download (OnboardingSttSection.svelte:379-393), stt-download-error then stt-download-progress with ggml-tiny.bin (onboardingCatalogs.ts:69). Both stubs are cleared before ai-setup-back, so the pass that follows sees the real scan and its whisper-model-row again."
+    "curated-stt-row is played on the second visit of the AI setup: scan_for_whisper_models (lib/ipc/models.ts:84) is stubbed to an empty list before onboarding-welcome-cta mounts the step, which is the only way curated-stt-list renders (aiSetupRules.ts:84, the seed ships ggml-base.bin, copied from tests/cli/seed/files/models/ by build-seed.sh:183); the row then goes through the same reject-then-resolve pair on start_model_download (OnboardingSttSection.svelte:379-393), stt-download-error then stt-download-progress with ggml-tiny.bin (onboardingCatalogs.ts:69). Both stubs are cleared before ai-setup-back, so the pass that follows sees the real scan and its whisper-model-row again.",
+    "The embeddings step (OnboardingEmbeddingsStep.svelte) follows ai-setup-continue. Its recommendation comes from get_embeddings_recommendation, which the runtime answers from its embedded table with no network, so embeddings-model-card renders in a deterministic run. The book plays, in order: the import of a file the registry does not offer (the picker stub resolves the seed's Phi-3-mini-Q4.gguf, embeddingsSetup.ts refuses it before any copy and embeddings-error names it); a download the invoke stub rejects, then one it resolves with a fake id so embeddings-download-progress renders; embeddings-download-cancel, which cancel_model_download refuses for an id it never knew, so the step puts the offer back; three round trips through embeddings-back, the first with get_embeddings_recommendation rejected (embeddings-unavailable, the step stays passable), the second with get_memory_embeddings_model resolving an installed entry (embeddings-ready); and the passing, whose warning lists the two unavailable functions before embeddings-continue-without opens the conversation. No default embeddings model is ever set by this book."
   ]
 }

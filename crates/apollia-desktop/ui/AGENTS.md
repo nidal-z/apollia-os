@@ -308,7 +308,9 @@ Rules :
   otherwise compose at the call site.
 - The interface vocabulary is data, in `src/lib/i18n/glossary.json`: one object
   per locale (`fr`, `en`), each with `objects` and `screens` (the official word
-  per id, same ids in both), `developer_mode`, `chat_steps_panel`, `banned` (terms
+  per id, same ids in both), `developer_mode`, `chat_steps_panel`,
+  `search_by_meaning` and `search_by_meaning_model` (the words for the
+  embeddings model and what it serves), `banned` (terms
   kept out outside developer mode), `banned_synonyms` (`assistant` for agent),
   `permitted_formats` and `exemptions`. Use those words; never ban a word inline.
 - `scripts/check_ui_vocabulary.py` holds both catalogues to that list. A text

@@ -255,8 +255,13 @@ Engines have an update channel of their own and do not follow the version of
 Apollia. The embedded engine serves every machine from the first launch; an
 accelerated build, CUDA on a machine with an NVIDIA card, is downloaded on
 demand, or imported from a disk without network, and the launcher then takes the
-newest installed build of that variant over the embedded one. Every download or
-import of an engine is preceded by the verification of a digest manifest
+newest installed build of that variant over the embedded one. Which engine
+serves each model format is a setting, automatic by default; a chosen variant
+that is no longer installed falls back to the automatic choice. The followed
+channel is checked when the runtime starts and when the channel changes, and an
+update it announces for a chosen engine is installed unasked, unless the setting
+that governs it is off, in which case the update is only announced. Every
+download or import of an engine is preceded by the verification of a digest manifest
 signed in the minisign format with a dedicated distribution key. Each channel,
 stable or preview, publishes one such manifest, listing every engine archive
 with its SHA-256. The public half of that key is compiled into the binary and

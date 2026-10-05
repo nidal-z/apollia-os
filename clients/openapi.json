@@ -1927,6 +1927,127 @@
         }
       }
     },
+    "/api/v1/audit/export": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "`GET /api/v1/audit/export`: the journal as a file, narrowed by the filters\nof `GET /api/v1/audit/journal`.",
+        "description": "Every entry that passes the filters is in the file, newest first: the\nexport is not paged. Each entry is its summary (when, who, what, on what,\nwith which result) and its place in the chain (run, sequence, kind, hash),\nwithout content. With `detail=true` each entry also holds its payload and,\nfor a tool call, its arguments and its output. `csv` is UTF-8 with one\nheader row, `json` is one document with the entries. The file is offered\nas `journal.<format>`, and the export is recorded in the journal. 400 on a\nformat or a filter value that cannot be read, 503 when the journal is not\nconfigured.",
+        "operationId": "export_audit_journal",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "description": "`csv` or `json`.",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/JournalExportFormat"
+            }
+          },
+          {
+            "name": "detail",
+            "in": "query",
+            "description": "`true` to add, to each entry, its payload and the arguments and output\nof its tool call. Those may hold personal data. Defaults to `false`.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "agents",
+            "in": "query",
+            "description": "Comma-separated agent names. When set, the export holds the entries\nthat name one of those agents and the runs of their tasks.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "description": "Comma-separated action families (`read`, `write_or_delete`, ...).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nature",
+            "in": "query",
+            "description": "Comma-separated natures: `action`, `access_change`, `policy`, `system`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "result",
+            "in": "query",
+            "description": "Comma-separated results: `success`, `failure`, `refused`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Start of the period, included: a day (`YYYY-MM-DD`, UTC) or an RFC 3339\ninstant.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "End of the period, excluded: a day or an RFC 3339 instant.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The filtered journal as a CSV or JSON file",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A format or a filter value that cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Audit journal not configured, or `agents` given with no task repository to resolve them",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/audit/journal": {
       "get": {
         "tags": [
@@ -13106,6 +13227,40 @@
         }
       }
     },
+    "/api/v1/sessions/trash": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/trash`, the conversations in the trash,\nthe last removed first.",
+        "operationId": "list_trashed_sessions",
+        "responses": {
+          "200": {
+            "description": "The conversations in the trash",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrashedSession"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{id}": {
       "get": {
         "tags": [
@@ -14268,6 +14423,51 @@
         }
       }
     },
+    "/api/v1/sessions/{id}/restore": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/{id}/restore`, take the session out of\nthe trash, back into the list with its messages.",
+        "operationId": "restore_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session restored"
+          },
+          "404": {
+            "description": "No such session in the trash",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{id}/resume": {
       "post": {
         "tags": [
@@ -14608,6 +14808,51 @@
           },
           "500": {
             "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/trash": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/{id}/trash`, send the session to the\ntrash: it leaves the list and keeps its messages.",
+        "operationId": "trash_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session sent to the trash"
+          },
+          "404": {
+            "description": "Session not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -23040,6 +23285,14 @@
           "per_run_broken"
         ]
       },
+      "JournalExportFormat": {
+        "type": "string",
+        "description": "A file format the journal is exported in.",
+        "enum": [
+          "csv",
+          "json"
+        ]
+      },
       "JournalNature": {
         "type": "string",
         "description": "What kind of fact an entry records.",
@@ -28914,6 +29167,48 @@
               "type": "object"
             },
             "description": "List of transcription rows."
+          }
+        }
+      },
+      "TrashedSession": {
+        "type": "object",
+        "description": "A conversation in the trash.",
+        "required": [
+          "id",
+          "mode",
+          "created_at",
+          "deleted_at"
+        ],
+        "properties": {
+          "agent_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Agent of the conversation, when it has one."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO-8601 creation timestamp."
+          },
+          "deleted_at": {
+            "type": "string",
+            "description": "ISO-8601 timestamp of the move to the trash."
+          },
+          "id": {
+            "type": "string",
+            "description": "Session identifier."
+          },
+          "mode": {
+            "type": "string",
+            "description": "Mode string (`\"libre\"`, `\"agent\"` or `\"companion\"`)."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Title the user or the model gave it, when it has one."
           }
         }
       },

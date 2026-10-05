@@ -107,7 +107,12 @@ check         "audit verify (empty journal ok)"    "${Q[@]}" audit verify
 check         "audit journal (empty journal ok)"   "${Q[@]}" audit journal
 check_exit    "audit anchor (empty journal) → 1" 1 "${Q[@]}" audit anchor
 check_exit    "audit replay (unknown run) → 1"   1 "${Q[@]}" audit replay ghost-run-id
-check         "audit export"                        "${Q[@]}" audit export --output "$RUN_TMP/audit.json" --limit 100
+check         "audit export --format json"          "${Q[@]}" audit export --format json --output "$RUN_TMP/journal.json"
+check_content "audit export --format json: a summary, the detail left out" '"detail": false' cat "$RUN_TMP/journal.json"
+check         "audit export --format csv --detail"  "${Q[@]}" audit export --format csv --detail --output "$RUN_TMP/journal.csv"
+check_content "audit export --format csv --detail: the summary columns, then the detail" '^ts,agent,nature,family,what,tool,target,outcome,run_id,seq,kind,hash,payload,arguments,output,status' cat "$RUN_TMP/journal.csv"
+check_json_field "audit export is itself journaled, with its format and the detail" "[(e['payload']['format'], e['payload']['detail']) for e in d['entries'] if e['kind'] == 'journal_exported']" "[('csv', True), ('json', False)]" "${Q[@]}" audit journal --limit 50 --json
+check_exit    "audit export (unknown nature) → 1" 1 "${Q[@]}" audit export --format csv --nature everything --output "$RUN_TMP/journal-refused.csv"
 
 # ── triggers CRUD (target: seeded apollia-chat) ─────────────────────────────
 section "triggers CRUD"
@@ -190,6 +195,13 @@ fi
 check         "plan cache stats (daemon on)"       "${Q[@]}" plan cache stats
 check         "plan cache evict --max-age-days 0"  "${Q[@]}" plan cache evict --max-age-days 0 --confirm
 check         "chat --list (daemon on)"            "${Q[@]}" chat --list
+# seed-session-4 opens on "Which MCP tools do I have on this machine?". Listed
+# first, then sent to the trash the way the desktop does (`deleted_at` set):
+# `chat --list` no longer names it.
+check_content "chat --list names seed-session-4"   "Which MCP tools" "${Q[@]}" chat --list
+e2e_sqlite "$HOME/.apollia/chat.db" "UPDATE chat_sessions SET deleted_at = '2026-07-02T00:00:00Z' WHERE id = 'seed-session-4';"
+check         "chat --list leaves out a trashed session" bash -c "out=\$(\"\$@\" 2>&1) || { echo \"\$out\"; exit 1; }; [[ \$out != *'Which MCP tools'* ]] || { echo \"\$out\"; exit 1; }" _ "${Q[@]}" chat --list
+e2e_sqlite "$HOME/.apollia/chat.db" "UPDATE chat_sessions SET deleted_at = NULL WHERE id = 'seed-session-4';"
 
 # ── task lifecycle (submit to a seeded auto-started agent, no model) ─────────
 # apollia-chat auto-starts; a submitted task exercises the read commands even

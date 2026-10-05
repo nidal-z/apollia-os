@@ -25,6 +25,7 @@
   import Connections from "../../../routes/Connections.svelte";
   import Policy from "../../../routes/Policy.svelte";
   import Authorizations from "../../../routes/Authorizations.svelte";
+  import Journal from "../../../routes/Journal.svelte";
   import Design from "../../../routes/Design.svelte";
   import DesignMotion from "../../../routes/DesignMotion.svelte";
   import DesignEmptyStates from "../../../routes/DesignEmptyStates.svelte";
@@ -112,6 +113,8 @@
             <Policy />
           {:else if shownRoute === "authorizations"}
             <Authorizations />
+          {:else if shownRoute === "journal"}
+            <Journal />
           {:else if isDev && shownRoute === "design"}
             <Design />
           {:else if isDev && shownRoute === "design-motion"}

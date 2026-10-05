@@ -101,7 +101,7 @@ still accepted, with a `config.key.retired` warning.
 | `[observability]` | Trace capture and retention, documented below. |
 | `[desktop]` | Settings of the desktop application: `developer_mode`, `update_channel` (`stable` or `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` or `always`), and `link_preview_enabled`, which fetches the preview of a link shown in a conversation. Off by default, since the fetch leaves the machine. |
 | `[server]` | The compatible server: `enabled`, `port`, `require_auth`, `cors`, and loading on demand: `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`, and `separate_reasoning_content`. |
-| `[engines]` | Settings of the local inference engines (`log_level`). |
+| `[engines]` | Settings of the local inference engines (`log_level`, `gguf`, `mlx`, `auto_update`). |
 | `[author]` | The publisher name of the agents exported from this machine (`name`). |
 
 The tables below are generated from the key registry of the engine, the list
@@ -314,6 +314,9 @@ Settings of the local inference engines.
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `engines.log_level` | one of error, warning, info, debug | `"debug"` | Log level of the local engine, applied when a model is next loaded. The organization policy can fix it. |
+| `engines.gguf` | one of auto, embedded, cuda, vulkan, cpu, metal | `"auto"` | Engine that serves GGUF models: the automatic choice, the engine shipped with the application, or a variant installed by the engine store. A variant no longer installed falls back to the automatic choice. Read at the next start. The organization policy can fix it. |
+| `engines.mlx` | one of auto, embedded, metal | `"auto"` | Engine that serves MLX models on a Mac with Apple Silicon: the automatic choice, the engine shipped with the application, or the one installed by the engine store. Read at the next start. The organization policy can fix it. |
+| `engines.auto_update` | boolean | `true` | Download and verify the update of a chosen engine when the followed channel announces one; off, the update is only announced. The organization policy can fix it. |
 
 ### `[author]`
 

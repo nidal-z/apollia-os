@@ -58,6 +58,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "generate_chat_session_name",
     "rename_chat_session",
     "update_chat_session",
+    // The trash of the conversations: send one there, list it, restore one.
+    "list_trashed_chat_sessions",
+    "restore_chat_session",
+    "trash_chat_session",
     // The agents and the models the selector of a conversation offers.
     "list_chat_targets",
     // The model calls behind the total of one answer.
@@ -182,6 +186,8 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_agent_definition",
     "get_agent_model_fallback",
     "list_agent_changes",
+    "get_journal_entry",
+    "list_journal_entries",
     // The adjustment of an agent on its sheet: its overrides, the return to
     // defaults, its model and the presets to choose from.
     "clear_agent_model",
@@ -224,6 +230,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "search_memory",
     // Models: the download of a whole variant from the Hub.
     "start_variant_download",
+    // Models: the embeddings model recommended for this machine, and the one
+    // search by meaning uses, over `/api/v1/llm/embeddings`.
+    "get_embeddings_recommendation",
+    "set_default_embeddings_model",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
     // Named settings of `apollia.toml`, read with their source and written

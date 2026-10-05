@@ -222,6 +222,7 @@ fn load_default_api_token() -> Option<String> {
 }
 
 mod agents;
+mod audit;
 mod automation;
 mod backends;
 mod batches;

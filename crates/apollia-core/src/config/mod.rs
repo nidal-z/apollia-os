@@ -108,7 +108,10 @@ pub use autonomy::{
 pub use chat::ChatConfig;
 pub use default_file::{default_file_text, write_default_file_if_absent};
 pub use desktop::{ChatAutoNaming, DesktopConfig, UpdateChannel};
-pub use engines::{EngineLogLevel, EnginesConfig, ENGINE_LOG_LEVELS};
+pub use engines::{
+    EngineChoice, EngineLogLevel, EnginesConfig, ENGINE_LOG_LEVELS, GGUF_ENGINE_CHOICES,
+    MLX_ENGINE_CHOICES,
+};
 pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
 pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig};

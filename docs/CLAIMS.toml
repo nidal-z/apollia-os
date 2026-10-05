@@ -1124,19 +1124,20 @@ connection that already exists.
 """
 
 [[claim]]
-id = "audit-export-pages-past-the-server-ceiling"
+id = "audit-export-holds-no-content-without-detail"
 scope = "public"
-symbol = "SERVER_LIMIT_CAP"
+symbol = "summary_of"
 status = "wired"
-proof = "crates/apollia-cli/src/commands/audit.rs"
+proof = "crates/apollia-runtime/src/audit_journal/export.rs"
 evidence = ""
 note = """
-The endpoint clamps one query to 500 and, until an `offset` parameter existed,
-had no way to reach anything older: the trail was structurally unexportable past
-its newest page, on a product that maps Article 14. The CLI now pages until a
-short page comes back, and this constant is the page size it respects. If the
-loop goes, the export silently becomes the newest 500 events under a filename
-that claims to be an archive.
+An export of the journal leaves the application as a file that circulates, so
+what it holds by default is the summary of each entry and its place in the
+chain: `summary_of` copies neither the payload of the entry nor the arguments
+and the output of its call, which only `detailed` adds, on request. If the
+summary ever takes the payload along, every export handed to an audit carries
+the content of the calls, personal data included, under an option the reader
+never asked for.
 """
 
 [[claim]]
@@ -1494,8 +1495,8 @@ evidence = ""
 note = """
 The corpus called one thing "the audit trail" and described the other. There are
 two registers: the flat `tool_invocations` table, which has no `prev_hash` and no
-signature, and the hash-chained journal. `audit list`, `audit stats` and
-`audit export` reach the flat one through this reader; `audit verify`,
+signature, and the hash-chained journal. `audit list` and `audit stats` reach
+the flat one through this reader; `audit verify`, `audit export`,
 `audit show` and `audit anchor` reach the journal. If `query_page` ever loses its
 caller in `list_audit`, the pages that now say which command reads which register
 are describing a path that stopped existing.

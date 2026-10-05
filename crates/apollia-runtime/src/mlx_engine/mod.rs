@@ -194,9 +194,13 @@ impl MlxEngineSupervisor {
             .and_then(|exe| exe.parent().map(Path::to_path_buf));
         let store_root =
             apollia_core::paths::data_dir().map(|d| crate::engine_store::store_root(&d));
-        let launch = locate(exe_dir.as_deref(), store_root.as_deref(), |var| {
-            std::env::var(var).ok()
-        })?;
+        let choices = crate::engine_store::EngineChoices::read(config_file.as_deref(), &imposed);
+        let launch = locate(
+            exe_dir.as_deref(),
+            store_root.as_deref(),
+            choices.mlx,
+            |var| std::env::var(var).ok(),
+        )?;
         Some(Self::new(launch, config_file, imposed))
     }
 

@@ -29,7 +29,8 @@
   import "./onboarding-ai-setup.css";
 
   interface Props {
-    onnext: () => void;
+    /** Advances, with the size of the language model wired here when there is one. */
+    onnext: (languageModelBytes: number | null) => void;
     onback: () => void;
     onskip: () => void;
     /** Called when the user wants to add a cloud backend; modal should close. */
@@ -50,6 +51,8 @@
 
   /** Set by the language-engine section when it wires an engine this session. */
   let llmSuccess = $state(false);
+  /** Size of the file of that engine, `null` for a server or a backend already there. */
+  let llmSizeBytes = $state<number | null>(null);
   /** Mirrors the voice section, which the step persists before it advances. */
   let voice = $state<{ enabled: boolean; model: WhisperModelInfo | null }>({
     enabled: false,
@@ -94,7 +97,7 @@
       if (voice.enabled && voice.model) {
         await setupWhisperModel(voice.model.path, currentLocale());
       }
-      onnext();
+      onnext(llmSizeBytes);
     } catch (err: unknown) {
       advanceError = err instanceof Error ? err.message : String(err);
       advancing = false;
@@ -134,7 +137,10 @@
   {:else}
     <OnboardingLlmSection
       {sysInfo}
-      onconfigured={(configured) => (llmSuccess = configured)}
+      onconfigured={(configured, sizeBytes) => {
+        llmSuccess = configured;
+        llmSizeBytes = sizeBytes;
+      }}
       onopencloud={openCloudSettings}
     />
 

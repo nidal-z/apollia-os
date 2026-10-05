@@ -24,7 +24,7 @@ use crate::attached::{segment, AttachedError, RuntimeLink};
 const GOVERNANCE_RUN_PREFIX: &str = "governance:";
 
 /// `GET path` on the runtime, `Ok(None)` when the route answers 404.
-async fn get_optional(link: &RuntimeLink, path: &str) -> Result<Option<Value>, String> {
+pub(crate) async fn get_optional(link: &RuntimeLink, path: &str) -> Result<Option<Value>, String> {
     match link {
         RuntimeLink::Embedded(runtime) => {
             match super::http_get_json(runtime.api_port, path).await {

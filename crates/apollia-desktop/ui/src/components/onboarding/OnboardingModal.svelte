@@ -7,7 +7,9 @@
    *
    *   1. {@link OnboardingWelcome}  - intro and consent to start
    *   2. {@link OnboardingAiSetup}  - local LLM (GGUF) + STT (Whisper)
-   *   3. {@link OnboardingChatStep} - a short agent-driven chat, then the
+   *   3. {@link OnboardingEmbeddingsStep} - the model search by meaning
+   *                                   uses, recommended for this machine
+   *   4. {@link OnboardingChatStep} - a short agent-driven chat, then the
    *                                   proposed profile read over before it
    *                                   is saved
    *
@@ -41,6 +43,7 @@
   import { ErrorBanner } from "$lib/components/operator";
   import OnboardingWelcome from "./OnboardingWelcome.svelte";
   import OnboardingAiSetup from "./OnboardingAiSetup.svelte";
+  import OnboardingEmbeddingsStep from "./OnboardingEmbeddingsStep.svelte";
   import OnboardingChatStep from "./OnboardingChatStep.svelte";
   import {
     ONBOARDING_STEPS,
@@ -67,6 +70,10 @@
   // Bumped by the footer during the chat step to ask the chat to skip the
   // questions and open the profile review.
   let chatSkipSignal = $state(0);
+  // Size of the language model wired at the AI step, which the embeddings
+  // step sizes its recommendation beside; `null` leaves the runtime to count
+  // the largest language model installed.
+  let languageModelBytes = $state<number | null>(null);
   // Why inline and not a toast: the overlay sits at `z-index: 80` and the
   // toast container at `--z-toast: 40` (`app.css`), so a toast fired from
   // inside this modal is painted underneath it.
@@ -217,14 +224,23 @@
             <OnboardingWelcome onnext={() => goTo("ai-setup")} />
           {:else if currentStep === "ai-setup"}
             <OnboardingAiSetup
-              onnext={() => goTo("chat")}
+              onnext={(bytes) => {
+                languageModelBytes = bytes;
+                goTo("embeddings");
+              }}
               onback={() => goTo("welcome")}
-              onskip={() => goTo("chat")}
+              onskip={() => goTo("embeddings")}
               onopencloud={onclose}
+            />
+          {:else if currentStep === "embeddings"}
+            <OnboardingEmbeddingsStep
+              {languageModelBytes}
+              onnext={() => goTo("chat")}
+              onback={() => goTo("ai-setup")}
             />
           {:else if currentStep === "chat"}
             <OnboardingChatStep
-              onback={() => goTo("ai-setup")}
+              onback={() => goTo("embeddings")}
               skipSignal={chatSkipSignal}
               onstranded={() => {
                 chatStranded = true;

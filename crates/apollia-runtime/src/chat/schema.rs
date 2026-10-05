@@ -25,8 +25,9 @@ use rusqlite::Connection;
 /// `companion`), v11 approval `reason`, v12 plan-mode columns,
 /// v13 todo table, v14 plan tables, v15 project linkage dropped,
 /// v16 `profile_id` (the profile a conversation designates),
-/// v17 `use_profile` (the profile switch of a conversation).
-pub(crate) const SCHEMA_VERSION: u32 = 17;
+/// v17 `use_profile` (the profile switch of a conversation),
+/// v18 `deleted_at` (a conversation sent to the trash).
+pub(crate) const SCHEMA_VERSION: u32 = 18;
 
 /// Base tables, applied on first open.
 const BASE_SQL: &str = include_str!("../../migrations/001_chat_tables.sql");
@@ -88,6 +89,7 @@ const MIGRATIONS: [Migration; SCHEMA_VERSION as usize] = [
     migrate_v15,
     migrate_v16,
     migrate_v17,
+    migrate_v18,
 ];
 
 /// Bring `conn` to the current chat schema version, or refuse it.
@@ -267,6 +269,13 @@ fn migrate_v17(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn,
         "ALTER TABLE chat_sessions ADD COLUMN use_profile INTEGER NOT NULL DEFAULT 1",
     )
+}
+
+/// v18: the trash. A conversation sent there keeps its row and its messages
+/// and carries the date it was removed; empty, the conversation is in the
+/// list.
+fn migrate_v18(conn: &Connection) -> Result<(), rusqlite::Error> {
+    add_column_if_missing(conn, "ALTER TABLE chat_sessions ADD COLUMN deleted_at TEXT")
 }
 
 /// Returns `true` when `table` already declares a column named `column`.
