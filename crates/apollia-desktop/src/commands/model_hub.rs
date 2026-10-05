@@ -113,9 +113,19 @@ pub async fn get_hardware_profile(
 
 /// The hardware profile of this machine, probed in this process.
 pub(crate) async fn local_hardware_profile() -> Result<serde_json::Value, String> {
-    let profile = tokio::task::spawn_blocking(detect_hardware)
-        .await
-        .map_err(|e| format!("hardware detection failed: {e}"))?;
+    // The devices held back are a setting, read again at every probe: a
+    // switch flipped in Settings > Hardware shows in the very next read.
+    let profile = tokio::task::spawn_blocking(|| {
+        apollia_runtime::llama_server::devices::sync_selection(
+            Some(&apollia_core::paths::config_file_under(
+                apollia_core::paths::home_dir_or_temp(),
+            )),
+            &crate::commands::config::settings::policy_in_force(),
+        );
+        detect_hardware()
+    })
+    .await
+    .map_err(|e| format!("hardware detection failed: {e}"))?;
     serde_json::to_value(HardwareProfileView::from(profile))
         .map_err(|e| format!("serialization error: {e}"))
 }

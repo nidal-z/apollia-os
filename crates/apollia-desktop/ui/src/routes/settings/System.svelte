@@ -26,6 +26,8 @@
   import SettingsToggle from "../../components/settings/SettingsToggle.svelte";
   import HardwareCard from "../../components/settings/system/HardwareCard.svelte";
   import ResourceMonitor from "../../components/settings/system/ResourceMonitor.svelte";
+  import GpuDevices from "../../components/settings/system/GpuDevices.svelte";
+  import GuardrailsSetting from "../../components/settings/model-defaults/GuardrailsSetting.svelte";
   import {
     systemInfoStore,
     securityPostureStore,
@@ -46,8 +48,10 @@
   } from "$lib/ipc/system";
   import type { CliStatus } from "$lib/types";
 
-  // System > Hardware. Always: the hardware the inference probed, the resource
-  // monitor, the version, the operating system and the security posture. The
+  // System > Hardware. Always: the hardware the inference probed, the graphics
+  // devices one by one, the resource monitor, the load guardrails (the same
+  // component and the same settings as Model defaults), the version, the
+  // operating system and the security posture. The
   // monitor measures while this page is mounted: `$resourceUsage` subscribes
   // with the page and unsubscribes with it, which stops the reads. Developer mode only: the
   // paths, the agent dependency install, the command line, the interpreter.
@@ -241,7 +245,14 @@
       arch={$systemInfoStore.data?.arch ?? null}
     />
 
+    <GpuDevices
+      hardware={$hardwareStore.data}
+      onreload={() => settingsLoaders.hardware(true)}
+    />
+
     <ResourceMonitor usage={$resourceUsage} />
+
+    <GuardrailsSetting />
 
     {#if $systemInfoStore.data}
       {@const systemInfo = $systemInfoStore.data}

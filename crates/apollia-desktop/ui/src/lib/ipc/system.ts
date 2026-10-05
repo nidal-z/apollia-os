@@ -168,6 +168,14 @@ export interface ResourceUsage {
   vram: VramUsage;
 }
 
+/** What asking for the hardware window did: a new one, or the live one brought forward. */
+export type HardwareWindowOutcome = "created" | "focused";
+
+/** Open System > Hardware in a window of its own, or bring that window forward. */
+export async function openHardwareWindow(): Promise<HardwareWindowOutcome> {
+  return invoke<HardwareWindowOutcome>("open_hardware_window");
+}
+
 /** Measure the machine once. Nothing samples between two calls. */
 export async function getResourceUsage(): Promise<ResourceUsage> {
   return invoke<ResourceUsage>("get_resource_usage");

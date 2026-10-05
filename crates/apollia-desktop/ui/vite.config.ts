@@ -41,6 +41,7 @@ export default defineConfig(({ command }) => ({
       input: {
         main: path.resolve(__dirname, "index.html"),
         overlay: path.resolve(__dirname, "overlay.html"),
+        hardware: path.resolve(__dirname, "hardware.html"),
       },
     },
   },

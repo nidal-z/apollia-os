@@ -13971,6 +13971,171 @@
     },
     {
       "kind": "waitFor",
+      "testid": "hardware-gpu-list",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "hardware-gpu-row"
+    },
+    {
+      "kind": "expect",
+      "testid": "hardware-gpu-switch"
+    },
+    {
+      "kind": "expect",
+      "testid": "hardware-gpu-single-note"
+    },
+    {
+      "kind": "expect",
+      "testid": "hardware-gpu-restore-default"
+    },
+    {
+      "kind": "expect",
+      "testid": "hardware-community-link"
+    },
+    {
+      "kind": "click",
+      "testid": "hardware-copy-info",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "screenshot",
+      "label": "24-hardware-info-copied"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "open_hardware_window",
+      "resolve": "focused",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "hardware-open-window",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "argsMatch": {
+        "key": "llm.devices.disabled"
+      },
+      "resolve": {
+        "key": "llm.devices.disabled",
+        "value": [
+          "CUDA1"
+        ],
+        "source": "policy"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hardware_profile",
+      "resolve": {
+        "total_ram_gb": 64.0,
+        "available_ram_gb": 40.0,
+        "cpu_model": "AMD Ryzen 9 7950X",
+        "cpu_cores": 32,
+        "accelerator": {
+          "kind": "cuda",
+          "device_name": "NVIDIA GeForce RTX 4090",
+          "vram_gb": 24.0,
+          "compute_capability": [
+            8,
+            9
+          ]
+        },
+        "memory_budget_gb": 24.0,
+        "total_capacity_gb": 62.4,
+        "devices": [
+          {
+            "id": "CUDA0",
+            "name": "NVIDIA GeForce RTX 4090",
+            "api": "CUDA",
+            "vram_gb": 24.0,
+            "enabled": true
+          },
+          {
+            "id": "CUDA1",
+            "name": "NVIDIA GeForce RTX 3090",
+            "api": "CUDA",
+            "vram_gb": 24.0,
+            "enabled": false
+          },
+          {
+            "id": null,
+            "name": "Intel Arc A380",
+            "api": "Vulkan",
+            "vram_gb": 6.0,
+            "enabled": true
+          }
+        ]
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-engines",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-section",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-hardware",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hardware-gpu-policy",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "system-info-refresh-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hardware-gpu-unlisted-note",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hardware-gpu-count",
+      "contains": "3",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "24-hardware-three-gpus-policy"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resolved_setting"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_hardware_profile"
+    },
+    {
+      "kind": "click",
+      "testid": "system-info-refresh-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hardware-gpu-single-note",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
       "testid": "resource-monitor",
       "timeoutMs": 3000
     },
@@ -15142,19 +15307,6 @@
     {
       "kind": "expect",
       "testid": "engines-check-updates"
-    },
-    {
-      "kind": "click",
-      "testid": "about-copy-diagnostics",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 250
-    },
-    {
-      "kind": "screenshot",
-      "label": "56-about-diagnostic-copied"
     },
     {
       "kind": "stubInvoke",

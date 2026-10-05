@@ -113,9 +113,9 @@ pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
 pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig};
 pub use llm_defaults::{
-    ContextDefault, LlmDefaultsConfig, LlmImagesConfig, CONTEXT_MODES, CONTEXT_MODE_KEY,
-    CONTEXT_TOKENS_KEY, DEFAULT_IMAGE_MAX_SIDE_PX, IMAGE_LIMIT_KEY, IMAGE_MAX_SIDE_KEY,
-    LOAD_BYPASS_KEY, LOAD_BYPASS_MODES,
+    ContextDefault, LlmDefaultsConfig, LlmDevicesConfig, LlmImagesConfig, CONTEXT_MODES,
+    CONTEXT_MODE_KEY, CONTEXT_TOKENS_KEY, DEFAULT_IMAGE_MAX_SIDE_PX, DISABLED_DEVICES_KEY,
+    IMAGE_LIMIT_KEY, IMAGE_MAX_SIDE_KEY, LOAD_BYPASS_KEY, LOAD_BYPASS_MODES,
 };
 pub use llm_residency::{LlmResidencyConfig, DEFAULT_IDLE_UNLOAD_MINUTES, IDLE_UNLOAD_KEY};
 pub use llm_section::{

@@ -135,11 +135,11 @@
    * the one in service, where each stands against the followed channel, and
    * the dictation engine. One table, one source: the engine list of the
    * runtime. The developer mode adds the channel, the source of each engine
-   * and the tag the channel published it under. The diagnostic copy composes
-   * the same facts.
+   * and the tag the channel published it under. The copy of these facts is
+   * "Copy the information", in the header of System > Hardware.
    */
   import { t } from "svelte-i18n";
-  import { Cpu, Copy, Check, Activity, RefreshCw } from "lucide-svelte";
+  import { Cpu, Activity, RefreshCw } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Select } from "$lib/components/ui/select";
@@ -151,16 +151,12 @@
   } from "$lib/settings/engineChannel";
   import { Spinner } from "$lib/components/ui/progress";
   import { ErrorBanner } from "$lib/components/operator";
-  import { addToast } from "$lib/components/ui/toast";
-  import { reportError } from "$lib/errors/reportError";
   import SettingsSection from "../SettingsSection.svelte";
 
   interface Props {
     response: EnginesResponse | null;
     loading: boolean;
     error: string | null;
-    /** Lines of the diagnostic block that precede the engines. */
-    diagnosticHead: string[];
     /** Developer mode: the channel, the sources and the channel tags are shown. */
     developer: boolean;
     /** True while the channel is written or checked. */
@@ -175,7 +171,6 @@
     response,
     loading,
     error,
-    diagnosticHead,
     developer,
     checking,
     checkError,
@@ -188,30 +183,6 @@
   function label(row: EngineRow): string {
     const variant = variantLabel(row.variant, $t("settings.engines.variant_cpu"));
     return variant ? `${row.name} · ${variant}` : row.name;
-  }
-
-  const diagnostic = $derived(
-    [
-      ...diagnosticHead,
-      ...rows.map(
-        (r) => `${label(r)}: ${r.version ?? $t("settings.engines.version_unknown")}`,
-      ),
-    ].join("\n"),
-  );
-
-  let copied = $state(false);
-  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
-
-  async function copyDiagnostic(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(diagnostic);
-      copied = true;
-      addToast($t("settings.about.copy_success"), "success");
-      clearTimeout(copiedTimer);
-      copiedTimer = setTimeout(() => (copied = false), 1500);
-    } catch (err) {
-      reportError(err, { surface: "toast" });
-    }
   }
 </script>
 
@@ -344,19 +315,4 @@
     </ul>
   {/if}
 
-  {#snippet footer()}
-    <Button variant="ghost" size="sm" onclick={copyDiagnostic} data-testid="about-copy-diagnostics">
-      {#snippet icon()}
-        {#if copied}
-          <Check size={14} strokeWidth={2.2} class="text-success" />
-        {:else}
-          <Copy size={14} strokeWidth={1.9} />
-        {/if}
-      {/snippet}
-      {$t("settings.about.copy_diagnostics")}
-    </Button>
-    <span class="ml-auto text-caption text-muted-foreground">
-      {$t("settings.about.copy_hint")}
-    </span>
-  {/snippet}
 </SettingsSection>

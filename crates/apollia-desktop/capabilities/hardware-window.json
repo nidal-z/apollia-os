@@ -1,0 +1,8 @@
+{
+  "identifier": "hardware-window",
+  "description": "Capabilities for the window that shows System > Hardware on its own",
+  "windows": ["hardware"],
+  "permissions": [
+    "core:default"
+  ]
+}

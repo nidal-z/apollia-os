@@ -59,6 +59,7 @@ fn the_body_says_why_a_small_machine_gets_the_smallest_file() {
         cpu_cores: 4,
         accelerator: AcceleratorProfile::None,
         memory_budget_gb: 4.8,
+        devices: Vec::new(),
     };
     let language = CountedLanguageModel {
         source: "query".to_owned(),

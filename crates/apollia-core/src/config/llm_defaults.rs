@@ -1,6 +1,7 @@
 //! What every local model receives when nothing closer to it says otherwise:
 //! the default context window (`[llm.defaults]`) and the ceiling on the size
-//! of an image sent to a model (`[llm.images]`).
+//! of an image sent to a model (`[llm.images]`), and the graphics devices held
+//! back from the local engine (`[llm.devices]`).
 
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +19,9 @@ pub const IMAGE_MAX_SIDE_KEY: &str = "llm.images.max_side_px";
 
 /// Dotted key of what "load anyway" asks before going past a refusal.
 pub const LOAD_BYPASS_KEY: &str = "llm.guardrails.bypass";
+
+/// Dotted key of the graphics devices held back from the local engine.
+pub const DISABLED_DEVICES_KEY: &str = "llm.devices.disabled";
 
 /// The values `llm.defaults.context` accepts.
 pub const CONTEXT_MODES: &[&str] = &["custom", "model_max"];
@@ -136,6 +140,26 @@ impl Default for LlmImagesConfig {
             max_side_px: DEFAULT_IMAGE_MAX_SIDE_PX,
         }
     }
+}
+
+/// The `[llm.devices]` section: the graphics devices the local engine is
+/// kept away from.
+///
+/// Each entry is an identifier the engine prints with `--list-devices`
+/// (`CUDA0`, `Vulkan1`). A listed device receives no layer of a model and its
+/// memory is left out of every estimate. An empty list, the default, leaves
+/// the engine every device it sees. The section is read at every load.
+///
+/// ```toml
+/// [llm.devices]
+/// disabled = ["CUDA1"]
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LlmDevicesConfig {
+    /// Identifiers of the devices held back, as the engine names them.
+    #[serde(default)]
+    pub disabled: Vec<String>,
 }
 
 #[cfg(test)]

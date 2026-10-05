@@ -135,6 +135,7 @@ mod tests {
             cpu_cores: 4,
             accelerator: AcceleratorProfile::None,
             memory_budget_gb: 4.8,
+            devices: Vec::new(),
         };
         let large = HardwareProfile {
             total_ram_gb: 192.0,
@@ -147,6 +148,7 @@ mod tests {
                 vram_gb: 192.0,
             },
             memory_budget_gb: 144.0,
+            devices: Vec::new(),
         };
         let sizes = |selection: &[SelectionFamily]| -> Vec<f64> {
             selection

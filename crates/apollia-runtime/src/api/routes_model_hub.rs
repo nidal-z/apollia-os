@@ -48,6 +48,13 @@ pub struct HardwareResponse {
     #[schema(value_type = Object)]
     pub accelerator: AcceleratorProfile,
     pub memory_budget_gb: f64,
+    /// The graphics devices, one by one: the identifier the engine lists each
+    /// under (absent when the engine could not be asked), its name, the
+    /// interface the engine drives it through, its memory in GB, and whether
+    /// the engine may load onto it. The accelerator, the budget and the
+    /// capacity already leave out the memory of the devices held back.
+    #[schema(value_type = Vec<Object>)]
+    pub devices: Vec<apollia_llm::hardware::GpuDevice>,
     /// What a model can occupy on this machine, in GB rounded to the tenth:
     /// the card plus the usable share of system memory on a discrete
     /// accelerator, the memory budget otherwise. A model under it is one the
@@ -66,6 +73,7 @@ impl From<HardwareProfile> for HardwareResponse {
             cpu_cores: p.cpu_cores,
             accelerator: p.accelerator,
             memory_budget_gb: p.memory_budget_gb,
+            devices: p.devices,
         }
     }
 }
@@ -125,11 +133,18 @@ pub struct RecommendQuery {
     )
 )]
 pub async fn get_hardware<B: ExecutionBackend + Clone>(
-    State(_state): State<AppState<B>>,
+    State(state): State<AppState<B>>,
 ) -> Json<HardwareResponse> {
-    let profile = tokio::task::spawn_blocking(apollia_llm::hardware::detect)
-        .await
-        .unwrap_or_else(|_| apollia_llm::hardware::detect());
+    // The devices held back are a setting: read again here, so a switch
+    // flipped in the settings shows in the very next read of the hardware.
+    let config_path = state.config_path.clone();
+    let imposed = state.inference_governance.imposed_settings();
+    let profile = tokio::task::spawn_blocking(move || {
+        crate::llama_server::devices::sync_selection(config_path.as_deref(), &imposed);
+        apollia_llm::hardware::detect()
+    })
+    .await
+    .unwrap_or_else(|_| apollia_llm::hardware::detect());
 
     Json(HardwareResponse::from(profile))
 }
@@ -490,6 +505,7 @@ mod tests {
                 compute_capability: (8, 9),
             },
             memory_budget_gb: 12.0,
+            devices: Vec::new(),
         };
         let expected =
             apollia_llm::recommend::MemoryArchitecture::of(&profile).total_capacity_gb(&profile);
@@ -515,6 +531,7 @@ mod tests {
             cpu_cores: 8,
             accelerator: AcceleratorProfile::None,
             memory_budget_gb: 19.2,
+            devices: Vec::new(),
         }
     }
 

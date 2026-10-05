@@ -2,6 +2,7 @@
   /**
    * Settings > Model defaults: the image ceiling, the default context window,
    * the load guardrails, the bypass of a memory warning and the unload delay.
+   * The guardrails are the component Settings > Hardware shows too.
    *
    * Every value is written the moment it is chosen. A block whose value the
    * organization policy fixes keeps that value shown, with its choices
@@ -9,17 +10,14 @@
    */
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
-  import { CircleHelp, Gauge, Image, ShieldAlert, ShieldCheck, Timer } from "lucide-svelte";
+  import { Gauge, Image, ShieldAlert, Timer } from "lucide-svelte";
   import { Toggle } from "$lib/components/ui/toggle";
   import { Input } from "$lib/components/ui/input";
-  import { Tooltip } from "$lib/components/ui/tooltip";
   import { addToast } from "$lib/components/ui/toast";
-  import { getHardwareProfile } from "$lib/ipc/modelHub";
   import {
     BYPASS_CHOICES,
     CONTEXT_CHOICES,
     DEFAULT_IDLE_UNLOAD_MINUTES,
-    GUARDRAIL_CHOICES,
     MODEL_DEFAULT_BLOCKS,
     UNLOAD_CHOICES,
     blockLock,
@@ -40,6 +38,7 @@
   import SettingsSection from "../../components/settings/SettingsSection.svelte";
   import SettingOption from "../../components/settings/model-defaults/SettingOption.svelte";
   import PolicyLockedNote from "../../components/settings/model-defaults/PolicyLockedNote.svelte";
+  import GuardrailsSetting from "../../components/settings/model-defaults/GuardrailsSetting.svelte";
 
   interface Props {
     /** The state shown before the shell answers; the defaults when omitted. */
@@ -56,14 +55,10 @@
   // The shell's answer replaces this seed once mounted.
   // svelte-ignore state_referenced_locally
   let defaults = $state<ModelDefaultsState>(initial ?? initialModelDefaults());
-  /** What this machine can hold, in gigabytes; `null` until the probe answers. */
-  let machineMemoryGb = $state<number | null>(null);
   /** The refused figure of each field, already translated. */
   let errors = $state<Partial<Record<BoundedField, string>>>({});
   /** The choice whose write went through last. */
   let savedAt = $state<string | null>(null);
-  /** "Ceiling" chosen while no ceiling is written yet: the level waits for it. */
-  let ceilingPending = $state(false);
   let savedTimer: ReturnType<typeof setTimeout> | undefined;
 
   const locks = $derived(
@@ -72,13 +67,9 @@
     ) as Record<ModelDefaultBlock, ReturnType<typeof blockLock>>,
   );
   const values = $derived(defaults.values);
-  const guardrailShown = $derived(ceilingPending ? "ceiling" : values.guardrailLevel);
 
   onMount(() => {
     void loadModelDefaults(ipc).then((loaded) => (defaults = loaded));
-    void getHardwareProfile()
-      .then((profile) => (machineMemoryGb = profile.total_capacity_gb))
-      .catch(() => (machineMemoryGb = null));
     return () => clearTimeout(savedTimer);
   });
 
@@ -102,7 +93,7 @@
 
   /** Reads a typed figure; a refused one shows its reason and answers `null`. */
   function figureOf(field: BoundedField, typed: string): number | null {
-    const reading = readField(field, typed, machineMemoryGb);
+    const reading = readField(field, typed);
     if (reading.ok) {
       errors = { ...errors, [field]: undefined };
       return reading.value;
@@ -130,29 +121,6 @@
     }
     const tokens = figureOf("contextTokens", typed);
     if (tokens !== null) void write("contextTokens", tokens, "custom");
-  }
-
-  function chooseGuardrail(level: string) {
-    const choice = GUARDRAIL_CHOICES.find((c) => c.value === level);
-    if (!choice) return;
-    // A ceiling level without a ceiling holds to "balanced" in the engine, so
-    // the level is only written once a ceiling is.
-    if (choice.value === "ceiling" && values.guardrailCeiling <= 0) {
-      ceilingPending = true;
-      return;
-    }
-    ceilingPending = false;
-    void write("guardrailLevel", choice.value, choice.value);
-  }
-
-  async function commitCeiling(typed: string) {
-    const ceiling = figureOf("guardrailCeiling", typed);
-    if (ceiling === null) return;
-    if (!(await write("guardrailCeiling", ceiling, "ceiling"))) return;
-    if (values.guardrailLevel !== "ceiling") {
-      ceilingPending = false;
-      await write("guardrailLevel", "ceiling", "ceiling");
-    }
   }
 
   function chooseUnload(mode: string) {
@@ -267,61 +235,7 @@
         </div>
       </SettingsSection>
     {:else if block === "guardrails"}
-      <SettingsSection
-        title={$t("settings.model_defaults.guardrails.title")}
-        bodyLayout="flush"
-        data-testid="model-defaults-guardrails"
-      >
-        {#snippet icon()}<ShieldCheck size={15} strokeWidth={1.75} />{/snippet}
-        <div class="flex items-center gap-1.5">
-          <p class="text-label-md text-foreground">
-            {$t("settings.model_defaults.guardrails.level_label")}
-          </p>
-          <Tooltip content={$t("settings.model_defaults.guardrails.help")} side="bottom" class="max-w-xs">
-            <button
-              type="button"
-              class="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground ring-offset-background transition-colors duration-fast hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-              aria-label={$t("settings.model_defaults.guardrails.help_label")}
-              data-testid="model-defaults-guardrails-help"
-            >
-              <CircleHelp class="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
-          </Tooltip>
-        </div>
-        {#if lock.policyLabelKey}
-          <PolicyLockedNote
-            labelKey={lock.policyLabelKey}
-            data-testid="model-defaults-guardrails-policy"
-          />
-        {/if}
-        <div role="radiogroup"
-          aria-label={$t("settings.model_defaults.guardrails.title")}
-          aria-disabled={lock.disabled}
-          class="flex flex-col"
-          data-testid="model-defaults-guardrail-selector"
-        >
-          {#each GUARDRAIL_CHOICES as choice (choice.value)}
-            <SettingOption
-              value={choice.value}
-              label={$t(choice.labelKey)}
-              hint={$t(choice.hintKey)}
-              checked={guardrailShown === choice.value}
-              disabled={lock.disabled}
-              onchoose={chooseGuardrail}
-              figure={choice.value === "ceiling"
-                ? values.guardrailCeiling > 0
-                  ? String(values.guardrailCeiling)
-                  : ""
-                : undefined}
-              unit={$t("settings.model_defaults.guardrails.ceiling_unit")}
-              oncommit={(typed) => void commitCeiling(typed)}
-              error={choice.value === "ceiling" ? errors.guardrailCeiling : null}
-              saved={savedAt === choice.value}
-              data-testid={choice.testid}
-            />
-          {/each}
-        </div>
-      </SettingsSection>
+      <GuardrailsSetting {initial} {ipc} />
     {:else if block === "bypass"}
       <SettingsSection
         title={$t("settings.model_defaults.bypass.title")}

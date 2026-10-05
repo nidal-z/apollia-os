@@ -22089,6 +22089,7 @@
           "cpu_cores",
           "accelerator",
           "memory_budget_gb",
+          "devices",
           "total_capacity_gb"
         ],
         "properties": {
@@ -22106,6 +22107,13 @@
           },
           "cpu_model": {
             "type": "string"
+          },
+          "devices": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "The graphics devices, one by one: the identifier the engine lists each\nunder (absent when the engine could not be asked), its name, the\ninterface the engine drives it through, its memory in GB, and whether\nthe engine may load onto it. The accelerator, the budget and the\ncapacity already leave out the memory of the devices held back."
           },
           "memory_budget_gb": {
             "type": "number",

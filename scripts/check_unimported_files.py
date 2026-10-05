@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """List the desktop UI sources that no bundle entry reaches.
 
-Builds the static import graph from the two Vite entries (`src/main.ts`,
-`src/overlay.ts`) by following every `import ... from "..."`, `import "..."`,
+Builds the static import graph from the Vite entries (`src/main.ts`,
+`src/overlay.ts`, `src/hardware.ts`) by following every `import ... from "..."`, `import "..."`,
 `export ... from "..."` and dynamic `import("...")` whose specifier is relative
 or starts with `$lib/`. A file the graph never reaches is shipped by nobody:
 the bundle drops it, `svelte-check` still type-checks it, and a defect in it
@@ -43,7 +43,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 UI_SUBTREE = Path("crates/apollia-desktop/ui")
-DEFAULT_ENTRIES = ["src/main.ts", "src/overlay.ts"]
+DEFAULT_ENTRIES = ["src/main.ts", "src/overlay.ts", "src/hardware.ts"]
 
 # A module the dev server reaches through a `resolve.alias` of vite.config.ts
 # (the automation seam standing in for `@tauri-apps/api/core`) has no importer

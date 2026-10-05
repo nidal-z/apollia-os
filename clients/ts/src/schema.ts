@@ -7814,6 +7814,14 @@ export interface components {
             /** Format: int32 */
             cpu_cores: number;
             cpu_model: string;
+            /**
+             * @description The graphics devices, one by one: the identifier the engine lists each
+             *     under (absent when the engine could not be asked), its name, the
+             *     interface the engine drives it through, its memory in GB, and whether
+             *     the engine may load onto it. The accelerator, the budget and the
+             *     capacity already leave out the memory of the devices held back.
+             */
+            devices: Record<string, never>[];
             /** Format: double */
             memory_budget_gb: number;
             /**

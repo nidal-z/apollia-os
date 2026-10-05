@@ -21,6 +21,18 @@ export interface AcceleratorProfile {
   compute_capability?: [number, number];
 }
 
+/** One graphics device of the machine, as the engine lists it. */
+export interface GpuDevice {
+  /** The identifier the engine reads (`CUDA0`); `null` when the engine could not be asked. */
+  id: string | null;
+  name: string;
+  /** The interface the engine drives it through (`CUDA`, `Vulkan`, `Metal`). */
+  api: string;
+  vram_gb: number;
+  /** Whether the engine may load onto it. */
+  enabled: boolean;
+}
+
 export interface HardwareProfile {
   total_ram_gb: number;
   available_ram_gb: number;
@@ -30,6 +42,8 @@ export interface HardwareProfile {
   memory_budget_gb: number;
   /** What a model can occupy here, GB to the tenth: card plus usable system memory on a discrete card. */
   total_capacity_gb: number;
+  /** The graphics devices, one by one; the figures above leave out the ones held back. */
+  devices: GpuDevice[];
 }
 
 // ── HuggingFace model cards ───────────────────────────────────────────────

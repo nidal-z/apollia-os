@@ -735,6 +735,7 @@ mod tests {
             residency: Default::default(),
             defaults: Default::default(),
             images: Default::default(),
+            devices: Default::default(),
         };
 
         // WHEN
@@ -978,6 +979,7 @@ mod tests {
             residency: Default::default(),
             defaults: Default::default(),
             images: Default::default(),
+            devices: Default::default(),
         };
 
         // WHEN

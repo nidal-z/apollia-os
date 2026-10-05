@@ -169,6 +169,7 @@ LLM backends, routing, and the speech-to-text runner. The default file leaves th
 | `llm.defaults.context_tokens` | integer | `0` | Default context window, in tokens, when llm.defaults.context is custom; 0 lets the engine size it to the memory of this machine, model by model, up to 32768. The organization policy can fix it. |
 | `llm.images.limit_side` | boolean | `true` | Scale an image down before it is sent to a model when its largest side exceeds llm.images.max_side_px. The organization policy can fix it. |
 | `llm.images.max_side_px` | integer | `2048` | Largest side, in pixels, of an image sent to a model; proportions are kept. The organization policy can fix it. |
+| `llm.devices.disabled` | string array | `[]` | Graphics devices the local engine is kept away from, each named as the engine lists it (CUDA0, Vulkan1): a listed device receives no layer and its memory is left out of every estimate; empty leaves the engine every device. The organization policy can fix it. |
 
 ### `[api]`
 
@@ -612,6 +613,23 @@ at its own size, up to what the engine accepts.
 refused: `confirm` shows a confirmation that recalls the risk, `unrestricted`
 loads at once. The guardrail itself is not weakened: the refusal is still
 shown, and a request that does not confirm is still refused.
+
+`[llm.devices]` names the graphics devices the local engine is kept away from,
+each by the identifier `llama-server --list-devices` prints. The application
+writes it from Settings, Hardware, where every device has a switch.
+
+```toml
+[llm.devices]
+disabled = ["CUDA1"]
+```
+
+A listed device is left out of the `--device` list the engine is launched
+with, and its memory is left out of the estimate the compatibility badge, the
+load guardrail and the offload plan read. With every device listed the engine
+runs on the processor alone (`--device none`, `-ngl 0`). An identifier the
+engine does not list is ignored. A machine with unified memory has a single
+device, which is never held back. The section is read at every load, so a
+change applies to the next model loaded.
 
 ## Dictation (`system.db`, not `apollia.toml`)
 
