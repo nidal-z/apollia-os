@@ -37,7 +37,11 @@ use session::{run_list, run_new_session, run_resume};
 /// trip, document this in the `--help`.
 #[derive(Debug, Subcommand, Clone)]
 pub enum ChatHygieneCommand {
-    /// Delete a persisted chat session and all of its messages.
+    /// Delete a persisted chat session and all of its messages, for good.
+    ///
+    /// Nothing goes to the trash of the desktop application: a session
+    /// deleted here cannot be restored. A session already in that trash is
+    /// erased the same way.
     Delete {
         /// Session id (8+ char ulid-like string returned by `chat --list`).
         session_id: String,

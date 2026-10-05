@@ -294,6 +294,9 @@ BILINGUAL_DATA = (
 FRENCH_DATA: dict[str, int] = {
     # locale: the French half of a bilingual surface
     "crates/apollia-desktop/src/i18n.rs": 16,
+    # The French label and explanation of the trash row of Settings > Chat,
+    # pinned word for word by the test of that row.
+    "crates/apollia-desktop/ui/src/routes/settings/ChatSettings.test.ts": 3,
     "crates/apollia-desktop/ui/src/lib/i18n/identicalLocales.ts": 3,
     "crates/apollia-desktop/ui/src/components/settings/stt/SttEssentialSection.svelte": 2,
     "crates/apollia-memory/src/profile_schema.rs": 10,

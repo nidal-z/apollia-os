@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { t, locale } from "svelte-i18n";
-  import { Plus, Search } from "lucide-svelte";
-  import { connectionStatus } from "$lib/stores/sse";
+  import { Plus, Search, Trash2 } from "lucide-svelte";
+  import { connectionStatus, refreshChatSessionsViaIpc } from "$lib/stores/sse";
   import {
     activeChatSessions,
     closedChatSessions,
@@ -12,7 +12,8 @@
   import { chatSessions } from "$lib/stores/sse";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { ChatSessionSummary } from "$lib/types";
-  import { deleteChatSession, renameChatSession } from "$lib/ipc/chat";
+  import { renameChatSession } from "$lib/ipc/chat";
+  import { removeConversation } from "$lib/stores/chatTrash";
   import ChatConversation from "../components/chat/ChatConversation.svelte";
   import EmptySessionsState from "../components/chat/EmptySessionsState.svelte";
   import QuickPicker from "../components/chat/QuickPicker.svelte";
@@ -26,6 +27,7 @@
     type DecoratedSession,
   } from "$lib/stores/chatSessions";
   import ConversationSortMenu from "../components/chat/ConversationSortMenu.svelte";
+  import ConversationTrash from "../components/chat/ConversationTrash.svelte";
   import {
     toggleSessionsSidebar,
     openSessionsDrawer,
@@ -67,6 +69,8 @@
   let selectedSessionId = $state<string | null>(null);
   let showNewChatPicker = $state(false);
   let sessionSearchQuery = $state("");
+  // The left rail shows the trash in place of the list while this is on.
+  let showTrash = $state(false);
   // The journal follows the developer mode: the technical reading when it
   // is on, the plain one otherwise. There is no per-screen switch.
   const journalMode = $derived<JournalMode>($developerMode ? "builder" : "operator");
@@ -240,10 +244,11 @@
   function closeConversation() { selectedSessionId = null; }
 
   async function handleDeleteSession(sessionId: string): Promise<void> {
+    // To the trash when the choice of Settings > Chat is on, for good otherwise.
     try {
-      await deleteChatSession(sessionId);
+      await removeConversation(sessionId);
     } catch (err: unknown) {
-      console.error("delete_chat_session failed:", err);
+      console.error("removing the chat session failed:", err);
       return;
     }
     chatSessions.update((sessions) => sessions.filter((s) => s.id !== sessionId));
@@ -480,6 +485,12 @@
     aria-label={$t("chat.conversations_aria")}
     aria-hidden={!panesInline && !$sessionsDrawerOpen}
   >
+    {#if showTrash}
+      <ConversationTrash
+        onback={() => (showTrash = false)}
+        onrestored={() => void refreshChatSessionsViaIpc()}
+      />
+    {:else}
     <div class="px-3.5 pt-4 pb-2">
       <div class="mb-3 flex items-center justify-between gap-2">
         <h2
@@ -553,6 +564,16 @@
         {/each}
       {/if}
     </div>
+    <button
+      type="button"
+      class="flex items-center gap-2 border-t border-border px-3.5 py-2.5 text-left text-body-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60"
+      onclick={() => (showTrash = true)}
+      data-testid="chat-trash-open"
+    >
+      <Trash2 size={13} strokeWidth={1.75} aria-hidden="true" />
+      {$t("chat.trash.open")}
+    </button>
+    {/if}
   </aside>
 
   <!-- ── Center: thread + composer ─────────────────────────────────────── -->

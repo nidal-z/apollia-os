@@ -2584,7 +2584,7 @@ Without a subcommand: launches the REPL (resume with `--resume <id>`, or list re
 
 ###### **Subcommands:**
 
-* `delete` - Delete a persisted chat session and all of its messages
+* `delete` - Delete a persisted chat session and all of its messages, for good
 * `rename` - Set the user-defined title of a persisted chat session
 * `export` - Export a persisted chat session to a file
 * `capabilities` - Show what the model of a chat session can do: the reasoning setting it offers (none, on or off, or a level) and whether it reads images
@@ -2599,7 +2599,9 @@ Without a subcommand: launches the REPL (resume with `--resume <id>`, or list re
 
 ## `apollia-os chat delete`
 
-Delete a persisted chat session and all of its messages
+Delete a persisted chat session and all of its messages, for good.
+
+Nothing goes to the trash of the desktop application: a session deleted here cannot be restored. A session already in that trash is erased the same way.
 
 **Usage:** `apollia-os chat delete [OPTIONS] <SESSION_ID>`
 

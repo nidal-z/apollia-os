@@ -198,7 +198,7 @@ async function refreshPendingApprovalsViaIpc(): Promise<boolean> {
   }
 }
 
-async function refreshChatSessionsViaIpc(): Promise<boolean> {
+export async function refreshChatSessionsViaIpc(): Promise<boolean> {
   try {
     const result: ChatSessionSummary[] = await invoke("list_chat_sessions");
     chatSessions.set(result);

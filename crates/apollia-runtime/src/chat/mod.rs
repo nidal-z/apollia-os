@@ -50,6 +50,7 @@ pub use manager::{
 pub use plan_actor::{spawn_plan_actor, PlanHandle, PlanStoreError};
 pub use repository::{
     AppendMessageParams, ChatApprovalLogRow, ChatSessionRepository, MessageRow, SessionRow,
+    TrashedSession,
 };
 pub use summarizer::{summarize, SummarizerError};
 pub use title::TitleError;
