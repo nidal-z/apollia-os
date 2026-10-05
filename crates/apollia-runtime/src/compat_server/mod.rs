@@ -55,7 +55,10 @@
 mod actor;
 mod agent_call;
 mod agent_reply;
+mod agent_reply_messages;
+mod agent_reply_responses;
 mod agent_run;
+mod agent_turn;
 mod agents;
 mod auth;
 mod cors;
@@ -68,6 +71,8 @@ mod relay;
 mod router;
 mod tokens;
 
+#[cfg(test)]
+mod agents_formats_tests;
 #[cfg(test)]
 mod agents_tests;
 #[cfg(test)]

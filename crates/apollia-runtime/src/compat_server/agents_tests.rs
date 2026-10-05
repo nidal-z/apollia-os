@@ -42,12 +42,12 @@ use crate::chat::ChatSessionManagerHandle;
 use crate::test_support::poll_until_async;
 use crate::workflows::{BoxFuture, WorkflowCall, WorkflowDescriptor, WorkflowHandle, WorkflowHost};
 
-const CLERK: &str = "demand-clerk";
-const WRITER: &str = "note-writer";
+pub(super) const CLERK: &str = "demand-clerk";
+pub(super) const WRITER: &str = "note-writer";
 const HIDDEN: &str = "hidden-clerk";
-const WORKFLOW: &str = "office/close-month";
-const ANSWER: &str = "Qualified: priority high.";
-const WAIT: Duration = Duration::from_secs(30);
+pub(super) const WORKFLOW: &str = "office/close-month";
+pub(super) const ANSWER: &str = "Qualified: priority high.";
+pub(super) const WAIT: Duration = Duration::from_secs(30);
 
 /// On its first turn, calls `file_write` when the agent has it, `file_read`
 /// otherwise, then answers. Each turn reports its tokens. A request asking to
@@ -139,7 +139,7 @@ impl CompletionModel for Scripted {
 /// the month it closed.
 struct CloseMonth;
 
-fn close_month() -> WorkflowDescriptor {
+pub(super) fn close_month() -> WorkflowDescriptor {
     WorkflowDescriptor {
         id: WORKFLOW.into(),
         version: "1.0.0".into(),
@@ -191,17 +191,17 @@ fn store(repo: &AgentRepository, name: &str, mission: &str, access: &[&str]) {
     .unwrap();
 }
 
-struct Fixture {
+pub(super) struct Fixture {
     agents: ExposedAgents,
-    tokens: ServerTokensHandle,
-    batches: BatchHandle,
-    gate: Arc<Semaphore>,
-    events: broadcast::Receiver<RuntimeEvent>,
+    pub(super) tokens: ServerTokensHandle,
+    pub(super) batches: BatchHandle,
+    pub(super) gate: Arc<Semaphore>,
+    pub(super) events: broadcast::Receiver<RuntimeEvent>,
     _dir: tempfile::TempDir,
 }
 
 impl Fixture {
-    fn router(&self, tokens: Option<ServerTokensHandle>) -> Router {
+    pub(super) fn router(&self, tokens: Option<ServerTokensHandle>) -> Router {
         compat_router(
             tokens,
             RelayState::with_agents(
@@ -219,7 +219,7 @@ impl Fixture {
 /// A runtime with three agents, a workflow, and the exposure of two agents
 /// and the workflow: `demand-clerk` reads, `note-writer` writes, and
 /// `hidden-clerk` is not exposed.
-async fn fixture() -> Fixture {
+pub(super) async fn fixture() -> Fixture {
     let dir = tempfile::tempdir().unwrap();
     let agents_db = apollia_core::paths::DataFile::Agents.path(dir.path());
     let repo = AgentRepository::open(&agents_db).unwrap();
@@ -308,7 +308,7 @@ async fn fixture() -> Fixture {
     }
 }
 
-async fn send(
+pub(super) async fn send(
     router: &Router,
     method: &str,
     path: &str,
