@@ -364,6 +364,9 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # run it asked for, and only a real connection closed under the handler
     # shows it. One helper, a port-0 bind held for the whole test.
     "crates/apollia-runtime/src/compat_server/agents_tests.rs": 1,
+    # The agent and workflow formats are answered through a real socket: one
+    # helper, a port-0 bind held for the whole test.
+    "crates/apollia-runtime/src/compat_server/agents_formats_tests.rs": 1,
     # The file on disk is the subject: a valid apollia.toml written by another
     # editor has to reach the running runtime through the folder watch. One
     # test, two sites: the wait while the watch is armed, and the poll for the

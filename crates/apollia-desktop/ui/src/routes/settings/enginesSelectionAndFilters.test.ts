@@ -87,6 +87,7 @@ function hardware(kind: HardwareProfile["accelerator"]["kind"]): HardwareProfile
     accelerator: { kind },
     memory_budget_gb: 48,
     total_capacity_gb: 48,
+    devices: [],
   };
 }
 
