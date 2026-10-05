@@ -2,6 +2,10 @@
 //! engine, and the real batch engine for the call to an agent: one entry per
 //! request whatever its fate, who called and from where, no content, a chain
 //! that verifies, and the run an agent call started.
+//!
+//! A request is handed to the router as the accept loop hands it: with the
+//! address of its peer and the origin read from it. That the loop reads them
+//! from the accepted connection is shown by the tests of the local network.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -15,8 +19,6 @@ use axum::Router;
 use futures::StreamExt;
 use serde_json::{json, Value};
 use tempfile::TempDir;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio_util::sync::CancellationToken;
 use tower::ServiceExt;
 
 use super::agents_tests::{fixture, CLERK};
@@ -26,7 +28,7 @@ use super::models::LocalModels;
 use super::origin::CallOrigin;
 use super::relay::RelayState;
 use super::relay_tests::{registry, serve_engine};
-use super::router::{compat_router, serve};
+use super::router::compat_router;
 use super::tokens::ServerTokensHandle;
 use crate::audit_journal::verify::verify_entries;
 use crate::audit_journal::{AuditJournalHandle, HmacSigner, JournalEntry, JournalEntryKind};
@@ -137,17 +139,15 @@ async fn rig_on(engine_port: u16, require_token: bool) -> Rig {
     }
 }
 
-/// An engine that accepts a connection and closes it without answering, on
-/// a port held for the whole test.
-async fn silent_engine() -> u16 {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let port = listener.local_addr().unwrap().port();
-    tokio::spawn(async move {
-        while let Ok((stream, _)) = listener.accept().await {
-            drop(stream);
-        }
-    });
-    port
+/// An engine that fails every request.
+async fn failing_engine() -> u16 {
+    serve_engine(Router::new().fallback(|| async {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(json!({"error": {"message": ANSWER}})),
+        )
+    }))
+    .await
 }
 
 /// The server over a live fake engine.
@@ -220,20 +220,22 @@ async fn test_an_answered_call_names_endpoint_model_caller_status_and_tokens() {
     // GIVEN the server over a model whose engine states its usage
     let rig = rig(false).await;
 
-    // WHEN the machine itself asks the model a question
+    // WHEN the machine itself asks the model a question, with a query string
+    // and a header that claims another address
     let (status, body) = send(
         &rig.router,
         LOOPBACK,
         "/v1/chat/completions?trace=SECRET-QUERY",
         ask(false),
-        &[],
+        &[("x-forwarded-for", "203.0.113.9")],
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(body.contains(ANSWER), "{body}");
 
-    // THEN one entry says the endpoint, the model, the caller and its origin,
-    // the status and the tokens the engine stated
+    // THEN one entry says the endpoint without its query, the model, the
+    // address of the connection and its origin, never the one the header
+    // claims, the status and the tokens the engine stated
     let payload = only_call(&rig.journal).await;
     assert_eq!(
         timeless(payload),
@@ -369,9 +371,8 @@ async fn test_a_malformed_call_is_journaled_with_its_400() {
 
 #[tokio::test]
 async fn test_a_failed_call_is_journaled_with_its_failure() {
-    // GIVEN a model whose engine hangs up without answering, and a path
-    // nothing serves
-    let rig = rig_on(silent_engine().await, false).await;
+    // GIVEN a model whose engine fails, and a path nothing serves
+    let rig = rig_on(failing_engine().await, false).await;
 
     // WHEN the model is called, then the unknown path
     let (failed, body) = send(
@@ -382,12 +383,13 @@ async fn test_a_failed_call_is_journaled_with_its_failure() {
         &[],
     )
     .await;
-    assert_eq!(failed, StatusCode::BAD_GATEWAY, "{body}");
+    assert_eq!(failed, StatusCode::INTERNAL_SERVER_ERROR, "{body}");
     let (unknown, _) = send(&rig.router, LOOPBACK, "/v1/nothing", ask(false), &[]).await;
     assert_eq!(unknown, StatusCode::NOT_FOUND);
 
-    // THEN the failure has its entry, naming the model and the 502 and no
-    // token count, and so has the unknown path with its 404
+    // THEN the failure has its entry, naming the model and the 500, with no
+    // token count and nothing of what the engine said, and so has the
+    // unknown path with its 404
     let entries = calls(&rig.journal).await;
     assert_eq!(entries.len(), 2, "{entries:?}");
     assert_eq!(
@@ -400,7 +402,7 @@ async fn test_a_failed_call_is_journaled_with_its_failure() {
             "target_kind": "model",
             "caller_address": "127.0.0.1",
             "origin": "loopback",
-            "status": 502,
+            "status": 500,
         })
     );
     assert_eq!(entries[1].payload["endpoint"], "/v1/nothing");
@@ -498,40 +500,6 @@ async fn test_the_entries_of_the_calls_are_chained_and_signed() {
 }
 
 #[tokio::test]
-async fn test_the_address_of_the_caller_is_the_one_of_the_accepted_connection() {
-    // GIVEN the server listening for real, its accept loop serving the router
-    let rig = rig(false).await;
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let port = listener.local_addr().unwrap().port();
-    let cancel = CancellationToken::new();
-    let serving = tokio::spawn(serve(listener, rig.router.clone(), cancel.clone()));
-
-    // WHEN a client connects and calls, sending no header that names it
-    let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
-        .await
-        .unwrap();
-    let body = ask(false);
-    let request = format!(
-        "POST /v1/chat/completions HTTP/1.1\r\nHost: localhost\r\n\
-         X-Forwarded-For: 203.0.113.9\r\nContent-Type: application/json\r\n\
-         Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
-        body.len()
-    );
-    stream.write_all(request.as_bytes()).await.unwrap();
-    let mut answer = String::new();
-    stream.read_to_string(&mut answer).await.unwrap();
-    assert!(answer.starts_with("HTTP/1.1 200"), "{answer}");
-
-    // THEN the entry names the address the connection was accepted from, not
-    // the one a header claims
-    let payload = only_call(&rig.journal).await;
-    assert_eq!(payload["caller_address"], "127.0.0.1");
-    assert_eq!(payload["origin"], "loopback");
-    cancel.cancel();
-    serving.await.unwrap();
-}
-
-#[tokio::test]
 async fn test_a_call_to_an_agent_names_the_task_and_the_run_it_started() {
     // GIVEN an exposed agent, and the server journaling its requests
     let fx = fixture().await;
@@ -540,51 +508,66 @@ async fn test_a_call_to_an_agent_names_the_task_and_the_run_it_started() {
         fx.router(None),
         Some(CallJournal::new(journal.clone(), fx.tokens.clone())),
     );
-
-    // WHEN the machine calls the agent
     let model = format!("apollia/{CLERK}");
-    let (status, body) = send(
-        &router,
-        LOOPBACK,
-        "/v1/chat/completions",
-        json!({"model": model, "messages": [{"role": "user", "content": QUESTION}]}).to_string(),
-        &[],
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK, "{body}");
-    let answer: Value = serde_json::from_str(&body).unwrap();
-    let task_id = answer["id"]
-        .as_str()
-        .and_then(|id| id.strip_prefix("chatcmpl-"))
-        .unwrap()
-        .to_owned();
+    let turn = json!([{"role": "user", "content": QUESTION}]);
 
-    // THEN the entry of the call names the agent, the task it started and the
-    // run that task's own entries are journaled under, with the tokens of
-    // every turn
+    // WHEN the machine calls the agent on each of the three endpoints
+    let requests = [
+        (
+            "/v1/chat/completions",
+            json!({"model": model, "messages": turn}),
+        ),
+        ("/v1/responses", json!({"model": model, "input": turn})),
+        (
+            "/v1/messages",
+            json!({"model": model, "max_tokens": 256, "messages": turn}),
+        ),
+    ];
+    let mut chat_answer = Value::Null;
+    for (path, body) in &requests {
+        let (status, answer) = send(&router, LOOPBACK, path, body.to_string(), &[]).await;
+        assert_eq!(status, StatusCode::OK, "{path}: {answer}");
+        if *path == "/v1/chat/completions" {
+            chat_answer = serde_json::from_str(&answer).unwrap();
+        }
+    }
+
+    // THEN each call has its entry, naming the agent, the task it started and
+    // the run that task's own entries are journaled under, with the tokens of
+    // every turn, and nothing of the request
     let tasks = TaskRepository::open(&apollia_core::paths::DataFile::Hitl.path(fx._dir.path()))
         .await
         .unwrap();
-    let run_id = tasks.get_run_id(&task_id).await.unwrap();
-    assert!(run_id.is_some());
-    let payload = only_call(&journal).await;
-    assert_eq!(
-        timeless(payload.clone()),
-        json!({
-            "event": "server_call",
-            "method": "POST",
-            "endpoint": "/v1/chat/completions",
-            "target": model,
-            "target_kind": "agent",
-            "caller_address": "127.0.0.1",
-            "origin": "loopback",
-            "status": 200,
-            "prompt_tokens": 250,
-            "completion_tokens": 16,
-            "task_id": task_id,
-            "run_id": run_id,
-        })
-    );
-    // AND nothing of the request reached it
-    assert!(!payload.to_string().contains(QUESTION));
+    let entries = calls(&journal).await;
+    assert_eq!(entries.len(), 3, "{entries:?}");
+    let mut started = Vec::new();
+    for (entry, (path, _)) in entries.iter().zip(&requests) {
+        let task_id = entry.payload["task_id"].as_str().unwrap().to_owned();
+        let run_id = tasks.get_run_id(&task_id).await.unwrap();
+        assert!(run_id.is_some(), "{path}");
+        assert_eq!(
+            timeless(entry.payload.clone()),
+            json!({
+                "event": "server_call",
+                "method": "POST",
+                "endpoint": path,
+                "target": model,
+                "target_kind": "agent",
+                "caller_address": "127.0.0.1",
+                "origin": "loopback",
+                "status": 200,
+                "prompt_tokens": 250,
+                "completion_tokens": 16,
+                "task_id": task_id,
+                "run_id": run_id,
+            })
+        );
+        assert!(!entry.payload.to_string().contains(QUESTION));
+        started.push(task_id);
+    }
+    // AND the task is the one the answer names, a different one for each call
+    assert_eq!(chat_answer["id"], format!("chatcmpl-{}", started[0]));
+    started.sort();
+    started.dedup();
+    assert_eq!(started.len(), 3);
 }

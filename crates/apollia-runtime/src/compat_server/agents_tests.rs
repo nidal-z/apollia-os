@@ -43,11 +43,11 @@ use crate::test_support::poll_until_async;
 use crate::workflows::{BoxFuture, WorkflowCall, WorkflowDescriptor, WorkflowHandle, WorkflowHost};
 
 pub(super) const CLERK: &str = "demand-clerk";
-const WRITER: &str = "note-writer";
+pub(super) const WRITER: &str = "note-writer";
 const HIDDEN: &str = "hidden-clerk";
-const WORKFLOW: &str = "office/close-month";
-const ANSWER: &str = "Qualified: priority high.";
-const WAIT: Duration = Duration::from_secs(30);
+pub(super) const WORKFLOW: &str = "office/close-month";
+pub(super) const ANSWER: &str = "Qualified: priority high.";
+pub(super) const WAIT: Duration = Duration::from_secs(30);
 
 /// On its first turn, calls `file_write` when the agent has it, `file_read`
 /// otherwise, then answers. Each turn reports its tokens. A request asking to
@@ -139,7 +139,7 @@ impl CompletionModel for Scripted {
 /// the month it closed.
 struct CloseMonth;
 
-fn close_month() -> WorkflowDescriptor {
+pub(super) fn close_month() -> WorkflowDescriptor {
     WorkflowDescriptor {
         id: WORKFLOW.into(),
         version: "1.0.0".into(),
@@ -194,9 +194,9 @@ fn store(repo: &AgentRepository, name: &str, mission: &str, access: &[&str]) {
 pub(super) struct Fixture {
     agents: ExposedAgents,
     pub(super) tokens: ServerTokensHandle,
-    batches: BatchHandle,
-    gate: Arc<Semaphore>,
-    events: broadcast::Receiver<RuntimeEvent>,
+    pub(super) batches: BatchHandle,
+    pub(super) gate: Arc<Semaphore>,
+    pub(super) events: broadcast::Receiver<RuntimeEvent>,
     pub(super) _dir: tempfile::TempDir,
 }
 
@@ -308,7 +308,7 @@ pub(super) async fn fixture() -> Fixture {
     }
 }
 
-async fn send(
+pub(super) async fn send(
     router: &Router,
     method: &str,
     path: &str,

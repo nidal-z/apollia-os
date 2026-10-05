@@ -302,8 +302,12 @@ identifiant (`apollia/demand-clerk`), un workflow par son paquet et son nom
 (`apollia/office/close-month`). Un identifiant d'agent ne porte jamais de `/`,
 si bien qu'un agent et un workflow ne répondent jamais au même nom.
 
-Un client l'appelle par `POST /v1/chat/completions`, comme il appellerait un
-modèle :
+Un client l'appelle comme il appellerait un modèle, avec le client qu'il
+emploie déjà : `POST /v1/chat/completions`, `POST /v1/responses` ou
+`POST /v1/messages`. Les règles ci-dessous valent pour les trois ; l'exemple et
+les noms de champs sont ceux de chat completions, et
+[les deux autres formats](#responses-et-messages) disent où chacun range les
+mêmes choses.
 
 ```bash
 curl http://127.0.0.1:7772/v1/chat/completions \
@@ -339,6 +343,55 @@ curl http://127.0.0.1:7772/v1/chat/completions \
   `require_auth`, et `GET /v1/models` ne les liste pas à un appareil qui n'en a
   pas.
 
+### Responses et messages
+
+La même exécution répond à un client de l'API Responses d'OpenAI et à un client
+de l'API Messages d'Anthropic. Seules changent la lecture de la demande et
+l'écriture de la réponse :
+
+| | `POST /v1/responses` | `POST /v1/messages` |
+|---|---|---|
+| La demande | Le dernier élément d'`input` dont le rôle est `user`, ou `input` lui-même quand c'est un texte | Le dernier message de `messages` dont le rôle est `user` |
+| La conversation | Les éléments message qui le précèdent ; un élément qui n'est pas un message est laissé de côté | Les messages qui le précèdent |
+| Consignes du client | `instructions` | `system`, un texte ou des blocs de texte |
+| La réponse | Le dernier élément d'`output`, un `message` qui porte un `output_text` | Le dernier bloc de `content`, un bloc `text` |
+| Les étapes | Un élément `reasoning` par étape, avant le message, son texte dans `summary` | Un bloc `thinking` par étape, avant le texte |
+| `usage` | `input_tokens`, `output_tokens`, `total_tokens` | `input_tokens`, `output_tokens` |
+
+```bash
+curl http://127.0.0.1:7772/v1/messages \
+  -H "content-type: application/json" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{
+    "model": "apollia/demand-clerk",
+    "max_tokens": 1024,
+    "system": "Réponds en une ligne.",
+    "messages": [{"role": "user", "content": "Qualifie la demande de Durand."}]
+  }'
+```
+
+- **Les consignes sont un contexte, jamais la mission.** `system` et
+  `instructions` ouvrent la conversation que lit l'agent, comme le fait un
+  message `system` dans une chat completion. Elles ne remplacent pas la mission
+  que l'agent a reçue dans Apollia.
+- **Une réponse ne garde aucun état non plus.** `previous_response_id` et
+  `conversation` sont refusés par un `400` lisible : envoyez les messages
+  précédents dans `input`. `store` est accepté et ignoré, rien n'est gardé à
+  relire.
+- **Un flux suit les événements de son API.** Pour une réponse :
+  `response.created`, puis pour chaque étape un élément de raisonnement
+  (`response.output_item.added`, `response.reasoning_summary_text.delta`,
+  `response.output_item.done`), puis l'élément message avec la réponse dans
+  `response.output_text.delta`, puis `response.completed` qui porte l'usage.
+  Pour un message : `message_start`, puis pour chaque étape un bloc `thinking`
+  (`content_block_start`, un `thinking_delta`, `content_block_stop`), puis le
+  bloc `text` avec la réponse dans un `text_delta`, puis `message_delta` qui
+  porte `stop_reason` et l'usage, et `message_stop`.
+- **Un bloc `thinking` a une `signature` vide.** Les étapes sont le compte
+  rendu que fait Apollia du travail, pas le raisonnement signé d'un modèle.
+- **Les jetons ne se comptent pas d'avance.** `/v1/messages/count_tokens` ne
+  sert que les modèles locaux ; sur un modèle `apollia/...`, il répond `404`.
+
 ### Une décision que l'agent attend
 
 Un agent qui recourt à un accès que personne n'a accordé, comme écrire un
@@ -361,7 +414,27 @@ l'appel répond `409` avec le code `approval_pending` :
 }
 ```
 
-Dans un flux, le même objet d'erreur est le dernier événement. Terminer la
+Sur `/v1/messages`, les mêmes champs sont dans l'objet d'erreur de l'enveloppe
+Anthropic, dont le `type` est `approval_pending` :
+
+```json
+{
+  "type": "error",
+  "error": {
+    "type": "approval_pending",
+    "message": "The agent waits for your approval to use an access nobody granted. ...",
+    "pending_id": "batch:3f1c...:0",
+    "batch_id": "3f1c...",
+    "task_id": "9a7e...",
+    "access": "file_write"
+  }
+}
+```
+
+Dans un flux, le même objet d'erreur est le dernier événement : tel quel pour
+une chat completion, en événement `error` pour un message, et pour une réponse
+en événement `error` dont les champs (`code`, `message`, `pending_id` et les
+autres) sont à côté de son `type`. Terminer la
 réponse ne retire pas la décision : elle reste en attente jusqu'à ce que
 quelqu'un y réponde, dans Apollia ou par l'API native avec
 `POST /api/v1/pending-decisions/decide` et le `pending_id`. Une fois autorisée,
@@ -378,9 +451,9 @@ La table liste chaque chemin que sert le serveur compatible.
 |---|---|---|
 | `GET` | `/v1/models` | OpenAI. Les modèles chargés, en liste : `id` (identifiant du registre), `object`, `created`, `owned_by`, et `type`, `llm` ou `embeddings` ; puis les agents et workflows disponibles pour d'autres applications, `apollia/<id>`, de `type` `agent` ou `workflow` |
 | `POST` | `/v1/chat/completions` | OpenAI. Relayé au moteur du modèle ; sur un modèle `apollia/...`, exécuté par Apollia (agents et workflows ci-dessus) |
-| `POST` | `/v1/responses` | OpenAI. Relayé au moteur du modèle |
+| `POST` | `/v1/responses` | OpenAI. Relayé au moteur du modèle ; sur un modèle `apollia/...`, exécuté par Apollia |
 | `POST` | `/v1/embeddings` | OpenAI. Relayé au modèle de recherche par le sens |
-| `POST` | `/v1/messages` | Anthropic. Relayé au moteur du modèle |
+| `POST` | `/v1/messages` | Anthropic. Relayé au moteur du modèle ; sur un modèle `apollia/...`, exécuté par Apollia |
 | `POST` | `/v1/messages/count_tokens` | Anthropic. Relayé au moteur du modèle (`llama-server` seulement) |
 
 Mesuré sur `llama-server` à la version qu'épingle Apollia (`b10092`) : les
