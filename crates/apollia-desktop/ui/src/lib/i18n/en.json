@@ -3340,8 +3340,8 @@
   },
   "onboarding": {
     "ai_setup": {
-      "title": "Let's set up your AI",
-      "subtitle": "Pick a local model to stay sovereign, or use a cloud provider.",
+      "title": "Choose the AI your agents will work with",
+      "subtitle": "The only required step. A model on your computer, or a server you already use.",
       "scanning": "Analyzing your environment…",
       "llm_section_title": "Language model (LLM)",
       "configured": "Configured",
@@ -3369,20 +3369,7 @@
       "recommended": "Recommended",
       "search_hf": "Search on HuggingFace",
       "connect_server": "Connect to a server",
-      "stt_section_title": "Voice recognition (optional)",
-      "rescan_whisper": "Re-scan Whisper models",
-      "rescan_short": "Re-scan",
-      "stt_empty_hint": "No Whisper model detected. Download one to enable voice dictation.",
-      "whisper_models": "Whisper models",
-      "configure_later": "Configure later",
       "download_failed": "The download failed.",
-      "stt_quality_ultra_fast": "Ultra fast",
-      "stt_quality_balanced": "Balanced",
-      "stt_quality_high_6x": "High quality · 6× faster",
-      "stt_quality_max_precision": "Maximum precision",
-      "stt_quality_french_tuned": "French fine-tuned",
-      "stt_lang_99": "99 languages",
-      "stt_lang_french": "🇫🇷 French",
       "memory_breakdown": "Needs {total} GB: {weights} GB of weights, {cache} GB of context cache and {overhead} GB for the engine",
       "memory_breakdown_approx": "Needs about {total} GB: {weights} GB of weights, roughly {cache} GB of context cache and {overhead} GB for the engine",
       "reason_native_tools": "Calls tools natively",
@@ -3404,8 +3391,6 @@
       "reason_partial_offload": "{gpu} of {total} layers on your GPU, the rest on the CPU",
       "reason_sparse_mixture": "Mixture of experts: reads only {percent}% of itself per word",
       "reason_quantisation": "{format} compression, keeps about {retained}% of full quality",
-      "context_window_label": "Context window",
-      "context_window_hint": "How much of a conversation the model holds at once. Larger windows use more memory, so the recommendations below are recomputed when you change it. A model trained on a shorter window runs at its own. You can change it later in Settings.",
       "reason_fits_gpu": "Runs entirely on your GPU: {needs} GB of its {budget} GB of video memory",
       "reason_tight_gpu": "Runs entirely on your GPU, with little room left: {needs} GB of its {budget} GB of video memory",
       "reason_fits_unified": "Fits comfortably: {needs} GB of the {budget} GB of memory set aside for models",
@@ -3415,7 +3400,9 @@
       "reason_split": "Too large for your GPU alone: {gpu} GB in its {vram} GB of video memory, {system} GB in system RAM, which is slower",
       "recommend_measured_on_gpu": "Measured on {cpu} with {ram} GB of RAM, and {gpu} with {vram} GB of video memory",
       "recommend_measured_on_unified": "Measured on {chip} with {ram} GB of unified memory",
-      "reason_trained_context": "Trained on {tokens}k tokens: runs at {tokens}k instead of the {asked}k chosen"
+      "reason_trained_context": "Trained on {tokens}k tokens: runs at {tokens}k instead of the {asked}k chosen",
+      "continue_hint": "Continue becomes available as soon as the download is started, or a server is chosen.",
+      "continue_while_downloading": "You can continue during the download: the conversation will wait until the model is ready."
     },
     "embeddings": {
       "title": "Find your documents by meaning",
@@ -3948,15 +3935,9 @@
   },
   "onboarding_welcome": {
     "title": "Welcome to Apollia",
-    "tagline": "The sovereign runtime to run your AI agents locally. We'll calibrate your install in less than 3 minutes.",
-    "feature_local_title": "Local-first",
-    "feature_local_desc": "Your data stays on your machine.",
-    "feature_llm_title": "LLM of your choice",
-    "feature_llm_desc": "Local (llama.cpp) or a server your organization runs.",
-    "feature_agents_title": "Autonomous agents",
-    "feature_agents_desc": "Native ReAct, not a deterministic pipeline.",
-    "cta_start": "Start configuration",
-    "switch_locale": "Switch to {code}"
+    "tagline": "Your agents work on your computer, with your tools and your documents. First choose the language of the interface.",
+    "language_label": "Interface language",
+    "language_hint": "You can change it at any time in Settings, General."
   },
   "onboarding_chat": {
     "no_llm_title": "No LLM engine available",
@@ -3974,7 +3955,9 @@
     "finish_early_hint": "Every question is optional: wrap up whenever you like.",
     "review_again": "See the proposal again",
     "review_again_hint": "Your profile is not saved yet.",
-    "kick_message_resume": "Hello! My profile already holds this: {known}. Only ask me about what is missing."
+    "kick_message_resume": "Hello! My profile already holds this: {known}. Only ask me about what is missing.",
+    "llm_downloading_title": "Your model is on its way",
+    "llm_downloading_detail": "The download is running, and its progress stays shown at the top. The conversation starts as soon as the model is ready."
   },
   "onboarding_review": {
     "title": "Your profile, to review",
@@ -3989,25 +3972,16 @@
     "progress_label": "Onboarding progress",
     "skip_later": "Configure later",
     "skip_optional": "Skip the questions",
-    "step_welcome": "Welcome",
-    "step_models": "Models",
     "step_search": "Search",
-    "step_about": "About me"
-  },
-  "onboarding_stt": {
-    "hotkey_label": "Global keyboard shortcut",
-    "hotkey_capture_idle": "Set shortcut",
-    "hotkey_save": "Save",
-    "hotkey_saving": "…",
-    "hotkey_hint": "Triggers voice dictation from anywhere in the app. Combine at least one modifier key (Ctrl, Alt, Shift, Meta) with a regular key.",
-    "test_start": "Test now",
-    "test_stop": "Speak… (click to stop)",
-    "test_empty": "(empty transcription)",
-    "test_transcribing": "Transcribing…",
-    "test_error": "Error: {error}",
-    "mic_label": "Microphone",
-    "mic_default": "System default",
-    "no_microphone": "No microphone detected. Connect one to use voice dictation."
+    "step_about": "About me",
+    "step_count": "Step {current} of {total} · {label}",
+    "step_language": "Language",
+    "step_ai": "AI",
+    "model_percent": "Model: {percent}%",
+    "model_downloading": "Model: downloading",
+    "model_installing": "Model: installing",
+    "model_ready": "Model ready",
+    "model_failed": "Model: download interrupted"
   },
   "tools": {
     "labels": {

@@ -9001,10 +9001,12 @@ export interface components {
             onboarded: boolean;
         };
         /**
-         * @description The six ordered phases of the onboarding flow.
+         * @description The ordered phases of the onboarding flow: the seven steps of the first
+         *     launch, each resumed exactly where it was left, then the three that close
+         *     it.
          * @enum {string}
          */
-        OnboardingPhase: "welcome" | "ai_setup" | "acquaintance" | "guided_tour" | "graduation" | "done";
+        OnboardingPhase: "welcome" | "ai_setup" | "embeddings" | "acquaintance" | "first_agent" | "connection" | "first_task" | "guided_tour" | "graduation" | "done";
         /** @description Answer of `POST /api/v1/onboarding/reset`. */
         OnboardingReset: {
             /** @description How many profile entries were removed. */

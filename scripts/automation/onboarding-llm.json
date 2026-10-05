@@ -28,8 +28,14 @@
       "label": "01-onb-ai-setup"
     },
     {
+      "kind": "waitFor",
+      "testid": "llm-section",
+      "timeoutMs": 20000
+    },
+    {
       "kind": "click",
-      "testid": "ai-setup-skip"
+      "testid": "ai-setup-continue",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",

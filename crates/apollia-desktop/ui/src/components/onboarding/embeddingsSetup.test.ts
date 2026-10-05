@@ -490,7 +490,7 @@ describe("embeddings step - its place and its words", () => {
       expect(embeddings.title).not.toBe(language.title);
       expect(embeddings.subtitle).not.toBe(language.subtitle);
       expect(catalogue.onboarding_modal.step_search).not.toBe(
-        catalogue.onboarding_modal.step_models,
+        catalogue.onboarding_modal.step_ai,
       );
       // AND the card says the size and that the model runs on this machine
       expect(embeddings.size_runs_locally).toContain("{mb}");

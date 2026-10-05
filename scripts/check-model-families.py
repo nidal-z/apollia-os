@@ -65,8 +65,7 @@ Rules, each reported with the entry it names:
       comment, the one character the prose guard refuses everywhere, and no
       marker contains one
     * every variant and every `[[embedding]]` entry of families.toml has its
-      card, and every model of the dictation selection of the onboarding is
-      named by the `selection_files` of a dictation card
+      card
     * every `[[dictation]]` entry names, in `card`, a dictation card whose
       `selection_files` holds the address the entry is downloaded from
 
@@ -97,10 +96,6 @@ FAMILIES = RECOMMEND / "families.toml"
 PUBLISHERS = RECOMMEND / "publishers.toml"
 REGISTRY = ROOT / "registry" / "models"
 CAPABILITIES = ROOT / "crates" / "apollia-llm" / "src" / "capabilities.rs"
-STT_CATALOGUE = (
-    ROOT / "crates" / "apollia-desktop" / "ui" / "src" / "components" / "onboarding"
-    / "onboardingCatalogs.ts"
-)
 SCHEMA_VERSION = 1
 
 
@@ -290,18 +285,6 @@ def markers(name: str) -> list[str]:
     return [m.lower() for m in re.findall(r'"((?:[^"\\]|\\.)*)"', block.group(1))]
 
 
-def dictation_selection() -> list[str]:
-    """The download addresses of the dictation models the onboarding offers."""
-    if not STT_CATALOGUE.is_file():
-        return []
-    text = STT_CATALOGUE.read_text(encoding="utf-8")
-    start = text.find("CURATED_STT_MODELS")
-    if start < 0:
-        return []
-    block = text[start:text.find("];", start)]
-    return re.findall(r'url: "([^"]+)"', block)
-
-
 def localized(value: object) -> bool:
     return (
         isinstance(value, dict)
@@ -402,7 +385,6 @@ def check_registry(registry: pathlib.Path, fam: dict) -> tuple[list[str], int, i
         faults.append("registry: the capability markers of capabilities.rs could not be read")
     ids: set[str] = set()
     kinds: dict[str, str] = {}
-    dictation_files: set[str] = set()
     selection_of: dict[str, set[str]] = {}
     files = sorted(registry.rglob("*.json"))
     templated = 0
@@ -421,7 +403,6 @@ def check_registry(registry: pathlib.Path, fam: dict) -> tuple[list[str], int, i
             faults.append(f"registry: {cid} is defined twice")
         ids.add(cid)
         kinds[cid] = card.get("kind", "")
-        dictation_files.update(card.get("selection_files", []))
         selection_of[cid] = set(card.get("selection_files", []))
         if "template" in card:
             templated += 1
@@ -440,9 +421,6 @@ def check_registry(registry: pathlib.Path, fam: dict) -> tuple[list[str], int, i
             faults.append(f"registry: dictation model {did} names {card!r}, which is no dictation card")
         elif dictation_url(entry) not in selection_of.get(card, set()):
             faults.append(f"registry: dictation model {did} is not among the selection_files of {card}")
-    for url in dictation_selection():
-        if url not in dictation_files:
-            faults.append(f"registry: dictation model {url} is named by no dictation card")
     return faults, len(files), templated
 
 

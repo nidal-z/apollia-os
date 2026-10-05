@@ -330,9 +330,7 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // folders, and copies and registers the models it will load.
     "get_ai_setup_info",
     "scan_for_gguf_models",
-    "scan_for_whisper_models",
     "setup_local_llm",
-    "setup_whisper_model",
     // MCP: the secret of a server, and the public registry joined with the
     // servers installed.
     "delete_mcp_secret",

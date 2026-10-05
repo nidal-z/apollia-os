@@ -3340,8 +3340,8 @@
   },
   "onboarding": {
     "ai_setup": {
-      "title": "Configurons ton IA",
-      "subtitle": "Choisis un modèle local pour rester souverain, ou utilise un fournisseur cloud.",
+      "title": "Choisissez l'IA qui fera travailler vos agents",
+      "subtitle": "Seule étape obligatoire. Un modèle sur votre poste, ou un serveur que vous utilisez déjà.",
       "scanning": "Analyse de ton environnement…",
       "llm_section_title": "Modèle de langage (LLM)",
       "configured": "Configuré",
@@ -3369,20 +3369,7 @@
       "recommended": "Recommandé",
       "search_hf": "Rechercher sur HuggingFace",
       "connect_server": "Se connecter à un serveur",
-      "stt_section_title": "Reconnaissance vocale (optionnel)",
-      "rescan_whisper": "Re-scanner les modèles Whisper",
-      "rescan_short": "Re-scanner",
-      "stt_empty_hint": "Aucun modèle Whisper détecté. Télécharge-en un pour activer la dictée vocale.",
-      "whisper_models": "Modèles Whisper",
-      "configure_later": "Configurer plus tard",
       "download_failed": "Le téléchargement a échoué.",
-      "stt_quality_ultra_fast": "Ultra-rapide",
-      "stt_quality_balanced": "Équilibré",
-      "stt_quality_high_6x": "Haute qualité · 6× rapide",
-      "stt_quality_max_precision": "Précision maximale",
-      "stt_quality_french_tuned": "Fine-tuné français",
-      "stt_lang_99": "99 langues",
-      "stt_lang_french": "🇫🇷 Français",
       "memory_breakdown": "Nécessite {total} Go : {weights} Go de poids, {cache} Go de cache de contexte et {overhead} Go pour le moteur",
       "memory_breakdown_approx": "Nécessite environ {total} Go : {weights} Go de poids, environ {cache} Go de cache de contexte et {overhead} Go pour le moteur",
       "reason_native_tools": "Appelle les outils nativement",
@@ -3404,8 +3391,6 @@
       "reason_partial_offload": "{gpu} couches sur {total} sur votre GPU, le reste sur le processeur",
       "reason_sparse_mixture": "Mélange d'experts : ne lit que {percent} % de lui-même par mot",
       "reason_quantisation": "Compression {format}, conserve environ {retained} % de la qualité complète",
-      "context_window_label": "Fenêtre de contexte",
-      "context_window_hint": "La part d'une conversation que le modèle garde en mémoire. Une fenêtre plus grande consomme plus de mémoire, donc les recommandations ci-dessous sont recalculées quand tu la changes. Un modèle entraîné sur une fenêtre plus courte tourne à la sienne. Tu pourras la modifier plus tard dans les Réglages.",
       "reason_fits_gpu": "Tourne entièrement sur ton GPU : {needs} Go sur ses {budget} Go de mémoire vidéo",
       "reason_tight_gpu": "Tourne entièrement sur ton GPU, avec peu de marge : {needs} Go sur ses {budget} Go de mémoire vidéo",
       "reason_fits_unified": "Tient confortablement : {needs} Go sur les {budget} Go de mémoire réservés aux modèles",
@@ -3415,7 +3400,9 @@
       "reason_split": "Trop grand pour ton GPU seul : {gpu} Go dans ses {vram} Go de mémoire vidéo, {system} Go en RAM système, plus lente",
       "recommend_measured_on_gpu": "Mesuré sur {cpu} avec {ram} Go de RAM, et {gpu} avec {vram} Go de mémoire vidéo",
       "recommend_measured_on_unified": "Mesuré sur {chip} avec {ram} Go de mémoire unifiée",
-      "reason_trained_context": "Entraîné sur {tokens}k tokens : tourne à {tokens}k au lieu des {asked}k choisis"
+      "reason_trained_context": "Entraîné sur {tokens}k tokens : tourne à {tokens}k au lieu des {asked}k choisis",
+      "continue_hint": "Continuer s'active dès que le téléchargement est lancé, ou qu'un serveur est choisi.",
+      "continue_while_downloading": "Vous pouvez continuer pendant le téléchargement : la conversation attendra que le modèle soit prêt."
     },
     "embeddings": {
       "title": "Retrouver vos documents par le sens",
@@ -3947,16 +3934,10 @@
     "live": "En direct"
   },
   "onboarding_welcome": {
-    "title": "Bienvenue sur Apollia",
-    "tagline": "Le runtime souverain pour exécuter tes agents IA en local. On va calibrer rapidement ton installation - moins de 3 minutes.",
-    "feature_local_title": "Local-first",
-    "feature_local_desc": "Tes données ne quittent pas ta machine.",
-    "feature_llm_title": "LLM au choix",
-    "feature_llm_desc": "Local (llama.cpp) ou un serveur que ton organisation héberge.",
-    "feature_agents_title": "Agents autonomes",
-    "feature_agents_desc": "ReAct natif, pas un pipeline déterministe.",
-    "cta_start": "Commencer la configuration",
-    "switch_locale": "Passer en {code}"
+    "title": "Bienvenue dans Apollia",
+    "tagline": "Vos agents travaillent sur votre poste, avec vos outils et vos documents. Choisissez d'abord la langue de l'interface.",
+    "language_label": "Langue de l'interface",
+    "language_hint": "Vous pourrez la changer à tout moment dans Réglages, Général."
   },
   "onboarding_chat": {
     "no_llm_title": "Aucun moteur LLM disponible",
@@ -3974,7 +3955,9 @@
     "finish_early_hint": "Chaque question est facultative : concluez quand vous voulez.",
     "review_again": "Revoir la proposition",
     "review_again_hint": "Votre profil n'est pas encore enregistré.",
-    "kick_message_resume": "Bonjour ! Mon profil contient déjà ceci : {known}. Pose-moi seulement les questions sur ce qui manque."
+    "kick_message_resume": "Bonjour ! Mon profil contient déjà ceci : {known}. Pose-moi seulement les questions sur ce qui manque.",
+    "llm_downloading_title": "Votre modèle arrive",
+    "llm_downloading_detail": "Le téléchargement est en cours, sa progression reste affichée en haut. La conversation commence dès que le modèle est prêt."
   },
   "onboarding_review": {
     "title": "Votre profil, à relire",
@@ -3989,25 +3972,16 @@
     "progress_label": "Progression de l'onboarding",
     "skip_later": "Configurer plus tard",
     "skip_optional": "Passer les questions",
-    "step_welcome": "Accueil",
-    "step_models": "Modèles",
     "step_search": "Recherche",
-    "step_about": "Qui je suis"
-  },
-  "onboarding_stt": {
-    "hotkey_label": "Raccourci clavier global",
-    "hotkey_capture_idle": "Définir le raccourci",
-    "hotkey_save": "Enregistrer",
-    "hotkey_saving": "…",
-    "hotkey_hint": "Active la dictée vocale depuis n'importe où dans l'app. Combine au moins une touche modificateur (Ctrl, Alt, Shift, Meta) avec une touche normale.",
-    "test_start": "Tester maintenant",
-    "test_stop": "Parle… (clique pour arrêter)",
-    "test_empty": "(transcription vide)",
-    "test_transcribing": "Transcription en cours…",
-    "test_error": "Erreur : {error}",
-    "mic_label": "Microphone",
-    "mic_default": "Périphérique par défaut",
-    "no_microphone": "Aucun microphone détecté. Branchez-en un pour la dictée vocale."
+    "step_about": "Qui je suis",
+    "step_count": "Étape {current} sur {total} · {label}",
+    "step_language": "Langue",
+    "step_ai": "IA",
+    "model_percent": "Modèle : {percent} %",
+    "model_downloading": "Modèle : téléchargement en cours",
+    "model_installing": "Modèle : installation",
+    "model_ready": "Modèle prêt",
+    "model_failed": "Modèle : téléchargement interrompu"
   },
   "tools": {
     "labels": {

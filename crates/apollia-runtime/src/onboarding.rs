@@ -70,7 +70,7 @@ impl Onboarding<'_> {
     ///
     /// # Errors
     ///
-    /// [`OnboardingError::UnknownPhase`] for a name outside the six,
+    /// [`OnboardingError::UnknownPhase`] for a name the flow does not know,
     /// [`OnboardingError::InvalidTransition`] for a phase out of sequence.
     pub async fn advance(&self, target_phase: &str) -> Result<OnboardingState, OnboardingError> {
         let target = OnboardingPhase::parse(target_phase)
@@ -269,7 +269,12 @@ fn apply_phase_transition(
     onboarding.phase = target.clone();
     if matches!(
         target,
-        OnboardingPhase::GuidedTour | OnboardingPhase::Graduation | OnboardingPhase::Done
+        OnboardingPhase::FirstAgent
+            | OnboardingPhase::Connection
+            | OnboardingPhase::FirstTask
+            | OnboardingPhase::GuidedTour
+            | OnboardingPhase::Graduation
+            | OnboardingPhase::Done
     ) {
         for topic in &ONBOARDING_TOPICS {
             let _ = repo.mark_topic_covered(topic);

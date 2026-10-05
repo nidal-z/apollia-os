@@ -1,6 +1,6 @@
-//! The onboarding phase machine as the interface sees it: the six ordered
-//! phases, the counters the graduation screen reads, and the refusals a wrong
-//! transition earns.
+//! The onboarding phase machine as the interface sees it: the ordered phases,
+//! one per step of the first launch and three that close it, the counters the
+//! graduation screen reads, and the refusals a wrong transition earns.
 
 use serde::{Deserialize, Serialize};
 
@@ -8,16 +8,26 @@ use serde::{Deserialize, Serialize};
 // Phase machine types
 // ---------------------------------------------------------------------------
 
-/// The six ordered phases of the onboarding flow.
+/// The ordered phases of the onboarding flow: the seven steps of the first
+/// launch, each resumed exactly where it was left, then the three that close
+/// it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OnboardingPhase {
-    /// Initial landing screen - shown on first launch.
+    /// Initial landing screen, where the language is chosen.
     Welcome,
-    /// LLM and STT configuration.
+    /// The language model, local or served: the only step that cannot be passed.
     AiSetup,
-    /// AI Companion introduction and first interaction.
+    /// The model search by meaning uses.
+    Embeddings,
+    /// The conversation that proposes a profile.
     Acquaintance,
+    /// The first agent: an example installed, or one described in words.
+    FirstAgent,
+    /// The connection the first agent needs.
+    Connection,
+    /// The first task handed to that agent.
+    FirstTask,
     /// Guided product tour (interactive spotlight steps).
     GuidedTour,
     /// Summary screen showing achievements and stats.
@@ -27,12 +37,30 @@ pub enum OnboardingPhase {
 }
 
 impl OnboardingPhase {
+    /// Every phase, in the order the flow walks them.
+    pub const ORDER: [Self; 10] = [
+        Self::Welcome,
+        Self::AiSetup,
+        Self::Embeddings,
+        Self::Acquaintance,
+        Self::FirstAgent,
+        Self::Connection,
+        Self::FirstTask,
+        Self::GuidedTour,
+        Self::Graduation,
+        Self::Done,
+    ];
+
     /// Returns the lowercase snake_case string stored in UserMemory.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Welcome => "welcome",
             Self::AiSetup => "ai_setup",
+            Self::Embeddings => "embeddings",
             Self::Acquaintance => "acquaintance",
+            Self::FirstAgent => "first_agent",
+            Self::Connection => "connection",
+            Self::FirstTask => "first_task",
             Self::GuidedTour => "guided_tour",
             Self::Graduation => "graduation",
             Self::Done => "done",
@@ -43,15 +71,7 @@ impl OnboardingPhase {
     ///
     /// Returns `None` for unknown strings.
     pub fn parse(s: &str) -> Option<Self> {
-        match s {
-            "welcome" => Some(Self::Welcome),
-            "ai_setup" => Some(Self::AiSetup),
-            "acquaintance" => Some(Self::Acquaintance),
-            "guided_tour" => Some(Self::GuidedTour),
-            "graduation" => Some(Self::Graduation),
-            "done" => Some(Self::Done),
-            _ => None,
-        }
+        Self::ORDER.into_iter().find(|phase| phase.as_str() == s)
     }
 }
 
@@ -118,18 +138,12 @@ impl OnboardingState {
     /// Returns `true` when advancing from the current phase to `target` is a
     /// legal sequential transition.
     ///
-    /// The only valid transitions are the five consecutive steps in the ordered
-    /// chain: `Welcome`, `AiSetup`, `Acquaintance`, `GuidedTour`, `Graduation`,
-    /// `Done`.
+    /// The only valid transitions are the consecutive pairs of
+    /// [`OnboardingPhase::ORDER`]: a step passed is still a phase walked.
     pub fn can_advance_to(&self, target: &OnboardingPhase) -> bool {
-        matches!(
-            (&self.phase, target),
-            (OnboardingPhase::Welcome, OnboardingPhase::AiSetup)
-                | (OnboardingPhase::AiSetup, OnboardingPhase::Acquaintance)
-                | (OnboardingPhase::Acquaintance, OnboardingPhase::GuidedTour)
-                | (OnboardingPhase::GuidedTour, OnboardingPhase::Graduation)
-                | (OnboardingPhase::Graduation, OnboardingPhase::Done)
-        )
+        OnboardingPhase::ORDER
+            .windows(2)
+            .any(|pair| pair[0] == self.phase && pair[1] == *target)
     }
 }
 
@@ -200,7 +214,7 @@ pub enum OnboardingError {
     #[error("persistence error: {0}")]
     PersistenceError(String),
 
-    /// The requested phase is not one of the six.
+    /// The requested phase is not one the flow knows.
     #[error("persistence error: unknown phase: {0}")]
     UnknownPhase(String),
 
@@ -278,16 +292,46 @@ mod tests {
     }
 
     #[test]
+    fn test_the_seven_steps_of_the_first_launch_are_seven_phases_in_order() {
+        // GIVEN the names the seven steps are stored under, in their order
+        let steps = [
+            "welcome",
+            "ai_setup",
+            "embeddings",
+            "acquaintance",
+            "first_agent",
+            "connection",
+            "first_task",
+        ];
+        // WHEN the first seven phases are read
+        let names: Vec<&str> = OnboardingPhase::ORDER[..7]
+            .iter()
+            .map(OnboardingPhase::as_str)
+            .collect();
+        // THEN each step has its own phase, so a restart reopens exactly on it
+        assert_eq!(names, steps);
+        for name in steps {
+            assert!(OnboardingPhase::parse(name).is_some(), "{name}");
+        }
+    }
+
+    #[test]
+    fn test_a_step_cannot_be_jumped_over() {
+        // GIVEN a flow standing on the AI setup
+        let state = OnboardingState {
+            phase: OnboardingPhase::AiSetup,
+            ..Default::default()
+        };
+        // WHEN the conversation is asked for without the step between them
+        // THEN the move is refused, and the step between them is accepted
+        assert!(!state.can_advance_to(&OnboardingPhase::Acquaintance));
+        assert!(state.can_advance_to(&OnboardingPhase::Embeddings));
+    }
+
+    #[test]
     fn test_all_sequential_transitions_valid() {
         // GIVEN the full transition chain
-        let phases = [
-            OnboardingPhase::Welcome,
-            OnboardingPhase::AiSetup,
-            OnboardingPhase::Acquaintance,
-            OnboardingPhase::GuidedTour,
-            OnboardingPhase::Graduation,
-            OnboardingPhase::Done,
-        ];
+        let phases = OnboardingPhase::ORDER;
         // WHEN checking each consecutive pair
         // THEN all are valid transitions
         for window in phases.windows(2) {
@@ -311,7 +355,11 @@ mod tests {
         // WHEN checking non-sequential targets
         // THEN all are invalid
         let non_targets = [
+            OnboardingPhase::Embeddings,
             OnboardingPhase::Acquaintance,
+            OnboardingPhase::FirstAgent,
+            OnboardingPhase::Connection,
+            OnboardingPhase::FirstTask,
             OnboardingPhase::GuidedTour,
             OnboardingPhase::Graduation,
             OnboardingPhase::Done,
@@ -457,14 +505,7 @@ mod tests {
     #[test]
     fn test_phase_as_str_roundtrip() {
         // GIVEN all phases
-        let phases = [
-            OnboardingPhase::Welcome,
-            OnboardingPhase::AiSetup,
-            OnboardingPhase::Acquaintance,
-            OnboardingPhase::GuidedTour,
-            OnboardingPhase::Graduation,
-            OnboardingPhase::Done,
-        ];
+        let phases = OnboardingPhase::ORDER;
         // WHEN converting to string and back
         // THEN all phases roundtrip correctly
         for phase in &phases {

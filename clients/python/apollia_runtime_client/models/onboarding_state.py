@@ -24,7 +24,9 @@ class OnboardingState:
         completed (bool): `true` when the phase has reached `Done`.
         llm_configured (bool): `true` when at least one LLM backend has been configured.
         mandatory_complete (bool): `true` when the mandatory name/role fields have been collected.
-        phase (OnboardingPhase): The six ordered phases of the onboarding flow.
+        phase (OnboardingPhase): The ordered phases of the onboarding flow: the seven steps of the first
+            launch, each resumed exactly where it was left, then the three that close
+            it.
         skipped (bool): `true` if the user explicitly skipped the onboarding.
         stats (OnboardingStats): Cumulative statistics accumulated over the full onboarding flow.
         stt_configured (bool): `true` when the STT engine has been configured and tested.

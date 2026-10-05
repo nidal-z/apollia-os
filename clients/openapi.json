@@ -24672,11 +24672,15 @@
       },
       "OnboardingPhase": {
         "type": "string",
-        "description": "The six ordered phases of the onboarding flow.",
+        "description": "The ordered phases of the onboarding flow: the seven steps of the first\nlaunch, each resumed exactly where it was left, then the three that close\nit.",
         "enum": [
           "welcome",
           "ai_setup",
+          "embeddings",
           "acquaintance",
+          "first_agent",
+          "connection",
+          "first_task",
           "guided_tour",
           "graduation",
           "done"
