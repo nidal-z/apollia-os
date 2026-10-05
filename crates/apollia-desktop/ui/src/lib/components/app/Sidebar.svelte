@@ -2,7 +2,7 @@
   import type { Route } from "$lib/stores/navigation";
   import {
     LayoutDashboard, MessageSquare, Bot, ListChecks, ShieldCheck,
-    Repeat, Brain, Database, Activity, Mic, Library,
+    Repeat, Brain, Database, Activity, Mic, Library, ScrollText,
   } from "lucide-svelte";
 
   type Badge = "none" | "chat" | "tasks" | "approvals";
@@ -28,6 +28,7 @@
     { route: "automations"    as Route, Icon: Repeat,          labelKey: "nav.sidebar.automations",    badge: "none"      },
     { route: "inbox"          as Route, Icon: ShieldCheck,     labelKey: "nav.sidebar.inbox",          badge: "approvals" },
     { route: "llm"            as Route, Icon: Brain,           labelKey: "nav.sidebar.llm",            badge: "none"      },
+    { route: "journal"        as Route, Icon: ScrollText,      labelKey: "nav.sidebar.journal",        badge: "none"      },
   ];
 
   /** The primary entries shown for a given developer mode. */

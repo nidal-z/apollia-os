@@ -24,6 +24,7 @@ pub mod embeddings;
 pub mod hf_token;
 pub mod hitl;
 pub mod integrations;
+pub mod journal;
 pub mod link_preview;
 pub mod llm;
 pub mod llm_loaded;
