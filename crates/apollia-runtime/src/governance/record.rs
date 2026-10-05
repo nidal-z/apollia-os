@@ -24,6 +24,10 @@ pub const GLOBAL_RULES_RUN_ID: &str = "governance:rules:global";
 /// Journal run holding the exports of the journal.
 pub const JOURNAL_EXPORT_RUN_ID: &str = "governance:journal:export";
 
+/// Journal run holding what happens to the journal itself: a purge by
+/// retention, an opening without its signing key.
+pub const JOURNAL_STATE_RUN_ID: &str = "governance:journal:state";
+
 /// Journal run holding the installations and updates of `package_id`.
 pub fn package_run_id(package_id: &str) -> String {
     format!("{PACKAGE_RUN_PREFIX}{package_id}")
@@ -264,7 +268,8 @@ pub enum GovernanceEvent {
     },
     /// Governance entered fail-closed.
     FailClosedTriggered {
-        /// What cannot be read (`store_unreadable` or `policy_invalid`).
+        /// What cannot be read (`store_unreadable`, `policy_invalid` or
+        /// `journal_unavailable`).
         cause: String,
         /// Why, in a sentence.
         detail: String,
@@ -285,6 +290,56 @@ pub enum GovernanceEvent {
         #[serde(default)]
         detail: bool,
     },
+    /// Entries older than the retention of the organisation policy were
+    /// removed. The entry that says so is where verification starts from.
+    JournalPurged {
+        /// Days an entry is kept, as the policy sets them.
+        retention_days: u32,
+        /// Entries dated before this instant were removed (RFC 3339 UTC).
+        cutoff: String,
+        /// How many entries were removed.
+        removed: u64,
+        /// The last link of the global chain that was removed: the first
+        /// entry kept follows it. `None` while the global chain still starts
+        /// at its origin.
+        #[serde(default)]
+        anchor: Option<PurgeAnchor>,
+        /// Per run that lost its first entries and still has some: the last
+        /// entry removed, which the first entry kept follows.
+        #[serde(default)]
+        runs: std::collections::BTreeMap<String, RunCut>,
+    },
+    /// The journal opened without its signing key.
+    JournalUnsigned {
+        /// Why, in a sentence.
+        detail: String,
+    },
+    /// The daily export the organisation policy asks for could not be
+    /// written.
+    JournalExportFailed {
+        /// The folder the policy designates.
+        directory: String,
+        /// Why, in a sentence.
+        detail: String,
+    },
+}
+
+/// The last link of the global chain a purge removed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PurgeAnchor {
+    /// Its position in the global chain.
+    pub global_seq: u64,
+    /// Its global hash.
+    pub global_hash: String,
+}
+
+/// The last entry of a run a purge removed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunCut {
+    /// Its sequence number in the run.
+    pub seq: u64,
+    /// Its hash.
+    pub hash: String,
 }
 
 /// The filters an export of the journal was made with, as the journal keeps
@@ -358,7 +413,11 @@ impl GovernanceEvent {
             | GovernanceEvent::PolicyChanged { .. }
             | GovernanceEvent::PolicyUnreadable { .. }
             | GovernanceEvent::FailClosedTriggered { .. } => POLICY_RUN_ID,
-            GovernanceEvent::JournalExported { .. } => JOURNAL_EXPORT_RUN_ID,
+            GovernanceEvent::JournalExported { .. }
+            | GovernanceEvent::JournalExportFailed { .. } => JOURNAL_EXPORT_RUN_ID,
+            GovernanceEvent::JournalPurged { .. } | GovernanceEvent::JournalUnsigned { .. } => {
+                JOURNAL_STATE_RUN_ID
+            }
         }
     }
 
@@ -379,7 +438,10 @@ impl GovernanceEvent {
             | GovernanceEvent::PolicyChanged { .. }
             | GovernanceEvent::PolicyUnreadable { .. }
             | GovernanceEvent::FailClosedTriggered { .. }
-            | GovernanceEvent::JournalExported { .. } => other_run(self),
+            | GovernanceEvent::JournalExported { .. }
+            | GovernanceEvent::JournalPurged { .. }
+            | GovernanceEvent::JournalUnsigned { .. }
+            | GovernanceEvent::JournalExportFailed { .. } => other_run(self),
             other => governance_run_id(other.subject_id()),
         }
     }
@@ -407,6 +469,9 @@ impl GovernanceEvent {
             GovernanceEvent::PolicyUnreadable { .. } => JournalEntryKind::PolicyUnreadable,
             GovernanceEvent::FailClosedTriggered { .. } => JournalEntryKind::FailClosedTriggered,
             GovernanceEvent::JournalExported { .. } => JournalEntryKind::JournalExported,
+            GovernanceEvent::JournalPurged { .. } => JournalEntryKind::JournalPurged,
+            GovernanceEvent::JournalUnsigned { .. } => JournalEntryKind::JournalUnsigned,
+            GovernanceEvent::JournalExportFailed { .. } => JournalEntryKind::JournalExportFailed,
         }
     }
 }

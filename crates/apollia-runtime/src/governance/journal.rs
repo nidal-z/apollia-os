@@ -1,6 +1,7 @@
 //! What governance writes to the journal on its own: the events the stores of
 //! `governance.db` left in their outbox, the organisation policy applied at
-//! each start, and every entry into fail-closed.
+//! each start, every entry into fail-closed, and what happens to the journal
+//! itself (an opening without its key, a daily export written or failed).
 //!
 //! The runtime is the one writer of the signed journal. A rule or a consent
 //! changed by another process (the command line, the desktop) waits in the
@@ -184,6 +185,64 @@ pub(crate) fn record_export(
             actor: "user".to_owned(),
             filters,
             detail,
+        },
+        now(),
+    );
+}
+
+/// Records that the journal opened without its signing key.
+pub(crate) fn record_unsigned(journal: &AuditJournalHandle) {
+    append(
+        journal,
+        &GovernanceEvent::JournalUnsigned {
+            detail: "the signing key could not be read or created: entries are chained, not signed"
+                .to_owned(),
+        },
+        now(),
+    );
+}
+
+/// Records that the daily file of `day` was written, with `entries` entries,
+/// at the request of the organisation policy.
+pub(crate) fn record_daily_export(
+    journal: &AuditJournalHandle,
+    day: chrono::NaiveDate,
+    entries: u64,
+) {
+    let instant = |day: chrono::NaiveDate| {
+        day.and_hms_opt(0, 0, 0).map(|start| {
+            start
+                .and_utc()
+                .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+        })
+    };
+    append(
+        journal,
+        &GovernanceEvent::JournalExported {
+            format: "json".to_owned(),
+            entries,
+            actor: "policy".to_owned(),
+            filters: ExportFilters {
+                since: instant(day),
+                until: day.succ_opt().and_then(instant),
+                ..ExportFilters::default()
+            },
+            detail: false,
+        },
+        now(),
+    );
+}
+
+/// Records that the daily export could not be written.
+pub(crate) fn record_daily_export_failed(
+    journal: &AuditJournalHandle,
+    failure: &crate::audit_journal::DailyExportFailure,
+) {
+    append(
+        journal,
+        &GovernanceEvent::JournalExportFailed {
+            directory: failure.directory.clone(),
+            detail: failure.detail.clone(),
         },
         now(),
     );

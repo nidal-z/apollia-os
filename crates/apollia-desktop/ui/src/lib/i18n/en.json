@@ -4835,6 +4835,7 @@
       "title": "Sensitive actions blocked",
       "store_unreadable": "The permissions database cannot be read: Apollia refuses anything that writes, sends or runs. Reading continues.",
       "policy_invalid": "The organization policy is invalid ({reason}): sensitive actions and new connections are refused. Reading continues.",
+      "journal_unavailable": "The organization policy requires the journal, and the journal could not be opened: sensitive actions and new connections are refused. Reading continues.",
       "policy_reason": {
         "schema": "content does not conform",
         "signature": "signature not recognized",
@@ -4845,6 +4846,10 @@
       "retry": "Retry",
       "view_policy": "View the policy",
       "retry_failed": "The state of permissions could not be read again."
+    },
+    "journal_notice": {
+      "unsigned": "The journal opened without its signing key: actions are still recorded and any alteration still shows, but the entries are not signed.",
+      "daily_export_failed": "The daily export of the journal could not be written to {directory}. Nothing is blocked; tell your IT department."
     }
   },
   "packages": {
@@ -5308,7 +5313,10 @@
       "policy_changed": "The organization policy changed",
       "policy_unreadable": "The organization policy was refused",
       "fail_closed_triggered": "Sensitive actions are now refused",
-      "journal_exported": "The journal was exported"
+      "journal_exported": "The journal was exported",
+      "journal_purged": "Entries older than the retention period were removed",
+      "journal_unsigned": "The journal opened without its signing key",
+      "journal_export_failed": "The daily export of the journal failed"
     }
   }
 }

@@ -240,3 +240,109 @@ async fn test_fail_closed_changes_are_announced() {
     ));
     assert!(governance.state().fail_closed.is_none());
 }
+
+/// A valid policy whose `[journal]` section is `journal`.
+fn policy_with_journal(journal: &str) -> Arc<PolicyVerdict> {
+    let policy = apollia_permissions::parse_policy(&format!(
+        "schema_version = 1\nsigned_at = 2026-01-01T00:00:00Z\n[journal]\n{journal}\n"
+    ))
+    .expect("policy");
+    Arc::new(PolicyVerdict::Valid(Box::new(
+        apollia_permissions::ValidPolicy {
+            signed_at: policy.signed_at,
+            policy,
+            key_fingerprint: "ab12".into(),
+            policy_digest: "00".into(),
+            publisher: "acme".into(),
+        },
+    )))
+}
+
+// A policy that requires the journal fails closed when the journal is absent
+// or could not be opened: nothing sensitive runs unrecorded, reading continues.
+#[tokio::test]
+async fn test_a_required_journal_that_is_not_open_refuses_every_sensitive_family() {
+    // GIVEN a readable governance.db with a standing consent, a policy that
+    // requires the journal, and no journal
+    let dir = tempfile::tempdir().unwrap();
+    seed_store(&dir);
+    let (events, mut received) = tokio::sync::broadcast::channel(16);
+
+    // WHEN the actor starts, then reads its sources again
+    let governance = GovernanceHandle::spawn(sources(
+        &dir,
+        policy_with_journal("required = true"),
+        Some(events),
+    ));
+    governance.refresh().await;
+
+    // THEN governance fails closed for that reason, and says so once
+    let state = governance.state();
+    assert!(
+        matches!(
+            state.fail_closed,
+            Some(FailClosed::JournalUnavailable { .. })
+        ),
+        "{:?}",
+        state.fail_closed
+    );
+    let announced: Vec<RuntimeEvent> = std::iter::from_fn(|| received.try_recv().ok())
+        .filter(|event| matches!(event, RuntimeEvent::GovernanceFailClosed { .. }))
+        .collect();
+    assert!(
+        matches!(
+            &announced[..],
+            [RuntimeEvent::GovernanceFailClosed { active: true, cause: Some(cause), .. }]
+                if cause == "journal_unavailable"
+        ),
+        "{announced:?}"
+    );
+    // AND each sensitive family is refused, the one the consent covered too
+    for family in [
+        ActionFamily::ReadPersonal,
+        ActionFamily::WriteOrDelete,
+        ActionFamily::SendExternal,
+        ActionFamily::ExecuteCode,
+        ActionFamily::Unclassified,
+    ] {
+        let decision = governance.decide(&call("some_tool", family));
+        assert!(refused_fail_closed(&decision), "{family:?}: {decision:?}");
+    }
+    // AND reading runs
+    assert!(governance
+        .decide(&call("file_list", ActionFamily::Read))
+        .is_allowed());
+}
+
+// The requirement is on the journal being open, not on its signature, and a
+// policy that does not require it changes nothing.
+#[tokio::test]
+async fn test_an_unsigned_journal_or_a_journal_not_required_does_not_fail_closed() {
+    // GIVEN a journal opened without a signing key
+    let dir = tempfile::tempdir().unwrap();
+    seed_store(&dir);
+    let unsigned = AuditJournalHandle::open(&dir.path().join("audit_journal.db"))
+        .await
+        .expect("open unsigned journal");
+    assert!(!unsigned.status().signed);
+
+    // WHEN the policy requires the journal and the actor holds that journal,
+    // even after it reads its sources again
+    let required = GovernanceHandle::spawn(GovernanceSources {
+        journal: Some(unsigned.clone()),
+        ..sources(&dir, policy_with_journal("required = true"), None)
+    });
+    required.refresh().await;
+    // AND WHEN a policy does not require it and the actor holds none
+    let optional =
+        GovernanceHandle::spawn(sources(&dir, policy_with_journal("required = false"), None));
+
+    // THEN neither fails closed: the consent still opens its family
+    for governance in [&required, &optional] {
+        assert_eq!(governance.state().fail_closed, None);
+        assert!(governance
+            .decide(&call("file_write", ActionFamily::WriteOrDelete))
+            .is_allowed());
+    }
+    unsigned.shutdown().await;
+}

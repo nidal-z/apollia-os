@@ -1,5 +1,6 @@
 /**
- * Whether governance fails closed, for the banner of the window.
+ * Whether governance fails closed, and what degrades the journal without
+ * refusing anything, for the banners of the window.
  *
  * Read at start, again on each change the runtime announces
  * (`GovernanceFailClosed` on the `runtime-event` channel), and when the user
@@ -7,13 +8,19 @@
  */
 import { writable, type Readable } from "svelte/store";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { governanceState, type FailClosed } from "$lib/ipc/governance";
+import { governanceState, type FailClosed, type JournalNotice } from "$lib/ipc/governance";
 
 const state = writable<FailClosed | null>(null);
+const notices = writable<JournalNotice[]>([]);
 
 /** Why governance fails closed, `null` while it decides normally. */
 export const governanceFailClosed: Readable<FailClosed | null> = {
   subscribe: state.subscribe,
+};
+
+/** What degrades the journal, empty while it is in order. */
+export const journalNotices: Readable<JournalNotice[]> = {
+  subscribe: notices.subscribe,
 };
 
 /**
@@ -23,6 +30,7 @@ export const governanceFailClosed: Readable<FailClosed | null> = {
 export async function refreshGovernanceFailClosed(): Promise<void> {
   const current = await governanceState();
   state.set(current.fail_closed);
+  notices.set(current.journal_notices);
 }
 
 /** Whether a `runtime-event` envelope announces a change of the state. */

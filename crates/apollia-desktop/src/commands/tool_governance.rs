@@ -144,6 +144,11 @@ pub(crate) async fn governance_state_on(link: &RuntimeLink) -> Result<Governance
             runtime.governance.refresh().await;
             Ok(GovernanceStateBody {
                 fail_closed: runtime.governance.state().fail_closed.clone(),
+                journal_notices: runtime
+                    .audit_journal
+                    .as_ref()
+                    .map(apollia_runtime::audit_journal::AuditJournalHandle::notices)
+                    .unwrap_or_default(),
             })
         }
         RuntimeLink::Attached(remote) => Ok(remote.get("/api/v1/governance/state").await?),

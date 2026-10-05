@@ -131,6 +131,30 @@ describe("FailClosedBannerView", () => {
     expect(html).not.toContain('data-testid="governance-fail-closed-retry"');
   });
 
+  test("says in both languages that the required journal is not open, and offers the policy", async () => {
+    // GIVEN a policy that requires the journal, and a journal that could not be opened
+    const missing: FailClosed = {
+      cause: "journal_unavailable",
+      detail: "the journal is absent or could not be opened",
+    };
+    expect(failClosedBanner(missing)).toEqual({
+      reasonKey: "governance.fail_closed.journal_unavailable",
+      policyReasonKey: null,
+      action: "view_policy",
+    });
+
+    for (const [lang, words] of [["fr", fr], ["en", en]] as const) {
+      // WHEN the banner is rendered
+      const html = await renderIn(lang, missing);
+
+      // THEN it says why in that language and leads to the policy
+      expect(html).toContain('data-cause="journal_unavailable"');
+      expect(contains(html, words.governance.fail_closed.journal_unavailable)).toBe(true);
+      expect(html).toContain('data-testid="governance-fail-closed-view-policy"');
+      expect(html).not.toContain('data-testid="governance-fail-closed-retry"');
+    }
+  });
+
   test("says the refused policy in French with the same structure", async () => {
     // GIVEN the interface in French and the same refused policy
     // WHEN the banner is rendered

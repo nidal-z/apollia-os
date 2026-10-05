@@ -1992,7 +1992,7 @@
           "audit"
         ],
         "summary": "`GET /api/v1/audit/export`: the journal as a file, narrowed by the filters\nof `GET /api/v1/audit/journal`.",
-        "description": "Every entry that passes the filters is in the file, newest first: the\nexport is not paged. Each entry is its summary (when, who, what, on what,\nwith which result) and its place in the chain (run, sequence, kind, hash),\nwithout content. With `detail=true` each entry also holds its payload and,\nfor a tool call, its arguments and its output. `csv` is UTF-8 with one\nheader row, `json` is one document with the entries. The file is offered\nas `journal.<format>`, and the export is recorded in the journal. 400 on a\nformat or a filter value that cannot be read, 503 when the journal is not\nconfigured.",
+        "description": "Every entry that passes the filters is in the file, newest first: the\nexport is not paged. Each entry is its summary (when, who, what, on what,\nwith which result) and its place in the chain (run, sequence, kind, hash),\nwithout content. With `detail=true` each entry also holds its payload and,\nfor a tool call, its arguments and its output. `csv` is UTF-8 with one\nheader row, `json` is one document with the entries. The file is offered\nas `journal.<format>`, and the export is recorded in the journal. 400 on a\nformat or a filter value that cannot be read, 403 when the organisation\npolicy forbids the detail and it is asked, or requires it and it is not,\n503 when the journal is not configured.",
         "operationId": "export_audit_journal",
         "parameters": [
           {
@@ -2086,6 +2086,16 @@
           },
           "400": {
             "description": "A format or a filter value that cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The organisation policy forbids the detail and it was asked, or requires it and it was not",
             "content": {
               "application/json": {
                 "schema": {
@@ -5036,7 +5046,7 @@
         "tags": [
           "governance"
         ],
-        "summary": "`GET /api/v1/governance/state`: whether governance fails closed, and why.",
+        "summary": "`GET /api/v1/governance/state`: whether governance fails closed, and why,\nand what degrades the journal without refusing anything.",
         "operationId": "get_governance_state",
         "responses": {
           "200": {
@@ -22169,6 +22179,26 @@
                 "description": "The reason class: `schema`, `signature`, `key` or `owner`."
               }
             }
+          },
+          {
+            "type": "object",
+            "description": "The organisation policy requires the journal, and the journal is\nabsent or could not be opened: nothing sensitive runs unrecorded.",
+            "required": [
+              "detail",
+              "cause"
+            ],
+            "properties": {
+              "cause": {
+                "type": "string",
+                "enum": [
+                  "journal_unavailable"
+                ]
+              },
+              "detail": {
+                "type": "string",
+                "description": "What is missing."
+              }
+            }
           }
         ],
         "description": "Why governance fails closed."
@@ -22337,6 +22367,13 @@
                 "description": "Why governance fails closed, `null` while it decides normally. While it\nfails closed, every sensitive tool call and every new connection is\nrefused; reading continues."
               }
             ]
+          },
+          "journal_notices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JournalNotice"
+            },
+            "description": "What degrades the journal without anything being refused: it opened\nwithout its signing key, or the daily export the organisation policy\nasks for cannot be written. Empty for a journal in order."
           }
         }
       },
@@ -23412,6 +23449,51 @@
           "system"
         ]
       },
+      "JournalNotice": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "The journal opened without its signing key: its entries are chained,\nso an alteration still shows, and they are not signed.",
+            "required": [
+              "notice"
+            ],
+            "properties": {
+              "notice": {
+                "type": "string",
+                "enum": [
+                  "unsigned"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The daily export the organisation policy asks for could not be\nwritten.",
+            "required": [
+              "directory",
+              "detail",
+              "notice"
+            ],
+            "properties": {
+              "detail": {
+                "type": "string",
+                "description": "What the write failed on."
+              },
+              "directory": {
+                "type": "string",
+                "description": "The folder the policy designates."
+              },
+              "notice": {
+                "type": "string",
+                "enum": [
+                  "daily_export_failed"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "One thing a window says about a degraded journal."
+      },
       "JournalOutcome": {
         "type": "string",
         "description": "How what an entry records ended.",
@@ -23420,6 +23502,31 @@
           "failure",
           "refused"
         ]
+      },
+      "JournalStart": {
+        "type": "object",
+        "description": "Where the verification of a purged journal starts: the first entry kept,\nwhich follows the anchor the last purge entry carries.",
+        "required": [
+          "global_seq",
+          "ts",
+          "purged_at"
+        ],
+        "properties": {
+          "global_seq": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Global sequence number of the first entry verified.",
+            "minimum": 0
+          },
+          "purged_at": {
+            "type": "string",
+            "description": "When the purge that set this start was made (RFC3339)."
+          },
+          "ts": {
+            "type": "string",
+            "description": "Date of the first entry verified (RFC3339)."
+          }
+        }
       },
       "JournalSummary": {
         "type": "object",
@@ -30273,6 +30380,17 @@
             "format": "int64",
             "description": "Number of distinct runs covered by the global chain.",
             "minimum": 0
+          },
+          "start": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JournalStart",
+                "description": "Where the verification started, when a purge by retention removed the\nbeginning of the journal. `None` for a journal verified from its\norigin."
+              }
+            ]
           }
         }
       },

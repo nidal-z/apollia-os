@@ -207,6 +207,44 @@ verify` pour obtenir une sortie exploitable par une machine. `audit export`
 cela modifie ce que la commande affiche une fois le fichier écrit, et la forme
 d'un message d'erreur.
 
+## Conservation et politique d'organisation {#retention-and-the-organisation-policy}
+
+Le journal n'a aucune fonction d'effacement : ni commande, ni route, ni écran ne
+retire une entrée. Ce qui existe, c'est la conservation, et seule une politique
+d'organisation signée la fixe. Sa section `[journal]` tient quatre clés :
+
+| Clé | Effet |
+|---|---|
+| `required = true` | Sans journal ouvert, le runtime refuse toute action sensible et toute nouvelle connexion. La lecture continue, et la fenêtre dit pourquoi. |
+| `retention_days = N` | Au démarrage, puis une fois par jour, les entrées de plus de `N` jours sont retirées. |
+| `export.detail = "forbid"` ou `"require"` | Le détail d'un export n'est plus un choix : `audit export` demandé dans l'autre sens est refusé avec la raison. |
+| `export.daily_summary_dir = "<dossier>"` | Un fichier de résumé par jour UTC, `journal-AAAA-MM-JJ.json`, est écrit dans ce dossier du poste, avec l'ancre de tête de la chaîne. |
+
+Un retrait par conservation est lui-même une entrée, `journal_purged`, chaînée
+et signée comme les autres. Elle porte l'ancre de ce qui a été retiré : `audit
+verify` sans argument repart d'elle, reste vert, et dit d'où il est parti :
+
+```text
+OK    whole journal  412 entries across 18 runs verified
+      verified from global_seq=9051 (2026-07-02T06:14:09Z): earlier entries were removed by the retention of the organisation policy on 2026-09-30T00:01:00Z
+```
+
+Avec `--json`, la même information est l'objet `start` du rapport. Une entrée
+altérée avant ou après l'entrée de purge reste signalée, de même qu'un journal
+qui commence plus tard que ne le dit sa dernière entrée de purge.
+
+L'export quotidien passe avant la conservation, et rattrape au démarrage les
+jours où le runtime ne tournait pas : un jour atteint le dossier avant que ses
+entrées soient retirées. Un dossier inutilisable ne refuse rien : la fenêtre le
+dit, et le journal enregistre `journal_export_failed`. Sans politique, rien
+n'est exporté à heure fixe et rien n'est jamais retiré.
+
+Ce que cela ne fait pas, c'est empêcher : le journal et sa clé sont dans votre
+propre dossier, une modification est donc détectée par `audit verify`, jamais
+bloquée. Un journal coupé à la fin n'est détecté que face à une ancre conservée
+hors du poste, celle que les fichiers quotidiens, ou `audit anchor`, vous
+donnent à garder.
+
 ## En pratique
 
 Un passage type de responsabilisation consiste à utiliser `audit show` pour

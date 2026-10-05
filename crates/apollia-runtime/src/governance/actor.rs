@@ -448,7 +448,7 @@ impl GovernanceActor {
             governance_db: self.sources.governance_db.clone(),
             config_path: self.sources.config_path.clone(),
             policy: Arc::clone(&self.sources.policy),
-            journal: None,
+            journal: self.sources.journal.clone(),
             events: None,
             forbidden_connections: self.sources.forbidden_connections.clone(),
         };
@@ -502,8 +502,9 @@ fn fingerprint(sources: &GovernanceSources) -> Fingerprint {
 
 /// Reads everything a decision reads from `sources`.
 ///
-/// A refused policy fails closed. A database that cannot be read fails closed
-/// too, and keeps in force what `previous` read from it (its rules, its
+/// A refused policy fails closed, and so does a policy that requires the
+/// journal when `sources` hold none. A database that cannot be read fails
+/// closed too, and keeps in force what `previous` read from it (its rules, its
 /// consents, its disabled tools); without a previous state, at startup,
 /// nothing is kept. A configuration that cannot be read is reported and leaves
 /// the developer mode off.
@@ -544,7 +545,9 @@ pub(crate) fn load_state(
         consents: store.consents,
         disabled_tools: store.disabled_tools,
         developer_mode: developer_mode(sources),
-        fail_closed: FailClosed::from_policy(&sources.policy).or(store_failure),
+        fail_closed: FailClosed::from_policy(&sources.policy)
+            .or_else(|| FailClosed::from_journal(&sources.policy, sources.journal.is_some()))
+            .or(store_failure),
     }
 }
 

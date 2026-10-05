@@ -451,6 +451,9 @@ fn every_kind_is_said_in_words_and_carries_the_nature_of_its_kind() {
         "policy_unreadable",
         "fail_closed_triggered",
         "journal_exported",
+        "journal_purged",
+        "journal_unsigned",
+        "journal_export_failed",
         "ChatResponseCompleted",
     ];
     for tag in tags {

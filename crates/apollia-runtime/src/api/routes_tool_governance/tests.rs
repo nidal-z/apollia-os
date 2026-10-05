@@ -432,3 +432,39 @@ async fn test_asking_the_state_reads_a_repaired_database_again() {
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(body["fail_closed"].is_null(), "{body}");
 }
+
+#[tokio::test]
+async fn test_the_state_says_what_degrades_the_journal_without_failing_closed() {
+    // GIVEN a daemon whose journal opened without its signing key, and whose
+    // daily export cannot be written
+    let dir = TempDir::new().unwrap();
+    let journal = crate::audit_journal::AuditJournalHandle::open(&dir.path().join("journal.db"))
+        .await
+        .unwrap();
+    journal.set_daily_export_failure(Some(crate::audit_journal::DailyExportFailure {
+        directory: "/var/lib/apollia/journal-exports".into(),
+        detail: "permission denied".into(),
+    }));
+    let mut state = state_in(&dir);
+    state.audit_journal = Some(journal.clone());
+
+    // WHEN a client asks for the state of governance
+    let (status, body) = call(state, "GET", "/api/v1/governance/state", None).await;
+
+    // THEN nothing is refused, and both notices are served
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body["fail_closed"].is_null(), "{body}");
+    assert_eq!(
+        body["journal_notices"],
+        serde_json::json!([
+            { "notice": "unsigned" },
+            {
+                "notice": "daily_export_failed",
+                "directory": "/var/lib/apollia/journal-exports",
+                "detail": "permission denied",
+            },
+        ]),
+        "{body}"
+    );
+    journal.shutdown().await;
+}
