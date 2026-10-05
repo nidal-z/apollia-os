@@ -3133,7 +3133,9 @@
       "naming_auto": "Automatique",
       "naming_auto_hint": "Apollia nomme la conversation quand le modèle génère assez vite, selon la vitesse de génération mesurée.",
       "naming_always": "Toujours",
-      "naming_always_hint": "Apollia nomme chaque nouvelle conversation, quelle que soit la vitesse de génération."
+      "naming_always_hint": "Apollia nomme chaque nouvelle conversation, quelle que soit la vitesse de génération.",
+      "trash_label": "Envoyer les conversations supprimées à la corbeille",
+      "trash_hint": "Les conversations supprimées vont dans la corbeille d'Apollia, d'où on les restaure. Éteint, une conversation supprimée l'est définitivement."
     },
     "model_defaults": {
       "subtitle": "Les valeurs que reçoit un modèle quand rien d'autre ne les fixe.",
@@ -3887,6 +3889,25 @@
       "behaviour": "Un agent choisi ouvre une nouvelle conversation avec lui ; un modèle devient celui de la conversation en cours.",
       "server_unreachable": "{server} ne répond pas",
       "choose_failed": "Le choix n'a pas abouti : {error}"
+    },
+    "trash": {
+      "title": "Corbeille",
+      "open": "Corbeille",
+      "back": "Revenir aux conversations",
+      "empty": "La corbeille est vide.",
+      "hint": "Les conversations supprimées vont dans la corbeille d'Apollia, d'où on les restaure.",
+      "hint_off": "La corbeille est éteinte dans Réglages, Chat : une conversation supprimée l'est définitivement.",
+      "restore": "Restaurer",
+      "erase": "Supprimer définitivement",
+      "erase_confirm_title": "Supprimer définitivement la conversation",
+      "erase_confirm_message": "Cette action est irréversible. Tous les messages seront perdus.",
+      "removed": "supprimée",
+      "removed_today": "supprimée aujourd'hui",
+      "removed_yesterday": "supprimée hier",
+      "removed_on": "supprimée le {date}",
+      "confirm_to_trash": "La conversation ira dans la corbeille d'Apollia, d'où vous pourrez la restaurer.",
+      "load_failed": "La corbeille n'a pas pu être lue.",
+      "action_failed": "L'action n'a pas abouti : {error}"
     }
   },
   "transcriptions": {

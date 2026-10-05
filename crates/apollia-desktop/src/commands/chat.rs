@@ -21,6 +21,7 @@ pub mod images;
 pub mod naming;
 mod remote;
 pub mod targets;
+pub mod trash;
 pub mod turn_calls;
 
 /// Request payload for creating a new chat session.
@@ -281,7 +282,8 @@ pub async fn update_chat_session(
         .map_err(|e| e.to_string())
 }
 
-/// Deletes a chat session and all its messages.
+/// Deletes a chat session and all its messages, for good: nothing goes to
+/// the trash. `trash::trash_chat_session` is the removal one comes back from.
 #[tauri::command]
 pub async fn delete_chat_session(
     link: State<'_, RuntimeLink>,

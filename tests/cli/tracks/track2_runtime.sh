@@ -190,6 +190,13 @@ fi
 check         "plan cache stats (daemon on)"       "${Q[@]}" plan cache stats
 check         "plan cache evict --max-age-days 0"  "${Q[@]}" plan cache evict --max-age-days 0 --confirm
 check         "chat --list (daemon on)"            "${Q[@]}" chat --list
+# seed-session-4 opens on "Which MCP tools do I have on this machine?". Listed
+# first, then sent to the trash the way the desktop does (`deleted_at` set):
+# `chat --list` no longer names it.
+check_content "chat --list names seed-session-4"   "Which MCP tools" "${Q[@]}" chat --list
+e2e_sqlite "$HOME/.apollia/chat.db" "UPDATE chat_sessions SET deleted_at = '2026-07-02T00:00:00Z' WHERE id = 'seed-session-4';"
+check         "chat --list leaves out a trashed session" bash -c "out=\$(\"\$@\" 2>&1) || { echo \"\$out\"; exit 1; }; [[ \$out != *'Which MCP tools'* ]] || { echo \"\$out\"; exit 1; }" _ "${Q[@]}" chat --list
+e2e_sqlite "$HOME/.apollia/chat.db" "UPDATE chat_sessions SET deleted_at = NULL WHERE id = 'seed-session-4';"
 
 # ── task lifecycle (submit to a seeded auto-started agent, no model) ─────────
 # apollia-chat auto-starts; a submitted task exercises the read commands even

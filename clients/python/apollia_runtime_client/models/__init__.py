@@ -523,6 +523,7 @@ from .transcriptions_list_response import TranscriptionsListResponse
 from .transcriptions_list_response_transcriptions_item import (
     TranscriptionsListResponseTranscriptionsItem,
 )
+from .trashed_session import TrashedSession
 from .trigger_definition_response import TriggerDefinitionResponse
 from .trigger_definition_response_source_config import TriggerDefinitionResponseSourceConfig
 from .trigger_definition_response_workflow_inputs_type_0 import (
@@ -1093,6 +1094,7 @@ __all__ = (
     "TranscribeAudioBodySource",
     "TranscriptionsListResponse",
     "TranscriptionsListResponseTranscriptionsItem",
+    "TrashedSession",
     "TriggerDefinitionResponse",
     "TriggerDefinitionResponseSourceConfig",
     "TriggerDefinitionResponseWorkflowInputsType0",

@@ -3133,7 +3133,9 @@
       "naming_auto": "Automatic",
       "naming_auto_hint": "Apollia names the conversation when the model generates fast enough, going by the measured generation speed.",
       "naming_always": "Always",
-      "naming_always_hint": "Apollia names every new conversation, whatever the generation speed."
+      "naming_always_hint": "Apollia names every new conversation, whatever the generation speed.",
+      "trash_label": "Send deleted conversations to the trash",
+      "trash_hint": "Deleted conversations go to the Apollia trash, where you can restore them. Off, a deleted conversation is gone for good."
     },
     "model_defaults": {
       "subtitle": "The values a model receives when nothing else sets them.",
@@ -3887,6 +3889,25 @@
       "behaviour": "A chosen agent opens a new conversation with it; a chosen model becomes the model of the current conversation.",
       "server_unreachable": "{server} does not answer",
       "choose_failed": "The choice did not go through: {error}"
+    },
+    "trash": {
+      "title": "Trash",
+      "open": "Trash",
+      "back": "Back to conversations",
+      "empty": "The trash is empty.",
+      "hint": "Deleted conversations go to the Apollia trash, where you can restore them.",
+      "hint_off": "The trash is off in Settings, Chat: a deleted conversation is gone for good.",
+      "restore": "Restore",
+      "erase": "Delete permanently",
+      "erase_confirm_title": "Delete the conversation permanently",
+      "erase_confirm_message": "This action cannot be undone. All messages will be lost.",
+      "removed": "deleted",
+      "removed_today": "deleted today",
+      "removed_yesterday": "deleted yesterday",
+      "removed_on": "deleted on {date}",
+      "confirm_to_trash": "The conversation goes to the Apollia trash, where you can restore it.",
+      "load_failed": "The trash could not be read.",
+      "action_failed": "The action did not complete: {error}"
     }
   },
   "transcriptions": {

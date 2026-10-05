@@ -14,6 +14,9 @@ mod approvals;
 mod forking;
 mod profile;
 mod search;
+mod trash;
+
+pub use trash::TrashedSession;
 
 /// Raw row from the `chat_sessions` table.
 #[derive(Debug, Clone)]
@@ -417,21 +420,23 @@ impl ChatSessionRepository {
         Ok(row)
     }
 
-    /// List sessions, optionally filtered by status.
+    /// List sessions, optionally filtered by status. A session in the trash
+    /// is not in the list.
     pub fn list_sessions(&self, status: Option<&str>) -> Result<Vec<SessionRow>, ChatError> {
         let (sql, param): (&str, Option<&str>) = match status {
             Some(s) => (
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
                         closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
                         plan_mode, plan_phase, profile_id, use_profile
-                 FROM chat_sessions WHERE status = ?1 ORDER BY created_at DESC",
+                 FROM chat_sessions WHERE status = ?1 AND deleted_at IS NULL
+                 ORDER BY created_at DESC",
                 Some(s),
             ),
             None => (
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
                         closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
                         plan_mode, plan_phase, profile_id, use_profile
-                 FROM chat_sessions ORDER BY created_at DESC",
+                 FROM chat_sessions WHERE deleted_at IS NULL ORDER BY created_at DESC",
                 None,
             ),
         };
