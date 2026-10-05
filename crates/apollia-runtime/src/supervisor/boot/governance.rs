@@ -45,6 +45,13 @@ impl Supervisor {
             // The policy read at boot, applied, changed or refused, opens
             // the governance history of this start.
             crate::governance::record_policy_at_startup(journal, org_policy).await;
+            // A journal open without its key says so in its own chain, then
+            // the policy is applied to it: the daily export first, so a day
+            // reaches the folder before the retention removes its entries.
+            crate::governance::record_journal_state_at_startup(journal);
+            if let apollia_permissions::PolicyVerdict::Valid(valid) = org_policy.as_ref() {
+                crate::governance::start_journal_policy(journal, &valid.policy.journal).await;
+            }
         } else {
             warn!(detail = "subscriber not started", "audit.journal.disabled");
         }

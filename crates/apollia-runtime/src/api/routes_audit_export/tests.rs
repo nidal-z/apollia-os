@@ -327,3 +327,102 @@ async fn test_the_export_answers_503_without_a_journal() {
     assert_eq!(answer.status, StatusCode::SERVICE_UNAVAILABLE);
     assert!(answer.body.contains("audit journal not available"));
 }
+
+/// GETs `uri` on a router over `journal`, under a valid organisation policy
+/// whose `[journal.export]` section sets `detail`.
+async fn get_under_policy(
+    dir: &tempfile::TempDir,
+    journal: AuditJournalHandle,
+    detail: &str,
+    uri: &str,
+) -> (StatusCode, Value) {
+    let policy = apollia_permissions::parse_policy(&format!(
+        "schema_version = 1\nsigned_at = 2026-10-02T09:30:00Z\n\
+         [journal.export]\ndetail = \"{detail}\"\n"
+    ))
+    .expect("policy");
+    let verdict =
+        apollia_permissions::PolicyVerdict::Valid(Box::new(apollia_permissions::ValidPolicy {
+            signed_at: policy.signed_at,
+            policy,
+            key_fingerprint: "ab".repeat(32),
+            policy_digest: "00".into(),
+            publisher: "it".into(),
+        }));
+    let mut state = app_state(
+        Arc::new(StemLoader { refusal: None }),
+        dir.path().to_path_buf(),
+    );
+    state.audit_journal = Some(journal);
+    state.inference_governance = crate::governance::InferenceGovernance::new(Arc::new(verdict));
+    crate::api::test_support::call(state, "GET", uri, None).await
+}
+
+#[tokio::test]
+async fn test_a_policy_that_forbids_the_detail_refuses_it_and_leaves_the_summary() {
+    // GIVEN a journal under a policy that forbids the detail in an export
+    let dir = tempfile::tempdir().unwrap();
+    let journal = journal(&dir).await;
+
+    // WHEN the export is asked with the detail, then without
+    let (with, refused) = get_under_policy(
+        &dir,
+        journal.clone(),
+        "forbid",
+        "/api/v1/audit/export?format=json&detail=true",
+    )
+    .await;
+    let (without, document) = get_under_policy(
+        &dir,
+        journal.clone(),
+        "forbid",
+        "/api/v1/audit/export?format=json",
+    )
+    .await;
+
+    // THEN the detail is refused with the reason, and no content left
+    assert_eq!(with, StatusCode::FORBIDDEN, "{refused}");
+    assert_eq!(refused["error"], super::DETAIL_FORBIDDEN_REASON);
+    // AND the summary is served
+    assert_eq!(without, StatusCode::OK);
+    assert_eq!(document["detail"], false);
+    // AND only the export that was written is recorded
+    let exports = recorded_exports(&journal).await;
+    assert_eq!(exports.len(), 1);
+    assert_eq!(exports[0]["detail"], false);
+    journal.shutdown().await;
+}
+
+#[tokio::test]
+async fn test_a_policy_that_requires_the_detail_refuses_an_export_without_it() {
+    // GIVEN a journal under a policy that requires the detail in an export
+    let dir = tempfile::tempdir().unwrap();
+    let journal = journal(&dir).await;
+
+    // WHEN the export is asked without the detail, then with
+    let (without, refused) = get_under_policy(
+        &dir,
+        journal.clone(),
+        "require",
+        "/api/v1/audit/export?format=json",
+    )
+    .await;
+    let (with, document) = get_under_policy(
+        &dir,
+        journal.clone(),
+        "require",
+        "/api/v1/audit/export?format=json&detail=true",
+    )
+    .await;
+
+    // THEN the summary alone is refused with the reason
+    assert_eq!(without, StatusCode::FORBIDDEN, "{refused}");
+    assert_eq!(refused["error"], super::DETAIL_REQUIRED_REASON);
+    // AND the detail is served and recorded
+    assert_eq!(with, StatusCode::OK);
+    assert_eq!(document["detail"], true);
+    let exports = recorded_exports(&journal).await;
+    assert_eq!(exports.len(), 1);
+    assert_eq!(exports[0]["detail"], true);
+    journal.shutdown().await;
+}

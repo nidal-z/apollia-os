@@ -64,6 +64,11 @@ def _parse_response(
 
         return response_400
 
+    if response.status_code == 403:
+        response_403 = ApiErrorBody.from_dict(response.json())
+
+        return response_403
+
     if response.status_code == 503:
         response_503 = ApiErrorBody.from_dict(response.json())
 
@@ -108,8 +113,9 @@ def sync_detailed(
     for a tool call, its arguments and its output. `csv` is UTF-8 with one
     header row, `json` is one document with the entries. The file is offered
     as `journal.<format>`, and the export is recorded in the journal. 400 on a
-    format or a filter value that cannot be read, 503 when the journal is not
-    configured.
+    format or a filter value that cannot be read, 403 when the organisation
+    policy forbids the detail and it is asked, or requires it and it is not,
+    503 when the journal is not configured.
 
     Args:
         format_ (JournalExportFormat): A file format the journal is exported in.
@@ -169,8 +175,9 @@ def sync(
     for a tool call, its arguments and its output. `csv` is UTF-8 with one
     header row, `json` is one document with the entries. The file is offered
     as `journal.<format>`, and the export is recorded in the journal. 400 on a
-    format or a filter value that cannot be read, 503 when the journal is not
-    configured.
+    format or a filter value that cannot be read, 403 when the organisation
+    policy forbids the detail and it is asked, or requires it and it is not,
+    503 when the journal is not configured.
 
     Args:
         format_ (JournalExportFormat): A file format the journal is exported in.
@@ -225,8 +232,9 @@ async def asyncio_detailed(
     for a tool call, its arguments and its output. `csv` is UTF-8 with one
     header row, `json` is one document with the entries. The file is offered
     as `journal.<format>`, and the export is recorded in the journal. 400 on a
-    format or a filter value that cannot be read, 503 when the journal is not
-    configured.
+    format or a filter value that cannot be read, 403 when the organisation
+    policy forbids the detail and it is asked, or requires it and it is not,
+    503 when the journal is not configured.
 
     Args:
         format_ (JournalExportFormat): A file format the journal is exported in.
@@ -284,8 +292,9 @@ async def asyncio(
     for a tool call, its arguments and its output. `csv` is UTF-8 with one
     header row, `json` is one document with the entries. The file is offered
     as `journal.<format>`, and the export is recorded in the journal. 400 on a
-    format or a filter value that cannot be read, 503 when the journal is not
-    configured.
+    format or a filter value that cannot be read, 403 when the organisation
+    policy forbids the detail and it is asked, or requires it and it is not,
+    503 when the journal is not configured.
 
     Args:
         format_ (JournalExportFormat): A file format the journal is exported in.

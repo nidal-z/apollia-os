@@ -476,8 +476,10 @@ Désactiver un interrupteur vide la partie correspondante de la timeline : la
 piste d'audit et l'historique des coûts sont séparés et n'en sont pas
 affectés. La même séparation vaut pour la rétention : la purge ne supprime que
 depuis le journal d'événements. Le journal d'audit signé est une chaîne de
-hachage que `audit verify` parcourt de bout en bout, il n'est donc jamais
-purgé sur une base temporelle.
+hachage que `audit verify` parcourt de bout en bout : aucune clé
+d'`apollia.toml` ne le purge. Seule une politique d'organisation le fait, par
+sa propre clé `journal.retention_days` : voir
+[Auditer et vérifier](/how-to/audit-and-verify#retention-and-the-organisation-policy).
 
 ### Contenu des prompts (`[llm.observability]`)
 

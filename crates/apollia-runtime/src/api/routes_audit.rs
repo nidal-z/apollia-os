@@ -752,6 +752,9 @@ fn incomplete_trace_response(
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
+mod no_erase_tests;
+
+#[cfg(test)]
 mod tests {
     use super::{resolve_run_id, RunIdResolution};
     use crate::api::server::{APIServer, AppState};

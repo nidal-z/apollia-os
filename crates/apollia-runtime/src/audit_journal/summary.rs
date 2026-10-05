@@ -178,6 +178,9 @@ pub fn nature_of(kind: &JournalEntryKind) -> JournalNature {
         | K::MessageDelivered
         | K::MessageDropped
         | K::JournalExported
+        | K::JournalPurged
+        | K::JournalUnsigned
+        | K::JournalExportFailed
         | K::ConfigurationChanged
         | K::Unknown { .. } => JournalNature::System,
     }
@@ -305,10 +308,15 @@ pub fn summarize(entry: &JournalEntry) -> JournalSummary {
         | K::PolicyChanged
         | K::PolicyUnreadable
         | K::FailClosedTriggered
-        | K::JournalExported => match serde_json::from_value::<GovernanceRecord>(payload.clone()) {
-            Ok(record) => governance_summary(&mut summary, &record.event),
-            Err(_) => summary.what = entry.kind.tag().to_owned(),
-        },
+        | K::JournalExported
+        | K::JournalPurged
+        | K::JournalUnsigned
+        | K::JournalExportFailed => {
+            match serde_json::from_value::<GovernanceRecord>(payload.clone()) {
+                Ok(record) => governance_summary(&mut summary, &record.event),
+                Err(_) => summary.what = entry.kind.tag().to_owned(),
+            }
+        }
         K::Unknown { raw_kind } => summary.what = raw_kind.clone(),
     }
     summary
@@ -489,6 +497,17 @@ fn governance_summary(summary: &mut JournalSummary, event: &GovernanceEvent) {
         GovernanceEvent::JournalExported { format, .. } => {
             summary.target = Some(format.clone());
             "Journal exported"
+        }
+        GovernanceEvent::JournalPurged { cutoff, .. } => {
+            summary.target = Some(cutoff.clone());
+            summary.outcome = Some(JournalOutcome::Success);
+            "Entries past the retention removed"
+        }
+        GovernanceEvent::JournalUnsigned { .. } => "Journal opened without its signing key",
+        GovernanceEvent::JournalExportFailed { directory, .. } => {
+            summary.target = Some(directory.clone());
+            summary.outcome = Some(JournalOutcome::Failure);
+            "Daily export of the journal failed"
         }
     };
     summary.what = what.to_owned();

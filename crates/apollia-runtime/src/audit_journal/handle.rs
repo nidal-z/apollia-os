@@ -5,11 +5,14 @@ use std::sync::Arc;
 
 use apollia_auth::SecretStore;
 
-use crate::audit_journal::actor::{JournalActor, JournalMessage, MIGRATIONS, SCHEMA_VERSION};
+use crate::audit_journal::actor::{
+    JournalActor, JournalMessage, PurgeOutcome, PurgeRequest, MIGRATIONS, SCHEMA_VERSION,
+};
 use crate::audit_journal::detail::{entry_detail, JournalEntryDetail};
 use crate::audit_journal::entry::{JournalEntry, JournalEntryDraft};
 use crate::audit_journal::error::AuditJournalError;
 use crate::audit_journal::filter::JournalFilter;
+use crate::audit_journal::notice::{DailyExportFailure, JournalNotice, JournalStatus};
 use crate::audit_journal::signer::{
     HmacSigner, JournalSigner, SignerError, SignerUnavailablePolicy,
 };
@@ -26,6 +29,7 @@ const CHANNEL_CAPACITY: usize = 1024;
 #[derive(Clone)]
 pub struct AuditJournalHandle {
     sender: tokio::sync::mpsc::Sender<JournalMessage>,
+    status: tokio::sync::watch::Sender<JournalStatus>,
 }
 
 impl AuditJournalHandle {
@@ -87,6 +91,10 @@ impl AuditJournalHandle {
         warn_unsigned: bool,
     ) -> Result<Self, AuditJournalError> {
         let db_path = db_path.to_path_buf();
+        let (status, _) = tokio::sync::watch::channel(JournalStatus {
+            signed: signer.is_some(),
+            daily_export_failure: None,
+        });
         let (sender, receiver) = tokio::sync::mpsc::channel::<JournalMessage>(CHANNEL_CAPACITY);
         let (init_tx, init_rx) = tokio::sync::oneshot::channel::<Result<(), AuditJournalError>>();
 
@@ -118,7 +126,63 @@ impl AuditJournalHandle {
         init_rx
             .await
             .map_err(|_| AuditJournalError::Open("init channel disconnected".to_string()))??;
-        Ok(Self { sender })
+        Ok(Self { sender, status })
+    }
+
+    /// Whether the entries are signed, and whether the daily export the
+    /// organisation policy asks for is failing.
+    #[must_use]
+    pub fn status(&self) -> JournalStatus {
+        self.status.borrow().clone()
+    }
+
+    /// What a window says about the journal while it is degraded, without
+    /// anything being refused. Empty for a signed journal whose daily export
+    /// is written.
+    #[must_use]
+    pub fn notices(&self) -> Vec<JournalNotice> {
+        self.status().notices()
+    }
+
+    /// Records whether the daily export is failing: `Some` with the folder
+    /// and the reason, `None` once it is written again.
+    pub fn set_daily_export_failure(&self, failure: Option<DailyExportFailure>) {
+        self.status
+            .send_modify(|status| status.daily_export_failure = failure);
+    }
+
+    /// Removes the entries dated more than `retention_days` before `now`,
+    /// after an entry that says so and carries the anchor of what leaves.
+    ///
+    /// What leaves is the beginning of the journal, up to the first entry
+    /// that is not old enough. Verification starts from the purge entry
+    /// afterwards, and reports where. `None` when no entry was old enough:
+    /// nothing is written. This is the one removal the journal knows, and
+    /// only the organisation policy asks for it.
+    pub async fn purge_by_retention(
+        &self,
+        retention_days: u32,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Option<PurgeOutcome>, AuditJournalError> {
+        let instant = |at: chrono::DateTime<chrono::Utc>| {
+            at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+        };
+        let cutoff = now - chrono::Duration::days(i64::from(retention_days));
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+        self.sender
+            .send(JournalMessage::Purge {
+                request: PurgeRequest {
+                    retention_days,
+                    cutoff: instant(cutoff),
+                    ts: instant(now),
+                },
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| AuditJournalError::ActorUnavailable)?;
+        reply_rx
+            .await
+            .map_err(|_| AuditJournalError::ActorUnavailable)?
     }
 
     /// Append a drafted entry (fire-and-forget).

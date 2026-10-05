@@ -462,8 +462,9 @@ else sees it, but what remains readable locally after a run.
 Turning off a switch empties the matching part of the timeline: the audit trail
 and the cost history are separate and unaffected. The same separation holds for
 retention: the purge deletes from the event log only. The signed audit journal is
-a hash chain that `audit verify` walks end to end, so it is never trimmed on a
-timer.
+a hash chain that `audit verify` walks end to end, so no key of `apollia.toml`
+trims it. Only an organisation policy does, through its own `journal.retention_days`:
+see [Audit and verify](/how-to/audit-and-verify#retention-and-the-organisation-policy).
 
 ### Prompt content (`[llm.observability]`)
 

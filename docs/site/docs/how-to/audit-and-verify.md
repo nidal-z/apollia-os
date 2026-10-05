@@ -188,6 +188,43 @@ machine-readable output. `audit export` writes the format `--format` names.
 changes nothing about the file: it switches what the command prints once the
 file is written, and the shape of an error message.
 
+## Retention and the organisation policy
+
+The journal has no erase function: no command, no route and no screen removes an
+entry. What exists is retention, and only a signed organisation policy sets it.
+Its `[journal]` section holds four keys:
+
+| Key | Effect |
+|---|---|
+| `required = true` | Without an open journal, the runtime refuses every sensitive action and every new connection. Reading continues, and the window says why. |
+| `retention_days = N` | At startup, then once a day, the entries older than `N` days are removed. |
+| `export.detail = "forbid"` or `"require"` | The detail of an export is no longer a choice: `audit export` asked the other way is refused with the reason. |
+| `export.daily_summary_dir = "<folder>"` | One summary file per UTC day, `journal-YYYY-MM-DD.json`, is written to that folder of the machine, with the head anchor of the chain. |
+
+A removal by retention is itself an entry, `journal_purged`, chained and signed
+like the others. It carries the anchor of what was removed, so `audit verify`
+with no argument starts from it and stays green, and says where it started:
+
+```text
+OK    whole journal  412 entries across 18 runs verified
+      verified from global_seq=9051 (2026-07-02T06:14:09Z): earlier entries were removed by the retention of the organisation policy on 2026-09-30T00:01:00Z
+```
+
+With `--json`, the same information is the `start` object of the report. An
+entry altered before or after the purge entry is still reported, and so is a
+journal that begins later than its last purge entry says.
+
+The daily export runs before the retention, and catches up at startup on the
+days the runtime was not running, so a day reaches the folder before its entries
+are removed. A folder that cannot be written refuses nothing: the window says
+so, and the journal records `journal_export_failed`. Without a policy, nothing
+is exported on a schedule and nothing is ever removed.
+
+What this does not do is prevent: the journal and its key sit in your own
+folder, so a change is detected by `audit verify`, never blocked. A journal cut
+at its end is only detected against an anchor kept outside the machine, which is
+what the daily files, or `audit anchor`, give you to keep.
+
 ## Putting it together
 
 A typical accountability pass is: `audit show` to read what a run did, then

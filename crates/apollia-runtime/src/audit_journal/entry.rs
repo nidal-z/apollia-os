@@ -138,6 +138,17 @@ pub enum JournalEntryKind {
     /// The journal was exported. The payload is a
     /// [`crate::governance::GovernanceRecord`].
     JournalExported,
+    /// Entries older than the retention of the organisation policy were
+    /// removed. The payload is a [`crate::governance::GovernanceRecord`]: it
+    /// carries the anchor of the prefix removed, which is where verification
+    /// starts from.
+    JournalPurged,
+    /// The journal opened without its signing key: entries are chained and
+    /// not signed. The payload is a [`crate::governance::GovernanceRecord`].
+    JournalUnsigned,
+    /// The daily export the organisation policy asks for could not be
+    /// written. The payload is a [`crate::governance::GovernanceRecord`].
+    JournalExportFailed,
     /// `apollia.toml` changed. The payload is a
     /// [`crate::config_reload::ConfigChangeRecord`]: the paths of the keys,
     /// the origin, the fingerprint of the file before and after, never a value.
@@ -200,6 +211,9 @@ impl JournalEntryKind {
             JournalEntryKind::PolicyUnreadable => "policy_unreadable",
             JournalEntryKind::FailClosedTriggered => "fail_closed_triggered",
             JournalEntryKind::JournalExported => "journal_exported",
+            JournalEntryKind::JournalPurged => "journal_purged",
+            JournalEntryKind::JournalUnsigned => "journal_unsigned",
+            JournalEntryKind::JournalExportFailed => "journal_export_failed",
             JournalEntryKind::ConfigurationChanged => "configuration_changed",
             JournalEntryKind::Unknown { raw_kind } => raw_kind,
         }
@@ -253,6 +267,9 @@ impl JournalEntryKind {
             "policy_unreadable" => JournalEntryKind::PolicyUnreadable,
             "fail_closed_triggered" => JournalEntryKind::FailClosedTriggered,
             "journal_exported" => JournalEntryKind::JournalExported,
+            "journal_purged" => JournalEntryKind::JournalPurged,
+            "journal_unsigned" => JournalEntryKind::JournalUnsigned,
+            "journal_export_failed" => JournalEntryKind::JournalExportFailed,
             "configuration_changed" => JournalEntryKind::ConfigurationChanged,
             other => JournalEntryKind::Unknown {
                 raw_kind: other.to_string(),
@@ -495,6 +512,12 @@ mod tests {
                 "fail_closed_triggered",
             ),
             (JournalEntryKind::JournalExported, "journal_exported"),
+            (JournalEntryKind::JournalPurged, "journal_purged"),
+            (JournalEntryKind::JournalUnsigned, "journal_unsigned"),
+            (
+                JournalEntryKind::JournalExportFailed,
+                "journal_export_failed",
+            ),
             (
                 JournalEntryKind::ConfigurationChanged,
                 "configuration_changed",

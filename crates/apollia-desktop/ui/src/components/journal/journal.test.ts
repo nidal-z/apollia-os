@@ -208,6 +208,7 @@ describe("journal - one line per entry, in plain language", () => {
       "connection_warning_accepted", "connection_secret_set", "connection_secret_removed",
       "account_connected", "account_disconnected", "folder_added", "policy_applied",
       "policy_changed", "policy_unreadable", "fail_closed_triggered", "journal_exported",
+      "journal_purged", "journal_unsigned", "journal_export_failed",
     ];
     const lines = [
       ...kinds.map((kind) => line(kind)),

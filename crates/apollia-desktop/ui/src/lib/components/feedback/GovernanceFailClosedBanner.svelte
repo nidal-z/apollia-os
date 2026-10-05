@@ -8,6 +8,9 @@
    * the `governanceFailClosed` store: an unreadable database is read again on
    * retry; a refused policy opens the authorizations screen, whose policy
    * panel says why and leads to the policy itself.
+   *
+   * Under it, one warning line per thing that degrades the journal without
+   * refusing anything, read with the same state.
    */
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
@@ -15,10 +18,12 @@
   import { navigateTo } from "$lib/stores/navigation";
   import {
     governanceFailClosed,
+    journalNotices,
     refreshGovernanceFailClosed,
     startGovernanceFailClosedMonitor,
   } from "$lib/stores/governanceFailClosed";
   import FailClosedBannerView from "./FailClosedBannerView.svelte";
+  import JournalNoticeBannerView from "./JournalNoticeBannerView.svelte";
 
   let retrying = $state(false);
 
@@ -46,3 +51,4 @@
   onretry={retry}
   onviewpolicy={viewPolicy}
 />
+<JournalNoticeBannerView notices={$journalNotices} />

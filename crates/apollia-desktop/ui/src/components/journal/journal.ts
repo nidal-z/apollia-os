@@ -282,6 +282,9 @@ const FIXED_SENTENCE: Record<string, string> = {
   policy_unreadable: "journal.sentence.policy_unreadable",
   fail_closed_triggered: "journal.sentence.fail_closed_triggered",
   journal_exported: "journal.sentence.journal_exported",
+  journal_purged: "journal.sentence.journal_purged",
+  journal_unsigned: "journal.sentence.journal_unsigned",
+  journal_export_failed: "journal.sentence.journal_export_failed",
 };
 
 const ACCESS_SENTENCE: Record<string, string> = {

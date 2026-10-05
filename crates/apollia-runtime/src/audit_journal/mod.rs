@@ -11,6 +11,7 @@
 
 pub mod actor;
 pub mod anchor;
+pub mod daily;
 pub mod detail;
 pub mod entry;
 pub mod error;
@@ -18,6 +19,7 @@ pub mod export;
 pub mod filter;
 pub mod handle;
 pub mod hash;
+pub mod notice;
 #[cfg(any(test, kani))]
 mod proofs;
 pub mod signer;
@@ -25,6 +27,8 @@ pub mod subscriber;
 pub mod summary;
 pub mod verify;
 
+pub use actor::PurgeOutcome;
+pub use daily::{export_missing_days, DailyExportError};
 pub use detail::{entry_detail, JournalEntryDetail, ToolCallDetail};
 pub use entry::{JournalEntry, JournalEntryDraft, JournalEntryKind, PlanMutationSnapshot};
 pub use error::AuditJournalError;
@@ -35,13 +39,17 @@ pub use export::{
 pub use filter::{JournalCriteria, JournalFilter, JournalFilterError};
 pub use handle::AuditJournalHandle;
 pub use hash::{compute_entry_hash, compute_global_hash, SENTINEL_PREV_HASH};
+pub use notice::{DailyExportFailure, JournalNotice, JournalStatus};
 pub use signer::{HmacSigner, JournalSigner, SignerError, SignerUnavailablePolicy};
 pub use subscriber::AuditJournalSubscriber;
 pub use summary::{summarize, JournalLine, JournalNature, JournalOutcome, JournalSummary};
 pub use verify::{
-    BrokenLink, BrokenLinkReason, JournalAnchor, JournalBreak, JournalBreakReason,
+    BrokenLink, BrokenLinkReason, JournalAnchor, JournalBreak, JournalBreakReason, JournalStart,
     VerifyChainReport, VerifyJournalReport,
 };
+
+#[cfg(test)]
+mod retention_tests;
 
 #[cfg(test)]
 mod tests {

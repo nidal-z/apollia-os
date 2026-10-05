@@ -658,8 +658,9 @@ export interface paths {
          *     for a tool call, its arguments and its output. `csv` is UTF-8 with one
          *     header row, `json` is one document with the entries. The file is offered
          *     as `journal.<format>`, and the export is recorded in the journal. 400 on a
-         *     format or a filter value that cannot be read, 503 when the journal is not
-         *     configured.
+         *     format or a filter value that cannot be read, 403 when the organisation
+         *     policy forbids the detail and it is asked, or requires it and it is not,
+         *     503 when the journal is not configured.
          */
         get: operations["export_audit_journal"];
         put?: never;
@@ -1610,7 +1611,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** `GET /api/v1/governance/state`: whether governance fails closed, and why. */
+        /**
+         * `GET /api/v1/governance/state`: whether governance fails closed, and why,
+         *     and what degrades the journal without refusing anything.
+         */
         get: operations["get_governance_state"];
         put?: never;
         post?: never;
@@ -7712,6 +7716,11 @@ export interface components {
             detail: string;
             /** @description The reason class: `schema`, `signature`, `key` or `owner`. */
             reason: string;
+        } | {
+            /** @enum {string} */
+            cause: "journal_unavailable";
+            /** @description What is missing. */
+            detail: string;
         };
         /** @description Response for `POST /api/v1/triggers/:id/fire`. */
         FireResponse: {
@@ -7786,6 +7795,12 @@ export interface components {
         /** @description Answer of `GET /api/v1/governance/state`. */
         GovernanceStateBody: {
             fail_closed?: null | components["schemas"]["FailClosed"];
+            /**
+             * @description What degrades the journal without anything being refused: it opened
+             *     without its signing key, or the daily export the organisation policy
+             *     asks for cannot be written. Empty for a journal in order.
+             */
+            journal_notices?: components["schemas"]["JournalNotice"][];
         };
         /** @description The load guardrail's view of a load. */
         GuardrailCheckDto: {
@@ -8250,11 +8265,38 @@ export interface components {
          * @enum {string}
          */
         JournalNature: "action" | "access_change" | "policy" | "system";
+        /** @description One thing a window says about a degraded journal. */
+        JournalNotice: {
+            /** @enum {string} */
+            notice: "unsigned";
+        } | {
+            /** @description What the write failed on. */
+            detail: string;
+            /** @description The folder the policy designates. */
+            directory: string;
+            /** @enum {string} */
+            notice: "daily_export_failed";
+        };
         /**
          * @description How what an entry records ended.
          * @enum {string}
          */
         JournalOutcome: "success" | "failure" | "refused";
+        /**
+         * @description Where the verification of a purged journal starts: the first entry kept,
+         *     which follows the anchor the last purge entry carries.
+         */
+        JournalStart: {
+            /**
+             * Format: int64
+             * @description Global sequence number of the first entry verified.
+             */
+            global_seq: number;
+            /** @description When the purge that set this start was made (RFC3339). */
+            purged_at: string;
+            /** @description Date of the first entry verified (RFC3339). */
+            ts: string;
+        };
         /** @description One journal entry, said in a line and without content. */
         JournalSummary: {
             /** @description Agent the entry is about, when it is about one. */
@@ -11385,6 +11427,7 @@ export interface components {
              * @description Number of distinct runs covered by the global chain.
              */
             runs_checked: number;
+            start?: null | components["schemas"]["JournalStart"];
         };
         /** @description Whisper GGML model file detected on the local filesystem. */
         WhisperModelInfo: {
@@ -13066,6 +13109,15 @@ export interface operations {
             };
             /** @description A format or a filter value that cannot be read */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The organisation policy forbids the detail and it was asked, or requires it and it was not */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
