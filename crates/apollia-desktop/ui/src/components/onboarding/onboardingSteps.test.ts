@@ -3,9 +3,9 @@ import { fileURLToPath } from "node:url";
 import { describe, test, expect } from "vitest";
 import { ONBOARDING_STEPS, phaseOfStep, stepOfPhase } from "./onboardingSteps";
 
-// The list is not frozen here: a later step (the embeddings model, after the
-// language model) extends it. What is held is that the usage-profile question
-// is not one of the steps, and that the modal draws this list and no other.
+// The list is not frozen here: a later step extends it. What is held is that
+// the usage-profile question is not one of the steps, and that the modal draws
+// this list and no other.
 
 function modalSource(): string {
   return readFileSync(

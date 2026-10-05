@@ -3414,6 +3414,34 @@
       "recommend_measured_on_gpu": "Measured on {cpu} with {ram} GB of RAM, and {gpu} with {vram} GB of video memory",
       "recommend_measured_on_unified": "Measured on {chip} with {ram} GB of unified memory",
       "reason_trained_context": "Trained on {tokens}k tokens: runs at {tokens}k instead of the {asked}k chosen"
+    },
+    "embeddings": {
+      "title": "Find your documents by meaning",
+      "subtitle": "A second model, smaller than the one you talk to, reads your documents so your agents can find an idea in them even when it is worded differently.",
+      "loading": "Looking for the model that suits this computer…",
+      "unavailable": "No search-by-meaning model could be offered for this computer. You can install one later from the AI screen.",
+      "recommended": "Recommended for this computer",
+      "ready": "Installed",
+      "size_runs_locally": "{mb} MB · runs on your computer",
+      "reason_light": "Chosen for your computer: light, it reads your documents in the background without slowing your agents down.",
+      "reason_roomy": "Chosen for your computer: it has room to run beside the model you talk to, and finds your documents with more precision.",
+      "download": "Download",
+      "import": "Import from a file",
+      "import_title": "Choose the file of the search-by-meaning model",
+      "cancel_download": "Cancel the download",
+      "offline": "Offline: the download is unavailable. Import the file of the model if you already have it.",
+      "skip": "Skip",
+      "skip_title": "Without this model, two functions are unavailable:",
+      "skip_lost_sources": "search by meaning in your sources",
+      "skip_lost_memory": "search by meaning in the memory of your agents",
+      "skip_keywords": "Keyword search still works.",
+      "skip_later": "You can install it later from the AI screen.",
+      "continue_without": "Continue without this model",
+      "error_recommendation": "The model that suits this computer could not be determined.",
+      "error_download": "The download failed.",
+      "error_import": "The file could not be imported.",
+      "error_not_offered": "{file} is not the file of a search-by-meaning model Apollia offers.",
+      "error_default": "The model is installed but could not be set for search by meaning."
     }
   },
   "agent_detail": {
@@ -3961,6 +3989,7 @@
     "skip_optional": "Skip the questions",
     "step_welcome": "Welcome",
     "step_models": "Models",
+    "step_search": "Search",
     "step_about": "About me"
   },
   "onboarding_stt": {

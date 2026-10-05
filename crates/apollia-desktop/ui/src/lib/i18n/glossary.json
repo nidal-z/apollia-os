@@ -22,6 +22,8 @@
     },
     "developer_mode": "Mode développeur",
     "chat_steps_panel": "Étapes",
+    "search_by_meaning": "Recherche par le sens",
+    "search_by_meaning_model": "Modèle de recherche par le sens",
     "banned": [
       "backend",
       "runner",
@@ -174,6 +176,8 @@
     },
     "developer_mode": "Developer mode",
     "chat_steps_panel": "Steps",
+    "search_by_meaning": "Search by meaning",
+    "search_by_meaning_model": "Search-by-meaning model",
     "banned": [
       "backend",
       "runner",

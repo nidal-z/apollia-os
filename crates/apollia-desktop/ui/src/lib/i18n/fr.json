@@ -3414,6 +3414,34 @@
       "recommend_measured_on_gpu": "Mesuré sur {cpu} avec {ram} Go de RAM, et {gpu} avec {vram} Go de mémoire vidéo",
       "recommend_measured_on_unified": "Mesuré sur {chip} avec {ram} Go de mémoire unifiée",
       "reason_trained_context": "Entraîné sur {tokens}k tokens : tourne à {tokens}k au lieu des {asked}k choisis"
+    },
+    "embeddings": {
+      "title": "Retrouver vos documents par le sens",
+      "subtitle": "Un second modèle, plus petit que celui qui converse, lit vos documents pour que vos agents y retrouvent une idée même formulée autrement.",
+      "loading": "Recherche du modèle adapté à votre poste…",
+      "unavailable": "Aucun modèle de recherche par le sens n'a pu être proposé pour ce poste. Vous pourrez en installer un plus tard depuis l'écran IA.",
+      "recommended": "Recommandé pour ce poste",
+      "ready": "Installé",
+      "size_runs_locally": "{mb} Mo · tourne sur votre poste",
+      "reason_light": "Choisi pour votre poste : léger, il lit vos documents en arrière-plan sans ralentir vos agents.",
+      "reason_roomy": "Choisi pour votre poste : il a la place de tourner à côté du modèle qui converse, et retrouve vos documents avec plus de finesse.",
+      "download": "Télécharger",
+      "import": "Importer depuis un fichier",
+      "import_title": "Choisir le fichier du modèle de recherche par le sens",
+      "cancel_download": "Annuler le téléchargement",
+      "offline": "Hors ligne : le téléchargement est indisponible. Importez le fichier du modèle si vous l'avez déjà.",
+      "skip": "Passer",
+      "skip_title": "Sans ce modèle, deux fonctions sont indisponibles :",
+      "skip_lost_sources": "la recherche par le sens dans vos sources",
+      "skip_lost_memory": "la recherche par le sens dans la mémoire de vos agents",
+      "skip_keywords": "La recherche par mots-clés reste possible.",
+      "skip_later": "Vous pourrez l'installer plus tard depuis l'écran IA.",
+      "continue_without": "Continuer sans ce modèle",
+      "error_recommendation": "Le modèle adapté à votre poste n'a pas pu être déterminé.",
+      "error_download": "Le téléchargement a échoué.",
+      "error_import": "Le fichier n'a pas pu être importé.",
+      "error_not_offered": "{file} n'est pas le fichier d'un modèle de recherche par le sens proposé par Apollia.",
+      "error_default": "Le modèle est installé mais n'a pas pu être retenu pour la recherche par le sens."
     }
   },
   "agent_detail": {
@@ -3961,6 +3989,7 @@
     "skip_optional": "Passer les questions",
     "step_welcome": "Accueil",
     "step_models": "Modèles",
+    "step_search": "Recherche",
     "step_about": "Qui je suis"
   },
   "onboarding_stt": {

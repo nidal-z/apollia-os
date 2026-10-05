@@ -224,6 +224,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "search_memory",
     // Models: the download of a whole variant from the Hub.
     "start_variant_download",
+    // Models: the embeddings model recommended for this machine, and the one
+    // search by meaning uses, over `/api/v1/llm/embeddings`.
+    "get_embeddings_recommendation",
+    "set_default_embeddings_model",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
     // Named settings of `apollia.toml`, read with their source and written
