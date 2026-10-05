@@ -28,7 +28,7 @@ use serde_json::Value;
 use super::{
     AuthorConfig, DesktopConfig, EnginesConfig, LlmDefaultsConfig, LlmImagesConfig,
     LlmResidencyConfig, McpConfig, ModelsConfig, ServerConfig, CONTEXT_MODES, CONTEXT_MODE_KEY,
-    ENGINE_LOG_LEVELS, LOAD_BYPASS_KEY, LOAD_BYPASS_MODES,
+    ENGINE_LOG_LEVELS, GGUF_ENGINE_CHOICES, LOAD_BYPASS_KEY, LOAD_BYPASS_MODES, MLX_ENGINE_CHOICES,
 };
 
 /// Wire names of the load guardrail levels, the values `llm.guardrails.level`
@@ -41,6 +41,8 @@ const CHOICES: &[(&str, &[&str])] = &[
     (LOAD_BYPASS_KEY, LOAD_BYPASS_MODES),
     (CONTEXT_MODE_KEY, CONTEXT_MODES),
     ("engines.log_level", ENGINE_LOG_LEVELS),
+    ("engines.gguf", GGUF_ENGINE_CHOICES),
+    ("engines.mlx", MLX_ENGINE_CHOICES),
 ];
 
 /// Where the value of a resolved setting comes from.

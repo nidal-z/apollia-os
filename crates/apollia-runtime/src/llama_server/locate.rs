@@ -2,17 +2,24 @@
 
 use std::path::PathBuf;
 
+use apollia_core::config::EngineChoice;
+
 use super::LlamaServerError;
+use crate::engine_store::selection::{resolve, Resolved};
+use crate::engine_store::Engine;
 
 /// Locate the bundled `llama-server` binary, falling back to `PATH` in dev.
 ///
-/// Resolution order: the `APOLLIA_LLAMA_SERVER_BIN` override, then the bundle
+/// Resolution order: the `APOLLIA_LLAMA_SERVER_BIN` override, then the engine
+/// `choice` of the settings names (`[engines] gguf`), then the bundle
 /// layouts (next to the executable, a `runners/` sibling, the macOS
 /// `Contents/Resources/runners/`, and the Linux product directory), then
 /// the ambient `PATH`, then the common install dirs. The override lets a
 /// developer whose `llama-server` lives in a non-standard directory (a llama.cpp
 /// build tree) point the app at it, which a GUI launch cannot reach via `PATH`.
-pub(super) fn locate_llama_server_binary() -> Result<PathBuf, LlamaServerError> {
+pub(super) fn locate_llama_server_binary(
+    choice: EngineChoice,
+) -> Result<PathBuf, LlamaServerError> {
     let ext = if cfg!(windows) { ".exe" } else { "" };
     let name = format!("llama-server{ext}");
 
@@ -21,6 +28,7 @@ pub(super) fn locate_llama_server_binary() -> Result<PathBuf, LlamaServerError> 
         std::env::var_os("APOLLIA_LLAMA_SERVER_BIN").map(PathBuf::from),
         store_root.as_deref(),
         &name,
+        choice,
         || {
             matches!(
                 apollia_llm::hardware::detect().accelerator,
@@ -78,21 +86,25 @@ pub(super) fn locate_llama_server_binary() -> Result<PathBuf, LlamaServerError> 
     )))
 }
 
-/// The `llama-server` binary this runtime starts, or `None` when none is in
-/// reach: what the engine list marks as in service.
-pub(crate) fn in_service_binary() -> Option<PathBuf> {
-    locate_llama_server_binary().ok()
+/// The `llama-server` binary the runtime starts under `choice`, or `None`
+/// when none is in reach: what the engine list marks as in service.
+pub(crate) fn in_service_binary(choice: EngineChoice) -> Option<PathBuf> {
+    locate_llama_server_binary(choice).ok()
 }
 
 /// The two sources that come before the embedded engine.
 ///
 /// An explicit override wins: `APOLLIA_LLAMA_SERVER_BIN=/path/to/llama-server`.
-/// Then the engine store: its newest verified CUDA build, on a machine where an
-/// NVIDIA card is detected. `None` leaves the choice to the embedded engine.
+/// Then the engine store, as `choice` says: the newest verified build of the
+/// variant it names; nothing for the shipped engine; and for the automatic
+/// choice, the newest verified CUDA build on a machine where an NVIDIA card is
+/// detected. A named variant the store no longer holds falls back to the
+/// automatic choice. `None` leaves the place to the embedded engine.
 pub(super) fn env_or_store_binary(
     env_bin: Option<PathBuf>,
     store_root: Option<&std::path::Path>,
     name: &str,
+    choice: EngineChoice,
     nvidia_detected: impl FnOnce() -> bool,
 ) -> Option<PathBuf> {
     if let Some(path) = env_bin {
@@ -105,7 +117,12 @@ pub(super) fn env_or_store_binary(
             detail = "falling back to auto-detection", "llama.server.binary.env_invalid"
         );
     }
-    let path = crate::engine_store::preferred_llama_server(store_root?, name, nvidia_detected)?;
+    let path = match resolve(store_root, Engine::LlamaServer, choice).resolved {
+        Resolved::Embedded => return None,
+        Resolved::Stored(package) => crate::engine_store::find_binary(&package.path, name),
+        Resolved::Automatic => None,
+    }
+    .or_else(|| crate::engine_store::preferred_llama_server(store_root?, name, nvidia_detected))?;
     tracing::info!(path = %path.display(), "llama.server.binary.from_engine_store");
     Some(path)
 }

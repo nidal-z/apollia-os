@@ -200,6 +200,9 @@ pub const KEYS: &[ConfigKey] = &[
     locked(key("server.serve_on_lan", Boolean, Some("false"), Restart, "Open the compatible server to the local network, on every interface; the native API stays on the loopback interface. Read when the listener opens.")),
     // [engines]
     locked(key("engines.log_level", Enum(&["error", "warning", "info", "debug"]), Some("\"debug\""), Reloadable, "Log level of the local engine, applied when a model is next loaded.")),
+    locked(key("engines.gguf", Enum(&["auto", "embedded", "cuda", "vulkan", "cpu", "metal"]), Some("\"auto\""), Restart, "Engine that serves GGUF models: the automatic choice, the engine shipped with the application, or a variant installed by the engine store. A variant no longer installed falls back to the automatic choice. Read at the next start.")),
+    locked(key("engines.mlx", Enum(&["auto", "embedded", "metal"]), Some("\"auto\""), Restart, "Engine that serves MLX models on a Mac with Apple Silicon: the automatic choice, the engine shipped with the application, or the one installed by the engine store. Read at the next start.")),
+    locked(key("engines.auto_update", Boolean, Some("true"), Reloadable, "Download and verify the update of a chosen engine when the followed channel announces one; off, the update is only announced.")),
     // [author]
     locked(key("author.name", KeyType::String, Some("\"\""), Reloadable, "Publisher name of the agents exported from this machine; empty asks at export.")),
     // [observability]

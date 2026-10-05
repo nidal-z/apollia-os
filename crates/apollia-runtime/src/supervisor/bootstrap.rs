@@ -37,6 +37,15 @@ pub(in crate::supervisor) fn start_local_engines(
     if let Some(engine) = &mlx {
         Arc::clone(engine).spawn_supervision();
     }
+    // The followed engine channel is checked once at startup; an update of a
+    // chosen engine is installed when `[engines] auto_update` asks for it.
+    if let Some(data_dir) = apollia_core::paths::data_dir() {
+        crate::engine_store::auto_update::spawn(
+            &data_dir,
+            Some(guardrails_file.clone()),
+            org_policy.imposed_settings(),
+        );
+    }
     crate::residency::start_residency(
         system_db_path.to_path_buf(),
         guardrails_file,
