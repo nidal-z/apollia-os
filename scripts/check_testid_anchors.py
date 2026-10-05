@@ -48,7 +48,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # 681 -> 683: surfaces of the batch of integrated stories (the profile proposal,
 # the conversation profile indicator, the chat sort menu, the engine table row)
 # have no script yet; each story measured below the ceiling on its own base.
-NEVER_REACHED_MAX = 683
+# 683 -> 685: the second batch of integrated stories (the journal summary,
+# the model defaults, the workflow launch) leaves two anchors without a
+# script; each story measured below the ceiling on its own base.
+NEVER_REACHED_MAX = 685
 
 LITERAL = re.compile(r'data-testid="([A-Za-z0-9_\-./:]+)"')
 
