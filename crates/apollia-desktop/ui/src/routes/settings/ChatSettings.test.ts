@@ -6,10 +6,12 @@ import {
   CHAT_NAMING_CHOICES,
   CHAT_SETTINGS_BLOCKS,
   CHAT_SHORTCUT_ROWS,
+  CHAT_TRASH_ROW,
   namingLocked,
   sendKeyRowKeys,
 } from "./ChatSettings.svelte";
 import { CHAT_AUTO_NAMING_DEFAULT } from "$lib/stores/chatAutoNaming";
+import { CHAT_TRASH_DEFAULT } from "$lib/stores/chatTrash";
 import en from "$lib/i18n/en.json";
 import fr from "$lib/i18n/fr.json";
 
@@ -43,6 +45,30 @@ describe("Settings > Chat - the section as the mockup lays it out", () => {
 
     // THEN none of them is the sort
     expect(everything).not.toMatch(/sort/);
+  });
+
+  test("the trash row says where deleted conversations go, and is on by default", () => {
+    // GIVEN the trash row of the Conversations block
+    // WHEN its label and its explanation are read in both languages
+    const label = { fr: lookup(fr, CHAT_TRASH_ROW.labelKey), en: lookup(en, CHAT_TRASH_ROW.labelKey) };
+    const hint = { fr: lookup(fr, CHAT_TRASH_ROW.hintKey), en: lookup(en, CHAT_TRASH_ROW.hintKey) };
+
+    // THEN the label is the one of the mockup, the explanation names the
+    // trash of Apollia and the restore, says what off does, never mentions a
+    // trash of folders, and the switch starts on
+    expect(label.fr).toBe("Envoyer les conversations supprimées à la corbeille");
+    expect(label.en).toBe("Send deleted conversations to the trash");
+    expect(hint.fr).toContain(
+      "Les conversations supprimées vont dans la corbeille d'Apollia, d'où on les restaure",
+    );
+    expect(hint.fr).toContain("Éteint, une conversation supprimée l'est définitivement");
+    expect(hint.en).toContain(
+      "Deleted conversations go to the Apollia trash, where you can restore them",
+    );
+    expect(`${label.fr} ${hint.fr}`).not.toMatch(/dossier/i);
+    expect(`${label.en} ${hint.en}`).not.toMatch(/folder/i);
+    expect(CHAT_TRASH_DEFAULT).toBe(true);
+    expect(CHAT_TRASH_ROW.testId).toBe("chat-trash-toggle");
   });
 
   test("naming offers never, automatic and always, each explained, automatic by default", () => {

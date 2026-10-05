@@ -4445,6 +4445,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/trash`, the conversations in the trash,
+         *     the last removed first.
+         */
+        get: operations["list_trashed_sessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{id}": {
         parameters: {
             query?: never;
@@ -4787,6 +4807,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/sessions/{id}/restore`, take the session out of
+         *     the trash, back into the list with its messages.
+         */
+        post: operations["restore_session"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{id}/resume": {
         parameters: {
             query?: never;
@@ -4901,6 +4941,26 @@ export interface paths {
         get: operations["get_session_todo"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/sessions/{id}/trash`, send the session to the
+         *     trash: it leaves the list and keeps its messages.
+         */
+        post: operations["trash_session"];
         delete?: never;
         options?: never;
         head?: never;
@@ -10974,6 +11034,21 @@ export interface components {
         TranscriptionsListResponse: {
             /** @description List of transcription rows. */
             transcriptions: Record<string, never>[];
+        };
+        /** @description A conversation in the trash. */
+        TrashedSession: {
+            /** @description Agent of the conversation, when it has one. */
+            agent_name?: string | null;
+            /** @description ISO-8601 creation timestamp. */
+            created_at: string;
+            /** @description ISO-8601 timestamp of the move to the trash. */
+            deleted_at: string;
+            /** @description Session identifier. */
+            id: string;
+            /** @description Mode string (`"libre"`, `"agent"` or `"companion"`). */
+            mode: string;
+            /** @description Title the user or the model gave it, when it has one. */
+            title?: string | null;
         };
         /** @description Response for CRUD operations returning a full definition. */
         TriggerDefinitionResponse: {
@@ -22226,6 +22301,35 @@ export interface operations {
             };
         };
     };
+    list_trashed_sessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The conversations in the trash */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrashedSession"][];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     get_session: {
         parameters: {
             query?: never;
@@ -23134,6 +23238,45 @@ export interface operations {
             };
         };
     };
+    restore_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session restored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such session in the trash */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     resume_session: {
         parameters: {
             query?: never;
@@ -23402,6 +23545,45 @@ export interface operations {
             };
             /** @description Internal error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    trash_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session sent to the trash */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

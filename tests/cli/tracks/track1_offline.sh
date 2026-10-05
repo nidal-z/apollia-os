@@ -307,7 +307,14 @@ check        "chat export seed-session-1 md"         "$BIN" chat export seed-ses
 check        "chat export seed-session-1 json"       "$BIN" chat export seed-session-1 --output "$SCRATCH/c.json" --format json
 check_json   "chat export .json is valid JSON"       /bin/cat "$SCRATCH/c.json"
 check_exit   "chat export unknown session"  1        "$BIN" chat export ghost-sess-id
+check_content "chat delete --help says it is for good" "cannot be restored" "$BIN" chat delete --help
+# A session the desktop sent to the trash (`deleted_at` set) is erased by
+# `chat delete` like any other: the row is gone, not kept for a restore. The
+# column exists by now, since `chat rename` above opened and migrated chat.db.
+e2e_sqlite "$HOME/.apollia/chat.db" "UPDATE chat_sessions SET deleted_at = '2026-07-02T00:00:00Z' WHERE id = 'seed-session-4';"
 check        "chat delete seed-session-4 --confirm"  "$BIN" chat delete seed-session-4 --confirm
+TRASH_LEFT=$(e2e_sqlite "$HOME/.apollia/chat.db" "SELECT COUNT(*) FROM chat_sessions WHERE id = 'seed-session-4';")
+[[ "$TRASH_LEFT" == "0" ]] && _pass "chat delete erased the trashed session for good" || _fail "chat delete erased the trashed session for good" "rows left: $TRASH_LEFT"
 
 # ── A.11 llm (setup validation, no daemon) ──────────────────────────────────
 section "A.11 llm (offline)"

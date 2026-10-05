@@ -864,6 +864,31 @@
       "label": "21-settings-saved-hint"
     },
     {
+      "kind": "waitFor",
+      "testid": "chat-trash-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "21b-chat-trash-off"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
       "kind": "click",
       "testid": "settings-nav-developer"
     },

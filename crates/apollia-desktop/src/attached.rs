@@ -58,6 +58,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "generate_chat_session_name",
     "rename_chat_session",
     "update_chat_session",
+    // The trash of the conversations: send one there, list it, restore one.
+    "list_trashed_chat_sessions",
+    "restore_chat_session",
+    "trash_chat_session",
     // The agents and the models the selector of a conversation offers.
     "list_chat_targets",
     // The model calls behind the total of one answer.

@@ -3421,6 +3421,173 @@
     },
     {
       "kind": "click",
+      "testid": "chat-trash-open",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-trash",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-trash-row",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-trash-list"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-trash-hint"
+    },
+    {
+      "kind": "screenshot",
+      "label": "40b-trash-holds-the-deleted-conversation"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-restore",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-trash-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40c-trash-empty-after-restore"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-active-list",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40d-conversation-restored-in-the-list"
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-delete",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-delete-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-delete-confirm-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "conversation-row-delete-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-open",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-trash-row",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-erase",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-trash-erase-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40e-trash-erase-confirm"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-erase-dialog-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-trash-erase-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-trash-row"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-erase",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-trash-erase-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-erase-dialog-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-trash-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40f-trash-empty-after-permanent-delete"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-active-list",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
       "testid": "chat-new-chat-btn",
       "timeoutMs": 3000
     },
@@ -13888,6 +14055,33 @@
     {
       "kind": "screenshot",
       "label": "21-settings-saved-hint"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-trash-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "21b-chat-trash-off"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
     },
     {
       "kind": "click",

@@ -86,9 +86,34 @@ export function renameChatSession(sessionId: string, title: string): Promise<voi
   return invoke<void>("rename_chat_session", { sessionId, title });
 }
 
-/** Delete a session and its messages. */
+/** Delete a session and its messages, for good: nothing goes to the trash. */
 export function deleteChatSession(sessionId: string): Promise<void> {
   return invoke<void>("delete_chat_session", { sessionId });
+}
+
+/** A conversation in the trash, as `list_trashed_chat_sessions` returns it. */
+export interface TrashedChatSession {
+  id: string;
+  mode: string;
+  agent_name: string | null;
+  title: string | null;
+  created_at: string;
+  deleted_at: string;
+}
+
+/** Send a session to the trash: it leaves the list and keeps its messages. */
+export function trashChatSession(sessionId: string): Promise<void> {
+  return invoke<void>("trash_chat_session", { sessionId });
+}
+
+/** Take a session out of the trash, back into the list. */
+export function restoreChatSession(sessionId: string): Promise<void> {
+  return invoke<void>("restore_chat_session", { sessionId });
+}
+
+/** The sessions in the trash, the last removed first. */
+export function listTrashedChatSessions(): Promise<TrashedChatSession[]> {
+  return invoke<TrashedChatSession[]>("list_trashed_chat_sessions");
 }
 
 /** Update the per-session config (system prompt, tools, backend). */

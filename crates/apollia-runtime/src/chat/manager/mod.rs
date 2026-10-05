@@ -238,6 +238,7 @@ mod live_config;
 mod plan;
 mod session;
 mod sources;
+mod trash;
 mod types;
 mod user_input;
 
@@ -255,6 +256,8 @@ mod preferred_backend_tests;
 mod profile_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod trash_tests;
 
 pub(in crate::chat::manager) use dispatcher::{
     now_rfc3339, resolve_workspace_for_session, session_to_info,

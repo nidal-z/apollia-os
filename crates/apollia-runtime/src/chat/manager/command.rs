@@ -122,6 +122,25 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
+    /// Send a session to the trash: it keeps its row and its messages.
+    TrashSession {
+        /// Target session.
+        session_id: SessionId,
+        /// Response channel.
+        reply: oneshot::Sender<Result<(), ChatError>>,
+    },
+    /// Take a session out of the trash.
+    RestoreSession {
+        /// Target session.
+        session_id: SessionId,
+        /// Response channel: the session, loaded back.
+        reply: oneshot::Sender<Result<SessionDetail, ChatError>>,
+    },
+    /// List the sessions in the trash, the last removed first.
+    ListTrashedSessions {
+        /// Response channel.
+        reply: oneshot::Sender<Result<Vec<crate::chat::repository::TrashedSession>, ChatError>>,
+    },
     /// Rename a session (set a user-defined title).
     RenameSession {
         /// Target session.
