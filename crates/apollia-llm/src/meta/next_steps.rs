@@ -60,7 +60,6 @@ const ALLOWED_COMMANDS: &[&str] = &[
     "memory_insert",
     "create_trigger",
     "create_pipeline",
-    "install_agent",
     "export_session",
 ];
 

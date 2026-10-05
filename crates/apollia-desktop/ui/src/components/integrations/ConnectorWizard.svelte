@@ -40,7 +40,7 @@
     type Refusal,
   } from "$lib/integrations/addConnection";
   import { developerMode } from "$lib/stores/developerMode";
-  import { openSettingsWindow } from "$lib/stores/settingsWindow";
+  import { navigateTo } from "$lib/stores/navigation";
   import type {
     McpOAuthAccount,
     McpOAuthDiscoveryResult,
@@ -533,7 +533,7 @@
 
   function openRefusingRule(): void {
     onclose();
-    openSettingsWindow("permissions");
+    navigateTo("authorizations");
   }
 
   const nodeDownloading = $derived(nodeState?.state === "downloading");

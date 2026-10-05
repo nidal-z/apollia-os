@@ -49,10 +49,8 @@
     "settings-nav-llm",
     "settings-nav-model-defaults",
     "settings-nav-model-hub",
-    "settings-nav-permissions",
     "settings-nav-profile",
     "settings-nav-stt",
-    "settings-nav-tools",
     "theme-dark",
     "theme-light",
     "theme-system"
@@ -480,30 +478,6 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-tools"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-nav-tools"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-permissions"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "09-nav-permissions"
-    },
-    {
-      "kind": "click",
       "testid": "settings-nav-engines"
     },
     {
@@ -827,6 +801,21 @@
     {
       "kind": "sleep",
       "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-on-demand",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-jit-idle-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-experimental",
+      "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
@@ -1782,30 +1771,6 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-tools"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "43-builder-nav-tools"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-permissions"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "44-builder-nav-permissions"
-    },
-    {
-      "kind": "click",
       "testid": "settings-nav-engines"
     },
     {
@@ -2534,6 +2499,10 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "expect",
+      "testid": "engines-filters"
+    },
+    {
       "kind": "screenshot",
       "label": "56h-engines-search-no-match"
     },
@@ -2555,6 +2524,14 @@
     {
       "kind": "expect",
       "testid": "engine-row"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-name"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-version"
     },
     {
       "kind": "selectOption",

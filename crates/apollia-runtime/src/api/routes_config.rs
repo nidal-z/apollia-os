@@ -10,6 +10,8 @@
 //! A saved text is handed to the configuration reloader, which applies the
 //! sections the running engine can apply and marks the other changed keys as
 //! waiting for a restart; the read route lists those keys with their line.
+//! The reloader writes each change it applies to the signed journal, under
+//! the origin the caller of the save declared.
 
 use std::path::PathBuf;
 
@@ -121,6 +123,10 @@ pub struct ConfigSaveRequest {
     pub text: String,
     /// SHA-256 of the text the change was made from, as `GET` returned it.
     pub sha256: String,
+    /// Where the change comes from, for the journal: `editor`, `settings`,
+    /// `cli` or `api`. A caller that names none is `api`.
+    #[serde(default)]
+    pub origin: crate::config_reload::DeclaredOrigin,
 }
 
 /// The default text of the file.
@@ -295,6 +301,12 @@ pub async fn validate_config<B: ExecutionBackend + Clone>(
 }
 
 /// `PUT /api/v1/config`: saves a whole text through the writer.
+///
+/// The change is written to the signed journal under the origin the caller
+/// declares. A caller that wrote the file itself, as the command line does,
+/// presents the text it wrote with its own fingerprint: nothing is written
+/// again, and the change it made is journaled under its origin instead of as
+/// a file changed from outside.
 #[utoipa::path(
     put,
     path = "/api/v1/config",
@@ -315,6 +327,7 @@ pub async fn save_config<B: ExecutionBackend + Clone>(
 ) -> Result<Json<ConfigView>, RouteError> {
     let path = config_path(&state)?;
     let policy = state.inference_governance.imposed_settings();
+    let origin = request.origin;
     let (path, written) = tokio::task::spawn_blocking(move || {
         let written = write_config(
             &path,
@@ -329,7 +342,12 @@ pub async fn save_config<B: ExecutionBackend + Clone>(
     .map_err(refusal)?;
     tracing::event!(tracing::Level::INFO, "config.saved");
     let pending_restart = match &state.config_reload {
-        Some(reload) => reload.saved(written.text.clone()).await.pending_restart,
+        Some(reload) => {
+            reload
+                .saved(written.text.clone(), origin.into())
+                .await
+                .pending_restart
+        }
         None => Vec::new(),
     };
     let policy = state.inference_governance.imposed_settings();

@@ -31,8 +31,6 @@ describe("settings router", () => {
       "hardware",
       "llm",
       "model-hub",
-      "tools",
-      "permissions",
     ]);
   });
 

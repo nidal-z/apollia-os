@@ -38,7 +38,9 @@ const RELAY_BUS_CAPACITY: usize = 1024;
 /// `get_companion_context` needs none: it answers from a table of help texts
 /// compiled into this binary. `get_resolved_setting` and `set_setting` need
 /// none: they read and write the `apollia.toml` of the data directory, never
-/// the runtime, and neither does `get_models_dir`, which reads the same file.
+/// the runtime (`set_setting` then shows its write to the runtime, in either
+/// mode, for the journal), and neither does `get_models_dir`, which reads the
+/// same file.
 pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "chat_session_metrics",
     "create_chat_session",
@@ -67,9 +69,8 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_a2a_skills",
     "list_chat_approval_history",
     "regenerate_chat_response",
-    // Agents: the registry, the install and the uninstall of an agent.
+    // Agents: the registry and the uninstall of an agent.
     "agent_status_snapshot",
-    "install_agent",
     "list_agents",
     "uninstall_agent",
     // Agents: the update, restart included, over
@@ -138,6 +139,14 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // Apollia as an MCP server, over `/api/v1/mcp/exposed`.
     "list_mcp_exposable",
     "set_mcp_exposed",
+    // Workflows: the list, one workflow, its runs, a launch and a stop, over
+    // `/api/v1/workflows` and `/api/v1/workflow-runs`.
+    "cancel_workflow_run",
+    "get_workflow",
+    "get_workflow_run",
+    "launch_workflow",
+    "list_workflow_runs",
+    "list_workflows",
     // Notifications and the activity feed.
     "create_notification_channel",
     "delete_notification_channel",
@@ -444,6 +453,10 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "fetches the card of a link the window shows",
     ),
     (
+        "take_opened_package_files",
+        "hands over the package files the system opened in this window",
+    ),
+    (
         "get_api_port",
         "reads the port this window resolved at startup, the daemon's when attached",
     ),
@@ -702,7 +715,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
     let setup_bus = bus.clone();
     let dictation: crate::commands::stt::SttFlowState =
         std::sync::Arc::new(std::sync::Mutex::new(None));
-    let app = tauri::Builder::default()
+    let app = crate::package_open::attach(tauri::Builder::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -724,6 +737,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
         .setup(move |app| {
             crate::i18n::attach_listener(app);
             crate::tray::setup_tray(app)?;
+            crate::package_open::launch(app.handle());
             #[cfg(target_os = "macos")]
             crate::tray::setup_app_menu(app)?;
 
@@ -762,7 +776,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
 
     match app {
         Ok(app) => {
-            let _ = app.run_return(|_, _| {});
+            let _ = app.run_return(|app, event| crate::package_open::on_run_event(app, &event));
             std::process::exit(0)
         }
         Err(error) => {

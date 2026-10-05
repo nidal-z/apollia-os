@@ -138,7 +138,7 @@ pub use root::ApolliaConfig;
 pub use runtime::RuntimeConfig;
 pub use server::{
     ServerConfig, DEFAULT_COMPAT_SERVER_PORT, DEFAULT_JIT_IDLE_TTL_MINUTES, JIT_AUTO_UNLOAD_KEY,
-    JIT_IDLE_TTL_KEY, JIT_KEEP_LAST_ONLY_KEY, JIT_LOADING_KEY,
+    JIT_IDLE_TTL_KEY, JIT_KEEP_LAST_ONLY_KEY, JIT_LOADING_KEY, SEPARATE_REASONING_KEY,
 };
 pub use settings::{
     check_imposed_setting, resolve_setting, resolve_setting_in, write_setting, PolicySettings,

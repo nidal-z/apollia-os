@@ -38,6 +38,12 @@
 //! by default, only the last one stays (see [`crate::residency::origin`]). A
 //! model of a remote backend is never relayed.
 //!
+//! The agents and workflows the user marked exposed are served as models too,
+//! named `apollia/<id>` ([`ExposedAgents`]). A chat completion on one runs the
+//! agent as a batch of one item, or the workflow through its engine, and
+//! answers as a model would: the steps in `reasoning_content`, the answer in
+//! `content`, an `approval_pending` error when the agent waits for a decision.
+//!
 //! Every request it answers, and every line the local `llama-server` prints,
 //! enters a bounded ring of recent lines that the native API streams (see
 //! [`ServerLogsHandle`]); clearing it never touches the audit journal.
@@ -47,16 +53,23 @@
 //! `scripts/check_compat_routes.py` holds.
 
 mod actor;
+mod agent_call;
+mod agent_reply;
+mod agent_run;
+mod agents;
 mod auth;
 mod cors;
 mod errors;
 mod logs;
 mod models;
 mod origin;
+mod reasoning;
 mod relay;
 mod router;
 mod tokens;
 
+#[cfg(test)]
+mod agents_tests;
 #[cfg(test)]
 mod auth_tests;
 #[cfg(test)]
@@ -66,11 +79,14 @@ mod lan_tests;
 #[cfg(test)]
 mod logs_tests;
 #[cfg(test)]
+mod reasoning_tests;
+#[cfg(test)]
 mod relay_tests;
 #[cfg(test)]
 pub(crate) mod tests;
 
 pub use actor::{CompatServerHandle, CompatServerStatus};
+pub use agents::ExposedAgents;
 pub use logs::{
     ServerLogLevel, ServerLogLine, ServerLogSource, ServerLogSubscription, ServerLogsError,
     ServerLogsHandle, DEFAULT_CAPACITY as SERVER_LOGS_CAPACITY,

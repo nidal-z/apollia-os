@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
@@ -34,16 +34,14 @@ describe("authorizations - where a fine rule can be written", () => {
     expect(source).toContain("if (!canCreateRule($developerMode)) return;");
   });
 
-  test("the settings page no longer carries the rule form, the session, chat or audit sections", () => {
-    // GIVEN the source of the settings page
-    const source = read("../../routes/settings/Permissions.svelte");
+  test("the settings carry no permissions page any more", () => {
+    // GIVEN the settings window
+    const source = read("../../routes/Settings.svelte");
 
-    // WHEN its imports are read
-    // THEN none of the former sections is mounted, and it leads to the screen
-    for (const gone of ["AddRuleForm", "RulesSection", "SessionAuthSection", "ChatRulesSection", "AuditSection"]) {
-      expect(source).not.toContain(gone);
-    }
-    expect(source).toContain('navigateTo("authorizations")');
+    // WHEN its sections are read
+    // THEN none is the former permissions page, and its file is gone
+    expect(source).not.toContain("settings/Permissions.svelte");
+    expect(existsSync(resolve(here, "../../routes/settings/Permissions.svelte"))).toBe(false);
   });
 });
 

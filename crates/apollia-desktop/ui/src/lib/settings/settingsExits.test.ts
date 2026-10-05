@@ -1,6 +1,7 @@
 /**
  * What leaves the settings and what stays: the OAuth integrations live on the
- * Connections screen, the facts the agents retained stay in Settings > Profile,
+ * Connections screen, the built-in tools are a source of tools on that same
+ * screen, the permission rules live on the Authorizations screen, the facts the agents retained stay in Settings > Profile,
  * clearing every memory stays in the danger zone of General, and the Memory
  * screen leads to the Profile section rather than to an address nothing serves.
  *
@@ -21,6 +22,7 @@ import {
 } from "$lib/stores/settings";
 import { closeSettingsWindow, settingsWindow } from "$lib/stores/settingsWindow";
 import { navigateToSettings } from "$lib/router";
+import { currentRoute, navigateTo } from "$lib/stores/navigation";
 import {
   factRowView,
   forgetFact,
@@ -34,6 +36,7 @@ function source(rel: string): string {
 
 function reset(): void {
   closeSettingsWindow();
+  navigateTo("dashboard");
   settingsSubRoute.set(DEFAULT_SETTINGS_SUB_ROUTE);
 }
 
@@ -179,5 +182,86 @@ describe("the Memory screen leads to Settings > Profile (criterion 5)", () => {
 
     // THEN the settings window is open on the Profile section
     expect(get(settingsWindow)).toEqual({ open: true, section: "profile" });
+  });
+});
+
+describe("the tools and the permissions leave the settings", () => {
+  it.each(["tools", "permissions"])("lists no %s section and ships no such page", (gone) => {
+    // GIVEN the settings sub-routes, the navigation column and the window
+    const keys = SETTINGS_NAV.flatMap((g) => g.entries.map((e) => e.key as string));
+    const page = `${gone[0].toUpperCase()}${gone.slice(1)}.svelte`;
+
+    // WHEN the former section is looked for
+    // THEN neither the store, the column, the window nor the tree carries it
+    expect(SETTINGS_SUB_ROUTES as string[]).not.toContain(gone);
+    expect(keys).not.toContain(gone);
+    expect(source("routes/Settings.svelte")).not.toContain(`settings/${page}`);
+    expect(existsSync(resolve(SRC, `routes/settings/${page}`))).toBe(false);
+  });
+
+  it.each(["fr", "en"])("names neither section in the %s column labels", (locale) => {
+    // GIVEN one catalogue
+    const nav = JSON.parse(source(`lib/i18n/${locale}.json`)).settings.nav as Record<string, string>;
+
+    // WHEN the labels of the two former sections are looked for
+    // THEN the column has no word left for them
+    expect(nav).not.toHaveProperty("tools");
+    expect(nav).not.toHaveProperty("permissions");
+  });
+
+  it("keeps every action of the tools section on the Connections screen", () => {
+    // GIVEN the page of the built-in tools on the Connections screen, and the catalogue it mounts
+    const detail = source("components/connections/detail/BuiltinToolsDetail.svelte");
+    const catalog = source("components/tools/BuiltinToolsCatalog.svelte");
+    const row = source("components/settings/tools/ToolRow.svelte");
+
+    // WHEN the actions the settings section offered are traced there
+    // THEN the catalogue is mounted, with the contract in developer mode, and
+    // it still filters, reloads, turns a tool on, configures it and lists the credentials
+    expect(detail).toContain("<BuiltinToolsCatalog showContract={$developerMode} />");
+    expect(catalog).toContain('placeholder={$t("settings.tools_page.filter_placeholder")}');
+    expect(catalog).toContain('{$t("settings.tools_page.reload")}');
+    expect(catalog).toContain("<ToolRow");
+    expect(catalog).toContain("<CredentialInventory");
+    expect(catalog).toContain("<ToolContractSheet");
+    expect(row).toContain('$t("settings.tools_page.configure")');
+    expect(row).toContain('$t("settings.tools_page.ctx_enable")');
+  });
+
+  it("creates and withdraws a rule on the Authorizations screen", () => {
+    // GIVEN the Authorizations screen and the row of a fine rule
+    const screen = source("components/authorizations/AuthorizationsScreen.svelte");
+    const rule = source("components/authorizations/FineRuleRow.svelte");
+
+    // WHEN the two rule actions the settings section offered are looked for
+    // THEN the screen adds a rule and each row withdraws its own
+    expect(screen).toContain('data-testid="authorizations-add-rule"');
+    expect(rule).toContain('data-testid="authorizations-rule-withdraw"');
+  });
+
+  it.each([
+    "components/integrations/ConnectorWizard.svelte",
+    "components/integrations/MailboxDialog.svelte",
+    "components/packages/PackagePreviewDialog.svelte",
+    "routes/Connections.svelte",
+  ])("%s leads a refusal to the Authorizations screen, not to the settings", (file) => {
+    // GIVEN a surface that shows the rule behind a refusal
+    const text = source(file);
+
+    // WHEN its link to the rule is read
+    // THEN it opens the Authorizations screen and no longer names a settings section
+    expect(text).toContain('navigateTo("authorizations")');
+    expect(text).not.toContain('openSettingsWindow("permissions")');
+  });
+
+  it("lands a caller that still names a former section on the default one", () => {
+    // GIVEN a caller that still asks for the permissions section, from the dashboard
+    expect(get(currentRoute)).toBe("dashboard");
+
+    // WHEN it opens the settings on it
+    navigateToSettings("permissions");
+
+    // THEN the window opens on the default section rather than on a missing page
+    expect(get(settingsWindow)).toEqual({ open: true, section: DEFAULT_SETTINGS_SUB_ROUTE });
   });
 });

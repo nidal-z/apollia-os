@@ -54,9 +54,9 @@ describe("breadcrumbSegments - settings sub-page trail", () => {
   );
 
   test("the sub-page leaf is not a navigation target, its parent routes to settings", () => {
-    // GIVEN the settings route on the permissions sub-page
+    // GIVEN the settings route on the profile sub-page
     // WHEN the breadcrumb segments are built
-    const segments = buildBreadcrumbSegments("settings", "permissions");
+    const segments = buildBreadcrumbSegments("settings", "profile");
 
     // THEN the parent segment navigates to settings and the leaf navigates nowhere
     expect(segments[0]?.route).toBe("settings");

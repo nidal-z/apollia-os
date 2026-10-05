@@ -34,10 +34,20 @@ pub(crate) async fn validate_on(link: &RuntimeLink, text: &str) -> Result<Value,
         .await
 }
 
-/// Saves a whole text, made from the text whose fingerprint is `sha256`.
+/// The origin the journal of the runtime records for a save of the editor.
+const EDITOR_ORIGIN: &str = "editor";
+
+/// The origin it records for a setting written by a settings page.
+const SETTINGS_ORIGIN: &str = "settings";
+
+/// Saves a whole text, made from the text whose fingerprint is `sha256`. The
+/// runtime journals the change as made in the editor.
 pub(crate) async fn save_on(link: &RuntimeLink, text: &str, sha256: &str) -> Result<Value, String> {
     let saved = link
-        .put_json(CONFIG_ROUTE, &json!({ "text": text, "sha256": sha256 }))
+        .put_json(
+            CONFIG_ROUTE,
+            &json!({ "text": text, "sha256": sha256, "origin": EDITOR_ORIGIN }),
+        )
         .await?;
     tracing::event!(
         tracing::Level::INFO,
@@ -45,6 +55,29 @@ pub(crate) async fn save_on(link: &RuntimeLink, text: &str, sha256: &str) -> Res
         "desktop.config_file.saved"
     );
     Ok(saved)
+}
+
+/// Shows the runtime the file a settings page has just written at `path`, so
+/// it applies the change now and journals it as made from the settings. The
+/// text is presented under its own fingerprint: the route writes nothing
+/// again. A runtime that does not answer finds the change by itself, on disk
+/// or at its next start.
+pub(crate) async fn show_settings_write_on(link: &RuntimeLink, path: &std::path::Path) {
+    let Ok(snapshot) = apollia_core::config::writer::read_snapshot(path) else {
+        return;
+    };
+    let body = json!({
+        "text": snapshot.text,
+        "sha256": snapshot.sha256,
+        "origin": SETTINGS_ORIGIN,
+    });
+    if let Err(e) = link.put_json(CONFIG_ROUTE, &body).await {
+        tracing::event!(
+            tracing::Level::DEBUG,
+            error = %e,
+            "desktop.config_file.settings_write_not_shown"
+        );
+    }
 }
 
 /// Reads the default text on the runtime this application drives.
@@ -145,13 +178,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_a_save_sends_the_text_with_the_fingerprint_it_was_made_from() {
-        // GIVEN a daemon that takes the text made from fingerprint abc
+        // GIVEN a daemon that takes the text made from fingerprint abc, saved
+        // from the editor
         let server = MockServer::start().await;
         let saved = json!({ "text": "[chat]\nplan_mode_default = true\n", "sha256": "def" });
         authorized("PUT", CONFIG_ROUTE)
-            .and(body_json(
-                json!({ "text": "[chat]\nplan_mode_default = true\n", "sha256": "abc" }),
-            ))
+            .and(body_json(json!({
+                "text": "[chat]\nplan_mode_default = true\n",
+                "sha256": "abc",
+                "origin": "editor",
+            })))
             .respond_with(ResponseTemplate::new(200).set_body_json(saved.clone()))
             .expect(1)
             .mount(&server)
@@ -168,6 +204,33 @@ mod tests {
 
         // THEN the answer is the file as saved
         assert_eq!(answer, saved);
+    }
+
+    #[tokio::test]
+    async fn test_a_setting_written_by_a_page_is_shown_to_the_daemon_as_settings() {
+        // GIVEN a file a settings page has just written, and a daemon
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("apollia.toml");
+        let text = "[desktop]\ndeveloper_mode = true\n";
+        std::fs::write(&file, text).unwrap();
+        let server = MockServer::start().await;
+        authorized("PUT", CONFIG_ROUTE)
+            .and(body_json(json!({
+                "text": text,
+                "sha256": apollia_core::config::writer::fingerprint(text),
+                "origin": "settings",
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        // WHEN the write is shown to the runtime
+        show_settings_write_on(&attached(&server), &file).await;
+
+        // THEN the daemon received the text under its own fingerprint, so it
+        // writes nothing again, with the origin its journal records (the
+        // mock verifies the one call when it is dropped)
     }
 
     #[tokio::test]

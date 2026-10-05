@@ -808,6 +808,37 @@ desktop leaves the daemon serving.
 
 Version 0.3.0 delivers both modes.
 
+### One application, and a package file that opens it {#desktop-single-instance}
+
+The `.apo` extension is associated with the desktop application
+(`bundle.fileAssociations` in `tauri.conf.json`), so a package opens the way a
+document does. Opening a package never installs it: whatever brings the file,
+the application shows the preview of the package, and the package is installed
+or updated only from that preview. Three gestures lead there: opening the file
+from the system, dropping it on the window, and the Install button, which opens
+a file chooser.
+
+A file opened from the system has to reach the application that already runs,
+not start a second one beside it. macOS keeps one process per application on its
+own and delivers the file as an event, at launch and afterwards. Windows and
+Linux start a new process with the path among its arguments; there
+`tauri-plugin-single-instance` makes that second process hand its arguments to
+the first and exit, and the first shows its window. The plugin is registered
+before any other, in both runtime modes, and on Windows and Linux only: on macOS
+it would add a second mechanism where the system already provides one. The
+process keeps the paths until the interface takes them, since a file that starts
+the application arrives before the interface is loaded. A file dropped on the
+window comes through the drag-and-drop event of the webview, with no plugin.
+
+The cost is one more Tauri plugin to follow, which brings no library the tree
+did not already hold, and a code path that differs between macOS and the two
+other systems, so each has to be checked on its own machine. On Windows and
+Linux a second launch can no longer open a second window.
+
+Refused: a deep link (`apollia://install`), which does not answer a double-click
+on a file, and offering the button and the drop alone, which leaves a package
+unable to open like a document.
+
 ## Agent distribution {#agent-distribution}
 
 An agent is installed from a local path or a Git URL. Publishing agents to a

@@ -178,6 +178,7 @@ pub fn nature_of(kind: &JournalEntryKind) -> JournalNature {
         | K::MessageDelivered
         | K::MessageDropped
         | K::JournalExported
+        | K::ConfigurationChanged
         | K::Unknown { .. } => JournalNature::System,
     }
 }
@@ -242,6 +243,10 @@ pub fn summarize(entry: &JournalEntry) -> JournalSummary {
         K::ClockSample => summary.what = "Clock reading kept for replay".to_owned(),
         K::RandomSample => summary.what = "Random draw kept for replay".to_owned(),
         K::PlanMutation => summary.what = "Plan changed".to_owned(),
+        K::ConfigurationChanged => {
+            summary.what = "Configuration changed".to_owned();
+            summary.outcome = Some(JournalOutcome::Success);
+        }
         K::AgentStarted => {
             summary.what = "Agent started".to_owned();
             summary.agent = text(payload, "agent_id");

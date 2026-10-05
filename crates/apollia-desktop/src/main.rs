@@ -40,6 +40,7 @@ mod file_log;
 mod handlers;
 pub mod i18n;
 pub mod mcp;
+mod package_open;
 mod process_job;
 mod startup;
 pub mod stt;
@@ -429,7 +430,7 @@ fn main() {
 
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(backend::AIPAgentLoader);
 
-    let app = tauri::Builder::default()
+    let app = package_open::attach(tauri::Builder::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -469,6 +470,9 @@ fn main() {
             i18n::attach_listener(app);
 
             tray::setup_tray(app)?;
+
+            // A package file that started the application opens its preview.
+            package_open::launch(app.handle());
 
             // Replace the default macOS menu so Cmd+Q / the app-menu "Quit"
             // route through `initiate_quit` instead of the native `terminate:`
@@ -558,6 +562,7 @@ fn main() {
         .build(tauri_context());
 
     or_exit(app, "build the Tauri application").run(|app, event| {
+        package_open::on_run_event(app, &event);
         // Kill every child process before the process exits. Otherwise they
         // are orphaned: `kill_on_drop` never runs because `app.exit`
         // terminates the process before the managed `RuntimeHandle` (and

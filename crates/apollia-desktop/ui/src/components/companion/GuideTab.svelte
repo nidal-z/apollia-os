@@ -69,7 +69,7 @@
     }
     const map: Record<string, Route> = {
       network: "integrations",
-      permissions: "settings",
+      permissions: "authorizations",
       timeout: "llm",
       internal: "settings",
     };

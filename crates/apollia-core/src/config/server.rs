@@ -23,6 +23,10 @@ pub const JIT_IDLE_TTL_KEY: &str = "server.jit_idle_ttl_minutes";
 /// Dotted key of the switch that keeps only the last model the server loaded.
 pub const JIT_KEEP_LAST_ONLY_KEY: &str = "server.jit_keep_last_only";
 
+/// Dotted key of the switch that keeps the reasoning of a model apart from its
+/// answer in the chat completions the server relays.
+pub const SEPARATE_REASONING_KEY: &str = "server.separate_reasoning_content";
+
 /// Minutes a model the server loaded stays loaded unused, when the file names
 /// no delay.
 pub const DEFAULT_JIT_IDLE_TTL_MINUTES: u64 = 60;
@@ -87,6 +91,12 @@ pub struct ServerConfig {
     /// default. A model loaded from the application is never unloaded by it.
     #[serde(default = "default_true")]
     pub jit_keep_last_only: bool,
+    /// Whether a chat completion relayed by the server keeps the reasoning of
+    /// the model in `reasoning_content`, apart from `content`, as the engine
+    /// gives it. On by default. Off, the relay puts it back at the head of
+    /// `content` between `<think>` and `</think>`. Read at every request.
+    #[serde(default = "default_true")]
+    pub separate_reasoning_content: bool,
     /// Whether the compatible server listens on every interface, so the other
     /// devices of the local network reach it, rather than on the loopback
     /// interface alone. Off by default, and independent of `require_auth`:
@@ -108,6 +118,7 @@ impl Default for ServerConfig {
             jit_auto_unload: true,
             jit_idle_ttl_minutes: DEFAULT_JIT_IDLE_TTL_MINUTES,
             jit_keep_last_only: true,
+            separate_reasoning_content: true,
             serve_on_lan: false,
         }
     }
@@ -206,6 +217,23 @@ mod tests {
         assert!(server.jit_auto_unload);
         assert_eq!(server.jit_idle_ttl_minutes, 60);
         assert!(server.jit_keep_last_only);
+    }
+
+    #[test]
+    fn test_server_config_separates_the_reasoning_unless_told_otherwise() {
+        // GIVEN a [server] section that does not name the key, and one that
+        // turns it off
+        let silent = "[server]\nenabled = true\n";
+        let off = "[server]\nseparate_reasoning_content = false\n";
+
+        // WHEN each is read
+        let by_default = ServerConfig::from_toml_str(silent).unwrap();
+        let turned_off = ServerConfig::from_toml_str(off).unwrap();
+
+        // THEN the reasoning stays apart by default, and goes back into the
+        // content when the file says so
+        assert!(by_default.separate_reasoning_content);
+        assert!(!turned_off.separate_reasoning_content);
     }
 
     #[test]

@@ -15,14 +15,6 @@ import type {
 } from "$lib/types";
 
 /**
- * Install a standalone agent from a `.py` entry path. The agent is available
- * at once: nothing starts or stops it, its first task loads it.
- */
-export async function installAgent(path: string): Promise<void> {
-  return invoke<void>("install_agent", { path });
-}
-
-/**
  * What became of the running instance while the module was replaced.
  *
  * `not_running`  nothing was live, the new module loads at the next start.

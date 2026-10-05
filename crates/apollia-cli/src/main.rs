@@ -726,7 +726,11 @@ fn main() {
             Commands::Logs(args) => commands::logs::run(&args, json).await,
             Commands::Version => commands::version::run(json),
             Commands::Connector { command } => commands::connector::run(&command, json).await,
-            Commands::Config { command } => commands::config::run(&command, json),
+            Commands::Config { command } => {
+                let code = commands::config::run(&command, json);
+                commands::config::show_write(&command, code, cli.socket).await;
+                code
+            }
             Commands::Profile { command } => commands::user_memory::run(&command, json),
             Commands::Trace { task_id, format } => {
                 let format_json = format == "json";

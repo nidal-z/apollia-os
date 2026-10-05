@@ -20,7 +20,9 @@ import type {
 /**
  * The canonical settings sub-routes, in the order of the navigation column:
  * the "Settings" group, then the "System" group, then the sections that leave
- * the settings for their own screens and stay listed last until they do.
+ * the settings for their own screens and stay listed last until they do. The
+ * built-in tools already live on the Connections screen and the permission
+ * rules on the Authorizations screen.
  */
 export type SettingsSubRoute =
   | "general"
@@ -35,9 +37,7 @@ export type SettingsSubRoute =
   | "engines"
   | "hardware"
   | "llm"
-  | "model-hub"
-  | "tools"
-  | "permissions";
+  | "model-hub";
 
 export const SETTINGS_SUB_ROUTES: SettingsSubRoute[] = [
   "general",
@@ -53,8 +53,6 @@ export const SETTINGS_SUB_ROUTES: SettingsSubRoute[] = [
   "hardware",
   "llm",
   "model-hub",
-  "tools",
-  "permissions",
 ];
 
 /**

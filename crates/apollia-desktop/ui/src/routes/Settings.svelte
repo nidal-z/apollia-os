@@ -55,8 +55,6 @@
     hardware: () => import("./settings/System.svelte"),
     llm: () => import("./settings/Llm.svelte"),
     "model-hub": () => import("./settings/ModelHub.svelte"),
-    tools: () => import("./settings/Tools.svelte"),
-    permissions: () => import("./settings/Permissions.svelte"),
   };
 
   const cache = new Map<SettingsSubRoute, Component>();
@@ -276,8 +274,6 @@
     hardware: "settings.system.subtitle",
     llm: "settings.llm.subtitle",
     "model-hub": "settings.model_hub.subtitle",
-    tools: "settings.tools_page.subtitle",
-    permissions: "settings.permissions.subtitle",
   };
 
   const ROUTE_META = new Map<SettingsSubRoute, { titleKey: string; kickerKey: string }>();

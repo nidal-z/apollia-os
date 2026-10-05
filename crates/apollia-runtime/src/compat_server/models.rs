@@ -13,7 +13,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use apollia_core::config::{resolve_setting, PolicySettings, ServerConfig, JIT_LOADING_KEY};
+use apollia_core::config::{
+    resolve_setting, PolicySettings, ServerConfig, JIT_LOADING_KEY, SEPARATE_REASONING_KEY,
+};
 use apollia_core::llm_backend::LlmBackendRepository;
 use apollia_llm::model_index::{
     IndexedModel, ModelCategory, ModelFormat, ModelIndex, INDEX_FILE_NAME,
@@ -34,7 +36,8 @@ pub struct LocalModels {
     llama: Option<Arc<LlamaServerSupervisor>>,
     mlx: Option<Arc<MlxEngineSupervisor>>,
     models_dir: Option<PathBuf>,
-    /// `apollia.toml`, whose `[server] jit_loading` is read at every request.
+    /// `apollia.toml`, whose `[server] jit_loading` and
+    /// `separate_reasoning_content` are read at every request.
     /// `None` holds the default, on.
     settings: Option<PathBuf>,
     /// `system.db`, whose backend row of a model gives its load preset.
@@ -211,16 +214,30 @@ impl LocalModels {
     /// Whether `[server] jit_loading` is on now; the default, on, when the
     /// file cannot be read.
     fn jit_loading(&self) -> bool {
-        let default = ServerConfig::default().jit_loading;
+        self.switch(JIT_LOADING_KEY, ServerConfig::default().jit_loading)
+    }
+
+    /// Whether `[server] separate_reasoning_content` is on now, read at every
+    /// request; the default, on, when the file cannot be read.
+    pub(crate) fn separates_reasoning(&self) -> bool {
+        self.switch(
+            SEPARATE_REASONING_KEY,
+            ServerConfig::default().separate_reasoning_content,
+        )
+    }
+
+    /// The boolean setting `key` of the file now, `default` when the file
+    /// cannot be read or the runtime was given none.
+    fn switch(&self, key: &str, default: bool) -> bool {
         let Some(path) = &self.settings else {
             return default;
         };
-        match resolve_setting(path, JIT_LOADING_KEY, &PolicySettings::none()) {
+        match resolve_setting(path, key, &PolicySettings::none()) {
             Ok(resolved) => resolved.value.as_bool().unwrap_or(default),
             Err(error) => {
                 tracing::event!(
                     tracing::Level::WARN,
-                    key = JIT_LOADING_KEY,
+                    key = key,
                     error = %error,
                     "compat_server.models.setting_unreadable"
                 );

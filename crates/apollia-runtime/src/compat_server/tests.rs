@@ -40,6 +40,7 @@ pub(crate) fn spawn_server(path: &std::path::Path, bus: &EventBusSender) -> Comp
         path.to_path_buf(),
         path.with_file_name("system.db"),
         super::LocalModels::default(),
+        super::ExposedAgents::default(),
         bus,
     )
 }
