@@ -114,6 +114,7 @@ from .conversation_stats_view import ConversationStatsView
 from .cost_summary_row import CostSummaryRow
 from .costs_response import CostsResponse
 from .counted_language_model import CountedLanguageModel
+from .create_agent_request import CreateAgentRequest
 from .create_channel_request import CreateChannelRequest
 from .create_channel_request_config import CreateChannelRequestConfig
 from .create_companion_session_body import CreateCompanionSessionBody
@@ -694,6 +695,7 @@ __all__ = (
     "CostsResponse",
     "CostSummaryRow",
     "CountedLanguageModel",
+    "CreateAgentRequest",
     "CreateChannelRequest",
     "CreateChannelRequestConfig",
     "CreateCompanionSessionBody",

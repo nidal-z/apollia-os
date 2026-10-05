@@ -104,7 +104,8 @@ export interface paths {
         /** `GET /api/v1/agent-definitions`: every stored agent, resolved. */
         get: operations["list_agent_definitions"];
         put?: never;
-        post?: never;
+        /** `POST /api/v1/agent-definitions`: create an agent without code. */
+        post: operations["create_agent_definition"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7240,6 +7241,25 @@ export interface components {
              */
             source: string;
         };
+        /** @description Body of `POST /api/v1/agent-definitions`. */
+        CreateAgentRequest: {
+            /**
+             * @description Accesses granted. Absent, the agent reads by default, as any agent
+             *     created without code; a list, even empty, replaces that default.
+             */
+            access?: string[] | null;
+            /** @description Example requests. */
+            examples?: string[];
+            /** @description What the agent is for, used as its instructions. */
+            mission: string;
+            /** @description Display name. The identifier of the agent is derived from it. */
+            name: string;
+            /**
+             * @description Sources checked: identifiers of `GET /api/v1/sources`, `profile` or
+             *     `memory`.
+             */
+            sources?: string[];
+        };
         /** @description Request body for `POST /api/v1/notifications/channels`. */
         CreateChannelRequest: {
             /** @description Channel type: `"desktop"` or `"webhook"`. */
@@ -11810,6 +11830,57 @@ export interface operations {
             };
             /** @description Store error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    create_agent_definition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description Agent created; the agent in force */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedAgentResponse"];
+                };
+            };
+            /** @description Too many agents hold identifiers derived from this name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description An empty name or mission, or a source the registry does not hold */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal, or the source registry a sources list needs, not available */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -5,7 +5,8 @@
    * The screen opens on its list, the agents and the workflows side by side
    * (AgentsOverview). A row opens a sheet in place of the list: the sheet of
    * an agent (AgentDetailPane) or of a workflow (WorkflowSheet), each with a
-   * way back. All rendering lives in `components/agents/*` and
+   * way back. "Create an agent" opens, in the same place, the conversation
+   * that drafts one (CreateAgent). All rendering lives in `components/agents/*` and
    * `components/workflows/*`; all IPC goes through `$lib/ipc/*`.
    */
   import { t } from "svelte-i18n";
@@ -35,6 +36,7 @@
   import AgentsOverview from "../components/agents/AgentsOverview.svelte";
   import AgentDetailPane from "../components/agents/AgentDetailPane.svelte";
   import WorkflowSheet from "../components/workflows/WorkflowSheet.svelte";
+  import CreateAgent from "../components/agents/create/CreateAgent.svelte";
   import { filterWorkflows, splitWorkflowId } from "../components/workflows/workflowRuns";
   import { createAgentActions } from "../components/agents/useAgentActions.svelte";
   import type {
@@ -47,6 +49,7 @@
   type View =
     | { kind: "list" }
     | { kind: "apollia" }
+    | { kind: "create" }
     | { kind: "agent"; name: string }
     | { kind: "workflow"; id: string; name: string; launch: boolean };
 
@@ -188,6 +191,12 @@
     actions.clearUpdateError();
   }
 
+  function openCreation(): void {
+    view = { kind: "create" };
+    uninstallConfirmName = null;
+    actions.clearUpdateError();
+  }
+
   function openWorkflow(id: string, name: string, launch: boolean): void {
     view = { kind: "workflow", id, name, launch };
   }
@@ -296,6 +305,7 @@
         onSelectApollia={selectApolliaChat}
         onOpenWorkflow={(workflow, launch) => openWorkflow(workflow.workflowId, workflow.name, launch)}
         onInstallPackageFile={pickPackageFile}
+        onCreateAgent={openCreation}
         onOpenLogs={openLogs}
         onRequestUninstallAgent={requestUninstallAgent}
         onStartChat={startChatWithAgent}
@@ -309,6 +319,8 @@
           onback={backToList}
         />
       {/key}
+    {:else if view.kind === "create"}
+      <CreateAgent onback={backToList} onStartChat={startChatWithAgent} onOpenLogs={openLogs} />
     {:else if view.kind === "apollia"}
       <AgentDetailPane
         selected={null}

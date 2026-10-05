@@ -40,10 +40,21 @@
     loadConnectionOffer: () => Promise<ConnectionOffer>;
     /** The accesses that come from a remote connection. */
     remote: Set<string>;
+    /** A note shown on an access, by identifier: the key of its text and its tone. */
+    notes?: Record<string, { label: string; tone: "neutral" | "warning" }>;
   }
 
-  let { draft, groups, inForce, modified, loadCandidates, agentName, loadConnectionOffer, remote }: Props =
-    $props();
+  let {
+    draft,
+    groups,
+    inForce,
+    modified,
+    loadCandidates,
+    agentName,
+    loadConnectionOffer,
+    remote,
+    notes = {},
+  }: Props = $props();
 
   let granting = $state(false);
   let grantingConnection = $state(false);
@@ -109,6 +120,11 @@
                     </div>
                   </DeveloperOnly>
                 </div>
+                {#if notes[access.id]}
+                  <Badge size="sm" variant={notes[access.id].tone} data-testid="agent-adjust-access-note">
+                    {$t(notes[access.id].label)}
+                  </Badge>
+                {/if}
                 {#if remote.has(access.id)}
                   <Badge size="sm" variant="info" data-testid="agent-sheet-access-remote">{$t("agent_sheet.remote")}</Badge>
                 {/if}

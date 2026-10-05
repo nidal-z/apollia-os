@@ -1,0 +1,415 @@
+{
+  "name": "agent-create-det (Create an agent from the Agents screen: the conversation that cannot start, the sheet written by hand and refused, the draft read in the conversation, reviewed in the form, saved with a model that cannot be assigned)",
+  "stopOnError": false,
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "send_chat_message",
+      "resolve": "m-kick"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "create_chat_session",
+      "reject": "no model is configured for the conversation",
+      "once": true
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-page",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "agents-create-button"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-agents-with-create-button"
+    },
+    {
+      "kind": "click",
+      "testid": "agents-create-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-create",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-create-start-error",
+      "timeoutMs": 6000,
+      "contains": "no model is configured"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-conversation"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-draft"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-draft-field"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-retry"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-review-open"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-conversation-could-not-start"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-create-by-hand"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-create-review",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-review-notice"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-save"
+    },
+    {
+      "kind": "fill",
+      "testid": "agent-create-name",
+      "text": "Notes helper"
+    },
+    {
+      "kind": "fill",
+      "testid": "agent-adjust-mission",
+      "text": "Answer the questions about the notes."
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "create_agent_definition",
+      "reject": "audit journal not available: an agent is not created without its record",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "agent-create-save"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-create-save-error",
+      "timeoutMs": 6000,
+      "contains": "audit journal"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-sheet-by-hand-save-refused"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-create-cancel"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "agents-create-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-create-conversation",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-cancel"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_chat_session",
+      "patch": {
+        "status": "active",
+        "messages": [
+          {
+            "id": "m-1",
+            "role": "user",
+            "content": "Hello, I would like to create an agent.",
+            "tool_calls": null,
+            "tool_name": null,
+            "seq": 1,
+            "created_at": "2026-10-05T09:00:00Z"
+          },
+          {
+            "id": "m-2",
+            "role": "assistant",
+            "content": "Here is a first draft of the sheet.",
+            "tool_calls": [
+              {
+                "tool_name": "propose_agent",
+                "input": {
+                  "name": "Press watch",
+                  "mission": "Summarise the press every morning."
+                },
+                "output": "{\"ok\": true, \"draft\": {\"name\": \"Press watch\", \"mission\": \"Summarise the press every morning.\", \"examples\": [\"What is new today?\"], \"model\": null, \"access\": [{\"id\": \"file_write\", \"checked\": false, \"sensitive\": true, \"by_default\": false}, {\"id\": \"web_search\", \"checked\": true, \"sensitive\": false, \"by_default\": true}], \"sources\": [\"profile\"], \"unavailable\": [\"calendar_read\"]}}",
+                "status": "executed"
+              }
+            ],
+            "tool_name": null,
+            "seq": 2,
+            "created_at": "2026-10-05T09:00:05Z"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-create-draft",
+      "timeoutMs": 8000,
+      "contains": "Press watch"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-create-unavailable",
+      "timeoutMs": 4000,
+      "contains": "calendar_read"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-conversation-and-draft"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-create-review-open"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-create-review",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-adjust-access-row",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-adjust-access-note"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-adjust-access-switch"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-draft-in-the-form"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-create-review-back"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-create-conversation",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-create-review-open"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-create-review",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "agent-adjust-model",
+      "value": "local-llama-server"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "create_agent_definition",
+      "resolve": {
+        "id": "press-watch",
+        "origin": "interface",
+        "package": null,
+        "version": "1",
+        "enabled": true,
+        "name": "Press watch",
+        "mission": "Summarise the press every morning.",
+        "examples": [
+          "What is new today?"
+        ],
+        "access": [
+          "web_search"
+        ],
+        "sources": [
+          "profile"
+        ],
+        "model": null,
+        "autonomy": "supervised",
+        "planning": "auto",
+        "profile": null,
+        "overridden": [],
+        "definition": {
+          "id": "press-watch",
+          "name": "Press watch",
+          "mission": "Summarise the press every morning.",
+          "examples": [
+            "What is new today?"
+          ],
+          "defaults": {
+            "access": [
+              "web_search"
+            ],
+            "sources": [
+              "profile"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_agent_definition",
+      "resolve": {
+        "id": "press-watch",
+        "origin": "interface",
+        "package": null,
+        "version": "1",
+        "enabled": true,
+        "name": "Press watch",
+        "mission": "Summarise the press every morning.",
+        "examples": [
+          "What is new today?"
+        ],
+        "access": [
+          "web_search"
+        ],
+        "sources": [
+          "profile"
+        ],
+        "model": null,
+        "autonomy": "supervised",
+        "planning": "auto",
+        "profile": null,
+        "overridden": [],
+        "definition": {
+          "id": "press-watch",
+          "name": "Press watch",
+          "mission": "Summarise the press every morning.",
+          "examples": [
+            "What is new today?"
+          ],
+          "defaults": {
+            "access": [
+              "web_search"
+            ],
+            "sources": [
+              "profile"
+            ]
+          }
+        }
+      },
+      "argsMatch": {
+        "name": "press-watch"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_agent_model",
+      "reject": "model 'local-llama-server' cannot be assigned"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-create-save"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-create-saved",
+      "timeoutMs": 6000,
+      "contains": "Press watch"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-saved-title"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-model-error"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-try"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-sheet",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-agent-saved"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-create-back"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs"
+    }
+  ],
+  "notes": [
+    "Code-verified against routes/Agents.svelte, components/agents/AgentsOverview.svelte, components/agents/create/CreateAgent.svelte, CreateAgentDraft.svelte, CreateAgentReview.svelte, agentDraft.ts and components/agents/sheet/AdjustAccess.svelte.",
+    "No model answers in a deterministic book, so the draft is not written by a model: send_chat_message is stubbed, and get_chat_session is patched with a conversation whose last answer carries a propose_agent call. The patched messages imitate ChatMessageView and ToolCallView of crates/apollia-desktop/src/commands/chat.rs, and the output of the call imitates AgentDraftResult and AgentDraft of crates/apollia-runtime/src/chat/agent_draft_tool.rs: a field renamed there drifts here silently. The real tool, the real offer and the real conversation are held by the runtime tests chat::agent_draft_tool and chat::manager::agent_draft_tests.",
+    "The patch on get_chat_session is cleared by the last step and is never armed across a model turn: the book plays none.",
+    "create_agent_definition is stubbed, refused once then accepted, so the book writes no agent into the seeded home; its answer and the one of get_agent_definition imitate ResolvedAgentResponse of crates/apollia-runtime/src/api/routes_agent_definitions.rs. The real creation is held by the runtime tests api::routes_agent_definitions::tests_create.",
+    "The session of the second pass is a real one, created by the seeded runtime and deleted when the screen is left. The accesses of the draft, web_search and file_write, are tools of the seeded registry, described by the real describe_tool.",
+    "agent-create-try is observed, not clicked: it opens a conversation with an agent the stub did not store. The grant dialogs of the form are played by agents-det on the sheet of an existing agent.",
+    "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run: just desktop-dev-automation-seeded scripts/automation/agent-create-det.json"
+  ]
+}

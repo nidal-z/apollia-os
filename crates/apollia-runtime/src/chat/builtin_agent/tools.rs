@@ -302,6 +302,12 @@ impl BuiltInChatAgent {
                     Self::handle_todo_write(todo, session_id, call, llm_messages, acc).await,
                     None,
                 ),
+                // propose_agent answers with a draft and writes nothing: in-loop,
+                // as todo_write is.
+                (AGENT_DRAFT_TOOL_NAME, _) if self.agent_draft.is_some() => (
+                    self.handle_agent_draft(session_id, call, llm_messages, acc),
+                    None,
+                ),
                 // plan_* tools are safe built-ins handled in-loop, gated on plan
                 // mode (a plan handle is present only in that case). They
                 // delegate to the PlanHandle and inject the snapshot result;

@@ -7,6 +7,7 @@
 //! task).
 
 pub mod agent_adjust;
+pub mod agent_create;
 pub mod agent_export;
 pub mod agent_packages;
 pub mod agent_sheet;
